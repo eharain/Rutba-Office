@@ -8,7 +8,7 @@
 // Every handler receives the calling window, because almost everything an
 // office app asks for is about *this* document window, not about the app.
 
-import { app, BrowserWindow, dialog, shell, nativeTheme, clipboard, desktopCapturer, screen } from 'electron';
+import { app, BrowserWindow, dialog, shell, nativeTheme, clipboard, desktopCapturer, screen, nativeImage } from 'electron';
 import fsp from 'node:fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -370,6 +370,19 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     readText: () => clipboard.readText(),
     write: ({ text, html }) => void clipboard.write(html ? { text: text ?? '', html } : { text: text ?? '' }),
     read: () => ({ text: clipboard.readText(), html: clipboard.readHTML() }),
+    // Image: Copy puts the picture on the clipboard, Paste takes one off it.
+    writeImage: ({ bytes }) => {
+      const picture = nativeImage.createFromBuffer(Buffer.from(bytes || []));
+      if (picture.isEmpty()) throw new Error('That is not a picture the clipboard can hold.');
+      clipboard.writeImage(picture);
+      return picture.getSize();
+    },
+    readImage: () => {
+      const picture = clipboard.readImage();
+      if (picture.isEmpty()) return null;
+      const { width, height } = picture.getSize();
+      return { bytes: new Uint8Array(picture.toPNG()), width, height };
+    },
   };
 
   // Insert → Screenshot. Only on a press of the button, and only into the

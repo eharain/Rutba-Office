@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5366,
+  "count": 5451,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2060,12 +2060,6 @@
       ]
     },
     {
-      "message": "Adjustments",
-      "where": [
-        "apps/desktop/renderer/apps/image.js"
-      ]
-    },
-    {
       "message": "Advance Slide",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -2414,6 +2408,12 @@
       "message": "All cards as a .vcf",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "All colours",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -3013,6 +3013,12 @@
       ]
     },
     {
+      "message": "Arrow",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Arrow down",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -3046,6 +3052,12 @@
       "message": "Arrow: down",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Arrow: drag from the tail to the point",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -3101,6 +3113,12 @@
       "message": "As Word lists it in the file",
       "where": [
         "apps/desktop/renderer/apps/word/list-dialog.js"
+      ]
+    },
+    {
+      "message": "As it is",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -3182,6 +3200,12 @@
       ]
     },
     {
+      "message": "At most {size}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "At the time",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -3242,6 +3266,12 @@
       ]
     },
     {
+      "message": "Auto",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Auto Fill Options",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -3269,6 +3299,18 @@
       "message": "Auto Outline — group the rows each total adds up above it and the columns each row total adds up to its left, nested as deep as the totals go",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Auto enhance",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Auto enhance: stretch the tones and ease a colour cast in one press",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -3335,6 +3377,7 @@
     {
       "message": "Automatic",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -3718,6 +3761,12 @@
       ]
     },
     {
+      "message": "Black point",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Black, Ann",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -3792,6 +3841,7 @@
     {
       "message": "Blue",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -4475,6 +4525,7 @@
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/richtext.js",
@@ -5424,9 +5475,21 @@
       ]
     },
     {
+      "message": "Click each red pupil",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Click into a text box first — the symbol goes in where the caret is.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Click the line to add a point, drag it to bend the tones; drag a point off the box, or double-click it, to take it away.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -5474,6 +5537,7 @@
     {
       "message": "Clipboard",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -5649,6 +5713,7 @@
     {
       "message": "Colour",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -6204,6 +6269,12 @@
       ]
     },
     {
+      "message": "Copied the picture, {width} × {height}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Copied. Paste puts it on the slide on screen, a little right and down.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -6218,6 +6289,7 @@
     {
       "message": "Copy",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/custom-shows.js",
@@ -6268,6 +6340,12 @@
       ]
     },
     {
+      "message": "Copy the picture",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Copy the shape (Ctrl+C)",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -6307,6 +6385,12 @@
       "message": "Copy →",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
+      ]
+    },
+    {
+      "message": "Copy: the edited picture, to paste anywhere (Ctrl+C)",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -6644,6 +6728,18 @@
       ]
     },
     {
+      "message": "Curves",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Curves: bend the tones by dragging a line",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Custom",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -6908,6 +7004,18 @@
       "message": "Dark, banded rows",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Darker",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Darkest output",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -7704,6 +7812,12 @@
       ]
     },
     {
+      "message": "Detail",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Details",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -7814,7 +7928,20 @@
       "message": "Discard",
       "where": [
         "apps/desktop/renderer/apps/home.js",
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/compose.js"
+      ]
+    },
+    {
+      "message": "Discard the mark",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Discard: the mark being drawn (Esc)",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -7965,6 +8092,18 @@
       "where": [
         "apps/desktop/renderer/shell.js",
         "packages/office-shell/src/electron/main.js"
+      ]
+    },
+    {
+      "message": "Done",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Done: keep the mark as it is (Enter)",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -8177,6 +8316,7 @@
     {
       "message": "Draw",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -8447,6 +8587,12 @@
       ]
     },
     {
+      "message": "Edges",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Edit",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
@@ -8708,6 +8854,7 @@
     {
       "message": "Effects",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/design.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/design.js",
@@ -8754,7 +8901,14 @@
     {
       "message": "Ellipse",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Ellipse: drag an oval; Shift keeps it round",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -8871,6 +9025,12 @@
       "message": "Ends",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Enhanced: the tones stretched to the full range and the colour cast eased.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -9309,12 +9469,6 @@
       ]
     },
     {
-      "message": "Export as",
-      "where": [
-        "apps/desktop/renderer/apps/image.js"
-      ]
-    },
-    {
       "message": "Export as PDF",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -9325,12 +9479,6 @@
       "where": [
         "apps/desktop/renderer/apps/word.js",
         "packages/office-shell/src/electron/main.js"
-      ]
-    },
-    {
-      "message": "Export as PNG…",
-      "where": [
-        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -9422,6 +9570,7 @@
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/video.js",
         "packages/office-ui/src/proofing.js"
       ]
@@ -9429,6 +9578,7 @@
     {
       "message": "Exposure",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -9601,6 +9751,12 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "File size",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -9805,6 +9961,7 @@
     {
       "message": "Filters",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -10137,12 +10294,6 @@
       ]
     },
     {
-      "message": "Flip",
-      "where": [
-        "apps/desktop/renderer/apps/image.js"
-      ]
-    },
-    {
       "message": "Flip Horizontal",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -10159,19 +10310,25 @@
       ]
     },
     {
+      "message": "Flip horizontal",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Flip horizontally",
       "where": [
         "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
-      "message": "Flip vertically",
+      "message": "Flip vertical",
       "where": [
         "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
-      "message": "Flip {axis}",
+      "message": "Flip vertically",
       "where": [
         "apps/desktop/renderer/apps/image.js"
       ]
@@ -10441,6 +10598,7 @@
     {
       "message": "Format",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -11212,6 +11370,7 @@
     {
       "message": "Green",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -11648,6 +11807,7 @@
     {
       "message": "Height",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -11893,6 +12053,12 @@
       ]
     },
     {
+      "message": "Highlights",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Hijri",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -11914,6 +12080,12 @@
       "message": "Hijri long date",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Histogram",
+      "where": [
+        "apps/desktop/renderer/apps/image/tone.js"
       ]
     },
     {
@@ -11994,6 +12166,12 @@
       "message": "How hard the filter looks",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "How large a pupil the click takes",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -13176,6 +13354,24 @@
       ]
     },
     {
+      "message": "Invert",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Invert the colours",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Invert: the colours turned to their opposites",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Invite",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -13440,6 +13636,12 @@
       ]
     },
     {
+      "message": "Keep the shape (aspect ratio)",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Keep these settings in the presentation",
       "where": [
         "apps/desktop/renderer/print.js"
@@ -13621,6 +13823,7 @@
     {
       "message": "Large",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js"
       ]
     },
@@ -14008,6 +14211,12 @@
       ]
     },
     {
+      "message": "Less contrast",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Less than",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -14077,6 +14286,18 @@
       ]
     },
     {
+      "message": "Levels",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Levels: set the black point, the white point and the middle tones",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Licence",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -14086,6 +14307,12 @@
       "message": "Lifted",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Light",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -14186,6 +14413,18 @@
       ]
     },
     {
+      "message": "Lighter",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Lightest output",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Limit",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
@@ -14201,6 +14440,12 @@
       "message": "Limit formatting to a selection of styles",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "Limits",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -14543,6 +14788,12 @@
       ]
     },
     {
+      "message": "Longest side",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Look up",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -14630,6 +14881,12 @@
       "message": "Low",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Lower is a smaller file.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -14870,6 +15127,7 @@
     {
       "message": "Mark",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/word/references-index.js",
         "apps/desktop/renderer/apps/word/references-toa.js"
       ]
@@ -15145,6 +15403,7 @@
     {
       "message": "Medium",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/shared-words.js"
       ]
@@ -15421,6 +15680,12 @@
       ]
     },
     {
+      "message": "Middle tones",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Min",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -15559,6 +15824,18 @@
       "message": "More Variants — the four colourings of this theme",
       "where": [
         "apps/desktop/renderer/apps/slides/design.js"
+      ]
+    },
+    {
+      "message": "More colours",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "More contrast",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -15731,6 +16008,12 @@
       "message": "Move the picture later",
       "where": [
         "apps/desktop/renderer/apps/slides/album.js"
+      ]
+    },
+    {
+      "message": "Move the text",
+      "where": [
+        "apps/desktop/renderer/apps/image/marks.js"
       ]
     },
     {
@@ -16738,6 +17021,7 @@
     {
       "message": "No limit",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
       ]
     },
@@ -17106,6 +17390,12 @@
       "message": "Nobody yet",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Noise reduction",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -17483,6 +17773,12 @@
       "message": "Nothing yet.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Now {width} × {height}; after, {newWidth} × {newHeight}.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -17980,7 +18276,7 @@
       ]
     },
     {
-      "message": "Open a picture, or drop one onto this window. Nothing is changed until you export.",
+      "message": "Open a picture, paste one, or drop one onto this window. Nothing is changed until you export.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
       ]
@@ -18441,6 +18737,12 @@
       ]
     },
     {
+      "message": "PNG keeps every pixel.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Page",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -18758,6 +19060,7 @@
     {
       "message": "Paste",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -18804,6 +19107,12 @@
       ]
     },
     {
+      "message": "Paste as a new picture",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Paste options — the formulas, the values or the formatting alone, turned rows to columns, or Paste Special (Ctrl+Alt+V)",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -18819,6 +19128,18 @@
       "message": "Paste — copy a shape first, then Ctrl+V",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Paste: a picture on the clipboard, as a new picture (Ctrl+V)",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Pasted picture",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -18852,6 +19173,7 @@
     {
       "message": "Pen",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -18879,6 +19201,12 @@
       "message": "Pen colour",
       "where": [
         "apps/desktop/renderer/apps/slides/setup.js"
+      ]
+    },
+    {
+      "message": "Pen: draw freehand",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -18913,6 +19241,7 @@
     {
       "message": "Percent",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -19028,6 +19357,7 @@
     {
       "message": "Picture",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -19231,6 +19561,12 @@
       "message": "PivotTable — summarise the list round the cell: rows, columns and values",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Pixels",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -19539,6 +19875,12 @@
       ]
     },
     {
+      "message": "Presets",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Press Ctrl+N to add an event, or open a .ics file.",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -19829,6 +20171,7 @@
     {
       "message": "Privacy",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
@@ -20118,6 +20461,7 @@
     {
       "message": "Quality",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/slides/export-video.js"
       ]
     },
@@ -20542,6 +20886,7 @@
     {
       "message": "Rectangle",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -20554,13 +20899,32 @@
       ]
     },
     {
+      "message": "Rectangle: drag a box; Shift keeps it square",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Red",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js"
+      ]
+    },
+    {
+      "message": "Red eye",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Red eye: click each red pupil to darken it",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -21384,6 +21748,12 @@
       ]
     },
     {
+      "message": "Reset levels",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Reset to Cameo",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -21417,6 +21787,30 @@
       "message": "Reset — the placeholders back where the layout puts them",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Resize",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Resize by",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Resize to {width}×{height}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Resize: by pixels or by percent, the shape kept",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -21711,7 +22105,6 @@
     {
       "message": "Rotate",
       "where": [
-        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -21755,6 +22148,12 @@
       "message": "Rotate all text 90° (reads down)",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Rotate and flip",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -22263,6 +22662,7 @@
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/rules.js",
@@ -22468,7 +22868,7 @@
       ]
     },
     {
-      "message": "Saved {name} — {size}",
+      "message": "Saved {name}: {width} × {height}, {size}",
       "where": [
         "apps/desktop/renderer/apps/image.js"
       ]
@@ -23710,6 +24110,12 @@
       ]
     },
     {
+      "message": "Shadows",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Shape",
       "where": [
         "apps/desktop/renderer/apps/sheets/objects.js",
@@ -23819,6 +24225,12 @@
       "message": "Shapes — a rectangle, an oval, an arrow, in the theme's colours",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Sharpen",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -24378,6 +24790,7 @@
     {
       "message": "Size",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/parts.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -24647,6 +25060,7 @@
     {
       "message": "Small",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js"
       ]
     },
@@ -25374,6 +25788,12 @@
       ]
     },
     {
+      "message": "Start again",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Start at",
       "where": [
         "apps/desktop/renderer/apps/word/list-dialog.js"
@@ -25529,6 +25949,36 @@
       ]
     },
     {
+      "message": "Straight again",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Straight line",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Straighten",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Straighten {degrees}°",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Straightened {degrees}°",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Street",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
@@ -25541,6 +25991,18 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Strip metadata",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Strip metadata: no camera, date or place in the file. Off, a JPEG from a JPEG keeps them.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -26134,6 +26596,12 @@
       ]
     },
     {
+      "message": "Temperature",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Tentative",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
@@ -26155,6 +26623,7 @@
     {
       "message": "Text",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -26355,6 +26824,12 @@
       ]
     },
     {
+      "message": "Text: click where it starts, then type",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "That 3D model's file is missing",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -26465,6 +26940,12 @@
     },
     {
       "message": "That is not a cameo",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That is not a picture the clipboard can hold.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
       ]
@@ -27645,6 +28126,12 @@
       ]
     },
     {
+      "message": "There is no picture on the clipboard to paste.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "There is no query called \"{v1}\"",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -28543,6 +29030,12 @@
       ]
     },
     {
+      "message": "Tint",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Tip Back",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -28683,8 +29176,21 @@
       ]
     },
     {
+      "message": "Tone",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Tone curve",
+      "where": [
+        "apps/desktop/renderer/apps/image/tone.js"
+      ]
+    },
+    {
       "message": "Tools",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
@@ -29245,6 +29751,12 @@
       "message": "Type an example of what you want in this column first, then Flash Fill",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Type here",
+      "where": [
+        "apps/desktop/renderer/apps/image/marks.js"
       ]
     },
     {
@@ -30103,6 +30615,12 @@
       ]
     },
     {
+      "message": "Vignette",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Violet",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -30403,6 +30921,12 @@
       ]
     },
     {
+      "message": "White point",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "White, Eve",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -30461,6 +30985,7 @@
     {
       "message": "Width",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -31876,6 +32401,12 @@
       "message": "print settings",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "px",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -33571,6 +34102,12 @@
       ]
     },
     {
+      "message": "{saved}. It could not be brought under {limit}.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "{seconds} s",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -33611,6 +34148,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/envelopes.js"
+      ]
+    },
+    {
+      "message": "{size} px",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {

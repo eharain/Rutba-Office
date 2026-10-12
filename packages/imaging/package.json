@@ -10,7 +10,9 @@
     "./probe": "./src/probe.js",
     "./exif": "./src/exif.js",
     "./pipeline": "./src/pipeline.js",
-    "./model3d": "./src/model3d.js"
+    "./model3d": "./src/model3d.js",
+    "./pixels": "./src/pixels.js",
+    "./batch": "./src/batch.js"
   },
   "sideEffects": false
 }

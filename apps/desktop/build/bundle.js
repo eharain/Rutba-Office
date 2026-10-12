@@ -72,6 +72,18 @@ const workerOptions = {
 };
 
 /**
+ * Image: the worker that works a picture's pixels (tone, detail, a batch's
+ * conversions) off the window's thread. Served from the app like app.js.
+ */
+const imageWorkerOptions = {
+  ...shared,
+  entryPoints: [path.join(app, 'renderer', 'apps', 'image', 'worker.js')],
+  outfile: path.join(out, 'image-worker.js'),
+  minify: !dev,
+  sourcemap: false,
+};
+
+/**
  * The preload is built from the same contract the renderer's client reads, so
  * a capability cannot exist on one side and be missing on the other. It has to
  * be CommonJS: a sandboxed preload has no module loader.
@@ -110,13 +122,14 @@ async function run() {
     const a = await esbuild.context(rendererOptions);
     const b = await esbuild.context(preloadOptions);
     const c = await esbuild.context(workerOptions);
-    await Promise.all([a.watch(), b.watch(), c.watch()]);
+    const d = await esbuild.context(imageWorkerOptions);
+    await Promise.all([a.watch(), b.watch(), c.watch(), d.watch()]);
     console.log('watching renderer and preload…');
     return;
   }
 
   const started = Date.now();
-  await Promise.all([esbuild.build(rendererOptions), esbuild.build(preloadOptions), esbuild.build(workerOptions)]);
+  await Promise.all([esbuild.build(rendererOptions), esbuild.build(preloadOptions), esbuild.build(workerOptions), esbuild.build(imageWorkerOptions)]);
   const size = fs.statSync(path.join(out, 'app.js')).size;
   console.log(`built in ${Date.now() - started} ms — app.js ${(size / 1024).toFixed(0)} KB`);
 }

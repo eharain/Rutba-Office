@@ -267,6 +267,8 @@ export const METHODS = {
     'readText',     // () -> string
     'write',        // ({ text, html }) -> void   the words, and a table for a spreadsheet to read by cell
     'read',         // () -> { text, html }
+    'writeImage',   // ({ bytes }) -> { width, height }   a picture (PNG or JPEG bytes) on the clipboard, as Image's Copy puts it
+    'readImage',    // () -> { bytes, width, height } | null   the clipboard's picture as PNG, for Image's Paste
   ],
   // Insert → Screenshot: the windows and screens there are, and one of them as a picture.
   capture: [

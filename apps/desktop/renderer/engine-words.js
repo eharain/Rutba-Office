@@ -138,6 +138,7 @@ export const ENGINE_WORDS = [
   // packages/office-shell/src/electron/ipc.js
   msg('Only a scratch file made in this run is added to.'),
   msg('That window has closed since the list was made.'),
+  msg('That is not a picture the clipboard can hold.'),
   msg('Rutba Office: no backend for {ns}:{name}'),
   // packages/office-shell/src/electron/store.js
   msg('No OS keystore is available, so this password cannot be stored safely.'),
