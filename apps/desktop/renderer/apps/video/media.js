@@ -58,14 +58,19 @@ export class MediaLibrary {
     configureMediaFetch((url, opts) => this.blob(url, opts));
   }
 
-  /** Something new to draw: a decoder ready, a thumbnail made. */
+  /**
+   * Something new to draw. `kind` says what: 'frame' when a decoder only
+   * landed on a new frame (a seek finished), which is a repaint and nothing
+   * more; 'sound' when a source's sound is decoded; 'media' for a decoder
+   * ready or a thumbnail made, which the plan is built from.
+   */
   onChange(fn) {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
   }
 
-  changed() {
-    for (const fn of this.listeners) fn();
+  changed(kind = 'media') {
+    for (const fn of this.listeners) fn(kind);
   }
 
   /** A source's bytes, read once. */
@@ -98,7 +103,11 @@ export class MediaLibrary {
     return this.once(`v:${key}`, async () => {
       const entry = await loadVideo(key);
       entry.duration = await settledDuration(entry.el);
-      entry.el.addEventListener('seeked', () => this.changed());
+      // A seek on the preview's own decoder is a new frame to paint, not new
+      // media: rebuilding the plan for it restarted a playing preview, whose
+      // restart sought again, round and round (the picture flickering and the
+      // sound starting over on top of itself).
+      entry.el.addEventListener('seeked', () => this.changed('frame'));
       this.videos.set(key, entry);
       this.changed();
       return entry;
@@ -127,7 +136,7 @@ export class MediaLibrary {
       }
       this.sounds.set(path, buffer);
       if (buffer) this.peaks.set(path, peaksOf(buffer));
-      this.changed();
+      this.changed('sound');
       return buffer;
     });
   }
@@ -176,7 +185,7 @@ export class MediaLibrary {
     c.height = h;
     c.getContext('2d').drawImage(entry.img, 0, 0, c.width, c.height);
     this.thumbs.set(path, { step: Infinity, frames: [c] });
-    this.changed();
+    this.changed('thumb');
   }
 
   /** A clip's thumbnails: a frame a second (at most 120), from a decoder of their own. */
@@ -201,7 +210,7 @@ export class MediaLibrary {
           c.height = h;
           c.getContext('2d').drawImage(el, 0, 0, w, h);
           record.frames[i] = c;
-          if (i % 4 === 3 || i === count - 1) this.changed();
+          if (i % 4 === 3 || i === count - 1) this.changed('thumb');
         }
       } finally {
         releaseVideos([entry]);

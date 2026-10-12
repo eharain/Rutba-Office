@@ -76,10 +76,15 @@ export default function VideoEditor({ app, shell, boot }) {
   const appMenuOpen = useRef(null);
   const appMenu = useAppMenu({ shell, appKey: 'video', onOpen: () => appMenuOpen.current?.() });
 
-  // Every decoder ready and every thumbnail made repaints what shows it.
-  useEffect(() => media.onChange(() => {
-    setMediaVersion((v) => v + 1);
+  // Every decoder ready and every thumbnail made repaints what shows it; only
+  // a decoder or a picture ready rebuilds the plan, and only a sound decoded
+  // while the preview plays restarts it, so that the sound is heard. A seek
+  // landing ('frame') is a repaint alone: rebuilding the plan for it
+  // restarted a playing preview, whose restart sought again, without end.
+  useEffect(() => media.onChange((kind) => {
+    if (kind === 'media') setMediaVersion((v) => v + 1);
     setPaintTick((v) => v + 1);
+    if (kind === 'sound' && playback.current) restartRef.current?.(timeRef.current);
   }), [media]);
   useEffect(() => () => media.dispose(), [media]);
 
@@ -143,6 +148,7 @@ export default function VideoEditor({ app, shell, boot }) {
   /* ── the playhead and playback ─────────────────────────────────────── */
 
   const playback = useRef(null);
+  const playStarts = useRef(0);
 
   const seek = useCallback((t0) => {
     const next = Math.max(0, Math.min(Math.max(duration, 0), Number(t0) || 0));
@@ -182,6 +188,8 @@ export default function VideoEditor({ app, shell, boot }) {
     playback.current = pb;
     setPlaying(true);
     if (rate === 1) pb.audio = startAudioPreview(audioClips(p), p, from);
+    // Counted for the window checks: a preview left alone starts once.
+    playStarts.current += 1;
     const end = projectDuration(docRef.current);
     const tick = () => {
       if (playback.current !== pb) return;
@@ -231,11 +239,14 @@ export default function VideoEditor({ app, shell, boot }) {
 
   useEffect(() => () => stop(), [stop]);
 
-  // A project changed under a playing preview plays on from where it is.
+  // A project changed under a playing preview plays on from where it is. The
+  // project, not the plan: the plan is also rebuilt when a decoder comes
+  // ready, which the playing preview picks up from planRef without starting
+  // its sound again.
   useEffect(() => {
     if (playback.current) restartRef.current?.(timeRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan]);
+  }, [doc]);
 
   /* ── opening, adding, saving ───────────────────────────────────────── */
 
@@ -744,7 +755,7 @@ export default function VideoEditor({ app, shell, boot }) {
       }
     >
       <Content>
-        <div className="vd-editor" data-duration={duration} data-clips={doc.patches.filter((p) => p.timing).length} data-dirty={dirty ? '1' : '0'} data-copy={copyKey.current}>
+        <div className="vd-editor" data-duration={duration} data-clips={doc.patches.filter((p) => p.timing).length} data-dirty={dirty ? '1' : '0'} data-copy={copyKey.current} data-starts={playStarts.current}>
           <div className="vd-top">
             <div className="vd-monitor">
               {hasClips ? (

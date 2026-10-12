@@ -453,14 +453,20 @@ async function moreChecks({ win, check, until, wait, capture, project, open }) {
 
   // Play: the playhead moves on by itself, and Pause stops it.
   await seekTo(0);
+  const startsBefore = await js(`Number(document.querySelector('.vd-editor')?.dataset.starts || 0)`);
   await js(`document.querySelector('.vd-play')?.click(), 1`);
   await wait(1300);
+  const startsDuring = await js(`Number(document.querySelector('.vd-editor')?.dataset.starts || 0)`);
   await js(`document.querySelector('.vd-play')?.click(), 1`);
   await wait(200);
   const played = await js(`Number(document.querySelector('.vd-scrub').value)`);
   await wait(500);
   const held = await js(`Number(document.querySelector('.vd-scrub').value)`);
   check('video editor: Play runs the playhead on in real time and Pause holds it', played > 0.6 && played < 2.5 && Math.abs(held - played) < 0.01, `${played.toFixed(2)} s after 1.3 s, then ${held.toFixed(2)}`);
+  // A playing preview whose own decoder's seeks rebuilt the plan restarted on
+  // every seek: the picture flickered and the sound started over on itself.
+  check('video editor: Play starts the preview once and it plays on, not restarting itself (the picture steady, the sound once)',
+    startsDuring - startsBefore === 1, `started ${startsDuring - startsBefore} time(s) in 1.3 s`);
 
   // A marker at the playhead, found again from the start.
   await seekTo(1.0);
