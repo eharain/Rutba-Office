@@ -35,6 +35,7 @@ export {
   withLayerStateAt,
   // video output
   renderVideo, startAudioPreview, soundLayers, clipFromSoundLayer,
+  driveVideoElements, pauseVideoElements, layersEnd, FITS,
   pickMimeType, extensionFor, unsupportedReason, videoFileName,
   // the extension registry
   registerLayerType, registeredLayerTypes,

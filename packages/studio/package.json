@@ -12,6 +12,8 @@
     "./toolset": "./src/toolset.js",
     "./resolve": "./src/resolve.js",
     "./doc": "./src/doc.js",
+    "./project": "./src/project.js",
+    "./rvid": "./src/rvid.js",
     "./zoom": "./src/zoom.js",
     "./chart-data": "./src/chart-data.js",
     "./insert-catalog": "./src/insert-catalog.js",

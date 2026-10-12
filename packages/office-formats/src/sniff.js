@@ -93,6 +93,8 @@ export const KINDS = {
   flac: { app: 'video', label: 'FLAC Audio', ext: '.flac', mime: 'audio/flac', edit: false },
   m4a: { app: 'video', label: 'AAC Audio', ext: '.m4a', mime: 'audio/mp4', edit: true },
   ogg: { app: 'video', label: 'Ogg Audio', ext: '.ogg', mime: 'audio/ogg', edit: false },
+  // The Video app's project: a zip of the edit and references to its sources.
+  rvid: { app: 'video', label: 'Rutba Video Project', ext: '.rvid', mime: 'application/vnd.rutba.video-project+zip', edit: true },
 
   eml: { app: 'mail', label: 'Email Message', ext: '.eml', mime: 'message/rfc822', edit: false },
   msg: { app: 'mail', label: 'Outlook Message', ext: '.msg', mime: 'application/vnd.ms-outlook', edit: false },
@@ -189,6 +191,8 @@ function fromZip(b) {
     if (mime.startsWith('application/vnd.oasis.opendocument.spreadsheet')) return 'ods';
     if (mime.startsWith('application/vnd.oasis.opendocument.presentation')) return 'odp';
     if (mime.startsWith('application/vnd.oasis.opendocument.graphics')) return 'odp';
+    // The Video app's project says so the same way (packages/studio/src/rvid.js).
+    if (mime.startsWith('application/vnd.rutba.video-project')) return 'rvid';
   }
   // OOXML always begins with [Content_Types].xml written first by every writer
   // that matters, but not by specification — so this is a hint, not a verdict.

@@ -124,10 +124,39 @@ Write each down in this file when taken.
   `@rutba/media`'s `Timeline` keeps its arithmetic (split, ripple, layout)
   as functions over those layers, or is retired once the editor no longer
   calls it. Do not keep two models.
+
+  **Taken (Phase 1, 2026-10-12), as recommended.** The project is a studio
+  document (`kind: 'video'`, `options.bare`: the plan compiles none of the
+  slideshow's own layers and runs to the end of its last clip). A video clip
+  is a `video` layer with `timing` and `offset`, its sound a `sound`
+  layer on the same source in the same `group`; a still is an `image`
+  layer with `fit`; a title is a `text` layer, or a shape and a text in
+  one group. The layer envelope gained `lane` (counted from 0 within the
+  pictures and within the sound) and `group`, and whole pictures gained
+  `fit` (`cover`, `contain`, `blur`), a quarter `turn` and flips. The
+  timeline's arithmetic (add, split, trim, ripple, gaps, move, copy and paste,
+  snapping, links, markers, transitions, titles) is
+  `packages/studio/src/project.js`, pure functions over the document, tested
+  in `tests/studio-project.test.js`; `planPatches` hands the renderer the
+  pictures lane by lane, so a lane's order is its paint order. Two clips of
+  one source that overlap (a crossfade between the halves of a split) are
+  given a decoder each through a `videoKey`. The Video app no longer calls
+  `@rutba/media`'s `Timeline`; it is left for Pictures and any other caller
+  and is not developed further.
 - **D2. Project files.** `.rvid` and `.rimg`, each a zip of `doc.json`
   (the document), references to sources by path, and optionally the
   sources themselves ("collect files"). Autosave as the documents do.
   Register both in `packages/office-formats/src/registry.js`.
+
+  **Taken for `.rvid` (Phase 1, 2026-10-12).** `packages/studio/src/rvid.js`
+  writes a stored zip: `mimetype` first
+  (`application/vnd.rutba.video-project+zip`, so the sniffer knows it without
+  its name), `doc.json` and `sources.json` (each source's path, name, size,
+  length, kind and its path relative to the project). On open a source missing
+  at its path is looked for at its relative path, and the clips are pointed
+  there; what is still missing is named. Collecting the files into the zip is
+  V35. Autosave writes the same bytes to the documents' recovery folder
+  (`doc.keepCopy`), and the launcher offers them back.
 - **D3. Export.** Keep `renderVideo` (real time) as the first export, with
   sound. Then an encoder of our own: WebCodecs `VideoEncoder` and
   `AudioEncoder` into an MP4 muxer written in this repository (H.264 and

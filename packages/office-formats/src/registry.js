@@ -120,7 +120,7 @@ export const APP_EXTENSIONS = {
   slides: ['pptx', 'pptm', 'potx', 'ppsx', 'ppt', 'pps', 'pot', 'odp'],
   pictures: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'bmp', 'tif', 'tiff', 'ico', 'svg', 'pdf'],
   image: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'avif'],
-  video: ['mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'mp3', 'm4a', 'wav', 'flac', 'ogg'],
+  video: ['rvid', 'mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'mp3', 'm4a', 'wav', 'flac', 'ogg'],
   mail: ['eml', 'emlx', 'msg', 'mbox', 'pst', 'ost', 'olm'],
   calendar: ['ics'],
   contacts: ['vcf', 'csv'],
@@ -154,6 +154,7 @@ export const WRITABLE = {
     { kind: 'webp', label: 'WebP Image (.webp)' },
   ],
   video: [
+    { kind: 'rvid', label: 'Rutba Video Project (.rvid)' },
     { kind: 'webm', label: 'WebM Video (.webm)' },
     { kind: 'mp4', label: 'MP4 Video (.mp4)' },
   ],

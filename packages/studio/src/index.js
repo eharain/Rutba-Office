@@ -486,8 +486,14 @@ export function buildPlan({ canvas, images, title, body, logo, options, layerPat
         needed = contentMax;
         spedUp = true;
     }
-    const contentDuration = Math.max(3, Math.min(contentMax, Math.max(imagesDuration, needed)));
-    const duration = contentDuration + outro;
+    // A BARE plan is an editor's project (the Video app): no slideshow, no
+    // caption, no chrome, and as long as its layers run: the last window's
+    // end, not a duration worked out from photos and typing.
+    const projectEnd = opts.bare ? layersEnd(layerPatches) : 0;
+    const contentDuration = opts.bare
+        ? projectEnd
+        : Math.max(3, Math.min(contentMax, Math.max(imagesDuration, needed)));
+    const duration = opts.bare ? projectEnd : contentDuration + outro;
 
     // Images stretch to fill whatever duration the text demanded, each taking
     // its share of the usable window (equal shares without per-image seconds —
@@ -546,6 +552,19 @@ export function buildPlan({ canvas, images, title, body, logo, options, layerPat
     plan.layers = compileLayers(plan);
     if (Array.isArray(layerPatches) && layerPatches.length) applyLayerPatches(plan, layerPatches);
     return plan;
+}
+
+/**
+ * Where the last timed layer of a patch list ends: a bare plan's duration.
+ * Never shorter than half a second, so an empty project still has a clock.
+ */
+export function layersEnd(patches) {
+    let end = 0;
+    for (const p of Array.isArray(patches) ? patches : []) {
+        const e = Number(p?.timing?.end);
+        if (p && Number.isFinite(e) && e > end) end = e;
+    }
+    return Math.max(0.5, end);
 }
 
 /**
@@ -878,7 +897,44 @@ export function applyLayerPatches(plan, patches) {
         // kept for round-tripping; paintFrame skips what it can't paint.
         plan.layers.push({ ...patch, visible: patch.visible !== false, z: patch.z ?? nextZ() });
     }
+
+    // The editor's part of the envelope, for every layer a patch made or
+    // touched: the `lane` (track) a timeline draws it on, the `group` that
+    // moves a clip's picture and its sound together, and how a picture fills
+    // the frame (`fit`, a quarter `turn` and flips) for the layers that
+    // draw a whole picture. Lane order is paint order only as far as the
+    // patch list says so (see project.js `planPatches`); a stored lane never
+    // reorders anything by itself.
+    const byId = new Map(plan.layers.map((l) => [l.id, l]));
+    for (const patch of patches) {
+        const layer = patch && byId.get(patch.id);
+        if (!layer) continue;
+        if (patch.lane !== undefined) layer.lane = Math.max(0, Math.round(Number(patch.lane) || 0));
+        if (patch.group !== undefined) layer.group = patch.group || null;
+        if (layer.type === 'video' || layer.type === 'image') {
+            if (patch.videoKey !== undefined && layer.type === 'video') {
+                layer.videoKey = patch.videoKey || null;
+                layer.visible = patch.visible !== false && !!plan.videos[layer.videoKey || layer.url];
+            }
+            if (FITS.includes(patch.fit)) layer.fit = patch.fit;
+            if (patch.turn !== undefined) layer.turn = (((Math.round((Number(patch.turn) || 0) / 90) * 90) % 360) + 360) % 360;
+            if (patch.flipX !== undefined) layer.flipX = !!patch.flipX;
+            if (patch.flipY !== undefined) layer.flipY = !!patch.flipY;
+            // A still that fills the frame like a clip: the whole frame is
+            // its box, so a click, a wipe and a rotation all see the frame.
+            if (layer.type === 'image' && layer.fit) {
+                layer.x = 0; layer.y = 0; layer.w = plan.W; layer.h = plan.H;
+                layer.shadow = false;
+            }
+        }
+    }
 }
+
+/** How a whole picture fills the frame: cropped to fill it, letterboxed, or letterboxed over a blur of itself. */
+export const FITS = ['cover', 'contain', 'blur'];
+
+/** The <video> entry a clip draws from: its own when two clips of one source overlap. */
+const videoEntry = (plan, layer) => plan.videos[layer.videoKey || layer.url] || null;
 
 // ── keyframes ────────────────────────────────────────────────────────────────
 // A layer may carry `keys`: { prop: [{ t, v, ease? }, …] } for prop ∈ fx, fy,
@@ -1357,8 +1413,53 @@ function paintPhoto(ctx, plan, layer, time) {
 // current decoded frame draws immediately, the seeked frame lands a beat
 // later when the host repaints). Always cover-fit: full frame, or the inset
 // rect when the layer carries geometry. No Ken Burns — footage moves itself.
+/**
+ * A whole picture into the frame, the way an editor's clip fills it: `cover`
+ * crops it to fill (the default, and what every clip did before `fit`
+ * existed), `contain` letterboxes it on black, and `blur` letterboxes it over
+ * a blurred, darkened fill of itself. A quarter `turn` and the flips happen
+ * about the frame's centre before the fit, so a phone clip shot sideways is
+ * turned and then fitted at its turned shape.
+ */
+function drawWhole(ctx, plan, layer, entry, drawable) {
+    const { W, H } = plan;
+    const s = srcRect(entry.width, entry.height, layer);
+    const turn = layer.turn || 0;
+    const sideways = turn === 90 || turn === 270;
+    // The box the picture is fitted into, in the turned frame's own axes.
+    const bw = sideways ? H : W;
+    const bh = sideways ? W : H;
+    ctx.save();
+    if (turn || layer.flipX || layer.flipY) {
+        ctx.translate(W / 2, H / 2);
+        if (turn) ctx.rotate((turn * Math.PI) / 180);
+        if (layer.flipX || layer.flipY) ctx.scale(layer.flipX ? -1 : 1, layer.flipY ? -1 : 1);
+        ctx.translate(-bw / 2, -bh / 2);
+    }
+    const fit = layer.fit || 'cover';
+    if (fit === 'cover') {
+        const c = coverRect(s.sw, s.sh, bw, bh);
+        drawSrc(ctx, drawable, s, (bw - c.w) / 2, (bh - c.h) / 2, c.w, c.h);
+    } else {
+        if (fit === 'blur') {
+            const c = coverRect(s.sw, s.sh, bw, bh);
+            ctx.save();
+            const prior = ctx.filter && ctx.filter !== 'none' ? `${ctx.filter} ` : '';
+            ctx.filter = `${prior}blur(${Math.round(W * 0.02)}px) brightness(0.6)`;
+            drawSrc(ctx, drawable, s, (bw - c.w * 1.1) / 2, (bh - c.h * 1.1) / 2, c.w * 1.1, c.h * 1.1);
+            ctx.restore();
+        } else {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, bw, bh);
+        }
+        const f = containRect(s.sw, s.sh, bw, bh);
+        drawSrc(ctx, drawable, s, (bw - f.w) / 2, (bh - f.h) / 2, f.w, f.h);
+    }
+    ctx.restore();
+}
+
 function paintVideo(ctx, plan, layer, time) {
-    const entry = plan.videos[layer.url];
+    const entry = videoEntry(plan, layer);
     if (!entry || !entry.el || entry.el.readyState < 2) return;
 
     // A paused element (the preview) follows the playhead by seeking; the
@@ -1375,6 +1476,10 @@ function paintVideo(ctx, plan, layer, time) {
         const rw = plan.W * layer.fw;
         const rh = layer.fh ? plan.H * layer.fh : rw * srcAspect(entry, layer);
         drawCoverInRect(ctx, plan, entry, plan.W * (layer.fx ?? 0.3), plan.H * (layer.fy ?? 0.3), rw, rh, layer);
+        return;
+    }
+    if (layer.fit || layer.turn || layer.flipX || layer.flipY) {
+        drawWhole(ctx, plan, layer, entry, entry.el);
         return;
     }
     const s = srcRect(entry.width, entry.height, layer);
@@ -1590,6 +1695,11 @@ function paintTitle(ctx, plan, layer, time) {
 function paintImage(ctx, plan, layer) {
     const entry = layer.src;
     if (!entry?.img) return;
+    // A still on an editor's timeline fills the frame as a clip does.
+    if (layer.fit) {
+        drawWhole(ctx, plan, layer, entry, entry.img);
+        return;
+    }
     ctx.save();
     // Opacity multiplies in paintFrame's wrapper now — one mechanism for
     // every layer type, not a special case here.
@@ -1861,6 +1971,9 @@ export function registeredLayerTypes() {
 export function compileLayers(plan) {
     const { W, H, opts, margin, pad, lineHeight, maxVisibleLines } = plan;
     const layers = [];
+    // An editor's project compiles nothing of its own: every layer it shows
+    // is one of its patches.
+    if (opts.bare) return layers;
 
     // One layer per photo. The crossfade that used to live inside the
     // slideshow painter is photo N+1's `enter` overlapping photo N's window —
@@ -2248,7 +2361,7 @@ export function layerBounds(ctx, plan, layer) {
     if ((layer.type === 'photo' || layer.type === 'video') && layer.fw) {
         // Only INSET photos/videos report bounds — full-stage ones are
         // configured from their lane and the inspector, not dragged.
-        const entry = layer.type === 'photo' ? plan.images[layer.index] : plan.videos[layer.url];
+        const entry = layer.type === 'photo' ? plan.images[layer.index] : videoEntry(plan, layer);
         const w = plan.W * layer.fw;
         const h = layer.fh ? plan.H * layer.fh : (entry ? w * srcAspect(entry, layer) : w);
         return { x: plan.W * (layer.fx ?? 0.3), y: plan.H * (layer.fy ?? 0.3), w, h };
@@ -2787,6 +2900,54 @@ export function startAudioPreview(audio, plan, from = 0) {
 }
 
 /**
+ * Play a plan's clips in real time at clock `t`: the element under each
+ * clip whose window holds `t` plays from the right place in its source, and
+ * every other element is paused. Called on every frame of an export and of
+ * an editor's live preview.
+ *
+ * Two clips can share one element (the two halves of a split clip draw from
+ * one source), so the element is decided once, by the clip that holds it at
+ * `t` (the later-starting one where two overlap) rather than clip by clip,
+ * where the half that has ended paused the element the other had just
+ * started, on every frame.
+ */
+export function driveVideoElements(plan, t, { tolerance = 0.3 } = {}) {
+    const owner = new Map();
+    for (const l of plan.layers) {
+        if (l.type !== 'video' || l.visible === false) continue;
+        const entry = videoEntry(plan, l);
+        if (!entry?.el) continue;
+        const w = l.timing || { start: 0, end: plan.duration };
+        const held = owner.get(entry.el);
+        if (t >= w.start && t <= w.end) {
+            if (!held || !held.layer || (held.layer.timing?.start ?? 0) <= w.start) owner.set(entry.el, { layer: l, w });
+        } else if (!held) {
+            owner.set(entry.el, { layer: null });
+        }
+    }
+    for (const [el, { layer, w }] of owner) {
+        if (!layer) {
+            if (!el.paused) el.pause();
+            continue;
+        }
+        const target = (layer.offset || 0) + (t - w.start);
+        if (el.paused) {
+            try { el.currentTime = target; } catch { /* not seekable */ }
+            el.play().catch(() => { /* a clip that cannot play just holds its frame */ });
+        } else if (Math.abs(el.currentTime - target) > tolerance) {
+            try { el.currentTime = target; } catch { /* mid-seek */ }
+        }
+    }
+}
+
+/** Pause every element a plan's clips draw from: the preview stopped. */
+export function pauseVideoElements(plan) {
+    for (const v of Object.values(plan?.videos || {})) {
+        try { if (v?.el && !v.el.paused) v.el.pause(); } catch { /* gone */ }
+    }
+}
+
+/**
  * Record `plan` off `canvas` in real time. Resolves to the encoded blob.
  * onProgress gets 0..1; `signal` cancels.
  *
@@ -2934,26 +3095,7 @@ export async function renderVideo({ canvas, plan, audio, onProgress, signal }) {
     // starts when the clock enters its window (seeked to its offset), pauses
     // when it leaves, and is nudged back if it drifts — a decoder hiccup then
     // costs one visible jump instead of growing desync.
-    const videoLayers = plan.layers.filter(
-        (l) => l.type === 'video' && l.visible !== false && plan.videos[l.url]?.el,
-    );
-    const driveVideos = (t) => {
-        for (const l of videoLayers) {
-            const el = plan.videos[l.url].el;
-            const w = l.timing || { start: 0, end: plan.duration };
-            if (t >= w.start && t <= w.end) {
-                const target = (l.offset || 0) + (t - w.start);
-                if (el.paused) {
-                    try { el.currentTime = target; } catch { /* not seekable */ }
-                    el.play().catch(() => { /* a clip that cannot play just holds its frame */ });
-                } else if (Math.abs(el.currentTime - target) > 0.3) {
-                    try { el.currentTime = target; } catch { /* mid-seek */ }
-                }
-            } else if (!el.paused) {
-                el.pause();
-            }
-        }
-    };
+    const driveVideos = (t) => driveVideoElements(plan, t);
 
     const frameMs = 1000 / plan.fps;
     const t0 = performance.now();
