@@ -496,9 +496,15 @@ holds each item's number and state.
   pixels in a worker; pen, rectangle, ellipse, arrow and text marks editable
   until Done; copy and paste a picture; export with quality, a size cap, a
   longest side and metadata stripped or kept (STUDIO.md 7.1, I1 to I6).
-  Not yet: layers, masks, selections, brushes, retouching, perspective,
-  Edit in Image from the other apps and the `.rimg` project (7.2), and
-  background removal, RAW and the rest of 7.3.
+  Since 1.44.0, layers as a mode inside Image (7.2, I7 to I9, I15 to I17):
+  a Layers panel with order, visibility, opacity, blend, lock and groups;
+  text, WordArt, shapes, icons, charts and pictures as layers with handles;
+  adjustment layers; Canvas Size, Image Size and Trim; the `.rimg` project
+  with Recover; and Picture Format → Edit in Image from Documents,
+  Worksheets and Presentations, saved back in place. Not yet: masks,
+  selections, brushes, clone and heal, perspective and free transform
+  (I10 to I14), typing on the canvas, and background removal, RAW and the
+  rest of 7.3.
 - **Video**, since 1.43.0: an editor on a timeline (STUDIO.md Phase 1):
   clips, stills and sound on lanes with frames and waveforms; split, trim,
   ripple, Close Gap, move between lanes with snapping, links, markers, In
@@ -506,8 +512,12 @@ holds each item's number and state.
   crossfade, dip to black, wipe, slide, push and zoom; titles, lower thirds,
   end cards and callouts; volume, mute and fades; export with sound to MP4
   or WebM, the whole or In to Out; `.rvid` projects that find moved media
-  again, and Recover after a crash. Not yet: the screen recorder (Phase 2),
-  introductory videos (Phase 3), an encoder of our own and faster than real
+  again, and Recover after a crash. Since 1.44.0, the screen recorder
+  (Phase 2): a screen, a window or a region, the camera as a second file on
+  the same clock, the microphone and the computer's sound, pause, global
+  keys and the tray, streamed to disk and recovered after a crash, landing
+  on the timeline as layers; Presentations' Screen Recording uses it. Not
+  yet: introductory videos (Phase 3), an encoder of our own and faster than real
   time export (Phase 4), speed, keyframes, captions, colour and picture in
   picture (Phase 6); media is read whole into memory.
 - **Pictures** opens either in one click, and since 1.43.0 its Batch edit
