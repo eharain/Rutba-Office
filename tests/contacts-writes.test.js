@@ -19,7 +19,12 @@ test('a burst of saves is one write, and the file holds every card', async () =>
     const contacts = createContactsService({ stores, broadcast: null });
     for (let i = 0; i < 50; i++) contacts.save({ contact: { names: { given: `Person ${i}` }, emails: [{ value: `p${i}@example.com` }] } });
     assert.equal(contacts.count(), 50, 'all there at once');
-    await new Promise((r) => setTimeout(r, 600));
+    // The write lands a quarter second after the last save, through a scratch
+    // file and a rename; on a busy machine that took longer than a fixed
+    // 600 ms wait (the 1.44.1 gate). Wait for it, then long enough for a
+    // second write to show if there were one.
+    for (let waited = 0; writes.length === 0 && waited < 5000; waited += 50) await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 500));
     assert.equal(writes.length, 1, 'one write for the burst');
     assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).contacts.length, 50);
     assert.equal(createContactsService({ stores, broadcast: null }).count(), 50, 'read back by the next run');
