@@ -1,7 +1,7 @@
 /**
  * Performance budget: a large file must open, lay out and save in seconds.
  *
- * The numbers here are generous on purpose (fifteen seconds a step on a slow
+ * The numbers here are generous on purpose (thirty seconds a step on a slow
  * build machine). They exist to catch a step that has gone quadratic, which
  * shows up as minutes, not as a few percent. Each test prints its timings so a
  * drift towards the limit is visible in the log long before it trips.
@@ -9,6 +9,12 @@
  * Run alone (`npm run test:perf`, a pass of its own in the gate and in CI),
  * not in `npm test`: on a four-core laptop the rest of the suite beside it
  * took a recalculation of 13 s of its own CPU to 20 or 23 s.
+ *
+ * Thirty seconds since 1.44.1, from fifteen: on that laptop the 100,000-cell
+ * recalculation takes 13 s of its own CPU when quiet and 18 s straight after
+ * the engine suite, the processor slowed by the heat of it, which closed the
+ * gate twice with nothing changed in the engine. A step gone quadratic still
+ * costs minutes.
  */
 import test from 'node:test';
 import fs from 'node:fs';
@@ -20,7 +26,7 @@ import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { Deck, buildPptx, renderSlide } from '@rutba/presentation';
 import { MailStore } from '@rutba/mailbox';
 
-const BUDGET_MS = 15000;
+const BUDGET_MS = 30000;
 
 /**
  * Run one named step, print how long it took, and fail if it blew the budget.
