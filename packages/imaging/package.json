@@ -12,7 +12,9 @@
     "./pipeline": "./src/pipeline.js",
     "./model3d": "./src/model3d.js",
     "./pixels": "./src/pixels.js",
-    "./batch": "./src/batch.js"
+    "./batch": "./src/batch.js",
+    "./select": "./src/select.js",
+    "./paint": "./src/paint.js"
   },
   "sideEffects": false
 }

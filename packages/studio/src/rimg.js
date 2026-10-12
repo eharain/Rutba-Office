@@ -60,6 +60,9 @@ export function rimgPaths(doc) {
     for (const p of doc?.patches || []) {
         const at = rimgPath(p?.url);
         if (at) out.add(at);
+        // A layer's painted mask is a bitmap of the project too.
+        const mask = rimgPath(p?.paintMask?.url);
+        if (mask) out.add(mask);
     }
     if (doc?.quick?.source) out.add(doc.quick.source);
     return [...out];

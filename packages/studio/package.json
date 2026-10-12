@@ -21,6 +21,7 @@
     "./intro": "./src/intro.js",
     "./layers": "./src/layers.js",
     "./rimg": "./src/rimg.js",
+    "./warp": "./src/warp.js",
     "./zoom": "./src/zoom.js",
     "./chart-data": "./src/chart-data.js",
     "./insert-catalog": "./src/insert-catalog.js",

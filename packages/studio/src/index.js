@@ -38,6 +38,8 @@
  *   taints the canvas and captureStream() then throws SecurityError.
  */
 
+import { warpPixels, quadBounds } from './warp.js';
+
 // ── output shapes ────────────────────────────────────────────────────────────
 
 export const ASPECTS = {
@@ -944,6 +946,21 @@ export function applyLayerPatches(plan, patches) {
         if (patch.opacity !== undefined && patch.opacity !== null) layer.opacity = Math.max(0, Math.min(1, Number(patch.opacity) || 0));
         if (patch.blend !== undefined) layer.blend = BLENDS.has(patch.blend) ? patch.blend : null;
         if (patch.locked !== undefined) layer.locked = !!patch.locked;
+        // The Image editor's painted pixels (docs/STUDIO.md 7.2, I10 to I14):
+        // a revision that changes when a bitmap is painted in place (the
+        // painter's caches key on it), a painted mask, and four corners a
+        // picture is mapped onto.
+        if (patch.rev !== undefined) layer.rev = patch.rev;
+        const pm = compilePaintMask(patch.paintMask, plan);
+        if (pm) layer.paintMask = pm;
+        if (layer.type === 'image' && Array.isArray(patch.corners) && patch.corners.length === 4
+            && patch.corners.every((c) => Array.isArray(c) && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1])))) {
+            layer.corners = patch.corners.map(([x, y]) => [W * Number(x), H * Number(y)]);
+            // The corners carry any turn: the wrapper's rotation would turn it twice.
+            layer.rot = 0;
+            const b = quadBounds(layer.corners);
+            layer.x = b.x; layer.y = b.y; layer.w = b.w; layer.h = b.h;
+        }
         if (layer.type === 'video' || layer.type === 'image') {
             if (patch.videoKey !== undefined && layer.type === 'video') {
                 layer.videoKey = patch.videoKey || null;
@@ -1869,6 +1886,10 @@ function paintImage(ctx, plan, layer) {
         drawWhole(ctx, plan, layer, entry, entry.img);
         return;
     }
+    if (layer.corners) {
+        paintWarped(ctx, plan, layer, entry);
+        return;
+    }
     ctx.save();
     // Opacity multiplies in paintFrame's wrapper now — one mechanism for
     // every layer type, not a special case here.
@@ -2122,6 +2143,200 @@ function clipToMask(ctx, plan, layer) {
         else ctx.rect(x - w / 2, y - h / 2, w, h);
     }
     ctx.clip(m.invert ? 'evenodd' : 'nonzero');
+}
+
+// ── painted masks and warped pictures (the Image editor, I10 and I14) ────────
+//
+// What clipToMask above leaves out on purpose: a mask PAINTED as a bitmap,
+// soft-edged and feathered, multiplies the layer's own alpha. That needs the
+// layer on a surface of its own, so a layer with one is drawn there by the
+// wrapper (beginMasked), cut by its mask with `destination-in`, and laid on
+// the frame with its opacity and blend (endMasked). An adjustment layer's
+// surface starts as a copy of the frame so far, which is what it adjusts.
+
+/** A surface to draw on, `w` × `h`: an OffscreenCanvas where there is one. */
+function makeSurface(w, h) {
+    const s = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(w, h) : document.createElement('canvas');
+    if (s.width !== w) s.width = w;
+    if (s.height !== h) s.height = h;
+    return s;
+}
+
+/** A layer's painted mask, from its patch: its bitmap, its place in plan pixels and how it is read. */
+function compilePaintMask(m, plan) {
+    if (!m || typeof m !== 'object' || !m.url) return null;
+    const { W, H } = plan;
+    const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
+    return {
+        src: plan.assets?.[m.url] || null,
+        x: W * num(m.fx, 0),
+        y: H * num(m.fy, 0),
+        w: W * num(m.fw, 1),
+        h: H * num(m.fh, 1),
+        // What lies beyond the bitmap's edges (after the canvas grew): shown, or hidden.
+        outside: m.outside === 0 ? 0 : 1,
+        // Stored as a fraction of the canvas's width, like every other length.
+        feather: Math.max(0, W * num(m.feather, 0)),
+        invert: !!m.invert,
+        off: !!m.off,
+        rev: m.rev ?? 0,
+    };
+}
+
+const maskCache = new WeakMap();
+const NO_SOURCE = {};
+
+/**
+ * The mask a layer is cut by, as an alpha surface the size of the plan:
+ * the painted bitmap where it lies, `outside` beyond it, feathered by a
+ * blur and inverted when asked. Cached on the bitmap until any of that changes
+ * (a window painting the bitmap in place bumps its `version`).
+ */
+export function paintMaskSurface(plan, pm) {
+    const W = Math.max(1, Math.round(plan.W));
+    const H = Math.max(1, Math.round(plan.H));
+    const owner = pm.src || NO_SOURCE;
+    const key = [W, H, pm.x, pm.y, pm.w, pm.h, pm.outside, pm.feather.toFixed(2), pm.invert, pm.rev, owner.version ?? 0].join('|');
+    const cached = maskCache.get(owner);
+    if (cached && cached.key === key) return cached.surface;
+    // The mask at the plan's size: what lies beyond the bitmap, then the bitmap.
+    const flat = makeSurface(W, H);
+    const f = flat.getContext('2d');
+    f.setTransform(1, 0, 0, 1, 0, 0);
+    f.clearRect(0, 0, W, H);
+    if (pm.outside) {
+        f.fillStyle = '#ffffff';
+        f.fillRect(0, 0, W, H);
+        f.clearRect(pm.x, pm.y, pm.w, pm.h);
+    }
+    if (pm.src?.img) f.drawImage(pm.src.img, pm.x, pm.y, pm.w, pm.h);
+    else if (!pm.src) {
+        // A mask whose bitmap is missing hides nothing.
+        f.fillStyle = '#ffffff';
+        f.fillRect(0, 0, W, H);
+    }
+    // Padded by three spreads of the blur with the canvas's own edges held out
+    // into it, so a feather softens the mask's edges and never the canvas's.
+    const sigma = pm.feather / 2;
+    const pad = sigma > 0 ? Math.ceil(sigma * 3) : 0;
+    let base = flat;
+    if (pad) {
+        base = makeSurface(W + 2 * pad, H + 2 * pad);
+        const b = base.getContext('2d');
+        b.clearRect(0, 0, base.width, base.height);
+        b.drawImage(flat, pad, pad);
+        b.drawImage(flat, 0, 0, 1, H, 0, pad, pad, H);
+        b.drawImage(flat, W - 1, 0, 1, H, pad + W, pad, pad, H);
+        b.drawImage(flat, 0, 0, W, 1, pad, 0, W, pad);
+        b.drawImage(flat, 0, H - 1, W, 1, pad, pad + H, W, pad);
+        b.drawImage(flat, 0, 0, 1, 1, 0, 0, pad, pad);
+        b.drawImage(flat, W - 1, 0, 1, 1, pad + W, 0, pad, pad);
+        b.drawImage(flat, 0, H - 1, 1, 1, 0, pad + H, pad, pad);
+        b.drawImage(flat, W - 1, H - 1, 1, 1, pad + W, pad + H, pad, pad);
+    }
+    let shaped = base;
+    if (sigma > 0) {
+        shaped = makeSurface(base.width, base.height);
+        const s = shaped.getContext('2d');
+        s.filter = `blur(${sigma.toFixed(2)}px)`;
+        s.drawImage(base, 0, 0);
+        s.filter = 'none';
+    }
+    const surface = makeSurface(W, H);
+    const out = surface.getContext('2d');
+    out.setTransform(1, 0, 0, 1, 0, 0);
+    out.clearRect(0, 0, W, H);
+    if (pm.invert) {
+        out.fillStyle = '#ffffff';
+        out.fillRect(0, 0, W, H);
+        out.globalCompositeOperation = 'destination-out';
+    }
+    out.drawImage(shaped, -pad, -pad);
+    out.globalCompositeOperation = 'source-over';
+    maskCache.set(owner, { key, surface });
+    return surface;
+}
+
+/** Start a masked layer: a clear surface the size of the frame (a copy of it, for an adjustment). */
+function beginMasked(ctx, plan, layer) {
+    const w = Math.max(1, Math.round(ctx.canvas?.width || plan.W));
+    const h = Math.max(1, Math.round(ctx.canvas?.height || plan.H));
+    const surface = makeSurface(w, h);
+    const g = surface.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, w, h);
+    if (layer.type === 'adjust' && ctx.canvas) g.drawImage(ctx.canvas, 0, 0);
+    g.save();
+    const m = typeof ctx.getTransform === 'function' ? ctx.getTransform() : null;
+    if (m && typeof g.setTransform === 'function') g.setTransform(m);
+    return { surface, g, transform: m };
+}
+
+/** Finish a masked layer: cut it by its mask, then lay it on the frame with the alpha and blend set there. */
+function endMasked(ctx, plan, masked, pm) {
+    const { surface, g, transform } = masked;
+    g.restore();
+    g.save();
+    if (transform) g.setTransform(transform);
+    g.globalAlpha = 1;
+    g.filter = 'none';
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(paintMaskSurface(plan, pm), 0, 0);
+    g.restore();
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(surface, 0, 0);
+    ctx.restore();
+}
+
+const warpCache = new WeakMap();
+
+/**
+ * A picture mapped onto its four corners (free transform, perspective):
+ * drawn at about the size it lands so the map does not alias, warped pixel by
+ * pixel, and kept until the corners or the picture change.
+ */
+function paintWarped(ctx, plan, layer, entry) {
+    const q = layer.corners;
+    const b = quadBounds(q);
+    const x0 = Math.floor(b.x);
+    const y0 = Math.floor(b.y);
+    const w = Math.ceil(b.x + b.w) - x0;
+    const h = Math.ceil(b.y + b.h) - y0;
+    if (w <= 0 || h <= 0 || w * h > 64e6) return;
+    const key = [q.map((p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(';'), layer.rev ?? 0, entry.version ?? 0].join('|');
+    let byLayer = warpCache.get(entry);
+    if (!byLayer) { byLayer = new Map(); warpCache.set(entry, byLayer); }
+    let hit = byLayer.get(layer.id);
+    if (!hit || hit.key !== key) {
+        const len = (a, c) => Math.hypot(c[0] - a[0], c[1] - a[1]);
+        const across = Math.max(len(q[0], q[1]), len(q[3], q[2]));
+        const down = Math.max(len(q[0], q[3]), len(q[1], q[2]));
+        const k = Math.min(1, Math.max(across / entry.width, down / entry.height) * 1.25);
+        const sw = Math.max(1, Math.round(entry.width * k));
+        const sh = Math.max(1, Math.round(entry.height * k));
+        const small = makeSurface(sw, sh);
+        const sc = small.getContext('2d', { willReadFrequently: true });
+        sc.imageSmoothingEnabled = true;
+        sc.imageSmoothingQuality = 'high';
+        sc.drawImage(entry.img, 0, 0, sw, sh);
+        const px = sc.getImageData(0, 0, sw, sh);
+        const data = warpPixels({ data: px.data, width: sw, height: sh }, q.map(([x, y]) => [x - x0, y - y0]), { width: w, height: h });
+        const surface = makeSurface(w, h);
+        const s = surface.getContext('2d');
+        const img = s.createImageData(w, h);
+        img.data.set(data);
+        s.putImageData(img, 0, 0);
+        hit = { key, surface };
+        byLayer.set(layer.id, hit);
+    }
+    ctx.save();
+    if (layer.shadow) {
+        ctx.shadowColor = 'rgba(0,0,0,0.45)';
+        ctx.shadowBlur = Math.round(plan.W * 0.012);
+    }
+    ctx.drawImage(hit.surface, x0, y0);
+    ctx.restore();
 }
 
 /**
@@ -2766,6 +2981,13 @@ export function paintFrame(ctx, plan, t) {
         const painter = PAINTERS[layer.type] || LAYER_TYPES.get(layer.type)?.paint;
         if (!painter) continue;
         ctx.save();
+        // A layer with a painted mask is painted on a surface of its own,
+        // multiplied there by its mask, and laid on the frame with its
+        // opacity and blend; everything else paints straight onto the frame.
+        // `g` is where the layer is drawn, `ctx` where its alpha and blend are.
+        const pm = layer.paintMask && !layer.paintMask.off ? layer.paintMask : null;
+        const masked = pm ? beginMasked(ctx, plan, layer) : null;
+        const g = masked ? masked.g : ctx;
         // Keyed geometry resolves FIRST, so the envelope, the rotation and
         // the painter all see this frame's values. Purity holds: same t,
         // same keys, same pixels.
@@ -2773,21 +2995,21 @@ export function paintFrame(ctx, plan, t) {
         const undoKeys = layer.keys ? applyKeyedGeometry(plan, layer, localT) : null;
         const env = envelopeAt(plan, layer, time);
         if (env) {
-            if (env.tx || env.ty) ctx.translate(env.tx, env.ty);
+            if (env.tx || env.ty) g.translate(env.tx, env.ty);
             if (env.scale !== 1) {
-                ctx.translate(plan.W / 2, plan.H / 2);
-                ctx.scale(env.scale, env.scale);
-                ctx.translate(-plan.W / 2, -plan.H / 2);
+                g.translate(plan.W / 2, plan.H / 2);
+                g.scale(env.scale, env.scale);
+                g.translate(-plan.W / 2, -plan.H / 2);
             }
             if (env.alpha < 1) ctx.globalAlpha = env.alpha;
             // A wipe clips the layer's OWN box, so it uncovers a sticker
             // across the sticker and a photo across the frame. A layer with no
             // bounds (a caption, the chrome) wipes across the frame.
             if (env.wipe !== null && env.wipe !== undefined) {
-                const wb = layerBounds(ctx, plan, layer) || { x: 0, y: 0, w: plan.W, h: plan.H };
-                ctx.beginPath();
-                ctx.rect(wb.x, wb.y, Math.max(0, wb.w * env.wipe), wb.h);
-                ctx.clip();
+                const wb = layerBounds(g, plan, layer) || { x: 0, y: 0, w: plan.W, h: plan.H };
+                g.beginPath();
+                g.rect(wb.x, wb.y, Math.max(0, wb.w * env.wipe), wb.h);
+                g.clip();
             }
         }
         // The envelope owns the window's edges; keyed opacity owns the
@@ -2806,13 +3028,13 @@ export function paintFrame(ctx, plan, t) {
         const kRot = layer.keys ? keyValueAt(layer.keys.rot, localT) : null;
         const rot = kRot !== null ? kRot : layer.rot;
         if (rot) {
-            const b = layerBounds(ctx, plan, layer);
+            const b = layerBounds(g, plan, layer);
             if (b) {
                 const cx = b.x + b.w / 2;
                 const cy = b.y + b.h / 2;
-                ctx.translate(cx, cy);
-                ctx.rotate((rot * Math.PI) / 180);
-                ctx.translate(-cx, -cy);
+                g.translate(cx, cy);
+                g.rotate((rot * Math.PI) / 180);
+                g.translate(-cx, -cy);
             }
         }
         // Picture filters (brightness/contrast/…) wrap the painter the same
@@ -2823,7 +3045,7 @@ export function paintFrame(ctx, plan, t) {
         const flt = filterCss(layer.filter);
         const envBlur = env && env.blur > 0 ? `blur(${env.blur.toFixed(1)}px)` : '';
         const combined = flt && envBlur ? `${flt} ${envBlur}` : (flt || envBlur);
-        if (combined) ctx.filter = combined;
+        if (combined) g.filter = combined;
         // Blend mode and mask join filters and rotation as things the WRAPPER
         // owns rather than the painters — so they work identically for a photo,
         // a word-art headline and a shape, and no painter has to know they
@@ -2831,9 +3053,10 @@ export function paintFrame(ctx, plan, t) {
         // never touched, which is what keeps every existing plan painting the
         // same pixels it painted before they were added.
         if (layer.blend) ctx.globalCompositeOperation = layer.blend;
-        if (layer.mask) clipToMask(ctx, plan, layer);
-        painter(ctx, plan, layer, time);
+        if (layer.mask) clipToMask(g, plan, layer);
+        painter(g, plan, layer, time);
         if (undoKeys) undoKeys();
+        if (masked) endMasked(ctx, plan, masked, pm);
         ctx.restore();
     }
 

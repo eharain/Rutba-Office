@@ -32,7 +32,7 @@ export {
   configureMediaFetch,
   // editor primitives
   layerBounds, hitTestLayers, layerHandles, hitTestHandles, scaleFromDrag, resizePatch,
-  withLayerStateAt,
+  withLayerStateAt, paintMaskSurface,
   // video output
   renderVideo, startAudioPreview, soundLayers, clipFromSoundLayer,
   driveVideoElements, pauseVideoElements, layersEnd, FITS,

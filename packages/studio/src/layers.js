@@ -431,6 +431,19 @@ export function reframe(doc, rect) {
             if (Array.isArray(m.points)) m.points = m.points.map(([px, py]) => [fx(px), fy(py)]);
             q.mask = m;
         }
+        // A painted mask (I10) is a bitmap laid over the canvas from its top
+        // left corner; it stays over the same pixels, its feather as long.
+        if (p.paintMask && typeof p.paintMask === 'object') {
+            const m = { ...p.paintMask };
+            m.fx = fx(m.fx ?? 0);
+            m.fy = fy(m.fy ?? 0);
+            m.fw = sw(m.fw ?? 1);
+            m.fh = sh(m.fh ?? 1);
+            if (m.feather != null) m.feather = sw(m.feather);
+            q.paintMask = m;
+        }
+        // A picture on four corners (I14) keeps each corner where it was.
+        if (Array.isArray(p.corners)) q.corners = p.corners.map(([cx, cy]) => [fx(cx), fy(cy)]);
         return q;
     });
     return { ...doc, size: { width: W2, height: H2 }, patches };
@@ -534,4 +547,178 @@ export function rotationAt(centre, point, { snap = false } = {}) {
     if (snap) deg = Math.round(deg / 15) * 15;
     deg = ((deg % 360) + 540) % 360 - 180;
     return Math.round(deg * 10) / 10;
+}
+
+// ── pixels: paint layers, painted masks, corners (I10 to I14) ────────────────
+
+/**
+ * A paint layer: a clear bitmap the size of the canvas, laid over all of it,
+ * for the brush, the fill, the gradient, the clone stamp and the healing
+ * brush to put pixels on. It is a picture layer like any other (`image`), so
+ * it moves, fades, blends and masks the same; `kind: 'paint'` only names it.
+ */
+export function paintLayer(doc, { id = null, label = null, kind = 'paint' } = {}) {
+    const lid = id || nextId(doc, kind === 'paint' ? 'paint' : kind);
+    return { id: lid, type: 'image', kind, ...(label ? { label } : {}), url: `rimg:bitmaps/${lid}.png`, fx: 0, fy: 0, fw: 1, shadow: false };
+}
+
+/** Whether a layer is a picture whose own pixels can be painted (a picture or a paint layer). */
+export const isPixelLayer = (p) => Boolean(p && p.type === 'image' && typeof p.url === 'string' && p.url);
+
+/**
+ * Put a new layer directly above another (in the same group as it), or on
+ * top of everything when there is no such layer.
+ */
+export function insertAbove(doc, targetId, patch) {
+    const at = doc.patches.findIndex((p) => p.id === targetId);
+    if (at < 0) return { ...doc, patches: [...doc.patches, patch] };
+    const target = doc.patches[at];
+    const placed = { ...patch };
+    if (target.parent && !isGroup(target)) placed.parent = target.parent; else delete placed.parent;
+    const unit = unitOf(doc, targetId);
+    const end = unit ? unit[1] : at;
+    // Above a group means above the group's own row, outside it.
+    const index = isGroup(target) ? end + 1 : at + 1;
+    return { ...doc, patches: [...doc.patches.slice(0, index), placed, ...doc.patches.slice(index)] };
+}
+
+/**
+ * A painted mask on a layer: its bitmap `url` laid over the whole canvas,
+ * what lies beyond its edges shown (`outside: 1`) or hidden (0).
+ */
+export function addMask(doc, id, { url, outside = 1 } = {}) {
+    return setLayer(doc, id, { paintMask: { url, fx: 0, fy: 0, fw: 1, fh: 1, outside: outside ? 1 : 0, feather: 0, invert: false, off: false } });
+}
+
+/** Change a layer's mask (feather, invert, off, …); a layer with none is unchanged. */
+export function setMask(doc, id, change) {
+    const p = doc.patches.find((x) => x.id === id);
+    if (!p?.paintMask) return doc;
+    return setLayer(doc, id, { paintMask: { ...p.paintMask, ...change } });
+}
+
+/** Take a layer's mask away. */
+export function removeMask(doc, id) {
+    return {
+        ...doc,
+        patches: doc.patches.map((p) => {
+            if (p.id !== id || !p.paintMask) return p;
+            const { paintMask, ...rest } = p;
+            return rest;
+        }),
+    };
+}
+
+/**
+ * A layer moved by (dx, dy), fractions of the canvas: its place, its
+ * corners and its painted mask together, as the mask is linked to it.
+ */
+export function moveLayerBy(doc, id, dx, dy) {
+    return {
+        ...doc,
+        patches: doc.patches.map((p) => {
+            if (p.id !== id) return p;
+            const q = { ...p };
+            if (p.fx != null) q.fx = round4(p.fx + dx);
+            if (p.fy != null) q.fy = round4(p.fy + dy);
+            if (Array.isArray(p.corners)) q.corners = p.corners.map(([x, y]) => [round4(x + dx), round4(y + dy)]);
+            if (p.paintMask) q.paintMask = { ...p.paintMask, fx: round4((p.paintMask.fx ?? 0) + dx), fy: round4((p.paintMask.fy ?? 0) + dy) };
+            return q;
+        }),
+    };
+}
+
+/**
+ * Where a picture layer lies on the canvas, in canvas pixels: its box
+ * `{ x, y, w, h }` (top left, at one bitmap's shape), its turn, and its
+ * corners when it has been transformed. `bitmap` is { width, height }.
+ */
+export function pictureBox(doc, patch, bitmap) {
+    const { width: W, height: H } = canvasOf(doc);
+    const fw = patch.fw ?? 0.16;
+    const w = W * fw;
+    const h = bitmap && bitmap.width ? (w * bitmap.height) / bitmap.width : w;
+    const box = { x: W * (patch.fx ?? 0.5), y: H * (patch.fy ?? 0.5), w, h };
+    const corners = Array.isArray(patch.corners) ? patch.corners.map(([x, y]) => [x * W, y * H]) : null;
+    return { box, rot: corners ? 0 : patch.rot || 0, corners };
+}
+
+/**
+ * The map from canvas pixels to a picture layer's own bitmap pixels, as a
+ * 3 × 3 matrix (row major): what a brush stroke on the canvas goes through
+ * to land on the layer. A turned layer is turned back; a layer on corners is
+ * mapped back through them.
+ */
+export function canvasToBitmap(doc, patch, bitmap) {
+    const { box, rot, corners } = pictureBox(doc, patch, bitmap);
+    const bw = bitmap.width;
+    const bh = bitmap.height;
+    if (corners) {
+        return homographyOf(corners, [[0, 0], [bw, 0], [bw, bh], [0, bh]]);
+    }
+    const cx = box.x + box.w / 2;
+    const cy = box.y + box.h / 2;
+    const a = (-(rot || 0) * Math.PI) / 180;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    const sx = bw / box.w;
+    const sy = bh / box.h;
+    // translate(-c) → rotate(-rot) → translate(box/2) → scale(bitmap/box)
+    return [
+        sx * cos, -sx * sin, sx * (-cx * cos + cy * sin + box.w / 2),
+        sy * sin, sy * cos, sy * (-cx * sin - cy * cos + box.h / 2),
+        0, 0, 1,
+    ];
+}
+
+/** The 3 × 3 projective map from four points to four points (warp.js has the full set). */
+function homographyOf(src, dst) {
+    const A = [];
+    const b = [];
+    for (let i = 0; i < 4; i++) {
+        const [x, y] = src[i];
+        const [u, v] = dst[i];
+        A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]);
+        b.push(u);
+        A.push([0, 0, 0, x, y, 1, -v * x, -v * y]);
+        b.push(v);
+    }
+    const n = 8;
+    const M = A.map((row, i) => [...row, b[i]]);
+    for (let c = 0; c < n; c++) {
+        let p = c;
+        for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+        if (Math.abs(M[p][c]) < 1e-12) return [1, 0, 0, 0, 1, 0, 0, 0, 1];
+        [M[p], M[c]] = [M[c], M[p]];
+        for (let r = 0; r < n; r++) {
+            if (r === c) continue;
+            const f = M[r][c] / M[c][c];
+            for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
+        }
+    }
+    const h = M.map((row, i) => row[n] / row[i]);
+    return [...h, 1];
+}
+
+/** A point through a 3 × 3 map. */
+export function mapPoint(m, x, y) {
+    const w = m[6] * x + m[7] * y + m[8] || 1e-12;
+    return { x: (m[0] * x + m[1] * y + m[2]) / w, y: (m[3] * x + m[4] * y + m[5]) / w };
+}
+
+/**
+ * The flat (affine) map nearest a 3 × 3 map about one point, as a canvas's
+ * setTransform takes it: [a, b, c, d, e, f]. Exact for a map that has no
+ * perspective; about a point of a warped layer, close enough for one dab.
+ */
+export function affineAt(m, x, y) {
+    const p = mapPoint(m, x, y);
+    const e = 0.5;
+    const px = mapPoint(m, x + e, y);
+    const py = mapPoint(m, x, y + e);
+    const a = (px.x - p.x) / e;
+    const b = (px.y - p.y) / e;
+    const c = (py.x - p.x) / e;
+    const d = (py.y - p.y) / e;
+    return [a, b, c, d, p.x - a * x - c * y, p.y - b * x - d * y];
 }
