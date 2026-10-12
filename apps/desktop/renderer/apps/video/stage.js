@@ -13,6 +13,8 @@ import { paintFrame, layerBounds, withLayerStateAt, hitTestLayers } from '@rutba
 import { t } from '@rutba/office-ui';
 
 const MOVABLE = new Set(['text', 'shape']);
+/** What can be picked and dragged on the stage: a title, its shape, and a clip drawn as an inset (a recording's camera). */
+const movable = (l) => MOVABLE.has(l.type) || (l.type === 'video' && Boolean(l.fw));
 
 export default function Stage({ plan, time, selected, onSelect, onBegin, onMove, paintTick, canvasRef }) {
   const wrapRef = useRef(null);
@@ -44,7 +46,7 @@ export default function Stage({ plan, time, selected, onSelect, onBegin, onMove,
     if (c.height !== plan.H) c.height = plan.H;
     const g = c.getContext('2d');
     paintFrame(g, plan, time);
-    const picked = plan.layers.find((l) => selected.includes(l.id) && MOVABLE.has(l.type));
+    const picked = plan.layers.find((l) => selected.includes(l.id) && movable(l));
     if (picked && picked.timing && time >= picked.timing.start && time <= picked.timing.end) {
       const b = withLayerStateAt(plan, picked, time, () => layerBounds(g, plan, picked));
       setOutline(b ? { x: b.x / plan.W, y: b.y / plan.H, w: b.w / plan.W, h: b.h / plan.H } : null);
@@ -61,14 +63,14 @@ export default function Stage({ plan, time, selected, onSelect, onBegin, onMove,
     const g = canvasRef.current.getContext('2d');
     const at = toFrame(e);
     // Only what is on screen at the playhead can be picked.
-    const live = { ...plan, layers: plan.layers.filter((l) => MOVABLE.has(l.type) && l.visible !== false && (!l.timing || (time >= l.timing.start && time <= l.timing.end))) };
+    const live = { ...plan, layers: plan.layers.filter((l) => movable(l) && l.visible !== false && (!l.timing || (time >= l.timing.start && time <= l.timing.end))) };
     const hit = hitTestLayers(g, live, at.x, at.y);
     if (!hit) {
       onSelect([]);
       return;
     }
     onSelect([hit.id]);
-    drag.current = { id: hit.id, from: at, moved: false };
+    drag.current = { id: hit.id, from: at, moved: false, inset: hit.layer?.type === 'video' };
     const move = (ev) => {
       const d = drag.current;
       const p = toFrame(ev);
@@ -77,7 +79,7 @@ export default function Stage({ plan, time, selected, onSelect, onBegin, onMove,
       if (!d.moved && Math.abs(dx) + Math.abs(dy) < 0.004) return;
       if (!d.moved) {
         d.moved = true;
-        onBegin(t('Move title'));
+        onBegin(d.inset ? t('Move the inset') : t('Move title'));
       }
       onMove(d.id, dx, dy);
     };

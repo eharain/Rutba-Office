@@ -87,6 +87,9 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               <C cmds={cmds} id="play.nextFrame" />
             </Rows>
           </Group>
+          <Group label={t('Record')}>
+            <C cmds={cmds} id="record.screen" tall />
+          </Group>
           <Group label={t('Project')}>
             <C cmds={cmds} id="insert.media" tall />
             <C cmds={cmds} id="file.export" tall />
@@ -103,6 +106,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
         <>
           <Group label={t('Media')}>
             <C cmds={cmds} id="insert.media" tall />
+            <C cmds={cmds} id="record.screen" tall />
           </Group>
           <Group label={t('Titles')}>
             {Object.keys(TITLE_PRESETS).map((p) => {

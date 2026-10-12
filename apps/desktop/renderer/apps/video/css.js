@@ -143,5 +143,19 @@ export const CSS = `
 .vd-ribbon-field { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink-2); padding: 2px 6px; }
 
 .vd-export-format { font-weight: 600; }
+
+/* A picture in picture's corner, picked from four small frames. */
+.vd-corners { display: inline-grid; grid-template-columns: repeat(2, 28px); gap: 4px; direction: ltr; }
+.vd-corner { width: 28px; height: 18px; padding: 0; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); position: relative; cursor: pointer; }
+.vd-corner:hover { border-color: var(--accent-line); background: var(--hover); }
+.vd-corner i { position: absolute; width: 9px; height: 6px; border-radius: 1.5px; background: var(--ink-3); }
+.vd-corner.c-tl i { top: 2px; left: 2px; }
+.vd-corner.c-tr i { top: 2px; right: 2px; }
+.vd-corner.c-bl i { bottom: 2px; left: 2px; }
+.vd-corner.c-br i { bottom: 2px; right: 2px; }
+.vd-corner.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.vd-corner.on i { background: var(--accent); }
+.vd-inset-full { margin-top: 6px; }
+.vd-start-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
 .vd-export-line { margin-bottom: 10px; font-variant-numeric: tabular-nums; }
 `;

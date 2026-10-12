@@ -24,6 +24,7 @@ import { gradientPng, joinPictureParagraphs } from './sample-picture.js';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { verifyViewer } from './verify-viewer.js';
 import { verifyVideoEditor, verifyVideoBasics, verifyVideoSplit } from './verify-video-editor.js';
+import { verifyRecorder } from './verify-recorder.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
 import { verifyDeckArrange } from './verify-deck-arrange.js';
 import { verifyDeckTableDesign } from './verify-deck-table-design.js';
@@ -4734,7 +4735,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4837,6 +4838,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await verifyVideoSplit({ open, check, until, wait, errorsIn }, { wav: files.wav });
       await verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir });
     }
+    if (only.includes('recorder')) await verifyRecorder({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('viewdirection')) await verifyDeckDirection({ open, check, until, wait }, { dir });
     if (only.includes('deckrtl')) await verifyDeckRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('deckzoom')) await verifyDeckZoom({ open, check, until, wait, doc, sessionFor }, { dir });
@@ -5016,6 +5018,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // so the camera is asked for while the run is young. Cameo with a recording
   // stays last, for the reason given in the list above.
   await block(() => verifyDeckCameo({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  // The recorder asks for the stand-in camera too, so it runs while the run is young as well.
+  await block(() => verifyRecorder({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => wordPages());
   await block(() => wordPagesAcross());
   await block(() => wordFloat());

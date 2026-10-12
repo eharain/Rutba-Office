@@ -227,6 +227,15 @@ export default function Home({ app, shell }) {
                 <span>{tpl.label}</span>
               </button>
             ))}
+            {/* The screen recorder, in a new Video window: what it records lands on that window's timeline. */}
+            {APPS.video ? (
+              <button type="button" className="home-template home-record" data-tip={t('Record a screen: a screen, a window or a region, with the camera and sound, in a new video')} onClick={() => shell.win.create({ app: 'video', query: { record: 1 } })}>
+                <span className="tpl-glyph" data-app="video">
+                  <Icon name="record" size={16} />
+                </span>
+                <span>{t('Record a screen')}</span>
+              </button>
+            ) : null}
             {/* Templates of one's own: each makes a new document, the template left as it is. */}
             {personal.map((tpl) => (
               <button key={tpl.path} type="button" className="home-template personal" title={t('Your template: a new document made from {name}', { name: tpl.name })} data-template={tpl.path} onClick={() => shell.win.create({ app: tpl.app, query: { templateFile: tpl.path } })}>
@@ -694,6 +703,7 @@ const CSS = `
 .tpl-glyph[data-app='word'] { background: #2b5fd9; }
 .tpl-glyph[data-app='sheets'] { background: #0f9d58; }
 .tpl-glyph[data-app='slides'] { background: #d9534f; }
+.tpl-glyph[data-app='video'] { background: #c2408f; }
 
 /* The list takes what is left of the window and scrolls inside it. It used
    to be clipped instead: a flex item that hides its overflow may shrink

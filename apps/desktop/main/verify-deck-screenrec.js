@@ -1,8 +1,8 @@
-// Presentations: Insert → Screen Recording, pressed on the ribbon — the
-// picker lists the other windows (this check's own Documents window among
-// them), the one picked is recorded with a bar along the top showing the
-// time, Stop puts the recording on the slide as a video, and the saved
-// deck keeps it. The recording goes by a scratch file, written a few
+// Presentations: Insert → Screen Recording, pressed on the ribbon, opens
+// the suite's recorder (Video's, in its slide mode, with no camera): it lists
+// the other windows (this check's own Documents window among them), the one
+// picked is recorded with the time showing, Stop puts the recording on the
+// slide as a video, and the saved deck keeps it. The recording goes by a scratch file, written a few
 // megabytes a message, and the file is gone once the deck has it. Only the
 // suite's own windows are named in what this check reports.
 
@@ -33,6 +33,9 @@ export async function verifyDeckScreenRecording(h, { dir }) {
     const deckWin = await open('slides', deckFile);
     await open('word', docFile);
     const js = (code) => deckWin.webContents.executeJavaScript(code);
+    // The recorder as a person would have set it for a slide: a window, no countdown, no sound.
+    const settingsWere = await js(`window.rutbaOffice.store.get({ key: 'recorder.settings', fallback: null })`);
+    await js(`window.rutbaOffice.store.set({ key: 'recorder.settings', value: { source: 'window', countdown: 0, mic: false, system: false, camera: false, minimise: true } }).then(() => 1)`);
     const session = doc.sessions().filter((s) => s.kind === 'deck' && s.path === deckFile).pop();
     const videos = () => (doc.model({ id: session.id }).slide?.shapes || []).filter((s) => s.media?.kind === 'video');
 
@@ -43,22 +46,26 @@ export async function verifyDeckScreenRecording(h, { dir }) {
       const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Screen Recording');
       if (!b || b.disabled) return 'no button'; b.click(); return 'clicked';
     })()`);
-    const listed = await until(() => js(`[...document.querySelectorAll('.ss-source')].some((n) => n.title.includes('rec-target'))`), 'our window in the picker', 8000).then(() => true).catch(() => false);
+    const listed = await until(() => js(`[...document.querySelectorAll('.rec-source')].some((n) => (n.dataset.tip || '').includes('rec-target'))`), 'our window in the picker', 8000).then(() => true).catch(() => false);
     const title = await js(`document.querySelector('.rw-dialog-head')?.textContent || ''`);
-    await js(`(() => { const b = [...document.querySelectorAll('.ss-source')].find((n) => n.title.includes('rec-target')); b?.click(); return Boolean(b); })()`);
-    const recording = await until(() => js(`(() => { const b = document.querySelector('.sl-screenrec-stop'); return Boolean(b) && !b.disabled; })()`), 'the recording to start', 8000).then(() => true).catch(() => false);
+    const noCamera = await js(`!document.querySelector('.rec-camera-toggle') && !document.querySelector('.rec-inset')`);
+    await js(`(() => { const b = [...document.querySelectorAll('.rec-source')].find((n) => (n.dataset.tip || '').includes('rec-target')); b?.click(); return Boolean(b); })()`);
+    await until(() => js(`(() => { const b = document.querySelector('.rec-go'); const v = document.querySelector('.rec-screen'); return Boolean(b && !b.disabled && v && v.videoWidth > 0 && document.querySelector('.rec-source.on')?.dataset.tip.includes('rec-target')); })()`), 'the window live in the recorder', 10000).catch(() => {});
+    await js(`document.querySelector('.rec-go')?.click(), 1`);
+    const recording = await until(() => js(`(() => { const b = document.querySelector('.rec-stop'); return Boolean(b) && !b.disabled; })()`), 'the recording to start', 8000).then(() => true).catch(() => false);
     await wait(1600);
-    const shown = await js(`document.querySelector('.sl-screenrec-time')?.textContent || ''`);
+    const shown = await js(`document.querySelector('.rec-time')?.textContent || ''`);
     const writing = scratchLeft().length === 1;
-    await js(`document.querySelector('.sl-screenrec-stop')?.click(), 1`);
+    await js(`document.querySelector('.rec-stop')?.click(), 1`);
     const placed = await until(() => videos().length === 1, 'the recording on the slide', 15000).then(() => true).catch(() => false);
-    const bar = await js(`Boolean(document.querySelector('.sl-screenrec'))`);
+    const bar = await js(`Boolean(document.querySelector('.rec-dialog'))`);
+    await js(`window.rutbaOffice.store.set({ key: 'recorder.settings', value: ${JSON.stringify(settingsWere ?? null)} }).then(() => 1)`);
     const left = scratchLeft().length;
     // Its poster is a picture from the file, not the plain one a window that cannot decode it shows.
     const pictured = !(await js(`document.body.textContent.includes('cannot show its picture')`));
-    check('presentations: Insert → Screen Recording lists the other windows, records the one picked with the time showing, and Stop puts the recording on the slide as a video',
-      pressed === 'clicked' && listed && /Screen Recording/.test(title) && recording && /^0:0[1-9]$/.test(shown) && placed && !bar,
-      JSON.stringify({ pressed, listed, title, recording, shown, placed, bar }));
+    check('presentations: Insert → Screen Recording opens the recorder without a camera, lists the other windows, records the one picked with the time showing, and Stop puts the recording on the slide as a video',
+      pressed === 'clicked' && listed && /Screen Recording/.test(title) && noCamera && recording && /^0:0[1-9]$/.test(shown) && placed && !bar,
+      JSON.stringify({ pressed, listed, title, noCamera, recording, shown, placed, bar }));
     check('presentations: a screen recording goes to the slide by a scratch file, its poster drawn from the file, and the file is gone once the slide has it',
       writing && placed && left === 0 && pictured, JSON.stringify({ writing, left, pictured }));
 

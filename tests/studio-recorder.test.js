@@ -156,7 +156,7 @@ test('takes land on the timeline: the screen on the main lane, the camera above 
   assert.equal(camera.insetShape, 'circle');
   assert.equal(camera.flipX, true);
   near(camera.fw, CAMERA.inset.fw, 'inset size');
-  assert.notEqual(computer.lane, voice.lane, 'each sound on a lane of its own');
+  assert.deepEqual([computer.lane, voice.lane], [0, 1], 'each sound on a lane of its own, from the first');
   assert.ok(doc.patches.every((p) => p.group === group), 'one group, one clock');
   assert.equal(screen.timing.start, 0);
   near(camera.timing.end, 12.02, 'each take its own length');
@@ -241,4 +241,28 @@ test('the painter cuts the camera to a circle and mirrors it inside its own box,
   assert.equal(clipById(doc, doc.patches.find((p) => p.take === 'camera').id).lane, 1);
   assert.equal(laneClips(doc, 'v', 1).length, 1);
   assert.equal(partnersOf(doc, doc.patches[0].id).length, 3);
+});
+
+/* A WebM as a recorder writes it: no declared length, the blocks in one cluster. */
+const ebmlSize = (n) => { const out = Buffer.alloc(8); out.writeBigUInt64BE(BigInt(n)); out[0] = 0x01; return out; };
+const ebml = (id, ...payload) => { const body = Buffer.concat(payload); return Buffer.concat([Buffer.from(id), ebmlSize(body.length), body]); };
+const ebmlUint = (id, n) => { const b = Buffer.alloc(8); b.writeBigUInt64BE(BigInt(n)); let i = 0; while (i < 7 && b[i] === 0) i++; return ebml(id, b.subarray(i)); };
+const ebmlStr = (id, str) => ebml(id, Buffer.from(str, 'utf8'));
+
+test('a screen recording of a still window, its frames only where it changed, is read as long as its sound, not a frame-gap longer', async () => {
+  const { probeMedia } = await import('../packages/media/src/probe.js');
+  const header = ebml([0x1a, 0x45, 0xdf, 0xa3], ebmlStr([0x42, 0x82], 'webm'));
+  const tracks = ebml([0x16, 0x54, 0xae, 0x6b],
+    ebml([0xae], ebmlUint([0xd7], 1), ebmlUint([0x83], 1), ebmlStr([0x86], 'V_VP9'), ebml([0xe0], ebmlUint([0xb0], 320), ebmlUint([0xba], 180))),
+    ebml([0xae], ebmlUint([0xd7], 2), ebmlUint([0x83], 2), ebmlStr([0x86], 'A_OPUS')));
+  const block = (track, ms) => ebml([0xa3], Buffer.from([0x80 | track, (ms >> 8) & 0xff, ms & 0xff, 0x80]), Buffer.from([0, 0, 0, 0]));
+  const blocks = [];
+  for (const ms of [0, 33, 66, 1000]) blocks.push([1, ms]);
+  for (let ms = 0; ms <= 1200; ms += 20) blocks.push([2, ms]);
+  blocks.sort((a, b) => a[1] - b[1]);
+  const cluster = ebml([0x1f, 0x43, 0xb6, 0x75], ebmlUint([0xe7], 0), ...blocks.map(([tr, ms]) => block(tr, ms)));
+  const file = Buffer.concat([header, ebml([0x18, 0x53, 0x80, 0x67], ebml([0x15, 0x49, 0xa9, 0x66], ebmlUint([0x2a, 0xd7, 0xb1], 1000000)), tracks, cluster)]);
+  const p = probeMedia(new Uint8Array(file), { complete: true });
+  near(p.duration, 1.22, 'the sound\'s end', 0.005);
+  assert.ok(p.hasVideo && p.hasAudio);
 });

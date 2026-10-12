@@ -283,6 +283,8 @@ export default function Timeline({
 }
 
 const KIND_ICON = { video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape' };
+/** A recording's takes show what they are: the screen, the camera, the voice, the computer's sound. */
+const TAKE_ICON = { screen: 'screen', camera: 'camera', voice: 'mic', computer: 'speaker' };
 
 /** One clip: its picture strip, waveform or words, its name and length, its handles. */
 function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, onDown, onContext }) {
@@ -300,13 +302,17 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
       data-transition={tr ? tr.kind : ''}
       data-fit={clip.fit || ''}
       data-turn={clip.turn || 0}
+      data-lane={clip.lane || 0}
+      data-take={clip.take || ''}
+      data-inset={clip.fw ? [clip.fx, clip.fy, clip.fw, clip.fh, clip.insetShape || ''].join(' ') : ''}
+      data-crop={clip.crop ? [clip.crop.x, clip.crop.y, clip.crop.w, clip.crop.h].join(' ') : ''}
       style={{ left: clip.timing.start * pps, width: w, height: h }}
       onPointerDown={(e) => onDown(e, clip, 'move')}
       onContextMenu={(e) => onContext?.(e, clip)}
     >
       <ClipArt clip={clip} w={w} h={h} pps={pps} media={media} version={mediaVersion} source={source} />
       <div className="vd-clip-label">
-        <Icon name={KIND_ICON[kind] || 'file'} size={11} />
+        <Icon name={TAKE_ICON[clip.take] || KIND_ICON[kind] || 'file'} size={11} />
         <span className="vd-clip-name">{label}</span>
         <span className="vd-clip-len">{timecode(lengthOf(clip))}</span>
       </div>

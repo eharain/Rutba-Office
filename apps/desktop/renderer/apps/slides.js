@@ -34,7 +34,10 @@ import { PhotoAlbumDialog, ALBUM_CSS } from './slides/album.js';
 import { CustomShowsDialog, CUSTOM_SHOWS_CSS } from './slides/custom-shows.js';
 import { HandoutSlots, HANDOUT_CSS } from './slides/handout.js';
 import { StageMedia, MEDIA_CSS, MEDIA_FILES, posterFrame, fileSrc } from './slides/media.js';
-import { ScreenRecorder, SCREENREC_CSS } from './slides/screen-record.js';
+import { RecorderPanel } from './video/recorder/panel.js';
+import { placeTakes } from '@rutba/studio/recorder';
+import { emptyProject } from '@rutba/studio/project';
+import { writeRvid } from '@rutba/studio/rvid';
 import { soundWav, soundFile } from './slides/sounds.js';
 import { NarrationRecorder, RecordingBar, RecordAudioDialog, RECORD_CSS } from './slides/record.js';
 import { ExportVideoDialog, EXPORT_VIDEO_CSS } from './slides/export-video.js';
@@ -159,7 +162,8 @@ export default function Slides({ app, shell, boot }) {
   const showSound = useRef(null);
   // Screen Recording: choosing what to record, then recording it.
   const [recPick, setRecPick] = useState(false);
-  const [recSource, setRecSource] = useState(null);
+  // While Screen Recording runs, the take so far is kept as a recovery copy under this key.
+  const recCopy = useRef(`slides-rec-${Date.now().toString(36)}`);
   const [iconsOpen, setIconsOpen] = useState(false);
   // The slide the show was on before this one, for a "last slide viewed" action.
   const lastViewed = useRef(null);
@@ -3246,27 +3250,23 @@ export default function Slides({ app, shell, boot }) {
         </>
       ) : null}
       {recPick ? (
-        <ScreenshotDialog
+        <RecorderPanel
           shell={shell}
-          record
-          onClose={() => setRecPick(false)}
-          onPick={(source) => { setRecPick(false); setRecSource(source); }}
+          mode="slide"
+          toast={toast}
+          onCancel={() => { setRecPick(false); shell.doc.dropCopy({ key: recCopy.current }).catch(() => {}); }}
+          onProgress={(takes) => {
+            // A crash while recording leaves the take for the launcher to offer, in Video.
+            const { doc: kept } = placeTakes(emptyProject(), takes.map((k) => ({ ...k, url: k.path, name: t('Screen Recording') })), { unfinished: true });
+            shell.doc.keepCopy({ key: recCopy.current, kind: 'video', name: t('Screen Recording'), path: null, bytes: writeRvid(kept, {}) }).catch(() => {});
+          }}
+          onDone={async ({ takes }) => {
+            setRecPick(false);
+            shell.doc.dropCopy({ key: recCopy.current }).catch(() => {});
+            const clip = takes.find((k) => k.role === 'screen');
+            if (clip) await placeMedia({ kind: 'video', path: clip.path, contentType: clip.contentType, name: `${t('Screen Recording {time}', { time: new Date().toLocaleTimeString() })}.${clip.ext || 'webm'}` });
+          }}
         />
-      ) : null}
-      {recSource ? (
-        <>
-          <style>{SCREENREC_CSS}</style>
-          <ScreenRecorder
-            source={recSource}
-            shell={shell}
-            onCancel={() => setRecSource(null)}
-            onError={(message) => toast(message, { ms: 4500 })}
-            onDone={async (clip) => {
-              setRecSource(null);
-              await placeMedia({ kind: 'video', path: clip.path, contentType: clip.contentType, name: clip.name });
-            }}
-          />
-        </>
       ) : null}
 
       {shotOpen ? (

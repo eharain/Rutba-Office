@@ -168,6 +168,14 @@ const PATHS = {
   // the Animation Pane's triggers: a click starts it
   mouse: [P('M12 3a5 5 0 0 1 5 5v8a5 5 0 0 1-10 0V8a5 5 0 0 1 5-5z'), P('M12 7v3')],
   trDissolve: [P('M4 6h16v12H4z'), P('M8 9h.01M12 11h.01M16 9h.01M9 14h.01M15 14h.01M12 15.5h.01', { strokeWidth: 2.4 })],
+  // the recorder: record, the screen, a window, a region, the camera, the microphone, the computer's sound
+  record: [P('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z'), P('M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', { fill: 'currentColor' })],
+  screen: [P('M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z'), P('M9 21h6M12 17v4')],
+  window: [P('M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z'), P('M3 8.5h18'), P('M6 6.25h.01M8.5 6.25h.01', { strokeWidth: 2.2 })],
+  region: [P('M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3'), P('M9 9h6v6H9z', { strokeDasharray: '2 2' })],
+  camera: [P('M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'), P('M12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z')],
+  mic: [P('M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z'), P('M5.5 11a6.5 6.5 0 0 0 13 0'), P('M12 17.5V21M9 21h6')],
+  speaker: [P('M4 9.5h3.5L12 6v12l-4.5-3.5H4z'), P('M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11')],
 };
 
 /**

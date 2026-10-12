@@ -8,7 +8,7 @@
 // Every handler receives the calling window, because almost everything an
 // office app asks for is about *this* document window, not about the app.
 
-import { app, BrowserWindow, dialog, shell, nativeTheme, clipboard, desktopCapturer, screen, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, shell, nativeTheme, clipboard, desktopCapturer, screen, nativeImage, session, globalShortcut, Tray, Menu } from 'electron';
 import fsp from 'node:fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,6 +19,7 @@ import { blobOwner } from './blobs.js';
 import { runsWhenOpened } from '../runs.js';
 import { writeWhole } from '../write-whole.js';
 import { grantPlace } from './grants.js';
+import { speakAs, t } from './words.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -64,7 +65,7 @@ function canWrite(p) {
   }
 }
 
-export function buildImplementations({ stores, windows, quitting, thumbnailer = null }) {
+export function buildImplementations({ stores, windows, quitting, thumbnailer = null, iconPath = null }) {
   const impl = {};
 
   impl.app = {
@@ -171,6 +172,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
 
   // The scratch files `temp` made in this run: the only ones `append` and `dropTemp` touch.
   const temps = new Set();
+  // The recordings capture.take made: appended to the same way, but their folder is a person's, kept.
+  const takes = new Set();
 
   impl.fs = {
     read: async ({ path: p }) => {
@@ -250,6 +253,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     dropTemp: async ({ path: p }) => {
       if (!temps.delete(p)) return;
       await fsp.rm(p, { force: true });
+      if (takes.delete(p)) return;
       await fsp.rmdir(path.dirname(p)).catch(() => {});
     },
   };
@@ -388,14 +392,159 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   // Insert → Screenshot. Only on a press of the button, and only into the
   // document of the window that asked: the list leaves that window out, as
   // Office's does, and a picture is taken of the one chosen and nothing else.
+  // What each window's next getDisplayMedia is given (capture.choose): a
+  // source and whether the computer's own sound comes with it.
+  const chosen = new Map();
+  let displayHandler = false;
+  const ownerOf = (frame) => {
+    const top = frame?.top || frame;
+    if (!top) return null;
+    return BrowserWindow.getAllWindows().find((w) => {
+      if (w.isDestroyed()) return false;
+      const m = w.webContents.mainFrame;
+      return m === top || (m.processId === top.processId && m.routingId === top.routingId);
+    }) || null;
+  };
+  const installDisplayHandler = () => {
+    if (displayHandler) return;
+    displayHandler = true;
+    // A page's getDisplayMedia is answered here, never by a picker of
+    // Chromium's: with the source this window chose in its own list, and on
+    // Windows the computer's own sound ('loopback'). A request no window
+    // chose for is refused.
+    session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+      try {
+        const win = ownerOf(request.frame);
+        const choice = win ? chosen.get(win.webContents.id) : null;
+        if (!choice) return callback({});
+        chosen.delete(win.webContents.id);
+        const kind = String(choice.id).startsWith('screen:') ? 'screen' : 'window';
+        const found = await desktopCapturer.getSources({ types: [kind], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false });
+        const source = found.find((x) => x.id === choice.id);
+        if (!source) return callback({});
+        const answer = { video: source };
+        if (choice.audio && request.audioRequested && process.platform === 'win32') answer.audio = 'loopback';
+        return callback(answer);
+      } catch {
+        return callback({});
+      }
+    });
+  };
+
+  // While a window records: the global keys and the tray icon that stop and
+  // pause it, released when it stops or the window goes. A check run never
+  // takes a key from the person's keyboard or puts an icon on their desktop:
+  // it is handed the press instead (globalThis.__rutbaCaptureControls).
+  const KEYS = { stop: 'CommandOrControl+Shift+F10', pause: 'CommandOrControl+Shift+F9' };
+  const SHOWN_KEYS = { stop: isMac ? 'Cmd+Shift+F10' : 'Ctrl+Shift+F10', pause: isMac ? 'Cmd+Shift+F9' : 'Ctrl+Shift+F9' };
+  let held = null; // { win, tray, minimised, release }
+  const CHECK = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT);
+  const releaseControls = () => {
+    const h = held;
+    held = null;
+    if (!h) return;
+    if (!CHECK) {
+      for (const k of Object.values(KEYS)) { try { globalShortcut.unregister(k); } catch { /* not ours */ } }
+      try { h.tray?.destroy(); } catch { /* gone */ }
+      if (h.minimised && !h.win.isDestroyed()) { h.win.restore(); h.win.focus(); }
+    }
+    if (!h.win.isDestroyed()) h.win.removeListener('closed', h.onClosed);
+    if (CHECK) globalThis.__rutbaCaptureControls = { on: false, keys: SHOWN_KEYS, press: () => false };
+  };
+  const trayMenu = (win, paused) => {
+    speakAs(stores);
+    const send = (command) => () => { if (!win.isDestroyed()) win.webContents.send(`${CHANNEL_PREFIX}/event/capture:command`, { command }); };
+    return Menu.buildFromTemplate([
+      { label: t('Stop recording'), accelerator: KEYS.stop, click: send('stop') },
+      { label: paused ? t('Resume recording') : t('Pause recording'), accelerator: KEYS.pause, click: send('pause') },
+    ]);
+  };
+
   impl.capture = {
     sources: async (_p, win) => {
       const own = win && !win.isDestroyed() ? win.getMediaSourceId() : null;
       const found = await desktopCapturer.getSources({ types: ['window', 'screen'], thumbnailSize: { width: 320, height: 200 }, fetchWindowIcons: false });
+      const displays = screen.getAllDisplays();
+      const ours = CHECK ? new Set(BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).map((w) => w.getMediaSourceId())) : null;
+      const sizeOf = (s) => {
+        const d = displays.find((x) => String(x.id) === String(s.display_id)) || (displays.length === 1 ? displays[0] : null);
+        return d ? { width: Math.round(d.size.width * d.scaleFactor), height: Math.round(d.size.height * d.scaleFactor) } : null;
+      };
       return found
-        .filter((s) => s.id !== own && !s.thumbnail.isEmpty())
-        .map((s) => ({ id: s.id, name: s.name, kind: s.id.startsWith('screen:') ? 'screen' : 'window', thumbnail: s.thumbnail.toDataURL() }))
+        // A check run lists only this application's own windows: nothing of the
+        // person's desktop is looked at, or drawn in a picture the run keeps.
+        .filter((s) => s.id !== own && !s.thumbnail.isEmpty() && (!CHECK || ours.has(s.id)))
+        .map((s) => {
+          const kind = s.id.startsWith('screen:') ? 'screen' : 'window';
+          return { id: s.id, name: s.name, kind, thumbnail: s.thumbnail.toDataURL(), ...(kind === 'screen' ? { display: sizeOf(s) } : {}) };
+        })
         .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'window' ? -1 : 1));
+    },
+    choose: ({ id, audio = false }, win) => {
+      if (!win || !id) throw new Error('Nothing was chosen to record.');
+      installDisplayHandler();
+      chosen.set(win.webContents.id, { id: String(id), audio: Boolean(audio) });
+      return { loopback: process.platform === 'win32' };
+    },
+    controls: ({ on = false, paused = false, minimise = false }, win) => {
+      if (!on || !win) {
+        if (!held || !win || held.win === win) releaseControls();
+        return { stop: SHOWN_KEYS.stop, pause: SHOWN_KEYS.pause, tray: false };
+      }
+      if (held && held.win === win) {
+        // Only the tray's words change between pause and resume.
+        if (held.tray) held.tray.setContextMenu(trayMenu(win, paused));
+        return { stop: SHOWN_KEYS.stop, pause: SHOWN_KEYS.pause, tray: Boolean(held.tray) };
+      }
+      releaseControls();
+      const send = (command) => { if (!win.isDestroyed()) win.webContents.send(`${CHANNEL_PREFIX}/event/capture:command`, { command }); };
+      const onClosed = () => releaseControls();
+      win.once('closed', onClosed);
+      held = { win, tray: null, minimised: false, onClosed };
+      if (CHECK) {
+        globalThis.__rutbaCaptureControls = { on: true, keys: SHOWN_KEYS, press: (command) => { send(command); return true; } };
+        return { stop: SHOWN_KEYS.stop, pause: SHOWN_KEYS.pause, tray: false };
+      }
+      try { globalShortcut.register(KEYS.stop, () => send('stop')); } catch { /* taken by another program */ }
+      try { globalShortcut.register(KEYS.pause, () => send('pause')); } catch { /* taken by another program */ }
+      try {
+        if (iconPath) {
+          speakAs(stores);
+          const tray = new Tray(iconPath);
+          tray.setToolTip(t('Rutba Office is recording'));
+          tray.setContextMenu(trayMenu(win, paused));
+          tray.on('click', () => send('stop'));
+          held.tray = tray;
+        }
+      } catch {
+        held.tray = null;
+      }
+      if (minimise && !win.isMinimized()) { win.minimize(); held.minimised = true; }
+      return { stop: SHOWN_KEYS.stop, pause: SHOWN_KEYS.pause, tray: Boolean(held.tray) };
+    },
+    space: async ({ path: p }) => {
+      // The nearest folder of the path that is there: a recordings folder not made yet is on its parent's disk.
+      let at = p ? path.resolve(String(p)) : app.getPath('temp');
+      for (let i = 0; i < 40 && !fs.existsSync(at); i++) {
+        const up = path.dirname(at);
+        if (up === at) break;
+        at = up;
+      }
+      const st = await fsp.statfs(at);
+      return { free: Number(st.bavail) * Number(st.bsize), total: Number(st.blocks) * Number(st.bsize) };
+    },
+    take: async ({ dir, name = 'Recording.webm' }) => {
+      if (!dir || !path.isAbsolute(String(dir))) throw new Error('A recording needs a folder to go in.');
+      await fsp.mkdir(dir, { recursive: true });
+      const safe = String(name).replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Recording.webm';
+      const ext = path.extname(safe);
+      const stem = safe.slice(0, safe.length - ext.length);
+      let p = path.join(dir, safe);
+      for (let n = 2; fs.existsSync(p); n++) p = path.join(dir, `${stem} (${n})${ext}`);
+      await fsp.writeFile(p, Buffer.alloc(0), { flag: 'wx' });
+      temps.add(p);
+      takes.add(p);
+      return { path: p };
     },
     grab: async ({ id }) => {
       // As large as the largest screen, so a window or a screen comes at its own size.

@@ -24,6 +24,8 @@ import {
   clearRange, TITLE_PRESETS, withPartners,
 } from '@rutba/studio/project';
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
+import { placeTakes, settleTakes } from '@rutba/studio/recorder';
+import { RecorderPanel } from './recorder/panel.js';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
 import { MediaLibrary, mediaKind, MEDIA_EXTENSIONS } from './media.js';
 import Timeline from './timeline.js';
@@ -63,6 +65,7 @@ export default function VideoEditor({ app, shell, boot }) {
   const [missing, setMissing] = useState(() => new Set());
   const [busy, setBusy] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false);
   const [exporting, setExporting] = useState(null);
   const [transitionSeconds, setTransitionSeconds] = useState(1);
   const [timelineH, setTimelineH] = useState(300);
@@ -310,7 +313,16 @@ export default function VideoEditor({ app, shell, boot }) {
       const failures = await media.loadProject(projectMedia(next));
       for (const f of failures) gone.add(f.url);
       setMissing(gone);
-      requestAnimationFrame(() => fitTo(projectDuration(next)));
+      let shown = next;
+      if (next.recording?.unfinished) {
+        const lengths = {};
+        for (const p of next.patches) if (p.take && p.type === 'video' && media.videos.get(p.url)?.duration) lengths[p.url] = media.videos.get(p.url).duration;
+        for (const p of next.patches) if (p.take && p.type === 'sound' && !lengths[p.url] && media.sounds.get(p.url)?.duration) lengths[p.url] = media.sounds.get(p.url).duration;
+        shown = settleTakes(next, lengths);
+        docRef.current = shown;
+        setDoc(shown);
+      }
+      requestAnimationFrame(() => fitTo(projectDuration(shown)));
       if (!recovered) shell.app.addRecent({ path: file, app: 'video' }).catch(() => {});
       if (read.moved.length) toast(tn(read.moved.length, '{count} file had moved with the project and was found again.', '{count} files had moved with the project and were found again.'), { ms: 6000 });
       if (gone.size) toast(tn(gone.size, '{count} file of this project cannot be found. Its clips show nothing until it is back.', '{count} files of this project cannot be found. Their clips show nothing until they are back.'), { tone: 'bad', ms: 8000 });
@@ -386,6 +398,8 @@ export default function VideoEditor({ app, shell, boot }) {
   // Opened on a file, or on recovered work.
   useEffect(() => {
     const recover = new URLSearchParams(location.search).get('recover');
+    // The launcher's Record a screen: a new video that opens on the recorder.
+    if (new URLSearchParams(location.search).get('record')) setRecordOpen(true);
     if (recover) {
       (async () => {
         try {
@@ -437,6 +451,72 @@ export default function VideoEditor({ app, shell, boot }) {
     window.addEventListener('pagehide', away);
     return () => window.removeEventListener('pagehide', away);
   }, [shell]);
+
+  /* ── record ────────────────────────────────────────────────────────── */
+
+  /** A take as the timeline places it: its file as the source. */
+  const asTake = (k) => ({ ...k, url: k.path, name: basename(k.path).replace(/\.[^.]+$/, ''), size: k.written ?? null });
+
+  // While a recording runs, the project with its takes so far is the
+  // window's recovery copy: a crash leaves it for the launcher to offer.
+  const recordingCopy = useCallback((takes) => {
+    try {
+      const { doc: withTakes } = placeTakes(docRef.current, takes.map(asTake), { unfinished: true });
+      shell.doc.keepCopy({
+        key: copyKey.current,
+        kind: 'video',
+        name: path ? basename(path) : t('Untitled video'),
+        path,
+        bytes: writeRvid(withTakes, { projectPath: path }),
+      }).catch(() => {});
+    } catch {
+      /* the copy is a safety net, not the recording */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell, path]);
+
+  /** The takes, read like any added file, placed together after what is there. */
+  const landTakes = useCallback(async ({ takes }) => {
+    setRecordOpen(false);
+    stop();
+    setBusy(t('Adding the recording'));
+    try {
+      const placed = [];
+      for (const k of takes) {
+        const info = await media.describe(k.path, { name: basename(k.path), size: k.written ?? null });
+        placed.push(asTake({ ...k, duration: info.duration || k.duration, width: info.width || k.width, height: info.height || k.height, hasAudio: Boolean(k.hasAudio && info.hasAudio) }));
+      }
+      const wasEmpty = !docRef.current.patches.some((p) => p.timing);
+      let ids = [];
+      let at = 0;
+      edit(t('Record'), (d) => {
+        const r = placeTakes(d, placed);
+        ids = r.ids;
+        at = r.doc.patches.find((p) => p.id === r.ids[0])?.timing.start || 0;
+        return r.doc;
+      });
+      setSelected(ids.slice(0, 1));
+      seek(at);
+      if (wasEmpty) requestAnimationFrame(() => fitTo(projectDuration(docRef.current)));
+      toast(tn(placed.length, 'The recording is on the timeline: {count} take.', 'The recording is on the timeline: {count} takes.'), { tone: 'good', ms: 5000 });
+    } catch (err) {
+      toast(t('The recording could not be added: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+    } finally {
+      setBusy(null);
+      copied.current = { at: 0, doc: null };
+    }
+  }, [media, edit, stop, seek, fitTo, toast]);
+
+  /** Record closed without a recording: the copy goes back to the project as it is. */
+  const recordClosed = useCallback(() => {
+    setRecordOpen(false);
+    copied.current = { at: 0, doc: null };
+    if (dirty && docRef.current.patches.length) {
+      shell.doc.keepCopy({ key: copyKey.current, kind: 'video', name: path ? basename(path) : t('Untitled video'), path, bytes: writeRvid(docRef.current, { projectPath: path }) }).catch(() => {});
+    } else {
+      shell.doc.dropCopy({ key: copyKey.current }).catch(() => {});
+    }
+  }, [shell, dirty, path]);
 
   /* ── export ────────────────────────────────────────────────────────── */
 
@@ -505,6 +585,7 @@ export default function VideoEditor({ app, shell, boot }) {
     'file.saveAs': { label: t('Save As'), icon: 'save', key: 'Mod+Shift+S', run: saveAs },
     'file.export': { label: t('Export'), icon: 'export', key: 'Mod+E', disabled: !hasClips || Boolean(exporting), tip: t('write the video file, with its sound'), run: () => setExportOpen(true) },
     'insert.media': { label: t('Add Media'), icon: 'plus', key: 'Mod+I', tip: t('videos, sound and pictures, placed one after another'), run: insertMedia },
+    'record.screen': { label: t('Record Screen'), icon: 'record', disabled: Boolean(exporting) || recordOpen, tip: t('a screen, a window or a region, with the camera and sound, onto the timeline'), run: () => { stop(); setRecordOpen(true); } },
     'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', disabled: !history.current.canUndo, run: undo },
     'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', disabled: !history.current.canRedo, run: redo },
     'edit.redo2': { label: t('Redo'), key: 'Mod+Shift+Z', run: redo, hidden: true },
@@ -584,7 +665,7 @@ export default function VideoEditor({ app, shell, boot }) {
       },
     };
   }
-  useCommands(cmds, [doc, selected, time, path, dirty, clipboard.current, playing, exporting, transitionSeconds, follow, duration]);
+  useCommands(cmds, [doc, selected, time, path, dirty, clipboard.current, playing, exporting, transitionSeconds, follow, duration, recordOpen]);
 
   // A clip's own menu, on a right-click: the clip is picked first, and the
   // menu opens once the window has drawn it picked, so every item acts on it.
@@ -678,14 +759,17 @@ export default function VideoEditor({ app, shell, boot }) {
                   onMove={(id, dx, dy) => {
                     const base = dragBase.current || docRef.current;
                     const ids = new Set(withPartners(base, [id]));
-                    live({ ...base, patches: base.patches.map((p) => (ids.has(p.id) && (p.type === 'text' || p.type === 'shape') ? { ...p, fx: Math.round(((p.fx ?? 0.5) + dx) * 1000) / 1000, fy: Math.round(((p.fy ?? 0.5) + dy) * 1000) / 1000 } : p)) });
+                    live({ ...base, patches: base.patches.map((p) => (ids.has(p.id) && (p.type === 'text' || p.type === 'shape' || (p.type === 'video' && p.fw)) ? { ...p, fx: Math.round(((p.fx ?? 0.5) + dx) * 1000) / 1000, fy: Math.round(((p.fy ?? 0.5) + dy) * 1000) / 1000 } : p)) });
                   }}
                 />
               ) : (
                 <div className="vd-stage">
                   <Empty icon="video" title={t('Start a video')}>
                     {reason || t('Add videos, sound and pictures, or drop them onto this window. They go on the timeline one after another.')}
-                    <Button primary icon="plus" label={t('Add Media')} onClick={insertMedia} style={{ marginTop: 12 }} />
+                    <span className="vd-start-actions">
+                      <Button primary icon="plus" label={t('Add Media')} onClick={insertMedia} />
+                      <Button icon="record" label={t('Record Screen')} className="vd-start-record" onClick={() => setRecordOpen(true)} />
+                    </span>
                   </Empty>
                 </div>
               )}
@@ -738,6 +822,7 @@ export default function VideoEditor({ app, shell, boot }) {
       </Content>
       {contextMenu.node}
       {exportOpen ? <ExportDialog doc={doc} onClose={() => setExportOpen(false)} onExport={runExport} /> : null}
+      {recordOpen ? <RecorderPanel shell={shell} mode="video" toast={toast} onDone={landTakes} onCancel={recordClosed} onProgress={recordingCopy} /> : null}
       {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} onCancel={() => exportAbort.current?.abort()} /> : null}
       <style>{CSS}</style>
     </AppFrame>

@@ -10,58 +10,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { t } from '@rutba/office-ui';
 import { recordingType } from './screen-record.js';
-
-let shared = null; // { stream, users } once opened
-let opening = null;
-
-/** Whether a stream still has its camera: a stream whose camera stopped is not handed out again. */
-const alive = (stream) => Boolean(stream?.active && stream.getVideoTracks().some((t) => t.readyState === 'live'));
-
-async function openCamera() {
-  if (shared && !alive(shared.stream)) {
-    for (const t of shared.stream.getTracks()) t.stop();
-    shared = null;
-  }
-  if (shared) { shared.users += 1; return shared.stream; }
-  if (!opening) {
-    opening = navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
-      .then((stream) => { shared = { stream, users: 0 }; return stream; })
-      .finally(() => { opening = null; });
-  }
-  const stream = await opening;
-  if (!shared || shared.stream !== stream) shared = { stream, users: 0 };
-  shared.users += 1;
-  return stream;
-}
-
-/** A camera that is there but busy, or slow to start, is asked for again rather than given up on. */
-const BUSY = ['NotReadableError', 'AbortError', 'TrackStartError'];
-
-/**
- * The camera, asked for again while it is busy — let go a moment ago by the
- * stage's preview, held by another program, or slow to start — waiting a
- * little longer each time, for about nine seconds, as `useCamera` does.
- */
-async function openCameraPatiently() {
-  for (let tries = 1; ; tries += 1) {
-    try {
-      return await openCamera();
-    } catch (err) {
-      if (!BUSY.includes(err?.name) || tries > 5) throw err;
-      await new Promise((resolve) => { setTimeout(resolve, 300 * 2 ** (tries - 1)); });
-    }
-  }
-}
-
-/** One holder of `stream` lets it go; the camera is closed with the last. A stream already replaced is left alone. */
-function closeCamera(stream) {
-  if (!shared || (stream && shared.stream !== stream)) return;
-  shared.users = Math.max(0, shared.users - 1);
-  if (!shared.users) {
-    for (const t of shared.stream.getTracks()) t.stop();
-    shared = null;
-  }
-}
+import { alive, BUSY, openCamera, openCameraPatiently, closeCamera, cameraTrouble } from '../video/recorder/camera.js';
 
 /**
  * The camera's stream while `on`, or null — and why not, when it could not
@@ -103,7 +52,7 @@ export function useCamera(on) {
           timer = setTimeout(take, 300 * 2 ** (tries - 1));
           return;
         }
-        setState({ stream: null, error: err?.name === 'NotAllowedError' ? t('The camera was not allowed.') : err?.name === 'NotReadableError' ? t('The camera is in use by another program.') : t('No camera was found.') });
+        setState({ stream: null, error: cameraTrouble(err) });
       });
     };
     take();

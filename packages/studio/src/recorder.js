@@ -326,13 +326,14 @@ export function placeTakes(doc, takes, { at = null, unfinished = false } = {}) {
         const from = take.role === 'camera' ? screenLane + 1 : 0;
         const lane = freeLane(next, 'v', from, start, end);
         if (take.role === 'screen') screenLane = lane;
+        // The sound's lane is found before the take is added, or the take's own sound would be in the way.
+        const soundLane = take.hasAudio ? freeLane(next, 'a', 0, start, end, usedSound) : null;
         const r = addMedia(next, { url: take.url, name: take.name, kind: 'video', duration: length, hasAudio: Boolean(take.hasAudio), width: take.width, height: take.height, size: take.size ?? null }, { at: start, lane });
         next = r.doc;
         const [picId, soundId] = r.ids;
         const made = new Set(r.ids);
         const fresh = clipById(next, picId);
         group = group || fresh.group || `rec-${picId}`;
-        const soundLane = soundId ? freeLane(next, 'a', 0, start, end, usedSound) : null;
         if (soundLane != null) usedSound.add(soundLane);
         next = {
             ...next,

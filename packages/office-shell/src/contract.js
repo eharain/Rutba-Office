@@ -61,7 +61,7 @@ export const METHODS = {
     'mkdirp',       // ({ path }) -> void
     'remove',       // ({ path }) -> void        (to the OS trash, never unlink)
     'temp',         // ({ ext, bytes }) -> { path }
-    'append',       // ({ path, bytes }) -> { size } — only to a file `temp` made, in this run
+    'append',       // ({ path, bytes }) -> { size }: only to a file `temp` or capture.take made, in this run
     'dropTemp',     // ({ path }) -> void — a file `temp` made, and its folder, gone
     'exists',       // ({ path }) -> boolean
   ],
@@ -274,9 +274,14 @@ export const METHODS = {
     'readImage',    // () -> { bytes, width, height } | null   the clipboard's picture as PNG, for Image's Paste
   ],
   // Insert → Screenshot: the windows and screens there are, and one of them as a picture.
+  // The recorder (Video → Record, Presentations → Screen Recording) records one of them.
   capture: [
-    'sources',      // () -> [{ id, name, kind, thumbnail }]   every window but the asking one, then each screen
+    'sources',      // () -> [{ id, name, kind, thumbnail, display? }]   every window but the asking one, then each screen (display: its size in pixels)
     'grab',         // ({ id }) -> { bytes, width, height, name }   that window or screen as a PNG
+    'choose',       // ({ id, audio }) -> { loopback }   what this window's next getDisplayMedia is given: that source, and the computer's own sound where the platform hears it
+    'controls',     // ({ on, paused, minimise }) -> { stop, pause, tray }   while recording: a global Stop and Pause key and a tray icon, sent back as capture:command; off releases them
+    'space',        // ({ path }) -> { free, total }   bytes on the disk that holds path
+    'take',         // ({ dir, name }) -> { path }   a new file in dir for a recording, written to by fs.append and let go of by fs.dropTemp
   ],
 };
 
@@ -297,6 +302,7 @@ export const EVENTS = [
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
   'theme:changed',    // { dark }
   'update:state',     // { state, version, available, percent, automatic, snoozed, snoozedVersion, arrived }
+  'capture:command',  // { command: 'stop' | 'pause' }   a recording's global key or tray icon was used
 ];
 
 /** Every method as a flat channel list, e.g. 'fs:read'. */

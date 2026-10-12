@@ -278,7 +278,9 @@ function probeMatroska(b, complete) {
           if (rel & 0x8000) rel -= 0x10000;
           const t = clusterTime + rel;
           const prev = lastBlock.get(tn.size);
-          const step = prev && t > prev.t ? t - prev.t : prev?.step || 0;
+          // A frame lasts as long as the shortest gap between two seen: a recording of a still
+          // window has frames only when it changes, and its last gap is no frame's length.
+          const step = prev && t > prev.t ? Math.min(prev.step || Infinity, t - prev.t) : prev?.step || 0;
           if (!prev || t >= prev.t) lastBlock.set(tn.size, { t, step });
         }
         break;

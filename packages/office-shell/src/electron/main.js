@@ -345,7 +345,7 @@ export function createShell({
       send,
     };
 
-    const base = buildImplementations({ stores, windows, quitting, thumbnailer });
+    const base = buildImplementations({ stores, windows, quitting, thumbnailer, iconPath });
     // A host namespace that fails to build must not take the whole
     // application with it: the shell's own methods still work, and the window
     // that opens says what it cannot do rather than never appearing.

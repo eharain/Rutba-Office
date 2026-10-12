@@ -11,6 +11,7 @@ import React from 'react';
 import { Button, Icon, Select, t } from '@rutba/office-ui';
 import { timecode } from '@rutba/media/timeline';
 import { clipById, partnersOf, previousOnLane, lengthOf, animationName, TEXT_ANIMATIONS, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker } from '@rutba/studio/project';
+import { insetRect, cornerOf } from '@rutba/studio/recorder';
 import { transitionName } from './timeline.js';
 
 const COLOURS = ['#ffffff', '#111111', '#ffc107', '#e2445c', '#2bb673', '#3b82f6', '#c2408f'];
@@ -59,6 +60,47 @@ const ANIMATIONS = () => [
   ['type', t('Type on')],
   ['pop', t('Pop')],
 ];
+
+/**
+ * A clip drawn as an inset over the others (the camera of a recording): how
+ * big, which corner, what shape, mirrored or not, or back to the whole frame.
+ */
+function InsetProps({ clip, set, aspect = 9 / 16 }) {
+  const shape = clip.insetShape || 'rounded';
+  const corner = cornerOf(clip);
+  const place = (patch) => {
+    const next = { corner, size: clip.fw, shape, ...patch };
+    const r = insetRect({ corner: next.corner, size: next.size, shape: next.shape, W: 1920, H: 1080, aspect });
+    return { fx: r.fx, fy: r.fy, fw: r.fw, fh: r.fh };
+  };
+  const corners = [['tl', t('Top left')], ['tr', t('Top right')], ['bl', t('Bottom left')], ['br', t('Bottom right')]];
+  return (
+    <section className="vd-insp-section vd-inset-props">
+      <h3>{t('Picture in picture')}</h3>
+      <Row label={t('Size')}>
+        <Slider value={round(clip.fw, 1000)} min={0.1} max={0.6} step={0.01} onChange={(x) => set(t('Inset size'), place({ size: x }), `inset-size-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
+      </Row>
+      <Row label={t('Corner')}>
+        <span className="vd-corners">
+          {corners.map(([k, label]) => (
+            <button key={k} type="button" className={`vd-corner c-${k}${corner === k ? ' on' : ''}`} data-corner={k} data-tip={label} aria-label={label} onClick={() => set(t('Inset corner'), place({ corner: k }))}><i /></button>
+          ))}
+        </span>
+      </Row>
+      <Row label={t('Shape')}>
+        <Select value={shape} onChange={(e) => set(t('Inset shape'), { insetShape: e.target.value, ...place({ shape: e.target.value }) })}>
+          <option value="circle">{t('Circle')}</option>
+          <option value="rounded">{t('Rounded')}</option>
+          <option value="rect">{t('Rectangle')}</option>
+        </Select>
+      </Row>
+      <Row label={t('Mirror')}>
+        <input type="checkbox" checked={!!clip.flipX} onChange={(e) => set(t('Mirror'), { flipX: e.target.checked })} />
+      </Row>
+      <Button icon="maximize" label={t('Fill the whole frame')} className="vd-inset-full" onClick={() => set(t('Fill the whole frame'), { fx: undefined, fy: undefined, fw: undefined, fh: undefined, insetShape: undefined, flipX: false })} />
+    </section>
+  );
+}
 
 export default function Inspector({ doc, selected, edit, onSeek, missing, kindName }) {
   const clip = selected.length ? clipById(doc, selected[0]) : null;
@@ -131,6 +173,8 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           </Row>
         </section>
       ) : null}
+
+      {clip.type === 'video' && clip.fw ? <InsetProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
 
       {before ? (
         <section className="vd-insp-section">
