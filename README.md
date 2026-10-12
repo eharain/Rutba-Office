@@ -16,9 +16,9 @@ with the network switched off.
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.xls` of every age, `.ods` and `.csv` |
 | **Presentations** | Slides that survive the round trip, shapes you move and recolour by hand | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen; reading `.ppt` and `.odp` |
 
-| **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn; star ratings and tags kept on this computer, and a search through the folders inside |
-| **Image** | Crop, correct, annotate, export | Non-destructive: your original is never touched |
-| **Video** | Trim and export without a render farm | No ffmpeg, no native binaries, nothing to install |
+| **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn; star ratings and tags kept on this computer, a search through the folders inside, and a whole folder resized, converted and renamed in one go |
+| **Image** | Crop, correct, draw on, export | Levels, curves, white balance, straighten, pen, shapes, arrows and text; non-destructive, so your original is never touched |
+| **Video** | An editor on a timeline, without a render farm | Clips, stills and sound on lanes, split and trim, transitions, titles, and export with sound to MP4 or WebM; no ffmpeg, no native binaries, nothing to install |
 
 Dual-licensed: **GNU AGPL v3.0**, or a commercial licence — see
 [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
@@ -108,7 +108,7 @@ installations on the version they have.
 git clone https://github.com/eharain/Rutba-Office.git office
 cd office
 npm install
-npm test          # 2,138 tests, no network needed
+npm test          # 2,209 tests, no network needed
 npm run build     # bundle the renderer
 npm start         # run the app
 npm run dev       # run the app, rebuilding the window's code on every save
@@ -132,7 +132,9 @@ packages/
   office-formats   what a file is: sniffing, ODF, RTF, compound file, text
   mailbox          MIME, mbox, .msg, .olm, .pst/.ost, and the local mail store
   imaging          image probing, EXIF, and the non-destructive edit pipeline
-  media            container probing and the video edit timeline
+  media            container probing
+  studio           the layer renderer the Video and Image editors are built on
+  proofing         spelling, the thesaurus and the accessibility check
   calendar         iCalendar read and written, recurrence, time zones
   contacts         vCard and CSV address books, read and written
   office-shell     the platform contract, and its Electron backend
@@ -277,7 +279,7 @@ Other things worth reading:
 
 ```bash
 npm run gate            # all four passes, in the order that finds problems soonest
-npm test                # the engine suite — 2,138 checks, no windows
+npm test                # the engine suite: 2,209 checks, no windows
 npm run verify:edit     # do keystrokes reach the document?
 npm run verify:apps     # does each app open, change and save a real file?
 npm run smoke           # boot the real app, photograph every window, report
@@ -286,8 +288,8 @@ RUTBA_CORPUS_DIRS="D:\docs" npm run verify:corpus   # open every file in a folde
 node tools/fuzz-open.js 500                         # damage good files at random; every one must draw or refuse in a sentence
 ```
 
-`npm run gate` is what runs before a release: 2,138 engine tests, 12 editing checks,
-1,260 application checks — most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard — and 10 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about ten minutes.
+`npm run gate` is what runs before a release: 2,213 engine tests, 12 editing checks,
+1,350 application checks (most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard) and 10 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about twenty minutes.
 
 The engine suite includes `tests/rich-fixtures.test.js`, which opens a workbook, a document and a deck that Excel, Word and PowerPoint themselves wrote — charts, shapes, pictures, cross-sheet formulas, names, number formats, notes, footnotes, tracked changes, fields, a watermark — and holds the engine to Excel's own results. `tools/make-rich-fixtures.ps1` regenerates them on a machine with Office; docs/TESTING.md says what they hold and what they found.
 

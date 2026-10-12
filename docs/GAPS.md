@@ -173,58 +173,32 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   template file whose own text, headers and page setup new documents take.
   (Building blocks — Insert → Quick Parts, the Quick Part and AutoText
   galleries and the Organizer — arrived in 1.29.4.)
-- **Pages side by side as the zoom drops** (the owner, 2026-10-10, with
-  Word's own window beside this one). Word lays the pages across the window
-  once there is room: two side by side at about 50%, three or four and more
-  as the zoom falls further, each row wrapping, and View → Multiple Pages
-  picks the zoom that shows two whole pages across. View → Page Movement →
-  Side to Side turns the pages like a book, moved through sideways with the
-  wheel. Here every page is stacked one under another at any zoom, and
-  View → Multiple Pages only sets the zoom to 50% (`case 'zoom'` in
-  `renderer/apps/word.js`, `arg === 'pages'`), so at 50% a wide window
-  shows one small page in the middle with empty space on each side. What it
-  needs:
-  - the page column laid as rows that wrap, as many pages across as fit at
-    the zoom (a page's width times the zoom, plus the gap), centred, the
-    pages still in reading order left to right (right to left in a
-    right-to-left document);
-  - Multiple Pages choosing the zoom that fits two pages across, and the
-    zoom slider and Ctrl+wheel reflowing the rows as they change;
-  - Side to Side as a second page movement on the View tab beside
-    Vertical, pages in one row moved through horizontally, with a thumbnail
-    strip when zoomed right out, as Word draws it;
-  - everything that reads a page's place still right with pages beside each
-    other: the caret moving from the foot of one page to the head of the
-    next, selection dragged across pages, the ruler following the page the
-    caret is in, scroll to the caret, find, the navigation pane, comments
-    and tracked changes in the margin, and picture and text box handles
-    (they read their rects through `pages.js`, which divides by the zoom);
-  - Read Mode and print preview kept as they are.
-  Proof: a window check that at 50% in a wide window two pages share a top
-  edge and the second sits to the right of the first, that at 30% three or
-  more do, that Multiple Pages shows two whole pages, that typing at the
-  foot of the left page carries on at the head of the right one, and that
-  Side to Side scrolls sideways.
-- **Zoom by Ctrl and the mouse wheel, and by Ctrl+Plus and Ctrl+Minus**
-  (the owner, 2026-10-10). Word, Excel and PowerPoint zoom the page, the
-  sheet or the slide with Ctrl and the wheel (centred on the pointer) and
-  with Ctrl+Plus, Ctrl+Minus and Ctrl+0, the ribbon and the panes staying
-  the size they are. In the code today: Documents and Presentations have no
-  wheel handler for it, Worksheets' wheel handler only scrolls the frozen
-  panes, and the application menu's Zoom In and Zoom Out
-  (`office-shell/src/electron/main.js`, `view.zoomIn` and `view.zoomOut`)
-  are registered as commands by Pictures alone, so in the document apps
-  the keys reach nothing. What it needs, in Documents, Worksheets,
-  Presentations, Mail's reading pane, Image and Video: Ctrl+wheel stepping
-  the app's own zoom (`view.zoom`, the same level the status bar's slider
-  sets) by 10% a notch within the app's limits, keeping the point under the
-  pointer where it was; `view.zoomIn`, `view.zoomOut` and Ctrl+0 (100%)
-  registered in each app's commands; the browser's own page zoom never
-  used, since it scales the ribbon too (the owner's report of 2026-09-24).
-  With pages side by side (above), Ctrl+wheel reflows the rows as it
-  zooms. Proof: a window check per app sends Ctrl+wheel and Ctrl+Plus,
-  Ctrl+Minus and Ctrl+0 and reads the zoom level and that the ribbon's
-  height has not changed.
+- **Pages side by side as the zoom drops**: **built in 1.43.0** (the
+  owner asked for it on 2026-10-10, with Word's own window beside this
+  one). Pages stand across the window once the zoom leaves room, as many as
+  fit in rows that wrap and are centred, right to left in a right-to-left
+  document; View → Multiple Pages picks the zoom for two whole pages across
+  and One Page for one; View → Page Movement offers Vertical and Side to
+  Side, one row moved through sideways a page a wheel notch. The flow stays
+  one column and each page's elements are drawn moved (`translate`), and
+  `rectOf`, `rectsOf` and `pointOf` in `word/pages.js` take the move off,
+  so everything that reads a page's place reads it as before. The ruler
+  follows the caret's page; a press on any page lands there. Window check
+  `sidebyside`. Not yet: the ruler pinned above the rows as Word pins it;
+  Side to Side's thumbnail strip when zoomed right out; with a Draw tab tool
+  in hand the pages go back to one column; headers and footers, footnotes,
+  line numbers, page borders, handles, table grips, the navigation pane and
+  find are moved by the same rule but not yet proven in a window with pages
+  across.
+- **Zoom by Ctrl and the mouse wheel, and by Ctrl+Plus and Ctrl+Minus**:
+  **built in 1.43.0** (the owner, 2026-10-10). Documents, Worksheets,
+  Presentations and Mail's reading pane zoom their own level (`view.zoom`,
+  the status bar's) by 10% a notch with Ctrl and the wheel, keeping the
+  point under the pointer, and smoothly for a touchpad pinch; Ctrl+Plus,
+  Ctrl+Minus and Ctrl+0 and the menu's Zoom In, Zoom Out and Actual Size
+  reach every app (`packages/office-ui/src/zoom.js`, `useWheelZoom`); the
+  browser's page zoom is never used, so the ribbon keeps its size. Image
+  and Video zoom their own canvas. Window check `zoom`.
 
 ## 2. Worksheets — the workbook
 
@@ -512,23 +486,33 @@ stage keeps a picture until the next has decoded. What is still missing:
 
 ## 7. Image and Video — the editors
 
-Both are real but small, and until now unregistered here. What each does,
-and what it does not, is set out with the plan in
-[COMPETITORS.md](COMPETITORS.md).
+Built on `packages/studio` and planned in [STUDIO.md](STUDIO.md), which
+holds each item's number and state.
 
-- **Image** has rotate, flip horizontal, crop to a ratio, seven sliders
-  (brightness, contrast, saturation, hue, blur, sepia, greyscale), undo and
-  export to PNG, JPEG or WebP, over a non-destructive pipeline. The pipeline
-  also knows flip vertical, resize, invert and annotations (rectangle,
-  ellipse, arrow, text, pen) that no button offers yet. No selections,
-  layers, masks, retouching, background removal, RAW, batch or project file.
-- **Video** opens one file, splits, trims the ends, removes a clip, previews
-  at four speeds (the model's per-clip speed has no button), and exports
-  WebM by recording a canvas at the speed the film plays. One track; no
-  joining of files, transitions, titles, captions, audio mixing, keyframes,
-  colour, chroma key, stabilisation or MP4.
-- **Pictures** opens either in one click; "edits from the viewer" belong to
-  Image, and a batch over a folder belongs there too.
+- **Image**, since 1.43.0: rotate, flip both ways, crop to a ratio, resize
+  by pixels or percent, straighten with the largest upright rectangle kept,
+  invert; auto enhance, levels, curves, white balance, exposure, highlights
+  and shadows, sharpen, noise reduction, vignette and red eye, worked on the
+  pixels in a worker; pen, rectangle, ellipse, arrow and text marks editable
+  until Done; copy and paste a picture; export with quality, a size cap, a
+  longest side and metadata stripped or kept (STUDIO.md 7.1, I1 to I6).
+  Not yet: layers, masks, selections, brushes, retouching, perspective,
+  Edit in Image from the other apps and the `.rimg` project (7.2), and
+  background removal, RAW and the rest of 7.3.
+- **Video**, since 1.43.0: an editor on a timeline (STUDIO.md Phase 1):
+  clips, stills and sound on lanes with frames and waveforms; split, trim,
+  ripple, Close Gap, move between lanes with snapping, links, markers, In
+  and Out; fit, fill, blur fill, turns, flips and crop per clip;
+  crossfade, dip to black, wipe, slide, push and zoom; titles, lower thirds,
+  end cards and callouts; volume, mute and fades; export with sound to MP4
+  or WebM, the whole or In to Out; `.rvid` projects that find moved media
+  again, and Recover after a crash. Not yet: the screen recorder (Phase 2),
+  introductory videos (Phase 3), an encoder of our own and faster than real
+  time export (Phase 4), speed, keyframes, captions, colour and picture in
+  picture (Phase 6); media is read whole into memory.
+- **Pictures** opens either in one click, and since 1.43.0 its Batch edit
+  resizes, converts, renames, turns upright and strips the pictures of a
+  folder (I6).
 
 ---
 
