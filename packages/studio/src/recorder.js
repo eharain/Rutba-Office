@@ -16,6 +16,8 @@
  */
 
 import { addMedia, clipsOf, sectionOf, laneOf, projectDuration, clipById } from './project.js';
+import { nextId } from './doc.js';
+import { compactPointer, POINTER_LOOK } from './pointer.js';
 
 // ── settings ────────────────────────────────────────────────────────────────
 
@@ -69,6 +71,7 @@ export const RECORDER_DEFAULTS = Object.freeze({
     system: false,
     minimise: true,
     folder: '',
+    pointer: true,
 });
 
 const pick = (v, list, fallback) => (list.includes(v) ? v : fallback);
@@ -95,6 +98,7 @@ export function normaliseSettings(raw) {
         system: Boolean(r.system),
         minimise: r.minimise === undefined ? d.minimise : Boolean(r.minimise),
         folder: typeof r.folder === 'string' ? r.folder : '',
+        pointer: r.pointer === undefined ? d.pointer : Boolean(r.pointer),
     };
 }
 
@@ -305,7 +309,9 @@ function freeLane(doc, section, from, start, end, taken = new Set()) {
  *
  * `takes`: [{ role: 'screen' | 'camera', url, name, duration, width, height,
  * hasAudio, size, crop?, inset?: { fx, fy, fw, fh }, shape?, mirror?,
- * sound?: 'voice' | 'computer' }].
+ * sound?: 'voice' | 'computer', pointer?: { samples, clicks } }].
+ * A screen take with pointer data gets its pointer layer on the lane above
+ * it (R7), under the camera, in the same group.
  * `unfinished` marks a project written while still recording, for the
  * window that recovers it to settle the lengths (settleTakes).
  * Answers { doc, ids, group }.
@@ -319,12 +325,13 @@ export function placeTakes(doc, takes, { at = null, unfinished = false } = {}) {
     const ids = [];
     let group = null;
     let screenLane = -1;
+    let pointerLane = -1;
     const usedSound = new Set();
     for (const take of order) {
         const length = Math.max(0.1, Number(take.duration) || 0.1);
         const end = start + length;
         const from = take.role === 'camera' ? screenLane + 1 : 0;
-        const lane = freeLane(next, 'v', from, start, end);
+        const lane = freeLane(next, 'v', take.role === 'camera' ? Math.max(from, pointerLane + 1) : from, start, end);
         if (take.role === 'screen') screenLane = lane;
         // The sound's lane is found before the take is added, or the take's own sound would be in the way.
         const soundLane = take.hasAudio ? freeLane(next, 'a', 0, start, end, usedSound) : null;
@@ -351,6 +358,15 @@ export function placeTakes(doc, takes, { at = null, unfinished = false } = {}) {
             }),
         };
         ids.push(...r.ids);
+        // The pointer, as data beside the screen: a layer of its own over it.
+        const data = take.role === 'screen' && take.pointer ? compactPointer(take.pointer) : null;
+        if (data && (data.samples.length || data.clicks.length)) {
+            const pl = freeLane(next, 'v', screenLane + 1, start, end);
+            pointerLane = pl;
+            const id = nextId(next, 'pointer');
+            next = { ...next, patches: [...next.patches, { id, type: 'pointer', name: take.name || '', take: 'pointer', screenUrl: take.url, offset: 0, timing: { start: Math.round(start * 1000) / 1000, end: Math.round(end * 1000) / 1000 }, lane: pl, group, ...POINTER_LOOK, samples: data.samples, clicks: data.clicks }] };
+            ids.push(id);
+        }
     }
     if (unfinished) next = { ...next, recording: { unfinished: true, group } };
     return { doc: next, ids, group };

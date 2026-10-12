@@ -39,7 +39,12 @@ export {
   pickMimeType, extensionFor, unsupportedReason, videoFileName,
   // the extension registry
   registerLayerType, registeredLayerTypes,
+  // where a source's point is drawn (the pointer layer's)
+  sourcePointToFrame, fontCss,
 } from './index.js';
+
+// The pointer layer of a screen recording: registered by importing it.
+import './pointer.js';
 
 /**
  * Load pictures and answer with the entries alone, an array, which is what

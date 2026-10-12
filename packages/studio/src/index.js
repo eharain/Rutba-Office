@@ -1548,6 +1548,51 @@ function drawInset(ctx, plan, entry, x, y, w, h, layer) {
 export const INSET_SHAPES = ['rect', 'rounded', 'circle'];
 
 /**
+ * Where a point of a video layer's source (fractions of its picture) is
+ * drawn in the frame at `time`: through the layer's crop, its zoom and pan
+ * as keyed at that instant, and its fit, as a whole picture or as an inset.
+ * Answers { x, y, scale } in frame pixels (`scale` the frame's pixels to a
+ * source pixel), or null when that point is cropped, zoomed or fitted out
+ * of sight, or the layer is turned (a recording of a screen never is). What
+ * the pointer layer draws by, so a ring stays on its button as the screen
+ * zooms.
+ */
+export function sourcePointToFrame(plan, layer, time, px, py) {
+    const entry = layer && layer.type === 'video' ? videoEntry(plan, layer) : null;
+    const iw = entry?.width || 0;
+    const ih = entry?.height || 0;
+    if (!iw || !ih || layer.turn) return null;
+    return withLayerStateAt(plan, layer, time, () => {
+        const s = srcRect(iw, ih, layer);
+        const u = (px * iw - s.sx) / s.sw;
+        const v = (py * ih - s.sy) / s.sh;
+        if (u < -0.001 || u > 1.001 || v < -0.001 || v > 1.001) return null;
+        const { W, H } = plan;
+        let box;
+        let clip = null;
+        if (layer.fw) {
+            const rw = W * layer.fw;
+            const rh = layer.fh ? H * layer.fh : rw * (s.sh / Math.max(1, s.sw));
+            const rx = W * (layer.fx ?? 0.3);
+            const ry = H * (layer.fy ?? 0.3);
+            const f = layer.fit === 'contain' ? containRect(s.sw, s.sh, rw, rh) : coverRect(s.sw, s.sh, rw, rh);
+            box = { x: rx + (rw - f.w) / 2, y: ry + (rh - f.h) / 2, w: f.w, h: f.h };
+            clip = { x: rx, y: ry, w: rw, h: rh };
+        } else {
+            const fit = layer.fit || 'cover';
+            const f = fit === 'cover' ? coverRect(s.sw, s.sh, W, H) : containRect(s.sw, s.sh, W, H);
+            box = { x: (W - f.w) / 2, y: (H - f.h) / 2, w: f.w, h: f.h };
+            clip = { x: 0, y: 0, w: W, h: H };
+        }
+        let x = box.x + u * box.w;
+        if (layer.flipX) x = box.x + box.w - u * box.w;
+        const y = box.y + v * box.h;
+        if (x < clip.x - 1 || x > clip.x + clip.w + 1 || y < clip.y - 1 || y > clip.y + clip.h + 1) return null;
+        return { x, y, scale: box.w / s.sw };
+    });
+}
+
+/**
  * A video element's last good frame, kept beside it. While the element
  * seeks (a playing clip caught up with the clock, a paused one following
  * the playhead) it has no frame to give and drew nothing: an export's first

@@ -17,6 +17,8 @@
     "./recorder": "./src/recorder.js",
     "./captions": "./src/captions.js",
     "./presets": "./src/presets.js",
+    "./pointer": "./src/pointer.js",
+    "./intro": "./src/intro.js",
     "./layers": "./src/layers.js",
     "./rimg": "./src/rimg.js",
     "./zoom": "./src/zoom.js",
@@ -34,6 +36,7 @@
     "./src/textblock.js",
     "./src/charts.js",
     "./src/toolset.js",
-    "./src/host.js"
+    "./src/host.js",
+    "./src/pointer.js"
   ]
 }

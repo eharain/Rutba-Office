@@ -171,6 +171,44 @@ function rewrite(doc, changes) {
 
 const setTiming = (p, start, end) => ({ ...p, timing: { start: round(start), end: round(end) } });
 
+/**
+ * A clip whose start moved `dt` seconds into its own content (a split's
+ * second half, a trimmed start): its keys and its automatic zooms are in its
+ * own time, so they move back by as much, and what lies before its new start
+ * is dropped, a key held at the edge so the motion carries on where it was.
+ */
+function shiftLocal(p, dt) {
+    if (Math.abs(dt) < EPS || (!p.keys && !p.autoZoom)) return p;
+    const out = { ...p };
+    if (p.keys) {
+        const keys = {};
+        for (const [prop, list] of Object.entries(p.keys)) {
+            if (!Array.isArray(list) || !list.length) continue;
+            const moved = list.map((k) => ({ ...k, t: round(k.t - dt) }));
+            const before = moved.filter((k) => k.t < 0);
+            const after = moved.filter((k) => k.t >= 0);
+            if (before.length && after.length && after[0].t > 0) {
+                // The value at the new start, held there, so nothing jumps.
+                const a = before[before.length - 1];
+                const b = after[0];
+                after.unshift({ t: 0, v: round(a.v + (b.v - a.v) * ((0 - a.t) / Math.max(1e-6, b.t - a.t))) });
+            } else if (before.length && !after.length) {
+                after.push({ t: 0, v: before[before.length - 1].v });
+            }
+            keys[prop] = after;
+        }
+        out.keys = keys;
+    }
+    if (p.autoZoom) {
+        out.autoZoom = p.autoZoom
+            .map((z) => ({ ...z, start: round(z.start - dt), end: round(z.end - dt), ...(z.points ? { points: z.points.map((q) => [round(q[0] - dt), q[1], q[2]]) } : {}) }))
+            .filter((z) => z.end > 0)
+            .map((z) => ({ ...z, start: Math.max(0, z.start) }));
+        if (!out.autoZoom.length) delete out.autoZoom;
+    }
+    return out;
+}
+
 /** Move clips (and nothing else) by `dt` seconds on the clock. */
 function shift(doc, ids, dt) {
     if (!ids.length || Math.abs(dt) < EPS) return doc;
@@ -291,7 +329,7 @@ export function splitClips(doc, ids, t) {
             exit: p.type === 'sound' ? { kind: 'fade', seconds: 0 } : { kind: 'none', seconds: 0 },
         };
         const second = {
-            ...setTiming(p, t, p.timing.end),
+            ...shiftLocal(setTiming(p, t, p.timing.end), elapsed),
             id,
             ...(group ? { group } : {}),
             enter: p.type === 'sound' ? { kind: 'fade', seconds: 0 } : { kind: 'none', seconds: 0 },
@@ -364,7 +402,7 @@ export function trimStart(doc, id, t, { ripple = false } = {}) {
     for (const pid of ids) {
         const p = clipById(doc, pid);
         const hasOffset = p.offset !== undefined || p.type === 'video' || p.type === 'sound';
-        const next = { ...setTiming(p, p.timing.start + delta, p.timing.end), ...(hasOffset ? { offset: round((Number(p.offset) || 0) + delta) } : {}) };
+        const next = { ...shiftLocal(setTiming(p, p.timing.start + delta, p.timing.end), delta), ...(hasOffset ? { offset: round((Number(p.offset) || 0) + delta) } : {}) };
         changes.set(pid, ripple ? setTiming(next, p.timing.start, p.timing.end - delta) : next);
     }
     let out = rewrite(doc, changes);
