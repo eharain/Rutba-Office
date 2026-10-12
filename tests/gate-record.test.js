@@ -37,12 +37,17 @@ test('the Gate section is written into the note, or written again in its place, 
 });
 
 test('the README\'s counts are brought to what the gate counted', () => {
-  const readme = 'npm test          # 1,807 tests, no network needed\n\nnpm test                # the engine suite — 1,807 checks, no windows\n\n`npm run gate` is what runs before a release: 1,807 engine tests, 12 editing checks,\n1,174 application checks — most of them pressing the ribbon — and 10 window captures.\n';
+  const readme = 'npm test          # 1,807 tests, no network needed\n\nnpm test                # the engine suite: 1,807 checks, no windows\n\n`npm run gate` is what runs before a release: 1,807 engine tests, 12 editing checks,\n1,174 application checks (most of them pressing the ribbon) and 10 window captures.\n';
   const out = withReadmeCounts(readme, counts);
   assert.match(out, /# 1,870 tests, no network needed/);
-  assert.match(out, /the engine suite — 1,870 checks/);
+  assert.match(out, /the engine suite: 1,870 checks/);
   assert.match(out, /before a release: 1,870 engine tests, 12 editing checks,\n1,190 application checks/);
   assert.match(out, /and 10 window captures/);
+});
+
+test('the TAP reporter\'s counts are read as the spec reporter\'s are, as a gate run into a log prints them', () => {
+  assert.deepEqual(countsOf('test', '# Subtest: x\nok 1 - x\n1..2209\n# tests 2209\n# suites 0\n# pass 2203\n# fail 0\n# cancelled 0\n# skipped 6\n'), { tests: 2209, passed: 2203, failed: 0, skipped: 6 });
+  assert.deepEqual(countsOf('test:perf', '# tests 4\n# pass 4\n# fail 0\n# skipped 0\n'), { tests: 4, passed: 4, failed: 0, skipped: 0 });
 });
 
 test('the budgets, run alone after the suite, count among the engine tests but not in npm test\'s own count', () => {

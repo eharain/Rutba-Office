@@ -49,8 +49,10 @@ export function countsOf(name, output) {
   const sum = (re) => all(re).reduce((n, v) => n + v, 0);
   const ratio = (re) => { const m = [...text.matchAll(re)].pop(); return m ? { passed: Number(m[1]), of: Number(m[2]) } : null; };
   if (name === 'test' || name === 'test:perf') {
-    const tests = sum(/^ℹ tests (\d+)$/gm);
-    return tests ? { tests, passed: sum(/^ℹ pass (\d+)$/gm), failed: sum(/^ℹ fail (\d+)$/gm), skipped: sum(/^ℹ skipped (\d+)$/gm) } : null;
+    // The spec reporter ends with "ℹ tests 2209", the TAP reporter (output
+    // that is not a terminal, as a gate run into a log is) with "# tests 2209".
+    const tests = sum(/^(?:ℹ|#) tests (\d+)$/gm);
+    return tests ? { tests, passed: sum(/^(?:ℹ|#) pass (\d+)$/gm), failed: sum(/^(?:ℹ|#) fail (\d+)$/gm), skipped: sum(/^(?:ℹ|#) skipped (\d+)$/gm) } : null;
   }
   if (name === 'verify:edit') return ratio(/^(\d+)\/(\d+) editing checks passed/gm);
   if (name === 'verify:apps') return ratio(/^(\d+)\/(\d+) application checks passed/gm);
@@ -114,7 +116,7 @@ export function withReadmeCounts(readme, counts) {
   if (all) out = out.replace(/(what runs before a release: )[\d,]+( engine tests)/, (m, a, b) => a + n(all.tests) + b);
   if (t) {
     out = out.replace(/(npm test\s+# )[\d,]+( tests, no network needed)/, (m, a, b) => a + n(t.tests) + b);
-    out = out.replace(/(the engine suite — )[\d,]+( checks, no windows)/, (m, a, b) => a + n(t.tests) + b);
+    out = out.replace(/(the engine suite: )[\d,]+( checks, no windows)/, (m, a, b) => a + n(t.tests) + b);
   }
   if (counts['verify:edit']) out = out.replace(/(engine tests, )[\d,]+( editing checks)/, (m, a, b) => a + n(counts['verify:edit'].of) + b);
   if (counts['verify:apps']) out = out.replace(/(editing checks,\s+)[\d,]+( application checks)/, (m, a, b) => a + n(counts['verify:apps'].of) + b);
