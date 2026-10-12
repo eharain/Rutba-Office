@@ -158,6 +158,21 @@ Write each down in this file when taken.
   there; what is still missing is named. Collecting the files into the zip is
   V35. Autosave writes the same bytes to the documents' recovery folder
   (`doc.keepCopy`), and the launcher offers them back.
+
+  **Taken for `.rimg` (Image advanced editor, part 1, 2026-10-12).**
+  `packages/studio/src/rimg.js` writes a stored zip like `.rvid`: `mimetype`
+  first (`application/vnd.rutba.image-project+zip`), `doc.json` (the image
+  document: the canvas size in pixels and the layers, with the quick edits
+  made to the opened picture under `quick`), `source/<name>` (the picture
+  as it was opened, untouched) and `bitmaps/<name>` (the painted bitmaps:
+  the opened picture with its quick edits, and every picture added as a
+  layer). Unlike `.rvid` nothing is referenced outside the file; a layer
+  names a bitmap inside it as `rimg:<path>`, and a missing one is named on
+  open. On open the quick edits are made again from the source, so they stay
+  editable. `.rimg` is registered in `packages/office-formats` (sniffed by
+  its first entry, offered by Open and Save As, associated with Image), and
+  autosave writes the same bytes through `doc.keepCopy` (kind `image`), which
+  the launcher's Recover opens in Image.
 - **D3. Export.** Keep `renderVideo` (real time) as the first export, with
   sound. Then an encoder of our own: WebCodecs `VideoEncoder` and
   `AudioEncoder` into an MP4 muxer written in this repository (H.264 and
@@ -280,6 +295,27 @@ current app; Advanced items need the layer stack.
 
 ### 7.2 Advanced editor (Image Tier 2)
 
+**Decided (part 1, 2026-10-12): Advanced is a mode inside Image, and the
+app keeps the name Image.** A plain picture opens as it always did, with the
+quick edits of 7.1. Adding a layer (anything from the Insert tab, Paste onto
+a layered picture, Use layers, or Canvas Size) or opening a `.rimg` turns on
+the Layers panel: the opened picture becomes the Background layer, its quick
+edits still applied to it from the Home, Adjust, Filters and Draw tabs, and
+the canvas is a studio image document (`packages/studio/src/layers.js`)
+painted by the engine. With layers, Crop cuts the canvas and everything on
+it; Rotate, Flip and Straighten still turn the Background picture; Resize
+becomes Image Size (the whole picture). Save writes a `.rimg`; Export
+flattens to PNG, JPEG (clear pixels white) or WebP through the same export
+and its quality, size and longest-side options. Undo covers the layers and
+the quick edits together.
+
+The layer model is built for I10 to I14: a layer is a studio patch, a group
+is a patch of its own (`type: 'group'`) whose members name it as `parent`
+and sit beneath it in the list, and `reframe` (canvas size, trim, crop)
+already carries a layer's mask fractions with it. A painted mask, a
+selection, a brush stroke or a clone will be fields on a layer's patch (an
+alpha bitmap kept under `bitmaps/` in the `.rimg`, as pictures are).
+
 | # | Item | Notes |
 |---|---|---|
 | I7 | Layers panel: order, visibility, opacity, blend mode, lock, group | Studio's layer stack and `blend` |
@@ -293,6 +329,35 @@ current app; Advanced items need the layer stack.
 | I15 | Canvas size, image size, and trim transparent edges | |
 | I16 | Edit in Image from Documents, Worksheets and Presentations, saving back in place | Picture Format → Edit in Image |
 | I17 | `.rimg` project: a zip of `doc.json`, the source and painted bitmaps | D2 |
+
+#### Part 1 as built (2026-10-12)
+
+I7, I8, I9, I15, I16 and I17 are in. The engine: `packages/studio/src/layers.js`
+(the stack, groups, order, `imagePatches`, `anchorOffset`, `reframe`,
+`canvasSize`, `imageSize`, `trimBounds`, the corner and rotation
+arithmetic), `rimg.js`, and in `index.js` a clear canvas
+(`options.background: 'transparent'`) and opacity, blend and lock taken by
+every layer type. The window: `renderer/apps/image/` (`layers-panel.js`,
+`stage.js`, `insert.js`, `canvas-size.js`, `layered.js`, `words.js`) and
+`renderer/apps/edit-in-image.js` for Documents, Worksheets and
+Presentations, whose picture goes to Image as a scratch file and comes back
+through `win.handBack` and the `picture:returned` event to the window that
+opened it only, put in place by a `replacePicture` op of each engine
+(width kept, height from the new picture's shape, one undo step). Proven by
+`tests/studio-layers.test.js`, `tests/studio-rimg.test.js`,
+`tests/edit-in-image.test.js` and the window checks under the key
+`image-layers` (`main/verify-image-layers.js`).
+
+What part 1 leaves:
+
+- A corner drag scales a layer uniformly; free transform and perspective are I14.
+- Text is edited in the Layers panel (a double-click on the canvas goes there), not on the canvas.
+- Masks (I10), selections (I11), brushes (I12), clone and heal (I13) are not started.
+- A group has visibility, opacity and a lock; it has no blend of its own (it passes through).
+- Draw and Red eye work on the Background picture where it is on the canvas, unturned.
+- Edit in Image finds a Worksheets picture on the sheet that is active, and a
+  Presentations picture on the slide it was on; a picture whose sheet or slide
+  went away is not put back.
 
 ### 7.3 Beyond (Image Tier 3, each a declared download at most once)
 
@@ -572,7 +637,9 @@ What Phase 2 leaves:
 - Should the recorder's default be the two-file recording (D6) or one
   composited file?
 - Is Advanced a mode inside Image, or a separate app on the launcher?
-- Do Image and Video keep their names when they become editors?
+  (Taken as a mode inside Image, 7.2; the owner may still decide otherwise.)
+- Do Image and Video keep their names when they become editors? (Image keeps
+  its name for now.)
 - Section 12 puts the recorder and introductory videos (Phases 2 and 3)
   before tracks and colour (Phase 6). Is that the order wanted?
 - Which destination presets matter most for introductory videos (X11)?
