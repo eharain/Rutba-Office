@@ -443,8 +443,57 @@ export function lineEnds(el, lines) {
   const box = rectOf(el);
   const cs = getComputedStyle(el);
   const contentTop = box.top + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.borderTopWidth) || 0);
+  return lineEndsAt(lines, contentTop, box.bottom);
+}
+
+/** `lineEnds`' arithmetic: the lines' tops and feet, where the content starts and where the element ends. */
+export function lineEndsAt(lines, contentTop, boxBottom) {
   const lead = Math.max(0, lines[0].top - contentTop);
-  return lines.map((l, j) => (j + 1 < lines.length ? Math.max(l.bottom, lines[j + 1].top - lead) : Math.max(l.bottom, box.bottom)));
+  return lines.map((l, j) => (j + 1 < lines.length ? Math.max(l.bottom, lines[j + 1].top - lead) : Math.max(l.bottom, boxBottom)));
+}
+
+/**
+ * Where each line has to end for it to fit on a page: its line box
+ * (`ends`), except on a line of pictures with no words: a picture stands on
+ * the line's baseline with the page's own room round it (its 6 px margin
+ * above and below, and the font's descent under the baseline), which Word
+ * does not draw, and nothing on that line reaches below the pictures' foot.
+ * Such a line fits once its pictures do, as it did before line boxes were
+ * read (a page of A4 takes two lines of 450 px cards, as in Word). `bare`
+ * says which lines hold no words; `tail` is the paragraph's own padding and
+ * border under its last line, which still has to fit.
+ */
+export const fitEndsAt = (lines, ends, bare, tail = 0) =>
+  lines.map((l, j) => (bare[j] ? Math.min(ends[j], l.bottom + (j === lines.length - 1 ? tail : 0)) : ends[j]));
+
+/** `fitEndsAt` read from the window: the lines that hold pictures and no words end at the pictures' foot. */
+export function lineFits(el, lines, ends) {
+  if (!el.querySelector('.wd-image:not(.wd-float)')) return ends;
+  const words = [];
+  const range = document.createRange();
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (!/\S/.test(n.nodeValue)) continue;
+    range.selectNodeContents(n);
+    for (const r of rectsOf(range)) if (r.height > 0.5 && r.width > 0.5) words.push(r);
+  }
+  const bare = lines.map((l) => !words.some((w) => w.bottom > l.top + 1 && w.top < l.bottom - 1));
+  const cs = getComputedStyle(el);
+  const tail = (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+  return fitEndsAt(lines, ends, bare, tail);
+}
+
+/**
+ * How far a paragraph's box runs below where it has to end to fit: the room
+ * under a last line of pictures (see `lineFits`). Zero for anything else.
+ */
+function hangOf(el) {
+  if (!el.querySelector('.wd-image:not(.wd-float)')) return 0;
+  const lines = lineBoxes(el);
+  const ends = lineEnds(el, lines);
+  const fits = lineFits(el, lines, ends);
+  const last = lines.length - 1;
+  return Math.max(0, ends[last] - fits[last]);
 }
 
 /**
@@ -529,8 +578,11 @@ function splitParagraph(it, placedY, delta, lim, first) {
   // 2026-10-12: a two-line part whose glyphs fitted but whose box ran 0.1 px
   // over went to the next page, was pulled back whole, split again, and
   // round, until the passes ran out with every page after it unlaid.
+  // A line of pictures fits by its pictures' foot (`lineFits`), the measure
+  // the main pass holds that part to as well (`hangOf`).
   const ends = lineEnds(it.el, lines);
-  let f = ends.findIndex((bottom) => placedY(bottom) + delta > lim - 0.5);
+  const fits = lineFits(it.el, lines, ends);
+  let f = fits.findIndex((bottom) => placedY(bottom) + delta > lim - 0.5);
   if (f <= 0) return null;
   // Never leave one line alone on the next page: the split moves up a line —
   // unless the paragraph heads its page (or is taller than one) and moving it
@@ -597,11 +649,11 @@ function pullBack(it, next, room, noteCost = () => 0) {
   if (it.kind === 'p') {
     const lines = lineBoxes(next.el);
     const top = rectOf(next.el).top;
-    const ends = lineEnds(next.el, lines);
+    const fits = lineFits(next.el, lines, lineEnds(next.el, lines));
     // A line that comes back brings the footnotes it references; they need
     // their room at the foot as well.
     let c = 0;
-    while (c < lines.length && ends[c] - top + noteCost(lines[c].bottom) <= room - 1) c += 1;
+    while (c < lines.length && fits[c] - top + noteCost(lines[c].bottom) <= room - 1) c += 1;
     if (c === 0) return null;
     if (c === lines.length) return -1;
     if (lines.length - c < 2) return null;
@@ -701,6 +753,8 @@ export function layPages(page, geo, state) {
       kind,
       top: rect.top - pageRect.top,
       height: bottom - rect.top,
+      boxHeight: rect.height,
+      fit: null,
       oldDelta: was ? was.delta : 0,
       block: kind === 'p' ? Number(el.dataset.block) : null,
       table: kind === 't' ? el.dataset.table || null : null,
@@ -729,9 +783,17 @@ export function layPages(page, geo, state) {
     let delta = 0;
     const placedY = (y) => y - pageRect.top - it.oldDelta + shift;
     const bottomAt = (d) => natTop + d + it.height;
+    // Where it has to end to fit: its box, less the room under a last line
+    // of pictures (`hangOf`), the measure a split holds its parts to. Read
+    // only for a paragraph that does not fit by its box.
+    const fitHeight = () => {
+      if (it.fit === null) it.fit = it.kind !== 'p' || it.height > it.boxHeight ? it.height : it.height - Math.min(it.height, hangOf(it.el));
+      return it.fit;
+    };
+    const crosses = (d, room) => bottomAt(d) > room + 0.5 && natTop + d + fitHeight() > room + 0.5;
     // A paragraph taller than a page's inside has to split somewhere: the
     // widow and orphan rules that would move it whole are waived for it.
-    const tall = it.kind === 'p' && it.height > geo.H - geo.top - geo.bottom;
+    const tall = it.kind === 'p' && it.height > geo.H - geo.top - geo.bottom && fitHeight() > geo.H - geo.top - geo.bottom;
     // The footnotes this part references: they take room at the foot of the
     // page the part lands on, so the part has to fit above that room.
     const refs = it.kind === 'p' ? refsOf(it.el) : [];
@@ -766,7 +828,7 @@ export function layPages(page, geo, state) {
     }
 
     let split = null;
-    if (bottomAt(delta) > limit(n) - costOf(refs, n) + 0.5) {
+    if (crosses(delta, limit(n) - costOf(refs, n))) {
       split = trySplit(delta, first);
       if (!split && !first) {
         // A heading kept with what follows goes over with it: take the
@@ -784,7 +846,7 @@ export function layPages(page, geo, state) {
         n += 1;
         first = true;
         delta = ctop(n) - natTop;
-        if (bottomAt(delta) > limit(n) - costOf(refs, n) + 0.5) split = trySplit(delta, true);
+        if (crosses(delta, limit(n) - costOf(refs, n))) split = trySplit(delta, true);
       }
     }
 
