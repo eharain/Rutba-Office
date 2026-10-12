@@ -79,8 +79,11 @@ import { readXls, xlsKind } from '@rutba/office-formats/msxls';
 import { xlsModelToXlsx } from '@rutba/office-formats/msxls-xlsx';
 import { readPpt } from '@rutba/office-formats/msppt';
 import { pptModelToDeck } from './legacy-deck.js';
-import { isEncryptedPackage, decryptPackage, encryptPackage, EncryptedFileError } from '@rutba/office-formats/crypt';
+import { isEncryptedPackage, decryptPackage, encryptPackage, EncryptedFileError, AGILE_DEFAULTS } from '@rutba/office-formats/crypt';
 import { binaryEncryption, decryptBinary } from '@rutba/office-formats/crypt-binary';
+import { collectPasswordHashes, rememberPasswordHash, offerPasswordSalt, newPasswordSpec } from '@rutba/ooxml/protection';
+import { passwordHost } from './password-host.js';
+import { randomBytes } from 'node:crypto';
 import { readZip } from '@rutba/ooxml/zip';
 import { createProofing } from './proofing.js';
 
@@ -570,6 +573,34 @@ class Session {
   setPassword(password) {
     this.password = password ? String(password) : null;
     this.keyCache = this.password ? {} : null;
+    this.keyWarming = null;
+  }
+
+  /**
+   * The password's spun hash, worked out on the password threads and put
+   * in the key cache, so that the save which encrypts the file spends no
+   * time on it here. A save that comes first spins it itself, as before.
+   */
+  warmKey() {
+    const cache = this.keyCache;
+    const password = this.password;
+    const spinCount = AGILE_DEFAULTS.spinCount;
+    if (!password || !cache) return Promise.resolve();
+    if (cache.spun && cache.password === password && cache.spinCount === spinCount) return Promise.resolve();
+    if (this.keyWarming) return this.keyWarming;
+    const salt = randomBytes(AGILE_DEFAULTS.saltSize);
+    const warming = passwordHost()
+      .spin({ password, salt, spinCount, alg: AGILE_DEFAULTS.alg })
+      .then((spun) => {
+        // Only into the cache it was made for, and only if a save has not filled it meanwhile.
+        if (this.keyCache === cache && !cache.spun) Object.assign(cache, { password, spinCount, salt, spun });
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (this.keyWarming === warming) this.keyWarming = null;
+      });
+    this.keyWarming = warming;
+    return warming;
   }
 
   /**
@@ -593,6 +624,7 @@ class Session {
       ? Buffer.from(await pkg.saveAsync(() => this.engine.save()))
       : Buffer.from(this.engine.save());
     if (ext) plain = labelledFor(plain, ext, this.name);
+    if (this.password) await this.warmKey();
     return this.password ? encryptPackage(plain, this.password, { cache: this.keyCache }) : plain;
   }
 
@@ -791,26 +823,55 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
    * it is written as the newer format, still under its password.
    */
   function unlock(bytes, shownPath, password) {
+    const plan = unlockPlan(bytes, shownPath, password);
+    if (plan.answer) return plan.answer;
+    try {
+      if (plan.binary) return { bytes: Buffer.from(decryptBinary(bytes, String(password))), password: String(password) };
+      return { bytes: decryptPackage(bytes, String(password)).bytes, password: String(password) };
+    } catch (err) {
+      return unlockRefused(err, plan.name);
+    }
+  }
+
+  /**
+   * `unlock`, the package's key spun on the password threads: the
+   * 100,000 rounds a .docx, .xlsx or .pptx is encrypted under no longer
+   * hold the other windows while a password is tried. The 97-2003 files'
+   * RC4 keys take a few milliseconds and are worked out here.
+   */
+  async function unlockAsync(bytes, shownPath, password) {
+    const plan = unlockPlan(bytes, shownPath, password);
+    if (plan.answer) return plan.answer;
+    try {
+      if (plan.binary) return { bytes: Buffer.from(decryptBinary(bytes, String(password))), password: String(password) };
+      return { bytes: (await passwordHost().decrypt(bytes, String(password))).bytes, password: String(password) };
+    } catch (err) {
+      return unlockRefused(err, plan.name);
+    }
+  }
+
+  /** What `unlock` can say before any password is tried: `answer`, or the file's `name` and its `binary` encryption. */
+  function unlockPlan(bytes, shownPath, password) {
     const binary = isEncryptedPackage(bytes) ? null : binaryEncryption(bytes);
-    if (!binary && !isEncryptedPackage(bytes)) return { bytes, password: null };
+    if (!binary && !isEncryptedPackage(bytes)) return { answer: { bytes, password: null } };
     const name = shownPath ? path.basename(shownPath) : 'This file';
     // Word's old XOR obfuscation is not undone here: said at once, not after a password is typed.
     if (binary?.app === 'doc' && binary.method === 'xor') {
       throw new Error(`${name} is protected with Word's old XOR obfuscation, which this version cannot open. Open it in Word, save it with a newer kind of password or none, and open it again.`);
     }
-    if (password == null) return { locked: { name, wrong: false } };
-    try {
-      if (binary) return { bytes: Buffer.from(decryptBinary(bytes, String(password))), password: String(password) };
-      return { bytes: decryptPackage(bytes, String(password)).bytes, password: String(password) };
-    } catch (err) {
-      if (!(err instanceof EncryptedFileError)) throw err;
-      if (err.code === 'password') return { locked: { name, wrong: true } };
-      if (err.code === 'tampered') {
-        throw new Error(`${name} was not opened: it has been changed since its password was set. The check written inside a protected file no longer matches what is there, so the file is damaged or was altered. Open a copy you trust.`);
-      }
-      if (err.code === 'unsupported') throw new Error(`${name} is protected in a way a password cannot open here: ${err.message}.`);
-      throw new Error(`${name} is password-protected, and it is damaged: ${err.message}.`);
+    if (password == null) return { answer: { locked: { name, wrong: false } } };
+    return { name, binary };
+  }
+
+  /** A password that did not open the file, in the window's words: asked again, or refused with its sentence. */
+  function unlockRefused(err, name) {
+    if (!(err instanceof EncryptedFileError)) throw err;
+    if (err.code === 'password') return { locked: { name, wrong: true } };
+    if (err.code === 'tampered') {
+      throw new Error(`${name} was not opened: it has been changed since its password was set. The check written inside a protected file no longer matches what is there, so the file is damaged or was altered. Open a copy you trust.`);
     }
+    if (err.code === 'unsupported') throw new Error(`${name} is protected in a way a password cannot open here: ${err.message}.`);
+    throw new Error(`${name} is password-protected, and it is damaged: ${err.message}.`);
   }
 
   /**
@@ -1187,7 +1248,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     }
     // A password-protected file: the window asks for the password and
     // opens it again with it. No session exists until it has opened.
-    const unlocked = unlock(bytes, filePath, password);
+    // The password is tried off this thread where the open can wait (`openWaiting`).
+    const unlocked = yield { unlock: [bytes, filePath, password] };
     if (unlocked.locked) return { locked: true, ...unlocked.locked, path: filePath };
     bytes = unlocked.bytes;
     let loaded;
@@ -1240,7 +1302,10 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // minutes.
     session.windowId = win?.id ?? null;
     // Opened with a password, saved with it, until Info clears it.
-    if (unlocked.password) session.setPassword(unlocked.password);
+    if (unlocked.password) {
+      session.setPassword(unlocked.password);
+      session.warmKey();
+    }
     sessions.set(session.id, session);
     // A letter's recipient list is not opened by itself: the window asks
     // first (see the mail merge's `reattach`), as Word does.
@@ -1255,7 +1320,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     while (!step.done) {
       let value;
       try {
-        value = step.value.read ? fs.readFileSync(step.value.read) : engineFor(...step.value.build);
+        value = step.value.read ? fs.readFileSync(step.value.read) : step.value.unlock ? unlock(...step.value.unlock) : engineFor(...step.value.build);
       } catch (err) {
         step = steps.throw(err);
         continue;
@@ -1270,7 +1335,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     while (!step.done) {
       let value;
       try {
-        value = step.value.read ? await fs.promises.readFile(step.value.read) : await engineForAsync(...step.value.build);
+        value = step.value.read ? await fs.promises.readFile(step.value.read) : step.value.unlock ? await unlockAsync(...step.value.unlock) : await engineForAsync(...step.value.build);
       } catch (err) {
         step = steps.throw(err);
         continue;
@@ -2716,6 +2781,116 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
   const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot']);
 
+
+  /* ── passwords, hashed off this thread ────────────────────────────────── */
+
+  /**
+   * The hashes a list of operations will ask for, as `[{ spec, fresh }]`:
+   * a new password's (`fresh`, its salt chosen now) or the hash a typed
+   * password is checked against, found by running the engine's own check
+   * (which only reads) with every hash it asks for listed instead of spun.
+   * Empty for an operation with no password, or one that would do nothing.
+   */
+  function passwordWork(session, ops) {
+    const out = [];
+    const v = session.engine;
+    const fresh = (password, word = false) => out.push({ spec: newPasswordSpec(password, { word }), fresh: true });
+    const checked = (check) => {
+      for (const spec of collectPasswordHashes(check)) out.push({ spec, fresh: false });
+    };
+    for (const op of ops || []) {
+      try {
+        if (session.kind === 'sheet') {
+          const pw = op.password || '';
+          if (op.op === 'protect' && pw && !v.protection().sheet) fresh(pw);
+          else if (op.op === 'protectWorkbook' && pw && !v.workbookProtection().structure) fresh(pw);
+          else if (op.op === 'setEditRange' && typeof op.password === 'string' && pw) fresh(pw);
+          else if (op.op === 'unprotect' && v.protection().sheet) checked(() => v.workbook.checkSheetPassword(v.activeSheet, pw));
+          else if (op.op === 'unprotectWorkbook') checked(() => v.workbook.checkWorkbookPassword(pw));
+          else if (op.op === 'unlockRange') checked(() => v.workbook.checkRangePassword(v.activeSheet, op.title, pw));
+        } else if (session.kind === 'doc') {
+          if (op.op === 'setProtection' && op.enforced !== false && op.password) fresh(String(op.password), true);
+          else if (op.op === 'stopProtection' && v.protection?.()?.enforced) checked(() => v.doc.checkProtectionPassword(op.password ?? ''));
+        }
+      } catch {
+        /* the operation says what is wrong when it runs */
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Every hash `passwordWork` lists, spun on the password threads and
+   * handed to the engine, with a new password's salt, so the
+   * operation finds it waiting. One that fails is left for the operation
+   * to work out itself, as it always could.
+   */
+  async function preparePasswords(session, ops) {
+    await Promise.all(
+      passwordWork(session, ops).map(({ spec, fresh }) =>
+        passwordHost()
+          .hash(spec)
+          .then((value) => {
+            rememberPasswordHash(spec, value);
+            if (fresh) offerPasswordSalt(spec);
+          })
+          .catch(() => {}),
+      ),
+    );
+  }
+
+  function applyNow({ id, ops, width, slide, master = null, delta = true }) {
+    const session = get(id);
+    const table = OPS[session.kind];
+    // A selection move on a sheet that scrolls nothing is answered with
+    // the selection and the active cell's fields, not a frame (below).
+    const view = session.kind === 'sheet' ? session.engine : null;
+    const before = view ? { x: view.scrollX, y: view.scrollY, sheet: view.activeSheet, editing: Boolean(view.editing) } : null;
+    let touched = false;
+    // The last op's own return value, e.g. Update Fields' count of fields
+    // changed; most ops answer `this` (the engine, for chaining) or
+    // nothing, neither of which crosses IPC; only a plain primitive rides
+    // along, so a caller after a specific number or string gets it and
+    // everything else stays silent rather than failing the whole call.
+    let opResult;
+    // A deck keeps its own undo: the package as it stood before this
+    // call, kept once the call has changed something: one step per
+    // apply, however many ops it carried.
+    const snap = session.kind === 'deck' && typeof session.engine.snapshot === 'function' && (ops || []).some((op) => !CLEAN_OPS.has(op.op)) ? session.engine.snapshot() : null;
+    try {
+      for (const op of ops || []) {
+        const fn = table[op.op];
+        if (!fn) throw new Error(`${session.kind} documents have no operation "${op.op}"`);
+        if (session.kind === 'doc') guardProtection(session.engine, op);
+        const result = fn(session.engine, op);
+        if (['number', 'string', 'boolean'].includes(typeof result)) opResult = result;
+        if (!CLEAN_OPS.has(op.op)) touched = true;
+      }
+    } finally {
+      if (snap && touched) session.engine.pushUndo(snap);
+    }
+    if (touched) {
+      session.dirty = true;
+      session.version++;
+    }
+    if (
+      before &&
+      (ops || []).length &&
+      ops.every((op) => NAV_OPS.has(op.op)) &&
+      view.scrollX === before.x &&
+      view.scrollY === before.y &&
+      view.activeSheet === before.sheet &&
+      !view.editing &&
+      !before.editing
+    ) {
+      return { ...session.meta(), patch: view.selectionFrame() };
+    }
+    // A document answers with the difference; the other kinds are already
+    // small: a sheet sends only the viewport, a deck one slide.
+    if (session.kind === 'doc' && delta) return { ...session.meta(), ...docDelta(session), opResult };
+    return { ...session.meta(), model: modelOf(session, { width, slide, master }), opResult };
+  }
+
   /* ── the namespace ────────────────────────────────────────────────────── */
 
   return {
@@ -2881,7 +3056,10 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         converted: null,
       });
       session.windowId = win?.id ?? null;
-      if (unlocked.password) session.setPassword(unlocked.password);
+      if (unlocked.password) {
+        session.setPassword(unlocked.password);
+        session.warmKey();
+      }
       session.dirty = true;
       session.recoveryFile = entry.file;
       session.recoveredAt = 0;
@@ -3088,62 +3266,38 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         session.setPassword(next);
         session.dirty = true;
         session.version++;
+        // The key the next save encrypts with, spun now on the password
+        // threads while the person goes on working.
+        session.warmKey();
       }
       return session.meta();
     },
 
     model: ({ id, ...opts }) => modelOf(get(id), opts),
 
-    apply: ({ id, ops, width, slide, master = null, delta = true }) => {
-      const session = get(id);
-      const table = OPS[session.kind];
-      // A selection move on a sheet that scrolls nothing is answered with
-      // the selection and the active cell's fields, not a frame (below).
-      const view = session.kind === 'sheet' ? session.engine : null;
-      const before = view ? { x: view.scrollX, y: view.scrollY, sheet: view.activeSheet, editing: Boolean(view.editing) } : null;
-      let touched = false;
-      // The last op's own return value, e.g. Update Fields' count of fields
-      // changed — most ops answer `this` (the engine, for chaining) or
-      // nothing, neither of which crosses IPC; only a plain primitive rides
-      // along, so a caller after a specific number or string gets it and
-      // everything else stays silent rather than failing the whole call.
-      let opResult;
-      // A deck keeps its own undo: the package as it stood before this
-      // call, kept once the call has changed something — one step per
-      // apply, however many ops it carried.
-      const snap = session.kind === 'deck' && typeof session.engine.snapshot === 'function' && (ops || []).some((op) => !CLEAN_OPS.has(op.op)) ? session.engine.snapshot() : null;
-      try {
-        for (const op of ops || []) {
-          const fn = table[op.op];
-          if (!fn) throw new Error(`${session.kind} documents have no operation "${op.op}"`);
-          if (session.kind === 'doc') guardProtection(session.engine, op);
-          const result = fn(session.engine, op);
-          if (['number', 'string', 'boolean'].includes(typeof result)) opResult = result;
-          if (!CLEAN_OPS.has(op.op)) touched = true;
-        }
-      } finally {
-        if (snap && touched) session.engine.pushUndo(snap);
-      }
-      if (touched) {
-        session.dirty = true;
-        session.version++;
-      }
-      if (
-        before &&
-        (ops || []).length &&
-        ops.every((op) => NAV_OPS.has(op.op)) &&
-        view.scrollX === before.x &&
-        view.scrollY === before.y &&
-        view.activeSheet === before.sheet &&
-        !view.editing &&
-        !before.editing
-      ) {
-        return { ...session.meta(), patch: view.selectionFrame() };
-      }
-      // A document answers with the difference; the other kinds are already
-      // small — a sheet sends only the viewport, a deck one slide.
-      if (session.kind === 'doc' && delta) return { ...session.meta(), ...docDelta(session), opResult };
-      return { ...session.meta(), model: modelOf(session, { width, slide, master }), opResult };
+    /**
+     * The window's edits. An operation that hashes a password (Protect
+     * Sheet or Workbook and Allow Edit Ranges with one, their Unprotect and
+     * Unlock Range, Restrict Editing on and off) answers with a promise:
+     * the 100,000 rounds are worked out on the password threads first
+     * (`preparePasswords`), and the operation then runs here at once with
+     * the hash it wants, so every other window's edits go on being answered
+     * meanwhile. Whatever the same document is sent while one waits waits
+     * behind it, in order. Everything else answers as it always has.
+     */
+    apply: (args) => {
+      const session = get(args.id);
+      if (!session.passwordQueue && !passwordWork(session, args.ops).length) return applyNow(args);
+      const run = (session.passwordQueue || Promise.resolve()).then(async () => {
+        await preparePasswords(session, args.ops);
+        return applyNow(args);
+      });
+      const queued = run.then(() => {}, () => {});
+      session.passwordQueue = queued;
+      queued.then(() => {
+        if (session.passwordQueue === queued) session.passwordQueue = null;
+      });
+      return run;
     },
 
     viewport: ({ id, width, height, x, y }) => {

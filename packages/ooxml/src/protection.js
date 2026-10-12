@@ -18,13 +18,117 @@
  *     unlocked with its password; never written.
  *
  * `node:crypto` is used, so this is for the engine's side, not a window's.
+ *
+ * 100,000 rounds take a third of a second or more, and the thread that asks
+ * waits for them. The document service works them out on a thread of their
+ * own first (apps/desktop/main/password-host.js) and hands each answer in
+ * with `rememberPasswordHash`: `collectPasswordHashes` says which hashes a
+ * check is about to want, and `offerPasswordSalt` gives the salt a new
+ * password will be written with, so the hash made ahead is the one used.
+ * Without them every hash is worked out here, as it always was.
  */
-import { createHash, randomBytes } from 'node:crypto';
+import * as nodeCrypto from 'node:crypto';
+
+const { createHash, randomBytes } = nodeCrypto;
 
 /** Excel's round count for a new password — the value Excel 2013 onward writes. */
 export const SPIN_COUNT = 100000;
 
 const ALGORITHMS = { 'SHA-512': 'sha512', 'SHA-384': 'sha384', 'SHA-256': 'sha256', 'SHA-1': 'sha1', MD5: 'md5' };
+
+/**
+ * One hash of one buffer. `crypto.hash` (Node 21.7 onwards) makes no hash
+ * object per round, which is a third of the time 100,000 rounds take.
+ */
+const oneShot = typeof nodeCrypto.hash === 'function' ? (alg, data) => nodeCrypto.hash(alg, data, 'buffer') : (alg, data) => createHash(alg).update(data).digest();
+
+/* ── hashes worked out ahead, on another thread ───────────────────────────── */
+
+/** How many answers and salts are held at most; the oldest goes first. */
+const HELD = 32;
+/** key -> base64 hash, each used once. */
+const remembered = new Map();
+/** key -> [salt, ...] offered for a password about to be written. */
+const offered = new Map();
+/** The specs a check asked for while `collectPasswordHashes` ran it, or null. */
+let collecting = null;
+
+/** A key for a hash that names nothing in the clear: a digest of what goes in. */
+function heldKey(password, salt, spinCount, name) {
+  return createHash('sha256').update(`${name}|${spinCount}|${salt}|`).update(Buffer.from(String(password), 'utf16le')).digest('base64');
+}
+
+function hold(map, key, value) {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > HELD) map.delete(map.keys().next().value);
+}
+
+const algorithmName = (algorithm) => ALGORITHMS[algorithm] || ALGORITHMS[String(algorithm).toUpperCase()];
+
+/**
+ * The hash of `spec` ({ password, salt, spinCount, algorithm }, as
+ * `hashPassword` takes them) worked out elsewhere: the next `hashPassword`
+ * of the same spec answers with it at once, and only once.
+ */
+export function rememberPasswordHash(spec, value) {
+  const name = algorithmName(spec.algorithm || 'SHA-512');
+  if (!name || typeof value !== 'string') return;
+  hold(remembered, heldKey(spec.password, spec.salt, spec.spinCount ?? SPIN_COUNT, name), value);
+}
+
+/**
+ * The salt the next new password `spec.password` (as hashed: for Word, its
+ * pre-hashed key) is written with, so the hash worked out ahead for it is
+ * the one `passwordAttrs` or `wordProtectionAttrs` writes.
+ */
+export function offerPasswordSalt(spec) {
+  const key = heldKey(spec.password, '', spec.spinCount ?? SPIN_COUNT, 'salt');
+  hold(offered, key, [...(offered.get(key) || []), spec.salt]);
+}
+
+/** A new password's salt: one offered for it, else a fresh one. */
+function saltFor(password, spinCount) {
+  if (offered.size) {
+    const key = heldKey(password, '', spinCount, 'salt');
+    const list = offered.get(key);
+    if (list?.length) {
+      const salt = list.shift();
+      if (!list.length) offered.delete(key);
+      return salt;
+    }
+  }
+  return randomBytes(16).toString('base64');
+}
+
+/**
+ * What a new password will be hashed as (the input, a fresh salt and
+ * Excel's round count), for its hash to be worked out ahead. `word` hashes
+ * Word's pre-hashed key, as Restrict Editing does.
+ */
+export function newPasswordSpec(password, { word = false, spinCount = SPIN_COUNT } = {}) {
+  return { password: word ? wordLegacyHex(password) : String(password), salt: randomBytes(16).toString('base64'), spinCount, algorithm: 'SHA-512' };
+}
+
+/**
+ * The hashes `check` would work out, without working them out: `check`
+ * runs (it must only read), every hash it asks for that is not remembered
+ * is answered with a value that matches nothing, and each is listed. A
+ * check that throws lists what it asked for before it threw.
+ */
+export function collectPasswordHashes(check) {
+  const before = collecting;
+  collecting = [];
+  const found = collecting;
+  try {
+    check();
+  } catch {
+    /* what it asked for is listed */
+  } finally {
+    collecting = before;
+  }
+  return found;
+}
 
 /**
  * The modern hash of a password: base64 of the last round.
@@ -33,13 +137,31 @@ const ALGORITHMS = { 'SHA-512': 'sha512', 'SHA-384': 'sha384', 'SHA-256': 'sha25
  * @param {{ salt: string, spinCount?: number, algorithm?: string }} spec the salt as base64
  */
 export function hashPassword(password, { salt, spinCount = SPIN_COUNT, algorithm = 'SHA-512' }) {
-  const name = ALGORITHMS[algorithm] || ALGORITHMS[String(algorithm).toUpperCase()];
+  const name = algorithmName(algorithm);
   if (!name) throw new Error('a password hashed with ' + algorithm + ' cannot be checked here');
-  const iterator = Buffer.alloc(4);
-  let h = createHash(name).update(Buffer.from(salt, 'base64')).update(Buffer.from(String(password), 'utf16le')).digest();
+  if (remembered.size || collecting) {
+    const key = heldKey(password, salt, spinCount, name);
+    const known = remembered.get(key);
+    if (known !== undefined) {
+      remembered.delete(key);
+      return known;
+    }
+    if (collecting) {
+      collecting.push({ password: String(password), salt, spinCount, algorithm });
+      return '';
+    }
+  }
+  return spinHash(name, String(password), salt, spinCount);
+}
+
+/** The rounds: each the hash of the last one followed by the round's number, four bytes little-endian. */
+function spinHash(name, password, salt, spinCount) {
+  let h = createHash(name).update(Buffer.from(salt, 'base64')).update(Buffer.from(password, 'utf16le')).digest();
+  const buf = Buffer.alloc(h.length + 4);
   for (let i = 0; i < spinCount; i++) {
-    iterator.writeUInt32LE(i, 0);
-    h = createHash(name).update(h).update(iterator).digest();
+    h.copy(buf, 0);
+    buf.writeUInt32LE(i, h.length);
+    h = oneShot(name, buf);
   }
   return h.toString('base64');
 }
@@ -64,7 +186,7 @@ export function legacyPasswordHash(password) {
  * SHA-512 and Excel's round count, under the names the element uses
  * (`prefix` is 'workbook' for `<workbookProtection>`, '' elsewhere).
  */
-export function passwordAttrs(password, { prefix = '', salt = randomBytes(16).toString('base64'), spinCount = SPIN_COUNT } = {}) {
+export function passwordAttrs(password, { prefix = '', spinCount = SPIN_COUNT, salt = saltFor(String(password), spinCount) } = {}) {
   const key = (name) => (prefix ? prefix + name[0].toUpperCase() + name.slice(1) : name);
   return {
     [key('algorithmName')]: 'SHA-512',
@@ -177,7 +299,7 @@ export const WORD_ALGORITHM_SID = { 1: 'MD2', 2: 'MD4', 3: 'MD5', 4: 'SHA-1', 12
  * password: SHA-512 (sid 14) under the AES provider, 100,000 rounds and a
  * fresh 16-byte salt. Keys carry the `w:` prefix.
  */
-export function wordProtectionAttrs(password, { salt = randomBytes(16).toString('base64'), spinCount = SPIN_COUNT } = {}) {
+export function wordProtectionAttrs(password, { spinCount = SPIN_COUNT, salt = saltFor(wordLegacyHex(password), spinCount) } = {}) {
   return {
     'w:cryptProviderType': 'rsaAES',
     'w:cryptAlgorithmClass': 'hash',
