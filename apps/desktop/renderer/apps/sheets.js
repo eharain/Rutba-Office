@@ -15,6 +15,7 @@ import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDisc
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS, pivotAround } from './sheets/ribbon.js';
+import { editInImage } from './edit-in-image.js';
 import { PivotFieldsPane, PIVOT_FIELDS_CSS } from './sheets/pivot-fields.js';
 import { ScriptsPane, SCRIPTS_CSS, runInWorker, recordLines, recordedScript } from './sheets/scripts.js';
 import { QueryEditor, QueriesPane, rememberSource, cleanError } from './sheets/queries.js';
@@ -2973,6 +2974,24 @@ export default function Sheets({ app, shell, boot }) {
       case 'wordArt': setDialog({ kind: 'words', id: null, initial: t('Your text here'), look: arg?.run || {}, title: t('WordArt') }); return;
       // Shape Format → Transform: the picked shape's words along a preset's path.
       case 'textWarp': dispatch({ op: 'setShapeWarp', id: arg.id, preset: arg.preset === 'textNoShape' ? null : arg.preset }); return;
+      // Picture Format → Edit in Image: the picture opened in Image, and put
+      // back on its anchor, as wide, when Image saves it.
+      case 'editInImage': {
+        const id = arg?.id;
+        if (!id || !doc) return;
+        await editInImage({
+          shell,
+          docId: doc.id,
+          sourceOp: { op: 'pictureSource', id },
+          name: doc.name,
+          toast,
+          onBack: async ({ bytes, contentType, width, height }) => {
+            const next = await dispatch({ op: 'replacePicture', id, data: bytes, contentType, aspect: width > 0 && height > 0 ? height / width : null });
+            if (next) toast(t('The picture edited in Image is back in its place.'), { tone: 'good' });
+          },
+        }).catch((err) => toast(String(err?.message || err), { tone: 'bad' }));
+        return;
+      }
       // Insert → SmartArt: the box, then the layout's shapes as one group at the selection.
       case 'smartArt': setDialog('smartart'); return;
       // Page Layout → Print Area: the page setup is rebuilt from what it is

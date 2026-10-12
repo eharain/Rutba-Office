@@ -17,11 +17,31 @@ import { Ribbon, Group, Rows, Button, Icon, Spacer, Chip, Empty, Spinner, Panel,
 import { OPS, DEFAULT_ADJUSTMENTS, toCanvasPlan, isIdentity, constrainCrop, markToOperation, spotToOperation, spotInTarget, resizeTo } from '@rutba/imaging/pipeline';
 import { DEFAULT_PIXELS, NEUTRAL_LEVELS, CURVE_PRESETS, autoEnhance, histogram, isNeutral } from '@rutba/imaging/pixels';
 import { FORMATS, formatOf, withExifFrom, underSize } from '@rutba/imaging/batch';
-import { AppFrame, useAppMenu, pickOpen, useFileDrop } from '../shell.js';
+import { nextId } from '@rutba/studio/doc';
+import {
+  emptyImage, normaliseImage, pictureLayer, dropLayer, stepLayer, layerToEnd, groupLayers, ungroupLayers, removeLayers,
+  duplicateLayers, setLayer, isLocked, reframe, canvasSize, imageSize, trimBounds, trimTo, isGroup,
+} from '@rutba/studio/layers';
+import { writeRimg, readRimg, rimgPath, safeName } from '@rutba/studio/rimg';
+import { AppFrame, useAppMenu, pickOpen, useFileDrop, useDirtyGuard } from '../shell.js';
 import { drawBase, drawMarks } from './image/draw.js';
 import { pixelsOff } from './image/work.js';
 import { DrawLayer, markIsSomething } from './image/marks.js';
 import { Histogram, CurveEditor } from './image/tone.js';
+import { paintLayered, renderLayered, decodeBitmap, pngBytes, mimeOf } from './image/layered.js';
+import { LayersPanel, LAYERS_CSS } from './image/layers-panel.js';
+import { LayerStage, STAGE_CSS } from './image/stage.js';
+import { InsertGroups, INSERT_CSS } from './image/insert.js';
+import { CanvasSizeDialog, CANVAS_CSS } from './image/canvas-size.js';
+import { nameOf } from './image/words.js';
+
+/** The opened picture, with its quick edits, as the bottom layer of a layered picture. */
+const BACKGROUND = 'rimg:bitmaps/background.png';
+const AUTOSAVE_FIRST_MS = 1500;
+const AUTOSAVE_EVERY_MS = 30000;
+const round4 = (n) => +Number(n).toFixed(4);
+const newCopyKey = () => `i${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+const isProjectFile = (p) => /\.rimg$/i.test(String(p || ''));
 
 const fileUrl = (p) => `rutba://file/${btoa(unescape(encodeURIComponent(p))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
 
@@ -116,6 +136,34 @@ export default function ImageTool({ app, shell, boot }) {
   const sectionRefs = useRef({});
   const appMenu = useAppMenu({ shell, appKey: 'image', onOpen: () => openFileRef.current?.() });
 
+  // The layered picture (STUDIO.md 7.2): null while the picture is only
+  // quick-edited; a studio image document once a layer is added or a .rimg
+  // is opened, the opened picture (with its quick edits) its Background layer.
+  const [layered, setLayered] = useState(null);
+  const layeredRef = useRef(null);
+  layeredRef.current = layered;
+  const [selected, setSelected] = useState([]);
+  const [side, setSide] = useState('adjust');
+  const [assetsTick, setAssetsTick] = useState(0);
+  const [layerPlan, setLayerPlan] = useState(null);
+  const [projectPath, setProjectPath] = useState(null);
+  const [projectDirty, setProjectDirty] = useState(false);
+  const [sizing, setSizing] = useState(null);
+  const media = useRef(new Map());
+  const bgRef = useRef(null);
+  const sourceRef = useRef(null);
+  const copyKey = useRef(newCopyKey());
+  const textFocus = useRef(null);
+  // Undo for the layered picture: a snapshot of the project and the quick
+  // edits before each change, a run of the same change (a drag, a slider) one step.
+  const steps = useRef({ undo: [], redo: [], lastKey: null, lastAt: 0, skip: false, key: null });
+  const prevState = useRef(null);
+  // Edit in Image: the picture came from a document, and Save puts it back there.
+  const editFor = useMemo(() => {
+    const q = new URLSearchParams(window.location.search);
+    return q.get('editFor') ? { token: q.get('editFor'), name: q.get('editName') || '', type: q.get('editType') || 'image/png' } : null;
+  }, []);
+
   const source = image ? { width: image.naturalWidth, height: image.naturalHeight } : null;
   // The geometry and every mark committed; the picture as it is.
   const plan = useMemo(
@@ -139,6 +187,20 @@ export default function ImageTool({ app, shell, boot }) {
     setDraft(null);
   }, []);
 
+  /** Back to a picture with no layers: what a newly opened picture starts as. */
+  const clearLayers = useCallback(() => {
+    setLayered(null);
+    setSelected([]);
+    media.current.clear();
+    bgRef.current = null;
+    steps.current = { undo: [], redo: [], lastKey: null, lastAt: 0, skip: false, key: null };
+    prevState.current = null;
+    setProjectPath(null);
+    setProjectDirty(false);
+  }, []);
+  const openProjectRef = useRef(null);
+  const addPictureRef = useRef(null);
+
   const decode = useCallback(async (url) => {
     const img = new Image();
     img.decoding = 'sync';
@@ -155,6 +217,10 @@ export default function ImageTool({ app, shell, boot }) {
 
   const load = useCallback(
     async (target) => {
+      if (isProjectFile(target)) {
+        await openProjectRef.current?.(target);
+        return;
+      }
       setBusy(true);
       setFailed(null);
       try {
@@ -165,7 +231,9 @@ export default function ImageTool({ app, shell, boot }) {
         setPath(target);
         setPastedName(null);
         reset();
-        shell.app.addRecent({ path: target, app: 'image' }).catch(() => {});
+        clearLayers();
+        sourceRef.current = { name: basename(target), path: target };
+        if (!editFor) shell.app.addRecent({ path: target, app: 'image' }).catch(() => {});
       } catch (err) {
         setFailed(`${basename(target)}: ${err.message}`);
         toast(err.message, { tone: 'bad' });
@@ -173,7 +241,7 @@ export default function ImageTool({ app, shell, boot }) {
         setBusy(false);
       }
     },
-    [shell, toast, decode, reset]
+    [shell, toast, decode, reset, clearLayers, editFor]
   );
 
   /** A picture from the clipboard, opened as a new picture with no file yet. */
@@ -189,13 +257,15 @@ export default function ImageTool({ app, shell, boot }) {
         setPath(null);
         setPastedName(t('Pasted picture'));
         reset();
+        clearLayers();
+        sourceRef.current = { name: 'pasted.png', bytes: picture.bytes };
       } catch (err) {
         toast(err.message, { tone: 'bad' });
       } finally {
         setBusy(false);
       }
     },
-    [decode, reset, toast]
+    [decode, reset, toast, clearLayers]
   );
 
   const paste = useCallback(async () => {
@@ -204,13 +274,29 @@ export default function ImageTool({ app, shell, boot }) {
       toast(t('There is no picture on the clipboard to paste.'));
       return;
     }
-    // Into this window when it has nothing open; a window of its own otherwise.
-    if (!image) loadPasted(picture);
+    // Onto the layered picture as a layer of its own; into this window when it
+    // has nothing open; a window of its own otherwise.
+    if (layeredRef.current) addPictureRef.current?.(picture.bytes, `${t('Pasted picture')}.png`);
+    else if (!image) loadPasted(picture);
     else shell.win.create({ app: 'image', query: { paste: '1' } });
   }, [shell, toast, image, loadPasted]);
 
   useEffect(() => {
-    if (boot.file) load(boot.file);
+    const recover = new URLSearchParams(window.location.search).get('recover');
+    if (recover) {
+      // The launcher's Recover: the layered picture a crash left, unsaved.
+      (async () => {
+        try {
+          const copy = await shell.doc.readCopy({ file: recover });
+          const m = /^window-([A-Za-z0-9_-]+)\./.exec(recover);
+          if (m) copyKey.current = m[1];
+          await openProjectRef.current?.(copy.path || null, { bytes: copy.bytes, recovered: copy });
+          toast(t('Recovered unsaved work. Save it to keep it.'), { ms: 6000 });
+        } catch (err) {
+          toast(err.message, { tone: 'bad' });
+        }
+      })();
+    } else if (boot.file) load(boot.file);
     else if (new URLSearchParams(window.location.search).get('paste')) {
       shell.clipboard.readImage().then((p) => p && loadPasted(p)).catch(() => {});
     }
@@ -226,14 +312,14 @@ export default function ImageTool({ app, shell, boot }) {
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [image]);
+  }, [image, Boolean(layered)]);
 
   // Preview: the picture at the stage's scale, tone and detail in the
   // worker, then the marks. The canvas keeps the last frame until the next is
   // ready, so a slider dragged quickly never shows a blank.
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !image || !plan || !stage.width) return;
+    if (!canvas || !image || !plan || !stage.width || layered) return;
     const fitScale = Math.max(0.02, Math.min(1, (stage.width - 48) / plan.target.width, (stage.height - 48) / plan.target.height));
     const dpr = window.devicePixelRatio || 1;
     const drawScale = fitScale * dpr;
@@ -266,7 +352,7 @@ export default function ImageTool({ app, shell, boot }) {
       drawMarks(c, plan, draftOp ? [...plan.overlays, draftOp] : plan.overlays, drawScale);
       canvas.dataset.drawn = String(turn);
     })();
-  }, [image, plan, draftOp, stage]);
+  }, [image, plan, draftOp, stage, layered]);
 
   const openFile = useCallback(async () => {
     const file = await pickOpen(shell, 'image');
@@ -304,14 +390,18 @@ export default function ImageTool({ app, shell, boot }) {
     setDraft((d) => (d ? { ...d, ...patch } : d));
   }, []);
 
+  const editLayersRef = useRef(null);
   const applyCrop = useCallback(() => {
-    if (!crop || !plan) return;
-    addOp({ op: OPS.crop, ...crop });
+    if (!crop) return;
+    // With layers, a crop cuts the canvas and everything on it; without, the picture.
+    if (layeredRef.current) editLayersRef.current?.((d) => reframe(d, { x: Math.round(crop.x), y: Math.round(crop.y), width: Math.round(crop.width), height: Math.round(crop.height) }));
+    else if (plan) addOp({ op: OPS.crop, ...crop });
     setCrop(null);
   }, [crop, plan, addOp]);
 
   const setStraighten = useCallback((degrees) => {
     const value = Math.max(-45, Math.min(45, Math.round(Number(degrees) * 10) / 10)) || 0;
+    steps.current.key = 'straighten';
     // Dragging the slider changes the one straighten at the end of the list
     // rather than adding one for every step.
     setOps((list) => (list.length && list[list.length - 1].op === OPS.straighten
@@ -321,6 +411,7 @@ export default function ImageTool({ app, shell, boot }) {
 
   const setSlider = useCallback((key, value) => {
     const spec = SLIDERS[key];
+    steps.current.key = `slider:${key}`;
     if (spec.kind === 'css') setAdjust((s) => ({ ...s, [key]: value }));
     else setPixels((s) => ({ ...s, [key]: value }));
   }, []);
@@ -328,8 +419,14 @@ export default function ImageTool({ app, shell, boot }) {
   const sliderDefault = (key) => (SLIDERS[key].kind === 'css' ? DEFAULT_ADJUSTMENTS[key] : DEFAULT_PIXELS[key]);
 
   const levels = { ...NEUTRAL_LEVELS, ...(pixels.levels || {}) };
-  const setLevels = (patch) => setPixels((s) => ({ ...s, levels: { ...NEUTRAL_LEVELS, ...(s.levels || {}), ...patch } }));
-  const setCurve = (points) => setPixels((s) => ({ ...s, curve: { ...(s.curve || {}), [channel]: points } }));
+  const setLevels = (patch) => {
+    steps.current.key = 'levels';
+    setPixels((s) => ({ ...s, levels: { ...NEUTRAL_LEVELS, ...(s.levels || {}), ...patch } }));
+  };
+  const setCurve = (points) => {
+    steps.current.key = 'curve';
+    setPixels((s) => ({ ...s, curve: { ...(s.curve || {}), [channel]: points } }));
+  };
 
   const autoFix = useCallback(() => {
     // Worked out from the picture as it is shown before tone, then put on
@@ -363,12 +460,28 @@ export default function ImageTool({ app, shell, boot }) {
     return full;
   }, [image, plan]);
 
+  /** The bitmaps the layers name, by url: the Background and every picture added. */
+  const assetsNow = useCallback(() => {
+    const out = {};
+    if (bgRef.current) out[BACKGROUND] = bgRef.current;
+    for (const [url, m] of media.current) out[url] = m;
+    return out;
+  }, []);
+
+  /** What is exported or copied: the layered picture flattened, or the quick-edited one. */
+  const renderResult = useCallback(async (s = 1, { ground = null } = {}) => {
+    if (layeredRef.current) return renderLayered(layeredRef.current, assetsNow(), s, { ground });
+    return renderFull(s);
+  }, [renderFull, assetsNow]);
+  const hasResult = Boolean(layered || (image && plan));
+  const resultSize = layered ? layered.size : plan ? plan.target : null;
+
   const sourceFormat = formatOf(path || '') || 'png';
   const format = exportOpts.format || sourceFormat;
 
   const exportPicture = useCallback(
     async (fmt = format) => {
-      if (!image || !plan) return;
+      if (!hasResult) return;
       commitDraft();
       const info = FORMATS[fmt];
       const stem = path ? basename(path).replace(/\.[^.]+$/, '') : pastedName || t('Picture');
@@ -381,12 +494,14 @@ export default function ImageTool({ app, shell, boot }) {
       if (!target) return;
       setBusy(true);
       try {
-        const long = Math.max(plan.target.width, plan.target.height);
+        const long = Math.max(resultSize.width, resultSize.height);
+        // A JPEG has no clear pixels: what is clear in a layered picture is white.
+        const ground = fmt === 'jpeg' ? '#ffffff' : null;
         let s = exportOpts.longSide ? Math.min(1, exportOpts.longSide / long) : 1;
         const maxBytes = exportOpts.maxKB * 1024;
         const encode = (canvas, q) => new Promise((resolve) => canvas.toBlob(resolve, info.mime, info.quality ? q : undefined))
           .then(async (blob) => new Uint8Array(await blob.arrayBuffer()));
-        let canvas = await renderFull(s);
+        let canvas = await renderResult(s, { ground });
         let result;
         if (info.quality) {
           result = await underSize((q) => encode(canvas, q), maxBytes, { high: exportOpts.quality / 100 });
@@ -395,13 +510,13 @@ export default function ImageTool({ app, shell, boot }) {
           let bytes = await encode(canvas);
           for (let i = 0; maxBytes && bytes.length > maxBytes && i < 14; i++) {
             s *= 0.85;
-            canvas = await renderFull(s);
+            canvas = await renderResult(s, { ground });
             bytes = await encode(canvas);
           }
           result = { bytes, fits: !maxBytes || bytes.length <= maxBytes };
         }
         let bytes = result.bytes;
-        if (!exportOpts.strip && fmt === 'jpeg' && path && sourceFormat === 'jpeg') {
+        if (!exportOpts.strip && fmt === 'jpeg' && path && sourceFormat === 'jpeg' && !layered) {
           // The camera's details kept from the original, turned upright as the pixels are.
           const original = await shell.fs.read({ path });
           bytes = withExifFrom(bytes, original.bytes);
@@ -416,35 +531,476 @@ export default function ImageTool({ app, shell, boot }) {
         setBusy(false);
       }
     },
-    [image, plan, path, pastedName, shell, toast, exportOpts, renderFull, commitDraft, format, sourceFormat]
+    [hasResult, resultSize, layered, path, pastedName, shell, toast, exportOpts, renderResult, commitDraft, format, sourceFormat]
   );
 
   const copy = useCallback(async () => {
-    if (!image || !plan) return;
+    if (!hasResult) return;
     commitDraft();
     try {
-      const canvas = await renderFull(1);
+      const canvas = await renderResult(1);
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
       await shell.clipboard.writeImage({ bytes: new Uint8Array(await blob.arrayBuffer()) });
       toast(t('Copied the picture, {width} × {height}', { width: canvas.width, height: canvas.height }), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
-  }, [image, plan, renderFull, shell, toast, commitDraft]);
+  }, [hasResult, renderResult, shell, toast, commitDraft]);
+
+  /* ── the layered picture ───────────────────────────────────────────── */
+
+  // While there are layers, every change to them or to the picture's quick
+  // edits is an undo step; a run of one change (a drag, a slider) is one.
+  useEffect(() => {
+    const now = { doc: layered, ops, adjust, pixels };
+    const prev = prevState.current;
+    prevState.current = now;
+    if (!prev) return;
+    const h = steps.current;
+    if (h.skip) {
+      h.skip = false;
+      return;
+    }
+    if (!layered && !prev.doc) return;
+    const key = h.key;
+    h.key = null;
+    const at = Date.now();
+    if (key && key === h.lastKey && (key.startsWith('drag:') || at - h.lastAt < 900)) {
+      h.lastAt = at;
+      setProjectDirty(true);
+      return;
+    }
+    h.undo.push(prev);
+    if (h.undo.length > 200) h.undo.shift();
+    h.redo = [];
+    h.lastKey = key;
+    h.lastAt = at;
+    setProjectDirty(true);
+  }, [layered, ops, adjust, pixels]);
+
+  // A layer that is gone is no longer chosen.
+  useEffect(() => {
+    setSelected((sel) => {
+      const kept = sel.filter((id) => layered?.patches.some((p) => p.id === id));
+      return kept.length === sel.length ? sel : kept;
+    });
+  }, [layered]);
+
+  // The Background layer's bitmap: the opened picture with its quick edits,
+  // made again (at full size) as they change. Its layer keeps its scale on
+  // the canvas when a crop or a turn changes the picture's own size.
+  useEffect(() => {
+    if (!layered || !image || !plan) return undefined;
+    let alive = true;
+    const timer = setTimeout(async () => {
+      let full;
+      try {
+        full = await renderFull(1);
+      } catch {
+        return;
+      }
+      if (!alive) return;
+      bgRef.current = { img: full, width: full.width, height: full.height };
+      const d = layeredRef.current;
+      const bg = d?.patches.find((p) => p.url === BACKGROUND);
+      if (bg && bg.bw && (bg.bw !== full.width || bg.bh !== full.height)) {
+        steps.current.skip = true;
+        const next = setLayer(d, bg.id, { fw: round4((bg.fw || 1) * (full.width / bg.bw)), bw: full.width, bh: full.height });
+        layeredRef.current = next;
+        setLayered(next);
+      }
+      setAssetsTick((n) => n + 1);
+    }, bgRef.current ? 120 : 0);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(layered), image, plan, renderFull]);
+
+  // The preview of the layered picture: the engine paints it at the window's
+  // scale, then the mark being drawn on the picture where its layer is.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!layered || !canvas || !stage.width) return;
+    const { width: W, height: H } = layered.size;
+    const fitScale = Math.max(0.02, Math.min(1, (stage.width - 48) / W, (stage.height - 48) / H));
+    const dpr = window.devicePixelRatio || 1;
+    setScale(fitScale);
+    const painted = paintLayered(canvas, layered, assetsNow(), fitScale * dpr);
+    canvas.style.width = `${Math.round(W * fitScale)}px`;
+    canvas.style.height = `${Math.round(H * fitScale)}px`;
+    if (draftOp && plan) {
+      const bg = painted.layers.find((l) => l.url === BACKGROUND);
+      if (bg && bg.visible !== false && bg.w) drawMarks(canvas.getContext('2d'), plan, [draftOp], bg.w / plan.target.width, { x: bg.x, y: bg.y });
+    }
+    setLayerPlan(painted);
+    canvas.dataset.drawn = String(++drawn.current);
+  }, [layered, assetsTick, stage, draftOp, plan, assetsNow]);
+
+  /** The picture as layers: the Background made from it, the canvas its size. */
+  const enterLayers = useCallback(() => {
+    if (layeredRef.current) return layeredRef.current;
+    setCrop(null);
+    let doc;
+    if (image && plan) {
+      const { width, height } = plan.target;
+      doc = emptyImage({ width, height });
+      doc = { ...doc, patches: [{ ...pictureLayer(doc, { url: BACKGROUND, width, height, label: null, id: 'background' }), bw: width, bh: height }] };
+    } else {
+      doc = emptyImage({ width: 1200, height: 800 });
+    }
+    layeredRef.current = doc;
+    setLayered(doc);
+    setSide('layers');
+    return doc;
+  }, [image, plan]);
+
+  /** Change the layered picture (entering it first); `key` merges a run of one change into one undo step. */
+  const editLayers = useCallback((fn, key = null) => {
+    const base = layeredRef.current || enterLayers();
+    const next = fn(base);
+    if (!next || next === base) return null;
+    steps.current.key = key;
+    layeredRef.current = next;
+    setLayered(next);
+    return next;
+  }, [enterLayers]);
+
+  editLayersRef.current = editLayers;
+
+  const addLayerPatch = useCallback((patch) => {
+    commitDraft();
+    let id = null;
+    editLayers((d) => {
+      id = nextId(d, patch.type || 'layer');
+      return { ...d, patches: [...d.patches, { ...patch, id }] };
+    });
+    if (id) {
+      setSelected([id]);
+      setSide('layers');
+      setTool(null);
+    }
+    return id;
+  }, [editLayers, commitDraft]);
+
+  /** A picture's bytes put on the picture as a layer of its own, centred, at most most of the canvas. */
+  const addPictureBytes = useCallback(async (bytes, name) => {
+    try {
+      const bmp = await decodeBitmap(bytes, mimeOf(name));
+      const base = layeredRef.current || enterLayers();
+      const id = nextId(base, 'image');
+      const ext = (String(name).toLowerCase().match(/\.(png|jpe?g|webp|gif|bmp|avif)$/)?.[1] || 'png').replace('jpeg', 'jpg');
+      const url = `rimg:bitmaps/${id}.${ext}`;
+      media.current.set(url, { ...bmp, bytes, name });
+      const { width: W, height: H } = base.size;
+      const k = Math.min(1, (W * 0.8) / bmp.width, (H * 0.8) / bmp.height);
+      const label = String(name || '').replace(/\.[^.]+$/, '') || t('Picture');
+      const patch = pictureLayer(base, { url, width: bmp.width * k, height: bmp.height * k, label, centre: true, id });
+      editLayers((d) => ({ ...d, patches: [...d.patches, patch] }));
+      setSelected([id]);
+      setSide('layers');
+      setAssetsTick((n) => n + 1);
+    } catch (err) {
+      toast(t('{name} could not be opened: {reason}', { name: name || t('The picture'), reason: err.message }), { tone: 'bad' });
+    }
+  }, [enterLayers, editLayers, toast]);
+
+  addPictureRef.current = addPictureBytes;
+
+  const insertPicture = useCallback(async () => {
+    const files = await shell.dialog.open({
+      title: t('Insert a picture'),
+      filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif'] }],
+      multiple: false,
+    });
+    const file = files?.[0];
+    if (!file) return;
+    const { bytes } = await shell.fs.read({ path: file });
+    await addPictureBytes(bytes, basename(file));
+  }, [shell, addPictureBytes]);
+
+  /** A new, empty, clear picture to put layers on. */
+  const newPicture = useCallback(() => {
+    reset();
+    clearLayers();
+    setImage(null);
+    setStat(null);
+    setPath(null);
+    setFailed(null);
+    sourceRef.current = null;
+    setPastedName(t('New picture'));
+    const doc = emptyImage({ width: 1200, height: 800 });
+    layeredRef.current = doc;
+    setLayered(doc);
+    setSide('layers');
+  }, [reset, clearLayers]);
+
+  const onLayerChange = useCallback((id, change, _label, key) => {
+    editLayers((d) => setLayer(d, id, change), key ? `prop:${id}:${key}` : null);
+  }, [editLayers]);
+  const dragKey = useRef(null);
+  const lockedNow = useCallback((id) => Boolean(layeredRef.current && isLocked(layeredRef.current, id)), []);
+
+  const removeChosen = useCallback((ids) => {
+    if (!ids.length) return;
+    editLayers((d) => removeLayers(d, ids));
+    setSelected([]);
+  }, [editLayers]);
+
+  /** Canvas Size, Image Size and Trim: the canvas changed, every layer kept where it was. */
+  const applyCanvas = useCallback(({ width, height, anchor }) => {
+    setSizing(null);
+    editLayers((d) => canvasSize(d, { width, height, anchor }));
+  }, [editLayers]);
+  const applyImageSize = useCallback((next) => {
+    setSizing(null);
+    editLayers((d) => (next.width === d.size.width && next.height === d.size.height ? d : imageSize(d, next)));
+  }, [editLayers]);
+  const trim = useCallback(() => {
+    const d = layeredRef.current;
+    if (!d) return;
+    const flat = renderLayered(d, assetsNow(), 1);
+    const data = flat.getContext('2d').getImageData(0, 0, flat.width, flat.height).data;
+    const bounds = trimBounds(data, flat.width, flat.height);
+    if (!bounds) {
+      toast(t('There is nothing on the canvas to keep.'));
+      return;
+    }
+    if (bounds.width === flat.width && bounds.height === flat.height) {
+      toast(t('There are no clear edges to trim.'));
+      return;
+    }
+    editLayers((x) => trimTo(x, bounds));
+    toast(t('Trimmed to {width} × {height}', { width: bounds.width, height: bounds.height }), { tone: 'good' });
+  }, [assetsNow, editLayers, toast]);
+
+  /* ── the project file (.rimg) ──────────────────────────────────────── */
+
+  /** The project as .rimg bytes: the layers, the opened picture and its quick edits, every bitmap. */
+  const projectBytes = useCallback(async () => {
+    const doc = layeredRef.current;
+    if (!doc) return null;
+    const files = {};
+    if (bgRef.current && doc.patches.some((p) => p.url === BACKGROUND)) files[rimgPath(BACKGROUND)] = await pngBytes(bgRef.current.img);
+    for (const [url, m] of media.current) if (doc.patches.some((p) => p.url === url)) files[rimgPath(url)] = m.bytes;
+    let quick = null;
+    if (image && sourceRef.current) {
+      let bytes = sourceRef.current.bytes;
+      if (!bytes && sourceRef.current.path) {
+        bytes = (await shell.fs.read({ path: sourceRef.current.path })).bytes;
+        sourceRef.current = { ...sourceRef.current, bytes };
+      }
+      if (bytes) {
+        const at = `source/${safeName(sourceRef.current.name)}`;
+        files[at] = bytes;
+        quick = { source: at, ops, adjust, pixels };
+      }
+    }
+    return writeRimg({ ...doc, quick }, files);
+  }, [image, ops, adjust, pixels, shell]);
+
+  const saveProjectTo = useCallback(async (target) => {
+    commitDraft();
+    try {
+      const bytes = await projectBytes();
+      if (!bytes) return false;
+      await shell.fs.write({ path: target, bytes });
+      setProjectPath(target);
+      setProjectDirty(false);
+      shell.doc.dropCopy({ key: copyKey.current }).catch(() => {});
+      shell.app.addRecent({ path: target, app: 'image' }).catch(() => {});
+      toast(t('Saved {name}', { name: basename(target) }), { tone: 'good' });
+      return true;
+    } catch (err) {
+      toast(t('The project could not be saved: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      return false;
+    }
+  }, [projectBytes, shell, toast, commitDraft]);
+
+  const saveProjectAs = useCallback(async () => {
+    if (!layeredRef.current) enterLayers();
+    const stem = (projectPath || path) ? basename(projectPath || path).replace(/\.[^.]+$/, '') : (pastedName || t('Untitled picture'));
+    const folder = (projectPath || path) ? (projectPath || path).slice(0, (projectPath || path).length - basename(projectPath || path).length) : `${(await shell.app.paths().catch(() => ({}))).pictures || ''}/`;
+    const target = await shell.dialog.save({
+      title: t('Save the project as'),
+      defaultPath: `${folder}${stem}.rimg`,
+      filters: [{ name: t('Rutba Image Project (.rimg)'), extensions: ['rimg'] }],
+    });
+    if (!target) return false;
+    // The bitmap of a picture only just made into layers is drawn a moment after.
+    for (let i = 0; i < 40 && image && !bgRef.current; i++) await new Promise((r) => setTimeout(r, 50));
+    return saveProjectTo(isProjectFile(target) ? target : `${target}.rimg`);
+  }, [enterLayers, projectPath, path, pastedName, shell, saveProjectTo, image]);
+
+  const saveProject = useCallback(() => (projectPath ? saveProjectTo(projectPath) : saveProjectAs()), [projectPath, saveProjectTo, saveProjectAs]);
+
+  /** Open a .rimg: its layers, its pictures, and the opened picture with its quick edits still editable. */
+  const openProject = useCallback(async (file, { bytes = null, recovered = null } = {}) => {
+    setBusy(true);
+    setFailed(null);
+    try {
+      const raw = bytes || (await shell.fs.read({ path: file })).bytes;
+      const read = await readRimg(raw);
+      const quick = read.doc.quick || null;
+      const doc = normaliseImage({ ...read.doc, quick: undefined });
+      delete doc.quick;
+      const loaded = new Map();
+      for (const p of doc.patches) {
+        const at = rimgPath(p.url);
+        if (!at || p.url === BACKGROUND || !read.files[at] || loaded.has(p.url)) continue;
+        loaded.set(p.url, { ...(await decodeBitmap(read.files[at], mimeOf(at))), bytes: read.files[at], name: at.split('/').pop() });
+      }
+      let img = null;
+      let edits = { ops: [], adjust: { ...DEFAULT_ADJUSTMENTS }, pixels: { ...DEFAULT_PIXELS } };
+      const sourceAt = quick?.source && read.files[quick.source] ? quick.source : null;
+      const pictureAt = sourceAt || (read.files[rimgPath(BACKGROUND)] ? rimgPath(BACKGROUND) : null);
+      if (pictureAt) {
+        img = await decode(URL.createObjectURL(new Blob([read.files[pictureAt]], { type: mimeOf(pictureAt) })));
+        if (sourceAt) edits = { ops: quick.ops || [], adjust: { ...DEFAULT_ADJUSTMENTS, ...(quick.adjust || {}) }, pixels: { ...DEFAULT_PIXELS, ...(quick.pixels || {}) } };
+      }
+      clearLayers();
+      media.current = loaded;
+      sourceRef.current = pictureAt ? { name: pictureAt.split('/').pop(), bytes: read.files[pictureAt] } : null;
+      setImage(img);
+      setOps(edits.ops);
+      setAdjust(edits.adjust);
+      setPixels(edits.pixels);
+      setCrop(null);
+      setDraft(null);
+      layeredRef.current = doc;
+      setLayered(doc);
+      setSide('layers');
+      setStat({ size: raw.length });
+      const where = recovered ? recovered.path : file;
+      setPath(where || null);
+      setPastedName(where ? null : (recovered?.name || t('Recovered picture')));
+      setProjectPath(where || null);
+      setProjectDirty(Boolean(recovered));
+      if (!recovered && file) shell.app.addRecent({ path: file, app: 'image' }).catch(() => {});
+      if (read.missing.length) toast(tn(read.missing.length, '{count} picture of this project is missing from it. Its layer shows nothing.', '{count} pictures of this project are missing from it. Their layers show nothing.'), { tone: 'bad', ms: 8000 });
+    } catch (err) {
+      setFailed(`${basename(file || '')}: ${err.message}`);
+      toast(t('{name} could not be opened: {reason}', { name: basename(file || ''), reason: err.message }), { tone: 'bad', ms: 8000 });
+    } finally {
+      setBusy(false);
+    }
+  }, [shell, toast, decode, clearLayers]);
+  openProjectRef.current = openProject;
+
+  useDirtyGuard({ shell, dirty: Boolean(layered) && projectDirty && !editFor, name: projectPath ? basename(projectPath) : t('Untitled picture'), onSave: saveProject });
+
+  // Autosave: while a layered picture has unsaved work, a copy in the
+  // recovery folder soon after the first change and every half minute; gone
+  // on a save and when the window closes properly. A crash leaves it for the
+  // launcher to offer back.
+  const copied = useRef({ at: 0, doc: null });
+  useEffect(() => {
+    if (!layered || !projectDirty || editFor) return undefined;
+    const since = Date.now() - copied.current.at;
+    const wait = copied.current.at ? Math.max(0, AUTOSAVE_EVERY_MS - since) : AUTOSAVE_FIRST_MS;
+    const timer = setTimeout(async () => {
+      if (copied.current.doc === layeredRef.current && copied.current.ops === ops) return;
+      copied.current = { at: Date.now(), doc: layeredRef.current, ops };
+      try {
+        const bytes = await projectBytes();
+        if (!bytes) return;
+        await shell.doc.keepCopy({ key: copyKey.current, kind: 'image', name: projectPath ? basename(projectPath) : t('Untitled picture'), path: projectPath, bytes });
+      } catch {
+        /* a copy that could not be made is made at the next change */
+      }
+    }, wait);
+    return () => clearTimeout(timer);
+  }, [layered, ops, adjust, pixels, projectDirty, projectPath, shell, projectBytes, editFor]);
+  useEffect(() => {
+    const away = () => { shell.doc.dropCopy({ key: copyKey.current }).catch(() => {}); };
+    window.addEventListener('pagehide', away);
+    return () => window.removeEventListener('pagehide', away);
+  }, [shell]);
+
+  /* ── Edit in Image: the picture goes back where it came from ───────── */
+
+  const putBack = useCallback(async () => {
+    if (!editFor || !hasResult) return false;
+    commitDraft();
+    try {
+      const jpeg = /jpe?g/i.test(editFor.type) && !layeredRef.current;
+      const canvas = await renderResult(1, { ground: jpeg ? '#ffffff' : null });
+      const type = jpeg ? 'image/jpeg' : 'image/png';
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, type, jpeg ? 0.92 : undefined));
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const answer = await shell.win.handBack({ token: editFor.token, bytes, contentType: type, width: canvas.width, height: canvas.height });
+      if (!answer?.delivered) {
+        toast(t('{name} is no longer open, so the picture cannot go back into it. Export it instead.', { name: editFor.name || t('The document') }), { tone: 'bad', ms: 8000 });
+        return false;
+      }
+      setProjectDirty(false);
+      toast(t('The picture is back in {name}.', { name: editFor.name || t('the document') }), { tone: 'good' });
+      return true;
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+      return false;
+    }
+  }, [editFor, hasResult, commitDraft, renderResult, shell, toast]);
 
   const undo = useCallback(() => {
-    if (draft) setDraft(null);
-    else setOps((l) => l.slice(0, -1));
-  }, [draft]);
+    if (draft) {
+      setDraft(null);
+      return;
+    }
+    const h = steps.current;
+    if (h.undo.length) {
+      const back = h.undo.pop();
+      h.redo.push({ doc: layeredRef.current, ops, adjust, pixels });
+      h.lastKey = null;
+      h.skip = true;
+      layeredRef.current = back.doc;
+      setLayered(back.doc);
+      setOps(back.ops);
+      setAdjust(back.adjust);
+      setPixels(back.pixels);
+      setProjectDirty(true);
+      return;
+    }
+    if (!layered) setOps((l) => l.slice(0, -1));
+  }, [draft, ops, adjust, pixels, layered]);
+
+  const redo = useCallback(() => {
+    const h = steps.current;
+    const next = h.redo.pop();
+    if (!next) return;
+    h.undo.push({ doc: layeredRef.current, ops, adjust, pixels });
+    h.lastKey = null;
+    h.skip = true;
+    layeredRef.current = next.doc;
+    setLayered(next.doc);
+    setOps(next.ops);
+    setAdjust(next.adjust);
+    setPixels(next.pixels);
+    setProjectDirty(true);
+  }, [ops, adjust, pixels]);
 
   const commands = useMemo(
     () => ({
       'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
-      'file.save': { label: t('Export…'), icon: 'save', key: 'Mod+S', run: () => exportPicture() },
+      // Save puts an edited picture back in its document, saves a layered
+      // picture as its project, and exports a picture that is only edited.
+      'file.save': editFor
+        ? { label: t('Save and return'), icon: 'save', key: 'Mod+S', run: putBack }
+        : layered
+          ? { label: t('Save'), icon: 'save', key: 'Mod+S', run: saveProject }
+          : { label: t('Export…'), icon: 'save', key: 'Mod+S', run: () => exportPicture() },
+      'file.saveAs': { label: t('Save as a project…'), icon: 'save', key: 'Mod+Shift+S', when: () => hasResult, run: saveProjectAs },
+      'file.export': { label: t('Export…'), icon: 'export', key: 'Mod+E', when: () => hasResult, run: () => exportPicture() },
+      'file.new': { label: t('New picture'), icon: 'new', key: 'Mod+N', run: newPicture },
       'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', run: undo },
+      'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', run: redo },
       'edit.reset': { label: t('Reset all'), icon: 'refresh', run: reset },
-      'edit.copy': { label: t('Copy the picture'), icon: 'copy', key: 'Mod+C', when: () => Boolean(image), run: copy },
-      'edit.paste': { label: t('Paste as a new picture'), icon: 'paste', key: 'Mod+V', run: paste },
+      'edit.copy': { label: t('Copy the picture'), icon: 'copy', key: 'Mod+C', when: () => hasResult, run: copy },
+      'edit.paste': { label: layered ? t('Paste as a layer') : t('Paste as a new picture'), icon: 'paste', key: 'Mod+V', run: paste },
+      'layer.delete': { label: t('Delete the layer'), icon: 'trash', key: 'Delete', when: () => Boolean(layered && selected.length && !draft && !crop), run: () => removeChosen(selected) },
+      'layer.forward': { label: t('Bring forward'), icon: 'layerUp', key: 'Mod+]', when: () => Boolean(layered && selected.length), run: () => editLayers((d) => stepLayer(d, selected[selected.length - 1], +1)) },
+      'layer.backward': { label: t('Send backward'), icon: 'layerDown', key: 'Mod+[', when: () => Boolean(layered && selected.length), run: () => editLayers((d) => stepLayer(d, selected[selected.length - 1], -1)) },
       'mark.commit': { label: t('Done'), icon: 'check', key: 'Enter', when: () => Boolean(draft), run: commitDraft },
       'mark.cancel': { label: t('Discard the mark'), icon: 'close', key: 'Escape', when: () => Boolean(draft || crop || tool), run: () => { if (draft) setDraft(null); else if (crop) setCrop(null); else setTool(null); } },
       'image.rotateRight': { label: t('Rotate right'), icon: 'rotate', key: 'Mod+R', run: () => addOp({ op: OPS.rotate, degrees: 90 }) },
@@ -452,14 +1008,44 @@ export default function ImageTool({ app, shell, boot }) {
       'image.flipX': { label: t('Flip horizontally'), icon: 'flip', run: () => addOp({ op: OPS.flip, axis: 'x' }) },
       'image.flipY': { label: t('Flip vertically'), icon: 'flipVertical', run: () => addOp({ op: OPS.flip, axis: 'y' }) },
     }),
-    [openFile, exportPicture, undo, reset, copy, paste, commitDraft, draft, crop, tool, image, addOp]
+    [openFile, exportPicture, undo, redo, reset, copy, paste, commitDraft, draft, crop, tool, addOp, editFor, layered, putBack, saveProject, saveProjectAs, newPicture, hasResult, selected, removeChosen, editLayers]
   );
 
-  useCommands(commands, [image, plan, draft, crop, tool]);
+  useCommands(commands, [image, plan, draft, crop, tool, layered, selected, editFor, hasResult]);
 
   const size = plan ? plan.target : null;
   const changed = ops.length > 0 || !isIdentity([{ op: OPS.adjust, ...adjust }]) || !isNeutral(pixels);
-  const title = path ? basename(path) : pastedName || t('Image');
+  const title = editFor
+    ? t('Picture in {name}', { name: editFor.name || t('a document') })
+    : projectPath ? basename(projectPath) : path ? basename(path) : pastedName || t('Image');
+  const chosenId = selected[selected.length - 1] || null;
+  const chosen = layered && chosenId ? layered.patches.find((p) => p.id === chosenId) || null : null;
+  const dpr = window.devicePixelRatio || 1;
+  const bgLayer = layered && layerPlan ? layerPlan.layers.find((l) => l.url === BACKGROUND) : null;
+  // Where the opened picture is on the canvas, for drawing on it and red eye.
+  const pictureBox = layered
+    ? (bgLayer && bgLayer.w && bgLayer.visible !== false ? { left: bgLayer.x / dpr, top: bgLayer.y / dpr, width: bgLayer.w / dpr, height: bgLayer.h / dpr } : null)
+    : { left: 0, top: 0, width: '100%', height: '100%' };
+  const drawScale = layered ? (pictureBox && plan ? pictureBox.width / plan.target.width : 1) : scale;
+  const cropFrame = layered ? { target: layered.size } : plan;
+  const groupChosen = (ids) => {
+    let made = null;
+    editLayers((d) => {
+      const r = groupLayers(d, ids, { label: t('Group') });
+      made = r.id;
+      return r.doc;
+    });
+    if (made) setSelected([made]);
+  };
+  const duplicateChosen = (id) => {
+    let made = null;
+    editLayers((d) => {
+      const r = duplicateLayers(d, id);
+      made = r.id;
+      return r.doc;
+    });
+    if (made) setSelected([made]);
+  };
 
   const slider = (key, { compact = false } = {}) => {
     const spec = SLIDERS[key];
@@ -489,6 +1075,8 @@ export default function ImageTool({ app, shell, boot }) {
     <Ribbon
       tabs={[
         { id: 'home', label: t('Home') },
+        { id: 'insert', label: t('Insert') },
+        { id: 'layers', label: t('Layers') },
         { id: 'adjust', label: t('Adjust') },
         { id: 'filters', label: t('Filters') },
         { id: 'draw', label: t('Draw') },
@@ -498,20 +1086,32 @@ export default function ImageTool({ app, shell, boot }) {
       onTab={setTab}
       quick={
         <>
-          <Button icon="undo" title={t('Undo')} disabled={!ops.length && !draft} onClick={undo} />
-          <Button icon="refresh" title={t('Reset')} disabled={!changed} onClick={reset} />
+          {editFor ? <Button icon="save" title={t('Save and return: the edited picture goes back into {name}, where it was (Ctrl+S)', { name: editFor.name || t('the document') })} disabled={!hasResult} onClick={putBack} /> : null}
+          <Button icon="undo" title={t('Undo')} disabled={!ops.length && !draft && !steps.current.undo.length} onClick={undo} />
+          <Button icon="redo" title={t('Redo')} disabled={!steps.current.redo.length} onClick={redo} />
+          <Button icon="refresh" title={t('Reset: the picture\'s quick edits undone')} disabled={!changed} onClick={reset} />
         </>
       }
     >
       {tab === 'home' ? (
         <>
           <Group label={t('File')}>
-            <Button tall icon="open" label={t('Open')} onClick={openFile} />
-            <Button tall icon="save" label={t('Export')} disabled={!image} onClick={() => exportPicture()} />
+            {editFor ? (
+              <Button tall primary icon="save" label={t('Save and return')} title={t('Save and return: the edited picture goes back into {name}, where it was (Ctrl+S)', { name: editFor.name || t('the document') })} disabled={!hasResult} onClick={putBack} data-role="put-back" />
+            ) : (
+              <>
+                <Button tall icon="open" label={t('Open')} onClick={openFile} />
+                <Rows>
+                  <Button icon="new" label={t('New')} title={t('New: a clear picture to put layers on (Ctrl+N)')} onClick={newPicture} />
+                  <Button icon="save" label={t('Save')} title={t('Save: the picture with its layers, as a project (.rimg) to edit again (Ctrl+S)')} disabled={!hasResult} onClick={() => (layered ? saveProject() : saveProjectAs())} data-role="save-project" />
+                </Rows>
+              </>
+            )}
+            <Button tall icon="export" label={t('Export')} title={t('Export: a PNG, JPEG or WebP of the picture, its layers flattened')} disabled={!hasResult} onClick={() => exportPicture()} />
           </Group>
           <Group label={t('Clipboard')}>
             <Button tall icon="paste" label={t('Paste')} title={t('Paste: a picture on the clipboard, as a new picture (Ctrl+V)')} onClick={paste} />
-            <Button tall icon="copy" label={t('Copy')} title={t('Copy: the edited picture, to paste anywhere (Ctrl+C)')} disabled={!image} onClick={copy} />
+            <Button tall icon="copy" label={t('Copy')} title={t('Copy: the edited picture, to paste anywhere (Ctrl+C)')} disabled={!hasResult} onClick={copy} />
           </Group>
           <Group label={t('Rotate and flip')}>
             <Button tall icon="rotate" label={t('Right')} disabled={!image} onClick={() => commands['image.rotateRight'].run()} />
@@ -557,7 +1157,47 @@ export default function ImageTool({ app, shell, boot }) {
             <Button tall icon="crop" label={t('Apply')} primary={Boolean(crop)} disabled={!crop} onClick={applyCrop} />
           </Group>
           <Group label={t('Size')}>
-            <Button tall icon="mkResize" label={t('Resize')} title={t('Resize: by pixels or by percent, the shape kept')} disabled={!image} onClick={() => setResizing(true)} />
+            {layered ? (
+              <Button tall icon="mkResize" label={t('Image Size')} title={t('Image Size: the whole picture scaled, every layer with it')} onClick={() => setSizing('image')} data-role="image-size" />
+            ) : (
+              <Button tall icon="mkResize" label={t('Resize')} title={t('Resize: by pixels or by percent, the shape kept')} disabled={!image} onClick={() => setResizing(true)} />
+            )}
+            <Rows>
+              <Button icon="mkCanvas" label={t('Canvas Size')} title={t('Canvas Size: more room round the picture, or less, nothing scaled')} disabled={!hasResult} onClick={() => { enterLayers(); setSizing('canvas'); }} data-role="canvas-size" />
+              <Button icon="mkTrim" label={t('Trim')} title={t('Trim: the clear edges cut away')} disabled={!layered} onClick={trim} data-role="trim" />
+            </Rows>
+          </Group>
+        </>
+      ) : tab === 'insert' ? (
+        <InsertGroups onAdd={addLayerPatch} onPicture={insertPicture} disabled={false} />
+      ) : tab === 'layers' ? (
+        <>
+          <Group label={t('Panel')}>
+            <Button tall icon="layers" label={t('Layers')} title={t('Layers: the panel of the picture\'s layers')} pressed={side === 'layers'} onClick={() => { if (!layered) enterLayers(); setSide('layers'); }} data-role="show-layers" />
+          </Group>
+          <Group label={t('Arrange')}>
+            <Rows>
+              <Button icon="layerUp" label={t('Bring Forward')} disabled={!chosen} onClick={() => editLayers((d) => stepLayer(d, chosen.id, +1))} />
+              <Button icon="layerDown" label={t('Send Backward')} disabled={!chosen} onClick={() => editLayers((d) => stepLayer(d, chosen.id, -1))} />
+            </Rows>
+            <Rows>
+              <Button icon="layerTop" label={t('Bring to Front')} disabled={!chosen} onClick={() => editLayers((d) => layerToEnd(d, chosen.id, +1))} />
+              <Button icon="layerBottom" label={t('Send to Back')} disabled={!chosen} onClick={() => editLayers((d) => layerToEnd(d, chosen.id, -1))} />
+            </Rows>
+          </Group>
+          <Group label={t('Group')}>
+            <Button tall icon="groupObj" label={t('Group')} title={t('Group: the chosen layers move, show and fade as one')} disabled={!selected.length} onClick={() => groupChosen(selected)} />
+            <Button tall icon="ungroupObj" label={t('Ungroup')} disabled={!chosen || !isGroup(chosen)} onClick={() => editLayers((d) => ungroupLayers(d, chosen.id))} />
+          </Group>
+          <Group label={t('Layer')}>
+            <Rows>
+              <Button icon={chosen?.visible === false ? 'eye' : 'eyeOff'} label={chosen?.visible === false ? t('Show') : t('Hide')} disabled={!chosen} onClick={() => onLayerChange(chosen.id, { visible: chosen.visible === false })} />
+              <Button icon={chosen?.locked ? 'unlock' : 'lock'} label={chosen?.locked ? t('Unlock') : t('Lock')} disabled={!chosen} onClick={() => onLayerChange(chosen.id, { locked: !chosen.locked })} />
+            </Rows>
+            <Rows>
+              <Button icon="duplicate" label={t('Duplicate')} disabled={!chosen} onClick={() => duplicateChosen(chosen.id)} />
+              <Button icon="trash" label={t('Delete')} disabled={!selected.length} onClick={() => removeChosen(selected)} />
+            </Rows>
           </Group>
         </>
       ) : tab === 'adjust' ? (
@@ -652,14 +1292,14 @@ export default function ImageTool({ app, shell, boot }) {
         <>
           <Group label={t('Format')}>
             {['png', 'jpeg', 'webp'].map((f) => (
-              <Button key={f} tall icon="export" label={f === 'webp' ? 'WebP' : f.toUpperCase()} pressed={format === f} disabled={!image} onClick={() => setExportOpts((o) => ({ ...o, format: f }))} data-format={f} />
+              <Button key={f} tall icon="export" label={f === 'webp' ? 'WebP' : f.toUpperCase()} pressed={format === f} disabled={!hasResult} onClick={() => setExportOpts((o) => ({ ...o, format: f }))} data-format={f} />
             ))}
           </Group>
           <Group label={t('Quality')}>
             <div className="im-rs-col">
               <label className="im-rs" data-slider="quality">
                 <span className="im-ps-label">{t('Quality')}</span>
-                <input type="range" min={10} max={100} value={exportOpts.quality} disabled={!image || !FORMATS[format].quality} data-role="quality" onChange={(e) => setExportOpts((o) => ({ ...o, quality: Number(e.target.value) }))} />
+                <input type="range" min={10} max={100} value={exportOpts.quality} disabled={!hasResult || !FORMATS[format].quality} data-role="quality" onChange={(e) => setExportOpts((o) => ({ ...o, quality: Number(e.target.value) }))} />
                 <span className="im-ps-value">{FORMATS[format].quality ? `${exportOpts.quality}%` : ''}</span>
               </label>
               <div className="rw-hint im-format-hint">{FORMATS[format].quality ? t('Lower is a smaller file.') : t('PNG keeps every pixel.')}</div>
@@ -669,13 +1309,13 @@ export default function ImageTool({ app, shell, boot }) {
             <Rows>
               <label className="im-pick">
                 <span>{t('Longest side')}</span>
-                <Select value={exportOpts.longSide} disabled={!image} data-role="long-side" onChange={(e) => setExportOpts((o) => ({ ...o, longSide: Number(e.target.value) }))} style={{ width: 112 }}>
+                <Select value={exportOpts.longSide} disabled={!hasResult} data-role="long-side" onChange={(e) => setExportOpts((o) => ({ ...o, longSide: Number(e.target.value) }))} style={{ width: 112 }}>
                   {LONG_SIDES.map((v) => <option key={v} value={v}>{v ? t('{size} px', { size: v }) : t('As it is')}</option>)}
                 </Select>
               </label>
               <label className="im-pick">
                 <span>{t('File size')}</span>
-                <Select value={exportOpts.maxKB} disabled={!image} data-role="max-size" onChange={(e) => setExportOpts((o) => ({ ...o, maxKB: Number(e.target.value) }))} style={{ width: 112 }}>
+                <Select value={exportOpts.maxKB} disabled={!hasResult} data-role="max-size" onChange={(e) => setExportOpts((o) => ({ ...o, maxKB: Number(e.target.value) }))} style={{ width: 112 }}>
                   {MAX_SIZES.map((v) => <option key={v} value={v}>{v ? t('At most {size}', { size: formatBytes(v * 1024) }) : t('No limit')}</option>)}
                 </Select>
               </label>
@@ -688,13 +1328,13 @@ export default function ImageTool({ app, shell, boot }) {
               label={t('Strip metadata')}
               title={t('Strip metadata: no camera, date or place in the file. Off, a JPEG from a JPEG keeps them.')}
               pressed={exportOpts.strip}
-              disabled={!image}
+              disabled={!hasResult}
               data-role="strip"
               onClick={() => setExportOpts((o) => ({ ...o, strip: !o.strip }))}
             />
           </Group>
           <Group label={t('Save')}>
-            <Button tall primary icon="save" label={t('Export…')} disabled={!image} onClick={() => exportPicture()} />
+            <Button tall primary icon="save" label={t('Export…')} disabled={!hasResult} onClick={() => exportPicture()} />
           </Group>
         </>
       )}
@@ -705,7 +1345,7 @@ export default function ImageTool({ app, shell, boot }) {
     commitDraft();
     setTool(null);
     setRatio(value);
-    const bounds = { width: plan.target.width, height: plan.target.height };
+    const bounds = layered ? { ...layered.size } : { width: plan.target.width, height: plan.target.height };
     const base = { x: bounds.width * 0.1, y: bounds.height * 0.1, width: bounds.width * 0.8, height: bounds.height * 0.8 };
     setCrop(constrainCrop(base, bounds, value));
   }
@@ -730,34 +1370,36 @@ export default function ImageTool({ app, shell, boot }) {
       app={app}
       shell={shell}
       title={title}
-      dirty={changed}
+      dirty={layered ? projectDirty : changed}
       menu={appMenu}
       ribbon={ribbon}
       status={
         <>
-          <span>{path || pastedName || t('No picture open')}</span>
+          <span>{editFor ? t('Picture in {name}', { name: editFor.name || t('a document') }) : projectPath || path || pastedName || t('No picture open')}</span>
           <Spacer />
           {tool ? <Chip>{tool === 'redeye' ? t('Click each red pupil') : TOOL_INFO[tool]?.tip}</Chip> : null}
           {image ? <Chip>{t('{width} × {height} source', { width: image.naturalWidth, height: image.naturalHeight })}</Chip> : null}
-          {size ? <Chip>{t('{width} × {height} result', { width: size.width, height: size.height })}</Chip> : null}
+          {layered ? <Chip>{t('{width} × {height} canvas', { width: layered.size.width, height: layered.size.height })}</Chip> : size ? <Chip>{t('{width} × {height} result', { width: size.width, height: size.height })}</Chip> : null}
+          {layered ? <Chip>{tn(layered.patches.filter((p) => !isGroup(p)).length, '{count} layer', '{count} layers')}</Chip> : null}
           {straighten ? <Chip>{t('Straightened {degrees}°', { degrees: straighten })}</Chip> : null}
           {stat ? <Chip>{formatBytes(stat.size)}</Chip> : null}
           {ops.length ? <Chip>{tn(ops.length, '{count} edit', '{count} edits')}</Chip> : null}
         </>
       }
     >
-      {!image && failed && !busy ? (
+      {!image && !layered && failed && !busy ? (
         <Empty icon="image" title={t('This file could not be opened')}>
           {failed}
           <Button primary icon="open" label={t('Open another')} onClick={openFile} style={{ marginTop: 12 }} />
         </Empty>
-      ) : !image ? (
+      ) : !image && !layered ? (
         <Empty icon="image" title={busy ? t('Opening…') : t('No picture open')}>
           {busy ? null : t('Open a picture, paste one, or drop one onto this window. Nothing is changed until you export.')}
           {busy ? <Spinner /> : (
             <div className="im-empty-actions">
               <Button primary icon="open" label={t('Open a picture')} onClick={openFile} />
               <Button icon="paste" label={t('Paste')} onClick={paste} />
+              <Button icon="new" label={t('New picture')} onClick={newPicture} />
             </div>
           )}
         </Empty>
@@ -765,26 +1407,68 @@ export default function ImageTool({ app, shell, boot }) {
         <>
           <Content>
             <div className="im-stage" ref={stageRef}>
-              <div className="im-canvas-wrap" data-result={size ? `${size.width}x${size.height}` : ''}>
+              <div className="im-canvas-wrap" data-result={resultSize ? `${resultSize.width}x${resultSize.height}` : ''} data-layers={layered ? layered.patches.length : 0}>
                 <canvas ref={canvasRef} className="im-canvas" />
-                {crop && plan ? <CropBox crop={crop} plan={plan} onChange={(c) => setCrop(constrainCrop(c, plan.target, ratio))} /> : null}
-                {tool && plan ? (
-                  <DrawLayer
-                    tool={tool}
-                    draft={draft}
-                    onDraft={setDraft}
-                    onCommit={commitDraft}
-                    scale={scale}
-                    style={markStyle}
-                    spotRadius={spotPx}
-                    onSpot={(spot) => addOp(spotToOperation(plan, spot))}
+                {layered && layerPlan && !crop && !tool ? (
+                  <LayerStage
+                    plan={layerPlan}
+                    cssPerPx={1 / (window.devicePixelRatio || 1)}
+                    doc={layered}
+                    selected={selected}
+                    onSelect={setSelected}
+                    isLocked={lockedNow}
+                    onBegin={(kind) => { dragKey.current = `drag:${kind}:${Date.now()}`; }}
+                    onLive={(id, change) => editLayers((d) => setLayer(d, id, change), dragKey.current)}
+                    onOpenText={(id) => { setSelected([id]); setSide('layers'); requestAnimationFrame(() => document.querySelector('[data-role="layer-text"]')?.focus()); }}
                   />
+                ) : null}
+                {crop && cropFrame ? <CropBox crop={crop} plan={cropFrame} onChange={(c) => setCrop(constrainCrop(c, cropFrame.target, ratio))} /> : null}
+                {tool && plan && pictureBox ? (
+                  <div className="im-picture-box" style={pictureBox}>
+                    <DrawLayer
+                      tool={tool}
+                      draft={draft}
+                      onDraft={setDraft}
+                      onCommit={commitDraft}
+                      scale={drawScale}
+                      style={markStyle}
+                      spotRadius={spotPx}
+                      onSpot={(spot) => addOp(spotToOperation(plan, spot))}
+                    />
+                  </div>
                 ) : null}
               </div>
             </div>
           </Content>
 
-          <Panel right width={252} title={t('Adjust')} resizable>
+          <Panel right width={layered ? 272 : 252} resizable>
+            <div className="im-side-tabs" role="tablist">
+              <button type="button" role="tab" aria-selected={side === 'layers'} data-side="layers" onClick={() => setSide('layers')}>{t('Layers')}</button>
+              <button type="button" role="tab" aria-selected={side !== 'layers'} data-side="adjust" onClick={() => setSide('adjust')}>{t('Adjust')}</button>
+            </div>
+            {side === 'layers' ? (
+              layered ? (
+                <LayersPanel
+                  doc={layered}
+                  selected={selected}
+                  assets={assetsNow()}
+                  onSelect={setSelected}
+                  onChange={onLayerChange}
+                  onDrop={(id, target, where) => editLayers((d) => dropLayer(d, id, target, where))}
+                  onStep={(id, delta) => editLayers((d) => stepLayer(d, id, delta))}
+                  onGroup={groupChosen}
+                  onUngroup={(id) => editLayers((d) => ungroupLayers(d, id))}
+                  onDuplicate={duplicateChosen}
+                  onRemove={removeChosen}
+                />
+              ) : (
+                <div className="im-layers-off">
+                  <Icon name="layers" size={28} />
+                  <p>{t('This picture has no layers yet. Text, word art, shapes, icons, charts, pictures and adjustments go on layers of their own, from Insert.')}</p>
+                  <Button primary icon="layers" label={t('Use layers')} disabled={!hasResult} onClick={enterLayers} data-role="use-layers" />
+                </div>
+              )
+            ) : (
             <div className="im-panel">
               {SECTIONS.map((sec) => (
                 <section key={sec.id} className="im-sec" data-section={sec.id} ref={(el) => { sectionRefs.current[sec.id] = el; }}>
@@ -889,9 +1573,12 @@ export default function ImageTool({ app, shell, boot }) {
                 )}
               </div>
             </div>
+            )}
           </Panel>
         </>
       )}
+      {sizing === 'canvas' && layered ? <CanvasSizeDialog size={layered.size} onApply={applyCanvas} onClose={() => setSizing(null)} /> : null}
+      {sizing === 'image' && layered ? <ResizeDialog title={t('Image Size')} size={layered.size} onApply={applyImageSize} onClose={() => setSizing(null)} /> : null}
       {resizing && plan ? (
         <ResizeDialog
           size={plan.target}
@@ -902,13 +1589,13 @@ export default function ImageTool({ app, shell, boot }) {
           }}
         />
       ) : null}
-      <style>{CSS}</style>
+      <style>{CSS + LAYERS_CSS + STAGE_CSS + INSERT_CSS + CANVAS_CSS}</style>
     </AppFrame>
   );
 }
 
 /** Resize: by pixels or percent, the ratio kept unless it is let go, as Paint's dialog asks. */
-function ResizeDialog({ size, onApply, onClose }) {
+function ResizeDialog({ size, onApply, onClose, title = null }) {
   const [by, setBy] = useState('percent');
   const [keep, setKeep] = useState(true);
   const [vals, setVals] = useState({ width: 100, height: 100 });
@@ -936,7 +1623,7 @@ function ResizeDialog({ size, onApply, onClose }) {
   );
   return (
     <Dialog
-      title={t('Resize')}
+      title={title || t('Resize')}
       width={360}
       onClose={onClose}
       actions={
@@ -1052,6 +1739,9 @@ const CSS = `
 .im-handle.h-nw, .im-handle.h-se { cursor: nwse-resize; }
 .im-handle.h-ne, .im-handle.h-sw { cursor: nesw-resize; }
 .im-handle.h-a, .im-handle.h-b { border-radius: 50%; cursor: grab; }
+.im-picture-box { position: absolute; }
+.im-layers-off { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 18px; text-align: center; color: var(--ink-3); }
+.im-layers-off p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-2); }
 .im-empty-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
 
 /* the ribbon's sliders, three to a group */

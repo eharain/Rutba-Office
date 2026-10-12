@@ -51,6 +51,9 @@ export class OoxmlBackend {
   /** Insert → 3D Models: the model's .glb, and its picture drawn again at a view — see document.js. */
   model3dSource(index, image) { return this.doc.model3dSource(index, image); }
   prepareModel3d(index, image) { this.doc.prepareModel3d(index, image); return this; }
+  pictureSource(index, image) { return this.doc.pictureSource(index, image); }
+  preparePicture(index, image) { this.doc.preparePicture(index, image); return this; }
+  replacePicture(index, image, spec) { this.doc.replacePicture(index, image, spec); return this; }
   setModel3dView(index, image, spec) { this.doc.setModel3dView(index, image, spec); return this; }
   /** Layout → Hyphenation: the document's settings — see document.js. */
   hyphenation() { return this.doc.hyphenation(); }

@@ -17,6 +17,7 @@ import { usePasswordGate, openProtected, LockedAction, useProtection } from '../
 import { SITE, APPS } from '@rutba/office-formats/registry';
 import Presenter, { nextShown } from './slides/presenter.js';
 import SlidesRibbon from './slides/ribbon.js';
+import { editInImage } from './edit-in-image.js';
 import { ShowStage, TransitionPreview, AnimationPreview } from './slides/show.js';
 import { describeTransition } from './slides/motion.js';
 import { clickCount, pathPoints } from './slides/animate.js';
@@ -2310,6 +2311,28 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       // 3D Model Views, Turn and Reset: the picked model drawn again at the new view, at its frame's size.
+      // Picture Format → Edit in Image: the picture opened in Image, and put
+      // back where it was, as wide, when Image saves it.
+      case 'editInImage': {
+        const shape = slide?.shapes?.find((s) => String(s.id) === String(arg?.shape ?? selected));
+        if (!shape || shape.kind !== 'picture' || shape.media || shape.model3d || shape.object || shape.cameo || !doc) return;
+        const at = index;
+        await editInImage({
+          shell,
+          docId: doc.id,
+          sourceOp: { op: 'pictureSource', slide: at, shape: shape.id },
+          extra: { slide: at, width: 1280 },
+          name: doc.name,
+          toast,
+          onBack: (back) => actRef.current?.('pictureBack', { slide: at, shape: shape.id, ...back }),
+        }).catch((err) => toast(String(err?.message || err), { tone: 'bad' }));
+        return;
+      }
+      case 'pictureBack': {
+        const next = await apply({ op: 'replacePicture', slide: arg.slide, shape: arg.shape, data: arg.bytes, contentType: arg.contentType, aspect: arg.width > 0 && arg.height > 0 ? arg.height / arg.width : null });
+        if (next) toast(t('The picture edited in Image is back in its place.'), { tone: 'good' });
+        return;
+      }
       case 'model3dView': {
         const shape = slide?.shapes?.find((s) => String(s.id) === String(arg?.shape ?? selected));
         if (!shape?.model3d) return;

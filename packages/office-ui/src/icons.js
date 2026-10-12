@@ -176,6 +176,19 @@ const PATHS = {
   camera: [P('M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'), P('M12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z')],
   mic: [P('M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z'), P('M5.5 11a6.5 6.5 0 0 0 13 0'), P('M12 17.5V21M9 21h6')],
   speaker: [P('M4 9.5h3.5L12 6v12l-4.5-3.5H4z'), P('M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11')],
+  // the Image app's layers
+  layers: [P('m12 3 9 5-9 5-9-5z'), P('m3 12.5 9 5 9-5'), P('m3 16.5 9 5 9-5')],
+  unlock: [P('M6 11h12v9a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1z'), P('M8.5 11V8a3.5 3.5 0 0 1 6.8-1.2')],
+  layerUp: [P('M5 13h10v7H5z'), P('M9 9h10v7', { strokeDasharray: '2 2' }), P('M17 3v5M14.5 5.5 17 3l2.5 2.5')],
+  layerDown: [P('M9 4h10v7H9z'), P('M5 8v7h10', { strokeDasharray: '2 2' }), P('M7 21v-5M4.5 18.5 7 21l2.5-2.5')],
+  layerTop: [P('M6 11h12v9H6z'), P('M12 2v6M9 5l3-3 3 3'), P('M4 9h16')],
+  layerBottom: [P('M6 4h12v9H6z'), P('M12 22v-6M9 19l3 3 3-3'), P('M4 15h16')],
+  groupObj: [P('M3 3h4M17 3h4v4M21 17v4h-4M7 21H3v-4M3 7V3', {}), P('M7 7h6v6H7zM11 11h6v6h-6z')],
+  ungroupObj: [P('M4 4h7v7H4z'), P('M13 13h7v7h-7z'), P('M14 6h4v4M6 14v4h4', { strokeDasharray: '2 2' })],
+  wordArt: [P('M4 19 9 5h1l5 14'), P('M6.2 13.5h6.6'), P('M15 8c2-2 4-1.5 5 0'), P('M15 12c2-2 4-1.5 5 0')],
+  mkCanvas: [P('M7 7h10v10H7z'), P('M3 3h4M3 3v4M21 3h-4M21 3v4M3 21h4M3 21v-4M21 21h-4M21 21v-4')],
+  mkTrim: [P('M8 8h8v8H8z'), P('M4 4l3 3M20 4l-3 3M4 20l3-3M20 20l-3-3')],
+  duplicate: [P('M8 8h12v12H8z'), P('M4 16V4h12'), P('M14 11v6M11 14h6')],
 };
 
 /**

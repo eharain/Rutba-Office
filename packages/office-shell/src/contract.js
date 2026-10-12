@@ -48,6 +48,7 @@ export const METHODS = {
     'focus',        // ({ id }) -> boolean
     'hide',         // () -> { hidden, reason }   refused for the last window on screen
     'unhide',       // ({ id }) -> boolean
+    'handBack',     // ({ token, bytes, contentType, width, height }) -> { delivered }   Edit in Image: the edited picture to the window that opened this one
   ],
   fs: [
     'read',         // ({ path }) -> { bytes: Uint8Array, stat }
@@ -303,6 +304,7 @@ export const EVENTS = [
   'theme:changed',    // { dark }
   'update:state',     // { state, version, available, percent, automatic, snoozed, snoozedVersion, arrived }
   'capture:command',  // { command: 'stop' | 'pause' }   a recording's global key or tray icon was used
+  'picture:returned', // { token, bytes, contentType, width, height }   Edit in Image saved the picture back
 ];
 
 /** Every method as a flat channel list, e.g. 'fs:read'. */

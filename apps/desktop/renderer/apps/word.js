@@ -18,6 +18,7 @@ import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, Panel, useToast
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows } from '../shell.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
+import { editInImage } from './edit-in-image.js';
 import { NavigationPane, installWordStyles } from './word/panes.js';
 import { Ruler, TableGrips, installRulerStyles } from './word/ruler.js';
 import { selectionToSend } from './word/caret.js';
@@ -231,6 +232,9 @@ export default function Word({ app, shell, boot }) {
   const toast = useToast();
   const [doc, setDoc] = useState(null);
   const [model, setModel] = useState(null);
+  // The model as it is now, for a picture coming back from Image after it changed.
+  const modelRef = useRef(null);
+  modelRef.current = model;
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(null);
   // A protected file whose Password dialog was cancelled: its name.
@@ -1820,6 +1824,35 @@ export default function Word({ app, shell, boot }) {
           if (!type) { toast(t('Only Word, Excel and PowerPoint documents embed.'), { ms: 3000 }); return; }
           const data = arg.file ? (await shell.fs.read({ path: arg.file })).bytes : null;
           await apply({ op: 'insertObject', ext: type.ext, name: arg.name, data, icon: await objectIcon(type, arg.name) });
+          return;
+        }
+        // Picture Format → Edit in Image: the picture opened in Image, and put
+        // back here, at its place and width, when Image saves it.
+        case 'editInImage': {
+          if (picked?.image == null) return;
+          const id = picked.id;
+          const img = blocks[picked.block]?.images?.[picked.image];
+          if (!img || img.model3d || img.object || img.vml) return;
+          await editInImage({
+            shell,
+            docId: doc.id,
+            sourceOp: { op: 'pictureSource', block: picked.block, image: picked.image },
+            name: doc.name,
+            toast,
+            onBack: async ({ bytes, contentType, width, height }) => {
+              // Found again by its id: the words round it may have moved since.
+              const now = modelRef.current?.blocks || [];
+              let block = -1;
+              let image = -1;
+              now.forEach((b, bi) => (b.images || []).forEach((im, ii) => { if (block < 0 && im.id === id) { block = bi; image = ii; } }));
+              if (block < 0) { toast(t('That picture is no longer in the document.'), { tone: 'bad' }); return; }
+              const was = now[block].images[image];
+              const widthPx = Math.max(1, Math.round(was.widthPx));
+              const heightPx = width > 0 && height > 0 ? Math.max(1, Math.round((widthPx * height) / width)) : Math.round(was.heightPx);
+              await apply({ op: 'replacePicture', block, image, data: bytes, contentType, widthPx, heightPx });
+              toast(t('The picture edited in Image is back in its place.'), { tone: 'good' });
+            },
+          }).catch((err) => toast(String(err?.message || err), { tone: 'bad' }));
           return;
         }
         // An embedded document, double-clicked: a copy of it opened in its own app.

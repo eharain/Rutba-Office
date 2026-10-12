@@ -3780,6 +3780,61 @@ export class Deck {
     return { part, xml, start, end, pic, model, picture, view: { yaw: Number(attr('yaw')) || 0, pitch: Number(attr('pitch')) || 0, roll: Number(attr('roll')) || 0 } };
   }
 
+  /** A picture on a slide: its `p:pic`, where it is in the slide and the part its blip names. */
+  #pictureAt(slideIndex, shapeId) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const start = picStartOf(xml, shapeId);
+    if (start < 0) throw new Error('That is not a picture');
+    const end = xml.indexOf('</p:pic>', start) + '</p:pic>'.length;
+    const pic = xml.slice(start, end);
+    const relId = /<a:blip\b[^>]*\br:embed="([^"]*)"/.exec(pic)?.[1] || null;
+    const picture = relId ? this.#relMap(part).get(relId)?.resolved || null : null;
+    return { part, start, end, pic, relId, picture };
+  }
+
+  /** Edit in Image: a picture's bytes and type. */
+  pictureSource(slideIndex, shapeId) {
+    const at = this.#pictureAt(slideIndex, shapeId);
+    if (!at.picture || !this.pkg.has(at.picture)) throw new Error('That picture\'s file is missing');
+    const ext = at.picture.toLowerCase().split('.').pop();
+    const contentType = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp' }[ext] || 'application/octet-stream';
+    return { data: this.pkg.read(at.picture), contentType, name: at.picture.split('/').pop() };
+  }
+
+  /**
+   * Edit in Image, saved: the picture's bytes replaced by the edited
+   * picture's, the shape's place and size kept (its height follows the new
+   * shape, `aspect` its height over its width, when given): in its own
+   * part when nothing else uses it and it is the same kind, in a new one
+   * when something does.
+   */
+  replacePicture(slideIndex, shapeId, { data, contentType = 'image/png', aspect = null }) {
+    const at = this.#pictureAt(slideIndex, shapeId);
+    const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data ?? ''), 'base64');
+    if (!bytes.length) throw new Error('the picture has no bytes');
+    let uses = 0;
+    for (const r of this.pkg.partNames().filter((p) => /(^|\/)_rels\/[^/]*\.rels$/.test(p))) {
+      const from = r.replace(/(^|\/)_rels\/([^/]*)\.rels$/, '$1$2');
+      for (const x of this.pkg.rels(from)) if (x.TargetMode !== 'External' && x.Target && OoxmlPackage.resolveTarget(from, x.Target) === at.picture) uses += 1;
+    }
+    const jpeg = /jpe?g/i.test(contentType);
+    const same = jpeg ? /\.jpe?g$/i.test(at.picture || '') : /\.png$/i.test(at.picture || '');
+    let pic = at.pic;
+    if (at.picture && uses === 1 && same) {
+      this.pkg.write_(at.picture, bytes);
+    } else {
+      const { rId } = this.#embedImage(at.part, { data: bytes, contentType: jpeg ? 'image/jpeg' : 'image/png' });
+      pic = pic.replace(/(<a:blip\b[^>]*\br:embed=")[^"]*(")/, (m, a, b) => `${a}${rId}${b}`);
+    }
+    // The width kept, the height from the new picture's shape.
+    if (Number(aspect) > 0) pic = pic.replace(/(<a:xfrm\b[^>]*>[\s\S]*?<a:ext\b[^>]*\bcx=")(\d+)("[^>]*\bcy=")\d+(")/, (m2, a, cx, b, c) => `${a}${cx}${b}${Math.round(Number(cx) * Number(aspect))}${c}`);
+    const xml = this.pkg.text(at.part);
+    this.#writeSlide(at.part, xml.slice(0, at.start) + pic + xml.slice(at.end));
+    return true;
+  }
+
   /** A 3D model's .glb, for drawing it again. */
   model3dSource(slideIndex, shapeId) {
     const at = this.#model3dAt(slideIndex, shapeId);

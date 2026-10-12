@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5689,
+  "count": 5851,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -577,6 +577,12 @@
       "message": "30 minutes before",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "3D",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -2117,8 +2123,22 @@
       "message": "Adjust",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Adjustment",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js",
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "Adjustment: a layer that changes the look of every layer under it",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
       ]
     },
     {
@@ -2208,6 +2228,7 @@
     {
       "message": "Align",
       "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -2299,6 +2320,7 @@
     {
       "message": "Align left",
       "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -2320,6 +2342,7 @@
     {
       "message": "Align right",
       "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word.js"
@@ -2700,6 +2723,12 @@
       ]
     },
     {
+      "message": "An adjustment changes every layer under it, and none above it.",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
       "message": "An app password, where the service gives one.",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
@@ -2727,6 +2756,12 @@
       "message": "An outline goes seven levels deep at most",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Anchor",
+      "where": [
+        "apps/desktop/renderer/apps/image/canvas-size.js"
       ]
     },
     {
@@ -2994,6 +3029,12 @@
       ]
     },
     {
+      "message": "Arch",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Arch Down",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -3032,6 +3073,7 @@
     {
       "message": "Area",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -3052,6 +3094,7 @@
       "message": "Arrange",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -3098,30 +3141,35 @@
     {
       "message": "Arrow",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
       "message": "Arrow down",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
       "message": "Arrow left",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
       "message": "Arrow right",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
       "message": "Arrow up",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -3164,6 +3212,7 @@
     {
       "message": "Arrows",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/equations.js"
       ]
@@ -3330,6 +3379,12 @@
       "where": [
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
+      "message": "Attention",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -3621,6 +3676,7 @@
     {
       "message": "Background",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -3716,6 +3772,12 @@
       ]
     },
     {
+      "message": "Banner",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Bar",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -3723,6 +3785,12 @@
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Bars",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -3790,6 +3858,12 @@
       "message": "Behind text",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Bell",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -3930,6 +4004,18 @@
       ]
     },
     {
+      "message": "Blend",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
+      "message": "Blob",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Block sender",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -4064,6 +4150,7 @@
     {
       "message": "Bookmark",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/references-index.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -4109,6 +4196,7 @@
     {
       "message": "Bottom",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -4155,12 +4243,14 @@
     {
       "message": "Bottom left",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
       "message": "Bottom right",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
@@ -4187,6 +4277,12 @@
       "message": "Box — thin line",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Boxes",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -4236,14 +4332,17 @@
     {
       "message": "Brightness",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
       "message": "Bring Forward",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/drawings.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -4287,8 +4386,15 @@
     {
       "message": "Bring forward",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Bring forward: one place up the stack",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -4300,7 +4406,9 @@
     {
       "message": "Bring to Front",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -4408,6 +4516,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Burst",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -4578,6 +4692,7 @@
       "message": "Calendar",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/registry-words.js"
       ]
     },
@@ -4621,6 +4736,7 @@
     {
       "message": "Camera",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/shared-words.js"
@@ -4669,6 +4785,7 @@
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/richtext.js",
@@ -4719,6 +4836,19 @@
       "message": "Cancel the edit",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Canvas Size",
+      "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/canvas-size.js"
+      ]
+    },
+    {
+      "message": "Canvas Size: more room round the picture, or less, nothing scaled",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -4785,7 +4915,14 @@
     {
       "message": "Card",
       "where": [
-        "apps/desktop/renderer/apps/contacts.js"
+        "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "Cart",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -4927,6 +5064,8 @@
     {
       "message": "Centre",
       "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -5070,6 +5209,9 @@
     {
       "message": "Chart",
       "where": [
+        "apps/desktop/renderer/apps/image/insert.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
@@ -5090,6 +5232,12 @@
       ]
     },
     {
+      "message": "Chart: bars, columns, a line or a pie from a few numbers",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
       "message": "Charts",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -5099,6 +5247,18 @@
       "message": "Charts and slicers do not turn — select a picture, a shape or a group.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Chat",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "Check",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -5217,9 +5377,16 @@
     {
       "message": "Chevron",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Chevron down",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -5257,6 +5424,12 @@
       "message": "Choose a folder…",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
+      ]
+    },
+    {
+      "message": "Choose a layer to set its opacity, blend and look.",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -5341,6 +5514,7 @@
     {
       "message": "Circle",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/slides/motion.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
@@ -5712,6 +5886,12 @@
       ]
     },
     {
+      "message": "Clock",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Clockwise",
       "where": [
         "apps/desktop/renderer/apps/slides/animate.js"
@@ -5723,6 +5903,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/rules.js",
@@ -5861,6 +6042,12 @@
       ]
     },
     {
+      "message": "Cloud",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Code Editor",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -5888,11 +6075,25 @@
       "message": "Colour",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js"
+      ]
+    },
+    {
+      "message": "Colour burn",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "Colour dodge",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -6016,6 +6217,7 @@
     {
       "message": "Columns",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -6147,6 +6349,12 @@
       "message": "Comments are on slides — Close Master View first.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Commerce",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -6372,7 +6580,8 @@
     {
       "message": "Contrast",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -6460,6 +6669,12 @@
       "message": "Convex",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Cool",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -6868,6 +7083,7 @@
     {
       "message": "Cross",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
       ]
@@ -6896,6 +7112,12 @@
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Crown",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -7250,6 +7472,12 @@
       "message": "Dark, banded rows",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Darken",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -7615,6 +7843,7 @@
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -7808,6 +8037,13 @@
       ]
     },
     {
+      "message": "Delete the layer",
+      "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
       "message": "Delete the query; its sheet stays",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -7978,6 +8214,12 @@
       ]
     },
     {
+      "message": "Delivery",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Delivery address",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
@@ -8115,6 +8357,7 @@
     {
       "message": "Diamond",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/motion.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -8131,6 +8374,12 @@
       "message": "Dictation is an online speech service this suite does not call.",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Difference",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -8380,6 +8629,12 @@
       ]
     },
     {
+      "message": "Donut",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Dotted",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -8413,6 +8668,12 @@
       "message": "Double Wave: Up",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Double arrow",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -8475,6 +8736,12 @@
       "message": "Down (Ctrl+D)",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Download",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -8689,6 +8956,12 @@
       ]
     },
     {
+      "message": "Droplet",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Dropped",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -8703,6 +8976,7 @@
     {
       "message": "Duplicate",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js"
       ]
@@ -8723,6 +8997,12 @@
       "message": "Duplicate slide",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Duplicate the layer",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -8874,8 +9154,10 @@
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/video/ribbon.js"
+        "apps/desktop/renderer/apps/video/ribbon.js",
+        "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
@@ -8988,6 +9270,22 @@
       "message": "Edit footnote",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Edit in Image",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Edit in Image: crop, correct, draw on it and add layers in Image; saving there puts the picture back here",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
@@ -9178,6 +9476,7 @@
       "message": "Ellipse",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -9707,6 +10006,12 @@
       ]
     },
     {
+      "message": "Exclusion",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Exit",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
@@ -9823,6 +10128,12 @@
       ]
     },
     {
+      "message": "Export: a PNG, JPEG or WebP of the picture, its layers flattened",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Exported {count} message",
       "plural": "Exported {count} messages",
       "where": [
@@ -9862,6 +10173,7 @@
       "message": "Exposure",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -9878,8 +10190,15 @@
       ]
     },
     {
+      "message": "Eye",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Fade",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/slides/animate.js",
         "apps/desktop/renderer/apps/slides/motion.js",
         "apps/desktop/renderer/apps/video/inspector.js"
@@ -10096,6 +10415,7 @@
     {
       "message": "Fill",
       "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -10449,6 +10769,12 @@
       ]
     },
     {
+      "message": "Fire",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "First",
       "where": [
         "apps/desktop/renderer/apps/pictures.js",
@@ -10574,6 +10900,12 @@
       "message": "Fixed Column Width",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Flag",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -11155,6 +11487,7 @@
     {
       "message": "Frame",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
@@ -11532,6 +11865,12 @@
       ]
     },
     {
+      "message": "Gear",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "General",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -11560,6 +11899,12 @@
       "message": "Get mail",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Gift",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -11710,6 +12055,7 @@
     {
       "message": "Gold",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -11911,6 +12257,8 @@
     {
       "message": "Group",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -11965,6 +12313,13 @@
       "message": "Group — {need}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Group: the chosen layers move, show and fade as one",
+      "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -12063,6 +12418,12 @@
       "message": "Hard Edge",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Hard light",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -12189,10 +12550,23 @@
       ]
     },
     {
+      "message": "Headline",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
+      "message": "Heart",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Height",
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -12260,6 +12634,7 @@
     {
       "message": "Hide",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -12363,9 +12738,21 @@
       ]
     },
     {
+      "message": "Hide its layers",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
       "message": "Hide password",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Hide the layer",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -12516,6 +12903,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -12623,7 +13011,8 @@
     {
       "message": "Hue",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -12700,8 +13089,16 @@
       ]
     },
     {
+      "message": "Icon",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Icons",
       "where": [
+        "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -12723,6 +13120,18 @@
       "message": "Icons — one of the suite's own icons, in the colour you choose, as a picture on this slide",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Icons: a small drawing that stays sharp at any size",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
+      "message": "Idea",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -12801,6 +13210,7 @@
     {
       "message": "Illustrations",
       "where": [
+        "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -12811,6 +13221,18 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Image Size",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Image Size: the whole picture scaled, every layer with it",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -13209,6 +13631,7 @@
     {
       "message": "Insert",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/slides/zoom.js",
@@ -13514,6 +13937,7 @@
     {
       "message": "Insert a picture",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
@@ -14143,6 +14567,12 @@
       ]
     },
     {
+      "message": "Key",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Keyboard Shortcuts",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -14202,6 +14632,7 @@
     {
       "message": "Labels",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -14428,10 +14859,24 @@
       ]
     },
     {
+      "message": "Layer",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Layers",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Layers: the panel of the picture's layers",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -14476,6 +14921,12 @@
       "message": "Lead",
       "where": [
         "apps/desktop/renderer/smartart-dialog.js"
+      ]
+    },
+    {
+      "message": "Leaf",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -14556,6 +15007,7 @@
       "message": "Left",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -14869,6 +15321,12 @@
       ]
     },
     {
+      "message": "Lighten",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Lighter",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -14878,6 +15336,12 @@
       "message": "Lightest output",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Lightning",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -14907,6 +15371,7 @@
     {
       "message": "Line",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -15175,6 +15640,7 @@
       "message": "Location",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/shared-words.js"
       ]
@@ -15186,9 +15652,22 @@
       ]
     },
     {
+      "message": "Lock",
+      "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Lock cells",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Lock the layer",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -15262,6 +15741,12 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/batch.js"
+      ]
+    },
+    {
+      "message": "Look",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -15383,6 +15868,12 @@
       "message": "Lowercase",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Luminosity",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -15809,6 +16300,7 @@
     {
       "message": "Marks",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
       ]
     },
@@ -15887,6 +16379,12 @@
       ]
     },
     {
+      "message": "Matte",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Max",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -15922,6 +16420,7 @@
     {
       "message": "Media",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
@@ -16164,6 +16663,7 @@
     {
       "message": "Microphone",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -16268,6 +16768,12 @@
       ]
     },
     {
+      "message": "Minus",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Mirror",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
@@ -16310,6 +16816,12 @@
       ]
     },
     {
+      "message": "Mon",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
       "message": "Monarch — 3⅞ × 7½ in",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -16340,6 +16852,12 @@
       ]
     },
     {
+      "message": "Mono",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Month",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
@@ -16351,6 +16869,12 @@
       "message": "Month Accessed",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Moon",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -16402,7 +16926,8 @@
     {
       "message": "More colours",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -16708,6 +17233,7 @@
     {
       "message": "Multiply",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
@@ -16715,6 +17241,12 @@
       "message": "Multipurpose",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Music",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -16861,6 +17393,12 @@
       ]
     },
     {
+      "message": "Neon",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Neutral",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -16901,6 +17439,7 @@
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -17078,6 +17617,12 @@
       ]
     },
     {
+      "message": "New picture",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "New rule",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
@@ -17117,6 +17662,12 @@
       "message": "New — a comment on the active cell",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "New: a clear picture to put layers on (Ctrl+N)",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -18035,6 +18586,12 @@
       ]
     },
     {
+      "message": "Noir",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Noise reduction",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -18045,6 +18602,7 @@
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -18100,6 +18658,7 @@
     {
       "message": "Normal",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -18438,7 +18997,8 @@
     {
       "message": "Now {width} × {height}; after, {newWidth} × {newHeight}.",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/canvas-size.js"
       ]
     },
     {
@@ -18526,6 +19086,12 @@
       ]
     },
     {
+      "message": "Numbers",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
       "message": "Numbers, cells like B2 or B2:B4, + - * / and brackets, and SUM, AVERAGE, COUNT, MAX, MIN, PRODUCT or ABS of them or of ABOVE, LEFT, BELOW or RIGHT",
       "where": [
         "apps/desktop/renderer/apps/word.js"
@@ -18534,6 +19100,7 @@
     {
       "message": "OK",
       "where": [
+        "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -18758,6 +19325,12 @@
       ]
     },
     {
+      "message": "One name and one number on each line, such as: Mon, 12",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
       "message": "One range or several, such as B2:D10 F2:F10.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -18900,6 +19473,7 @@
     {
       "message": "Opacity",
       "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
@@ -19259,6 +19833,7 @@
     {
       "message": "Other",
       "where": [
+        "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
@@ -19284,6 +19859,12 @@
       "message": "Otherwise insert this text:",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Ours",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
       ]
     },
     {
@@ -19327,6 +19908,7 @@
     {
       "message": "Outline",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -19387,6 +19969,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Overlay",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -19644,6 +20232,12 @@
       ]
     },
     {
+      "message": "Panel",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Panels",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -19701,6 +20295,7 @@
     {
       "message": "Parallelogram",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -19791,6 +20386,12 @@
       ]
     },
     {
+      "message": "Paste as a layer",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Paste as a new picture",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -19841,6 +20442,7 @@
     {
       "message": "Pause",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/slides/media.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/record.js",
@@ -19921,6 +20523,7 @@
     {
       "message": "People",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/parts.js"
       ]
@@ -19935,6 +20538,7 @@
       "message": "Percent",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -19966,6 +20570,12 @@
       "message": "Permanently delete everything in {folder}?",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Person",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -20057,6 +20667,8 @@
       "message": "Picture",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/insert.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -20068,6 +20680,8 @@
     {
       "message": "Picture Format",
       "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -20084,6 +20698,12 @@
       ]
     },
     {
+      "message": "Picture in {name}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Picture layout",
       "where": [
         "apps/desktop/renderer/apps/slides/album.js"
@@ -20096,8 +20716,15 @@
       ]
     },
     {
+      "message": "Picture: another picture, on a layer of its own",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
       "message": "Pictures",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/pictures/library.js",
@@ -20152,11 +20779,24 @@
     {
       "message": "Pie",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Pie slice",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "Pill",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -20277,6 +20917,12 @@
       ]
     },
     {
+      "message": "Place and time",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Placeholder Name",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -20297,6 +20943,7 @@
     {
       "message": "Plain",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -20341,6 +20988,7 @@
     {
       "message": "Play",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/slides/media.js",
         "apps/desktop/renderer/apps/slides/record.js",
@@ -20429,6 +21077,7 @@
     {
       "message": "Plus",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/motion.js"
       ]
@@ -20437,6 +21086,24 @@
       "message": "Point one",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Pointers",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "Points",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "Polygon",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -20785,6 +21452,12 @@
       ]
     },
     {
+      "message": "Price tag",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Primary Monitor",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -21127,6 +21800,12 @@
       "message": "Pulse",
       "where": [
         "apps/desktop/renderer/apps/slides/animate.js"
+      ]
+    },
+    {
+      "message": "Punch",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -21650,8 +22329,15 @@
       ]
     },
     {
+      "message": "Recovered picture",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Recovered unsaved work. Save it to keep it.",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -21662,6 +22348,7 @@
       "message": "Rectangle",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
@@ -21719,6 +22406,7 @@
     {
       "message": "Redo",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -22524,7 +23212,6 @@
     {
       "message": "Reset",
       "where": [
-        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -22602,6 +23289,12 @@
       "message": "Reset — the placeholders back where the layout puts them",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Reset: the picture's quick edits undone",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -22819,6 +23512,7 @@
       "message": "Right",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -22913,6 +23607,12 @@
       ]
     },
     {
+      "message": "Ring",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Ring: Inside",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -22942,6 +23642,12 @@
       "message": "Rise",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
+      "message": "Rocket",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -23138,6 +23844,12 @@
       ]
     },
     {
+      "message": "Rounds",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Row",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
@@ -23263,6 +23975,12 @@
       "message": "Rows where \"{column}\" is {value}",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rule",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -23400,6 +24118,7 @@
     {
       "message": "Rutba Image Project (.rimg)",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/registry-words.js"
       ]
     },
@@ -23563,7 +24282,9 @@
     {
       "message": "Saturation",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -23642,6 +24363,18 @@
       ]
     },
     {
+      "message": "Save and return",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Save and return: the edited picture goes back into {name}, where it was (Ctrl+S)",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Save as",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -23685,6 +24418,12 @@
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Save as a project…",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -23746,6 +24485,7 @@
     {
       "message": "Save the project as",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/video/index.js"
       ]
     },
@@ -23753,6 +24493,12 @@
       "message": "Save the workbook first, so a second window can open the same file.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Save: the picture with its layers, as a project (.rimg) to edit again (Ctrl+S)",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -23783,6 +24529,7 @@
     {
       "message": "Saved {name}",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -23921,6 +24668,7 @@
     {
       "message": "Screen",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -24043,6 +24791,7 @@
     {
       "message": "Search",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "packages/office-ui/src/index.js"
@@ -24558,6 +25307,12 @@
       ]
     },
     {
+      "message": "Semicircle",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Semicolon",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -24579,8 +25334,10 @@
     {
       "message": "Send Backward",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/drawings.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -24642,8 +25399,15 @@
     {
       "message": "Send backward",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Send backward: one place down the stack",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -24691,7 +25455,9 @@
     {
       "message": "Send to Back",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -25067,6 +25833,8 @@
     {
       "message": "Shape",
       "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/motion.js",
@@ -25160,6 +25928,7 @@
     {
       "message": "Shapes",
       "where": [
+        "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -25178,9 +25947,22 @@
       ]
     },
     {
+      "message": "Shapes: rectangles, rounds, stars, arrows and labels",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
+      "message": "Share",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Sharpen",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -25263,6 +26045,12 @@
       ]
     },
     {
+      "message": "Shield",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Shift",
       "where": [
         "packages/office-ui/src/commands.js"
@@ -25307,6 +26095,7 @@
     {
       "message": "Show",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/custom-shows.js",
@@ -25466,6 +26255,12 @@
       ]
     },
     {
+      "message": "Show its layers",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
       "message": "Show options",
       "where": [
         "apps/desktop/renderer/apps/slides/setup.js"
@@ -25505,6 +26300,12 @@
       "message": "Show the gridlines on screen",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Show the layer",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -26180,6 +26981,12 @@
       ]
     },
     {
+      "message": "Soft light",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Software",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -26437,6 +27244,12 @@
       ]
     },
     {
+      "message": "Sparkle",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Sparklines",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -26470,6 +27283,12 @@
       "message": "Speech",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Speech bubble",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -26651,6 +27470,7 @@
       "message": "Square",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
@@ -26701,6 +27521,7 @@
     {
       "message": "Star",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -26947,9 +27768,16 @@
       ]
     },
     {
+      "message": "Sticker",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Stop",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/scripts.js",
         "apps/desktop/renderer/apps/slides/record.js",
@@ -26991,6 +27819,12 @@
       "message": "Stopped.",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js"
+      ]
+    },
+    {
+      "message": "Store",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -27072,6 +27906,12 @@
       "message": "Studio",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Style",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -27280,6 +28120,12 @@
       "message": "Summation with limits",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
+      ]
+    },
+    {
+      "message": "Sun",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -27568,6 +28414,7 @@
     {
       "message": "Tag",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/word/references.js"
       ]
     },
@@ -27634,6 +28481,12 @@
       ]
     },
     {
+      "message": "Teardrop",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Technical",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -27649,7 +28502,8 @@
     {
       "message": "Temperature",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -27675,6 +28529,8 @@
       "message": "Text",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/insert.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -27881,6 +28737,12 @@
       ]
     },
     {
+      "message": "Text: words in a box of their own, on a layer",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
       "message": "Thanks for watching",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -28002,7 +28864,19 @@
       ]
     },
     {
+      "message": "That is not a picture",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "That is not a picture the clipboard can hold.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That is not a picture.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
       ]
@@ -28057,9 +28931,22 @@
       ]
     },
     {
+      "message": "That picture is no longer in the document.",
+      "where": [
+        "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
       "message": "That picture is over 256 KB — a signature goes with every message, so use a smaller one.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "That picture's file is missing",
+      "where": [
+        "apps/desktop/renderer/apps/edit-in-image.js",
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -28318,6 +29205,12 @@
       "message": "The disk is nearly full: the recording was stopped and kept.",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
+      "message": "The document",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -28701,6 +29594,12 @@
       ]
     },
     {
+      "message": "The picture",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "The picture could not be redrawn.",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -28710,6 +29609,26 @@
       "message": "The picture could not be turned: {error}",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "The picture edited in Image is back in its place.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/slides.js",
+        "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "The picture is back in {name}.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "The picture stays at the anchor; the canvas grows or is cut on the other sides. Nothing is scaled.",
+      "where": [
+        "apps/desktop/renderer/apps/image/canvas-size.js"
       ]
     },
     {
@@ -28733,6 +29652,7 @@
     {
       "message": "The project could not be saved: {reason}",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/video/index.js"
       ]
     },
@@ -29090,6 +30010,12 @@
       ]
     },
     {
+      "message": "Theirs",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
       "message": "Theme applied to every slide",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -29163,6 +30089,12 @@
       "message": "Then:",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
+      ]
+    },
+    {
+      "message": "There are no clear edges to trim.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -29316,6 +30248,12 @@
       ]
     },
     {
+      "message": "There is nothing on the canvas to keep.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "There is nothing on the clipboard to paste.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -29403,6 +30341,12 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Things",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -29850,9 +30794,21 @@
       ]
     },
     {
+      "message": "This picture has no layers yet. Text, word art, shapes, icons, charts, pictures and adjustments go on layers of their own, from Insert.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "This picture is animated",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "This picture is kept in a form Image cannot edit (such as a drawing of lines). Change it to a PNG or a JPEG first.",
+      "where": [
+        "apps/desktop/renderer/apps/edit-in-image.js"
       ]
     },
     {
@@ -29948,6 +30904,12 @@
     },
     {
       "message": "This sheet is protected — unprotect it before consolidating into it.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This sheet is protected. Unprotect it before changing pictures.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
       ]
@@ -30139,6 +31101,18 @@
       ]
     },
     {
+      "message": "Thu",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
+      "message": "Thumbs up",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Tick at least one field to make a slicer for.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -30235,7 +31209,8 @@
     {
       "message": "Tint",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -30423,6 +31398,7 @@
     {
       "message": "Top",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
@@ -30480,6 +31456,7 @@
     {
       "message": "Top left",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
@@ -30487,6 +31464,7 @@
     {
       "message": "Top right",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
@@ -30743,6 +31721,7 @@
     {
       "message": "Trapezoid",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -30770,6 +31749,7 @@
     {
       "message": "Triangle",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -30825,6 +31805,7 @@
     {
       "message": "Trim",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -30854,6 +31835,24 @@
       ]
     },
     {
+      "message": "Trim: the clear edges cut away",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Trimmed to {width} × {height}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Trophy",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "True/False",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -30875,6 +31874,12 @@
       "message": "Try a different search.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Tue",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
       ]
     },
     {
@@ -31170,6 +32175,7 @@
     {
       "message": "Ungroup",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -31181,6 +32187,12 @@
       "message": "Ungroup — the selected rows or columns one level shallower, or clear the whole outline (Shift+Alt+Left)",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Ungroup: the layers come out of the group",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -31238,6 +32250,12 @@
       ]
     },
     {
+      "message": "Unlock",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Unlock Range",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -31247,6 +32265,12 @@
       "message": "Unlock cells",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Unlock the layer",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -31390,6 +32414,12 @@
       "message": "Untitled Section",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Untitled picture",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -31570,6 +32600,12 @@
       ]
     },
     {
+      "message": "Upload",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Uppercase",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -31633,6 +32669,12 @@
       "message": "Use labels in",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Use layers",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -31832,6 +32874,12 @@
       ]
     },
     {
+      "message": "Vibrance",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
       "message": "Video",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -31941,7 +32989,8 @@
     {
       "message": "Vignette",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -31974,6 +33023,12 @@
       "message": "Waiting for {provider}…",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Warm",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -32016,6 +33071,7 @@
     {
       "message": "Wave",
       "where": [
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -32096,6 +33152,12 @@
       "message": "Website",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Wed",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
       ]
     },
     {
@@ -32325,6 +33387,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -32477,6 +33540,8 @@
     {
       "message": "WordArt",
       "where": [
+        "apps/desktop/renderer/apps/image/insert.js",
+        "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -32497,8 +33562,15 @@
       ]
     },
     {
+      "message": "WordArt: a headline in a ready-made style",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
       "message": "Words",
       "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -32785,6 +33857,7 @@
     {
       "message": "Your words here",
       "where": [
+        "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/word.js"
       ]
     },
@@ -32933,6 +34006,12 @@
       "plural": "{count} deletions",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "a document",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -33832,7 +34911,8 @@
       "message": "px",
       "where": [
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/image/canvas-size.js"
       ]
     },
     {
@@ -34053,6 +35133,13 @@
       "message": "the clips after it close up",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "the document",
+      "where": [
+        "apps/desktop/renderer/apps/edit-in-image.js",
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -34743,6 +35830,13 @@
       ]
     },
     {
+      "message": "{count} layer",
+      "plural": "{count} layers",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "{count} left as it was",
       "plural": "{count} left as they were",
       "where": [
@@ -34875,6 +35969,13 @@
       "plural": "{count} pictures chosen",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js"
+      ]
+    },
+    {
+      "message": "{count} picture of this project is missing from it. Its layer shows nothing.",
+      "plural": "{count} pictures of this project are missing from it. Their layers show nothing.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -35190,6 +36291,12 @@
       ]
     },
     {
+      "message": "{kind} chart",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "{kind} {id}",
       "where": [
         "apps/desktop/renderer/apps/word/drawings.js"
@@ -35309,6 +36416,12 @@
       ]
     },
     {
+      "message": "{look} adjustment",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "{matched} matched — {moved} moved, {starred} starred, {read} marked read, {deleted} deleted",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
@@ -35361,6 +36474,7 @@
     {
       "message": "{name} could not be opened: {reason}",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/video/index.js"
       ]
     },
@@ -35374,6 +36488,12 @@
       "message": "{name} has more than one sheet. The first row of the one you choose names the fields.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "{name} is no longer open, so the picture cannot go back into it. Export it instead.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -35813,6 +36933,12 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "{width} × {height} canvas",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {

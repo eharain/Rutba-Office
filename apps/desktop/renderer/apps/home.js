@@ -14,8 +14,8 @@ import { WhatsNew } from '../whatsnew.js';
 
 const ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pictures', 'image', 'video'];
 
-/** The app a recovered copy opens in: a document's by its kind, a window's own (Video's project) by its name. */
-const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : 'word');
+/** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
+const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : r.kind === 'image' ? 'image' : 'word');
 
 function AppCard({ app, onOpen, onNew }) {
   return (
@@ -727,6 +727,7 @@ const CSS = `
 .home-recovered-row .glyph[data-app='sheets'] { background: #0f9d58; }
 .home-recovered-row .glyph[data-app='slides'] { background: #d9534f; }
 .home-recovered-row .glyph[data-app='video'] { background: #c2408f; }
+.home-recovered-row .glyph[data-app='image'] { background: #e08b2b; }
 .home-recovered-text { display: flex; flex-direction: column; min-width: 0; }
 .home-recovered-text small { color: var(--ink-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

@@ -2158,6 +2158,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     removeSparklines: (v, a) => v.removeSparklines(a.at),
     formatAsTable: (v, a) => v.formatAsTable(a),
     insertPicture: (v, a) => v.insertPicture(a),
+    pictureSource: (v, a) => { const src = v.pictureSource({ id: a.id }); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), contentType: src.contentType, name: src.name }); },
+    replacePicture: (v, a) => v.replacePicture({ id: a.id, data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', aspect: a.aspect ?? null }),
     deleteName: (v, a) => v.deleteName(a.name),
     gotoName: (v, a) => v.gotoName(a.name),
     autoFilter: (v) => v.toggleAutoFilter(),
@@ -2271,6 +2273,9 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // Wrap Text and Position: a picture in the line, or floating with the text round it.
     setImageLayout: (v, a) => v.setImageLayout(a),
     setImageSize: (v, a) => v.setImageSize(a),
+    // Edit in Image: the picture's bytes out (base64 JSON), and the edited picture back in its place.
+    pictureSource: (v, a) => { const src = v.pictureSource(a.block, a.image ?? 0); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), contentType: src.contentType, name: src.name }); },
+    replacePicture: (v, a) => v.replacePicture({ block: a.block, image: a.image ?? 0, data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', widthPx: a.widthPx ?? null, heightPx: a.heightPx ?? null }),
     // Insert → 3D Models: the model's .glb for the window to draw again, and its picture at a new view.
     model3dSource: (v, a) => { const src = v.model3dSource(a.block, a.image ?? 0); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), view: src.view }); },
     setModel3dView: (v, a) => v.setModel3dView(a.block, a.image ?? 0, { png: a.png instanceof Uint8Array ? Buffer.from(a.png) : Buffer.from(String(a.png ?? ''), 'base64'), view: a.view || {} }),
@@ -2462,6 +2467,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     },
     // The model's .glb, for the window to draw it again at another view.
     model3dSource: (d, a) => { const src = d.model3dSource(a.slide, a.shape); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), view: src.view }); },
+    pictureSource: (d, a) => { const src = d.pictureSource(a.slide, a.shape); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), contentType: src.contentType, name: src.name }); },
+    replacePicture: (d, a) => d.replacePicture(a.slide, a.shape, { data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', aspect: a.aspect ?? null }),
     // 3D Model Views, a turn, Reset: the picture drawn again at the new view.
     setModel3dView: (d, a) => d.setModel3dView(a.slide, a.shape, { png: a.png instanceof Uint8Array ? Buffer.from(a.png) : Buffer.from(String(a.png ?? ''), 'base64'), view: a.view || {} }),
     setTransitionSound: (d, a) => d.setTransitionSound(a.slide, a.sound == null ? null : { ...a.sound, data: a.sound.data ? (Buffer.isBuffer(a.sound.data) ? a.sound.data : Buffer.from(a.sound.data)) : undefined }),
@@ -2707,7 +2714,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 
@@ -3010,7 +3017,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (!recoveryDir) return null;
       const safe = String(key || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
       if (!safe) throw new Error('A recovery copy needs a key.');
-      const ext = kind === 'video' ? '.rvid' : '.bin';
+      const ext = kind === 'video' ? '.rvid' : kind === 'image' ? '.rimg' : '.bin';
       const file = `window-${safe}${ext}`;
       const data = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
       try {

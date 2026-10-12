@@ -366,4 +366,9 @@ export const ENGINE_WORDS = [
   msg('This project is damaged: its document cannot be read.'),
   msg('This project is damaged: its document has no list of layers.'),
   msg('This project was made by a newer Rutba Office. Update to open it.'),
+  // Edit in Image: packages/sheet-view, packages/presentation, packages/ooxml
+  msg('This sheet is protected. Unprotect it before changing pictures.'),
+  msg('That is not a picture.'),
+  msg('That is not a picture'),
+  msg('That picture\'s file is missing'),
 ];

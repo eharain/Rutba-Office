@@ -136,6 +136,8 @@ export default function SlidesRibbon({
   // ticked; it is a preference about the next press, not part of the file.
   const [alignTo, setAlignTo] = React.useState('selection');
   const selectedShapeObj = (model?.slide?.shapes || []).find((s) => s.id === selected) || null;
+  // A picture of its own (not a video, a model, an object or a cameo): Picture Format and Edit in Image.
+  const pictureSelected = selectedShapeObj?.kind === 'picture' && !selectedShapeObj.media && !selectedShapeObj.model3d && !selectedShapeObj.object && !selectedShapeObj.cameo;
   const isGroup = selectedShapeObj?.kind === 'group';
   // A shape with an outline to edit point by point: not a picture, a table or a group.
   const canEditPoints = Boolean(selectedShapeObj?.kind === 'shape' && selectedShapeObj.geometry && (selectedShapeObj.path || selectedShapeObj.preset !== 'custom'));
@@ -222,6 +224,8 @@ export default function SlidesRibbon({
         ...(selectedShapeObj?.cameo ? [{ id: 'cameraFormat', label: t('Camera Format') }] : []),
         // 3D Model, as PowerPoint's: there while a 3D model is selected.
         ...(selectedShapeObj?.model3d ? [{ id: 'model3d', label: t('3D Model') }] : []),
+        // Picture Format, as PowerPoint's: there while a picture is selected.
+        ...(pictureSelected ? [{ id: 'pictureFormat', label: t('Picture Format') }] : []),
       ]}
       active={tab}
       onTab={setTab}
@@ -1078,6 +1082,24 @@ export default function SlidesRibbon({
             ))}
             {/* The warps, the rest of Office's gallery, from a menu. */}
             <Button tall icon="wand" label={t('More')} className="sl-warp-more" pressed={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset)} title={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset) ? t('Transform — now {name}; the warps: the words stretched between two curves', { name: t(warpLabel(selectedShapeObj.text.warp?.preset)) }) : t('More Transforms — the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest')} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: t(p.label), icon: selectedShapeObj.text.warp?.preset === p.id ? 'check' : 'wand', run: () => act('textWarp', p.id) })))} />
+          </Group>
+        </>
+      ) : null}
+
+      {tab === 'pictureFormat' && pictureSelected ? (
+        <>
+          <Group label={t('Edit')}>
+            <Button tall icon="image" label={t('Edit in Image')} title={t('Edit in Image: crop, correct, draw on it and add layers in Image; saving there puts the picture back here')} onClick={() => act('editInImage', { shape: selectedShapeObj.id })} data-role="edit-in-image" />
+          </Group>
+          <Group label={t('Arrange')}>
+            <Rows>
+              <Button icon="layerUp" label={t('Bring Forward')} onClick={() => act('order', 'forward')} />
+              <Button icon="layerDown" label={t('Send Backward')} onClick={() => act('order', 'backward')} />
+            </Rows>
+            <Rows>
+              <Button icon="layerTop" label={t('Bring to Front')} onClick={() => act('order', 'front')} />
+              <Button icon="layerBottom" label={t('Send to Back')} onClick={() => act('order', 'back')} />
+            </Rows>
           </Group>
         </>
       ) : null}

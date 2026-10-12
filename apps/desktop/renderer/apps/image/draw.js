@@ -57,12 +57,12 @@ function penPath(ctx, points) {
 
 export const MARK_FONT = '"Segoe UI", system-ui, sans-serif';
 
-/** The marks, in the source's pixels, drawn through the plan at `scale`. */
-export function drawMarks(ctx, plan, marks, scale = 1) {
+/** The marks, in the source's pixels, drawn through the plan at `scale` (moved by `offset`, where the picture is a layer). */
+export function drawMarks(ctx, plan, marks, scale = 1, offset = { x: 0, y: 0 }) {
   const m = plan.matrix;
   for (const o of marks || []) {
     ctx.save();
-    ctx.setTransform(m[0] * scale, m[1] * scale, m[2] * scale, m[3] * scale, m[4] * scale, m[5] * scale);
+    ctx.setTransform(m[0] * scale, m[1] * scale, m[2] * scale, m[3] * scale, m[4] * scale + offset.x, m[5] * scale + offset.y);
     ctx.strokeStyle = o.colour || '#e0393e';
     ctx.fillStyle = o.colour || '#e0393e';
     ctx.lineWidth = Math.max(0.1, o.width || 1);

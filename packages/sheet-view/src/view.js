@@ -417,7 +417,8 @@ export class SheetView {
         const entry = this.history.past.at(-1);
         const added = {};
         for (const name of this.pkg.partNames()) {
-          if (!partsBefore.has(name)) added[name] = this.pkg.text(name);
+          // A picture is bytes: kept as bytes, or its redo writes it back as text and spoils it.
+          if (!partsBefore.has(name)) added[name] = /\.(xml|rels|vml)$/i.test(name) ? this.pkg.text(name) : this.pkg.read(name);
         }
         // Recorded on the PRE-edit state: undoing back to it removes them,
         // and the mirror `_step` builds carries them forward for redo.
@@ -465,7 +466,7 @@ export class SheetView {
       // they do), falling back to the stored copy where they do not (redoing).
       addedParts: previous.state.addedParts
         ? Object.fromEntries(Object.entries(previous.state.addedParts)
-          .map(([n, text]) => [n, this.pkg.has(n) ? this.pkg.text(n) : text]))
+          .map(([n, text]) => [n, this.pkg.has(n) ? (/\.(xml|rels|vml)$/i.test(n) ? this.pkg.text(n) : this.pkg.read(n)) : text]))
         : null,
       // The same coordinates, read in the state being left. In a post-edit
       // state the flushed parts already hold these values, so re-applying them
@@ -5608,6 +5609,53 @@ export class SheetView {
       this.drawings.set(this.activeSheet, this._readDrawings(sheetPartName));
       this._structuralDirty = true;
     }, { parts: [...new Set([...parts, ...extraParts.filter((p) => this.pkg.has(p))])], tracksNewParts: true });
+    return result;
+  }
+
+  /** Edit in Image: a picture's bytes and type, by its frame id. */
+  pictureSource({ id }) {
+    const d = this._drawingById(id);
+    const part = d.descriptor?.part;
+    if (d.kind !== 'image' || !part || !this.pkg.has(part)) throw new Error('That is not a picture.');
+    const ext = part.toLowerCase().split('.').pop();
+    const contentType = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp' }[ext] || 'application/octet-stream';
+    return { data: this.pkg.read(part), contentType, name: part.split('/').pop() };
+  }
+
+  /**
+   * Edit in Image, saved: the picture's bytes replaced by the edited
+   * picture's in a part of its own (a copy that shared the old one keeps
+   * it), its anchor kept; its height follows the new picture's shape
+   * (`aspect`, its height over its width) when that is given. One undo step.
+   */
+  replacePicture({ id, data, contentType = 'image/png', aspect = null }) {
+    const d = this._drawingById(id);
+    if (d.kind !== 'image') throw new Error('That is not a picture.');
+    if (this.protection().sheet) throw protectionError('This sheet is protected. Unprotect it before changing pictures.');
+    const ext = { 'image/png': 'png', 'image/jpeg': 'jpeg', 'image/gif': 'gif', 'image/bmp': 'bmp', 'image/webp': 'webp' }[contentType];
+    if (!ext) throw new Error('unsupported image type: ' + contentType + ' (png, jpeg, gif, bmp or webp)');
+    const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data ?? ''), 'base64');
+    if (!bytes.length) throw new Error('the picture has no bytes');
+    const drawingPart = this._drawingPart();
+    const old = d.descriptor?.relationshipId || null;
+    const box = Number(aspect) > 0 ? { ...this._drawingBox(d) } : null;
+    const result = this._editAnchors('change picture', (spans, xml) => {
+      let n = 1;
+      while (this.pkg.partNames().some((p) => p.startsWith('xl/media/image' + n + '.'))) n += 1;
+      this.pkg.ensureDefault(ext, contentType);
+      this.pkg.addPart('xl/media/image' + n + '.' + ext, bytes);
+      const rId = this.pkg.addRelationshipTo(drawingPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', '../media/image' + n + '.' + ext);
+      const span = spans[d.index];
+      let next = span.xml.replace(/(<a:blip\b[^>]*\br:embed=")[^"]*(")/, (m, a, b) => a + rId + b);
+      if (box && Math.abs(box.height - box.width * aspect) > 1) next = anchorWithBox(next, { x: box.x, y: box.y, width: box.width, height: Math.max(8, Math.round(box.width * aspect)) }, (px, py) => this._markerAt(px, py));
+      const out = xml.slice(0, span.start) + next + xml.slice(span.end);
+      // The old picture's relationship goes when no anchor names it any more.
+      const relsPath = OoxmlPackage.relsPathFor(drawingPart);
+      if (old && !new RegExp('"' + old + '"').test(out) && this.pkg.has(relsPath)) {
+        this.pkg.write_(relsPath, this.pkg.text(relsPath).replace(new RegExp('<Relationship\\b[^>]*Id="' + old + '"[^>]*/>'), ''));
+      }
+      return { xml: out, result: true };
+    }, { extraParts: [OoxmlPackage.relsPathFor(drawingPart), '[Content_Types].xml'] });
     return result;
   }
 

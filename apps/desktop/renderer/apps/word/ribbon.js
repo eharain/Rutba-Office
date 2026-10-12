@@ -987,6 +987,17 @@ export default function WordRibbon({
       {/* ── Picture Format (contextual) ───────────────────────────────────── */}
       {tab === 'pictureFormat' ? (
         <>
+          <Group label={t('Edit')}>
+            <Button
+              tall
+              icon="image"
+              label={t('Edit in Image')}
+              title={t('Edit in Image: crop, correct, draw on it and add layers in Image; saving there puts the picture back here')}
+              disabled={picked?.image == null || Boolean(pickedModel) || Boolean(model?.blocks?.[picked?.block]?.images?.[picked?.image]?.object)}
+              onClick={() => act('editInImage')}
+              data-role="edit-in-image"
+            />
+          </Group>
           {arrange}
           <Group label={t('Size')}>
             <Rows>

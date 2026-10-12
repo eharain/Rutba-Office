@@ -234,6 +234,8 @@ export default function SheetsRibbon({
         { id: 'help', label: t('Help') },
         // Shape Format, as Excel's: there while one shape with words is picked.
         ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'shape' && arrange.picked[0].hasText ? [{ id: 'shapeFormat', label: t('Shape Format') }] : []),
+        // Picture Format, as Excel's: there while one picture is picked.
+        ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'image' ? [{ id: 'pictureFormat', label: t('Picture Format') }] : []),
       ]}
       active={tab}
       onTab={setTab}
@@ -256,6 +258,21 @@ export default function SheetsRibbon({
             ))}
             {/* The warps, the rest of Office's gallery, from a menu. */}
             <Button tall icon="wand" label={t('More')} className="sh-warp-more" pressed={WARP_MORE.some((p) => p.id === arrange.picked[0].textWarp)} title={WARP_MORE.some((p) => p.id === arrange.picked[0].textWarp) ? t('Transform — now {warp}; the warps: the words stretched between two curves', { warp: t(warpLabel(arrange.picked[0].textWarp)) }) : t('More Transforms — the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest')} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: t(p.label), icon: arrange.picked[0].textWarp === p.id ? 'check' : 'wand', run: () => act('textWarp', { id: arrange.picked[0].id, preset: p.id }) })))} />
+          </Group>
+        </>
+      ) : null}
+
+      {/* ── Picture Format (contextual): Edit in Image ──────────────────── */}
+      {tab === 'pictureFormat' && arrange.picked.length === 1 && arrange.picked[0].kind === 'image' ? (
+        <>
+          <Group label={t('Edit')}>
+            <Button tall icon="image" label={t('Edit in Image')} title={t('Edit in Image: crop, correct, draw on it and add layers in Image; saving there puts the picture back here')} onClick={() => act('editInImage', { id: arrange.picked[0].id })} data-role="edit-in-image" />
+          </Group>
+          <Group label={t('Arrange')}>
+            <Rows>
+              <Button icon="layerUp" label={t('Bring Forward')} onClick={() => dispatch({ op: 'reorderDrawings', ids: [arrange.picked[0].id], to: 'forward' })} />
+              <Button icon="layerDown" label={t('Send Backward')} onClick={() => dispatch({ op: 'reorderDrawings', ids: [arrange.picked[0].id], to: 'backward' })} />
+            </Rows>
           </Group>
         </>
       ) : null}

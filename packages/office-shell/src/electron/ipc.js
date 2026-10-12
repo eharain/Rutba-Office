@@ -117,10 +117,22 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     },
   };
 
+  // Edit in Image: the window a picture was opened from, by the window that edits it.
+  const returnTo = new Map();
+
   impl.win = {
     create: (p, win) => {
       const created = windows.open({ app: p.app, file: p.file, query: p.query, parentId: p.modal ? win?.id : null });
+      if (p.query?.editFor && win) returnTo.set(created.id, win.id);
       return { id: created.id };
+    },
+    handBack: (p, win) => {
+      const to = win ? returnTo.get(win.id) : null;
+      const target = to ? BrowserWindow.fromId(to) : null;
+      if (!target || target.isDestroyed()) return { delivered: false };
+      const bytes = p?.bytes instanceof Uint8Array ? p.bytes : new Uint8Array(p?.bytes || []);
+      sendEvent(target, 'picture:returned', { token: String(p?.token || ''), bytes, contentType: String(p?.contentType || 'image/png'), width: Number(p?.width) || 0, height: Number(p?.height) || 0 });
+      return { delivered: true };
     },
     close: (p, win) => {
       if (!win) return;

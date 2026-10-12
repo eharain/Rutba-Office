@@ -1699,6 +1699,29 @@ export class DocView {
     });
   }
 
+  /** Edit in Image: the picked picture's bytes and type. */
+  pictureSource(block, image = 0) {
+    if (typeof this.doc.pictureSource !== 'function') throw new Error('this document backend cannot hand a picture out');
+    return this.doc.pictureSource(block, image);
+  }
+
+  /**
+   * Edit in Image, saved: the picture replaced by the edited one where it
+   * was, and its height set from the new picture's shape (its width kept)
+   * when that changed. One undo step that brings the old picture back.
+   */
+  replacePicture({ block, image = 0, data, contentType = 'image/png', widthPx = null, heightPx = null } = {}) {
+    if (typeof this.doc.replacePicture !== 'function') throw new Error('this document backend cannot replace a picture');
+    if (!this.block(block)) throw new Error('no paragraph at index ' + block);
+    this.doc.preparePicture(block, image);
+    return this._edit('change picture', null, () => {
+      this.doc.replacePicture(block, image, { data, contentType });
+      if (widthPx > 0 && heightPx > 0 && typeof this.doc.setImageSize === 'function') this.doc.setImageSize(block, image, { widthPx, heightPx });
+      this._invalidate();
+      return this;
+    });
+  }
+
   /**
    * 3D Model Views, a turn, Reset: the picked model's picture drawn again at
    * `view`. One undo step that brings the old picture back with the old view.

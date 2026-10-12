@@ -60,6 +60,12 @@ const MEDIA_TYPES = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
   bmp: 'image/bmp', svg: 'image/svg+xml', webp: 'image/webp',
 };
+/** A picture part's MIME type, by its extension. */
+function pictureType(part) {
+  const ext = String(part || '').toLowerCase().split('.').pop();
+  return { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp', tif: 'image/tiff', tiff: 'image/tiff', emf: 'image/x-emf', wmf: 'image/x-wmf', svg: 'image/svg+xml' }[ext] || 'application/octet-stream';
+}
+
 function toDataUri(bytes, partName) {
   const type = MEDIA_TYPES[String(partName ?? '').split('.').pop().toLowerCase()];
   // EMF and WMF are common in Office files and not web image types — no href,
@@ -2104,6 +2110,67 @@ export class Document {
     // The picture's own transform: the first a:ext inside pic:spPr.
     drawing = drawing.replace(/(<pic:spPr\b[\s\S]*?<a:ext\b)[^>]*(\/>)/, (m, p1, p2) => (p1 ?? '') + ' cx="' + cx + '" cy="' + cy + '"' + (p2 ?? ''));
     const xml = p.xml.slice(0, d.index) + drawing + p.xml.slice(d.index + d[0].length);
+    this._spliceBody(p.start, p.end, xml);
+    return this;
+  }
+
+  /** A picture in a paragraph: its drawing, the relationship it names and the part that names. */
+  _pictureAt(index, imageIndex) {
+    const p = this.paragraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    const drawings = [...p.xml.matchAll(/<w:drawing\b[^>]*>[\s\S]*?<\/w:drawing>/g)].filter((m) => /<a:blip\b/.test(m[0]));
+    const d = drawings[imageIndex];
+    if (!d) throw new Error('no picture ' + imageIndex + ' in paragraph ' + index);
+    const relId = attrs(/<a:blip\b([^>]*)\/?>/.exec(d[0])[1])['r:embed'] ?? null;
+    const target = relId ? this.pkg.rels(this.mainPart).find((r) => r.Id === relId)?.Target : null;
+    return { p, d, relId, part: target ? OoxmlPackage.resolveTarget(this.mainPart, target) : null };
+  }
+
+  /** Edit in Image: a picture's bytes and type, to edit in a window of its own. */
+  pictureSource(index, imageIndex) {
+    const at = this._pictureAt(index, imageIndex);
+    if (!at.part || !this.pkg.has(at.part)) throw new Error('That picture\'s file is missing');
+    return { data: this.pkg.read(at.part), contentType: pictureType(at.part), name: at.part.split('/').pop() };
+  }
+
+  /** Before a picture is replaced: its part joins what an undo step keeps. */
+  preparePicture(index, imageIndex) {
+    const at = this._pictureAt(index, imageIndex);
+    if (at.part) this._undoParts.add(at.part);
+    return this;
+  }
+
+  /**
+   * Edit in Image, saved: the picture's bytes replaced by the edited
+   * picture's, the drawing's place, size and wrapping untouched: in the
+   * picture's own part when nothing else points at it and it is the same
+   * kind, in a new part when something does.
+   */
+  replacePicture(index, imageIndex, { data, contentType = 'image/png' }) {
+    const at = this._pictureAt(index, imageIndex);
+    const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data ?? ''), 'base64');
+    if (!bytes.length) throw new Error('the picture has no bytes');
+    const ext = /jpe?g/i.test(contentType) ? 'jpeg' : 'png';
+    let uses = 0;
+    for (const r of this.pkg.partNames().filter((n) => /(^|\/)_rels\/[^/]*\.rels$/.test(n))) {
+      const from = r.replace(/(^|\/)_rels\/([^/]*)\.rels$/, '$1$2');
+      for (const x of this.pkg.rels(from)) if (x.TargetMode !== 'External' && x.Target && OoxmlPackage.resolveTarget(from, x.Target) === at.part) uses += 1;
+    }
+    let drawing = at.d[0];
+    const same = ext === 'png' ? /\.png$/i.test(at.part || '') : /\.jpe?g$/i.test(at.part || '');
+    if (at.part && uses === 1 && same) {
+      this._undoParts.add(at.part);
+      this.pkg.write_(at.part, bytes);
+    } else {
+      const suffix = ext === 'jpeg' ? 'jpg' : 'png';
+      let n = 1;
+      while (this.pkg.has('word/media/rutba' + n + '.' + suffix)) n += 1;
+      this.pkg.addPart('word/media/rutba' + n + '.' + suffix, bytes, contentType);
+      const rId = this._addRel(IMAGE_REL_TYPE, 'media/rutba' + n + '.' + suffix);
+      drawing = drawing.replace(/(<a:blip\b[^>]*\br:embed=")[^"]*(")/, (m, a, b) => a + rId + b);
+    }
+    const p = this.editParagraph(index);
+    const xml = p.xml.slice(0, at.d.index) + drawing + p.xml.slice(at.d.index + at.d[0].length);
     this._spliceBody(p.start, p.end, xml);
     return this;
   }
