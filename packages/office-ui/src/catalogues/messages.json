@@ -5376,6 +5376,8 @@
       "message": "Checking…",
       "where": [
         "apps/desktop/renderer/apps/home.js",
+        "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/word/restrict.js",
         "apps/desktop/renderer/review.js",
         "packages/office-ui/src/proofing.js"
       ]
