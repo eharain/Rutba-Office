@@ -607,6 +607,127 @@ What Phase 2 leaves:
   still plays; Presentations' recordings stay MP4 where the machine makes
   it, as before.
 
+### Phase 3 as built (2026-10-12)
+
+Introductions are a video project with an `intro`: its scenes in order, its
+brand kit, the template's words in the language it was made in, and the
+teleprompter's speed. The arithmetic is `packages/studio/src/intro.js`
+(scenes, the template, layouts, brand kit, recording and retakes, the
+teleprompter), `captions.js` (SubRip and WebVTT), `pointer.js` (the pointer
+layer and the automatic zoom) and `presets.js` (export by destination). The
+window is `apps/desktop/renderer/apps/video/intro/` (the Scenes panel, the
+brand kit, their styles), with the teleprompter in the recorder's
+`panel.js`. Entry: the launcher's Introduction video card, New Introduction
+Video in Video's menu and on its Home ribbon.
+
+- X1: a new introduction is a title card, a talking head, the screen with
+  the camera in a corner and an end card; side by side is the fifth layout.
+  A scene is a fragment of the timeline: its layers carry `scene` and
+  `role` (ground, screen, pointer, camera, logo, band, title, subtitle, the
+  take's sounds), each role on a lane of its own, with fades between scenes.
+  `composeIntro` makes every scene's layers again from the scenes after
+  reading back what the timeline says about each (its card's words, its
+  lower third's words, how its take was trimmed, its zooms, its pointer's
+  look, the camera's corner); everything that is not a scene's (captions,
+  anything added) is left where it is.
+- X2: the layout of a recorded scene is switched from its card or the
+  Introduction tab and its take is laid out again: a talking head keeps the
+  screen's take hidden, so switching to the screen with the camera brings it
+  back. Each layout is written for 16:9, square and 9:16, and an export to
+  another shape lays every scene out for it (screen above the camera in
+  9:16), leaving the project as it was.
+- X3: each recorded scene has a script, shown in the recorder above the
+  frame as a teleprompter that scrolls at 110, 140 or 170 words a minute
+  (Slow, Normal, Fast, kept in the project) from a second after recording
+  starts, the line being read a third of the way down.
+- X4: Record (or Retake) in a scene's card opens the recorder with the
+  camera on; the take lands in its scene and the scenes after it move on.
+  Every take is kept with its scene and any can be put back with Use;
+  scenes move earlier or later, are added after the one picked, and are
+  taken out (their files stay on the disk).
+- X6: the brand kit (a name and role for the lower third, a logo, three
+  colours, a font, the lower third and a corner logo each on or off) is kept
+  per person under `video.brand` and drawn into every scene: the ground in
+  its background colour, the cards' words in its colours and font with the
+  logo above them, a title card still in the template's words taking the
+  brand's name and role, the lower third over the first recorded scene with
+  a camera (right to left for an Urdu or Arabic name, and kept out of the
+  camera's way: on the side the name starts from over a talking head,
+  across from an inset in a bottom corner, over the camera's box side by
+  side, and between the screen and the camera in 9:16), and the logo in a
+  corner of recorded scenes away from the camera. The box shows a title
+  card and a lower third as they will look.
+- X8 (import): Insert, Import Captions reads SubRip and WebVTT (the header,
+  notes, styles, cue settings, voices, tags and entities handled; a cue that
+  overlaps the one before goes a lane up) onto a track above every other
+  picture, each cue a `text` layer marked `caption`, drawn on the scrim's
+  pill, in two lines where it has two, right to left in Urdu and Arabic.
+  Export Captions writes the track as .srt or .vtt. A caption is a clip, so
+  it moves, trims, splits and has its words edited like a title. The
+  engine's text layers gained several lines and a font family of their own.
+- X11: Export's Made for offers the project as it is, YouTube (1920 by 1080,
+  30 fps, 10 Mbps), LinkedIn and X at 16:9 or square, Reels, Shorts and
+  TikTok (1080 by 1920) and email (480 lines in the project's shape, 24 fps,
+  about a megabyte for eight seconds), with the frame, the likely size, and
+  a word when it is too long or too big for where it goes. The choice is
+  remembered. A plan takes a frame size and bitrates of its own for this.
+- R7: while Video records, the main process writes the pointer down
+  (`capture.pointer`): polled with `screen.getCursorScreenPoint` at the
+  frame rate over a screen (mapped by its display's bounds) or one of the
+  suite's own windows (by its bounds), the paused time left out, and a press
+  in the suite's own windows. It lands as a `pointer` layer on the lane
+  above the screen, in the recording's group, drawing a highlight round the
+  pointer and a ring where it clicked wherever the screen layer draws that
+  point (through its crop, its fit, an inset's box and its zoom at that
+  instant); its look (highlight, rings, a larger drawn pointer, size,
+  colour) is changed after in its properties. A split or a trimmed start
+  keeps its keys and its zooms in the clip's own time.
+- X5: Zoom on Clicks (Clip tab, and the screen's properties) finds runs of
+  clicks close together and zooms the screen on each, following the clicks,
+  as zoom and pan keys made from a list kept on the layer (`autoZoom`);
+  each zoom is made closer or wider or taken away there. An introduction's
+  screen scene is zoomed this way as soon as it is recorded.
+
+Proven by `tests/studio-captions.test.js`, `studio-presets.test.js`,
+`studio-pointer.test.js` and `studio-intro.test.js`, and the window checks
+under the key `intro-video` (`main/verify-intro-video.js`): captions in four
+languages imported, drawn, edited and exported; the presets' frames and an
+email export read back; a suite window recorded with the pointer handed its
+moves and clicks, its highlight and ring on the stage, a zoom made, changed
+and taken away; and an introduction from the launcher's card with a brand
+kit, the end card taken out, a script on the teleprompter, the talking head
+and the screen scene recorded with the stand-in camera, the talking head
+taken again, the scenes reordered and the screen scene switched to side by
+side, a caption file imported, and exports for YouTube and Reels read back
+with `probeMedia` for their size, length and tracks.
+
+What Phase 3 leaves:
+
+- A press is seen only in the suite's own windows: Electron offers no
+  global mouse hook without a native module, so a click in another program
+  is not recorded (its pointer is, over a screen). Over another program's
+  window the pointer cannot be mapped, since only the suite's own windows
+  report their place; the recorder says so. The checks hand the pointer its
+  positions and presses; they never read the person's mouse.
+- The pointer's own arrow in the recording cannot be hidden (Chromium's
+  screen capture draws it); Larger pointer draws one of ours over it.
+- The automatic zoom zooms on runs of clicks, not on a pointer that only
+  moves or rests, nor on typing.
+- A layout switch, a retake, a move or a brand change makes the scenes'
+  layers again: what is read back is listed above; any other change made on
+  the timeline to a scene's own layers (a title dragged, a colour changed on
+  one layer) goes.
+- A scene's recording is not copied for recovery while it records, as a
+  plain recording is (R12).
+- Captions are imported as a track and burnt in on export; exported as a
+  soft subtitle track inside the file (11.2) and from speech (V24) are later.
+- The recorded takes of a scene are kept until the project is cleaned up,
+  but there is no Clean Up command yet (`takeFiles` lists them).
+- A take put back with Use is zoomed afresh on its own clicks; changes made
+  to the zooms of the take it replaces are not kept with that take.
+- The scene card's script box keeps its words when it loses the focus;
+  Record keeps them too, but closing the window mid-word does not.
+
 ## 13. Conventions that bite
 
 - **A new workspace package** is declared in `apps/desktop/package.json`
