@@ -29,7 +29,9 @@ export async function verifyDeckMedia(h, { dir }) {
   const { open, check, until, wait, doc, sessionFor, capture } = h;
   const file = path.join(dir, 'media.pptx');
   const clip = path.join(dir, 'clip.webm');
-  const tone = path.join(dir, 'tone.wav');
+  // A file of its own: tone.wav in the same folder is the run's one-second
+  // fixture, which the Video checks after this one measure.
+  const tone = path.join(dir, 'deck-tone.wav');
   try {
     fs.writeFileSync(file, buildPptx({ title: 'Media', slides: [{ layout: 'blank' }, { layout: 'title', title: 'After' }] }));
     fs.writeFileSync(tone, toneWav());
