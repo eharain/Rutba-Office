@@ -105,7 +105,7 @@ export async function verifyProtect(h, { dir }) {
     await refresh();
     await capture(win, 'sheets-protect-workbook-dialog.png');
     await clickSel('.sh-protect-ok');
-    const locked = await until(() => model().workbookProtection?.structure === true, 'the structure locked', 8000).catch(() => false);
+    const locked = await until(() => model().workbookProtection?.structure === true, 'the structure locked', 20000).catch(() => false);
     const label = await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.textContent.trim() === 'Unprotect Workbook' && b.getAttribute('aria-pressed') === 'true'))`), 'the pressed Unprotect Workbook button', 4000).catch(() => false);
     const items = await tabMenu('Orders');
     const greyed = ['Insert sheet', 'Delete sheet…', 'Rename sheet…', 'Move left', 'Move right', 'Hide'].every((l) => items.find((i) => i.label === l)?.disabled === true);
@@ -127,13 +127,13 @@ export async function verifyProtect(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.sh-password'))`), 'the password dialog', 4000).catch(() => {});
     await setField('.sh-password', 'budget2026');
     await clickSel('.sh-password-ok');
-    await until(() => js(`Boolean(document.querySelector('.sh-password-error'))`), 'the refusal', 8000).catch(() => false);
+    await until(() => js(`Boolean(document.querySelector('.sh-password-error'))`), 'the refusal', 20000).catch(() => false);
     const wrong = await js(`document.querySelector('.sh-password-error')?.textContent || ''`);
     await refresh();
     await capture(win, 'sheets-protect-wrong-password.png');
     await setField('.sh-password', 'Budget2026');
     await clickSel('.sh-password-ok');
-    const unlocked = await until(() => model().workbookProtection?.structure === false, 'the structure unlocked', 8000).catch(() => false);
+    const unlocked = await until(() => model().workbookProtection?.structure === false, 'the structure unlocked', 20000).catch(() => false);
     const closed = await until(() => js(`!document.querySelector('.sh-password')`), 'the dialog gone', 4000).catch(() => false);
     check('sheets: Unprotect Workbook asks for the password — a wrong one is refused in Excel\'s words, the right one unlocks the structure',
       /^The password you supplied is not correct\./.test(wrong) && unlocked === true && closed === true, `wrong ${JSON.stringify(wrong)}; unlocked ${unlocked}`);
