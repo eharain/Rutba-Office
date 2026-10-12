@@ -333,6 +333,16 @@ export async function verifyVideoEditor(h, { dir }) {
     await clickTab('Home');
     const exp = await press('Export');
     await until(() => js(`Boolean(document.querySelector('.vd-export-go'))`), 'the Export box', 4000).catch(() => {});
+    // The box opens on the last destination chosen, which an earlier block of
+    // the full run leaves at Reels (9:16); this export is the project's own shape.
+    await js(`(() => {
+      const s = document.querySelector('.vd-export-preset');
+      if (!s || s.value === 'project') return 1;
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'project');
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+      return 1;
+    })()`);
+    await until(() => js(`document.querySelector('.vd-export-preset')?.value === 'project'`), 'the project shape chosen', 3000).catch(() => {});
     await js(`document.querySelector('.vd-export-go')?.click(), 1`);
     const busy = await until(() => js(`Boolean(document.querySelector('.vd-export-busy'))`), 'the progress', 6000).then(() => true).catch(() => false);
     if (busy) await capture(win, 'video-editor-3-exporting.png');
