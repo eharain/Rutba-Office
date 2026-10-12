@@ -1152,6 +1152,10 @@ export default function WordRibbon({
             <Button tall icon="maximize" label={t('Focus')} pressed={Boolean(view.focus)} title={t('Just the page, full screen')} onClick={() => act('focus')} />
             <Button tall icon="eye" label={t('Immersive Reader')} pressed={Boolean(view.immersive)} title={t('Immersive Reader — the words in a column of their own, with line focus, wider spacing, syllables and a page colour that is easier to read')} onClick={() => act(view.immersive ? 'immersiveClose' : 'immersive')} />
           </Group>
+          <Group label={t('Page Movement')}>
+            <Button tall icon="pagesDown" label={t('Vertical')} pressed={view.movement !== 'side'} title={t('Vertical: scroll up and down through the pages, side by side when the zoom leaves room')} onClick={() => act('movement', 'vertical')} />
+            <Button tall icon="pagesAcross" label={t('Side to Side')} pressed={view.movement === 'side'} title={t('Side to Side: the pages in one row, moved through sideways like the pages of a book')} onClick={() => act('movement', 'side')} />
+          </Group>
           <Group label={t('Show')}>
             <Button icon="minus" label={t('Ruler')} pressed={Boolean(view.ruler)} onClick={() => act('toggleRuler')} />
             <Button icon="grid" label={t('Gridlines')} pressed={Boolean(view.gridlines)} title={t('Gridlines — a quarter-inch grid over the page, to line drawings up by eye; on screen only')} onClick={() => act('toggleGridlines')} />

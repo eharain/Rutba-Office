@@ -24,7 +24,7 @@ import { selectionToSend } from './word/caret.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import { RestrictPane, StartEnforcingDialog, UnprotectDialog, RESTRICT_CSS, refusalSentence } from './word/restrict.js';
-import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement, columnBoxesOf, pageTopOf, pageHeightOf, pageIndexAt } from './word/pages.js';
+import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement, columnBoxesOf, pageTopOf, pageHeightOf, pageIndexAt, gridOf, setPageGrid, layGrid, gridLaid, pageAtPoint, pointOf as pagePoint, PAGE_GAP, DESK_SIDE } from './word/pages.js';
 
 installWordStyles();
 installRulerStyles();
@@ -829,6 +829,9 @@ export default function Word({ app, shell, boot }) {
     } else if (laid.count !== state.count || at !== state.at) {
       setPages({ ...state, count: laid.count, at });
     }
+    // The pushes moved elements from page to page: with pages side by side,
+    // each is drawn where its page now stands.
+    layGrid(page);
   }, [paged, geo, model]);
   const repaginateRef = useRef(repaginate);
   repaginateRef.current = repaginate;
@@ -902,6 +905,167 @@ export default function Word({ app, shell, boot }) {
       cancelAnimationFrame(raf);
     };
   }, [hasPage]);
+
+  // Pages side by side, as Word lays them once the window has room: as many
+  // across as fit at the zoom, or all in one row for View, Page Movement,
+  // Side to Side (see pages.js `gridOf`). The desk's width is watched, so a
+  // wider window or a closed pane lays the rows again.
+  const [desk, setDesk] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const scroll = pageRef.current?.parentElement;
+    if (!scroll || typeof ResizeObserver === 'undefined') return undefined;
+    // The scrollbar's room is kept out whether or not one shows, so a row
+    // that makes the scrollbar come or go does not lay the rows again.
+    const read = () => setDesk((d) => {
+      const w = Math.max(0, scroll.offsetWidth - 16);
+      const h = scroll.clientHeight;
+      return d.w === w && d.h === h ? d : { w, h };
+    });
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(scroll);
+    return () => ro.disconnect();
+  }, [hasPage, view.split]);
+  const side = view.movement === 'side';
+  const pageW = section ? Math.round(section.widthPx) : 794;
+  // A right-to-left document lays its pages from the right, as Word does.
+  const docRtl = Boolean(section?.rtl || model?.resolvedStyles?.['*default*']?.rtl);
+  // One Page and Multiple Pages say how many go across at the zoom they chose.
+  const across = view.across && Math.abs((view.across.zoom ?? 0) - (view.zoom ?? 1)) < 0.001 ? view.across.n : Infinity;
+  const grid = useMemo(
+    () => (paged && geo && !ink.tool && !ink.ruler
+      ? gridOf({ geo, count: pages.count, W: pageW, zoom: view.zoom ?? 1, desk: desk.w, side, rtl: docRtl, most: across })
+      : null),
+    [paged, geo, ink.tool, ink.ruler, pages.count, pageW, view.zoom, desk.w, side, docRtl, across]
+  );
+  const gridRef = useRef(grid);
+  gridRef.current = grid;
+  useLayoutEffect(() => {
+    const page = pageRef.current;
+    if (!page) return undefined;
+    setPageGrid(page, grid, geo);
+    if (!grid) return undefined;
+    // The page element is the rows' height now, so its own size no longer
+    // says when the words grew (a zoom that breaks the lines elsewhere, a
+    // font arriving): each paragraph and table is watched instead, and a
+    // change lays the pages again, as the page's own observer does in a column.
+    let raf = 0;
+    const sized = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => repaginateRef.current());
+    });
+    const watched = new WeakSet();
+    const watchFlow = () => {
+      for (const el of page.children) {
+        if (watched.has(el) || !(el.classList.contains('wd-block') || el.classList.contains('wd-table'))) continue;
+        watched.add(el);
+        sized.observe(el);
+      }
+    };
+    watchFlow();
+    // Whatever is drawn over the page later (a table's grips, a picture's
+    // handles, the box being drawn, a page added) goes to its page as well.
+    const watch = new MutationObserver(() => {
+      layGrid(page);
+      watchFlow();
+    });
+    watch.observe(page, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+    return () => {
+      watch.disconnect();
+      sized.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, [grid, geo, hasPage]);
+  // A new zoom breaks the lines afresh: the passes start counting again.
+  useLayoutEffect(() => {
+    passes.current = 0;
+  }, [view.zoom]);
+  // When the pages go into rows or out of them, the page with the caret stays in sight.
+  const gridShape = grid ? `${grid.cols}:${grid.side}` : '';
+  const lastShape = useRef(gridShape);
+  useEffect(() => {
+    if (lastShape.current === gridShape) return;
+    lastShape.current = gridShape;
+    const page = pageRef.current;
+    const sheet = page?.querySelectorAll(':scope > .wd-sheet')[Math.max(0, (pagesRef.current.at || 1) - 1)];
+    sheet?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [gridShape]);
+  // Side to Side: the wheel moves through the pages sideways, a page a notch,
+  // as Word turns them. Ctrl with the wheel is left to the zoom.
+  useEffect(() => {
+    const scroll = pageRef.current?.parentElement;
+    if (!scroll || !side) return undefined;
+    let pending = 0;
+    const onWheel = (e) => {
+      if (e.ctrlKey || e.metaKey) return;
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (!d) return;
+      e.preventDefault();
+      const g = gridRef.current;
+      const page = pageRef.current;
+      if (!g || !page) return;
+      pending += e.deltaMode === 1 ? d * 40 : d;
+      if (Math.abs(pending) < 40) return;
+      const dir = Math.sign(pending) * (g.rtl ? -1 : 1);
+      pending = 0;
+      const z = view.zoom ?? 1;
+      const pitch = (g.W + g.gap) * z;
+      const origin = page.getBoundingClientRect().left - scroll.getBoundingClientRect().left + scroll.scrollLeft;
+      const now = Math.round((scroll.scrollLeft + DESK_SIDE - origin) / pitch);
+      const next = Math.max(0, Math.min(g.cols - 1, now + dir));
+      scroll.scrollTo({ left: Math.max(0, origin + next * pitch - DESK_SIDE), behavior: 'smooth' });
+    };
+    scroll.addEventListener('wheel', onWheel, { passive: false });
+    return () => scroll.removeEventListener('wheel', onWheel);
+  }, [side, hasPage, view.zoom]);
+  // A press on a page beside the first, off its words: the page element's
+  // own box is the first column only, so the press would land on the desk.
+  // It goes to the words nearest the press on that page, as on the first.
+  useEffect(() => {
+    const scroll = pageRef.current?.parentElement;
+    if (!scroll || !grid) return undefined;
+    const down = (e) => {
+      const page = pageRef.current;
+      if (e.button !== 0 || !page || page.contains(e.target) || !gridLaid(page)) return;
+      const z = view.zoom ?? 1;
+      const p = page.getBoundingClientRect();
+      const g = gridLaid(page);
+      const k = pageAtPoint(g, (e.clientX - p.left) / z, (e.clientY - p.top) / z);
+      const at = g.places[k];
+      const left = p.left + (at.x + (section?.margins.left ?? 96) + 2) * z;
+      const right = p.left + (at.x + pageW - (section?.margins.right ?? 96) - 2) * z;
+      const top = p.top + (at.y + geo.top + 2) * z;
+      const bottom = p.top + (at.y + pageHeightOf(geo, k) - geo.bottom - 2) * z;
+      if (e.clientX < p.left + (at.x - 4) * z || e.clientX > p.left + (at.x + pageW + 4) * z || e.clientY < p.top + (at.y - 4) * z || e.clientY > p.top + (at.y + pageHeightOf(geo, k) + 4) * z) return;
+      const x = Math.max(left, Math.min(right, e.clientX));
+      const y = Math.max(top, Math.min(bottom, e.clientY));
+      let hit = document.caretRangeFromPoint?.(x, y);
+      if (!hit || !page.contains(hit.startContainer) || !hit.startContainer.parentElement?.closest('.wd-block')) {
+        // Below the last line on the page: the end of the paragraph above the press.
+        const ly = (y - p.top) / z - at.dy;
+        const from = pageTopOf(geo, k);
+        let el = null;
+        for (const b of page.querySelectorAll(':scope > .wd-block')) {
+          if (b.offsetTop < from - 1) continue;
+          if (b.offsetTop > ly && el) break;
+          el = b;
+          if (b.offsetTop >= from + pageHeightOf(geo, k)) break;
+        }
+        if (!el) return;
+        hit = document.createRange();
+        hit.selectNodeContents(el);
+        hit.collapse(el.offsetTop > ly);
+      }
+      e.preventDefault();
+      page.focus({ preventScroll: true });
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(hit);
+      page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: x, clientY: y }));
+    };
+    scroll.addEventListener('mousedown', down);
+    return () => scroll.removeEventListener('mousedown', down);
+  }, [grid, geo, section, pageW, view.zoom]);
 
   const flowItems = useMemo(() => (model?.blocks ? groupTables(model.blocks) : []), [model?.blocks]);
   // A new document starts with the first screens; the rest mounts in slices
@@ -1190,15 +1354,11 @@ export default function Word({ app, shell, boot }) {
       e.stopPropagation();
       // The page's own mouseup must not read this drag as a caret move.
       pictureDrag.current = true;
-      const p = rectOf(page);
-      const z = view.zoom ?? 1;
-      const x0 = e.clientX / z - p.left;
-      const y0 = e.clientY / z - p.top;
+      const { x: x0, y: y0 } = pagePoint(page, e.clientX, e.clientY);
       let box = { left: x0, top: y0, width: 0, height: 0 };
       setDrawBox(box);
       const move = (ev) => {
-        const x = ev.clientX / z - p.left;
-        const y = ev.clientY / z - p.top;
+        const { x, y } = pagePoint(page, ev.clientX, ev.clientY);
         box = { left: Math.min(x, x0), top: Math.min(y, y0), width: Math.abs(x - x0), height: Math.abs(y - y0) };
         setDrawBox(box);
       };
@@ -1243,15 +1403,11 @@ export default function Word({ app, shell, boot }) {
         e.preventDefault();
         e.stopPropagation();
         pictureDrag.current = true;
-        const p = rectOf(page);
-        const z = view.zoom ?? 1;
-        const x0 = e.clientX / z - p.left;
-        const y0 = e.clientY / z - p.top;
+        const { x: x0, y: y0 } = pagePoint(page, e.clientX, e.clientY);
         let box = { left: x0, top: y0, width: 0, height: 0 };
         setDrawBox(box);
         const move = (ev) => {
-          const x = ev.clientX / z - p.left;
-          const y = ev.clientY / z - p.top;
+          const { x, y } = pagePoint(page, ev.clientX, ev.clientY);
           box = { left: Math.min(x, x0), top: Math.min(y, y0), width: Math.abs(x - x0), height: Math.abs(y - y0) };
           setDrawBox(box);
         };
@@ -1503,9 +1659,35 @@ export default function Word({ app, shell, boot }) {
           const scroll = document.querySelector('.wd-scroll');
           const roomW = (scroll?.clientWidth || window.innerWidth) - 48;
           const roomH = (scroll?.clientHeight || window.innerHeight) - 60;
-          const target = arg === 'width' ? roomW / pageWidth : arg === 'page' ? roomH / (model?.section?.heightPx || 1123) : arg === 'pages' ? 0.5 : Number(arg) || 1;
-          const level = Math.max(0.3, Math.min(3, target));
-          patchView({ zoom: Math.round(level * 100) / 100 });
+          const pageHeight = model?.section?.heightPx || 1123;
+          // Multiple Pages: the zoom at which two whole pages stand side by
+          // side, as tall as the window lets them be. The desk keeps its
+          // room at each side, and the gap between the two is the widest a
+          // gap gets (the one below a page).
+          const deskW = (scroll?.offsetWidth || window.innerWidth) - 16 - 2 * DESK_SIDE;
+          const twoUp = Math.min((deskW - PAGE_GAP) / (2 * pageWidth), (roomH - (view.ruler ? 34 : 0)) / pageHeight);
+          const target = arg === 'width' ? roomW / pageWidth : arg === 'page' ? roomH / pageHeight : arg === 'pages' ? Math.floor(twoUp * 100) / 100 : Number(arg) || 1;
+          const level = Math.round(Math.max(0.3, Math.min(3, target)) * 100) / 100;
+          // One Page shows one page across and Multiple Pages two, at the
+          // zoom they chose; any other zoom lays as many across as fit.
+          const n = arg === 'page' ? 1 : arg === 'pages' ? 2 : null;
+          patchView({ zoom: level, across: n ? { n, zoom: level } : null });
+          return;
+        }
+        // View, Page Movement: Vertical, the pages one under another (in
+        // rows when the zoom leaves room), or Side to Side, all in one row
+        // moved through sideways. Side to Side zooms to a whole page's
+        // height, as Word does, and Vertical gives back the zoom it had.
+        case 'movement': {
+          if ((arg === 'side') === (view.movement === 'side')) return;
+          if (arg === 'side') {
+            const scroll = pageRef.current?.parentElement;
+            const roomH = (scroll?.clientHeight || window.innerHeight) - 66 - 16 - (view.ruler ? 34 : 0);
+            const fit = Math.floor(Math.max(0.3, Math.min(1, roomH / (model?.section?.heightPx || 1123))) * 100) / 100;
+            patchView({ movement: 'side', zoomBefore: view.zoom ?? 1, zoom: fit, across: null });
+          } else {
+            patchView({ movement: 'vertical', zoom: view.zoomBefore ?? view.zoom ?? 1, zoomBefore: undefined, across: null });
+          }
           return;
         }
         // View → Window: Arrange All stacks this app's windows, Side by Side
@@ -2254,7 +2436,8 @@ export default function Word({ app, shell, boot }) {
           <Chip>{tn(model?.wordCount ?? 0, '{count} word', '{count} words')}</Chip>
           <Chip>{tn(model?.characterCount ?? 0, '{count} character', '{count} characters')}</Chip>
           <Chip>{tn(model?.blocks?.length ?? 0, '{count} paragraph', '{count} paragraphs')}</Chip>
-          <ZoomSlider value={view.zoom ?? 1} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', 1)} />
+          {/* Down to 30%, where pages stand three and more across as in Word. */}
+          <ZoomSlider value={view.zoom ?? 1} min={0.3} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', 1)} />
         </>
       }
     >
@@ -2273,7 +2456,7 @@ export default function Word({ app, shell, boot }) {
             <NavigationPane blocks={model.blocks} at={model.selection?.focus?.block ?? -1} onGo={(i) => act('goto', i)} onClose={() => act('toggleNavigation')} />
           ) : null}
           <div className="wd-splits" style={view.split ? { '--split': `${Math.round((view.splitAt ?? 0.5) * 100)}%` } : undefined}>
-          <div className={`wd-scroll${view.split ? ' split-top' : ''}`}>
+          <div className={`wd-scroll${view.split ? ' split-top' : ''}${grid ? ' wd-grid' : ''}${grid?.side ? ' wd-side' : ''}`}>
             {view.immersive?.focus ? <LineFocus lines={view.immersive.focus} page={pageRef} /> : null}
             {view.ruler ? (
               <Ruler
@@ -2287,6 +2470,8 @@ export default function Word({ app, shell, boot }) {
                 onParagraph={(delta) => apply({ op: 'setParagraphFormat', delta })}
                 onMargin={(side, px) => apply({ op: 'setPageSetup', spec: { margins: { [side]: Math.round(px * 15) } } })}
                 onColumn={resizeColumn}
+                // With pages side by side, over the page the caret is on.
+                across={grid ? { x: grid.places[Math.min(grid.count, Math.max(1, pages.at || 1)) - 1]?.x || 0, width: grid.width } : null}
               />
             ) : null}
             <div
@@ -2436,6 +2621,10 @@ export default function Word({ app, shell, boot }) {
                 fontSize: model.resolvedStyles?.['*default*']?.sizePx ? `${model.resolvedStyles['*default*'].sizePx}px` : undefined,
                 width: section ? Math.round(section.widthPx) : 794,
                 minHeight: paged ? pageTopOf(geo, pages.count - 1) + pageHeightOf(geo, pages.count - 1) : section ? Math.round(section.heightPx) : 1123,
+                // Pages side by side: the rows' height, the flow below it
+                // drawn up into the rows, and room at the right for the
+                // pages beside the first, so the rows are centred as one.
+                ...(grid ? { height: grid.height, minHeight: 0, marginRight: grid.width - pageW } : {}),
                 // An envelope in front starts the page at the envelope's own top margin.
                 paddingTop: paged && geo?.first ? geo.first.top : section?.margins.top ?? 96,
                 // In print layout the single flow is laid as wide as the
@@ -4135,6 +4324,9 @@ const CSS = `
    content: as a row's flex item the page was stretched to the viewport's
    height — a fixed height — and a long document ran out of the bottom of it. */
 .wd-scroll { flex: 1; overflow: auto; padding: 26px 0 40px; display: flex; flex-direction: column; align-items: safe center; background: var(--window); }
+/* Pages side by side: centred while they fit, from the start once they do
+   not (a row of Side to Side scrolls sideways), with the desk at each side. */
+.wd-scroll.wd-grid { align-items: safe center; padding-left: 20px; padding-right: 20px; }
 .wd-page {
   background: #fff; color: #111; border-radius: 2px; flex: none;
   /* A sheet of paper on a desk: a close shadow for the edge, a wide soft one for the lift. */

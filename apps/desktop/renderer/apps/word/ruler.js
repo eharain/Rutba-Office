@@ -141,7 +141,7 @@ function useResize(page, measure) {
  * mirrored, and dragging towards the left moves a marker further in. The
  * page margins and a table's column edges stay where they are on the page.
  */
-export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, onMargin, onColumn, zoom = 1 }) {
+export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, onMargin, onColumn, zoom = 1, across = null }) {
   const W = section ? Math.round(section.widthPx) : 794;
   const ML = Math.round(section?.margins?.left ?? 96);
   const MR = Math.round(section?.margins?.right ?? 96);
@@ -243,7 +243,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
   const bar = drag && ref.current ? ref.current.getBoundingClientRect() : null;
 
   return (
-    <div className="wd-ruler" ref={ref} style={{ width: W, zoom: zoom !== 1 ? zoom : undefined }} aria-hidden="true" data-tab-type={tabType} data-dir={mirrored ? 'rtl' : undefined}>
+    <div className="wd-ruler" ref={ref} style={{ width: W, zoom: zoom !== 1 ? zoom : undefined, ...(across ? { marginLeft: 0, marginRight: across.width - W, translate: across.x ? `${across.x}px 0` : undefined } : {}) }} aria-hidden="true" data-tab-type={tabType} data-dir={mirrored ? 'rtl' : undefined}>
       <div className="wd-ruler-margin" style={{ left: 0, width: leftBound }} />
       <div className="wd-ruler-margin" style={{ left: rightBound, width: W - rightBound }} />
       <div className="wd-ruler-band" style={{ left: ML, width: Math.max(0, W - ML - MR) }} onMouseDown={addStop} />

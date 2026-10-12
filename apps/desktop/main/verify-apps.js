@@ -36,6 +36,7 @@ import { verifyDeckComments } from './verify-deck-comments.js';
 import { verifyDeckMath } from './verify-deck-math.js';
 import { verifyWordToc } from './verify-word-toc.js';
 import { verifyZoom } from './verify-zoom.js';
+import { verifyWordPagesAcross } from './verify-word-pages.js';
 import { verifyWordCitations } from './verify-word-citations.js';
 import { verifyWordIndex } from './verify-word-index.js';
 import { verifyWordFigures } from './verify-word-figures.js';
@@ -367,6 +368,8 @@ function makeFixtures(dir) {
   report.push({ table: { rows: Array.from({ length: 40 }, (_, r) => [`Row ${r + 1}`, `Item ${r + 1}`, String((r + 1) * 12)]), header: true } });
   for (let i = 0; i < 12; i++) report.push({ text: lorem.repeat(1 + (i % 4)) });
   fs.writeFileSync(at('long.docx'), buildDocx({ styles: true, paragraphs: report }));
+  // The same report again, for the pages side by side check, which types into it.
+  fs.writeFileSync(at('pages-grid.docx'), buildDocx({ styles: true, paragraphs: report }));
 
   fs.writeFileSync(at('tone.wav'), buildWav());
 
@@ -494,6 +497,7 @@ function makeFixtures(dir) {
     accounts: at('accounts.json'),
     docx: at('report.docx'),
     long: at('long.docx'),
+    pagesGrid: at('pages-grid.docx'),
     float: fs.existsSync(at('float.docx')) ? at('float.docx') : null,
     ruler: at('ruler.docx'),
     fit: at('fit.docx'),
@@ -3509,6 +3513,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifySheetLinks({ open, check, until, wait, press, errorsIn, capture }, { file: files.notes });
   };
 
+  /* Word: pages side by side as the zoom drops, and View, Page Movement. */
+  const wordPagesAcross = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyWordPagesAcross({ open, check, until, wait, errorsIn, capture, doc, sessionFor }, { file: files.pagesGrid });
+  };
+
   /* ── Word: table of contents — a real field, not text ────────────────── */
   const wordToc = async () => {
     const capture = async (win, name) => {
@@ -4721,10 +4734,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
+    if (only.includes('sidebyside')) await wordPagesAcross();
     if (only.includes('grips')) await sheetGrips();
     if (only.includes('panes')) await slidePanes();
     if (only.includes('float')) await wordFloat();
@@ -5003,6 +5017,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // stays last, for the reason given in the list above.
   await block(() => verifyDeckCameo({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => wordPages());
+  await block(() => wordPagesAcross());
   await block(() => wordFloat());
   await block(() => sheetGrips());
   await block(() => slidePanes());

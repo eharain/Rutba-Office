@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5613,
+  "count": 5617,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -19323,6 +19323,12 @@
       ]
     },
     {
+      "message": "Page Movement",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
       "message": "Page Number",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -25328,6 +25334,18 @@
       ]
     },
     {
+      "message": "Side to Side",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Side to Side: the pages in one row, moved through sideways like the pages of a book",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
       "message": "Sidebar",
       "where": [
         "apps/desktop/renderer/apps/word/drawings.js",
@@ -31323,6 +31341,7 @@
       "where": [
         "apps/desktop/renderer/apps/slides/motion.js",
         "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -31356,6 +31375,12 @@
       "message": "Vertical text",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Vertical: scroll up and down through the pages, side by side when the zoom leaves room",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {

@@ -202,15 +202,213 @@ const pageOf = (node) => {
   return from?.closest?.('.wd-page') || null;
 };
 const scaled = (r, z) => (z === 1 ? r : { top: r.top / z, bottom: r.bottom / z, left: r.left / z, right: r.right / z, width: r.width / z, height: r.height / z });
-/** An element's client rect in the page's own pixels, whatever the zoom. */
+const moved = (r, dx, dy) => ({ top: r.top + dy, bottom: r.bottom + dy, left: r.left + dx, right: r.right + dx, width: r.width, height: r.height, x: r.left + dx, y: r.top + dy });
+/**
+ * An element's client rect in the page's own pixels, whatever the zoom, and
+ * where it stands in the page's own layout: with pages side by side (see
+ * `gridOf` below) a page beside the first is drawn moved across and up, and
+ * the move is taken off again here, so everything that reads a place on the
+ * page reads it as if the pages were one above another.
+ */
 export function rectOf(el) {
-  return scaled(el.getBoundingClientRect(), zoomOf(pageOf(el)));
+  const page = pageOf(el);
+  const r = scaled(el.getBoundingClientRect(), zoomOf(page));
+  if (!page || el === page) return r;
+  const s = shiftFor(el instanceof Range ? el.startContainer : el, page);
+  return s ? moved(r, -s.x, -s.y) : r;
 }
-/** A range's client rects in the page's own pixels. */
+/** A range's client rects in the page's own pixels, in the page's own layout. */
 export function rectsOf(range) {
-  const z = zoomOf(pageOf(range));
-  return [...range.getClientRects()].map((r) => scaled(r, z));
+  const page = pageOf(range);
+  const z = zoomOf(page);
+  const rects = [...range.getClientRects()].map((r) => scaled(r, z));
+  const laid = page ? laidGrids.get(page) : null;
+  if (!laid) return rects;
+  const a = shiftFor(range.startContainer, page);
+  const b = shiftFor(range.endContainer, page);
+  // Within one page's part: its own move. Across pages: each rect by the page it is drawn on.
+  if (a === b) return a ? rects.map((r) => moved(r, -a.x, -a.y)) : rects;
+  const p = scaled(page.getBoundingClientRect(), z);
+  return rects.map((r) => {
+    const k = pageAtPoint(laid.grid, (r.left + r.right) / 2 - p.left, (r.top + r.bottom) / 2 - p.top);
+    const at = laid.grid.places[k];
+    return moved(r, -at.dx, -at.dy);
+  });
 }
+
+/* ── pages side by side ──────────────────────────────────────────────────
+ *
+ * Word lays the pages across the window once there is room for more than
+ * one: two side by side at about half size, three or more as the zoom falls,
+ * each row wrapping. View, Page Movement, Side to Side puts them all in one
+ * row, moved through sideways like a book.
+ *
+ * The flow cannot be cut up for that: it is the one surface that gives the
+ * caret, the selection and the IME. So the layout stays exactly what it was,
+ * pages one under another, and each page's elements are only DRAWN somewhere
+ * else, moved by the CSS `translate` property (which leaves `transform` to
+ * the drawings that turn). The move changes nothing the layout pass or the
+ * browser's line breaking sees; the browser maps clicks, the caret and the
+ * selection through it by itself; and `rectOf` takes it off again for the
+ * code that reads places on the page.
+ */
+
+/** The least room between two pages beside each other, in screen pixels. */
+export const GAP_SCREEN = 16;
+/** The desk showing at each side of the pages, in screen pixels. */
+export const DESK_SIDE = 20;
+
+/** The room between pages beside each other at a zoom, in page pixels: never less than the gap below a page. */
+export const gapAt = (zoom = 1, G = PAGE_GAP) => Math.max(G, Math.ceil(GAP_SCREEN / (zoom > 0 ? zoom : 1)));
+
+/**
+ * How many pages `W` page pixels wide fit across a desk `desk` screen
+ * pixels wide at `zoom`, with the gap between them and the desk's own room
+ * at each side. Never less than one.
+ */
+export function pagesAcross({ desk, zoom = 1, W, gap }) {
+  const z = zoom > 0 ? zoom : 1;
+  const g = gap ?? gapAt(z);
+  const room = (desk - 2 * DESK_SIDE) / z;
+  if (!(W > 0) || !(room > 0)) return 1;
+  return Math.max(1, Math.floor((room + g) / (W + g) + 1e-9));
+}
+
+/**
+ * Where each page is drawn, or null when they stand one under another as
+ * they always have (one page across, the page movement vertical).
+ *
+ * `count` pages of `W` page pixels wide, laid as many across as fit `desk`
+ * at `zoom` (no more than `most`), or all in one row when `side` is set;
+ * left to right, or right to left when `rtl`. A row is as tall as its
+ * tallest page and its pages share their top edge. Each place carries the
+ * move from the page's own place in the layout (`pageTopOf`): `dx`, `dy`.
+ */
+export function gridOf({ geo, count, W, zoom = 1, desk = 0, side = false, rtl = false, most = Infinity }) {
+  if (!geo || !(count >= 1) || !(W > 0)) return null;
+  const gap = gapAt(zoom, geo.G);
+  const cols = side ? count : Math.max(1, Math.min(count, most, desk > 0 ? pagesAcross({ desk, zoom, W, gap }) : 1));
+  if (!side && cols <= 1) return null;
+  const rows = Math.ceil(count / cols);
+  const rowTop = [];
+  const rowH = [];
+  let y = 0;
+  for (let r = 0; r < rows; r++) {
+    let h = 0;
+    for (let c = 0; c < cols && r * cols + c < count; c++) h = Math.max(h, pageHeightOf(geo, r * cols + c));
+    rowTop.push(y);
+    rowH.push(h);
+    y += h + gap;
+  }
+  const places = [];
+  for (let k = 0; k < count; k++) {
+    const row = Math.floor(k / cols);
+    const col = k % cols;
+    const x = (rtl ? cols - 1 - col : col) * (W + gap);
+    places.push({ x, y: rowTop[row], dx: x, dy: rowTop[row] - pageTopOf(geo, k), row, col });
+  }
+  return { cols, rows, count, gap, W, side, rtl, rowTop, rowH, places, width: cols * W + (cols - 1) * gap, height: Math.max(0, y - gap) };
+}
+
+/** The page drawn at a point `x`, `y` page pixels from the page element's corner: the nearest one. */
+export function pageAtPoint(grid, x, y) {
+  let row = 0;
+  for (let r = 1; r < grid.rows; r++) if (y >= grid.rowTop[r] - grid.gap / 2) row = r;
+  let col = Math.floor((x + grid.gap / 2) / (grid.W + grid.gap));
+  col = Math.max(0, Math.min(grid.cols - 1, col));
+  if (grid.rtl) col = grid.cols - 1 - col;
+  return Math.max(0, Math.min(grid.count - 1, row * grid.cols + col));
+}
+
+// What each element was moved by, and the grid each page was last laid in.
+const shifts = new WeakMap();
+const laidGrids = new WeakMap();
+const wanted = new WeakMap();
+
+function shiftFor(node, page) {
+  let el = node?.nodeType === 3 ? node.parentElement : node;
+  for (; el && el !== page; el = el.parentElement) {
+    const s = shifts.get(el);
+    if (s) return s;
+  }
+  return null;
+}
+
+// Layers over the page whose own children each stand on a page of their
+// own: the drawings, the handles round a picked one, a table's grips and
+// the line numbers.
+const LAYERS = '.wd-drawlayer, .wd-frames, .wd-tgrips, .wd-linenos';
+
+/** Say which grid the page is to be drawn in (null: one page under another), and draw it so. */
+export function setPageGrid(page, grid, geo) {
+  if (!page) return;
+  wanted.set(page, grid && geo ? { grid, geo } : null);
+  layGrid(page);
+}
+
+/**
+ * Move every element on the page to where its page is drawn: each top-level
+ * element, and each element of the layers over the page, by the page its
+ * top falls on in the layout. Every place is read first and every move
+ * written after, so a pass costs one layout however many elements.
+ */
+export function layGrid(page) {
+  if (!page) return;
+  const want = wanted.get(page) || null;
+  if (!want) {
+    if (laidGrids.has(page)) {
+      laidGrids.delete(page);
+      for (const el of page.querySelectorAll('[style*="translate"]')) {
+        if (!shifts.has(el)) continue;
+        el.style.translate = '';
+        shifts.delete(el);
+      }
+    }
+    return;
+  }
+  const { grid, geo } = want;
+  const todo = [];
+  for (const el of page.children) {
+    if (el.matches(LAYERS)) {
+      const base = el.offsetTop;
+      for (const kid of el.children) todo.push([kid, base + kid.offsetTop]);
+    } else if (!el.classList.contains('wd-ink-host')) todo.push([el, el.offsetTop]);
+  }
+  for (const [el, y] of todo) {
+    const k = Math.min(grid.count - 1, pageIndexAt(geo, Math.max(0, y) + 1));
+    const at = grid.places[k];
+    const was = shifts.get(el);
+    if (was && was.x === at.dx && was.y === at.dy) continue;
+    if (!at.dx && !at.dy) {
+      if (was) {
+        el.style.translate = '';
+        shifts.delete(el);
+      }
+      continue;
+    }
+    el.style.translate = `${at.dx}px ${at.dy}px`;
+    shifts.set(el, { x: at.dx, y: at.dy });
+  }
+  laidGrids.set(page, want);
+}
+
+/** A point on the screen (a pointer's client x and y) in the page's own pixels and layout. */
+export function pointOf(page, clientX, clientY) {
+  const z = zoomOf(page);
+  const p = page.getBoundingClientRect();
+  let x = (clientX - p.left) / z;
+  let y = (clientY - p.top) / z;
+  const laid = laidGrids.get(page);
+  if (laid) {
+    const at = laid.grid.places[pageAtPoint(laid.grid, x, y)];
+    x -= at.dx;
+    y -= at.dy;
+  }
+  return { x, y };
+}
+
+/** The grid the page is drawn in now, or null. */
+export const gridLaid = (page) => (page ? laidGrids.get(page)?.grid || null : null);
 
 /** The line boxes of a paragraph, in viewport coordinates, top to bottom. */
 export function lineBoxes(el) {
@@ -229,6 +427,24 @@ export function lineBoxes(el) {
     lines.push({ top: r.top, bottom: r.bottom });
   }
   return lines;
+}
+
+/**
+ * Where each of a paragraph's lines ends, as a LINE box: the glyphs drawn
+ * on a line (`lineBoxes`) stand inside it with room above and below them,
+ * so a line taken to end at its glyphs' foot ends a pixel or two short of
+ * where the element holding it does, and further at a small zoom, where
+ * the glyphs do not sit in the middle of their line. The first line's box
+ * starts at the top of the paragraph's content, so its glyphs stand that
+ * far (`lead`) into it; a line ends where the next line's box starts, its
+ * glyphs' top less the same, and the last one where the element does.
+ */
+export function lineEnds(el, lines) {
+  const box = rectOf(el);
+  const cs = getComputedStyle(el);
+  const contentTop = box.top + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.borderTopWidth) || 0);
+  const lead = Math.max(0, lines[0].top - contentTop);
+  return lines.map((l, j) => (j + 1 < lines.length ? Math.max(l.bottom, lines[j + 1].top - lead) : Math.max(l.bottom, box.bottom)));
 }
 
 /**
@@ -307,7 +523,14 @@ function splitParagraph(it, placedY, delta, lim, first) {
   const lines = lineBoxes(it.el);
   if (lines.length < 2) return null;
   const elTop = rectOf(it.el).top;
-  let f = lines.findIndex((l) => placedY(l.bottom) + delta > lim + 0.5);
+  // Each line by its line box, the measure the part left behind is held to
+  // when it is laid on its own, and with a pixel to spare against that test
+  // (lim + 0.5): a line box read from the glyphs is out by a fraction. Seen
+  // 2026-10-12: a two-line part whose glyphs fitted but whose box ran 0.1 px
+  // over went to the next page, was pulled back whole, split again, and
+  // round, until the passes ran out with every page after it unlaid.
+  const ends = lineEnds(it.el, lines);
+  let f = ends.findIndex((bottom) => placedY(bottom) + delta > lim - 0.5);
   if (f <= 0) return null;
   // Never leave one line alone on the next page: the split moves up a line —
   // unless the paragraph heads its page (or is taller than one) and moving it
@@ -321,7 +544,7 @@ function splitParagraph(it, placedY, delta, lim, first) {
   if (f < 1) return null;
   const offset = offsetAtLine(it, lines[f].top);
   if (offset === null || offset <= it.from) return null;
-  return { offset, partHeight: Math.max(0, lines[f].top - elTop) };
+  return { offset, partHeight: Math.max(0, ends[f - 1] - elTop) };
 }
 
 /**
@@ -374,10 +597,11 @@ function pullBack(it, next, room, noteCost = () => 0) {
   if (it.kind === 'p') {
     const lines = lineBoxes(next.el);
     const top = rectOf(next.el).top;
+    const ends = lineEnds(next.el, lines);
     // A line that comes back brings the footnotes it references; they need
     // their room at the foot as well.
     let c = 0;
-    while (c < lines.length && lines[c].bottom - top + noteCost(lines[c].bottom) <= room - 1) c += 1;
+    while (c < lines.length && ends[c] - top + noteCost(lines[c].bottom) <= room - 1) c += 1;
     if (c === 0) return null;
     if (c === lines.length) return -1;
     if (lines.length - c < 2) return null;

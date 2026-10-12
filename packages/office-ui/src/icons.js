@@ -26,6 +26,9 @@ const PATHS = {
 
   // file and document
   file: [P('M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z'), P('M14 3v5h4')],
+  // Page Movement: one page under another, and pages side by side.
+  pagesDown: [P('M5 3h11a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z'), P('M5 13h11a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z'), P('M20.5 8v8m-2-2 2 2 2-2')],
+  pagesAcross: [P('M4 3h6a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z'), P('M14 3h6a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z'), P('M8 20.5h8m-2-2 2 2-2 2')],
   folder: [P('M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z')],
   folderOpen: [P('M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v1'), P('M3 9h18l-2.2 8.3a1 1 0 0 1-1 .7H4a1 1 0 0 1-1-1z')],
   save: [P('M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z'), P('M8 4v5h7V4M8 20v-6h8v6')],

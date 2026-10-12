@@ -22,7 +22,7 @@ import React from 'react';
 import { Button, Icon, Spacer, t } from '@rutba/office-ui';
 import { floatPlace, layerOf, sideOf } from '@rutba/doc-view/floats';
 import { warpedTextSvg, drawnWarp } from '@rutba/drawing/warp';
-import { rectOf, pageTopOf, pageIndexAt } from './pages.js';
+import { rectOf, pageTopOf, pageIndexAt, pointOf } from './pages.js';
 
 /** The layer a drawing lives in; a centred square-wrapped one stands under the words, as before. */
 export function drawingLayer(d) {
@@ -583,12 +583,13 @@ export function DrawingFrame({ page, ids, editingId = null, drawings, deps, onMo
   const startRotate = (e, b) => {
     const el = find(b.id);
     const was = el?.style.rotate || '';
-    const p = rectOf(page.current);
+    const host = page.current;
     const cx = b.left + b.width / 2;
     const cy = b.top + b.height / 2;
     const angleAt = (ev) => {
-      const x = ev.clientX / zoom - p.left - cx;
-      const y = ev.clientY / zoom - p.top - cy;
+      const at = pointOf(host, ev.clientX, ev.clientY);
+      const x = at.x - cx;
+      const y = at.y - cy;
       return (Math.atan2(y, x) * 180) / Math.PI + 90;
     };
     let deg = b.rot || 0;
