@@ -359,4 +359,11 @@ export const ENGINE_WORDS = [
   msg('A background is a PNG, JPEG, GIF, BMP or WebP picture.'),
   msg('Select a cell inside your data first — a filter needs a range.'),
   msg('"{to}" is not a place Home or End goes to'),
+  // packages/studio/src/rimg.js
+  msg('This is not a Rutba Image project: it is not a zip.'),
+  msg('This is not a Rutba Image project.'),
+  msg('This project is damaged: it has no document in it.'),
+  msg('This project is damaged: its document cannot be read.'),
+  msg('This project is damaged: its document has no list of layers.'),
+  msg('This project was made by a newer Rutba Office. Update to open it.'),
 ];

@@ -95,6 +95,8 @@ export const KINDS = {
   ogg: { app: 'video', label: 'Ogg Audio', ext: '.ogg', mime: 'audio/ogg', edit: false },
   // The Video app's project: a zip of the edit and references to its sources.
   rvid: { app: 'video', label: 'Rutba Video Project', ext: '.rvid', mime: 'application/vnd.rutba.video-project+zip', edit: true },
+  // The Image app's layered project: a zip of the layers and the pictures they are made of.
+  rimg: { app: 'image', label: 'Rutba Image Project', ext: '.rimg', mime: 'application/vnd.rutba.image-project+zip', edit: true },
 
   eml: { app: 'mail', label: 'Email Message', ext: '.eml', mime: 'message/rfc822', edit: false },
   msg: { app: 'mail', label: 'Outlook Message', ext: '.msg', mime: 'application/vnd.ms-outlook', edit: false },
@@ -193,6 +195,7 @@ function fromZip(b) {
     if (mime.startsWith('application/vnd.oasis.opendocument.graphics')) return 'odp';
     // The Video app's project says so the same way (packages/studio/src/rvid.js).
     if (mime.startsWith('application/vnd.rutba.video-project')) return 'rvid';
+    if (mime.startsWith('application/vnd.rutba.image-project')) return 'rimg';
   }
   // OOXML always begins with [Content_Types].xml written first by every writer
   // that matters, but not by specification — so this is a hint, not a verdict.

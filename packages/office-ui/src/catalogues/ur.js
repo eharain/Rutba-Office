@@ -5688,4 +5688,11 @@ export default {
   '{key} stops it from anywhere': '{key} سے کہیں سے بھی روکیں',
   '{name} closed or stopped sharing.': '{name} بند ہو گئی یا اس نے دکھانا روک دیا۔',
   '{n} frames a second': '{n} فریم فی سیکنڈ',
+  'Rutba Image Project (.rimg)': 'رتبہ امیج پروجیکٹ (.rimg)',
+  'This is not a Rutba Image project: it is not a zip.': 'یہ رتبہ امیج پروجیکٹ نہیں ہے: یہ زِپ فائل نہیں ہے۔',
+  'This is not a Rutba Image project.': 'یہ رتبہ امیج پروجیکٹ نہیں ہے۔',
+  'This project is damaged: it has no document in it.': 'یہ پروجیکٹ خراب ہے: اس میں کوئی دستاویز نہیں۔',
+  'This project is damaged: its document cannot be read.': 'یہ پروجیکٹ خراب ہے: اس کی دستاویز پڑھی نہیں جا سکتی۔',
+  'This project is damaged: its document has no list of layers.': 'یہ پروجیکٹ خراب ہے: اس کی دستاویز میں پرتوں کی فہرست نہیں۔',
+  'This project was made by a newer Rutba Office. Update to open it.': 'یہ پروجیکٹ رتبہ آفس کے نئے ورژن میں بنا ہے۔ اسے کھولنے کے لیے اپ ڈیٹ کریں۔',
 };

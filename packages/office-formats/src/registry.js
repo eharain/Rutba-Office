@@ -119,7 +119,7 @@ export const APP_EXTENSIONS = {
   sheets: ['xlsx', 'xlsm', 'xltx', 'xls', 'xlt', 'ods', 'csv', 'tsv'],
   slides: ['pptx', 'pptm', 'potx', 'ppsx', 'ppt', 'pps', 'pot', 'odp'],
   pictures: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'bmp', 'tif', 'tiff', 'ico', 'svg', 'pdf'],
-  image: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'avif'],
+  image: ['rimg', 'jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'avif'],
   video: ['rvid', 'mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'mp3', 'm4a', 'wav', 'flac', 'ogg'],
   mail: ['eml', 'emlx', 'msg', 'mbox', 'pst', 'ost', 'olm'],
   calendar: ['ics'],
@@ -149,6 +149,7 @@ export const WRITABLE = {
     { kind: 'pdf', label: 'PDF Document (.pdf)' },
   ],
   image: [
+    { kind: 'rimg', label: 'Rutba Image Project (.rimg)' },
     { kind: 'png', label: 'PNG Image (.png)' },
     { kind: 'jpeg', label: 'JPEG Image (.jpg)' },
     { kind: 'webp', label: 'WebP Image (.webp)' },
@@ -227,8 +228,9 @@ export function fileAssociations() {
   const seen = new Set();
   const out = [];
   for (const [appKey, exts] of Object.entries(APP_EXTENSIONS)) {
-    if (appKey === 'image') continue; // Pictures already claims these
     for (const ext of exts) {
+      // Pictures claims the pictures; Image claims only its own project.
+      if (appKey === 'image' && ext !== 'rimg') continue;
       if (seen.has(ext)) continue;
       seen.add(ext);
       // A kind's canonical extension, or the one it is also known by: `.markdown`

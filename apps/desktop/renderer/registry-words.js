@@ -25,7 +25,7 @@ export const REGISTRY_WORDS = [
   msg('Markdown (.md)'), msg('Web Page (.html)'), msg('Worksheet (.xlsx)'), msg('OpenDocument Spreadsheet (.ods)'),
   msg('Comma Separated Values (.csv)'), msg('Tab Separated Values (.tsv)'), msg('Presentation (.pptx)'),
   msg('OpenDocument Presentation (.odp)'), msg('PNG Image (.png)'), msg('JPEG Image (.jpg)'), msg('WebP Image (.webp)'),
-  msg('Rutba Video Project (.rvid)'), msg('WebM Video (.webm)'), msg('MP4 Video (.mp4)'), msg('Email Message (.eml)'), msg('Mbox Archive (.mbox)'),
+  msg('Rutba Video Project (.rvid)'), msg('Rutba Image Project (.rimg)'), msg('WebM Video (.webm)'), msg('MP4 Video (.mp4)'), msg('Email Message (.eml)'), msg('Mbox Archive (.mbox)'),
   msg('Calendar (.ics)'), msg('vCard (.vcf)'),
   msg('Pictures and PDFs'), msg('Images'), msg('Video and audio'), msg('Mail files'), msg('Calendars'), msg('Address books'),
   msg('All files'), msg('All supported files'),

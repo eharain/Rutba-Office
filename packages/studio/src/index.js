@@ -912,6 +912,13 @@ export function applyLayerPatches(plan, patches) {
         if (!layer) continue;
         if (patch.lane !== undefined) layer.lane = Math.max(0, Math.round(Number(patch.lane) || 0));
         if (patch.group !== undefined) layer.group = patch.group || null;
+        // A layers panel's own three, for every type alike (the toolset's
+        // types compile the first two already; text and pictures did not):
+        // a still opacity and a blend mode, which paintFrame's wrapper owns,
+        // and a lock, which only an editor reads.
+        if (patch.opacity !== undefined && patch.opacity !== null) layer.opacity = Math.max(0, Math.min(1, Number(patch.opacity) || 0));
+        if (patch.blend !== undefined) layer.blend = BLENDS.has(patch.blend) ? patch.blend : null;
+        if (patch.locked !== undefined) layer.locked = !!patch.locked;
         if (layer.type === 'video' || layer.type === 'image') {
             if (patch.videoKey !== undefined && layer.type === 'video') {
                 layer.videoKey = patch.videoKey || null;
@@ -933,6 +940,9 @@ export function applyLayerPatches(plan, patches) {
 
 /** How a whole picture fills the frame: cropped to fill it, letterboxed, or letterboxed over a blur of itself. */
 export const FITS = ['cover', 'contain', 'blur'];
+
+/** The canvas composite operations a layer may blend with (normal is no blend). */
+const BLENDS = new Set(['multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'exclusion', 'hue', 'saturation', 'color', 'luminosity']);
 
 /** The <video> entry a clip draws from: its own when two clips of one source overlap. */
 const videoEntry = (plan, layer) => plan.videos[layer.videoKey || layer.url] || null;
@@ -2594,8 +2604,16 @@ export function paintFrame(ctx, plan, t) {
     const time = Math.max(0, Math.min(plan.duration, t));
 
     ctx.save();
-    ctx.fillStyle = plan.theme.bg;
-    ctx.fillRect(0, 0, plan.W, plan.H);
+    // An image editor's canvas can be clear (`background: 'transparent'`),
+    // so a trim finds its edges and a PNG keeps them; or one colour. Absent,
+    // the theme's ground as it always was.
+    const ground = plan.opts?.background;
+    if (ground === 'transparent') {
+        ctx.clearRect(0, 0, plan.W, plan.H);
+    } else {
+        ctx.fillStyle = ground || plan.theme.bg;
+        ctx.fillRect(0, 0, plan.W, plan.H);
+    }
 
     const ordered = [...plan.layers].sort((a, b) => (a.z || 0) - (b.z || 0));
 

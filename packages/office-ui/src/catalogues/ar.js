@@ -5690,4 +5690,11 @@ export default {
   '{key} stops it from anywhere': '{key} يوقفه من أي مكان',
   '{name} closed or stopped sharing.': 'أُغلقت {name} أو توقفت عن المشاركة.',
   '{n} frames a second': '{n} إطارًا في الثانية',
+  'Rutba Image Project (.rimg)': 'مشروع صورة رتبة (.rimg)',
+  'This is not a Rutba Image project: it is not a zip.': 'هذا ليس مشروع صورة من رتبة: إنه ليس ملف zip.',
+  'This is not a Rutba Image project.': 'هذا ليس مشروع صورة من رتبة.',
+  'This project is damaged: it has no document in it.': 'هذا المشروع تالف: لا يحتوي على مستند.',
+  'This project is damaged: its document cannot be read.': 'هذا المشروع تالف: تتعذر قراءة مستنده.',
+  'This project is damaged: its document has no list of layers.': 'هذا المشروع تالف: مستنده بلا قائمة طبقات.',
+  'This project was made by a newer Rutba Office. Update to open it.': 'أُنشئ هذا المشروع بإصدار أحدث من رتبة أوفيس. حدِّث البرنامج لفتحه.',
 };

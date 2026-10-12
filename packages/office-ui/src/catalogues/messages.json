@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5682,
+  "count": 5689,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -23398,6 +23398,12 @@
       ]
     },
     {
+      "message": "Rutba Image Project (.rimg)",
+      "where": [
+        "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
       "message": "Rutba Mail",
       "where": [
         "apps/desktop/renderer/registry-words.js"
@@ -29729,6 +29735,18 @@
       ]
     },
     {
+      "message": "This is not a Rutba Image project.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This is not a Rutba Image project: it is not a zip.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This is not a binary glTF (.glb) file",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -29859,6 +29877,30 @@
       "message": "This presentation: {name}",
       "where": [
         "apps/desktop/renderer/apps/slides/design.js"
+      ]
+    },
+    {
+      "message": "This project is damaged: it has no document in it.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This project is damaged: its document cannot be read.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This project is damaged: its document has no list of layers.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This project was made by a newer Rutba Office. Update to open it.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
