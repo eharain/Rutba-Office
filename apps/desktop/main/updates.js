@@ -32,6 +32,7 @@
 
 import { app } from 'electron';
 import { isSnoozed, snoozeFor } from './update-snooze.js';
+import { updateErrorKind } from './update-error.js';
 
 const FEED = { provider: 'github', owner: 'eharain', repo: 'Rutba-Office' };
 const SIX_HOURS = 6 * 60 * 60 * 1000;
@@ -109,7 +110,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null }) {
       percent: progress?.percent ?? null,
       transferred: progress?.transferred ?? null,
       total: progress?.total ?? null,
-      error,
+      error: error?.detail ?? null,
+      errorKind: error?.kind ?? null,
       automatic: enabled(),
       channel: FEED.owner + '/' + FEED.repo,
       // The version this copy replaced, until the card has been put away.
@@ -167,7 +169,7 @@ export function createUpdateService({ stores, broadcast, taskbar = null }) {
       // A failed check is not an event worth interrupting anybody for; it is
       // reported where somebody has asked to look, and nowhere else.
       state = 'error';
-      error = err?.message || String(err);
+      error = updateErrorKind(err?.message || String(err));
       showProgress(-1);
       publish();
     });
@@ -192,7 +194,7 @@ export function createUpdateService({ stores, broadcast, taskbar = null }) {
       await u.checkForUpdates();
     } catch (err) {
       state = 'error';
-      error = err?.message || String(err);
+      error = updateErrorKind(err?.message || String(err));
     }
     return publish();
   }

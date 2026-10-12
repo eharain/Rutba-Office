@@ -41,6 +41,7 @@ const FAMILIES = {
   sheets: { colour: '#0f9d58', glyph: 'sheets' },
   slides: { colour: '#d9534f', glyph: 'slides' },
   pictures: { colour: '#7b5cd6', glyph: 'pictures' },
+  image: { colour: '#e08b2b', glyph: 'image' },
   video: { colour: '#c2408f', glyph: 'video' },
   mail: { colour: '#3b7de0', glyph: 'mail' },
   calendar: { colour: '#1a9f7a', glyph: 'calendar' },

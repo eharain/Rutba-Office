@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5851,
+  "count": 5854,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -998,6 +998,12 @@
       "message": "A new list needs a name to be saved under.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A new release is still being published. This copy is fine as it is; check again in a few minutes.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -11905,6 +11911,12 @@
       "message": "Gift",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "GitHub turned the check away for now. Try again in an hour.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -29127,6 +29139,12 @@
       "message": "The changing cell must hold a plain value, not a formula",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The check could not reach GitHub, where the releases are kept. Check your connection and try again.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {

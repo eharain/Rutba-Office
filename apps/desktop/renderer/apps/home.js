@@ -475,6 +475,11 @@ function updateSentence(update) {
     case 'current':
       return t('This is the latest release.');
     case 'error':
+      // A sentence by what went wrong; the updater's own message, headers and
+      // stack included, was shown here as it came (2026-10-12).
+      if (update.errorKind === 'publishing') return t('A new release is still being published. This copy is fine as it is; check again in a few minutes.');
+      if (update.errorKind === 'offline') return t('The check could not reach GitHub, where the releases are kept. Check your connection and try again.');
+      if (update.errorKind === 'refused') return t('GitHub turned the check away for now. Try again in an hour.');
       return t('The last check did not complete: {error}', { error: update.error });
     default:
       return t('No check has run yet. This build contacts nothing on its own.');
