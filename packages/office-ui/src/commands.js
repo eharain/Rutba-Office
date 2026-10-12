@@ -35,6 +35,11 @@ export function prettyKey(combo) {
     .join(IS_MAC ? '' : '+');
 }
 
+/** Whether a key press is the combination `combo` (`Mod+S`, `Mod+Plus`). */
+export function keyMatches(combo, event) {
+  return matches(combo, event);
+}
+
 function matches(combo, event) {
   const parts = combo.toLowerCase().split('+').map((s) => s.trim());
   const key = parts[parts.length - 1];
@@ -46,6 +51,9 @@ function matches(combo, event) {
   };
   const mod = IS_MAC ? event.metaKey : event.ctrlKey;
   if (want.mod !== mod) return false;
+  // Plus is shifted on some keyboards and not on others, and the key it
+  // shares is =: Ctrl+Plus is Ctrl and either, with Shift or without.
+  if (key === 'plus') return !want.alt === !event.altKey && (event.key === '+' || event.key === '=');
   if (want.shift !== event.shiftKey) return false;
   if (want.alt !== event.altKey) return false;
   if (want.ctrl && !IS_MAC && !event.ctrlKey) return false;

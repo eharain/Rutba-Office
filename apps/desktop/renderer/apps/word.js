@@ -14,7 +14,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, formatWhen, t, tn } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, menuItems, formatWhen, t, tn } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows } from '../shell.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
@@ -2187,6 +2187,9 @@ export default function Word({ app, shell, boot }) {
   );
 
   useCommands(commands, [doc, model]);
+  // Ctrl and the wheel over the page, Ctrl+Plus, Ctrl+Minus and Ctrl+0: the
+  // page's own zoom, as the slider sets it, the point under the pointer kept.
+  useWheelZoom({ shell, zoom: view.zoom ?? 1, setZoom: (z) => patchView({ zoom: z }), min: 0.3, max: 3, area: '.wd-scroll', target: '.wd-page' });
 
   const align = (value) => apply({ op: 'setParagraphFormat', delta: { align: value } });
   const setStyle = (style) => apply({ op: 'setParagraphFormat', delta: { style: style || null } });
@@ -4127,11 +4130,11 @@ function FindPanel({ state, onChange, onClose, onReplaceAll }) {
 const CSS = `
 /* A row: the Navigation Pane at the left of the page, the Selection Pane at
    its right. The page's own column is .wd-scroll's, below. */
-.wd { flex: 1; display: flex; flex-direction: row; min-height: 0; position: relative; }
+.wd { flex: 1; display: flex; flex-direction: row; min-width: 0; min-height: 0; position: relative; }
 /* A column, so the ruler sits above the page and the page is as tall as its
    content: as a row's flex item the page was stretched to the viewport's
    height — a fixed height — and a long document ran out of the bottom of it. */
-.wd-scroll { flex: 1; overflow: auto; padding: 26px 0 40px; display: flex; flex-direction: column; align-items: center; background: var(--window); }
+.wd-scroll { flex: 1; overflow: auto; padding: 26px 0 40px; display: flex; flex-direction: column; align-items: safe center; background: var(--window); }
 .wd-page {
   background: #fff; color: #111; border-radius: 2px; flex: none;
   /* A sheet of paper on a desk: a close shadow for the edge, a wide soft one for the lift. */

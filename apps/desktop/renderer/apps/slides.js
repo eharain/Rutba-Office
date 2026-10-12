@@ -10,7 +10,7 @@
 // rewrites one slide's XML and leaves every other part of the file alone.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, menuItems, t, tn, language } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, useWheelZoom, menuItems, t, tn, language } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
@@ -972,6 +972,10 @@ export default function Slides({ app, shell, boot }) {
   );
 
   useCommands(commands, [doc, model, index]);
+  // Ctrl and the wheel over the slide, Ctrl+Plus, Ctrl+Minus and Ctrl+0: the
+  // stage's own zoom, as the slider sets it (from fit, when it is fitting),
+  // the point under the pointer kept.
+  useWheelZoom({ shell, zoom: view.zoom ?? fit, setZoom: (z) => patchView({ zoom: z }), min: 0.25, max: 3, area: '.sl-stage', target: '.sl-fit' });
 
   // The Monitor choice this computer keeps, named from the screens there are.
   useEffect(() => {

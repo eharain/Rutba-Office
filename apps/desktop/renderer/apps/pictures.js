@@ -21,7 +21,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Search,
-  Select, useToast, useMenu, useCommands, menuItems, formatBytes, formatWhen, basename, dirname, t, tn,
+  Select, useToast, useMenu, useCommands, useShellCommands, menuItems, formatBytes, formatWhen, basename, dirname, t, tn,
 } from '@rutba/office-ui';
 import { megapixels, aspectName } from '@rutba/imaging/probe';
 import { timecode } from '@rutba/media/timeline';
@@ -643,6 +643,15 @@ export default function Pictures({ app, shell, boot }) {
   );
 
   useCommands(commands, [files, at, current, folder, playing, frozen]);
+  // The application menu's Zoom In, Zoom Out and Actual Size, whose Ctrl+0
+  // is Fit here as the key is. A wheel the stage did not take (over the
+  // grid) zooms nothing.
+  useShellCommands(shell, (command, args) => {
+    if (args?.wheel) return;
+    if (command === 'view.zoomIn') commands['view.in'].run();
+    else if (command === 'view.zoomOut') commands['view.out'].run();
+    else if (command === 'view.zoomReset') commands['view.fit'].run();
+  });
 
   const rotation = spin * 90;
   const openAt = useCallback((f) => goTo(files.indexOf(f)), [goTo, files]);
@@ -1304,17 +1313,27 @@ function Stage({ current, shown, kind, failed, playing, zoom, setZoom, rotation,
     ref.current.scrollTop = d.top - (e.clientY - d.y);
   };
   const stopDrag = () => { drag.current = null; };
+  // Ctrl and the wheel zooms the picture. Listened for here rather than
+  // with onWheel, whose listener is passive: the stage scrolled as well.
+  const zoomTo = useRef(setZoom);
+  zoomTo.current = setZoom;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const onWheel = (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      zoomTo.current((z) => Math.max(0.05, Math.min(12, (z || 1) * (e.deltaY < 0 ? 1.1 : 0.9))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
   const waiting = current && !isMedia && kind !== 'pdf' && shown !== current && failed !== current;
 
   return (
     <div
       ref={ref}
       className={`pv-stage viewing${zoom ? ' zoomed' : ''}`}
-      onWheel={(e) => {
-        if (!e.ctrlKey) return;
-        e.preventDefault();
-        setZoom((z) => Math.max(0.05, Math.min(12, (z || 1) * (e.deltaY < 0 ? 1.1 : 0.9))));
-      }}
       onDoubleClick={() => setZoom((z) => (z ? 0 : 1))}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}

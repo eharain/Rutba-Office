@@ -10,7 +10,7 @@
 // the sheet came from a .xlsx, a .csv or an .ods.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, Input, t, tn } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, menuItems, Input, t, tn } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
@@ -535,6 +535,8 @@ export default function Sheets({ app, shell, boot }) {
     const el = gridRef.current;
     if (!el) return undefined;
     const onWheel = (e) => {
+      // Ctrl and the wheel zooms, over the panes too (useWheelZoom).
+      if (e.ctrlKey) return;
       const pin = e.target?.closest?.('.split');
       if (!pin) return;
       const corner = pin.classList.contains('sh-pin-corner');
@@ -601,6 +603,9 @@ export default function Sheets({ app, shell, boot }) {
   );
 
   useCommands(commands, [doc, model]);
+  // Ctrl and the wheel over the grid, Ctrl+Plus, Ctrl+Minus and Ctrl+0: the
+  // grid's own zoom, as the slider sets it, the cell under the pointer kept.
+  useWheelZoom({ shell, zoom: view.zoom ?? 1, setZoom: (z) => patchView({ zoom: z }), min: 0.3, max: 3, area: '.sh-grid', target: '.sh-canvas' });
 
   /* ── grid interaction ────────────────────────────────────────────────── */
 

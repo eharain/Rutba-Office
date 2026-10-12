@@ -10,6 +10,7 @@
     "./theme.css": "./src/theme.css",
     "./icons": "./src/icons.js",
     "./commands": "./src/commands.js",
+    "./zoom": "./src/zoom.js",
     "./proofing": "./src/proofing.js",
     "./messages": "./src/messages.js",
     "./catalogues": "./src/catalogues/index.js"

@@ -34,6 +34,7 @@ import { verifyDeckMaster } from './verify-deck-master.js';
 import { verifyDeckComments } from './verify-deck-comments.js';
 import { verifyDeckMath } from './verify-deck-math.js';
 import { verifyWordToc } from './verify-word-toc.js';
+import { verifyZoom } from './verify-zoom.js';
 import { verifyWordCitations } from './verify-word-citations.js';
 import { verifyWordIndex } from './verify-word-index.js';
 import { verifyWordFigures } from './verify-word-figures.js';
@@ -4022,6 +4023,18 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Zoom by Ctrl and the wheel, Ctrl+Plus, Ctrl+Minus, Ctrl+0 ───────── */
+  // Documents, Worksheets, Presentations and Mail's reading pane: the app's
+  // own level, 10% a notch or a press, the point under the pointer kept.
+  // Run alone with RUTBA_VERIFY_ONLY=zoom (with the slider's checks above).
+  const zoomByWheel = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyZoom({ open, check, until, wait, press, errorsIn, capture }, { files });
+  };
+
   const sheetFreeze = async () => {
     try {
       const rows = [];
@@ -4705,7 +4718,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4855,6 +4868,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('watch')) await sheetWatch();
     if (only.includes('sparklines')) await sheetSparklines();
     if (only.includes('zoom')) await zoomStaysOnThePage();
+    if (only.includes('zoom')) await zoomByWheel();
     if (only.includes('fit')) await wordPictureFits();
     if (only.includes('cards')) await wordCards();
     if (only.includes('sheetpic')) await sheetPicture();
@@ -5133,6 +5147,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => sheetWatch());
   await block(() => sheetSparklines());
   await block(() => zoomStaysOnThePage());
+  await block(() => zoomByWheel());
   await block(() => sheetPicture());
   await block(() => viewer());
   await block(() => slideshow());

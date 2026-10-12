@@ -364,6 +364,16 @@ export function createShell({
 
     speakAs(stores);
     Menu.setApplicationMenu(buildMenu({ send, appName, appShortNames }));
+    // Ctrl and the wheel that the page left alone (over a mail message's
+    // sandboxed frame, which the page cannot hear) is Chromium's own request
+    // to zoom: it goes to the window as Zoom In or Zoom Out, for the app to
+    // zoom its own page. The window's zoom is never used: it scales the
+    // ribbon too (owner, 2026-09-24).
+    app.on('browser-window-created', (_e, win) => {
+      win.webContents.on('zoom-changed', (_ev, direction) => {
+        sendEvent(win, 'app:command', { command: direction === 'in' ? 'view.zoomIn' : 'view.zoomOut', args: { wheel: true } });
+      });
+    });
 
     nativeTheme.on('updated', () => broadcast('theme:changed', { dark: nativeTheme.shouldUseDarkColors }));
 

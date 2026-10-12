@@ -3452,7 +3452,8 @@
     {
       "message": "Back to 100%",
       "where": [
-        "packages/office-ui/src/index.js"
+        "packages/office-ui/src/index.js",
+        "packages/office-ui/src/zoom.js"
       ]
     },
     {
@@ -30977,7 +30978,8 @@
       "message": "Zoom in",
       "where": [
         "apps/desktop/renderer/apps/pictures.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "packages/office-ui/src/zoom.js"
       ]
     },
     {
@@ -31002,7 +31004,8 @@
       "message": "Zoom out",
       "where": [
         "apps/desktop/renderer/apps/pictures.js",
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "packages/office-ui/src/zoom.js"
       ]
     },
     {

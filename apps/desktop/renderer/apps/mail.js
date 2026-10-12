@@ -20,7 +20,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, List, Item,
-  Search, Dialog, Field, Input, Select, useToast, useMenu, useCommands, menuItems,
+  Search, Dialog, Field, Input, Select, useToast, useMenu, useCommands, useWheelZoom, menuItems,
   formatWhen, formatBytes, t, tn,
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
@@ -870,6 +870,9 @@ export default function Mail({ app, shell }) {
   );
 
   useCommands(commands, [selected, message, folder, accountId, checked]);
+  // Ctrl and the wheel over the message, Ctrl+Plus, Ctrl+Minus and Ctrl+0:
+  // the reading pane's own zoom, the one View's Out and In buttons set.
+  useWheelZoom({ shell, zoom: prefs.zoom ?? 1, setZoom: (z) => setPref({ zoom: z }), min: 0.5, max: 3, area: '.ml-reader' });
 
   // Single-key navigation, the way every mail client that respects your hands
   // does it. Suppressed whenever a field has focus, so typing "j" in a search
