@@ -154,6 +154,7 @@ import { verifyEvaluate } from './verify-evaluate.js';
 import { verifyComments } from './verify-comments.js';
 import { verifyViews } from './verify-views.js';
 import { verifyProtect } from './verify-protect.js';
+import { verifyPwFast } from './verify-pwfast.js';
 import { verifyLayoutViews } from './verify-layoutviews.js';
 import { verifySlicers } from './verify-slicers.js';
 import { verifySheetArrange } from './verify-sheetarrange.js';
@@ -4736,7 +4737,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4910,6 +4911,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('comments')) await sheetComments();
     if (only.includes('views')) await sheetViews();
     if (only.includes('protect')) await sheetProtect();
+    if (only.includes('pwfast')) await verifyPwFast({ open, check, until, wait, capture: shotTo }, { dir });
     if (only.includes('layoutviews')) await sheetLayoutViews();
     if (only.includes('analysis')) await sheetAnalysis();
     if (only.includes('slicers')) await sheetSlicers();
@@ -5195,6 +5197,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => sheetComments());
   await block(() => sheetViews());
   await block(() => sheetProtect());
+  await block(() => verifyPwFast({ open, check, until, wait, capture: shotTo }, { dir }));
   await block(() => sheetLayoutViews());
   await block(() => sheetAnalysis());
   await block(() => sheetSlicers());

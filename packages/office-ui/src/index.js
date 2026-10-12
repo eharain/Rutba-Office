@@ -434,13 +434,16 @@ export function Button({
   ghost,
   pressed,
   disabled,
+  busy,
   title,
   onClick,
   children,
   className = '',
   ...rest
 }) {
-  const classes = ['rw-btn', tall ? 'tall' : '', primary ? 'primary' : '', ghost ? 'ghost' : '', !label && !children ? 'icon' : '', className]
+  // `busy`: its work is under way (a password being checked): it cannot be
+  // pressed again, and a small spinner says so in place of its icon.
+  const classes = ['rw-btn', tall ? 'tall' : '', primary ? 'primary' : '', ghost ? 'ghost' : '', !label && !children ? 'icon' : '', busy ? 'busy' : '', className]
     .filter(Boolean)
     .join(' ');
   return (
@@ -448,13 +451,14 @@ export function Button({
       type="button"
       className={classes}
       aria-pressed={pressed === undefined ? undefined : Boolean(pressed)}
-      disabled={disabled}
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
       data-tip={title || label}
       aria-label={!label && !children ? title : undefined}
       onClick={onClick}
       {...rest}
     >
-      {icon ? <Icon name={icon} size={tall ? 20 : 16} /> : null}
+      {busy ? <Spinner /> : icon ? <Icon name={icon} size={tall ? 20 : 16} /> : null}
       {label ? <span>{label}</span> : null}
       {children}
     </button>

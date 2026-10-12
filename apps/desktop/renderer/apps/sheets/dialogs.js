@@ -1254,19 +1254,30 @@ export function EvaluateDialog({ load, initial, onClose }) {
 export function ProtectDialog({ kind, onClose, onProtect }) {
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
+  // While a password is hashed (100,000 rounds) OK is held with a spinner,
+  // and the dialog stays until the protection is on.
+  const [busy, setBusy] = useState(false);
   const mismatch = password !== '' && again !== '' && again !== password;
   const ok = password === '' || again === password;
-  const submit = () => ok && onProtect({ password });
+  const submit = async () => {
+    if (!ok || busy) return;
+    setBusy(true);
+    try {
+      await onProtect({ password });
+    } finally {
+      setBusy(false);
+    }
+  };
   const enter = (e) => { if (e.key === 'Enter') submit(); };
   return (
     <Dialog
       title={kind === 'workbook' ? t('Protect Structure and Windows') : t('Protect Sheet')}
       width={420}
-      onClose={onClose}
+      onClose={busy ? undefined : onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('OK')} className="sh-protect-ok" disabled={!ok} onClick={submit} />
+          <Button label={t('Cancel')} disabled={busy} onClick={onClose} />
+          <Button primary label={t('OK')} className="sh-protect-ok" disabled={!ok} busy={busy} onClick={submit} />
         </>
       }
     >
@@ -1301,16 +1312,26 @@ export function ProtectDialog({ kind, onClose, onProtect }) {
  */
 export function PasswordDialog({ title, message, error = '', onClose, onSubmit }) {
   const [password, setPassword] = useState('');
-  const submit = () => onSubmit(password);
+  // While the password is checked OK says so with a spinner and cannot be pressed twice.
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await onSubmit(password);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <Dialog
       title={title}
       width={420}
-      onClose={onClose}
+      onClose={busy ? undefined : onClose}
       actions={
         <>
-          <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('OK')} className="sh-password-ok" onClick={submit} />
+          <Button label={t('Cancel')} disabled={busy} onClick={onClose} />
+          <Button primary label={busy ? t('Checking…') : t('OK')} className="sh-password-ok" busy={busy} onClick={submit} />
         </>
       }
     >
@@ -1336,6 +1357,7 @@ export function EditRangesDialog({ ranges = [], sheetProtected, selection = '', 
   const [picked, setPicked] = useState(ranges[0]?.title ?? null);
   const [form, setForm] = useState(null);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (picked === null || !ranges.some((r) => r.title === picked)) setPicked(ranges[0]?.title ?? null);
   }, [ranges, picked]);
@@ -1356,7 +1378,15 @@ export function EditRangesDialog({ ranges = [], sheetProtected, selection = '', 
   const save = async () => {
     if (!form) return;
     if (form.password && form.password !== form.again) { setError(t('The two passwords are not the same.')); return; }
-    const said = await onSave({ was: form.was, title: form.title.trim(), ref: form.ref.trim(), password: form.password ? form.password : form.keep ? null : '' });
+    if (busy) return;
+    // A password is hashed before the range is written: OK held with a spinner meanwhile.
+    setBusy(true);
+    let said;
+    try {
+      said = await onSave({ was: form.was, title: form.title.trim(), ref: form.ref.trim(), password: form.password ? form.password : form.keep ? null : '' });
+    } finally {
+      setBusy(false);
+    }
     if (said) { setError(said); return; }
     setPicked(form.title.trim());
     setForm(null);
@@ -1369,8 +1399,8 @@ export function EditRangesDialog({ ranges = [], sheetProtected, selection = '', 
         onClose={() => setForm(null)}
         actions={
           <>
-            <Button label={t('Cancel')} onClick={() => setForm(null)} />
-            <Button primary label={t('OK')} className="sh-range-ok" disabled={!form.title.trim() || !form.ref.trim()} onClick={save} />
+            <Button label={t('Cancel')} disabled={busy} onClick={() => setForm(null)} />
+            <Button primary label={t('OK')} className="sh-range-ok" disabled={!form.title.trim() || !form.ref.trim()} busy={busy} onClick={save} />
           </>
         }
       >

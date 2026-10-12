@@ -458,6 +458,11 @@ textarea,
   box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 40%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 .rw-btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
+/* A button whose work is under way: held, with a small spinner in its own ink. */
+.rw-btn.busy { justify-content: center; cursor: progress; }
+.rw-btn.busy:disabled { opacity: 0.82; }
+.rw-btn.busy .rw-spinner { width: 12px; height: 12px; border-width: 2px; }
+.rw-btn.primary.busy .rw-spinner { border-color: color-mix(in srgb, var(--ink-on-accent) 35%, transparent); border-top-color: var(--ink-on-accent); }
 
 /* A select or a field in the ribbon is a quiet box, not a form control. */
 .rw-groups .rw-select,

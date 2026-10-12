@@ -4061,8 +4061,9 @@ export default function Sheets({ app, shell, boot }) {
           onClose={() => setDialog(null)}
           onProtect={async ({ password }) => {
             const which = dialog;
-            setDialog(null);
+            // The dialog stays, its OK held, while a password is hashed.
             const next = await dispatch({ op: which === 'protectWorkbook' ? 'protectWorkbook' : 'protect', password });
+            setDialog((d) => (d === which ? null : d));
             if (next) {
               toast(which === 'protectWorkbook'
                 ? (password ? t('Workbook structure protected with a password — no sheet can be added, deleted, renamed, moved or hidden') : t('Workbook structure protected — no sheet can be added, deleted, renamed, moved or hidden'))

@@ -10,7 +10,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Dialog, Button, Icon, Spinner, t, msg } from '@rutba/office-ui';
+import { Dialog, Button, Icon, t, msg } from '@rutba/office-ui';
 
 /** What each app calls the thing it edits — in English; shown through `t`. */
 export const NOUN = { word: msg('document'), sheets: msg('workbook'), slides: msg('presentation') };
@@ -98,9 +98,7 @@ export function PasswordPrompt({ name, wrong = false, attempt = 0, checking = fa
       actions={
         <>
           <Button label={t('Cancel')} className="pw-open-cancel" disabled={checking} onClick={onCancel} />
-          <Button primary className="pw-open-ok" disabled={checking || !password} onClick={submit} label={checking ? t('Opening…') : t('OK')}>
-            {checking ? <Spinner style={{ width: 13, height: 13, borderWidth: 2 }} /> : null}
-          </Button>
+          <Button primary className="pw-open-ok" disabled={!password} busy={checking} onClick={submit} label={checking ? t('Opening…') : t('OK')} />
         </>
       }
     >
@@ -387,11 +385,11 @@ export function EncryptDialog({ app, encrypted = false, onClose, onSet }) {
     <Dialog
       title={t('Encrypt Document')}
       width={460}
-      onClose={onClose}
+      onClose={busy ? undefined : onClose}
       actions={
         <>
-          <Button label={t('Cancel')} className="pw-set-cancel" onClick={onClose} />
-          <Button primary label={clearing ? t('Remove password') : t('OK')} className="pw-set-ok" disabled={!ok} onClick={submit} />
+          <Button label={t('Cancel')} className="pw-set-cancel" disabled={busy} onClick={onClose} />
+          <Button primary label={clearing ? t('Remove password') : t('OK')} className="pw-set-ok" disabled={!ok && !busy} busy={busy} onClick={submit} />
         </>
       }
     >
@@ -496,8 +494,7 @@ export const PROTECT_CSS = `
 .pw-caps { font-size: 11.5px; color: var(--warn); }
 .pw-error { display: flex; align-items: flex-start; gap: 7px; margin-top: 6px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.4; color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--bad) 28%, transparent); }
 .pw-error svg { flex: none; margin-top: 1px; }
-.rw-dialog-foot .pw-open-ok { display: inline-flex; align-items: center; gap: 7px; min-width: 76px; justify-content: center; }
-.rw-dialog-foot .pw-open-ok .rw-spinner { border-color: color-mix(in srgb, var(--ink-on-accent) 35%, transparent); border-top-color: var(--ink-on-accent); }
+.rw-dialog-foot .pw-open-ok { min-width: 76px; justify-content: center; }
 
 .pw-set { display: flex; flex-direction: column; gap: 6px; padding: 0 0 12px; }
 .pw-set-lead { margin: 0 0 4px; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }

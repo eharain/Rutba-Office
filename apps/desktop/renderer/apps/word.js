@@ -3224,8 +3224,9 @@ export default function Word({ app, shell, boot }) {
           onClose={() => setEnforcing(null)}
           onStart={async (password) => {
             const spec = enforcing;
-            setEnforcing(null);
+            // The dialog stays, its OK held, while the password is hashed.
             const next = await apply({ op: 'setProtection', edit: spec.edit, formatting: spec.formatting, password: password || null });
+            setEnforcing(null);
             if (next) toast(password ? t('Protection is on. The password takes it off.') : t('Protection is on.'), { tone: 'good' });
           }}
         />

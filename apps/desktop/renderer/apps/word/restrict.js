@@ -157,9 +157,19 @@ export function RestrictPane({ protection, selection, highlight, onHighlight, on
 export function StartEnforcingDialog({ onClose, onStart }) {
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
+  // While the password is hashed (100,000 rounds) OK is held with a spinner.
+  const [busy, setBusy] = useState(false);
   const mismatch = again !== '' && again !== password;
   const ok = password === again;
-  const submit = () => ok && onStart(password);
+  const submit = async () => {
+    if (!ok || busy) return;
+    setBusy(true);
+    try {
+      await onStart(password);
+    } finally {
+      setBusy(false);
+    }
+  };
   const enter = (e) => {
     if (e.key === 'Enter') submit();
   };
@@ -167,11 +177,11 @@ export function StartEnforcingDialog({ onClose, onStart }) {
     <Dialog
       title={t('Start Enforcing Protection')}
       width={440}
-      onClose={onClose}
+      onClose={busy ? undefined : onClose}
       actions={
         <>
-          <Button label={t('Cancel')} className="wd-enforce-cancel" onClick={onClose} />
-          <Button primary label={t('OK')} className="wd-enforce-ok" disabled={!ok} onClick={submit} />
+          <Button label={t('Cancel')} className="wd-enforce-cancel" disabled={busy} onClick={onClose} />
+          <Button primary label={t('OK')} className="wd-enforce-ok" disabled={!ok} busy={busy} onClick={submit} />
         </>
       }
     >
@@ -196,19 +206,29 @@ export function StartEnforcingDialog({ onClose, onStart }) {
 /** Unprotect Document: the password Stop Protection needs, and Word's refusal when it is wrong. */
 export function UnprotectDialog({ error = '', onClose, onSubmit }) {
   const [password, setPassword] = useState('');
+  // While the password is checked OK says so with a spinner and cannot be pressed twice.
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (error) setPassword('');
   }, [error]);
-  const submit = () => onSubmit(password);
+  const submit = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await onSubmit(password);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <Dialog
       title={t('Unprotect Document')}
       width={400}
-      onClose={onClose}
+      onClose={busy ? undefined : onClose}
       actions={
         <>
-          <Button label={t('Cancel')} className="wd-unprotect-cancel" onClick={onClose} />
-          <Button primary label={t('OK')} className="wd-unprotect-ok" onClick={submit} />
+          <Button label={t('Cancel')} className="wd-unprotect-cancel" disabled={busy} onClick={onClose} />
+          <Button primary label={busy ? t('Checking…') : t('OK')} className="wd-unprotect-ok" busy={busy} onClick={submit} />
         </>
       }
     >
