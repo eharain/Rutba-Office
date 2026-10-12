@@ -118,6 +118,12 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               );
             })}
           </Group>
+          <Group label={t('Captions')}>
+            <C cmds={cmds} id="captions.import" tall />
+            <Rows>
+              <C cmds={cmds} id="captions.export" />
+            </Rows>
+          </Group>
           <Group label={t('Markers')}>
             <C cmds={cmds} id="marker.add" tall />
             <Rows>

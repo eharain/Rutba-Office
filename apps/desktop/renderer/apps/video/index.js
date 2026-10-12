@@ -25,6 +25,7 @@ import {
 } from '@rutba/studio/project';
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
 import { placeTakes, settleTakes } from '@rutba/studio/recorder';
+import { parseCaptions, placeCaptions, captionsOf, writeSrt, writeVtt, isCaption } from '@rutba/studio/captions';
 import { RecorderPanel } from './recorder/panel.js';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
 import { MediaLibrary, mediaKind, MEDIA_EXTENSIONS } from './media.js';
@@ -302,6 +303,55 @@ export default function VideoEditor({ app, shell, boot }) {
     }
   }, [shell, media, edit, toast]);
 
+  /** A caption file (.srt or .vtt) onto the caption track: its cues as captions, replacing any there. */
+  const importCaptions = useCallback(async (given = null) => {
+    let file = given;
+    if (!file) {
+      const picked = await shell.dialog.open({
+        title: t('Import Captions'),
+        filters: [{ name: t('Captions (.srt, .vtt)'), extensions: ['srt', 'vtt'] }, { name: t('All files'), extensions: ['*'] }],
+        multiple: false,
+      });
+      file = picked?.[0] || null;
+    }
+    if (!file) return;
+    try {
+      const { bytes } = await shell.fs.read({ path: file });
+      const { cues } = parseCaptions(new TextDecoder('utf-8').decode(bytes), file);
+      if (!cues.length) {
+        toast(t('{name} holds no captions this editor can read.', { name: basename(file) }), { tone: 'bad', ms: 6000 });
+        return;
+      }
+      let ids = [];
+      edit(t('Import Captions'), (d) => { const r = placeCaptions(d, cues, { aspect: d.options.aspect }); ids = r.ids; return r.doc; });
+      setSelected(ids.slice(0, 1));
+      toast(tn(cues.length, '{count} caption from {name} is on its own track.', '{count} captions from {name} are on their own track.', { name: basename(file) }), { tone: 'good', ms: 5000 });
+    } catch (err) {
+      toast(t('{name} could not be opened: {reason}', { name: basename(file), reason: err.message }), { tone: 'bad', ms: 8000 });
+    }
+  }, [shell, edit, toast]);
+
+  /** The caption track written as a SubRip or a WebVTT file, by the name chosen. */
+  const exportCaptions = useCallback(async () => {
+    const cues = captionsOf(docRef.current);
+    if (!cues.length) return;
+    const base = (path ? basename(path) : t('Untitled video')).replace(/\.[^.]+$/, '');
+    const target = await shell.dialog.save({
+      title: t('Export Captions'),
+      defaultPath: `${base}.srt`,
+      filters: [{ name: t('SubRip captions (.srt)'), extensions: ['srt'] }, { name: t('WebVTT captions (.vtt)'), extensions: ['vtt'] }],
+    });
+    if (!target) return;
+    const vtt = /\.vtt$/i.test(target);
+    const file = /\.(srt|vtt)$/i.test(target) ? target : `${target}.srt`;
+    try {
+      await shell.fs.write({ path: file, bytes: new TextEncoder().encode(vtt ? writeVtt(cues) : writeSrt(cues)) });
+      toast(tn(cues.length, '{count} caption written to {name}', '{count} captions written to {name}', { name: basename(file) }), { tone: 'good', ms: 5000 });
+    } catch (err) {
+      toast(t('The captions could not be saved: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+    }
+  }, [shell, path, toast]);
+
   /** Read a .rvid and make it this window's project. */
   const openProject = useCallback(async (file, { bytes = null, recovered = null } = {}) => {
     stop();
@@ -348,7 +398,7 @@ export default function VideoEditor({ app, shell, boot }) {
     const files = await shell.dialog.open({
       title: t('Open'),
       filters: [
-        { name: t('Video projects and media'), extensions: ['rvid', ...MEDIA_EXTENSIONS] },
+        { name: t('Video projects and media'), extensions: ['rvid', ...MEDIA_EXTENSIONS, 'srt', 'vtt'] },
         { name: t('All files'), extensions: ['*'] },
       ],
       multiple: true,
@@ -360,8 +410,10 @@ export default function VideoEditor({ app, shell, boot }) {
       else openProject(project);
       return;
     }
+    const captions = files.find((f) => /\.(srt|vtt)$/i.test(f));
+    if (captions) importCaptions(captions);
     addFiles(files);
-  }, [shell, doc, dirty, openProject, addFiles]);
+  }, [shell, doc, dirty, openProject, addFiles, importCaptions]);
   appMenuOpen.current = openFiles;
 
   const insertMedia = useCallback(async () => {
@@ -433,8 +485,10 @@ export default function VideoEditor({ app, shell, boot }) {
   useFileDrop(useCallback((files) => {
     const project = files.find((f) => mediaKind(f) === 'project');
     if (project) shell.win.create({ app: 'video', file: project });
+    const captions = files.find((f) => /\.(srt|vtt)$/i.test(f));
+    if (captions) importCaptions(captions);
     addFiles(files);
-  }, [addFiles, shell]));
+  }, [addFiles, shell, importCaptions]));
 
   // Autosave: a copy in the recovery folder soon after the first unsaved
   // change, then every half minute while there is unsaved work, dropped on a
@@ -596,6 +650,8 @@ export default function VideoEditor({ app, shell, boot }) {
     'file.saveAs': { label: t('Save As'), icon: 'save', key: 'Mod+Shift+S', run: saveAs },
     'file.export': { label: t('Export'), icon: 'export', key: 'Mod+E', disabled: !hasClips || Boolean(exporting), tip: t('write the video file, with its sound'), run: () => setExportOpen(true) },
     'insert.media': { label: t('Add Media'), icon: 'plus', key: 'Mod+I', tip: t('videos, sound and pictures, placed one after another'), run: insertMedia },
+    'captions.import': { label: t('Import Captions'), icon: 'captions', tip: t('a SubRip (.srt) or WebVTT (.vtt) file, each caption a clip on its own track'), run: () => importCaptions() },
+    'captions.export': { label: t('Export Captions'), icon: 'export', disabled: !doc.patches.some(isCaption), tip: t('the caption track as a .srt or .vtt file, to send beside the video'), run: exportCaptions },
     'record.screen': { label: t('Record Screen'), icon: 'record', disabled: Boolean(exporting) || recordOpen, tip: t('a screen, a window or a region, with the camera and sound, onto the timeline'), run: () => { stop(); setRecordOpen(true); } },
     'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', disabled: !history.current.canUndo, run: undo },
     'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', disabled: !history.current.canRedo, run: redo },
@@ -718,7 +774,7 @@ export default function VideoEditor({ app, shell, boot }) {
 
   const onLane = (section, lane, change) => edit(t('Track'), (d) => ({ ...d, lanes: { ...d.lanes, [section]: { ...(d.lanes?.[section] || {}), [lane]: { ...((d.lanes?.[section] || {})[lane] || {}), ...change } } } }));
   const dragBase = useRef(null);
-  const kindName = (type) => ({ video: t('Video clip'), image: t('Picture'), sound: t('Sound clip'), text: t('Title'), shape: t('Title background') }[type] || t('Clip'));
+  const kindName = (type) => ({ video: t('Video clip'), image: t('Picture'), sound: t('Sound clip'), text: t('Title'), shape: t('Title background'), caption: t('Caption'), pointer: t('Pointer') }[type] || t('Clip'));
   const reason = useMemo(() => unsupportedReason(), []);
   const name = path ? basename(path) : t('Untitled video');
 

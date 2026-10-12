@@ -121,10 +121,10 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
   return (
     <div className="vd-inspector">
       <div className="vd-insp-head">
-        <span className={`vd-insp-kind k-${clip.type}`}><Icon name={{ video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape' }[clip.type] || 'file'} size={14} /></span>
+        <span className={`vd-insp-kind k-${clip.type}`}><Icon name={clip.caption ? 'captions' : { video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape', pointer: 'pointer' }[clip.type] || 'file'} size={14} /></span>
         <div className="vd-insp-title">
           <strong>{clip.type === 'text' ? clip.text || t('Title') : clip.name || kindName(clip.type)}</strong>
-          <small>{kindName(clip.type)}{selected.length > 1 ? `, ${t('{count} picked', { count: selected.length })}` : ''}</small>
+          <small>{kindName(clip.caption ? 'caption' : clip.type)}{selected.length > 1 ? `, ${t('{count} picked', { count: selected.length })}` : ''}</small>
         </div>
       </div>
 
@@ -224,7 +224,7 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
       {clip.type === 'text' ? (
         <section className="vd-insp-section">
           <h3>{t('Words')}</h3>
-          <textarea className="rw-input vd-text" rows={3} value={clip.text || ''} onChange={(e) => set(t('Typing'), { text: e.target.value }, `text-${clip.id}`)} />
+          <textarea className="rw-input vd-text" dir="auto" rows={3} value={clip.text || ''} onChange={(e) => set(t('Typing'), { text: e.target.value }, `text-${clip.id}`)} />
           <Row label={t('Size')}>
             <Slider value={clip.sizeFrac || 0.04} min={0.015} max={0.14} step={0.002} onChange={(x) => set(t('Size'), { sizeFrac: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}`} />
           </Row>

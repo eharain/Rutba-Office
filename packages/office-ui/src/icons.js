@@ -170,6 +170,12 @@ const PATHS = {
   trDissolve: [P('M4 6h16v12H4z'), P('M8 9h.01M12 11h.01M16 9h.01M9 14h.01M15 14h.01M12 15.5h.01', { strokeWidth: 2.4 })],
   // the recorder: record, the screen, a window, a region, the camera, the microphone, the computer's sound
   record: [P('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z'), P('M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', { fill: 'currentColor' })],
+  // Video's introductions: captions, scenes, a brand kit, a teleprompter, the pointer.
+  captions: [P('M3 6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z'), P('M10.5 10a2.4 2.4 0 1 0 0 4'), P('M17 10a2.4 2.4 0 1 0 0 4')],
+  scenes: [P('M3 7a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z'), P('M19 7.5v9M22 9v6')],
+  brand: [P('M12 3a9 9 0 1 0 0 18c1.1 0 1.9-.8 1.9-1.8 0-.5-.2-.9-.5-1.2a1.7 1.7 0 0 1 1.3-3H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z'), P('M7.5 11.5h.01M9.5 7.5h.01M14.5 7.5h.01M16.8 11h.01')],
+  prompter: [P('M4 6h11M4 10h11M4 14h7'), P('M19 5v14'), P('m16 16 3 3 3-3')],
+  pointer: [P('M5 3l14 7-6.2 1.8L10.8 18z'), P('m13 12 5 5')],
   screen: [P('M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z'), P('M9 21h6M12 17v4')],
   window: [P('M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z'), P('M3 8.5h18'), P('M6 6.25h.01M8.5 6.25h.01', { strokeWidth: 2.2 })],
   region: [P('M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3'), P('M9 9h6v6H9z', { strokeDasharray: '2 2' })],

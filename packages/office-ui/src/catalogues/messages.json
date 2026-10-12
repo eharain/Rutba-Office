@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5854,
+  "count": 5866,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -4879,6 +4879,7 @@
     {
       "message": "Caption",
       "where": [
+        "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
       ]
     },
@@ -4903,6 +4904,7 @@
     {
       "message": "Captions",
       "where": [
+        "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -4910,6 +4912,12 @@
       "message": "Captions & Subtitles",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Captions (.srt, .vtt)",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -10065,6 +10073,12 @@
       ]
     },
     {
+      "message": "Export Captions",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Export as PDF",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -13287,6 +13301,12 @@
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Import Captions",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -21103,6 +21123,12 @@
       ]
     },
     {
+      "message": "Pointer",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Pointers",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
@@ -27949,6 +27975,12 @@
       ]
     },
     {
+      "message": "SubRip captions (.srt)",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Subentry",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js"
@@ -29087,6 +29119,12 @@
       "message": "The camera was not allowed.",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/camera.js"
+      ]
+    },
+    {
+      "message": "The captions could not be saved: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -33169,6 +33207,12 @@
       ]
     },
     {
+      "message": "WebVTT captions (.vtt)",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Website",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -34013,6 +34057,12 @@
       "message": "[Stop Previous Sound]",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "a SubRip (.srt) or WebVTT (.vtt) file, each caption a clip on its own track",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -35138,6 +35188,12 @@
       ]
     },
     {
+      "message": "the caption track as a .srt or .vtt file, to send beside the video",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "the clip ends at the playhead",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -35633,6 +35689,20 @@
       "plural": "{count} calendars",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "{count} caption from {name} is on its own track.",
+      "plural": "{count} captions from {name} are on their own track.",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "{count} caption written to {name}",
+      "plural": "{count} captions written to {name}",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -36508,6 +36578,12 @@
       "message": "{name} has more than one sheet. The first row of the one you choose names the fields.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "{name} holds no captions this editor can read.",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {

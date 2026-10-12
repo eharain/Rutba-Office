@@ -104,6 +104,23 @@ const PRIME_SLICE_MS = 100;
 
 const FONT_STACK = '"Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif';
 
+/**
+ * A text layer's canvas font: its weight and size, in its own family when it
+ * names one (a brand kit's font), the stack after it for any letter the
+ * family does not have (Urdu, Arabic and Hindi in a Latin face fall through
+ * to a face that has them, so a brand font never draws boxes).
+ */
+export function fontCss(weight, sizePx, family = '') {
+    const name = String(family || '').replace(/["\\]/g, '').trim();
+    return `${weight || 600} ${sizePx}px ${name ? `"${name}", ` : ''}${FONT_STACK}`;
+}
+
+/** A text layer's lines: its words split where they break, one line at least. */
+const textLines = (text) => String(text ?? '').split(/\r?\n/);
+
+/** The space from one line of a text layer to the next, by its size. */
+const LINE_GAP = 1.25;
+
 // ── capability probing ───────────────────────────────────────────────────────
 
 // H.264 in MP4 first: every platform accepts it, and several reject WebM
@@ -434,8 +451,12 @@ function layoutLines(ctx, text, maxWidth) {
 export function buildPlan({ canvas, images, title, body, logo, options, layerPatches, context, assets, videos }) {
     const opts = { ...DEFAULTS, ...(options || {}) };
     const aspect = ASPECTS[opts.aspect] || ASPECTS.vertical;
-    const W = aspect.width;
-    const H = aspect.height;
+    // An export preset may ask for a frame of its own size (a small one for
+    // email); every layer is in fractions of the frame, so it draws the same
+    // at any size. Even numbers, as encoders want.
+    const frame = opts.frame && Number(opts.frame.width) > 1 && Number(opts.frame.height) > 1 ? opts.frame : null;
+    const W = frame ? Math.max(2, Math.round(Number(frame.width) / 2) * 2) : aspect.width;
+    const H = frame ? Math.max(2, Math.round(Number(frame.height) / 2) * 2) : aspect.height;
     canvas.width = W;
     canvas.height = H;
 
@@ -513,7 +534,9 @@ export function buildPlan({ canvas, images, title, body, logo, options, layerPat
     // to a bare background a beat before the card lands.
     if (outro > 0) slots[count - 1].end = duration;
 
-    const bitrate = Math.round(W * H * opts.fps * (QUALITY_BPP[opts.quality] ?? QUALITY_BPP.high));
+    const bitrate = Number(opts.bitrate) > 0
+        ? Math.round(Number(opts.bitrate))
+        : Math.round(W * H * opts.fps * (QUALITY_BPP[opts.quality] ?? QUALITY_BPP.high));
 
     const plan = {
         opts, theme, W, H, fps: opts.fps, duration, bitrate,
@@ -658,11 +681,12 @@ export function applyLayerPatches(plan, patches) {
             } else if (existing.type === 'text') {
                 if (patch.fx !== undefined) existing.x = W * patch.fx;
                 if (patch.fy !== undefined) existing.y = H * patch.fy;
+                if (patch.fontFamily !== undefined) existing.font = fontCss(existing.weight, existing.sizePx || 24, patch.fontFamily);
                 if (patch.sizeFrac !== undefined) {
                     // A corner-drag resize on a compiled text layer (the
                     // footer) — the font re-resolves like an appended one's.
                     existing.sizePx = Math.max(10, Math.round(W * patch.sizeFrac));
-                    existing.font = `${existing.weight || 600} ${existing.sizePx}px ${FONT_STACK}`;
+                    existing.font = fontCss(existing.weight, existing.sizePx, existing.fontFamily);
                 }
             } else if (existing.type === 'qr') {
                 if (patch.fx !== undefined) existing.x = W * patch.fx;
@@ -708,7 +732,8 @@ export function applyLayerPatches(plan, patches) {
                 enter: patch.enter || env.enter,
                 exit: patch.exit || env.exit,
                 z: patch.z ?? nextZ(),
-                font: `${patch.weight || 600} ${sizePx}px ${FONT_STACK}`,
+                font: fontCss(patch.weight, sizePx, patch.fontFamily),
+                fontFamily: patch.fontFamily || '',
                 sizePx,
                 color: themeColor(patch.color, theme.text),
                 align: patch.align || 'center',
@@ -1066,7 +1091,7 @@ function applyKeyedGeometry(plan, layer, t) {
             const sizePx = Math.max(10, Math.round(W * kfrac));
             set('sizeFrac', kfrac);
             set('sizePx', sizePx);
-            set('font', `${layer.weight || 600} ${sizePx}px ${FONT_STACK}`);
+            set('font', fontCss(layer.weight, sizePx, layer.fontFamily));
         }
         if (layer.type === 'image' && kfw !== null) {
             const w = W * kfw;
@@ -1477,6 +1502,25 @@ function drawWhole(ctx, plan, layer, entry, drawable) {
  */
 function drawInset(ctx, plan, entry, x, y, w, h, layer) {
     const shape = layer.insetShape;
+    if (layer.fit === 'contain') {
+        const s = srcRect(entry.width, entry.height, layer);
+        const f = containRect(s.sw, s.sh, w, h);
+        const fx = x + (w - f.w) / 2;
+        const fy = y + (h - f.h) / 2;
+        ctx.save();
+        if (shape === 'rounded') {
+            roundRect(ctx, fx, fy, f.w, f.h, Math.min(f.w, f.h) * 0.04);
+            ctx.clip();
+        }
+        if (layer.flipX || layer.flipY) {
+            ctx.translate(fx + f.w / 2, fy + f.h / 2);
+            ctx.scale(layer.flipX ? -1 : 1, layer.flipY ? -1 : 1);
+            ctx.translate(-(fx + f.w / 2), -(fy + f.h / 2));
+        }
+        drawSrc(ctx, entry.img, s, fx, fy, f.w, f.h);
+        ctx.restore();
+        return;
+    }
     if (!shape && !layer.flipX && !layer.flipY) {
         drawCoverInRect(ctx, plan, entry, x, y, w, h, layer);
         return;
@@ -1814,23 +1858,35 @@ function paintText(ctx, plan, layer, time) {
     ctx.textBaseline = layer.baseline || 'top';
     if (layer.rtl) ctx.direction = 'rtl';
 
+    // A caption of two lines (a subtitle file's cue) is two lines: each its
+    // own fillText, a line apart, grown away from the edge the layer is
+    // anchored on (up from a bottom baseline, so a caption never runs off the
+    // foot of the frame). One line paints exactly as it always did.
+    const size = layer.sizePx || 24;
+    const all = textLines(layer.text);
+    const lines = textLines(text);
+    const step = Math.round(size * LINE_GAP);
+    const lift = layer.baseline === 'bottom' ? (all.length - 1) * step : layer.baseline === 'middle' ? ((all.length - 1) * step) / 2 : 0;
+    const top = layer.y - lift;
+
     if (layer.bg) {
         // A pill behind the text — theme scrim, or a solid color (the accent
         // for price chips and stickers). Sized off the FULL text so a type-on
         // reveal doesn't pulse the pill width every frame.
-        const size = layer.sizePx || 24;
-        const w = ctx.measureText(layer.text).width;
+        const w = Math.max(...all.map((line) => ctx.measureText(line).width));
         const padX = Math.round(size * 0.55);
         const padY = Math.round(size * 0.3);
         const x0 = layer.align === 'center' ? layer.x - w / 2 : layer.align === 'right' ? layer.x - w : layer.x;
-        const y0 = layer.baseline === 'bottom' ? layer.y - size : layer.baseline === 'middle' ? layer.y - size / 2 : layer.y;
+        const y0 = layer.baseline === 'bottom' ? top - size : layer.baseline === 'middle' ? top - size / 2 : top;
+        const h = size + (all.length - 1) * step;
         ctx.fillStyle = layer.pillColor || plan.theme.scrim;
-        roundRect(ctx, x0 - padX, y0 - padY, w + padX * 2, size + padY * 2, Math.round(size * 0.6));
+        roundRect(ctx, x0 - padX, y0 - padY, w + padX * 2, h + padY * 2, Math.round(size * 0.6));
         ctx.fill();
     }
 
     ctx.fillStyle = layer.color;
-    ctx.fillText(text, layer.x, layer.y);
+    if (lines.length === 1) ctx.fillText(text, layer.x, top);
+    else lines.forEach((line, i) => { if (line) ctx.fillText(line, layer.x, top + i * step); });
     ctx.restore();
 }
 
@@ -2454,16 +2510,20 @@ export function layerBounds(ctx, plan, layer) {
         return { x: 0, y: 0, w: plan.W, h: plan.H };
     }
     if (layer.type === 'text') {
+        const lines = textLines(layer.text);
         ctx.save();
         ctx.font = layer.font;
         if (layer.rtl) ctx.direction = 'rtl';
-        const w = ctx.measureText(layer.text).width;
+        const w = Math.max(...lines.map((line) => ctx.measureText(line).width));
         ctx.restore();
         const size = layer.sizePx || 24;
+        const step = Math.round(size * LINE_GAP);
+        const extra = (lines.length - 1) * step;
+        const lift = layer.baseline === 'bottom' ? extra : layer.baseline === 'middle' ? extra / 2 : 0;
         const x0 = layer.align === 'center' ? layer.x - w / 2 : layer.align === 'right' ? layer.x - w : layer.x;
-        const y0 = layer.baseline === 'bottom' ? layer.y - size : layer.baseline === 'middle' ? layer.y - size / 2 : layer.y;
+        const y0 = (layer.baseline === 'bottom' ? layer.y - size : layer.baseline === 'middle' ? layer.y - size / 2 : layer.y) - lift;
         // Padded a little so thin text is still clickable.
-        return { x: x0 - 8, y: y0 - 6, w: w + 16, h: Math.round(size * 1.3) + 8 };
+        return { x: x0 - 8, y: y0 - 6, w: w + 16, h: Math.round(size * 1.3) + extra + 8 };
     }
     return null;
 }
@@ -2581,9 +2641,9 @@ export function resizePatch(ctx, plan, layer, kind, k) {
         const newFrac = +(base * kk).toFixed(4);
         const sizePx = Math.max(10, Math.round(plan.W * newFrac));
         ctx.save();
-        ctx.font = `${layer.weight || 600} ${sizePx}px ${FONT_STACK}`;
+        ctx.font = fontCss(layer.weight, sizePx, layer.fontFamily);
         if (layer.rtl) ctx.direction = 'rtl';
-        const tw = ctx.measureText(layer.text).width;
+        const tw = Math.max(...textLines(layer.text).map((line) => ctx.measureText(line).width));
         ctx.restore();
         const newW = tw + 16; // the constants in layerBounds' text case
         const newH = Math.round(sizePx * 1.3) + 8;

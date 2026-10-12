@@ -282,7 +282,9 @@ export default function Timeline({
   );
 }
 
-const KIND_ICON = { video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape' };
+const KIND_ICON = { video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape', pointer: 'pointer' };
+/** Words the engine draws right to left: Hebrew, Arabic and Urdu letters, as its text painter tells them. */
+const RTL_TEXT = /[\u0590-\u08FF\uFB50-\uFDFF\uFE70-\uFEFC]/;
 /** A recording's takes show what they are: the screen, the camera, the voice, the computer's sound. */
 const TAKE_ICON = { screen: 'screen', camera: 'camera', voice: 'mic', computer: 'speaker' };
 
@@ -291,12 +293,15 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
   const w = Math.max(4, lengthOf(clip) * pps);
   const kind = clip.type;
   const tr = clip.transition;
+  const caption = Boolean(clip.caption && kind === 'text');
   const label = kind === 'text' ? clip.text || t('Title') : kind === 'shape' ? t('Title background') : clip.name || '';
   return (
     <div
-      className={`vd-clip k-${kind}${selected ? ' selected' : ''}${missing ? ' missing' : ''}`}
+      className={`vd-clip k-${kind}${caption ? ' k-caption' : ''}${selected ? ' selected' : ''}${missing ? ' missing' : ''}`}
       data-id={clip.id}
       data-kind={kind}
+      data-caption={caption ? '1' : undefined}
+      data-dir={kind === 'text' ? (RTL_TEXT.test(clip.text || '') ? 'rtl' : 'ltr') : undefined}
       data-start={clip.timing.start}
       data-end={clip.timing.end}
       data-transition={tr ? tr.kind : ''}
@@ -312,8 +317,8 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
     >
       <ClipArt clip={clip} w={w} h={h} pps={pps} media={media} version={mediaVersion} source={source} />
       <div className="vd-clip-label">
-        <Icon name={TAKE_ICON[clip.take] || KIND_ICON[kind] || 'file'} size={11} />
-        <span className="vd-clip-name">{label}</span>
+        <Icon name={caption ? 'captions' : TAKE_ICON[clip.take] || KIND_ICON[kind] || 'file'} size={11} />
+        <span className="vd-clip-name" dir="auto">{label}</span>
         <span className="vd-clip-len">{timecode(lengthOf(clip))}</span>
       </div>
       {clip.group ? <span className="vd-link" data-tip={t('Linked: picture and sound move together')}><Icon name="link" size={10} /></span> : null}
