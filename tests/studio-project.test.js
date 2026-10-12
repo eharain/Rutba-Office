@@ -9,7 +9,7 @@ import {
   emptyProject, normaliseProject, addMedia, splitAt, splitAll, splitClips, trimStart, trimEnd,
   removeClips, closeGap, gapAt, moveClip, copyClips, pasteClips, duplicateClips, snapTime,
   unlinkClips, linkClips, addMarker, nextMarker, previousMarker, removeMarker, setTransition,
-  clearTransition, addTitle, planPatches, videoKeys, projectMedia, projectDuration, laneClips,
+  clearTransition, addTitle, setRange, clearRange, cutToRange, planPatches, videoKeys, projectMedia, projectDuration, laneClips,
   clipById, partnersOf, laneCount, clipsAt, previousOnLane, TITLE_PRESETS, animationName, TEXT_ANIMATIONS,
 } from '../packages/studio/src/project.js';
 import { buildPlan, layersEnd, paintFrame } from '../packages/studio/src/index.js';
@@ -206,6 +206,29 @@ test('V7: markers in order, next and previous from the playhead', () => {
   assert.equal(nextMarker(doc, 5), null);
   assert.equal(previousMarker(doc, 5).name, 'One');
   assert.equal(removeMarker(doc, doc.markers[0].id).markers.length, 1);
+});
+
+test('V10: In and Out points; the project cut to them plays what it played there, from zero', () => {
+  const { doc, a, b } = three();
+  const r = setRange(doc, { in: 4 });
+  assert.deepEqual(r.range, { in: 4, out: 15 }, 'the Out point defaults to the end');
+  const r2 = setRange(r, { out: 8 });
+  assert.deepEqual(r2.range, { in: 4, out: 8 });
+  assert.deepEqual(setRange(r2, { in: 9 }).range, { in: 9, out: 15 }, 'an In after the Out moves the Out');
+  assert.equal(clearRange(r2).range, null);
+  const cut = cutToRange(addMarker(doc, 5, 'In range'), 4, 8);
+  assert.equal(projectDuration(cut), 4);
+  const first = cut.patches.find((p) => p.type === 'video' && p.url === A.url);
+  assert.deepEqual(first.timing, { start: 0, end: 2 });
+  near(first.offset, 4, 'the first clip starts where the range began in it');
+  const pics = cut.patches.filter((p) => p.type === 'video');
+  assert.equal(pics.length, 2);
+  const second = pics.find((p) => p.url === B.url);
+  assert.deepEqual(second.timing, { start: 2, end: 4 });
+  near(second.offset, 0, 'the next clip from its own start');
+  assert.equal(cut.patches.filter((p) => p.type === 'image').length, 0, 'what lies outside is gone');
+  assert.deepEqual(cut.markers.map((m) => m.t), [1]);
+  assert.equal(clipById(cut, b[0]).timing.end, 4);
 });
 
 test('V15: a crossfade overlaps the clips by its length, the later clips moving up, the sound crossfading too', () => {

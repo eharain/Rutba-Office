@@ -807,6 +807,38 @@ export function addTitle(doc, preset, { at = 0, text = '' } = {}) {
     return { doc: { ...doc, patches }, ids };
 }
 
+// ── In and Out (V10) ─────────────────────────────────────────────────────────
+
+/** Mark the In or the Out point; the other end keeps its place (or the project's edge). */
+export function setRange(doc, { in: a = null, out: b = null } = {}) {
+    const end = projectDuration(doc);
+    const was = doc.range || { in: 0, out: end };
+    let from = a ?? was.in;
+    let to = b ?? was.out;
+    if (to <= from + EPS) {
+        if (a !== null) to = Math.max(end, from + MIN_CLIP);
+        else from = 0;
+    }
+    return { ...doc, range: { in: round(Math.max(0, from)), out: round(Math.max(from + MIN_CLIP, to)) } };
+}
+
+export const clearRange = (doc) => ({ ...doc, range: null });
+
+/**
+ * The project cut down to the stretch from `a` to `b`, starting at zero:
+ * what Export renders when only the In to Out range is wanted. Clips that
+ * cross an edge are split there, so they play exactly what they played.
+ */
+export function cutToRange(doc, a, b) {
+    let out = splitAll(doc, b).doc;
+    out = splitAll(out, a).doc;
+    const keep = (p) => !p.timing || (p.timing.start < b - EPS && p.timing.end > a + EPS);
+    out = { ...out, patches: out.patches.filter(keep), range: null };
+    out = shift(out, clipsOf(out).map((p) => p.id), -a);
+    out.markers = (out.markers || []).filter((m) => m.t >= a && m.t <= b).map((m) => ({ ...m, t: round(m.t - a) }));
+    return out;
+}
+
 // ── what the renderer gets ───────────────────────────────────────────────────
 
 /**

@@ -23,6 +23,7 @@ import { consoleMessage } from './console-message.js';
 import { gradientPng, joinPictureParagraphs } from './sample-picture.js';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { verifyViewer } from './verify-viewer.js';
+import { verifyVideoEditor, verifyVideoBasics, verifyVideoSplit } from './verify-video-editor.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
 import { verifyDeckArrange } from './verify-deck-arrange.js';
 import { verifyDeckTableDesign } from './verify-deck-table-design.js';
@@ -4720,7 +4721,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4817,6 +4818,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordink')) await verifyWordInk({ open, check, until, wait, capture: shotTo }, { dir });
     if (only.includes('narration')) await verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('deckvideo')) await verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir });
+    if (only.includes('video-editor')) {
+      await verifyVideoBasics({ open, check, until }, { wav: files.wav });
+      await verifyVideoSplit({ open, check, until, wait, errorsIn }, { wav: files.wav });
+      await verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir });
+    }
     if (only.includes('viewdirection')) await verifyDeckDirection({ open, check, until, wait }, { dir });
     if (only.includes('deckrtl')) await verifyDeckRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('deckzoom')) await verifyDeckZoom({ open, check, until, wait, doc, sessionFor }, { dir });
@@ -5098,6 +5104,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyWordInk({ open, check, until, wait, capture: shotTo }, { dir }));
   await block(() => verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await block(() => verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => verifyDeckDirection({ open, check, until, wait }, { dir }));
   await block(() => verifyDeckRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckZoom({ open, check, until, wait, doc, sessionFor }, { dir }));
@@ -5327,36 +5334,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
 
-  /* ── Video: the media element loads what the protocol served ─────────── */
+  /* ── Video: the media loads what the protocol served, and a timeline is built ── */
 
-  try {
-    const win = await open('video', files.wav);
-
-    // The media element decodes on its own schedule and the timeline is drawn
-    // from what it reports, so both are waited for rather than slept through.
-    await until(
-      () => win.webContents.executeJavaScript(`(() => { const v = document.querySelector('video'); return Boolean(v && v.readyState >= 1 && isFinite(v.duration)); })()`),
-      'the media to report a duration'
-    );
-    const media = await win.webContents.executeJavaScript(`(() => {
-      const v = document.querySelector('video');
-      return v ? { duration: v.duration, ready: v.readyState, err: v.error ? v.error.code : null } : null;
-    })()`);
-    check(
-      'video: the media loads and reports a duration',
-      Boolean(media && Number.isFinite(media.duration) && media.duration > 0),
-      media ? `duration ${media.duration}, readyState ${media.ready}${media.err ? `, error ${media.err}` : ''}` : 'no media element'
-    );
-
-    await until(
-      () => win.webContents.executeJavaScript(`document.querySelectorAll('.vd-clip').length > 0`),
-      'the timeline to be built'
-    );
-    const clips = await win.webContents.executeJavaScript(`document.querySelectorAll('.vd-clip').length`);
-    check('video: a timeline is built from it', clips === 1, `${clips} clips`);
-  } catch (err) {
-    check('video: the checks ran', false, err.message);
-  }
+  await verifyVideoBasics({ open, check, until }, { wav: files.wav });
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
@@ -6551,35 +6531,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('image: the button checks ran', false, err.message);
   }
 
-  try {
-    const win = await open('video', files.wav);
-    const js = (code) => win.webContents.executeJavaScript(code);
-    // The media element decodes on its own schedule; with a corpus run on
-    // the same machine it once took past eight seconds.
-    await until(() => js(`document.querySelectorAll('.vd-clip').length > 0`), 'the timeline', 20000);
-    // Move the playhead to the middle with the scrubber, then split there.
-    await js(`(() => {
-      const s = document.querySelector('.vd-scrub');
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, String(Number(s.max || 1) / 2));
-      s.dispatchEvent(new Event('input', { bubbles: true }));
-      s.dispatchEvent(new Event('change', { bubbles: true }));
-      return s.value;
-    })()`);
-    await wait(300);
-    const scrubbed = await js(`document.querySelector('.vd-time')?.textContent ?? ''`);
-    // Split lives on the Edit tab. A check that looked for it on Home found
-    // nothing and said "1 clips", which is the wrong sentence for "no button".
-    await clickTab(win, 'Edit');
-    await wait(150);
-    const pressed = await clickIn(win, 'Split');
-    await until(() => js(`document.querySelectorAll('.vd-clip').length === 2`), 'the clip to split in two', 4000).catch(() => {});
-    const clips = await js(`document.querySelectorAll('.vd-clip').length`);
-    check('video: Split at the playhead makes two clips', clips === 2, `${pressed}; playhead at ${scrubbed}; ${clips} clips`);
-    const complaints = await errorsIn(win);
-    check('video: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
-  } catch (err) {
-    check('video: the button checks ran', false, err.message);
-  }
+  await verifyVideoSplit({ open, check, until, wait, errorsIn }, { wav: files.wav });
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);

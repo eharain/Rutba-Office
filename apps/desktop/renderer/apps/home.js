@@ -14,6 +14,9 @@ import { WhatsNew } from '../whatsnew.js';
 
 const ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pictures', 'image', 'video'];
 
+/** The app a recovered copy opens in: a document's by its kind, a window's own (Video's project) by its name. */
+const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : 'word');
+
 function AppCard({ app, onOpen, onNew }) {
   return (
     <div className="home-card" data-app={app.key}>
@@ -161,8 +164,8 @@ export default function Home({ app, shell }) {
             <div className="home-recovered">
               {recovered.map((r) => (
                 <div key={r.file} className="home-recovered-row">
-                  <span className="glyph" data-app={r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : 'word'}>
-                    <Icon name={r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : 'word'} size={16} />
+                  <span className="glyph" data-app={appOfRecovered(r)}>
+                    <Icon name={appOfRecovered(r)} size={16} />
                   </span>
                   <span className="home-recovered-text">
                     <strong>{r.name}</strong>
@@ -180,7 +183,7 @@ export default function Home({ app, shell }) {
                     onClick={async () => {
                       // The window opens on the recovered copy, dirty, so the
                       // person decides what it replaces.
-                      await shell.win.create({ app: r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : 'word', query: { recover: r.file } });
+                      await shell.win.create({ app: appOfRecovered(r), query: { recover: r.file } });
                       setRecovered((list) => list.filter((e) => e.file !== r.file));
                     }}
                   />
@@ -713,6 +716,7 @@ const CSS = `
 .home-recovered-row .glyph[data-app='word'] { background: #2b5fd9; }
 .home-recovered-row .glyph[data-app='sheets'] { background: #0f9d58; }
 .home-recovered-row .glyph[data-app='slides'] { background: #d9534f; }
+.home-recovered-row .glyph[data-app='video'] { background: #c2408f; }
 .home-recovered-text { display: flex; flex-direction: column; min-width: 0; }
 .home-recovered-text small { color: var(--ink-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

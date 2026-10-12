@@ -21,7 +21,7 @@ import Sheets from './apps/sheets.js';
 import Slides from './apps/slides.js';
 import Pictures from './apps/pictures.js';
 import ImageTool from './apps/image.js';
-import VideoTool from './apps/video.js';
+import VideoTool from './apps/video/index.js';
 import Mail from './apps/mail.js';
 import Calendar from './apps/calendar.js';
 import Contacts from './apps/contacts.js';

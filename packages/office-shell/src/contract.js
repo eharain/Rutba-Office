@@ -125,6 +125,9 @@ export const METHODS = {
     'recoverable',  // () -> [{ file, kind, name, path, at, size }] — what a crash left behind
     'recover',      // ({ file, password }) -> { id, kind, model, meta, recoveredFrom } | { locked, name, wrong }
     'discardRecovery', // ({ file }) -> { discarded }
+    'keepCopy',     // ({ key, kind, name, path, bytes }) -> entry: a window that holds its own document (Video's project) leaves a recovery copy
+    'dropCopy',     // ({ key }) -> { dropped }: that copy, saved or let go of
+    'readCopy',     // ({ file }) -> { bytes, name, path, at, kind }: a recovered copy, for the window that opens it
     'adopt',        // ({ id }) -> { id, kind, model, meta } — a window takes over a session made for it (a merge's Letters1)
     'photoAlbum',   // ({ files, perSlide, captions, title, subtitle }) -> { id, name, slides } — Insert → Photo Album, a new deck for a window to adopt
     'compare',      // ({ original, revised, author }) -> { id, name, changes } — Review → Compare, a new document with the changes marked, for a window to adopt

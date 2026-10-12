@@ -2999,6 +2999,58 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
      */
     proof: ({ id, action, ...a }, win) => proof.act(id ? get(id) : null, action, a, win),
 
+    /**
+     * A recovery copy of a document a window holds itself rather than in a
+     * session here: the Video app's project lives in its window, so the window
+     * hands over the bytes (a .rvid) while it has unsaved work, and drops the
+     * copy when it saves or closes properly. What a crash leaves is offered
+     * by the launcher with the documents' copies (`recoverable`).
+     */
+    keepCopy: ({ key, kind = 'video', name = '', path: from = null, bytes }) => {
+      if (!recoveryDir) return null;
+      const safe = String(key || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+      if (!safe) throw new Error('A recovery copy needs a key.');
+      const ext = kind === 'video' ? '.rvid' : '.bin';
+      const file = `window-${safe}${ext}`;
+      const data = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
+      try {
+        fs.mkdirSync(recoveryDir, { recursive: true });
+        fs.writeFileSync(path.join(recoveryDir, file), data);
+      } catch {
+        return null;
+      }
+      const list = recovery.index().filter((e) => e.file !== file);
+      const entry = { file, kind, name: String(name || ''), path: from || null, at: Date.now(), version: 0, encrypted: false };
+      list.push(entry);
+      recovery.write(list);
+      return entry;
+    },
+
+    /** The window saved, or closed without wanting its work: its copy goes. */
+    dropCopy: ({ key }) => {
+      const safe = String(key || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+      const list = recovery.index();
+      const gone = list.filter((e) => e.file.startsWith(`window-${safe}.`));
+      if (!safe || !gone.length) return { dropped: false };
+      for (const e of gone) {
+        try {
+          fs.rmSync(path.join(recoveryDir, e.file), { force: true });
+        } catch {
+          /* gone already */
+        }
+      }
+      recovery.write(list.filter((e) => !gone.includes(e)));
+      return { dropped: true };
+    },
+
+    /** A window's recovered copy, read for the window the launcher opened on it. */
+    readCopy: ({ file }) => {
+      const entry = recovery.index().find((e) => e.file === file);
+      if (!entry) throw new Error('That recovered work is no longer there.');
+      const bytes = fs.readFileSync(path.join(recoveryDir, entry.file));
+      return { bytes: new Uint8Array(bytes), name: entry.name, path: entry.path || null, at: entry.at, kind: entry.kind };
+    },
+
     /** Throw a recovered copy away: the person has decided they do not want it. */
     discardRecovery: ({ file }) => {
       const list = recovery.index();
