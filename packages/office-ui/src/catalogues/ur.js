@@ -5568,6 +5568,7 @@ export default {
   'Timeline': 'ٹائم لائن',
   'Title background': 'عنوان کا پس منظر',
   'Titles': 'عنوانات',
+  'Track volume': 'ٹریک کی آواز کی سطح',
   'Track': 'ٹریک',
   'Transition': 'ٹرانزیشن',
   'Transition in': 'آمد کی ٹرانزیشن',

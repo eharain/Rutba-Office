@@ -158,6 +158,16 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           <Row label={t('Mute')}>
             <input type="checkbox" checked={!!sound.muted} onChange={(e) => setSound(t('Mute'), { muted: e.target.checked })} />
           </Row>
+          <Row label={t('Track volume')}>
+            <Slider
+              value={doc.lanes?.a?.[sound.lane || 0]?.volume ?? 1}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(x) => edit(t('Track volume'), (d) => ({ ...d, lanes: { ...d.lanes, a: { ...(d.lanes?.a || {}), [sound.lane || 0]: { ...((d.lanes?.a || {})[sound.lane || 0] || {}), volume: x } } } }), `lane-vol-${sound.lane || 0}`)}
+              format={(x) => `${Math.round(x * 100)}%`}
+            />
+          </Row>
           <Row label={t('Fade In')}>
             <Seconds value={sound.enter?.seconds || 0} onChange={(v) => setSound(t('Fade In'), { enter: { kind: 'fade', seconds: Math.max(0, v) } }, `fi-${sound.id}`)} />
           </Row>

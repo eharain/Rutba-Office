@@ -5570,6 +5570,7 @@ export default {
   'Timeline': 'المخطط الزمني',
   'Title background': 'خلفية العنوان',
   'Titles': 'العناوين',
+  'Track volume': 'مستوى صوت المسار',
   'Track': 'المسار',
   'Transition': 'الانتقال',
   'Transition in': 'انتقال الدخول',

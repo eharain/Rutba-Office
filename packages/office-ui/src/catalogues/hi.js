@@ -5570,6 +5570,7 @@ export default {
   'Timeline': 'टाइमलाइन',
   'Title background': 'शीर्षक की पृष्ठभूमि',
   'Titles': 'शीर्षक',
+  'Track volume': 'ट्रैक का वॉल्यूम',
   'Track': 'ट्रैक',
   'Transition': 'ट्रांज़िशन',
   'Transition in': 'प्रवेश ट्रांज़िशन',

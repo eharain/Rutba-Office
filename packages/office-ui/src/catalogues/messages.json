@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5612,
+  "count": 5613,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -30151,6 +30151,12 @@
       "message": "Track Changes — record every insertion and deletion as w:ins / w:del while you edit",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Track volume",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {

@@ -19,6 +19,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { BrowserWindow } from 'electron';
 import { probeMedia } from '@rutba/media/probe';
 import { gradientPng } from './sample-picture.js';
 
@@ -305,6 +306,24 @@ export async function verifyVideoEditor(h, { dir }) {
     const copyFile = `window-${await js(`document.querySelector('.vd-editor')?.dataset.copy || ''`)}.rvid`;
     const copied = await until(() => doc.recoverable().some((e) => e.file === copyFile && e.kind === 'video'), 'the recovery copy', 8000).then(() => true).catch(() => false);
     check('video editor: unsaved work is copied to the recovery folder for the launcher to offer', copied, copied ? copyFile : 'no copy');
+
+    // The launcher's Recover opens a window on the copy: the same clips, and unsaved.
+    const known = new Set(BrowserWindow.getAllWindows().map((w) => w.id));
+    await js(`window.rutbaOffice.win.create({ app: 'video', query: { recover: ${JSON.stringify(copyFile)} } }).then(() => 1)`);
+    const fresh = () => BrowserWindow.getAllWindows().find((w) => !known.has(w.id) && !w.isDestroyed()) || null;
+    await until(() => Boolean(fresh()), 'the recovered window', 8000).catch(() => {});
+    const rescued = fresh();
+    if (rescued) await new Promise((r) => (rescued.webContents.isLoading() ? rescued.webContents.once('did-finish-load', r) : r()));
+    let recovered = null;
+    if (rescued) {
+      const rjs = (code) => rescued.webContents.executeJavaScript(code);
+      const want = await count('video');
+      await until(() => rjs(`document.querySelectorAll('.vd-clip[data-kind="video"]').length === ${want}`), 'the recovered clips', 15000).catch(() => {});
+      recovered = await rjs(`({ clips: document.querySelectorAll('.vd-clip[data-kind="video"]').length, titles: document.querySelectorAll('.vd-clip[data-kind="text"]').length, dirty: document.querySelector('.vd-editor')?.dataset.dirty, duration: Number(document.querySelector('.vd-editor')?.dataset.duration) })`);
+      // Gone the way a crash goes: the copy stays for the window that made it to drop on its save.
+      rescued.destroy();
+    }
+    check('video editor: Recover in the launcher opens the unsaved work again, marked unsaved', Boolean(recovered && recovered.clips === (await count('video')) && recovered.titles === 1 && recovered.dirty === '1' && Math.abs(recovered.duration - (await duration())) < 0.01), JSON.stringify(recovered));
 
     // Export, with sound, and read the file back.
     const ext = await js(`(() => { for (const t of ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return 'mp4'; return 'webm'; })()`);

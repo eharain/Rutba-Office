@@ -421,6 +421,37 @@ feature takes the minor number, the note names its checks).
 The recorder comes before tracks because the introductory video depends on
 it and Presentations already has its pieces; the owner may reorder (14).
 
+### Phase 1 as built (2026-10-12)
+
+The Video app is `apps/desktop/renderer/apps/video/` (index, timeline,
+stage, inspector, ribbon, media, export, css) on `@rutba/studio`: the
+project model in `src/project.js`, the file in `src/rvid.js`, the engine's
+`driveVideoElements` shared by the preview and the export. V1 to V10, V13,
+V15, V21, V22, V26, V32 and V33 are in, with export with sound through
+`renderVideo`. Proven by `tests/studio-project.test.js`,
+`tests/studio-rvid.test.js` and the window checks under the key
+`video-editor` (`main/verify-video-editor.js`), which make two clips with a
+tone each and a still at run time and read the exported file back with
+`probeMedia` (whose WebM and fragmented MP4 lengths and track lists came
+with this phase).
+
+What Phase 1 leaves, for the phases that own it:
+
+- Media is read whole into a Blob per source (D4 as written); a two-hour
+  recording sits in memory. A range-reading transport belongs with P1 and P2.
+- Thumbnails are one a second, at most 120 per source, made by seeking a
+  `<video>`; a still's thumbnail does not show its turn or crop.
+- J plays backward by seeking, without sound; speed and reverse as edits are
+  V11.
+- Volume runs from silent to the clip's own level (the mixer clamps at 1); a
+  boost needs the engine's gain stage to allow more.
+- A track's volume is set from the properties of a clip on it, not on the
+  track's header.
+- Titles are `text` layers (and a shape behind a lower third or an end card);
+  word art and the rest of the insert catalogue on the timeline are later.
+- Export is real time through `MediaRecorder` (MP4 where the machine records
+  it, WebM otherwise); the encoder of our own is D3, Phase 4.
+
 ## 13. Conventions that bite
 
 - **A new workspace package** is declared in `apps/desktop/package.json`
