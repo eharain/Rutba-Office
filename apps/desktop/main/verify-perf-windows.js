@@ -1,7 +1,7 @@
 // The performance budget, in the windows: a 300-page document, a
 // 100,000-row workbook and a 200-slide deck each open, and are scrolled to
 // their end, within a stated time, their window held under a stated memory.
-// The engine's own budget (tests/perf-budget.test.js) times the work behind
+// The engine's own budget (tests/perf-budget.perf.js) times the work behind
 // a window; this times what a person waits for in front of it. The numbers
 // are generous, as the engine's are: they catch a step gone quadratic, which
 // shows as minutes and gigabytes, not a few percent. Each check prints what

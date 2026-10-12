@@ -83,7 +83,7 @@ Hostile input, each held by `tests/binary-hostile.test.js`:
   then calls damaged, and a whole-sheet clear walked every address there
   is; both keep to the cells that exist (`script-apply.js`, `scripts.js`).
 
-Performance, held by `tests/perf-budget.test.js`:
+Performance, held by `tests/perf-budget.perf.js`:
 
 - A formula cell's row was found by searching the part's rows: 100,000
   rows recalculated in 20.4 s, now 7.0 (`recalc.js`, `writeCachedValue`).

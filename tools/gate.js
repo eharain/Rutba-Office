@@ -4,9 +4,14 @@
 //   npm run gate -- --record     and write what it counted into the release
 //                                note and the README (a full run that passed)
 //
-// Four passes, each answering a question the one before it cannot:
+// Five passes, each answering a question the one before it cannot:
 //
 //   test          do the engines do what they say? no windows.
+//   test:perf     does a large file still open, recalculate and save in
+//                 seconds? run alone, after the suite: a budget timed while
+//                 the rest of the suite shares the cores measures the machine
+//                 (on a four-core laptop a recalculation of 13 s of its own
+//                 CPU took 20 to 23 s beside the suite).
 //   verify:edit   do keystrokes reach the document? two real windows.
 //   verify:apps   does each app open, change and save a real file? every window.
 //   smoke         does every window paint without logging anything?
@@ -31,6 +36,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const PASSES = [
   ['test', 'the engines', 'npm', ['test']],
+  ['test:perf', 'the performance budgets, run alone', 'npm', ['run', 'test:perf']],
   ['verify:edit', 'typing reaches the document', 'npm', ['run', 'verify:edit']],
   ['verify:apps', 'each app opens, changes and saves', 'npm', ['run', 'verify:apps']],
   ['smoke', 'every window paints', 'npm', ['run', 'smoke']],
@@ -42,7 +48,7 @@ export function countsOf(name, output) {
   const all = (re) => [...text.matchAll(re)].map((m) => Number(m[1]));
   const sum = (re) => all(re).reduce((n, v) => n + v, 0);
   const ratio = (re) => { const m = [...text.matchAll(re)].pop(); return m ? { passed: Number(m[1]), of: Number(m[2]) } : null; };
-  if (name === 'test') {
+  if (name === 'test' || name === 'test:perf') {
     const tests = sum(/^ℹ tests (\d+)$/gm);
     return tests ? { tests, passed: sum(/^ℹ pass (\d+)$/gm), failed: sum(/^ℹ fail (\d+)$/gm), skipped: sum(/^ℹ skipped (\d+)$/gm) } : null;
   }
@@ -57,7 +63,7 @@ const PLATFORM = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 
 /** The release note's Gate section, in the note's own plain style. */
 export function gateSection(counts, { version, date, platform = process.platform, arch = process.arch }) {
-  const t = counts.test;
+  const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
     counts['verify:edit'] ? `${n(counts['verify:edit'].passed)} of ${n(counts['verify:edit'].of)} editing checks` : null,
@@ -66,6 +72,13 @@ export function gateSection(counts, { version, date, platform = process.platform
   ].filter(Boolean);
   const list = parts.length > 1 ? `${parts.slice(0, -1).join('; ')}; and ${parts.at(-1)}` : parts[0];
   return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}\n`;
+}
+
+/** The engine tests in all: the suite, and the budgets run alone after it. */
+export function engineCounts(counts) {
+  const [t, p] = [counts.test, counts['test:perf']];
+  if (!t || !p) return t || p || null;
+  return { tests: t.tests + p.tests, passed: t.passed + p.passed, failed: t.failed + p.failed, skipped: t.skipped + p.skipped };
 }
 
 /** A paragraph wrapped at about 75 characters, as the notes are. */
@@ -97,10 +110,11 @@ export function withGateSection(note, section) {
 export function withReadmeCounts(readme, counts) {
   let out = String(readme || '');
   const t = counts.test;
+  const all = engineCounts(counts);
+  if (all) out = out.replace(/(what runs before a release: )[\d,]+( engine tests)/, (m, a, b) => a + n(all.tests) + b);
   if (t) {
     out = out.replace(/(npm test\s+# )[\d,]+( tests, no network needed)/, (m, a, b) => a + n(t.tests) + b);
     out = out.replace(/(the engine suite — )[\d,]+( checks, no windows)/, (m, a, b) => a + n(t.tests) + b);
-    out = out.replace(/(what runs before a release: )[\d,]+( engine tests)/, (m, a, b) => a + n(t.tests) + b);
   }
   if (counts['verify:edit']) out = out.replace(/(engine tests, )[\d,]+( editing checks)/, (m, a, b) => a + n(counts['verify:edit'].of) + b);
   if (counts['verify:apps']) out = out.replace(/(editing checks,\s+)[\d,]+( application checks)/, (m, a, b) => a + n(counts['verify:apps'].of) + b);

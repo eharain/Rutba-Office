@@ -335,7 +335,7 @@ something.
 
 ## 10. Performance
 
-Budgets are tests, as `tests/perf-budget.test.js` holds the documents to
+Budgets are tests, as `tests/perf-budget.perf.js` holds the documents to
 theirs. Every item below gets a budget once it lands.
 
 | # | Item | Notes |

@@ -3,7 +3,7 @@
 // the note's plain style, and brought into the README's counts.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { countsOf, gateSection, withGateSection, withReadmeCounts, localDate, wrap } from '../tools/gate.js';
+import { countsOf, engineCounts, gateSection, withGateSection, withReadmeCounts, localDate, wrap } from '../tools/gate.js';
 
 const counts = {
   test: countsOf('test', 'ℹ tests 1800\nℹ pass 1794\nℹ fail 0\nℹ skipped 6\n...\nℹ tests 70\nℹ pass 70\nℹ fail 0\nℹ skipped 0\n'),
@@ -43,4 +43,15 @@ test('the README\'s counts are brought to what the gate counted', () => {
   assert.match(out, /the engine suite — 1,870 checks/);
   assert.match(out, /before a release: 1,870 engine tests, 12 editing checks,\n1,190 application checks/);
   assert.match(out, /and 10 window captures/);
+});
+
+test('the budgets, run alone after the suite, count among the engine tests but not in npm test\'s own count', () => {
+  const withPerf = { ...counts, 'test:perf': countsOf('test:perf', 'ℹ tests 4\nℹ pass 4\nℹ fail 0\nℹ skipped 0\n') };
+  assert.deepEqual(withPerf['test:perf'], { tests: 4, passed: 4, failed: 0, skipped: 0 });
+  assert.deepEqual(engineCounts(withPerf), { tests: 1874, passed: 1868, failed: 0, skipped: 6 });
+  assert.match(gateSection(withPerf, { version: '1.43.0', date: '2026-10-12', platform: 'win32', arch: 'x64' }), /1,874\s+engine\s+tests,\s+1,868\s+passing/);
+  const readme = 'npm test          # 1,807 tests, no network needed\n\n`npm run gate` is what runs before a release: 1,807 engine tests, 12 editing checks,\n';
+  const out = withReadmeCounts(readme, withPerf);
+  assert.match(out, /# 1,870 tests, no network needed/);
+  assert.match(out, /before a release: 1,874 engine tests/);
 });
