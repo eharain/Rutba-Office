@@ -145,8 +145,9 @@ createShell({
       // Save compresses the parts on the thread pool (`saveAsync`), so
       // neither holds the thread's other documents either. The checks,
       // which read a file the moment they save it, are handed the service
-      // as a function call (`directDoc` below).
-      doc: { ...doc, open: doc.openAsync, save: doc.saveAsync, saveNow: doc.save },
+      // as a function call (`directDoc` below). A recovered copy's password
+      // is tried on the password threads (`recoverAsync`), as Open's is.
+      doc: { ...doc, open: doc.openAsync, save: doc.saveAsync, saveNow: doc.save, recover: doc.recoverAsync },
       // Paper and PDFs, for every kind of document. It asks the document
       // service where the pages fall and hands the result to a hidden window.
       print: createPrintService({ docs: doc }),

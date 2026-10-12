@@ -1315,6 +1315,44 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     return { ...session.meta(), model: modelOf(session, { width, slide }) };
   }
 
+  /**
+   * Opening a recovered copy, as steps: the copy of a document with a
+   * password is encrypted with it, and the password is tried where the
+   * caller can wait (`openWaiting`) or at once (`openNow`).
+   */
+  function* recoverSteps({ file, password = null }, win) {
+    const entry = recovery.index().find((e) => e.file === file);
+    if (!entry) throw new Error('That recovered document is no longer there.');
+    const full = path.join(recoveryDir, entry.file);
+    let bytes;
+    try {
+      bytes = fs.readFileSync(full);
+    } catch (err) {
+      throw new Error(plainFsError(err, entry.name) || `${entry.name} could not be recovered.`);
+    }
+    const unlocked = yield { unlock: [bytes, entry.name, password] };
+    if (unlocked.locked) return { locked: true, ...unlocked.locked, path: entry.path || null };
+    bytes = unlocked.bytes;
+    const session = new Session({
+      id: nextId(),
+      kind: entry.kind,
+      filePath: entry.path || null,
+      engine: engineFor(entry.kind, bytes),
+      source: 'recovered',
+      converted: null,
+    });
+    session.windowId = win?.id ?? null;
+    if (unlocked.password) {
+      session.setPassword(unlocked.password);
+      session.warmKey();
+    }
+    session.dirty = true;
+    session.recoveryFile = entry.file;
+    session.recoveredAt = 0;
+    sessions.set(session.id, session);
+    return { ...session.meta(), recoveredFrom: entry.at, model: modelOf(session) };
+  }
+
   function openNow(steps) {
     let step = steps.next();
     while (!step.done) {
@@ -3033,39 +3071,10 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
      * the same path, and dirty, because what is on screen is not what is on
      * disk and the person has to decide which one wins.
      */
-    recover: ({ file, password = null }, win) => {
-      const entry = recovery.index().find((e) => e.file === file);
-      if (!entry) throw new Error('That recovered document is no longer there.');
-      const full = path.join(recoveryDir, entry.file);
-      let bytes;
-      try {
-        bytes = fs.readFileSync(full);
-      } catch (err) {
-        throw new Error(plainFsError(err, entry.name) || `${entry.name} could not be recovered.`);
-      }
-      // The copy of a document with a password is encrypted with it.
-      const unlocked = unlock(bytes, entry.name, password);
-      if (unlocked.locked) return { locked: true, ...unlocked.locked, path: entry.path || null };
-      bytes = unlocked.bytes;
-      const session = new Session({
-        id: nextId(),
-        kind: entry.kind,
-        filePath: entry.path || null,
-        engine: engineFor(entry.kind, bytes),
-        source: 'recovered',
-        converted: null,
-      });
-      session.windowId = win?.id ?? null;
-      if (unlocked.password) {
-        session.setPassword(unlocked.password);
-        session.warmKey();
-      }
-      session.dirty = true;
-      session.recoveryFile = entry.file;
-      session.recoveredAt = 0;
-      sessions.set(session.id, session);
-      return { ...session.meta(), recoveredFrom: entry.at, model: modelOf(session) };
-    },
+    recover: (args, win) => openNow(recoverSteps(args, win)),
+
+    /** `recover` with the password tried on the password threads: the windows call this one (main.js). */
+    recoverAsync: (args, win) => openWaiting(recoverSteps(args, win)),
 
     /**
      * Design → Set as Default: the document's theme and styles, for new

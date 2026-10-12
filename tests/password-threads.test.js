@@ -245,3 +245,25 @@ test('Encrypt with Password spins the key on a thread before the save, and an en
   assert.equal(doc.open({ path: file, kind: 'doc', password: 'nope' }).wrong, true);
   doc.close({ id: opened.id });
 });
+
+test('a recovered copy of a protected document has its password tried on a thread too', async () => {
+  const recoveryDir = path.join(dir, 'recovery');
+  const doc = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }), recoveryDir });
+  const d = doc.open({ path: write('recovered.docx', buildDocx({ paragraphs: ['Unsaved and protected.'] })), kind: 'doc' });
+  doc.setPassword({ id: d.id, password: 'Tr0ub4dor&3' });
+  const [entry] = doc.autosave();
+  const after = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }), recoveryDir });
+  const before = passwordHost().stats.threaded;
+  assert.equal((await after.recoverAsync({ file: entry.file })).locked, true);
+  const wrong = after.recoverAsync({ file: entry.file, password: 'nope' });
+  assert.ok((await ticksWhile(wrong)) >= 3, 'the thread ticked while the password was tried');
+  assert.equal((await wrong).wrong, true);
+  const back = await after.recoverAsync({ file: entry.file, password: 'Tr0ub4dor&3' });
+  assert.equal(back.encrypted, true);
+  assert.equal(back.dirty, true);
+  assert.ok(passwordHost().stats.threaded - before >= 2);
+  // The synchronous `recover` the tests use answers the same.
+  assert.equal(after.recover({ file: entry.file, password: 'nope' }).wrong, true);
+  after.close({ id: back.id });
+  doc.close({ id: d.id });
+});
