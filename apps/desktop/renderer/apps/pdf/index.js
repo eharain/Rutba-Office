@@ -8,6 +8,11 @@
 // the list to the main process (main/pdf.js), which writes a new PDF from
 // the pages named, each copied byte for byte, nothing drawn again.
 //
+// Recognise Text (ocr.js) finds the words in scanned pages and has the
+// main process append them to the file as an invisible text layer; the
+// file with its layer is a new source, and the pages are pointed at it as
+// one more list in the history, so Undo takes the layer away again.
+//
 // Saving is careful, as a page tool's must be: Save asks before it replaces
 // the file the pages came from (once a window), and offers to save a copy.
 // While there is unsaved work, a copy is kept in the recovery folder for
@@ -26,6 +31,8 @@ import {
 } from './pages.js';
 import { ThumbStrip, PageView, PX_PER_PT } from './view.js';
 import { CSS } from './css.js';
+import { RecogniseDialog, recognisePages } from './ocr.js';
+import { OCR_CSS } from '../../ocr-ui.js';
 
 const AUTOSAVE_FIRST_MS = 1500;
 const AUTOSAVE_EVERY_MS = 30000;
@@ -110,6 +117,10 @@ export default function PdfApp({ app, shell, boot }) {
   const [hitAt, setHitAt] = useState(-1);
   const [splitOpen, setSplitOpen] = useState(false);
   const [printing, setPrinting] = useState(null);
+  // Recognise Text: null, { } while its dialog asks, { progress } while it reads.
+  const [ocr, setOcr] = useState(null);
+  const ocrStop = useRef(false);
+  const ocrJob = useRef(null);
   const viewRef = useRef(null);
   const findRef = useRef(null);
   const stripRef = useRef(null);
@@ -318,6 +329,72 @@ export default function PdfApp({ app, shell, boot }) {
     await insertFiles(files, { at: pagesRef.current.length, announce: false });
     toast(tn(files.length, '{count} file added at the end', '{count} files added at the end'), { ms: 3000 });
   }, [pickPdfs, openPdf, insertFiles, toast]);
+
+  /* ── recognising text ──────────────────────────────────────────────── */
+
+  const recognise = useCallback(async ({ scope, languages }) => {
+    if (guardLocked()) return;
+    const list = pagesRef.current;
+    const keys = new Set(scope === 'picked' ? selectedRef.current : scope === 'current' ? [currentRef.current] : list.map((p) => p.key));
+    const seen = new Set();
+    const targets = [];
+    for (const p of list) {
+      const id = `${p.source}:${p.page}`;
+      if (!keys.has(p.key) || seen.has(id)) continue;
+      seen.add(id);
+      targets.push({ source: p.source, page: p.page });
+    }
+    ocrStop.current = false;
+    ocrJob.current = `pdf-${Date.now().toString(36)}`;
+    setOcr({ progress: { done: 0, total: 0 } });
+    try {
+      const out = await recognisePages({
+        shell,
+        sources: sourcesRef.current,
+        targets,
+        languages,
+        job: ocrJob.current,
+        cancelled: () => ocrStop.current,
+        onProgress: (progress) => setOcr({ progress }),
+      });
+      if (ocrStop.current) {
+        toast(t('Recognise Text was cancelled. Nothing was changed.'), { ms: 4000 });
+        return;
+      }
+      if (!out.scanned) {
+        toast(t('Every page chosen already has text, so there was nothing to recognise.'), { ms: 5000 });
+        return;
+      }
+      const swap = {};
+      for (const [id, written] of out.bySource) {
+        if (!written.length) continue;
+        const { bytes, written: pagesWritten, ...info } = await shell.pdf.addText({ id, pages: written });
+        const doc = await openDocument(bytes);
+        const source = { id: info.id, name: info.name, path: sourcesRef.current[id]?.path || null, info, doc };
+        sourcesRef.current = { ...sourcesRef.current, [info.id]: source };
+        setSources((s) => ({ ...s, [info.id]: source }));
+        swap[id] = info.id;
+      }
+      if (Object.keys(swap).length) edit(pagesRef.current.map((p) => (swap[p.source] ? { ...p, source: swap[p.source] } : p)));
+      if (out.words) toast(tn(out.done, 'Text recognised on {count} page. Find, select and copy now work on it.', 'Text recognised on {count} pages. Find, select and copy now work on them.'), { tone: 'good', ms: 5000 });
+      else toast(t('No words were found on the scanned pages.'), { ms: 5000 });
+    } catch (err) {
+      if (err?.code === 'OCR_CANCELLED' || ocrStop.current) toast(t('Recognise Text was cancelled. Nothing was changed.'), { ms: 4000 });
+      else toast(t('Text could not be recognised: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+    } finally {
+      setOcr(null);
+    }
+  }, [guardLocked, shell, edit, toast]);
+
+  const cancelRecognise = useCallback(() => {
+    ocrStop.current = true;
+    if (ocrJob.current) shell.ocr.cancel({ job: ocrJob.current }).catch(() => {});
+  }, [shell]);
+
+  const askRecognise = useCallback(() => {
+    if (guardLocked() || !pagesRef.current.length) return;
+    setOcr({});
+  }, [guardLocked]);
 
   /* ── writing ────────────────────────────────────────────────────────── */
 
@@ -644,7 +721,8 @@ export default function PdfApp({ app, shell, boot }) {
     if (hitAt < 0 || !hits[hitAt]) return;
     const key = hits[hitAt].key;
     if (key !== currentRef.current) goTo(key);
-  }, [hitAt]); // eslint-disable-line react-hooks/exhaustive-deps
+    // A new search whose first match is again match 0 moves too: it can be on another page.
+  }, [hitAt, hits]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openFind = useCallback(() => {
     setFindOpen(true);
@@ -728,9 +806,10 @@ export default function PdfApp({ app, shell, boot }) {
     'page.delete': { label: t('Delete Pages'), icon: 'trash', when: () => canEdit, run: removePages },
     'page.extract': { label: t('Extract Pages…'), icon: 'export', when: () => canEdit, run: extract },
     'page.insert': { label: t('Insert from File…'), icon: 'import', when: () => canEdit, run: insertFromFile },
+    'page.recognise': { label: t('Recognise Text…'), icon: 'scanText', when: () => canEdit && !ocr, run: askRecognise },
     'page.next': { label: t('Next page'), key: 'PageDown', when: () => hasDoc && layout === 'single', run: () => stepPage(1) },
     'page.previous': { label: t('Previous page'), key: 'PageUp', when: () => hasDoc && layout === 'single', run: () => stepPage(-1) },
-  }), [shell, openFile, save, saveAs, print, undo, redo, openFind, findOpen, nextHit, rotate, removePages, extract, insertFromFile, stepPage, hasDoc, canEdit, layout]);
+  }), [shell, openFile, save, saveAs, print, undo, redo, openFind, findOpen, nextHit, rotate, removePages, extract, insertFromFile, stepPage, hasDoc, canEdit, layout, ocr, askRecognise]);
   useCommands(commands, [commands]);
 
   const appMenu = useAppMenu({
@@ -750,10 +829,11 @@ export default function PdfApp({ app, shell, boot }) {
       '-',
       { label: t('Extract Pages…'), icon: 'export', run: extract },
       { label: t('Insert from File…'), icon: 'import', run: insertFromFile },
+      { label: t('Recognise Text…'), icon: 'scanText', run: askRecognise },
       '-',
       { label: t('Delete Pages'), icon: 'trash', run: removePages },
     ]);
-  }, [menu, rotate, extract, insertFromFile, removePages]);
+  }, [menu, rotate, extract, insertFromFile, removePages, askRecognise]);
 
   /* ── the window ─────────────────────────────────────────────────────── */
 
@@ -802,6 +882,9 @@ export default function PdfApp({ app, shell, boot }) {
           <Group label={t('Find')}>
             <Button tall icon="find" label={t('Find')} title={t('Find: words on every page (Ctrl+F)')} disabled={!hasDoc} onClick={openFind} />
           </Group>
+          <Group label={t('Scans')}>
+            <Button tall icon="scanText" label={t('Recognise Text')} title={t('Recognise Text: the words in scanned pages found, so they can be searched, selected and copied; the pages look as they did')} disabled={!canEdit || Boolean(ocr)} onClick={askRecognise} data-role="recognise-text" />
+          </Group>
           <Group label={t('Pages')}>
             <Rows>
               <Button icon="rotate" label={t('Rotate Right')} title={t('Rotate Right: the selected pages a quarter turn clockwise (Ctrl+R)')} disabled={!canEdit} onClick={() => rotate(90)} />
@@ -819,6 +902,9 @@ export default function PdfApp({ app, shell, boot }) {
           <Group label={t('Organise')}>
             <Button tall icon="trash" label={t('Delete')} title={t('Delete: the selected pages (Delete)')} disabled={!canEdit} onClick={removePages} data-role="delete-pages" />
             <Button tall icon="export" label={t('Extract')} title={t('Extract: the selected pages as a new PDF, this one left as it is')} disabled={!canEdit} onClick={extract} data-role="extract-pages" />
+          </Group>
+          <Group label={t('Scans')}>
+            <Button tall icon="scanText" label={t('Recognise Text')} title={t('Recognise Text: the words in scanned pages found, so they can be searched, selected and copied; the pages look as they did')} disabled={!canEdit || Boolean(ocr)} onClick={askRecognise} />
           </Group>
           <Group label={t('Insert')}>
             <Button tall icon="import" label={t('Insert from File')} title={t('Insert from File: the pages of other PDFs, after the selected page')} disabled={!canEdit} onClick={insertFromFile} data-role="insert-file" />
@@ -870,7 +956,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   return (
     <AppFrame app={app} shell={shell} title={name || app.name} dirty={hasDoc && dirty} menu={appMenu} ribbon={ribbon} status={status}>
-      <style>{CSS}</style>
+      <style>{CSS + OCR_CSS}</style>
       {!hasDoc ? (
         failed ? (
           <Empty icon={locked ? 'lock' : 'pdf'} title={locked ? t('This PDF is protected') : t('This file could not be opened')} action={<div className="pdf-empty-actions"><Button primary icon="open" label={t('Open another')} onClick={openFile} /></div>}>
@@ -968,6 +1054,17 @@ export default function PdfApp({ app, shell, boot }) {
         </div>
       )}
       {splitOpen ? <SplitDialog count={pages.length} picked={selected.filter((k) => pages.findIndex((p) => p.key === k) > 0).length} onSplit={split} onClose={() => setSplitOpen(false)} /> : null}
+      {ocr ? (
+        <RecogniseDialog
+          count={pages.length}
+          picked={selected.length}
+          current={currentIndex + 1}
+          progress={ocr.progress || null}
+          onStart={recognise}
+          onCancel={cancelRecognise}
+          onClose={() => setOcr(null)}
+        />
+      ) : null}
       {printing ? (
         <PrintPages images={printing} />
       ) : null}

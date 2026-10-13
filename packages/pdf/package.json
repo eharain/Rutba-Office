@@ -20,7 +20,8 @@
     "./shaping": "./src/shaping.js",
     "./bidi": "./src/bidi.js",
     "./reader": "./src/reader.js",
-    "./assemble": "./src/assemble.js"
+    "./assemble": "./src/assemble.js",
+    "./textlayer": "./src/textlayer.js"
   },
   "files": [
     "src",

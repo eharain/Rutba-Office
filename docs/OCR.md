@@ -45,6 +45,30 @@ anything from; the package's tests run a recognition with every way to the
 network refused, in the process and its threads, and check that none was
 tried.
 
+## In the apps
+
+**PDF: Recognise Text** (Home and Pages, and the thumbnails' menu). A
+dialog chooses the pages (all, the selected ones, or this one) and the
+languages, Urdu marked beta with a sentence on why. Pages that already have
+text are left as they are. Each scanned page is drawn by pdf.js at up to
+300 dots per inch (its long side at most 4,200 pixels) and read on the pool;
+each word's box is turned into the page's own coordinates by the viewport
+that drew it, so a rotated or cropped page comes out right. The main process
+then writes an invisible text layer (render mode 3) as an incremental update
+(`packages/pdf/src/textlayer.js`): each page redefined with one content
+stream more and a font for the layer, the original bytes left as the start
+of the file, and the update's cross-references written as a table or as a
+stream to match the file's own. The font is a Type0 font over an embedded
+TrueType program of empty glyphs half an em wide, whose codes are the text's
+UTF-16 units mapped back by its ToUnicode map; each word is stretched to its
+width on the page, so selecting it highlights the word, and Urdu and Arabic
+words are written in the order a page shows them, as PDFs write those
+scripts. Find, selecting and copying then work on the scans; Undo takes the
+layer away; a Save of the recognised file as it is writes its original
+bytes with the layer after them. Refused by name: files protected with a
+password, and files whose cross-references had to be rebuilt (save a copy
+first).
+
 ## Page analysis and layout of our own
 
 Around the engine, in `packages/ocr/src/analyse.js` and `layout.js`,

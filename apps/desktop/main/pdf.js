@@ -10,15 +10,30 @@
 // Every source is held whole in memory while its window has it open, so a
 // file can be saved over itself: the new bytes come from the copy held
 // here, and are written beside the file and renamed over it.
+//
+// Recognise Text adds an invisible text layer to scanned pages as an
+// incremental update (@rutba/pdf/textlayer): the file's bytes with the
+// update after them become a new source, the old one kept for Undo. A Save
+// of a source's own pages, all of them, in order and unturned, writes those
+// bytes as they are, so the original stays the exact start of the file.
 
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import pdfRead from '@rutba/pdf/reader';
 import pdfAssemble from '@rutba/pdf/assemble';
+import pdfTextLayer from '@rutba/pdf/textlayer';
 
 const { openPdf, PdfReadError } = pdfRead;
 const { assemble } = pdfAssemble;
+const { addTextLayer } = pdfTextLayer;
+
+/** Whether the pages named are one source's own, every one, in order, each as the file turns it. */
+function wholeSource(items) {
+  const file = items[0]?.file;
+  if (!file || items.some((it) => it.file !== file) || items.length !== file.pageCount) return false;
+  return items.every((it, i) => it.page === i && (it.rotate === undefined || it.rotate === null || Number(it.rotate) === file.pageInfo(i).rotate));
+}
 
 /** A sentence for a file that cannot be read, by what went wrong. */
 function readFailure(err, name) {
@@ -113,11 +128,32 @@ export function createPdfService() {
      */
     assemble: async ({ pages, path: target = null, title }) => {
       const items = (pages || []).map((p) => ({ file: get(p.source).file, page: Number(p.page), rotate: p.rotate }));
-      const bytes = assemble(items, { title });
+      // A recognised file saved as it is: its bytes, the text layer appended to the original.
+      const own = (pages || []).length && open.get(pages[0].source)?.recognised && wholeSource(items)
+        && (title === undefined || title === null || title === items[0].file.info().title);
+      const bytes = own ? items[0].file.buf : assemble(items, { title });
       if (!target) return { bytes: new Uint8Array(bytes), size: bytes.length };
       await fsp.mkdir(path.dirname(target), { recursive: true });
       await writeWhole(target, bytes);
       return { path: target, size: bytes.length };
+    },
+
+    /**
+     * Recognise Text's answer written into the file: an invisible text layer
+     * on the pages named ([{ page, lines: [{ words: [{ text, x, y, width,
+     * size, angle }] }] }], in each page's own coordinates) as an
+     * incremental update. The result is a new source beside the old one,
+     * which stays open for Undo.
+     */
+    addText: ({ id, pages }, win) => {
+      const entry = get(id);
+      const { bytes, pages: written } = addTextLayer(entry.file.buf, pages || []);
+      const file = openPdf(bytes);
+      file.pages();
+      const newId = `p${next++}`;
+      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, recognised: true };
+      open.set(newId, added);
+      return { ...describe(newId, added), written, bytes: new Uint8Array(bytes) };
     },
 
     /** The words on one page of an open PDF, as its content draws them. */

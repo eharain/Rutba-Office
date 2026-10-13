@@ -62,7 +62,18 @@ simple font, which the checks use to tell pages apart.
 **The main process** (`apps/desktop/main/pdf.js`, contract namespace `pdf`):
 `open` reads a file once and holds it for its window (so a file can be saved
 over itself), `assemble` writes the pages named (whole or not at all),
-`text`, `inspect` and `close`.
+`addText` writes a recognised text layer, `text`, `inspect` and `close`.
+
+**Recognise Text** (Home and Pages, the thumbnails' menu): the words in
+scanned pages found on this computer and written into the file as an
+invisible text layer, so Find, selecting and copying work on scans. A dialog
+chooses all pages, the selected ones or this one, and the languages (the six
+the suite reads, Urdu marked beta); pages that already have text are left
+alone; a progress bar counts the pages, with Cancel. The layer is an
+incremental update (`packages/pdf/src/textlayer.js`): the original bytes
+stay the start of the file and no page is redrawn. Undo takes it away, and a
+Save of the recognised file as it is writes the original with the layer
+after it. docs/OCR.md has the details and the error rates.
 
 **Wiring.** The launcher's card (its New opens the window asking for files to
 combine), the app menu and the Apps menu, `.pdf` owned by the PDF app (Pictures
@@ -132,7 +143,9 @@ In the order they matter to a person:
    Documents engine.
 9. **Compress**: images resampled and object streams written, for a smaller
    file.
-10. **OCR** for scans, later, as a declared download at most once.
+10. **OCR**: built (Recognise Text, docs/OCR.md). Still to come: pages
+    that mix text with a scanned picture, sideways scans, and a choice to
+    recognise only the pictures on a page.
 
 Also: the CJK character maps; insert a blank page or a page from a picture;
 duplicate pages; print through the system's own PDF printing rather than as

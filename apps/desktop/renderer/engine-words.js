@@ -97,6 +97,11 @@ export const ENGINE_WORDS = [
   msg('That PDF is no longer open.'),
   msg('{name} is not a PDF.'),
   msg('{name} could not be read as a PDF: {reason}'),
+  // packages/pdf/src/textlayer.js (through apps/desktop/main/pdf.js)
+  msg('A text layer cannot be added to a PDF protected with a password.'),
+  msg('This PDF\'s cross-references are damaged, so a text layer cannot be added to it as it is. Save a copy first, then recognise the copy.'),
+  msg('There is no page {page} in this PDF.'),
+  msg('Page {page} cannot be redefined.'),
   // packages/ocr (through apps/desktop/main/ocr.js)
   msg('Text recognition was cancelled.'),
   msg('Text recognition stopped unexpectedly.'),

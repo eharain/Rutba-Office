@@ -280,6 +280,7 @@ export const METHODS = {
     'close',        // ({ id }) -> { closed }
     'assemble',     // ({ pages: [{ source, page, rotate }], path, title }) -> { path, size } | { bytes, size }: written whole, or handed back
     'text',         // ({ id, page }) -> string: the words a page's content draws
+    'addText',      // ({ id, pages: [{ page, lines: [{ words: [{ text, x, y, width, size, angle }] }] }] }) -> { id, ...open's answer, written, bytes }: an invisible text layer as an incremental update, a new source
     'inspect',      // ({ path }) -> { pages: [{ width, height, rotate, text }], encrypted, title }: a file read and let go, for the checks
   ],
   // Text recognition (apps/desktop/main/ocr.js, @rutba/ocr): read on a pool of

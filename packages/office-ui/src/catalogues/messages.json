@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6368,
+  "count": 6402,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1376,6 +1376,12 @@
     },
     {
       "message": "A text box goes beside the words, not in a table cell — move the caret out of the table first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A text layer cannot be added to a PDF protected with a password.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
       ]
@@ -2774,6 +2780,13 @@
       ]
     },
     {
+      "message": "All {count} page",
+      "plural": "All {count} pages",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/ocr.js"
+      ]
+    },
+    {
       "message": "All {n}",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -3248,6 +3261,12 @@
       "message": "Apps",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Arabic",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
       ]
     },
     {
@@ -4161,6 +4180,12 @@
       "message": "Berry",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Beta",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
       ]
     },
     {
@@ -5126,6 +5151,7 @@
         "apps/desktop/renderer/apps/mail/richtext.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/pdf/ocr.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
@@ -5768,6 +5794,12 @@
       "message": "Chevron: Up",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Chinese (Simplified)",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
       ]
     },
     {
@@ -10295,6 +10327,12 @@
       ]
     },
     {
+      "message": "English",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
       "message": "Enhanced: the tones stretched to the full range and the colour cast eased.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -10588,6 +10626,12 @@
       "message": "Every occurrence",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Every page chosen already has text, so there was nothing to recognise.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -11598,6 +11642,12 @@
       "message": "Finding suggestions…",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Finding the scanned pages…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/ocr.js"
       ]
     },
     {
@@ -13878,6 +13928,12 @@
       ]
     },
     {
+      "message": "Hindi",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
       "message": "Histogram",
       "where": [
         "apps/desktop/renderer/apps/image/tone.js"
@@ -15485,6 +15541,12 @@
       ]
     },
     {
+      "message": "Japanese",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
       "message": "Job title",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
@@ -15863,6 +15925,18 @@
       "message": "Languages",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Languages in the pages",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/ocr.js"
+      ]
+    },
+    {
+      "message": "Languages in the picture",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
       ]
     },
     {
@@ -20075,6 +20149,12 @@
       ]
     },
     {
+      "message": "No words were found on the scanned pages.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "No words yet",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
@@ -21914,6 +21994,12 @@
       ]
     },
     {
+      "message": "Page {page} cannot be redefined.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Page {page} of {count}",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -21929,9 +22015,16 @@
       "message": "Pages",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/pdf/ocr.js",
         "apps/desktop/renderer/apps/pdf/view.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Pages that already have text are left as they are. The words are added as an invisible layer, so the pages look exactly as they did, and can then be searched, selected and copied. Nothing leaves this computer.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/ocr.js"
       ]
     },
     {
@@ -23962,6 +24055,12 @@
       ]
     },
     {
+      "message": "Reading page {page} of {count}…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/ocr.js"
+      ]
+    },
+    {
       "message": "Reading pane",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -24062,6 +24161,37 @@
       "message": "Recipient lists",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Recognise",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/ocr.js"
+      ]
+    },
+    {
+      "message": "Recognise Text",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/pdf/ocr.js"
+      ]
+    },
+    {
+      "message": "Recognise Text was cancelled. Nothing was changed.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Recognise Text: the words in scanned pages found, so they can be searched, selected and copied; the pages look as they did",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Recognise Text…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -26703,6 +26833,12 @@
       "message": "Scaling set",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Scans",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -31099,6 +31235,12 @@
       ]
     },
     {
+      "message": "Text could not be recognised: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Text direction — now {direction}",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -31145,6 +31287,13 @@
       "message": "Text orientation",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Text recognised on {count} page. Find, select and copy now work on it.",
+      "plural": "Text recognised on {count} pages. Find, select and copy now work on them.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -32180,6 +32329,12 @@
       ]
     },
     {
+      "message": "The picture could not be read.",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
       "message": "The picture could not be redrawn.",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -32333,6 +32488,12 @@
       "message": "The search {query}",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "The selected pages",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/ocr.js"
       ]
     },
     {
@@ -32602,6 +32763,12 @@
       ]
     },
     {
+      "message": "The words are read on this computer. Nothing is sent anywhere.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/ocr.js"
+      ]
+    },
+    {
       "message": "The words change; the number and its reference stay where they are.",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -32642,6 +32809,13 @@
       "plural": "The {count} results of the search {query}",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "The {count} selected page",
+      "plural": "The {count} selected pages",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/ocr.js"
       ]
     },
     {
@@ -32824,6 +32998,12 @@
     },
     {
       "message": "There is no page {page} in that file.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "There is no page {page} in this PDF.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
       ]
@@ -33048,6 +33228,12 @@
       "message": "This PDF is protected, so its pages can be read but not changed or saved yet.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "This PDF's cross-references are damaged, so a text layer cannot be added to it as it is. Save a copy first, then recognise the copy.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -33506,6 +33692,12 @@
       "message": "This opens {host} in your browser, where the sender handles it.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "This page ({page})",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/ocr.js"
       ]
     },
     {
@@ -35452,6 +35644,24 @@
       "message": "Upward diagonal",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Urdu",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
+      "message": "Urdu text recognition is in beta",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
+      "message": "Urdu text recognition is in beta: it reads Naskh type well, but not yet Nastaliq print reliably.",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
       ]
     },
     {
