@@ -149,7 +149,7 @@ function pieces(query) {
 /** The words worth matching in a piece of text - the same split the index makes. */
 export function words(text) {
   const out = [];
-  for (const raw of String(text || '').toLowerCase().split(/[^\p{L}\p{N}@._+-]+/u)) {
+  for (const raw of String(text || '').toLowerCase().split(/[^\p{L}\p{N}\p{M}@._+-]+/u)) {
     const token = raw.replace(/^[._-]+|[._-]+$/g, '');
     if (token.length >= 2) out.push(token);
   }

@@ -43,7 +43,8 @@ export const HIDDEN_FOLDERS = new Set([
   'Spooler Queue',
 ]);
 
-const decodeText = (v) => (typeof v === 'string' ? v : v instanceof Uint8Array ? new TextDecoder('utf-8', { fatal: false }).decode(v) : null);
+const UTF8 = new TextDecoder('utf-8', { fatal: false });
+const decodeText = (v) => (typeof v === 'string' ? v : v instanceof Uint8Array ? UTF8.decode(v) : null);
 
 function addressFrom(props) {
   const name = props.senderName || props.sentRepresentingName || null;
@@ -319,7 +320,7 @@ export class PstFile {
       size: Number(p.messageSize || 0),
       unread: !(flags & MSG_FLAG.READ),
       hasAttachments: Boolean(flags & MSG_FLAG.HAS_ATTACH),
-      preview: (body || '').replace(/\s+/g, ' ').slice(0, 200),
+      preview: (body || '').slice(0, 1000).replace(/\s+/g, ' ').slice(0, 200),
     };
   }
 
@@ -352,7 +353,7 @@ export class PstFile {
       inReplyTo: decodeText(p.inReplyToId) || null,
       text,
       html,
-      preview: (text || stripHtml(html || '')).replace(/\s+/g, ' ').slice(0, 220),
+      preview: (text || stripHtml(html || '')).slice(0, 1000).replace(/\s+/g, ' ').slice(0, 220),
       unread: !(flags & MSG_FLAG.READ),
       hasAttachments: Boolean(flags & MSG_FLAG.HAS_ATTACH) || attachments.length > 0,
       attachments,
@@ -361,6 +362,14 @@ export class PstFile {
       size: Number(p.messageSize || 0),
       source: 'pst',
     };
+  }
+
+  /** A message's body alone, as text and HTML, for a search confirming a phrase. */
+  body(nid) {
+    const node = this.ndb.node(nid >>> 0);
+    if (!node) return null;
+    const p = values(nodePc(node, this.ndb));
+    return { text: decodeText(p.body), html: decodeText(p.bodyHtml) };
   }
 
   #recipients(node) {

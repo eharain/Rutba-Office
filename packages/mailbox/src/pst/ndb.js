@@ -98,6 +98,104 @@ export class NdbError extends Error {
   }
 }
 
+/**
+ * The block B-tree's entries, in three typed arrays sorted by block id.
+ *
+ * A 5 GB .pst holds over a million blocks; as a Map of objects that was more
+ * memory than everything else about the file together. Looked up by binary
+ * search, with `get` and `size` as the Map had them.
+ */
+class BlockTable {
+  constructor() {
+    this.bids = new Float64Array(4096);
+    this.ibs = new Float64Array(4096);
+    this.cbs = new Uint16Array(4096);
+    this.size = 0;
+  }
+
+  add(bid, ib, cb) {
+    if (this.size === this.bids.length) {
+      const grow = (a) => {
+        const b = new a.constructor(a.length * 2);
+        b.set(a);
+        return b;
+      };
+      this.bids = grow(this.bids);
+      this.ibs = grow(this.ibs);
+      this.cbs = grow(this.cbs);
+    }
+    this.bids[this.size] = bid;
+    this.ibs[this.size] = ib;
+    this.cbs[this.size] = cb;
+    this.size++;
+  }
+
+  /** Trim, and sort if the tree was not in order (a damaged file). */
+  seal() {
+    const n = this.size;
+    let sorted = true;
+    for (let i = 1; i < n && sorted; i++) if (this.bids[i] < this.bids[i - 1]) sorted = false;
+    if (!sorted) {
+      const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => this.bids[a] - this.bids[b]);
+      const pick = (a) => a.constructor.from(order, (i) => a[i]);
+      this.bids = pick(this.bids);
+      this.ibs = pick(this.ibs);
+      this.cbs = pick(this.cbs);
+    } else {
+      this.bids = this.bids.slice(0, n);
+      this.ibs = this.ibs.slice(0, n);
+      this.cbs = this.cbs.slice(0, n);
+    }
+    return this;
+  }
+
+  get(bid) {
+    const bids = this.bids;
+    let lo = 0;
+    let hi = this.size - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >>> 1;
+      const v = bids[mid];
+      if (v === bid) return { bid, ib: this.ibs[mid], cb: this.cbs[mid] };
+      if (v < bid) lo = mid + 1;
+      else hi = mid - 1;
+    }
+    return undefined;
+  }
+
+  has(bid) {
+    return this.get(bid) !== undefined;
+  }
+}
+
+/** `data`, the node's blocks joined, when it is first asked for. */
+function withData(node) {
+  return new NodeData(node);
+}
+
+class NodeData {
+  constructor({ nid, parentNid, parts, subnodes }) {
+    this.nid = nid;
+    if (parentNid !== undefined) this.parentNid = parentNid;
+    this.parts = parts;
+    this.subnodes = subnodes;
+    this._data = null;
+  }
+
+  get data() {
+    if (this._data) return this._data;
+    const parts = this.parts;
+    if (parts.length === 1) return (this._data = parts[0]);
+    const data = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    let at = 0;
+    for (const p of parts) {
+      data.set(p, at);
+      at += p.length;
+    }
+    return (this._data = data);
+  }
+}
+
 /** A 64-bit little-endian read kept as a Number — PST offsets fit in 2^53. */
 function readU64(dv, at) {
   return dv.getUint32(at + 4, true) * 4294967296 + dv.getUint32(at, true);
@@ -158,7 +256,7 @@ export class Ndb {
 
   /** True when this build holds the tables needed to read this file's blocks. */
   get readable() {
-    return supports(this.cryptMethod);
+    return (this._readable ??= supports(this.cryptMethod));
   }
 
   assertReadable() {
@@ -230,18 +328,13 @@ export class Ndb {
   /** block id → { ib, cb }. Built once; a PST has one of these, not one per read. */
   blockIndex() {
     if (this._bbt) return this._bbt;
-    const map = new Map();
+    const table = new BlockTable();
     this.#walk(this.bbtRoot.ib, (dv, at) => {
-      if (this.unicode) {
-        const bid = readU64(dv, at);
-        map.set(bid, { bid, ib: readU64(dv, at + 8), cb: dv.getUint16(at + 16, true) });
-      } else {
-        const bid = dv.getUint32(at, true);
-        map.set(bid, { bid, ib: dv.getUint32(at + 4, true), cb: dv.getUint16(at + 8, true) });
-      }
+      if (this.unicode) table.add(readU64(dv, at), readU64(dv, at + 8), dv.getUint16(at + 16, true));
+      else table.add(dv.getUint32(at, true), dv.getUint32(at + 4, true), dv.getUint16(at + 8, true));
     });
-    this._bbt = map;
-    return map;
+    this._bbt = table.seal();
+    return this._bbt;
   }
 
   /** node id → { dataBid, subBid, parentNid }. */
@@ -375,28 +468,30 @@ export class Ndb {
     return map;
   }
 
-  /** Everything a node holds. */
+  /**
+   * Everything a node holds. Its blocks are read once: `data` is those same
+   * blocks joined, made only if something asks for it (reading every block
+   * twice was half the cost of indexing a .pst).
+   */
   node(nid) {
     const entry = this.nodeIndex().get(nid >>> 0);
     if (!entry) return null;
-    return {
+    return withData({
       nid: entry.nid,
       parentNid: entry.parentNid,
-      data: this.blockData(entry.dataBid),
       parts: this.blockParts(entry.dataBid),
       subnodes: this.subnodes(entry.subBid),
-    };
+    });
   }
 
   /** A sub-node addresses blocks exactly as a node does. */
   subnode(sub) {
     if (!sub) return null;
-    return {
+    return withData({
       nid: sub.nid,
-      data: this.blockData(sub.dataBid),
       parts: this.blockParts(sub.dataBid),
       subnodes: this.subnodes(sub.subBid),
-    };
+    });
   }
 
   /** Node ids of one type, e.g. every message. */

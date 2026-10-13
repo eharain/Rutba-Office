@@ -17,6 +17,7 @@
 // Outlook's own "compressible" files are, so a reader test pays the decode.
 
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 import { mpbbR } from '../../packages/mailbox/src/pst/tables.js';
 
 const PAGE = 512;
@@ -42,6 +43,9 @@ const CRC_TABLE = (() => {
 })();
 
 function crc(bytes, start = 0, end = bytes.length) {
+  // zlib's CRC-32 starts from all ones and inverts its result; this one starts
+  // from zero and does not, so zlib is handed the inverse to start from.
+  if (zlib.crc32) return ~zlib.crc32(bytes.subarray(start, end), 0xffffffff) >>> 0;
   let c = 0;
   for (let i = start; i < end; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
   return c >>> 0;
@@ -242,7 +246,10 @@ export class PstWriter {
     this.nextBid += 4;
     const total = Math.ceil((data.length + 16) / 64) * 64;
     const out = Buffer.alloc(total);
-    if (!internal && this.crypt === 1) for (let i = 0; i < data.length; i++) out[i] = mpbbR[data[i]];
+    if (!internal && this.crypt === 1) {
+      const table = mpbbR;
+      for (let i = 0; i < data.length; i++) out[i] = table[data[i]];
+    }
     else data.copy ? data.copy(out, 0) : out.set(data, 0);
     const ib = this.pos;
     out.writeUInt16LE(data.length, total - 16);

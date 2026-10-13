@@ -27,16 +27,64 @@ import { parseSearch, words } from './query.js';
  * has to find it, and a tokeniser that breaks on `@` and `.` turns one term
  * into three that match half the mailbox.
  */
-export function tokenise(text, out = new Set()) {
-  for (const raw of String(text || '').toLowerCase().split(/[^\p{L}\p{N}@._+-]+/u)) {
-    const token = raw.replace(/^[._-]+|[._-]+$/g, '');
-    if (token.length < 2 || token.length > 64) continue;
+export function tokenise(text, out = new Set(), seq = null) {
+  // A scanner rather than a split and a regular expression per word: bodies
+  // are most of what is indexed, and this was the costliest step of it.
+  // Letters include their marks, so a Hindi word is not cut at its vowels.
+  const s = String(text || '').toLowerCase();
+  const n = s.length;
+  let start = -1;
+  let joined = false; // the word holds @ or . and is also its parts
+  for (let i = 0; i <= n; i++) {
+    const kind = i < n ? charKind(s.charCodeAt(i), s, i) : 0;
+    if (kind) {
+      if (start < 0) {
+        start = i;
+        joined = false;
+      }
+      if (kind === 3) joined = true;
+      continue;
+    }
+    if (start < 0) continue;
+    let a = start;
+    let b = i;
+    start = -1;
+    while (a < b && isTrim(s.charCodeAt(a))) a++;
+    while (b > a && isTrim(s.charCodeAt(b - 1))) b--;
+    const len = b - a;
+    if (len < 2 || len > 64) continue;
+    const token = s.slice(a, b);
     out.add(token);
+    seq?.push(token);
     // An address is also its parts, so `ali@example.com` is found by `ali` and
     // by `example`.
-    if (token.includes('@') || token.includes('.')) for (const part of token.split(/[@.]/)) if (part.length > 1) out.add(part);
+    if (joined) for (const part of token.split(/[@.]/)) if (part.length > 1) out.add(part);
   }
   return out;
+}
+
+const isTrim = (c) => c === 46 || c === 95 || c === 45; // . _ -
+const LETTER = /[\p{L}\p{N}\p{M}]/u;
+const wide = new Map();
+
+/** 0: a break; 1: part of a word; 3: @ or ., which also split it into parts. */
+function charKind(c, s, i) {
+  if (c < 128) {
+    if ((c >= 97 && c <= 122) || (c >= 48 && c <= 57) || (c >= 65 && c <= 90)) return 1;
+    if (c === 64 || c === 46) return 3;
+    if (c === 95 || c === 43 || c === 45) return 1;
+    return 0;
+  }
+  // A surrogate pair is one character; both halves take its kind.
+  let ch = s[i];
+  if (c >= 0xd800 && c <= 0xdbff) ch = s.slice(i, i + 2);
+  else if (c >= 0xdc00 && c <= 0xdfff) ch = s.slice(i - 1, i + 1);
+  let k = wide.get(ch);
+  if (k === undefined) {
+    k = LETTER.test(ch) ? 1 : 0;
+    if (wide.size < 65536) wide.set(ch, k);
+  }
+  return k;
 }
 
 const lower = (s) => String(s || '').toLowerCase();
@@ -53,16 +101,15 @@ export function headlineText(doc) {
 export function docOf(m, id) {
   const iso = m.date ? new Date(m.date) : null;
   const t = iso && !Number.isNaN(iso.getTime()) ? iso.getTime() : 0;
-  const slim = (list) => (list || []).slice(0, 50).map((r) => ({ name: r.name || null, address: r.address || '' }));
   const names = (m.attachments || []).map((a) => (typeof a === 'string' ? a : a.filename)).filter(Boolean);
+  const from = Array.isArray(m.from) ? m.from[0] : m.from;
   return {
     id: String(id),
     subject: m.subject || '',
-    from: m.from ? (Array.isArray(m.from) ? slim(m.from)[0] || null : { name: m.from.name || null, address: m.from.address || '' }) : null,
-    to: slim(m.to),
-    cc: slim(m.cc),
-    bcc: slim(m.bcc),
-    date: t ? new Date(t).toISOString() : null,
+    from: from ? personOf(from) : null,
+    to: peopleOf(m.to),
+    cc: peopleOf(m.cc),
+    bcc: peopleOf(m.bcc),
     t,
     size: Number(m.size || 0),
     unread: Boolean(m.unread),
@@ -70,13 +117,70 @@ export function docOf(m, id) {
     pinned: Boolean(m.pinned),
     hasAttachments: Boolean(m.hasAttachments || names.length),
     attachmentCount: names.length || Number(m.attachmentCount || 0),
-    attachments: names,
+    attachments: names.length ? names : NONE,
     messageId: m.messageId ? String(m.messageId).replace(/^<|>$/g, '') : null,
     inReplyTo: m.inReplyTo ? String(m.inReplyTo).replace(/^<|>$/g, '') : null,
-    references: (m.references || []).slice(-6),
-    preview: String(m.preview || '').replace(/\s+/g, ' ').slice(0, 200),
+    references: m.references?.length ? m.references.slice(-6) : NONE,
+    preview: own(String(m.preview || '').slice(0, 400).replace(/\s+/g, ' ').slice(0, 140)),
   };
 }
+
+// A hundred thousand messages name a few thousand people: each person is
+// kept once and shared, which took the index of a 5 GB archive from 229 MB
+// of records to a fraction of it.
+const NONE = Object.freeze([]);
+
+/**
+ * A string of its own. A slice of a longer string can keep the whole of it
+ * alive (a word cut from a body, the body), which in an index of a hundred
+ * thousand messages is most of the memory it takes.
+ */
+function own(s) {
+  return s.length < 13 ? s : Buffer.from(s, 'utf8').toString('utf8');
+}
+const PEOPLE = new Map();
+function personOf(p) {
+  const name = p.name || null;
+  const address = p.address || '';
+  const key = `${name}\u0001${address}`;
+  let held = PEOPLE.get(key);
+  if (!held) {
+    held = Object.freeze({ name, address });
+    if (PEOPLE.size > 500_000) PEOPLE.clear();
+    PEOPLE.set(key, held);
+  }
+  return held;
+}
+function peopleOf(list) {
+  if (!list?.length) return NONE;
+  return list.slice(0, 50).map(personOf);
+}
+
+/**
+ * Bytes of a message's pair signature: a bit set for each pair of words that
+ * stand together in it, three bits a pair. A phrase whose pairs are not all
+ * there is not in the message, so most messages that merely hold a phrase's
+ * words are set aside without reading their bodies again. (A pair's bits can
+ * be set by other pairs, so a match is still read and confirmed.)
+ */
+export const SIGNATURE = 256;
+const pairBits = (a, b) => [(Math.imul(a, 0x9e3779b1) ^ Math.imul(b, 0x85ebca6b)) >>> 0, (Math.imul(a, 0xc2b2ae35) + Math.imul(b, 0x27d4eb2f)) >>> 0, (Math.imul(a ^ 0x5bd1e995, 0x01000193) ^ Math.imul(b + 0x6b43a9b5, 0x2545f491)) >>> 0].map((h) => (h ^ (h >>> 15)) & (SIGNATURE * 8 - 1));
+
+/** Does the run of words `want` appear in `seq`, one after another? */
+function inSequence(seq, want) {
+  if (!want.length) return true;
+  outer: for (let i = 0; i + want.length <= seq.length; i++) {
+    for (let k = 0; k < want.length; k++) if (seq[i + k] !== want[k]) continue outer;
+    return true;
+  }
+  return false;
+}
+
+const sequenceOf = (text) => {
+  const seq = [];
+  tokenise(text, new Set(), seq);
+  return seq;
+};
 
 /** Binary search for `value` in a sorted Int32Array; its index or -1. */
 function find(sorted, value) {
@@ -115,11 +219,32 @@ export class SearchIndex {
   idOf(token) {
     let id = this.#vocab.get(token);
     if (id === undefined) {
+      token = own(token);
       id = this.#tokens.length;
       this.#vocab.set(token, id);
       this.#tokens.push(token);
     }
     return id;
+  }
+
+  /**
+   * A message's words and its pair signature, from its texts (the headline,
+   * the body): what a builder's `add` takes.
+   */
+  analyse(...texts) {
+    const words = new Set();
+    const sig = new Uint8Array(SIGNATURE);
+    for (const text of texts) {
+      const seq = [];
+      tokenise(text, words, seq);
+      let prev = -1;
+      for (const token of seq) {
+        const id = this.idOf(token);
+        if (prev >= 0) for (const bit of pairBits(prev, id)) sig[bit >> 3] |= 1 << (bit & 7);
+        prev = id;
+      }
+    }
+    return { words, sig };
   }
 
   /** A set of words as sorted ids. */
@@ -139,11 +264,13 @@ export class SearchIndex {
     const index = this;
     const docs = [];
     const lists = [];
+    const sigs = [];
     return {
-      add(doc, tokens) {
+      add(doc, tokens, sig = null) {
         const ids = tokens instanceof Int32Array ? tokens : index.ids(tokens);
         docs.push(doc);
         lists.push(ids);
+        sigs.push(sig);
         return ids;
       },
       get size() {
@@ -151,6 +278,9 @@ export class SearchIndex {
       },
       finish() {
         const segment = index.#compile({ key, stamp, source, folder, textOf }, docs, lists);
+        // Pair signatures side by side; a message without one is all ones (always read).
+        segment.sigs = new Uint8Array(docs.length * SIGNATURE);
+        sigs.forEach((sig, d) => (sig ? segment.sigs.set(sig, d * SIGNATURE) : segment.sigs.fill(255, d * SIGNATURE, (d + 1) * SIGNATURE)));
         index.segments.set(key, segment);
         return segment;
       },
@@ -267,7 +397,7 @@ export class SearchIndex {
    * @param {{ limit?: number, offset?: number, sources?: Iterable<string>|null, keys?: Iterable<string>|null, verifyCap?: number }} [opts]
    * @returns {{ rows: object[], total: number, exact: boolean, searched: number }}
    */
-  search(query, { limit = 200, offset = 0, sources = null, keys = null, verifyCap = 4000 } = {}) {
+  search(query, { limit = 200, offset = 0, sources = null, keys = null, verifyCap = 600 } = {}) {
     const { clauses, empty } = parseSearch(query, { now: this.now() });
     if (empty) return { rows: [], total: 0, exact: true, searched: 0 };
     const wantSources = sources ? new Set(sources) : null;
@@ -280,7 +410,10 @@ export class SearchIndex {
         if (atom.kind === 'term') return { ...atom, ids: this.#prefixIds(atom.value) };
         if (atom.kind === 'phrase') {
           const ids = atom.words.map((w) => this.#vocab.get(w));
-          return { ...atom, wordIds: ids.some((x) => x === undefined) ? null : ids.map((x) => Int32Array.of(x)) };
+          const known = !ids.some((x) => x === undefined);
+          const bits = [];
+          if (known) for (let k = 1; k < ids.length; k++) bits.push(...pairBits(ids[k - 1], ids[k]));
+          return { ...atom, wordIds: known ? ids.map((x) => Int32Array.of(x)) : null, bits };
         }
         return atom;
       }),
@@ -376,7 +509,7 @@ export class SearchIndex {
           }
           if (clause.negate && holds && clause.any.length === 1 && clause.any[0].kind === 'phrase') {
             // Its words are all here; the phrase itself may not be.
-            holds = this.#contains(segment, doc, clause.any[0].value);
+            holds = this.#contains(segment, i, clause.any[0]);
           }
           if (holds === clause.negate) {
             ok = false;
@@ -388,44 +521,58 @@ export class SearchIndex {
         let pending = null;
         for (const clause of lead) {
           if (clause.any.length !== 1 || clause.any[0].kind !== 'phrase' || clause.any[0].loose) continue;
-          const phrase = clause.any[0].value;
-          if (norm(headlineText(doc)).includes(phrase)) continue;
+          const phrase = clause.any[0];
+          // One word is its posting, already matched.
+          if (phrase.words.length < 2) continue;
+          if (inSequence(sequenceOf(headlineText(doc)), phrase.words)) continue;
+          if (!SearchIndex.#maybe(segment, i, phrase.bits)) {
+            pending = false;
+            break;
+          }
           (pending ||= []).push(phrase);
         }
-        hits.push({ segment, doc, pending });
+        if (pending === false) continue;
+        hits.push({ segment, doc, pending, i });
       }
     }
 
     hits.sort((a, b) => b.doc.t - a.doc.t || (a.doc.id < b.doc.id ? -1 : 1));
 
     // Confirm phrases against bodies: all of them when there are few enough
-    // to read, else in date order until the page is full.
+    // to read, else in date order until the page is full, the rest counted
+    // by their pair signatures ('about' so many, and said to be so).
     const pendingCount = hits.reduce((n, h) => n + (h.pending ? 1 : 0), 0);
     let exact = true;
     let out = hits;
     if (pendingCount) {
       const confirmed = [];
       let read = 0;
+      let held = 0;
       let unread = 0;
       for (const h of hits) {
         if (!h.pending) {
           confirmed.push(h);
           continue;
         }
-        if (read >= verifyCap && confirmed.length >= offset + limit) {
+        if (pendingCount > verifyCap && confirmed.length >= offset + limit) {
           unread++;
           continue;
         }
         read++;
-        if (h.pending.every((p) => this.#contains(h.segment, h.doc, p))) confirmed.push(h);
+        if (h.pending.every((p) => this.#contains(h.segment, h.i, p))) {
+          confirmed.push(h);
+          held++;
+        }
       }
       exact = unread === 0;
       out = confirmed;
-      if (!exact) out.unconfirmed = unread;
+      // Those not read are counted at the share of those read that held.
+      if (!exact) out.unconfirmed = Math.round((unread * held) / Math.max(1, read));
     }
     const total = out.length + (out.unconfirmed || 0);
     const rows = out.slice(offset, offset + limit).map(({ segment, doc }) => ({
       ...doc,
+      date: doc.t ? new Date(doc.t).toISOString() : null,
       folder: segment.folder.path,
       folderName: segment.folder.name || segment.folder.path,
       accountId: segment.source.id,
@@ -437,16 +584,26 @@ export class SearchIndex {
     return { rows, total, exact, searched };
   }
 
-  /** Does the message hold the phrase - its headline, then its body. */
-  #contains(segment, doc, phrase) {
-    if (norm(headlineText(doc)).includes(phrase)) return true;
+  /** Could the message hold the phrase, by its pair signature. */
+  static #maybe(segment, i, bits) {
+    if (!segment.sigs) return true;
+    const base = i * SIGNATURE;
+    for (const bit of bits) if (!(segment.sigs[base + (bit >> 3)] & (1 << (bit & 7)))) return false;
+    return true;
+  }
+
+  /** Does the message hold the phrase, its words one after another: its headline, then its body. */
+  #contains(segment, i, phrase) {
+    const doc = segment.docs[i];
+    if (inSequence(sequenceOf(headlineText(doc)), phrase.words)) return true;
+    if (phrase.words.length > 1 && !SearchIndex.#maybe(segment, i, phrase.bits || [])) return false;
     let text = null;
     try {
       text = segment.textOf ? segment.textOf(doc) : null;
     } catch {
       text = null;
     }
-    return text ? norm(text).includes(phrase) : false;
+    return text ? inSequence(sequenceOf(text), phrase.words) : false;
   }
 }
 

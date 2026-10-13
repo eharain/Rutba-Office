@@ -21,7 +21,7 @@ import { Mbox } from './mbox.js';
 import { parse, all } from '@rutba/office-formats/xml';
 import { fileReader, identify } from './import.js';
 import { stripHtml } from './mime.js';
-import { docOf, tokenise, headlineText } from './search-index.js';
+import { docOf, headlineText } from './search-index.js';
 
 /** A message's body as plain text, for the index and for phrases. */
 export function bodyText(m) {
@@ -119,7 +119,7 @@ class PstSource {
   }
 
   text(folder, id) {
-    return bodyText(this.pst.message(Number(id), { withBytes: false }));
+    return bodyText(this.pst.body(Number(id)));
   }
 
   raw() {
@@ -309,9 +309,8 @@ export function* indexSteps(source, index, info) {
     });
     for (const { id, message } of source.messages(folder.path)) {
       const doc = docOf({ ...message, preview: message.preview || bodyText(message).slice(0, 200) }, id);
-      const words = tokenise(headlineText(doc));
-      tokenise(bodyText(message), words);
-      builder.add(doc, words);
+      const { words, sig } = index.analyse(headlineText(doc), bodyText(message));
+      builder.add(doc, words, sig);
       done++;
       yield { done, total, folder: folder.path };
     }

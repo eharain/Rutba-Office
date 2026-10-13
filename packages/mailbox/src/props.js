@@ -151,6 +151,12 @@ export function filetimeToIso(low, high) {
   return new Date(ms).toISOString();
 }
 
+// Made once: a decoder made per value cost more than the decoding, a third of
+// the time spent reading a message out of a .pst.
+const UTF16 = new TextDecoder('utf-16le');
+const UTF8 = new TextDecoder('utf-8', { fatal: false });
+const ANSI = new TextDecoder('windows-1252', { fatal: false });
+
 /**
  * Decode one property value from its bytes.
  * @param {number} type PT_* constant
@@ -179,9 +185,9 @@ export function decodeValue(type, bytes, unicode = true) {
     case PT.SYSTIME:
       return bytes.length >= 8 ? filetimeToIso(dv.getUint32(0, true), dv.getUint32(4, true)) : null;
     case PT.UNICODE:
-      return new TextDecoder('utf-16le').decode(trimNul(bytes, 2));
+      return UTF16.decode(trimNul(bytes, 2));
     case PT.STRING8:
-      return new TextDecoder(unicode ? 'utf-8' : 'windows-1252', { fatal: false }).decode(trimNul(bytes, 1));
+      return (unicode ? UTF8 : ANSI).decode(trimNul(bytes, 1));
     case PT.CLSID:
       return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
     case PT.BINARY:

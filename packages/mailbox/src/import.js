@@ -19,14 +19,40 @@ import { OutlookMessage } from './msg.js';
 import { Mbox } from './mbox.js';
 import { parseMessage, summarize } from './mime.js';
 
-/** A reader that pages a file from disk instead of loading it. */
-export function fileReader(filePath) {
+/**
+ * A reader that pages a file from disk instead of loading it, opened for
+ * reading only.
+ *
+ * Small reads are served from a window of the file read ahead: the blocks of
+ * one message sit together, and reading them one system call each was the
+ * largest single cost of indexing a .pst. A new window is a new buffer, so a
+ * view handed out earlier is never written over.
+ */
+export function fileReader(filePath, { window = 32 * 1024, windows = 4 } = {}) {
   const fd = fs.openSync(filePath, 'r');
   const size = fs.fstatSync(fd).size;
+  // A few windows, the latest last: a message's blocks are often in two
+  // places (its properties, and its recipients written before its files).
+  const held = [];
   return {
     size,
     read(offset, length) {
       const n = Math.max(0, Math.min(length, size - offset));
+      for (let i = held.length - 1; i >= 0; i--) {
+        const h = held[i];
+        if (offset >= h.at && offset + n <= h.at + h.bytes.length) return h.bytes.subarray(offset - h.at, offset - h.at + n);
+      }
+      if (n && n <= 8192) {
+        // Start a little before: what belongs with a block is often just ahead of it.
+        const at = Math.max(0, offset - 4096);
+        const w = Math.min(window, size - at);
+        const buf = Buffer.allocUnsafe(w);
+        const got = fs.readSync(fd, buf, 0, w, at);
+        const bytes = new Uint8Array(buf.buffer, buf.byteOffset, got);
+        held.push({ at, bytes });
+        if (held.length > windows) held.shift();
+        return bytes.subarray(offset - at, Math.min(got, offset - at + n));
+      }
       const buf = Buffer.allocUnsafe(n);
       if (n) fs.readSync(fd, buf, 0, n, offset);
       return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
