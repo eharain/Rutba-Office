@@ -97,6 +97,9 @@ export async function verifyOcrPdf(h, { dir }) {
   const d = driver(win, { until, wait });
   try {
     await until(() => d.js(`document.querySelectorAll('.pdf-thumb').length === 3 && document.querySelectorAll('.pdf-page canvas[data-drawn]').length > 0`), 'three pages drawn', 20000).catch(() => {});
+    // The typed page's own words come in after its picture, and in a busy
+    // full run they were counted before they arrived.
+    await until(() => d.js(`(document.querySelectorAll('.pdf-page .textLayer')[1]?.textContent.length || 0) > 0`), 'the typed page’s text', 15000).catch(() => {});
     const before = await d.js(`[...document.querySelectorAll('.pdf-page .textLayer')].map((l) => l.textContent.length)`);
 
     // The dialog: three ways to choose pages, six languages, Urdu marked beta and explained when ticked.
