@@ -443,7 +443,7 @@ export default function WordRibbon({
             </Rows>
           </Group>
 
-          <Group label={t('Styles')}>
+          <Group label={t('Styles')} icon="styles">
             <div className="wd-styles">
               {(styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).slice(0, 8).map((s) => (
                 <button
@@ -604,7 +604,7 @@ export default function WordRibbon({
       {/* ── Design ───────────────────────────────────────────────────────── */}
       {tab === 'design' ? (
         <>
-          <Group label={t('Document Formatting')}>
+          <Group label={t('Document Formatting')} icon="theme">
             <Button dropdown
               tall
               icon="wand"

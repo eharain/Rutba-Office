@@ -4568,6 +4568,9 @@ const CSS = `
 .sh-comment-text { margin: 6px 0 0 34px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .sh-comment-tools { display: flex; gap: 2px; }
 .sh-comment-tools .rw-btn { min-width: 24px; height: 24px; padding: 0 4px; }
+/* Paste and its options as one split button, as Excel draws it: the options a narrow arrow the height of Paste, beside it. */
+.rw-group-items > .rw-btn.icon.sh-paste-options { grid-row: 1 / -1; align-self: stretch; height: auto; min-width: 16px; width: 16px; padding: 0; margin-inline-start: -3px; }
+.rw-group-items > .rw-btn.icon.sh-paste-options svg { width: 10px; height: 10px; }
 .sh-card-compose { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
 .sh-card-compose textarea, .sh-comment textarea {
   font: inherit; font-size: 12.5px; width: 100%; box-sizing: border-box; resize: vertical; min-height: 56px;

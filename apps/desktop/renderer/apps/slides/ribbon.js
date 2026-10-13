@@ -575,7 +575,7 @@ export default function SlidesRibbon({
       {/* ── Design ───────────────────────────────────────────────────────── */}
       {tab === 'design' ? (
         <>
-          <Group label={t('Themes')}>
+          <Group label={t('Themes')} icon="theme">
             <RibbonStrip
               kind="themes"
               items={designStrip?.themes}
@@ -585,7 +585,7 @@ export default function SlidesRibbon({
               onMore={(e) => { const r = e.currentTarget.closest('.sl-rs').getBoundingClientRect(); act('designGallery', { kind: 'themes', anchor: { left: r.left, bottom: r.bottom + 4 } }); }}
             />
           </Group>
-          <Group label={t('Variants')}>
+          <Group label={t('Variants')} icon="variants">
             <RibbonStrip
               kind="variants"
               items={designStrip?.variants}

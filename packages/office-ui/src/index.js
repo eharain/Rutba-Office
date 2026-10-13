@@ -586,7 +586,7 @@ function fitGroups(el, iconsOnly = false) {
         g.classList.remove('compact', 'small');
         const slot = g.querySelector(':scope > .rw-fold > .rw-fold-icon');
         if (slot && !slot.firstChild) {
-          const first = g.querySelector('.rw-group-items svg:not(.rw-caret)');
+          const first = g.querySelector('.rw-group-items .rw-btn > svg:not(.rw-caret)');
           if (first) slot.appendChild(first.cloneNode(true));
         }
         g.classList.add('folded');

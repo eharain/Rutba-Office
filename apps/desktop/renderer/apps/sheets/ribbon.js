@@ -527,7 +527,7 @@ export default function SheetsRibbon({
       {/* ── Page Layout ──────────────────────────────────────────────────── */}
       {tab === 'layout' ? (
         <>
-          <Group label={t('Themes')}>
+          <Group label={t('Themes')} icon="theme">
             <Button tall icon="wand" label={t('Themes')} pressed={view.gallery === 'themes'} title={t("Themes — the suite's themes, the same as Presentation's; this workbook wears {theme}", { theme: model?.design?.name || 'Office Theme' })} onClick={(e) => openGallery(e, 'themes')} />
             <Button icon="contrast" label={t('Colours')} title={t("Colours — the theme's twelve colours, or your own; now {name}", { name: model?.design?.colorName || 'Office' })} onClick={(e) => openGallery(e, 'colours')} />
             <Button icon="textbox" label={t('Fonts')} title={t('Fonts — the heading and body faces; now {major} and {minor}', model?.design?.fonts ? { major: model.design.fonts.major, minor: model.design.fonts.minor } : { major: 'Calibri Light', minor: 'Calibri' })} onClick={(e) => openGallery(e, 'fonts')} />

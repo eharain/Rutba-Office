@@ -218,6 +218,10 @@ const PATHS = {
   deselect: [P('M4 4h16v16H4z', { strokeDasharray: '3 2.4' }), P('m9 9 6 6M15 9l-6 6')],
   invertSelection: [P('M4 4h16v16H4z', { strokeDasharray: '3 2.4' }), P('M8 8h8v8H8z'), P('M8 16 16 8')],
   duplicate: [P('M8 8h12v12H8z'), P('M4 16V4h12'), P('M14 11v6M11 14h6')],
+  // A folded gallery's own: styles (a letter and its lines), a theme (a page of colour), its variants.
+  styles: [P('M3 17 7.5 5 12 17'), P('M4.8 13h5.4'), P('M15 7h6M15 11h6M15 15h6M3 21h18')],
+  theme: [P('M4 4h16v16H4z'), P('M4 15h16'), P('M8 18h.01M12 18h.01M16 18h.01', { strokeWidth: 2.6 }), P('M9 11.5 12 6l3 5.5M10 10h4')],
+  variants: [P('M3 5h8v6H3zM13 5h8v6h-8zM3 13h8v6H3zM13 13h8v6h-8z')],
   // The ribbons' own: one picture a command, as Office has, where one
   // picture used to stand for several (a wand for highlight, shading and
   // text effects; chevrons for grow and shrink).

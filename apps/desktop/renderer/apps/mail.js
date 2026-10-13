@@ -1118,7 +1118,7 @@ export default function Mail({ app, shell }) {
               <Group label={t('Find')}>
                 <Button tall icon="find" label={t('Search')} onClick={() => commands['mail.search'].run()} />
                 <Button icon="attach" label={t('Attachments')} pressed={view === 'files'} onClick={() => setView(view === 'files' ? 'mail' : 'files')} disabled={unified || Boolean(archiveId)} />
-                <Button icon="reply" label={t('People')} pressed={view === 'people'} onClick={() => setView(view === 'people' ? 'mail' : 'people')} disabled={unified || Boolean(archiveId)} />
+                <Button icon="contacts" label={t('People')} pressed={view === 'people'} onClick={() => setView(view === 'people' ? 'mail' : 'people')} disabled={unified || Boolean(archiveId)} />
                 <Button icon="filter" label={t('Rules')} onClick={() => setDialog({ kind: 'rules' })} />
               </Group>
             </>
@@ -1469,7 +1469,7 @@ export default function Mail({ app, shell }) {
                 <div className="rw-panel-head">{t('Views')}</div>
                 <List>
                   <Item icon="attach" label={t('Attachments')} current={view === 'files'} onClick={() => setView('files')} />
-                  <Item icon="reply" label={t('People')} current={view === 'people'} onClick={() => setView('people')} />
+                  <Item icon="contacts" label={t('People')} current={view === 'people'} onClick={() => setView('people')} />
                   <Item
                     icon="clock"
                     label={t('Outbox')}
