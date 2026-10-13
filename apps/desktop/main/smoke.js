@@ -11,12 +11,28 @@
 //   RUTBA_SMOKE_FILE=x.xlsx npm run smoke -- sheets
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import pdfWriter from '@rutba/pdf';
 import { seedMail } from './seed-mail.js';
 import { samplePictures } from './sample-picture.js';
 import { consoleMessage } from './console-message.js';
 
-const ALL = ['home', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'mail', 'calendar', 'contacts'];
+const ALL = ['home', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'mail', 'calendar', 'contacts'];
+
+/** A PDF of three pages made here, for the PDF window to open: never a file from the machine. */
+function samplePdf() {
+  const doc = new pdfWriter.PdfDocument({ title: 'Quarterly report', created: '2026-10-13T09:00:00Z' });
+  ['Quarterly report', 'Sales by region', 'Next steps'].forEach((title, i) => {
+    const page = doc.addPage();
+    page.text(title, 72, 110, { font: 'Helvetica-Bold', size: 28 });
+    page.text('A sample page, written by the suite for this capture.', 72, 150, { font: 'Helvetica', size: 12 });
+    page.rect(72, 180, 451, 220, { fill: ['#dbe7ff', '#e1f5e4', '#fff3c4'][i], stroke: '#556070', width: 1 });
+  });
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-pdf-')), 'Quarterly report.pdf');
+  fs.writeFileSync(file, doc.toBuffer());
+  return file;
+}
 
 /**
  * Put a small archive through the real import path, so the mail screenshots
@@ -60,7 +76,7 @@ export async function runSmoke({ windows, outDir, stores, mail }) {
     // The Pictures window opened with no file lists the operating system's own
     // pictures folder, so a capture run photographed whoever's machine it was
     // on. It gets pictures drawn for it instead — see sample-picture.js.
-    const shown = file || (app === 'pictures' ? (samples || (samples = samplePictures())).first : null);
+    const shown = file || (app === 'pictures' ? (samples || (samples = samplePictures())).first : app === 'pdf' ? samplePdf() : null);
     const win = windows.create({ app, file: shown && app !== 'home' ? shown : null });
     const messages = [];
     win.webContents.on('console-message', (...args) => {
