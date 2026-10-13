@@ -1464,7 +1464,7 @@ export function EditRangesDialog({ ranges = [], sheetProtected, selection = '', 
           <div className="sh-ranges-buttons">
             <Button label={t('New…')} className="sh-ranges-new" disabled={sheetProtected} title={locked || t('New… — a range from the selection, with a title and an optional password')} onClick={startNew} />
             <Button label={t('Modify…')} className="sh-ranges-modify" disabled={sheetProtected || !picked} title={locked || t('Modify… — the picked range')} onClick={startModify} />
-            <Button label={t('Delete')} className="sh-ranges-delete" disabled={sheetProtected || !picked} title={locked || t('Delete — the picked range')} onClick={() => picked && onDelete(picked)} />
+            <Button label={t('Delete')} className="sh-ranges-delete" disabled={sheetProtected || !picked} title={locked || t('Delete: the picked range')} onClick={() => picked && onDelete(picked)} />
           </div>
         </div>
         {sheetProtected ? <p className="sh-ranges-locked"><Icon name="lock" size={12} /> {t('The sheet is protected: the ranges stay as they are until it is unprotected.')}</p> : null}
@@ -1553,7 +1553,7 @@ export function CustomViewsDialog({ views = [], onClose, onShow, onAdd, onDelete
           <div className="sh-ranges-buttons">
             <Button primary label={t('Show')} className="sh-cviews-show" disabled={!picked} title={t('Show — the workbook as the picked view kept it')} onClick={() => picked && onShow(picked)} />
             <Button label={t('Add…')} className="sh-cviews-add" title={t('Add… — keep the way the workbook looks now under a name')} onClick={() => { setError(''); setAdding({ name: '', print: true, hidden: true }); }} />
-            <Button label={t('Delete')} className="sh-cviews-delete" disabled={!picked} title={t('Delete — the picked view')} onClick={() => picked && onDelete(picked)} />
+            <Button label={t('Delete')} className="sh-cviews-delete" disabled={!picked} title={t('Delete: the picked view')} onClick={() => picked && onDelete(picked)} />
           </div>
         </div>
       </div>
@@ -1630,7 +1630,7 @@ export function ConsolidateDialog({ info, onClose, onApply }) {
               )) : <div className="sh-ranges-empty">{t('No references yet.')}</div>}
             </div>
             <div className="sh-ranges-buttons">
-              <Button label={t('Delete')} className="sh-cons-delete" disabled={!picked} title={t('Delete — the picked reference')} onClick={() => { setRefs((list) => list.filter((r) => r !== picked)); setPicked(null); }} />
+              <Button label={t('Delete')} className="sh-cons-delete" disabled={!picked} title={t('Delete: the picked reference')} onClick={() => { setRefs((list) => list.filter((r) => r !== picked)); setPicked(null); }} />
             </div>
           </div>
         </Field>

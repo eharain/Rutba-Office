@@ -217,7 +217,7 @@ export function RotateHandle({ box, onStart }) {
       <div
         className="sh-obj-rotate"
         style={{ left: cx - 6, top: box.y - 30 }}
-        data-tip={t('Rotate — drag to turn; hold Shift for steps of 15°')}
+        data-tip={t('Rotate: drag to turn; hold Shift for steps of 15°')}
         onMouseDown={(e) => { if (e.button === 0) { e.preventDefault(); e.stopPropagation(); onStart(e); } }}
       />
     </>
@@ -248,8 +248,8 @@ export function SelectionPane({ objects = [], picked = [], onPick, onHidden, onR
         <button type="button" className="sh-selpane-all" onClick={() => onAll(false)} disabled={!objects.length}>{t('Show All')}</button>
         <button type="button" className="sh-selpane-all" onClick={() => onAll(true)} disabled={!objects.length}>{t('Hide All')}</button>
         <span className="grow" />
-        <button type="button" className="sh-selpane-order" data-tip={t('Bring Forward — the picked object one step to the front')} aria-label={t('Bring Forward')} disabled={!picked.length} onClick={() => onOrder('forward')}><Icon name="chevronUp" size={14} /></button>
-        <button type="button" className="sh-selpane-order" data-tip={t('Send Backward — the picked object one step to the back')} aria-label={t('Send Backward')} disabled={!picked.length} onClick={() => onOrder('backward')}><Icon name="chevronDown" size={14} /></button>
+        <button type="button" className="sh-selpane-order" data-tip={t('Bring Forward: the picked object one step to the front')} aria-label={t('Bring Forward')} disabled={!picked.length} onClick={() => onOrder('forward')}><Icon name="chevronUp" size={14} /></button>
+        <button type="button" className="sh-selpane-order" data-tip={t('Send Backward: the picked object one step to the back')} aria-label={t('Send Backward')} disabled={!picked.length} onClick={() => onOrder('backward')}><Icon name="chevronDown" size={14} /></button>
       </div>
       <div className="sh-selpane-list">
         {list.length ? list.map((o) => (

@@ -42,7 +42,7 @@ export const TITLE_NAMES = () => ({ title: t('Title'), lowerThird: t('Lower Thir
 export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeconds, setTransitionSeconds, selection, intro = false }) {
   const tabs = [
     { id: 'home', label: t('Home') },
-    ...(intro ? [{ id: 'intro', label: t('Introduction') }] : []),
+    ...(intro ? [{ id: 'intro', label: t('Introduction'), contextual: true }] : []),
     { id: 'insert', label: t('Insert') },
     { id: 'edit', label: t('Edit') },
     { id: 'transitions', label: t('Transitions') },

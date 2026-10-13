@@ -276,7 +276,7 @@ export function InfoDialog({ app, doc, size = null, items = [], notes = [], prop
                 <button
                   type="button"
                   className={`pw-card-tile${open ? ' open' : ''}`}
-                  data-tip={t('{label} — choose how this {noun} is protected', { label, noun: t(noun) })}
+                  data-tip={t('{label}: choose how this {noun} is protected', { label, noun: t(noun) })}
                   aria-haspopup="menu"
                   aria-expanded={open}
                   onClick={() => setOpen((o) => !o)}

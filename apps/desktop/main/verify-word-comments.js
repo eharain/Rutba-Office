@@ -34,7 +34,7 @@ export async function verifyWordComments(h, { dir }) {
     const count = () => (doc.model({ id: session.id }).comments || []).length;
     const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
     const openDelete = () => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Delete' && (n.title || n.dataset.tip || '').startsWith('Delete — the comment'));
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Delete' && (n.title || n.dataset.tip || '').startsWith('Delete: the comment'));
       if (!b) return 'no button';
       if (b.disabled) return 'disabled';
       b.click();
@@ -77,7 +77,7 @@ export async function verifyWordComments(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.rw-menu'))`), 'the Delete menu again', 3000).catch(() => {});
     const all = await pick('Delete All Comments in Document');
     const afterAll = await until(() => count() === 0, 'every comment gone', 5000).then(() => true).catch(() => false);
-    const greyed = await until(() => js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Delete' && (n.title || n.dataset.tip || '').startsWith('Delete —'))?.disabled === true`), 'Delete to grey', 3000).then(() => true).catch(() => false);
+    const greyed = await until(() => js(`[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Delete' && (n.title || n.dataset.tip || '').startsWith('Delete:'))?.disabled === true`), 'Delete to grey', 3000).then(() => true).catch(() => false);
     await capture(win, 'word-comments-deleted.png');
     await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
     const saved = await until(() => {

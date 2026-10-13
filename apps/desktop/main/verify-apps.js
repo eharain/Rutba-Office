@@ -2833,7 +2833,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         await js(`(() => { document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.click(); return 1; })()`);
         await wait(300);
         const armed = await clickRibbon('Format Painter');
-        const pressed = await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Format Painter — armed')))`), 'the painter armed', 3000).catch(() => false);
+        const pressed = await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Format Painter: armed')))`), 'the painter armed', 3000).catch(() => false);
         await js(`(() => { document.querySelector('.sl-hit[data-shape="${title.id}"]')?.click(); return 1; })()`);
         const took = await until(() => { const s = model(1).slide.shapes.find((x) => x.id === title.id); return String(s?.fill?.color || '').toUpperCase() === '#FF9900' && s?.line?.width === 2; }, 'the look painted', 5000).catch(() => false);
         const after = model(1).slide.shapes.find((x) => x.id === title.id);

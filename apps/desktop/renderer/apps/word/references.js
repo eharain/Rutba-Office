@@ -48,7 +48,7 @@ export function CitationsGroup({ refs, menu }) {
   const style = info?.style || 'apa7';
   return (
     <Group label={t('Citations & Bibliography')}>
-      <Button
+      <Button dropdown
         tall icon="reply" className="wd-refs-2line" label={t('Insert\nCitation')}
         title={t("Insert Citation — cite a source in this document's list, add a new source, or a placeholder to fill in later")}
         onClick={(e) => menu.open(e, refs.citationMenu())}
@@ -61,7 +61,7 @@ export function CitationsGroup({ refs, menu }) {
             {BIBLIOGRAPHY_STYLES.map((s) => <option key={s.id} value={s.id} title={`${s.label} ${t(s.edition)}`}>{s.name === 'APA' ? t('APA {version}th', { version: s.version }) : s.label}</option>)}
           </Select>
         </label>
-        <Button
+        <Button dropdown
           icon="listBullet" label={t('Bibliography')} className="wd-refs-bib"
           title={t('Bibliography — a list of the sources, headed Bibliography, References or Works Cited')}
           onClick={(e) => menu.open(e, refs.bibliographyMenu())}
@@ -651,7 +651,7 @@ export function ManageSourcesDialog({ style, current: startCurrent, master: star
             </div>
             <div className="wd-refs-verbs">
               <Button className="wd-refs-copy" label={pick?.list === 'current' ? t('← Copy') : t('Copy →')} disabled={!selected} title={pick?.list === 'current' ? t('Copy the source to the master list') : t('Copy the source to this document')} onClick={copy} />
-              <Button className="wd-refs-delete" label={t('Delete')} disabled={!selected || isCited} title={isCited ? t('Delete — a source cited in the document cannot be deleted from its list') : t('Delete the source from this list')} onClick={remove} />
+              <Button className="wd-refs-delete" label={t('Delete')} disabled={!selected || isCited} title={isCited ? t('Delete: a source cited in the document cannot be deleted from its list') : t('Delete the source from this list')} onClick={remove} />
               <Button className="wd-refs-edit" label={t('Edit…')} disabled={!selected && !pickedPlaceholder} title={t('Edit the source')} onClick={() => (pickedPlaceholder ? setEditing({ mode: 'placeholder', source: { ...emptySource(), tag: pickedPlaceholder } }) : setEditing({ mode: 'edit', source: selected }))} />
               <Button className="wd-refs-new" label={t('New…')} title={t('Create a new source, in both lists')} onClick={() => setEditing({ mode: 'new', source: null })} />
             </div>

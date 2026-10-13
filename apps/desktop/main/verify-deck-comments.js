@@ -127,7 +127,7 @@ export async function verifyDeckComments(h, { dir }) {
     check('slides: Next and Previous move between the comments across the slides, showing each one\'s slide', next === 'clicked' && wrapped === true && prev === 'clicked' && back === true, `${next}/${prev}; wrapped ${wrapped}; back ${back}`);
 
     // 5. Delete, then Ctrl+Z.
-    const del = await clickRibbon('Delete —');
+    const del = await clickRibbon('Delete:');
     const item = await clickMenuItem('Delete Comment');
     const deleted = await until(() => comments().length === 1 && comments()[0].slide === 0, 'the thread deleted', 5000).catch(() => false);
     await js(`(() => { document.querySelector('.sl-stage')?.focus(); return 1; })()`);

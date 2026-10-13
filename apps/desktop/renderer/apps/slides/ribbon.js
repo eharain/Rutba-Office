@@ -62,7 +62,7 @@ const BACKGROUND_STYLES = [
 
 /** A control that is drawn where PowerPoint draws it, and says why it is not live. */
 const Soon = ({ icon, label, tall, why }) => (
-  <Button tall={tall} icon={icon} label={label} disabled title={t('{label} — not built yet. {why}', { label, why })} />
+  <Button tall={tall} icon={icon} label={label} disabled title={t('{label}: not built yet. {why}', { label, why })} />
 );
 /** Shape Effects: the shadows PowerPoint offers first, and none. */
 const SHADOW_MENU = [['br', t('Shadow: bottom right')], ['b', t('Shadow: below')], ['r', t('Shadow: right')], ['tl', t('Shadow: top left')], ['c', t('Shadow: all round')], ['none', t('No shadow')]];
@@ -217,15 +217,15 @@ export default function SlidesRibbon({
         { id: 'help', label: t('Help') },
         { id: 'pdf', label: 'PDF' }, // words-ok: a file format's name
         // Table Design, as PowerPoint's: there while a table is selected.
-        ...(selectedShapeObj?.kind === 'table' ? [{ id: 'tableDesign', label: t('Table Design') }] : []),
+        ...(selectedShapeObj?.kind === 'table' ? [{ id: 'tableDesign', label: t('Table Design'), contextual: true }] : []),
         // Shape Format, as PowerPoint's: there while a shape with words is selected.
-        ...(selectedShapeObj?.kind === 'shape' && selectedShapeObj?.text && !selectedShapeObj?.cameo ? [{ id: 'shapeFormat', label: t('Shape Format') }] : []),
+        ...(selectedShapeObj?.kind === 'shape' && selectedShapeObj?.text && !selectedShapeObj?.cameo ? [{ id: 'shapeFormat', label: t('Shape Format'), contextual: true }] : []),
         // Camera Format, as PowerPoint's: there while a cameo is selected.
-        ...(selectedShapeObj?.cameo ? [{ id: 'cameraFormat', label: t('Camera Format') }] : []),
+        ...(selectedShapeObj?.cameo ? [{ id: 'cameraFormat', label: t('Camera Format'), contextual: true }] : []),
         // 3D Model, as PowerPoint's: there while a 3D model is selected.
-        ...(selectedShapeObj?.model3d ? [{ id: 'model3d', label: t('3D Model') }] : []),
+        ...(selectedShapeObj?.model3d ? [{ id: 'model3d', label: t('3D Model'), contextual: true }] : []),
         // Picture Format, as PowerPoint's: there while a picture is selected.
-        ...(pictureSelected ? [{ id: 'pictureFormat', label: t('Picture Format') }] : []),
+        ...(pictureSelected ? [{ id: 'pictureFormat', label: t('Picture Format'), contextual: true }] : []),
       ]}
       active={tab}
       onTab={setTab}
@@ -248,22 +248,22 @@ export default function SlidesRibbon({
                 <Button icon="copy" label={t('Copy')} title={needShape || t('Copy the shape (Ctrl+C)')} disabled={!hasShape} onClick={() => act('copyShape')} />
               </>
               <Button
-                icon="wand"
+                icon="brush"
                 label={t('Format Painter')}
                 pressed={painter}
                 disabled={!hasShape && !painter}
-                title={painter ? t('Format Painter — armed: click a shape to give it this look; Esc puts it down') : (needShape || t('Format Painter — this shape’s fill, outline and font onto the next shape you click'))}
+                title={painter ? t('Format Painter: armed: click a shape to give it this look; Esc puts it down') : (needShape || t('Format Painter: this shape’s fill, outline and font onto the next shape you click'))}
                 onClick={() => act('painter')}
               />
             </Rows>
           </Group>
           <Group label={t('Slides')}>
-            <Button tall icon="plus" label={t('New Slide')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
+            <Button dropdown tall icon="plus" label={t('New Slide')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
             <Rows>
               <>
-                <Button icon="grid" label={t('Layout')} title={t("Layout — put this slide on another of the deck's layouts")} onClick={(e) => menu.open(e, (model?.layouts || []).map((l) => ({ label: l.name || l.part, icon: l.part === model?.slide?.layout ? 'check' : undefined, run: () => act('applyLayout', l.part) })))} />
+                <Button dropdown icon="grid" label={t('Layout')} title={t("Layout: put this slide on another of the deck's layouts")} onClick={(e) => menu.open(e, (model?.layouts || []).map((l) => ({ label: l.name || l.part, icon: l.part === model?.slide?.layout ? 'check' : undefined, run: () => act('applyLayout', l.part) })))} />
                 <Button icon="undo" label={t('Reset')} title={t('Reset — the placeholders back where the layout puts them')} onClick={() => act('resetSlide')} />
-                <Button
+                <Button dropdown
                   icon="list"
                   label={t('Section')}
                   title={t('Section — a section before this slide, its name, or one taken away')}
@@ -301,11 +301,11 @@ export default function SlidesRibbon({
                 <Button icon="italic" title={needShape || t('Italic (Ctrl+I)')} pressed={format.italic} disabled={!hasShape} onClick={() => fmt({ italic: 'toggle' })} />
                 <Button icon="underline" title={needShape || t('Underline (Ctrl+U)')} pressed={format.underline} disabled={!hasShape} onClick={() => fmt({ underline: 'toggle' })} />
                 <Button icon="strike" title={needShape || t('Strikethrough')} pressed={format.strike} disabled={!hasShape} onClick={() => fmt({ strike: 'toggle' })} />
-                <Button icon="textbox" label="AV" title={needShape || (format.spacing ? t('Character spacing — now {spacing} pt', { spacing: format.spacing }) : t('Character spacing — now normal'))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Very tight'), -1.5], [t('Tight'), -0.75], [t('Normal'), 0], [t('Loose'), 1.5], [t('Very loose'), 3]].map(([label, v]) => ({ label, icon: (format.spacing || 0) === v ? 'check' : undefined, run: () => fmt({ spacing: v }) })))} />{/* words-ok: AV is the control's picture of letter spacing, as PowerPoint draws it */}
-                <Button icon="textbox" label="Aa" title={needShape || t('Change case')} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Sentence case'), 'sentence'], [t('lowercase'), 'lower'], [t('UPPERCASE'), 'upper'], [t('Capitalise Each Word'), 'title']].map(([label, mode]) => ({ label, run: () => fmt({ case: mode }) })))} />{/* words-ok: Aa is the control's picture of letter case, as PowerPoint draws it */}
+                <Button dropdown icon="textbox" label="AV" title={needShape || (format.spacing ? t('Character spacing: now {spacing} pt', { spacing: format.spacing }) : t('Character spacing: now normal'))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Very tight'), -1.5], [t('Tight'), -0.75], [t('Normal'), 0], [t('Loose'), 1.5], [t('Very loose'), 3]].map(([label, v]) => ({ label, icon: (format.spacing || 0) === v ? 'check' : undefined, run: () => fmt({ spacing: v }) })))} />{/* words-ok: AV is the control's picture of letter spacing, as PowerPoint draws it */}
+                <Button dropdown icon="textbox" label="Aa" title={needShape || t('Change case')} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Sentence case'), 'sentence'], [t('lowercase'), 'lower'], [t('UPPERCASE'), 'upper'], [t('Capitalise Each Word'), 'title']].map(([label, mode]) => ({ label, run: () => fmt({ case: mode }) })))} />{/* words-ok: Aa is the control's picture of letter case, as PowerPoint draws it */}
                 <Separator />
-                <Button icon="wand" title={needShape || t('Text highlight colour')} pressed={Boolean(format.highlight)} disabled={!hasShape} onClick={(e) => menu.open(e, [['#FFFF00', t('Yellow')], ['#00FF00', t('Bright green')], ['#00FFFF', t('Turquoise')], ['#FF00FF', t('Pink')], [null, t('No colour')]].map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => fmt({ highlight: value }) })))} />
-                <Button icon="contrast" title={needShape || t('Font colour')} disabled={!hasShape} onClick={(e) => menu.open(e, COLOURS.map(([value, label]) => ({ label, run: () => fmt({ color: value }) })))} />
+                <Button dropdown icon="wand" title={needShape || t('Text highlight colour')} pressed={Boolean(format.highlight)} disabled={!hasShape} onClick={(e) => menu.open(e, [['#FFFF00', t('Yellow')], ['#00FF00', t('Bright green')], ['#00FFFF', t('Turquoise')], ['#FF00FF', t('Pink')], [null, t('No colour')]].map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => fmt({ highlight: value }) })))} />
+                <Button dropdown icon="contrast" title={needShape || t('Font colour')} disabled={!hasShape} onClick={(e) => menu.open(e, COLOURS.map(([value, label]) => ({ label, run: () => fmt({ color: value }) })))} />
               </>
             </Rows>
           </Group>
@@ -316,11 +316,11 @@ export default function SlidesRibbon({
                 <Button icon="listNumber" title={needShape || t('Numbering')} pressed={format.bullet === 'number'} disabled={!hasShape} onClick={() => fmt({ bullet: format.bullet === 'number' ? 'none' : 'number' })} />
                 <Button icon="chevronLeft" title={needShape || t('Decrease list level')} disabled={!hasShape || !format.level} onClick={() => fmt({ level: -1 })} />
                 <Button icon="chevronRight" title={needShape || t('Increase list level')} disabled={!hasShape} onClick={() => fmt({ level: 1 })} />
-                <Button icon="list" title={needShape || (format.lineHeight ? t('Line spacing — now {value}', { value: String(format.lineHeight) }) : t('Line spacing — now as the layout has it'))} disabled={!hasShape} onClick={(e) => menu.open(e, [1, 1.15, 1.5, 2].map((v) => ({ label: String(v), icon: format.lineHeight === v ? 'check' : undefined, run: () => fmt({ lineHeight: v }) })))} />
+                <Button dropdown icon="list" title={needShape || (format.lineHeight ? t('Line spacing: now {value}', { value: String(format.lineHeight) }) : t('Line spacing: now as the layout has it'))} disabled={!hasShape} onClick={(e) => menu.open(e, [1, 1.15, 1.5, 2].map((v) => ({ label: String(v), icon: format.lineHeight === v ? 'check' : undefined, run: () => fmt({ lineHeight: v }) })))} />
                 <Separator />
-                <Button icon="grid" title={needShape || t('Columns — now {columns}', { columns: format.columns || 1 })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('One column'), 1], [t('Two columns'), 2], [t('Three columns'), 3]].map(([label, n]) => ({ label, icon: (format.columns || 1) === n ? 'check' : undefined, run: () => act('body', { columns: n }) })))} />
-                <Button icon="rotate" title={needShape || t('Text direction — now {direction}', { direction: ({ horz: t('horizontal'), vert270: t('rotated up'), vert: t('rotated down'), eaVert: t('stacked') })[format.vert] || t('horizontal') })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Horizontal'), 'horz'], [t('Rotate all text 90° (reads down)'), 'vert'], [t('Rotate all text 270° (reads up)'), 'vert270']].map(([label, v]) => ({ label, icon: (format.vert || 'horz') === v ? 'check' : undefined, run: () => act('body', { vert: v }) })))} />
-                <Button icon="chevronUp" title={needShape || t('Align text — now {anchor}', { anchor: ({ top: t('top'), middle: t('middle'), bottom: t('bottom') })[format.anchor || 'top'] || format.anchor })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Top'), 'top'], [t('Middle'), 'middle'], [t('Bottom'), 'bottom']].map(([label, a]) => ({ label, icon: (format.anchor || 'top') === a ? 'check' : undefined, run: () => act('body', { anchor: a }) })))} />
+                <Button dropdown icon="grid" title={needShape || t('Columns: now {columns}', { columns: format.columns || 1 })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('One column'), 1], [t('Two columns'), 2], [t('Three columns'), 3]].map(([label, n]) => ({ label, icon: (format.columns || 1) === n ? 'check' : undefined, run: () => act('body', { columns: n }) })))} />
+                <Button dropdown icon="rotate" title={needShape || t('Text direction: now {direction}', { direction: ({ horz: t('horizontal'), vert270: t('rotated up'), vert: t('rotated down'), eaVert: t('stacked') })[format.vert] || t('horizontal') })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Horizontal'), 'horz'], [t('Rotate all text 90° (reads down)'), 'vert'], [t('Rotate all text 270° (reads up)'), 'vert270']].map(([label, v]) => ({ label, icon: (format.vert || 'horz') === v ? 'check' : undefined, run: () => act('body', { vert: v }) })))} />
+                <Button dropdown icon="chevronUp" title={needShape || t('Align text: now {anchor}', { anchor: ({ top: t('top'), middle: t('middle'), bottom: t('bottom') })[format.anchor || 'top'] || format.anchor })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Top'), 'top'], [t('Middle'), 'middle'], [t('Bottom'), 'bottom']].map(([label, a]) => ({ label, icon: (format.anchor || 'top') === a ? 'check' : undefined, run: () => act('body', { anchor: a }) })))} />
               </>
               <>
                 <Button icon="alignLeft" title={needShape || t('Align left')} pressed={format.align === 'left'} disabled={!hasShape} onClick={() => fmt({ align: 'left' })} />
@@ -335,9 +335,9 @@ export default function SlidesRibbon({
             </Rows>
           </Group>
           <Group label={t('Drawing')}>
-            <Button tall icon="shape" label={t('Shapes')} title={t("Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours")} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
+            <Button dropdown tall icon="shape" label={t('Shapes')} title={t("Shapes: a rectangle, an oval, an arrow, a star, in the theme's colours")} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
 
-            <Button tall icon="grid" label={t('Arrange')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="grid" label={t('Arrange')} onClick={(e) => menu.open(e, [
               { label: t('Bring to front'), icon: 'chevronUp', run: () => act('order', 'front') },
               { label: t('Bring forward'), run: () => act('order', 'forward') },
               { label: t('Send backward'), run: () => act('order', 'backward') },
@@ -371,10 +371,10 @@ export default function SlidesRibbon({
               { label: t('Move left (nudge)'), run: () => act('nudge', { dx: -8 }) },
               { label: t('Move right (nudge)'), run: () => act('nudge', { dx: 8 }) },
             ])} disabled={!hasShape} title={needShape || t('Arrange the selected shape(s)')} />
-            <Button tall icon="wand" label={t('Quick Styles')} disabled={!hasShape} title={needShape || t('The theme\'s own looks: filled in an accent, outlined in the same')} onClick={(e) => menu.open(e, [1, 2, 3, 4, 5, 6].map((n) => ({ label: t('Accent {n}', { n }), icon: 'shape', run: () => act('quickStyle', n) })))} />
+            <Button dropdown tall icon="wand" label={t('Quick Styles')} disabled={!hasShape} title={needShape || t('The theme\'s own looks: filled in an accent, outlined in the same')} onClick={(e) => menu.open(e, [1, 2, 3, 4, 5, 6].map((n) => ({ label: t('Accent {n}', { n }), icon: 'shape', run: () => act('quickStyle', n) })))} />
             <Button icon="wand" label={t('Shape Fill')} disabled={!hasShape} title={needShape || t('The fill of the selected shape, in the Format pane')} onClick={() => act('formatPane')} />
             <Button icon="shape" label={t('Shape Outline')} disabled={!hasShape} title={needShape || t('The outline of the selected shape, in the Format pane')} onClick={() => act('formatPane')} />
-            <Button icon="wand" label={t('Shape Effects')} disabled={!hasShape} title={needShape || t('Shape Effects — a shadow, a glow, soft edges or a reflection on the selected shape')} onClick={(e) => menu.open(e, [
+            <Button dropdown icon="wand" label={t('Shape Effects')} disabled={!hasShape} title={needShape || t('Shape Effects: a shadow, a glow, soft edges or a reflection on the selected shape')} onClick={(e) => menu.open(e, [
               ...SHADOW_MENU.map(([key, label]) => ({ label, icon: key === 'none' ? 'close' : undefined, run: () => act('shapeShadow', key) })),
               '-',
               ...GLOW_MENU.map(([pt, label]) => ({ label, icon: pt === null ? 'close' : undefined, run: () => act('shapeEffects', { glow: pt === null ? null : { radius: pt, color: selectedShapeObj?.effects?.glow?.color } }) })),
@@ -385,13 +385,13 @@ export default function SlidesRibbon({
             ])} />
           </Group>
           <Group label={t('Edit Shape')}>
-            <Button tall icon="shape" label={t('Edit Shape')} disabled={!canEditPoints} title={canEditPoints ? t('Edit Points — drag the selected shape\'s points, add one on its outline or delete one') : hasShape ? t('A picture, a chart, a table or a group has no points to edit — select a shape') : needShape} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="shape" label={t('Edit Shape')} disabled={!canEditPoints} title={canEditPoints ? t('Edit Points: drag the selected shape\'s points, add one on its outline or delete one') : hasShape ? t('A picture, a chart, a table or a group has no points to edit: select a shape') : needShape} onClick={(e) => menu.open(e, [
               { label: t('Edit Points'), icon: 'shape', run: () => act('editPoints') },
             ])} />
           </Group>
           <Group label={t('Editing')}>
             <Button tall icon="find" label={t('Find')} title={t('Find — words on every slide, walked one hit at a time (Ctrl+F)')} onClick={() => act('find')} />
-            <Button tall icon="find" label={t('Replace')} title={t('Replace — find and replace words across the deck (Ctrl+H)')} onClick={() => act('replace')} />
+            <Button tall icon="replace" label={t('Replace')} title={t('Replace: find and replace words across the deck (Ctrl+H)')} onClick={() => act('replace')} />
           </Group>
           <Group label={t('Voice')}>
             <Soon tall icon="volume" label={t('Dictate')} why={t('Dictation is an online speech service this suite does not call.')} />
@@ -410,13 +410,13 @@ export default function SlidesRibbon({
             <Button tall icon="slides" label={t('Insert Slide Master')} title={t('Insert Slide Master — a second master, a copy of this one with its layouts and theme, to restyle on its own')} onClick={() => act('insertMaster')} />
             <Button tall icon="plus" label={t('Insert Layout')} title={t('Insert Layout — a new layout on this master, with a title and the footers')} onClick={() => act('insertLayout')} />
             <Rows>
-              <Button icon="trash" label={t('Delete')} disabled={!isLayout || masterItem?.used > 0} title={!isLayout ? t('Delete — pick a layout; the master stays') : masterItem?.used ? tn(masterItem.used, 'Delete — a slide uses this layout; put it on another first', 'Delete — {count} slides use this layout; put them on another first') : t('Delete — this layout, which no slide uses')} onClick={() => act('deleteLayout')} />
+              <Button icon="trash" label={t('Delete')} disabled={!isLayout || masterItem?.used > 0} title={!isLayout ? t('Delete: pick a layout; the master stays') : masterItem?.used ? tn(masterItem.used, 'Delete: a slide uses this layout; put it on another first', 'Delete: {count} slides use this layout; put them on another first') : t('Delete: this layout, which no slide uses')} onClick={() => act('deleteLayout')} />
               <Button icon="textbox" label={t('Rename')} title={isLayout ? t("Rename — this layout's name") : t("Rename — this master's name")} onClick={() => act('renameLayout')} />
               <Button icon="lock" label={t('Preserve')} pressed={Boolean(masterOfItem?.preserve)} title={t('Preserve — keep this master in the file even when no slide uses it')} onClick={() => act('preserve')} />
             </Rows>
           </Group>
           <Group label={t('Master Layout')}>
-            <Button tall icon="grid" label={t('Insert Placeholder')} disabled={!isLayout} title={isLayout ? t('Insert Placeholder — a content, text or picture placeholder on this layout') : t('Insert Placeholder — pick a layout; the master holds the placeholders every layout draws from')} onClick={(e) => menu.open(e, [['content', t('Content')], ['text', t('Text')], ['picture', t('Picture')]].map(([kind, label]) => ({ label, icon: kind === 'picture' ? 'picture' : 'textbox', run: () => act('insertPlaceholder', kind) })))} />
+            <Button dropdown tall icon="grid" label={t('Insert Placeholder')} disabled={!isLayout} title={isLayout ? t('Insert Placeholder: a content, text or picture placeholder on this layout') : t('Insert Placeholder: pick a layout; the master holds the placeholders every layout draws from')} onClick={(e) => menu.open(e, [['content', t('Content')], ['text', t('Text')], ['picture', t('Picture')]].map(([kind, label]) => ({ label, icon: kind === 'picture' ? 'picture' : 'textbox', run: () => act('insertPlaceholder', kind) })))} />
             <Rows>
               <label className="sl-rb-field sl-rb-check" data-tip={t("Title — this layout's title placeholder, or none")}><input type="checkbox" className="sl-master-title" checked={Boolean(masterItem?.hasTitle)} onChange={(e) => act('masterPlaceholders', { title: e.target.checked })} /> {t('Title')}</label>
               <label className="sl-rb-field sl-rb-check" data-tip={t('Footers — the date, footer and slide number placeholders, or none')}><input type="checkbox" className="sl-master-footers" checked={Boolean(masterItem?.hasFooters)} onChange={(e) => act('masterPlaceholders', { footers: e.target.checked })} /> {t('Footers')}</label>
@@ -445,12 +445,12 @@ export default function SlidesRibbon({
       {(tab === 'notesMaster' || tab === 'handoutMaster') && (masterView?.kind === 'notes' || masterView?.kind === 'handout') ? (
         <>
           <Group label={t('Page Setup')}>
-            <Button tall icon="file" label={masterView.kind === 'notes' ? t('Notes Page Orientation') : t('Handout Orientation')} title={t('Orientation — the printed page portrait or landscape; the notes page and the handout share one size')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="file" label={masterView.kind === 'notes' ? t('Notes Page Orientation') : t('Handout Orientation')} title={t('Orientation: the printed page portrait or landscape; the notes page and the handout share one size')} onClick={(e) => menu.open(e, [
               { label: t('Portrait'), icon: masterView.portrait ? 'check' : undefined, run: () => act('notesOrientation', 'portrait') },
               { label: t('Landscape'), icon: masterView.portrait ? undefined : 'check', run: () => act('notesOrientation', 'landscape') },
             ])} />
             {masterView.kind === 'handout' ? (
-              <Button tall icon="grid" label={t('Slides Per Page')} title={t('Slides Per Page — how many slides each handout page shows')} onClick={(e) => menu.open(e, [1, 2, 3, 4, 6, 9].map((n) => ({ label: tn(n, '{count} Slide', '{count} Slides'), icon: (view.handoutPer || 6) === n ? 'check' : undefined, run: () => act('handoutPer', n) })))} />
+              <Button dropdown tall icon="grid" label={t('Slides Per Page')} title={t('Slides Per Page: how many slides each handout page shows')} onClick={(e) => menu.open(e, [1, 2, 3, 4, 6, 9].map((n) => ({ label: tn(n, '{count} Slide', '{count} Slides'), icon: (view.handoutPer || 6) === n ? 'check' : undefined, run: () => act('handoutPer', n) })))} />
             ) : null}
           </Group>
           <Group label={t('Placeholders')}>
@@ -459,7 +459,7 @@ export default function SlidesRibbon({
                 ? [['hdr', t('Header')], ['sldImg', t('Slide Image')], ['ftr', t('Footer')], ['dt', t('Date')], ['body', t('Body')], ['sldNum', t('Page Number')]]
                 : [['hdr', t('Header')], ['ftr', t('Footer')], ['dt', t('Date')], ['sldNum', t('Page Number')]]
               ).map(([type, label]) => (
-                <label key={type} className="sl-rb-field sl-rb-check" data-tip={t('{label} — this placeholder on the master, or none', { label })}><input type="checkbox" className={`sl-nm-ph sl-nm-${type}`} checked={Boolean(masterView.placeholders?.[type])} onChange={(e) => act('masterPlaceholder', { type, on: e.target.checked })} /> {label}</label>
+                <label key={type} className="sl-rb-field sl-rb-check" data-tip={t('{label}: this placeholder on the master, or none', { label })}><input type="checkbox" className={`sl-nm-ph sl-nm-${type}`} checked={Boolean(masterView.placeholders?.[type])} onChange={(e) => act('masterPlaceholder', { type, on: e.target.checked })} /> {label}</label>
               ))}
             </Rows>
           </Group>
@@ -472,10 +472,10 @@ export default function SlidesRibbon({
       {tab === 'insert' ? (
         <>
           <Group label={t('Slides')}>
-            <Button tall icon="plus" label={t('New Slide')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
+            <Button dropdown tall icon="plus" label={t('New Slide')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
           </Group>
           <Group label={t('Tables')}>
-            <Button tall icon="table" label={t('Table')} title={t("Table — a grid of cells, in PowerPoint's own default style")} onClick={(e) => menu.open(e, TABLE_SIZES.map(([rows, cols, label]) => ({ label, icon: 'table', run: () => act('addTable', { rows, cols }) })))} />
+            <Button dropdown tall icon="table" label={t('Table')} title={t("Table: a grid of cells, in PowerPoint's own default style")} onClick={(e) => menu.open(e, TABLE_SIZES.map(([rows, cols, label]) => ({ label, icon: 'table', run: () => act('addTable', { rows, cols }) })))} />
           </Group>
           <Group label={t('Images')}>
             <Button tall icon="picture" label={t('Pictures')} title={t('Pictures — a picture from this device, onto this slide')} onClick={insertPicture} />
@@ -487,29 +487,29 @@ export default function SlidesRibbon({
             <Button tall icon="video" label={t('Cameo')} className="sl-cameo-insert" title={t('Cameo — your camera, live, in a shape on the slide; the show fills it, and Camera Format → Preview shows it here')} onClick={() => act('cameo')} />
           </Group>
           <Group label={t('Illustrations')}>
-            <Button tall icon="shape" label={t('Shapes')} title={t("Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours")} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
+            <Button dropdown tall icon="shape" label={t('Shapes')} title={t("Shapes: a rectangle, an oval, an arrow, a star, in the theme's colours")} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
 
             <Button tall icon="qrcode" label={t('QR Code')} className="sl-qr-insert" title={t('QR Code: a code a phone can scan, for a web address or any words, put in as a picture on this slide; double-click it to change it')} onClick={() => act('qrcode')} />
             <Button tall icon="star" label={t('Icons')} title={t("Icons — one of the suite's own icons, in the colour you choose, as a picture on this slide")} onClick={() => act('icons')} />
             <Button tall icon="shape" label={t('3D Models')} className="sl-model3d-insert" title={t('3D Models — a model from a .glb or .gltf file on this computer, drawn on the slide; turn it from the 3D Model tab or by its handle')} onClick={() => act('model3d')} />
             <Button tall icon="shape" label={t('SmartArt')} title={t('SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes')} onClick={() => act('insertSmartArt')} />
-            <Button tall icon="chart" label={t('Chart')} title={t('Chart — a sample chart, drawn from the writer Documents and Worksheets already use; double-click it to edit its data')} onClick={(e) => menu.open(e, CHART_TYPES.map(([type, label]) => ({ label, icon: 'chart', run: () => act('addChart', { type }) })))} />
+            <Button dropdown tall icon="chart" label={t('Chart')} title={t('Chart: a sample chart, drawn from the writer Documents and Worksheets already use; double-click it to edit its data')} onClick={(e) => menu.open(e, CHART_TYPES.map(([type, label]) => ({ label, icon: 'chart', run: () => act('addChart', { type }) })))} />
           </Group>
           <Group label={t('Forms')}>
             <Soon tall icon="check" label={t('Forms')} why={t('Forms is a Microsoft cloud service.')} />
           </Group>
           <Group label={t('Links')}>
-            <Button tall icon="zoomIn" label={t('Zoom')} title={t('Zoom — a picture of a slide or a section that takes the show there with a click, and back here after')} onClick={(e) => menu.open(e, [{ label: t('Summary Zoom…'), icon: 'grid', run: () => act('insertZoom', 'summary') }, { label: t('Section Zoom…'), icon: 'list', disabled: !(model?.sections || []).length, run: () => act('insertZoom', 'section') }, { label: t('Slide Zoom…'), icon: 'slides', run: () => act('insertZoom', 'slide') }])} />
+            <Button dropdown tall icon="zoomIn" label={t('Zoom')} title={t('Zoom: a picture of a slide or a section that takes the show there with a click, and back here after')} onClick={(e) => menu.open(e, [{ label: t('Summary Zoom…'), icon: 'grid', run: () => act('insertZoom', 'summary') }, { label: t('Section Zoom…'), icon: 'list', disabled: !(model?.sections || []).length, run: () => act('insertZoom', 'section') }, { label: t('Slide Zoom…'), icon: 'slides', run: () => act('insertZoom', 'slide') }])} />
             <Button tall icon="link" label={t('Link')} disabled={!hasShape} title={needShape || t('Link — a web address on the selected shape’s words (Ctrl+K); Ctrl+click follows it')} onClick={() => act('link')} />
             <Button tall icon="play" label={t('Action')} title={t('Action — what a click on the selected shape does in the show: another slide, the end of the show, or a web address')} onClick={() => act('action')} />
           </Group>
           <Group label={t('Comments')}>
-            <Button tall icon="reply" label={t('Comment')} title={t('Comment — a new comment on the selected shape, or on this slide')} onClick={() => act('newComment')} />
+            <Button tall icon="comment" label={t('Comment')} title={t('Comment: a new comment on the selected shape, or on this slide')} onClick={() => act('newComment')} />
           </Group>
           <Group label={t('Text')}>
             <Button tall icon="textbox" label={t('Text Box')} onClick={() => commands['slide.textbox']?.run?.()} />
-            <Button tall icon="file" label={t('Header & Footer')} title={t("Header & Footer — the date, the slide number and the footer's words, on this slide or all of them")} onClick={() => act('footer')} />
-            <Button tall icon="wand" label={t('WordArt')} title={t('WordArt — big words in a style of their own: a fill, an outline round the letters, a shadow or a glow')} onClick={(e) => menu.open(e, wordArtMenu((style) => act('wordArt', style)))} />
+            <Button tall icon="header" label={t('Header & Footer')} title={t("Header & Footer: the date, the slide number and the footer's words, on this slide or all of them")} onClick={() => act('footer')} />
+            <Button dropdown tall icon="wordArt" label={t('WordArt')} title={t('WordArt: big words in a style of their own: a fill, an outline round the letters, a shadow or a glow')} onClick={(e) => menu.open(e, wordArtMenu((style) => act('wordArt', style)))} />
             <Button icon="clock" label={t('Date & Time')} title={t('Date & Time — a date along the bottom, kept current or fixed')} onClick={() => act('footer', 'date')} />
             <Button icon="list" label={t('Slide Number')} title={t("Slide Number — the slide's number along the bottom, following it when slides move")} onClick={() => act('footer', 'number')} />
             <Button icon="file" label={t('Object')} title={t('Object — a Word, Excel or PowerPoint document embedded on the slide as an icon; a double-click opens it')} onClick={() => act('insertObject')} />
@@ -519,8 +519,8 @@ export default function SlidesRibbon({
             <Button tall icon="star" label={t('Symbol')} title={t('Symbol — a character from the symbol sets, put in where the caret is in a text box')} onClick={() => act('symbol')} />
           </Group>
           <Group label={t('Media')}>
-            <Button tall icon="video" label={t('Video')} title={t('Video — a video from this computer on the slide; a click on it plays it in the show')} onClick={(e) => menu.open(e, [{ label: t('This Device…'), icon: 'video', run: () => act('insertMedia', 'video') }])} />
-            <Button tall icon="volume" label={t('Audio')} title={t('Audio — a sound from this computer on the slide, as a speaker; a click on it plays it in the show')} onClick={(e) => menu.open(e, [{ label: t('Audio on My PC…'), icon: 'volume', run: () => act('insertMedia', 'audio') }])} />
+            <Button dropdown tall icon="video" label={t('Video')} title={t('Video: a video from this computer on the slide; a click on it plays it in the show')} onClick={(e) => menu.open(e, [{ label: t('This Device…'), icon: 'video', run: () => act('insertMedia', 'video') }])} />
+            <Button dropdown tall icon="volume" label={t('Audio')} title={t('Audio: a sound from this computer on the slide, as a speaker; a click on it plays it in the show')} onClick={(e) => menu.open(e, [{ label: t('Audio on My PC…'), icon: 'volume', run: () => act('insertMedia', 'audio') }])} />
             <Button tall icon="video" label={t('Screen Recording')} title={t('Screen Recording — record a window or a screen until Stop, and put the recording on this slide as a video')} onClick={() => act('screenRecording')} />
           </Group>
         </>
@@ -531,15 +531,15 @@ export default function SlidesRibbon({
         <>
           <Group label={t('Drawing Tools')}>
             <Button tall icon="mouse" label={t('Select')} pressed={!ink?.tool} title={t("Select — put the pen down and work with the slide's shapes again (Esc)")} onClick={() => act('inkTool', null)} />
-            <Button tall icon="wand" label={t('Lasso')} pressed={ink?.tool === 'lasso'} title={t('Lasso Select — draw a loop round strokes to select them')} onClick={() => act('inkTool', 'lasso')} />
-            <Button tall icon="close" label={t('Eraser')} pressed={ink?.tool === 'eraser'} title={t('Eraser — take away each stroke the pointer passes over')} onClick={() => act('inkTool', 'eraser')} />
+            <Button tall icon="lasso" label={t('Lasso')} pressed={ink?.tool === 'lasso'} title={t('Lasso Select: draw a loop round strokes to select them')} onClick={() => act('inkTool', 'lasso')} />
+            <Button tall icon="eraser" label={t('Eraser')} pressed={ink?.tool === 'eraser'} title={t('Eraser: take away each stroke the pointer passes over')} onClick={() => act('inkTool', 'eraser')} />
             {(ink?.pens || []).map((p) => {
               const on = ink.tool === 'pen' && ink.penId === p.id;
               const label = { pen: t('Pen'), pencil: t('Pencil'), highlighter: t('Highlighter') }[p.tool];
               return (
                 <Button key={p.id} tall icon="wand" label={label} pressed={on} className={`sl-pen sl-pen-${p.tool}`} data-pen={p.id}
                   style={{ '--pen': p.color }}
-                  title={on ? t('{label} — click again for its colour and thickness', { label }) : t('{label} — draw on the slide', { label })}
+                  title={on ? t('{label}: click again for its colour and thickness', { label }) : t('{label}: draw on the slide', { label })}
                   onClick={(e) => {
                     if (!on) { act('inkTool', p.id); return; }
                     menu.open(e, [
@@ -551,7 +551,7 @@ export default function SlidesRibbon({
                   }} />
               );
             })}
-            <Button tall icon="plus" label={t('Add')} title={t('Add Pen — another pen, pencil or highlighter in the gallery')} onClick={(e) => menu.open(e, [['pen', t('Pen')], ['pencil', t('Pencil')], ['highlighter', t('Highlighter')]].map(([tool, label]) => ({ label, icon: 'plus', run: () => act('inkAdd', tool) })))} />
+            <Button dropdown tall icon="plus" label={t('Add')} title={t('Add Pen: another pen, pencil or highlighter in the gallery')} onClick={(e) => menu.open(e, [['pen', t('Pen')], ['pencil', t('Pencil')], ['highlighter', t('Highlighter')]].map(([tool, label]) => ({ label, icon: 'plus', run: () => act('inkAdd', tool) })))} />
           </Group>
           <Group label={t('Touch')}>
             <Button tall icon="wand" label={t('Draw with Touch')} pressed={ink?.touch !== false} title={t('Draw with Touch — a finger draws with the pen in hand; off, only a pen or the mouse does')} onClick={() => act('inkTouch')} />
@@ -611,7 +611,7 @@ export default function SlidesRibbon({
           </Group>
           <Group label={t('Slides')}>
             <Button tall icon="grid" label={t('Layouts')} pressed={view.pane === 'designs'} title={t("The deck's layouts in a pane — put this slide on one, or start a new slide from it")} onClick={() => act('pane', 'designs')} />
-            <Button tall icon="slides" label={t('Layout')} title={t('A new slide with this layout, after the current one')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
+            <Button dropdown tall icon="slides" label={t('Layout')} title={t('A new slide with this layout, after the current one')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
             <Button
               tall
               icon="grid"
@@ -649,11 +649,11 @@ export default function SlidesRibbon({
                 className="sl-tr-pick"
                 data-transition={key}
                 pressed={transitionKey === key}
-                title={t('{label} — {blurb}', { label, blurb })}
+                title={t('{label}: {blurb}', { label, blurb })}
                 onClick={() => act('transition', key === 'none' ? { type: 'none' } : { type: key === 'shape' ? 'circle' : key })}
               />
             ))}
-            <Button
+            <Button dropdown
               tall
               icon="settings"
               label={t('Effect Options')}
@@ -743,11 +743,11 @@ export default function SlidesRibbon({
                 data-effect={effect}
                 pressed={animation?.kind === 'entr' && animation?.effect === effect}
                 disabled={!hasShape}
-                title={hasShape ? (animation ? t('{label} — {blurb}; it replaces the selected effect', { label, blurb }) : t('{label} — {blurb}', { label, blurb })) : t('{label} — select a shape first, then pick its entrance', { label })}
+                title={hasShape ? (animation ? t('{label}: {blurb}; it replaces the selected effect', { label, blurb }) : t('{label}: {blurb}', { label, blurb })) : t('{label}: select a shape first, then pick its entrance', { label })}
                 onClick={() => act('animate', { kind: 'entr', effect })}
               />
             ))}
-            <Button
+            <Button dropdown
               tall
               icon="redo"
               label={t('Motion Paths')}
@@ -757,7 +757,7 @@ export default function SlidesRibbon({
               title={hasShape ? t('Motion Paths — the shape moves along a line, an arc, a turn, a circle, a square or a loop from where it stands') : t('Motion Paths — select a shape first')}
               onClick={(e) => menu.open(e, EFFECT_MENU.find(([kind]) => kind === 'path')[2].map(([effect, label]) => ({ label, icon: 'redo', run: () => act('animate', { kind: 'path', effect }) })))}
             />
-            <Button
+            <Button dropdown
               tall
               icon="more"
               label={t('More Effects')}
@@ -765,7 +765,7 @@ export default function SlidesRibbon({
               title={hasShape ? t('More Effects — every entrance, emphasis and exit effect') : t('More Effects — select a shape first')}
               onClick={(e) => menu.open(e, effectMenu('animate'))}
             />
-            <Button
+            <Button dropdown
               tall
               icon="settings"
               label={t('Effect Options')}
@@ -779,10 +779,10 @@ export default function SlidesRibbon({
             />
           </Group>
           <Group label={t('Advanced Animation')}>
-            <Button tall icon="plus" label={t('Add Animation')} disabled={!hasShape} title={hasShape ? t('Add Animation — another effect on the selected shape, after its others') : t('Add Animation — select a shape first')} onClick={(e) => menu.open(e, effectMenu('addAnimation'))} />
+            <Button dropdown tall icon="plus" label={t('Add Animation')} disabled={!hasShape} title={hasShape ? t('Add Animation: another effect on the selected shape, after its others') : t('Add Animation: select a shape first')} onClick={(e) => menu.open(e, effectMenu('addAnimation'))} />
             <Rows>
               <Button icon="list" label={t('Animation Pane')} pressed={view.pane === 'animations'} title={t("Animation Pane — the slide's effects in order, to pick, reorder, retime or remove")} onClick={() => act('pane', 'animations')} />
-              <Button
+              <Button dropdown
                 icon="play"
                 label={t('Trigger')}
                 disabled={!animation}
@@ -861,7 +861,7 @@ export default function SlidesRibbon({
               onClick={() => act('hideSlide')}
             />
             <Button tall icon="clock" label={t('Rehearse Timings')} title={t('Rehearse Timings — run the show from the start with a clock, and keep how long each slide was on screen as its timing')} onClick={() => act('rehearse')} />
-            <Button tall icon="video" label={t('Record')} title={t("Record — the show with the microphone on: each slide's narration and how long it was up")} onClick={(e) => menu.open(e, [{ label: t('From Current Slide…'), icon: 'play', run: () => act('recordShow', 'here') }, { label: t('From Beginning…'), icon: 'play', run: () => act('recordShow', 'start') }])} />
+            <Button dropdown tall icon="video" label={t('Record')} title={t("Record: the show with the microphone on: each slide's narration and how long it was up")} onClick={(e) => menu.open(e, [{ label: t('From Current Slide…'), icon: 'play', run: () => act('recordShow', 'here') }, { label: t('From Beginning…'), icon: 'play', run: () => act('recordShow', 'start') }])} />
             <Soon icon="check" label={t('Keep Slides Updated')} why={t('Live co-authoring is not built.')} />
             <Button
               icon="check"
@@ -912,7 +912,7 @@ export default function SlidesRibbon({
             <Button tall icon="volume" label={t('Audio')} title={t('Record Audio — record a sound and put it on this slide')} onClick={() => act('recordAudio')} />
           </Group>
           <Group label={t('Edit')}>
-            <Button tall icon="close" label={t('Clear Recording')} title={t('Clear — narration or timings, on this slide or every slide')} onClick={(e) => menu.open(e, [{ label: t('Clear Narration on Current Slide'), run: () => act('clearRecording', 'narrationHere') }, { label: t('Clear Narration on All Slides'), run: () => act('clearRecording', 'narrationAll') }, '-', { label: t('Clear Timings on Current Slide'), run: () => act('clearRecording', 'timingsHere') }, { label: t('Clear Timings on All Slides'), run: () => act('clearRecording', 'timingsAll') }])} />
+            <Button dropdown tall icon="close" label={t('Clear Recording')} title={t('Clear: narration or timings, on this slide or every slide')} onClick={(e) => menu.open(e, [{ label: t('Clear Narration on Current Slide'), run: () => act('clearRecording', 'narrationHere') }, { label: t('Clear Narration on All Slides'), run: () => act('clearRecording', 'narrationAll') }, '-', { label: t('Clear Timings on Current Slide'), run: () => act('clearRecording', 'timingsHere') }, { label: t('Clear Timings on All Slides'), run: () => act('clearRecording', 'timingsAll') }])} />
             <Button tall icon="undo" label={t('Reset to Cameo')} className="sl-reset-cameo" title={t("Reset to Cameo — the camera's recording taken off this slide, its live cameo back")} onClick={() => act('resetCameo')} />
           </Group>
           <Group label={t('Export')}>
@@ -945,9 +945,9 @@ export default function SlidesRibbon({
             <Button icon="eye" label={t('Show Changes')} className="sl-show-changes" pressed={view.pane === 'changes'} title={view.changes ? tn(view.changes, 'Show Changes — {count} slide different since this deck was last open here', 'Show Changes — {count} slides different since this deck was last open here') : t('Show Changes — what is different about this deck since it was last open on this computer')} onClick={() => act('pane', 'changes')} />
           </Group>
           <Group label={t('Comments')}>
-            <Button tall icon="reply" label={t('New Comment')} title={t('New Comment — on the selected shape, or on this slide; it is signed with your name')} onClick={() => act('newComment')} />
+            <Button tall icon="comment" label={t('New Comment')} title={t('New Comment: on the selected shape, or on this slide; it is signed with your name')} onClick={() => act('newComment')} />
             <Rows>
-              <Button icon="trash" label={t('Delete')} disabled={!commentCount} title={commentCount ? t('Delete — this comment, every comment on this slide, or every one in the presentation') : t('Delete — there are no comments in this presentation')} onClick={(e) => menu.open(e, [
+              <Button dropdown icon="trash" label={t('Delete')} disabled={!commentCount} title={commentCount ? t('Delete: this comment, every comment on this slide, or every one in the presentation') : t('Delete: there are no comments in this presentation')} onClick={(e) => menu.open(e, [
                 { label: t('Delete Comment'), icon: 'trash', run: () => act('deleteComment') },
                 { label: t('Delete All Comments on This Slide'), icon: 'trash', run: () => act('deleteComments', 'slide') },
                 { label: t('Delete All Comments in This Presentation'), icon: 'trash', run: () => act('deleteComments', 'all') },
@@ -993,7 +993,7 @@ export default function SlidesRibbon({
             <Button icon="rotate" label={t('View Direction')} pressed={Boolean(view.rtl)} title={view.rtl ? t("View Direction — right to left: the slides on the right, the strip and the panes mirrored; click for left to right") : t("View Direction — left to right; click for right to left, the slides strip on the right as a right-to-left language reads")} onClick={() => act('toggle', 'rtl')} />
           </Group>
           <Group label={t('Zoom')}>
-            <Button tall icon="zoomIn" label={t('Zoom')} onClick={(e) => menu.open(e, [50, 75, 100, 150, 200].map((z) => ({ label: `${z}%`, run: () => act('zoom', z / 100) })))} />
+            <Button dropdown tall icon="zoomIn" label={t('Zoom')} onClick={(e) => menu.open(e, [50, 75, 100, 150, 200].map((z) => ({ label: `${z}%`, run: () => act('zoom', z / 100) })))} />
             <Button tall icon="maximize" label={t('Fit to Window')} pressed={!view.zoom} onClick={() => act('zoom', null)} />
           </Group>
           <Group label={t('Colour/Greyscale')}>
@@ -1052,7 +1052,7 @@ export default function SlidesRibbon({
             <Group label={t('3D Model Views')}>
               {rows.map((row, i) => (
                 <Rows key={i}>
-                  {row.map(([key, label, view]) => <Button key={key} icon={at(view) ? 'check' : 'shape'} label={t(label)} className="sl-model3d-view" data-view={key} pressed={at(view)} title={t('{label} — the model turned to show it from there', { label: t(label) })} onClick={() => act('model3dView', view)} />)}
+                  {row.map(([key, label, view]) => <Button key={key} icon={at(view) ? 'check' : 'shape'} label={t(label)} className="sl-model3d-view" data-view={key} pressed={at(view)} title={t('{label}: the model turned to show it from there', { label: t(label) })} onClick={() => act('model3dView', view)} />)}
                 </Rows>
               ))}
             </Group>
@@ -1079,10 +1079,10 @@ export default function SlidesRibbon({
         <>
           <Group label={t('Text Effects: Transform')}>
             {WARP_PRESETS.map((p) => (
-              <Button key={p.id} tall icon="wand" label={t(p.label)} className="sl-warp" data-preset={p.id} pressed={(selectedShapeObj.text.warp?.preset || 'textNoShape') === p.id} title={p.id === 'textNoShape' ? t('No Transform — the words in straight lines') : p.label === 'Button' ? t('Transform — the words along a button: an arc, a line and an arc') : p.label === 'Circle' ? t('Transform — the words along the circle of the shape') : t('Transform — the words along the arc of the shape')} onClick={() => act('textWarp', p.id)} />
+              <Button key={p.id} tall icon="wand" label={t(p.label)} className="sl-warp" data-preset={p.id} pressed={(selectedShapeObj.text.warp?.preset || 'textNoShape') === p.id} title={p.id === 'textNoShape' ? t('No Transform: the words in straight lines') : p.label === 'Button' ? t('Transform: the words along a button: an arc, a line and an arc') : p.label === 'Circle' ? t('Transform: the words along the circle of the shape') : t('Transform: the words along the arc of the shape')} onClick={() => act('textWarp', p.id)} />
             ))}
             {/* The warps, the rest of Office's gallery, from a menu. */}
-            <Button tall icon="wand" label={t('More')} className="sl-warp-more" pressed={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset)} title={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset) ? t('Transform — now {name}; the warps: the words stretched between two curves', { name: t(warpLabel(selectedShapeObj.text.warp?.preset)) }) : t('More Transforms — the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest')} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: t(p.label), icon: selectedShapeObj.text.warp?.preset === p.id ? 'check' : 'wand', run: () => act('textWarp', p.id) })))} />
+            <Button dropdown tall icon="wand" label={t('More')} className="sl-warp-more" pressed={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset)} title={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset) ? t('Transform: now {name}; the warps: the words stretched between two curves', { name: t(warpLabel(selectedShapeObj.text.warp?.preset)) }) : t('More Transforms: the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest')} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: t(p.label), icon: selectedShapeObj.text.warp?.preset === p.id ? 'check' : 'wand', run: () => act('textWarp', p.id) })))} />
           </Group>
         </>
       ) : null}
@@ -1137,7 +1137,7 @@ export default function SlidesRibbon({
               </Rows>
             </Group>
             <Group label={t('Shading')}>
-              <Button tall icon="wand" label={t('Shading')} title={t('Shading — the cell last typed in, or every cell of the table')} onClick={(e) => menu.open(e, [
+              <Button dropdown tall icon="bucketFill" label={t('Shading')} title={t('Shading: the cell last typed in, or every cell of the table')} onClick={(e) => menu.open(e, [
                 { label: t('No Fill'), icon: 'close', run: () => act('tableShading', { fill: null }) },
                 '-',
                 ...COLOURS.map(([hex, label]) => ({ label, run: () => act('tableShading', { fill: hex }) })),

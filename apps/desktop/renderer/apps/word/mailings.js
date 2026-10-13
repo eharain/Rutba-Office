@@ -81,7 +81,7 @@ export function MailingsTab({ mm, menu, create = null }) {
         )}
       </Group>
       <Group label={t('Start Mail Merge')}>
-        <Button
+        <Button dropdown
           tall className="wd-mm-2line" icon="mail" label={t('Start Mail\nMerge')}
           title={s?.type ? t('Start Mail Merge — letters, e-mail messages, envelopes, labels or a directory (now: {type})', { type: TYPE_NAMES[s.type] || (MAIN_DOCUMENT_TYPES.find((type) => type.id === s.type) || {}).label }) : t('Start Mail Merge — letters, e-mail messages, envelopes, labels or a directory')}
           onClick={(e) => menu.open(e, [
@@ -94,7 +94,7 @@ export function MailingsTab({ mm, menu, create = null }) {
             { label: t('Normal Word Document'), icon: s?.type ? undefined : 'check', run: () => mm.act('start', null) },
           ])}
         />
-        <Button
+        <Button dropdown
           tall className="wd-mm-2line" icon="contacts" label={t('Select\nRecipients')}
           title={t('Select Recipients — type a new list, use an existing one, or choose from Contacts')}
           onClick={(e) => menu.open(e, [
@@ -109,13 +109,13 @@ export function MailingsTab({ mm, menu, create = null }) {
         <Button tall className="wd-mm-2line" icon="wand" label={t('Highlight\nMerge Fields')} pressed={mm.highlight} disabled={!has} title={need(t('Highlight Merge Fields — shade every «field» grey, so none is missed'))} onClick={() => mm.act('highlight')} />
         <Button tall className="wd-mm-2line" icon="textbox" label={t('Address\nBlock')} disabled={!has} title={need(t('Address Block — the recipient\'s name and address, blank lines left out'))} onClick={() => mm.act('addressBlock')} />
         <Button tall className="wd-mm-2line" icon="textbox" label={t('Greeting\nLine')} disabled={!has} title={need(t('Greeting Line — Dear Mr. Randall, or Dear Sir or Madam, when the name is missing'))} onClick={() => mm.act('greetingLine')} />
-        <Button
+        <Button dropdown
           tall className="wd-mm-2line" icon="plus" label={t('Insert Merge\nField')} disabled={!has}
           title={need(t('Insert Merge Field — a column of the list, at the caret'))}
           onClick={(e) => menu.open(e, fields.map((f) => ({ label: f, run: () => mm.act('field', f) })))}
         />
         <Rows>
-          <Button
+          <Button dropdown
             icon="filter" label={t('Rules')} disabled={!has}
             title={need(t('Rules — If…Then…Else, Next Record, Skip Record If and the record numbers'))}
             onClick={(e) => menu.open(e, [
@@ -158,7 +158,7 @@ export function MailingsTab({ mm, menu, create = null }) {
         </Rows>
       </Group>
       <Group label={t('Finish')}>
-        <Button
+        <Button dropdown
           tall className="wd-mm-2line" icon="send" label={t('Finish &\nMerge')} disabled={!has}
           title={need(t('Finish & Merge — a document of every letter, print them, or send each as an e-mail'))}
           onClick={(e) => menu.open(e, [

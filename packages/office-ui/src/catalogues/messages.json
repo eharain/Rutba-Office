@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6436,
+  "count": 6437,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -761,7 +761,7 @@
       ]
     },
     {
-      "message": "A chart drawn from the table the caret is in — put the caret in a table first",
+      "message": "A chart drawn from the table the caret is in: put the caret in a table first",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -1134,7 +1134,7 @@
       ]
     },
     {
-      "message": "A picture, a chart, a table or a group has no points to edit — select a shape",
+      "message": "A picture, a chart, a table or a group has no points to edit: select a shape",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -1637,7 +1637,7 @@
       ]
     },
     {
-      "message": "Accept — keep this change",
+      "message": "Accept: keep this change",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -1791,13 +1791,13 @@
       ]
     },
     {
-      "message": "Add Animation — another effect on the selected shape, after its others",
+      "message": "Add Animation: another effect on the selected shape, after its others",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Add Animation — select a shape first",
+      "message": "Add Animation: select a shape first",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -1833,14 +1833,14 @@
       ]
     },
     {
-      "message": "Add Pen — another pen or highlighter in the gallery",
+      "message": "Add Pen: another pen or highlighter in the gallery",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Add Pen — another pen, pencil or highlighter in the gallery",
+      "message": "Add Pen: another pen, pencil or highlighter in the gallery",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -2470,7 +2470,7 @@
       ]
     },
     {
-      "message": "Align Table — the table at the left margin, centred or at the right",
+      "message": "Align Table: the table at the left margin, centred or at the right",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -2482,7 +2482,7 @@
       ]
     },
     {
-      "message": "Align Text — the words at the top, middle or bottom of the box",
+      "message": "Align Text: the words at the top, middle or bottom of the box",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -2533,7 +2533,7 @@
       ]
     },
     {
-      "message": "Align text — now {anchor}",
+      "message": "Align text: now {anchor}",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -2557,37 +2557,37 @@
       ]
     },
     {
-      "message": "Align — line the picked objects up, or space them evenly",
+      "message": "Align: line the picked objects up, or space them evenly",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Align — select a floating drawing first",
+      "message": "Align: select a floating drawing first",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Align — select two or more objects first (Ctrl+click adds one)",
+      "message": "Align: select two or more objects first (Ctrl+click adds one)",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Align — to the margin",
+      "message": "Align: to the margin",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Align — to the page",
+      "message": "Align: to the page",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Align — to the selected drawings",
+      "message": "Align: to the selected drawings",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -3680,7 +3680,7 @@
       ]
     },
     {
-      "message": "Audio — a sound from this computer on the slide, as a speaker; a click on it plays it in the show",
+      "message": "Audio: a sound from this computer on the slide, as a speaker; a click on it plays it in the show",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -3772,7 +3772,7 @@
       ]
     },
     {
-      "message": "AutoFit — the table to the window, to fixed column widths, or to its contents",
+      "message": "AutoFit: the table to the window, to fixed column widths, or to its contents",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -4490,13 +4490,13 @@
       ]
     },
     {
-      "message": "Borders — lines round the paragraph",
+      "message": "Borders: lines round the paragraph",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Borders — lines round, between or through the selected cells, in the pen's line",
+      "message": "Borders: lines round, between or through the selected cells, in the pen's line",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -4645,7 +4645,7 @@
       ]
     },
     {
-      "message": "Breaks — {breaks}",
+      "message": "Breaks: {breaks}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -4682,31 +4682,31 @@
       ]
     },
     {
-      "message": "Bring Forward — one place nearer the front; also Bring to Front and Bring in Front of Text",
+      "message": "Bring Forward: one place nearer the front; also Bring to Front and Bring in Front of Text",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Bring Forward — select a floating drawing first",
+      "message": "Bring Forward: select a floating drawing first",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Bring Forward — the picked object one step to the front",
+      "message": "Bring Forward: the picked object one step to the front",
       "where": [
         "apps/desktop/renderer/apps/sheets/objects.js"
       ]
     },
     {
-      "message": "Bring Forward — the picked object one step, or all the way, to the front",
+      "message": "Bring Forward: the picked object one step, or all the way, to the front",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Bring Forward — {need}",
+      "message": "Bring Forward: {need}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -5006,19 +5006,19 @@
       ]
     },
     {
-      "message": "Calculation Options — now automatic",
+      "message": "Calculation Options: now automatic",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Calculation Options — now automatic except for data tables",
+      "message": "Calculation Options: now automatic except for data tables",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Calculation Options — now manual",
+      "message": "Calculation Options: now manual",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -5408,7 +5408,7 @@
       ]
     },
     {
-      "message": "Cell Alignment — the words at the top, centre or bottom of the selected cells; now {align}",
+      "message": "Cell Alignment: the words at the top, centre or bottom of the selected cells; now {align}",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -5420,7 +5420,7 @@
       ]
     },
     {
-      "message": "Cell Margins — the room inside every cell of the table",
+      "message": "Cell Margins: the room inside every cell of the table",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -5585,13 +5585,13 @@
       ]
     },
     {
-      "message": "Character spacing — now normal",
+      "message": "Character spacing: now normal",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Character spacing — now {spacing} pt",
+      "message": "Character spacing: now {spacing} pt",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -5622,7 +5622,7 @@
       ]
     },
     {
-      "message": "Chart — a sample chart, drawn from the writer Documents and Worksheets already use; double-click it to edit its data",
+      "message": "Chart: a sample chart, drawn from the writer Documents and Worksheets already use; double-click it to edit its data",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -6184,13 +6184,13 @@
       ]
     },
     {
-      "message": "Clear — narration or timings, on this slide or every slide",
+      "message": "Clear: narration or timings, on this slide or every slide",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Clear — show every row an advanced filter hid",
+      "message": "Clear: show every row an advanced filter hid",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -6710,7 +6710,7 @@
       ]
     },
     {
-      "message": "Column sparkline — small bars, in the cell after the selection, from the numbers in it",
+      "message": "Column sparkline: small bars, in the cell after the selection, from the numbers in it",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -6763,19 +6763,19 @@
       ]
     },
     {
-      "message": "Columns — now one",
+      "message": "Columns: now one",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Columns — now {columns}",
+      "message": "Columns: now {columns}",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Columns — now {count}",
+      "message": "Columns: now {count}",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -6858,13 +6858,13 @@
       ]
     },
     {
-      "message": "Comment — a conversation on this cell: replies, resolve, reopen (Ctrl+Alt+M)",
+      "message": "Comment: a conversation on this cell: replies, resolve, reopen (Ctrl+Alt+M)",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Comment — a new comment on the selected shape, or on this slide",
+      "message": "Comment: a new comment on the selected shape, or on this slide",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -7173,13 +7173,13 @@
       ]
     },
     {
-      "message": "Convert Text to Table — the caret is in a table already",
+      "message": "Convert Text to Table: the caret is in a table already",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Convert Text to Table — the selected paragraphs as rows, split at their tabs or commas",
+      "message": "Convert Text to Table: the selected paragraphs as rows, split at their tabs or commas",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -7203,7 +7203,7 @@
       ]
     },
     {
-      "message": "Convert to Text — each row a paragraph, its cells between tabs or commas",
+      "message": "Convert to Text: each row a paragraph, its cells between tabs or commas",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -8251,6 +8251,7 @@
     {
       "message": "Date & Time",
       "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
@@ -8792,94 +8793,94 @@
       ]
     },
     {
-      "message": "Delete — a slide uses this layout; put it on another first",
-      "plural": "Delete — {count} slides use this layout; put them on another first",
+      "message": "Delete: a slide uses this layout; put it on another first",
+      "plural": "Delete: {count} slides use this layout; put them on another first",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Delete — a source cited in the document cannot be deleted from its list",
+      "message": "Delete: a source cited in the document cannot be deleted from its list",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
       ]
     },
     {
-      "message": "Delete — pick a layout; the master stays",
+      "message": "Delete: pick a layout; the master stays",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Delete — the comment on the caret's paragraph, or every comment in the document",
+      "message": "Delete: the comment on the caret's paragraph, or every comment in the document",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Delete — the comment thread on this cell, replies and all",
+      "message": "Delete: the comment thread on this cell, replies and all",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Delete — the picked range",
+      "message": "Delete: the picked range",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
     {
-      "message": "Delete — the picked reference",
+      "message": "Delete: the picked reference",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
     {
-      "message": "Delete — the picked view",
+      "message": "Delete: the picked view",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
     {
-      "message": "Delete — the row, the column or the whole table at the caret",
+      "message": "Delete: the row, the column or the whole table at the caret",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Delete — there are no comments in this presentation",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
-      "message": "Delete — this cell has no comment thread to delete",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
-      "message": "Delete — this comment, every comment on this slide, or every one in the presentation",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
-      "message": "Delete — this document has no comments",
-      "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Delete — this layout, which no slide uses",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
       "message": "Delete: the selected pages (Delete)",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Delete: there are no comments in this presentation",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Delete: this cell has no comment thread to delete",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Delete: this comment, every comment on this slide, or every one in the presentation",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Delete: this document has no comments",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Delete: this layout, which no slide uses",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -9166,7 +9167,7 @@
       ]
     },
     {
-      "message": "Display for Review — how tracked changes are shown",
+      "message": "Display for Review: how tracked changes are shown",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -9675,7 +9676,7 @@
       ]
     },
     {
-      "message": "Drop Cap — the first letter, framed to stand tall beside the words that follow it",
+      "message": "Drop Cap: the first letter, framed to stand tall beside the words that follow it",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -9931,7 +9932,7 @@
       ]
     },
     {
-      "message": "Edit Points — drag the selected shape's points, add one on its outline or delete one",
+      "message": "Edit Points: drag the selected shape's points, add one on its outline or delete one",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -10538,13 +10539,13 @@
       ]
     },
     {
-      "message": "Eraser — click a line between two cells to join them into one; Escape puts the eraser down",
+      "message": "Eraser: click a line between two cells to join them into one; Escape puts the eraser down",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Eraser — take away each stroke the pointer passes over",
+      "message": "Eraser: take away each stroke the pointer passes over",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -11555,6 +11556,7 @@
     {
       "message": "Financial",
       "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -12320,19 +12322,7 @@
       ]
     },
     {
-      "message": "Format Painter — armed: click a shape to give it this look; Esc puts it down",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
-      "message": "Format Painter — copy the formatting here, then select the words to paint",
-      "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Format Painter — this shape’s fill, outline and font onto the next shape you click",
+      "message": "Format Painter: armed: click a shape to give it this look; Esc puts it down",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -12341,6 +12331,18 @@
       "message": "Format Painter: click a shape to give it this look. Esc puts it down.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Format Painter: copy the formatting here, then select the words to paint",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Format Painter: this shape’s fill, outline and font onto the next shape you click",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -12442,7 +12444,7 @@
       ]
     },
     {
-      "message": "Formula — a field in the caret's cell worked out from the numbers above or to the left of it, or from cells like B2 and B2:B4, as Word's =SUM(ABOVE)",
+      "message": "Formula: a field in the caret's cell worked out from the numbers above or to the left of it, or from cells like B2 and B2:B4, as Word's =SUM(ABOVE)",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -12747,7 +12749,7 @@
       ]
     },
     {
-      "message": "From Text/CSV — a CSV or TSV file opened as a workbook, or read into this one by a query",
+      "message": "From Text/CSV: a CSV or TSV file opened as a workbook, or read into this one by a query",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -13352,39 +13354,15 @@
       ]
     },
     {
-      "message": "Group — gather the picked objects into one, or take a group apart",
+      "message": "Group: gather the picked objects into one, or take a group apart",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Group — select two or more floating drawings (Shift+click adds one)",
+      "message": "Group: select two or more floating drawings (Shift+click adds one)",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Group — the selected drawings as one",
-      "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Group — the selected rows or columns one outline level deeper (Shift+Alt+Right)",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
-      "message": "Group — ungroup this group",
-      "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Group — {need}",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -13392,6 +13370,30 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
+      "message": "Group: the selected drawings as one",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Group: the selected rows or columns one outline level deeper (Shift+Alt+Right)",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Group: ungroup this group",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Group: {need}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -13547,13 +13549,13 @@
       ]
     },
     {
-      "message": "Header & Footer — the date, the slide number and the footer's words, on this slide or all of them",
+      "message": "Header & Footer: the date, the slide number and the footer's words, on this slide or all of them",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Header & Footer — what prints at the top and the foot of every page",
+      "message": "Header & Footer: what prints at the top and the foot of every page",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -13687,13 +13689,13 @@
       ]
     },
     {
-      "message": "Height — all the rows on one page down",
+      "message": "Height: all the rows on one page down",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Height — automatic",
+      "message": "Height: automatic",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -14224,13 +14226,13 @@
       ]
     },
     {
-      "message": "Hyphenation — words broken at the ends of lines: now automatic",
+      "message": "Hyphenation: words broken at the ends of lines: now automatic",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Hyphenation — words broken at the ends of lines: now none",
+      "message": "Hyphenation: words broken at the ends of lines: now none",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -14754,6 +14756,7 @@
     {
       "message": "Information",
       "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -15012,13 +15015,13 @@
       ]
     },
     {
-      "message": "Insert Placeholder — a content, text or picture placeholder on this layout",
+      "message": "Insert Placeholder: a content, text or picture placeholder on this layout",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Insert Placeholder — pick a layout; the master holds the placeholders every layout draws from",
+      "message": "Insert Placeholder: pick a layout; the master holds the placeholders every layout draws from",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -16157,9 +16160,14 @@
     {
       "message": "Lasso Select — draw a loop round strokes to select them",
       "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Lasso Select: draw a loop round strokes to select them",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -16305,7 +16313,7 @@
       ]
     },
     {
-      "message": "Layout — put this slide on another of the deck's layouts",
+      "message": "Layout: put this slide on another of the deck's layouts",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -16805,13 +16813,13 @@
       ]
     },
     {
-      "message": "Line Numbers — a number beside every line, down the left margin",
+      "message": "Line Numbers: a number beside every line, down the left margin",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Line Style — the pen's line for the borders it draws",
+      "message": "Line Style: the pen's line for the borders it draws",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -16823,7 +16831,7 @@
       ]
     },
     {
-      "message": "Line and paragraph spacing — {spacing}",
+      "message": "Line and paragraph spacing: {spacing}",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -16841,19 +16849,19 @@
       ]
     },
     {
-      "message": "Line spacing — now as the layout has it",
+      "message": "Line spacing: now as the layout has it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Line spacing — now {value}",
+      "message": "Line spacing: now {value}",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Line sparkline — a small line, in the cell after the selection, from the numbers in it",
+      "message": "Line sparkline: a small line, in the cell after the selection, from the numbers in it",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -17135,6 +17143,7 @@
     {
       "message": "Logical",
       "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -17257,6 +17266,7 @@
     {
       "message": "Lookup & Reference",
       "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -17551,31 +17561,31 @@
       ]
     },
     {
-      "message": "Margins — now narrow",
+      "message": "Margins: now narrow",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Margins — now normal",
+      "message": "Margins: now normal",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Margins — now wide",
+      "message": "Margins: now wide",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Margins — now {top} mm top and bottom, {left} mm at the sides",
+      "message": "Margins: now {top} mm top and bottom, {left} mm at the sides",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Margins — the room between the box's edge and its words",
+      "message": "Margins: the room between the box's edge and its words",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -17849,6 +17859,7 @@
     {
       "message": "Math & Trig",
       "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -18469,7 +18480,7 @@
       ]
     },
     {
-      "message": "More Transforms — the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest",
+      "message": "More Transforms: the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -18813,7 +18824,7 @@
       ]
     },
     {
-      "message": "Multilevel List — a list library: 1. 1.1. 1.1.1., 1) a) i), I. A. 1. or Article and Section; deeper with Increase indent",
+      "message": "Multilevel List: a list library: 1. 1.1. 1.1.1., 1) a) i), I. A. 1. or Article and Section; deeper with Increase indent",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -19083,19 +19094,19 @@
       ]
     },
     {
-      "message": "New Comment — a conversation on this cell: replies, resolve, reopen (Ctrl+Alt+M)",
+      "message": "New Comment: a conversation on this cell: replies, resolve, reopen (Ctrl+Alt+M)",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "New Comment — a reply at the end of this cell’s thread (Ctrl+Alt+M)",
+      "message": "New Comment: a reply at the end of this cell’s thread (Ctrl+Alt+M)",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "New Comment — on the selected shape, or on this slide; it is signed with your name",
+      "message": "New Comment: on the selected shape, or on this slide; it is signed with your name",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -19574,7 +19585,7 @@
       ]
     },
     {
-      "message": "No Transform — the words in straight lines",
+      "message": "No Transform: the words in straight lines",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -21651,21 +21662,21 @@
       ]
     },
     {
-      "message": "Orientation — now landscape",
+      "message": "Orientation: now landscape",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Orientation — now portrait",
+      "message": "Orientation: now portrait",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Orientation — the printed page portrait or landscape; the notes page and the handout share one size",
+      "message": "Orientation: the printed page portrait or landscape; the notes page and the handout share one size",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -21921,7 +21932,7 @@
       ]
     },
     {
-      "message": "Page Borders — a frame around every page",
+      "message": "Page Borders: a frame around every page",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -21964,7 +21975,7 @@
       ]
     },
     {
-      "message": "Page Colour — a colour behind every page",
+      "message": "Page Colour: a colour behind every page",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -22403,13 +22414,13 @@
       ]
     },
     {
-      "message": "Pen Colour — now {colour}",
+      "message": "Pen Colour: now {colour}",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Pen Weight — how thick a line the pen draws",
+      "message": "Pen Weight: how thick a line the pen draws",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -23138,7 +23149,7 @@
       ]
     },
     {
-      "message": "Position — where the drawing sits, with the words round it",
+      "message": "Position: where the drawing sits, with the words round it",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -23506,7 +23517,7 @@
       ]
     },
     {
-      "message": "Print Area — the selection becomes what prints, or the print area is cleared",
+      "message": "Print Area: the selection becomes what prints, or the print area is cleared",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -23538,13 +23549,13 @@
       ]
     },
     {
-      "message": "Print Titles — no rows repeat yet",
+      "message": "Print Titles: no rows repeat yet",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Print Titles — rows 1 to {rows} repeat at the top of every page",
+      "message": "Print Titles: rows 1 to {rows} repeat at the top of every page",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -24031,7 +24042,7 @@
       ]
     },
     {
-      "message": "Quick Parts — words you keep to put in again, AutoText, a field: a page number, the date, the file's name",
+      "message": "Quick Parts: words you keep to put in again, AutoText, a field: a page number, the date, the file's name",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -24461,7 +24472,7 @@
       ]
     },
     {
-      "message": "Record — the show with the microphone on: each slide's narration and how long it was up",
+      "message": "Record: the show with the microphone on: each slide's narration and how long it was up",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -24816,7 +24827,7 @@
       ]
     },
     {
-      "message": "Reject — undo this change",
+      "message": "Reject: undo this change",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -25381,7 +25392,7 @@
       ]
     },
     {
-      "message": "Replace — find and replace words across the deck (Ctrl+H)",
+      "message": "Replace: find and replace words across the deck (Ctrl+H)",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -26106,31 +26117,31 @@
       ]
     },
     {
-      "message": "Rotate — charts and slicers do not turn",
+      "message": "Rotate: charts and slicers do not turn",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Rotate — drag to turn; hold Shift for steps of 15°",
+      "message": "Rotate: drag to turn; hold Shift for steps of 15°",
       "where": [
         "apps/desktop/renderer/apps/sheets/objects.js"
       ]
     },
     {
-      "message": "Rotate — turn or flip the drawing",
+      "message": "Rotate: turn or flip the drawing",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Rotate — turn or flip the picked shapes and pictures",
+      "message": "Rotate: turn or flip the picked shapes and pictures",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Rotate — {need}",
+      "message": "Rotate: {need}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -26956,21 +26967,21 @@
       ]
     },
     {
-      "message": "Scale — now {percent}%",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
-      "message": "Scale — now {percent}%, set aside while fitting",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
       "message": "Scale: a corner grows or shrinks the picture from the opposite corner; Shift keeps its shape",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Scale: now {percent}%",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Scale: now {percent}%, set aside while fitting",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -27016,7 +27027,7 @@
       ]
     },
     {
-      "message": "Scatter — X and Y values from the data around the selection: markers only, or joined by straight or smooth lines",
+      "message": "Scatter: X and Y values from the data around the selection: markers only, or joined by straight or smooth lines",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -27834,31 +27845,31 @@
       ]
     },
     {
-      "message": "Send Backward — one place further back; also Send to Back and Send Behind Text",
+      "message": "Send Backward: one place further back; also Send to Back and Send Behind Text",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Send Backward — select a floating drawing first",
+      "message": "Send Backward: select a floating drawing first",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Send Backward — the picked object one step to the back",
+      "message": "Send Backward: the picked object one step to the back",
       "where": [
         "apps/desktop/renderer/apps/sheets/objects.js"
       ]
     },
     {
-      "message": "Send Backward — the picked object one step, or all the way, to the back",
+      "message": "Send Backward: the picked object one step, or all the way, to the back",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Send Backward — {need}",
+      "message": "Send Backward: {need}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -28291,19 +28302,19 @@
       ]
     },
     {
-      "message": "Shading — a colour behind the paragraph",
+      "message": "Shading: a colour behind the paragraph",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Shading — the cell last typed in, or every cell of the table",
+      "message": "Shading: the cell last typed in, or every cell of the table",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Shading — the selected cells' background",
+      "message": "Shading: the selected cells' background",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -28370,7 +28381,7 @@
       ]
     },
     {
-      "message": "Shape Effects — a shadow, a glow, soft edges or a reflection on the selected shape",
+      "message": "Shape Effects: a shadow, a glow, soft edges or a reflection on the selected shape",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -28383,19 +28394,19 @@
       ]
     },
     {
-      "message": "Shape Fill — now no fill",
+      "message": "Shape Fill: now no fill",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Shape Fill — now {fill}",
+      "message": "Shape Fill: now {fill}",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Shape Fill — select a text box or a shape first",
+      "message": "Shape Fill: select a text box or a shape first",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -28416,19 +28427,19 @@
       ]
     },
     {
-      "message": "Shape Outline — now no outline",
+      "message": "Shape Outline: now no outline",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Shape Outline — now {line}",
+      "message": "Shape Outline: now {line}",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Shape Outline — select a text box or a shape first",
+      "message": "Shape Outline: select a text box or a shape first",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -28456,13 +28467,13 @@
       ]
     },
     {
-      "message": "Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours",
+      "message": "Shapes: a rectangle, an oval, an arrow, a star, in the theme's colours",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Shapes — a rectangle, an oval, an arrow, in the theme's colours",
+      "message": "Shapes: a rectangle, an oval, an arrow, in the theme's colours",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -29170,15 +29181,15 @@
       ]
     },
     {
-      "message": "Size — now {paper}",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
       "message": "Size: larger or smaller than",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Size: now {paper}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -29382,7 +29393,7 @@
       ]
     },
     {
-      "message": "Slides Per Page — how many slides each handout page shows",
+      "message": "Slides Per Page: how many slides each handout page shows",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -29719,7 +29730,7 @@
       ]
     },
     {
-      "message": "Sort paragraphs — A to Z or Z to A; the whole document when nothing is selected",
+      "message": "Sort paragraphs: A to Z or Z to A; the whole document when nothing is selected",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -29743,7 +29754,7 @@
       ]
     },
     {
-      "message": "Sort — the table's rows by the caret's column, its header row kept at the top",
+      "message": "Sort: the table's rows by the caret's column, its header row kept at the top",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -30355,6 +30366,7 @@
     {
       "message": "Statistical",
       "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -31008,13 +31020,13 @@
       ]
     },
     {
-      "message": "Table Styles — Word's own, in this document's theme colours; now none",
+      "message": "Table Styles: Word's own, in this document's theme colours; now none",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Table Styles — Word's own, in this document's theme colours; now {style}",
+      "message": "Table Styles: Word's own, in this document's theme colours; now {style}",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -31093,13 +31105,13 @@
       ]
     },
     {
-      "message": "Table — a grid of cells, in PowerPoint's own default style",
+      "message": "Table: a grid of cells, in PowerPoint's own default style",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Table — the selection or the block of data round the cell, with a header row, banded rows and filters",
+      "message": "Table: the selection or the block of data round the cell, with a header row, banded rows and filters",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -31317,7 +31329,7 @@
       ]
     },
     {
-      "message": "Text Box — a box of words that floats on the page, the text wrapping round it",
+      "message": "Text Box: a box of words that floats on the page, the text wrapping round it",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -31329,13 +31341,13 @@
       ]
     },
     {
-      "message": "Text Direction — across, or turned to read down or up",
+      "message": "Text Direction: across, or turned to read down or up",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Text Direction — the selected cells' words across, or turned to read down or up",
+      "message": "Text Direction: the selected cells' words across, or turned to read down or up",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -31431,13 +31443,13 @@
       ]
     },
     {
-      "message": "Text direction — now {direction}",
+      "message": "Text direction: now {direction}",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Text effects — an outline, a shadow or a glow on the selected words",
+      "message": "Text effects: an outline, a shadow or a glow on the selected words",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -31523,7 +31535,7 @@
       ]
     },
     {
-      "message": "Text to Columns — split the selected column's cells on a delimiter into the cells to the right",
+      "message": "Text to Columns: split the selected column's cells on a delimiter into the cells to the right",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -34796,20 +34808,20 @@
       ]
     },
     {
-      "message": "Transform — now {name}; the warps: the words stretched between two curves",
+      "message": "Transform: now {name}; the warps: the words stretched between two curves",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Transform — now {warp}; the warps: the words stretched between two curves",
+      "message": "Transform: now {warp}; the warps: the words stretched between two curves",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Transform — the words along a button: an arc, a line and an arc",
+      "message": "Transform: the words along a button: an arc, a line and an arc",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -34817,26 +34829,26 @@
       ]
     },
     {
-      "message": "Transform — the words along the arc of the box",
+      "message": "Transform: the words along the arc of the box",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Transform — the words along the arc of the shape",
+      "message": "Transform: the words along the arc of the shape",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "Transform — the words along the circle of the box",
+      "message": "Transform: the words along the circle of the box",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "Transform — the words along the circle of the shape",
+      "message": "Transform: the words along the circle of the shape",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -35421,15 +35433,15 @@
       ]
     },
     {
-      "message": "Ungroup — the selected rows or columns one level shallower, or clear the whole outline (Shift+Alt+Left)",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
       "message": "Ungroup: the layers come out of the group",
       "where": [
         "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
+      "message": "Ungroup: the selected rows or columns one level shallower, or clear the whole outline (Shift+Alt+Left)",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -36192,15 +36204,15 @@
       ]
     },
     {
-      "message": "Video — a video from this computer on the slide; a click on it plays it in the show",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "Video, sound and pictures",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Video: a video from this computer on the slide; a click on it plays it in the show",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -36345,7 +36357,7 @@
       ]
     },
     {
-      "message": "Watermark — faint words, or a picture, behind every page",
+      "message": "Watermark: faint words, or a picture, behind every page",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -36734,13 +36746,13 @@
       ]
     },
     {
-      "message": "Width — all the columns on one page across",
+      "message": "Width: all the columns on one page across",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Width — automatic",
+      "message": "Width: automatic",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -36871,22 +36883,22 @@
       ]
     },
     {
-      "message": "WordArt — big words in a style of their own: a fill, an outline round the letters, a shadow or a glow",
+      "message": "WordArt: a headline in a ready-made style",
+      "where": [
+        "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
+      "message": "WordArt: big words in a style of their own: a fill, an outline round the letters, a shadow or a glow",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "WordArt — decorative words in a box of their own that floats on the page",
+      "message": "WordArt: decorative words in a box of their own that floats on the page",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "WordArt: a headline in a ready-made style",
-      "where": [
-        "apps/desktop/renderer/apps/image/insert.js"
       ]
     },
     {
@@ -37030,7 +37042,7 @@
       ]
     },
     {
-      "message": "Wrap Text — how the words treat the drawing",
+      "message": "Wrap Text: how the words treat the drawing",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -37372,7 +37384,7 @@
       ]
     },
     {
-      "message": "Zoom — a picture of a slide or a section that takes the show there with a click, and back here after",
+      "message": "Zoom: a picture of a slide or a section that takes the show there with a click, and back here after",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -39995,32 +40007,32 @@
       ]
     },
     {
-      "message": "{label} — choose how this {noun} is protected",
+      "message": "{label}: choose how this {noun} is protected",
       "where": [
         "apps/desktop/renderer/protect.js"
       ]
     },
     {
-      "message": "{label} — click again for its colour and thickness",
+      "message": "{label}: click again for its colour and thickness",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "{label} — draw on the page",
+      "message": "{label}: draw on the page",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "{label} — draw on the slide",
+      "message": "{label}: draw on the slide",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "{label} — not built yet. {why}",
+      "message": "{label}: not built yet. {why}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -40028,38 +40040,38 @@
       ]
     },
     {
-      "message": "{label} — select a shape first, then pick its entrance",
+      "message": "{label}: select a shape first, then pick its entrance",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "{label} — select a text box or WordArt first",
+      "message": "{label}: select a text box or WordArt first",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "{label} — the model turned to show it from there",
+      "message": "{label}: the model turned to show it from there",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
-      "message": "{label} — this placeholder on the master, or none",
+      "message": "{label}: this placeholder on the master, or none",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "{label} — {blurb}",
+      "message": "{label}: {blurb}",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "{label} — {blurb}; it replaces the selected effect",
+      "message": "{label}: {blurb}; it replaces the selected effect",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]

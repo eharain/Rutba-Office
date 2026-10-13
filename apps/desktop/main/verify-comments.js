@@ -145,7 +145,7 @@ export async function verifyComments(h, { dir }) {
     check('sheets: Previous selects the thread before and opens its card; a thread pressed in the pane is gone to', walked === true && fromPane === true, `previous ${walked}, pane ${fromPane}`);
 
     // Delete takes D4's thread away.
-    await clickIn('Delete — the comment');
+    await clickIn('Delete: the comment');
     const deleted = await until(async () => !(await corner('D4'))?.threaded && !(await js(`Boolean(document.querySelector('.sh-card'))`)), 'D4 cleared', 5000).catch(() => false);
     const count = await until(() => js(`document.querySelectorAll('.sh-comments-item').length === 1`), 'one left in the pane', 4000).catch(() => false);
     check('sheets: Review → Delete takes the thread off D4, and the pane follows', deleted === true && count === true, `deleted ${deleted}, pane ${count}`);

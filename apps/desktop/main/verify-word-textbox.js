@@ -1,4 +1,4 @@
-// Word: Insert → Text Box — a box of words floating on the page.
+// Word: Insert → Text Box: a box of words floating on the page.
 //
 // A Simple Text Box goes in from the ribbon; its words are selected, so the
 // keys typed next replace them; Bold works in it as in the body; the words

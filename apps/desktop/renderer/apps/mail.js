@@ -1263,7 +1263,7 @@ export default function Mail({ app, shell }) {
             <>
               <Group label={t('Arrangement')}>
                 <Button icon="list" label={t('Conversations')} pressed={prefs.threaded} onClick={() => setPref({ threaded: !prefs.threaded })} />
-                <Button
+                <Button dropdown
                   icon="sort"
                   label={t('Sort: {order}', { order: SORTS.find((s) => s.id === prefs.sort)?.label })}
                   onClick={(e) =>

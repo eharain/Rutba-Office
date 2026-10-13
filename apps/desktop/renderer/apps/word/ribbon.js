@@ -136,7 +136,7 @@ const PEN_WEIGHTS = [[2, t('¼ pt')], [4, t('½ pt')], [6, t('¾ pt')], [8, t('1
 
 /** A control that is drawn where Word draws it, and says why it is not live. */
 const Soon = ({ icon, label, tall, why }) => (
-  <Button tall={tall} icon={icon} label={label} disabled title={t('{label} — not built yet. {why}', { label, why })} />
+  <Button tall={tall} icon={icon} label={label} disabled title={t('{label}: not built yet. {why}', { label, why })} />
 );
 
 export default function WordRibbon({
@@ -232,14 +232,14 @@ export default function WordRibbon({
   };
   const arrange = (
     <Group label={t('Arrange')}>
-      <Button tall icon="grid" label={t('Position')} disabled={!hasDrawing} title={hasDrawing ? t('Position — where the drawing sits, with the words round it') : needDrawing} onClick={(e) => menu.open(e, [
+      <Button dropdown tall icon="grid" label={t('Position')} disabled={!hasDrawing} title={hasDrawing ? t('Position: where the drawing sits, with the words round it') : needDrawing} onClick={(e) => menu.open(e, [
         { label: t('Left, words round it'), icon: 'alignLeft', run: () => act('position', 'left') },
         { label: t('Centre, words above and below'), icon: 'alignCenter', run: () => act('position', 'center') },
         { label: t('Right, words round it'), icon: 'alignRight', run: () => act('position', 'right') },
         { heading: true, label: t('With text wrapping') },
         ...['top', 'middle', 'bottom'].flatMap((v) => ['left', 'center', 'right'].map((h) => ({ label: POSITIONS[`${v}-${h}`], run: () => act('position', `${v}-${h}`) }))),
       ])} />
-      <Button tall icon="picture" label={t('Wrap Text')} disabled={!hasDrawing} title={hasDrawing ? t('Wrap Text — how the words treat the drawing') : needDrawing} onClick={(e) => menu.open(e, [
+      <Button dropdown tall icon="picture" label={t('Wrap Text')} disabled={!hasDrawing} title={hasDrawing ? t('Wrap Text: how the words treat the drawing') : needDrawing} onClick={(e) => menu.open(e, [
         { label: t('In line with text'), icon: drawing && !drawing.anchored ? 'check' : undefined, run: () => act('wrap', 'inline') },
         { label: t('Square'), icon: drawing?.anchored && drawing.wrap === 'square' ? 'check' : undefined, run: () => act('wrap', 'square') },
         { label: t('Tight'), icon: drawing?.anchored && drawing.wrap === 'tight' ? 'check' : undefined, run: () => act('wrap', 'tight') },
@@ -249,12 +249,12 @@ export default function WordRibbon({
         { label: t('Behind text'), icon: drawing?.anchored && drawing.wrap === 'none' && drawing.behind ? 'check' : undefined, run: () => act('wrap', 'behind') },
         { label: t('In front of text'), icon: drawing?.anchored && drawing.wrap === 'none' && !drawing.behind ? 'check' : undefined, run: () => act('wrap', 'front') },
       ])} />
-      <Button tall icon="chevronUp" label={t('Bring Forward')} disabled={!floatingSel.length} title={floatingSel.length ? t('Bring Forward — one place nearer the front; also Bring to Front and Bring in Front of Text') : t('Bring Forward — select a floating drawing first')} onClick={(e) => menu.open(e, [
+      <Button dropdown tall icon="chevronUp" label={t('Bring Forward')} disabled={!floatingSel.length} title={floatingSel.length ? t('Bring Forward: one place nearer the front; also Bring to Front and Bring in Front of Text') : t('Bring Forward: select a floating drawing first')} onClick={(e) => menu.open(e, [
         { label: t('Bring Forward'), icon: 'chevronUp', run: () => act('order', 'forward') },
         { label: t('Bring to Front'), run: () => act('order', 'front') },
         { label: t('Bring in Front of Text'), run: () => act('order', 'inFront') },
       ])} />
-      <Button tall icon="chevronDown" label={t('Send Backward')} disabled={!floatingSel.length} title={floatingSel.length ? t('Send Backward — one place further back; also Send to Back and Send Behind Text') : t('Send Backward — select a floating drawing first')} onClick={(e) => menu.open(e, [
+      <Button dropdown tall icon="chevronDown" label={t('Send Backward')} disabled={!floatingSel.length} title={floatingSel.length ? t('Send Backward: one place further back; also Send to Back and Send Behind Text') : t('Send Backward: select a floating drawing first')} onClick={(e) => menu.open(e, [
         { label: t('Send Backward'), icon: 'chevronDown', run: () => act('order', 'backward') },
         { label: t('Send to Back'), run: () => act('order', 'back') },
         { label: t('Send Behind Text'), run: () => act('order', 'behind') },
@@ -262,7 +262,7 @@ export default function WordRibbon({
       <Rows>
         <Button icon="list" label={t('Selection Pane')} pressed={Boolean(view.selectionPane)} title={t('Selection Pane — every drawing listed: select, hide, rename, reorder')} onClick={() => act('selectionPane')} />
         <>
-          <Button icon="alignLeft" label={t('Align')} disabled={!floatingSel.length} title={floatingSel.length ? (alignMode === 'selected' ? t('Align — to the selected drawings') : alignMode === 'page' ? t('Align — to the page') : t('Align — to the margin')) : t('Align — select a floating drawing first')} onClick={(e) => menu.open(e, [
+          <Button dropdown icon="alignLeft" label={t('Align')} disabled={!floatingSel.length} title={floatingSel.length ? (alignMode === 'selected' ? t('Align: to the selected drawings') : alignMode === 'page' ? t('Align: to the page') : t('Align: to the margin')) : t('Align: select a floating drawing first')} onClick={(e) => menu.open(e, [
             { label: t('Align Left'), icon: 'alignLeft', run: () => act('align', { edge: 'left', to: alignMode }) },
             { label: t('Align Centre'), icon: 'alignCenter', run: () => act('align', { edge: 'center', to: alignMode }) },
             { label: t('Align Right'), icon: 'alignRight', run: () => act('align', { edge: 'right', to: alignMode }) },
@@ -277,12 +277,12 @@ export default function WordRibbon({
             { label: t('Align to Margin'), icon: alignMode === 'margin' ? 'check' : undefined, run: () => setAlignTo('margin') },
             { label: t('Align Selected Objects'), icon: alignMode === 'selected' ? 'check' : undefined, disabled: floatingSel.length < 2, run: () => setAlignTo('selected') },
           ])} />
-          <Button icon="grid" label={t('Group')} disabled={floatingSel.length < 2 && !isGroup} title={floatingSel.length >= 2 ? t('Group — the selected drawings as one') : isGroup ? t('Group — ungroup this group') : t('Group — select two or more floating drawings (Shift+click adds one)')} onClick={(e) => menu.open(e, [
+          <Button dropdown icon="grid" label={t('Group')} disabled={floatingSel.length < 2 && !isGroup} title={floatingSel.length >= 2 ? t('Group: the selected drawings as one') : isGroup ? t('Group: ungroup this group') : t('Group: select two or more floating drawings (Shift+click adds one)')} onClick={(e) => menu.open(e, [
             { label: t('Group'), icon: 'grid', disabled: floatingSel.length < 2, run: () => act('group') },
             { label: t('Ungroup'), disabled: !isGroup, run: () => act('ungroup') },
           ])} />
         </>
-        <Button icon="rotate" label={t('Rotate')} disabled={!hasDrawing} title={hasDrawing ? t('Rotate — turn or flip the drawing') : needDrawing} onClick={(e) => menu.open(e, [
+        <Button dropdown icon="rotate" label={t('Rotate')} disabled={!hasDrawing} title={hasDrawing ? t('Rotate: turn or flip the drawing') : needDrawing} onClick={(e) => menu.open(e, [
           { label: t('Rotate Right 90°'), icon: 'rotate', run: () => act('rotate', 90) },
           { label: t('Rotate Left 90°'), run: () => act('rotate', -90) },
           { label: t('Flip Vertical'), icon: 'flip', run: () => act('rotate', 'flipV') },
@@ -319,14 +319,14 @@ export default function WordRibbon({
         { id: 'help', label: t('Help') },
         { id: 'pdf', label: 'PDF' }, // words-ok: a file format's name
         // The contextual tab, as Word's: there while a drawing is selected.
-        ...(formatTab === 'shapeFormat' ? [{ id: 'shapeFormat', label: t('Shape Format') }] : []),
-        ...(formatTab === 'pictureFormat' ? [{ id: 'pictureFormat', label: t('Picture Format') }] : []),
+        ...(formatTab === 'shapeFormat' ? [{ id: 'shapeFormat', label: t('Shape Format'), contextual: true }] : []),
+        ...(formatTab === 'pictureFormat' ? [{ id: 'pictureFormat', label: t('Picture Format'), contextual: true }] : []),
         // 3D Model, as Word's: there while a 3D model is picked.
-        ...(pickedModel ? [{ id: 'model3d', label: t('3D Model') }] : []),
+        ...(pickedModel ? [{ id: 'model3d', label: t('3D Model'), contextual: true }] : []),
         // Table Design and Table Layout, as Word's: there while the caret is in a table.
-        ...(table ? [{ id: 'tableDesign', label: t('Table Design') }, { id: 'tableLayout', label: t('Table Layout') }] : []),
+        ...(table ? [{ id: 'tableDesign', label: t('Table Design'), contextual: true }, { id: 'tableLayout', label: t('Table Layout'), contextual: true }] : []),
         // View → Immersive Reader's own tab, there while the reader is open.
-        ...(view.immersive ? [{ id: 'immersive', label: t('Immersive Reader') }] : []),
+        ...(view.immersive ? [{ id: 'immersive', label: t('Immersive Reader'), contextual: true }] : []),
       ]}
       active={tab}
       onTab={setTab}
@@ -349,7 +349,7 @@ export default function WordRibbon({
                 <Button icon="cut" label={t('Cut')} title={t('Cut (Ctrl+X)')} onClick={() => commands['edit.cut']?.run?.()} />
                 <Button icon="copy" label={t('Copy')} title={t('Copy (Ctrl+C)')} onClick={() => commands['edit.copy']?.run?.()} />
               </>
-              <Button icon="wand" label={t('Format Painter')} pressed={Boolean(view.painting)} title={t('Format Painter — copy the formatting here, then select the words to paint')} onClick={() => act('formatPainter')} />
+              <Button icon="brush" label={t('Format Painter')} pressed={Boolean(view.painting)} title={t('Format Painter: copy the formatting here, then select the words to paint')} onClick={() => act('formatPainter')} />
             </Rows>
           </Group>
 
@@ -364,20 +364,20 @@ export default function WordRibbon({
                   {SIZES.map((s) => <option key={s} value={String(s)}>{s}</option>)}
                   {SIZES.includes(size) ? null : <option value={String(size)}>{size}</option>}
                 </Select>
-                <Button icon="chevronUp" title={t('Grow font')} onClick={() => run({ fontSize: nearer(1) })} />
-                <Button icon="chevronDown" title={t('Shrink font')} onClick={() => run({ fontSize: nearer(-1) })} />
-                <Button icon="textbox" title={t('Change case')} onClick={(e) => menu.open(e, CASES.map(([mode, label]) => ({ label, run: () => act('changeCase', mode) })))} />
-                <Button icon="undo" title={t('Clear all formatting')} onClick={() => dispatch({ op: 'clearFormat' })} />
+                <Button icon="fontGrow" title={t('Grow font')} onClick={() => run({ fontSize: nearer(1) })} />
+                <Button icon="fontShrink" title={t('Shrink font')} onClick={() => run({ fontSize: nearer(-1) })} />
+                <Button dropdown icon="changeCase" title={t('Change case')} onClick={(e) => menu.open(e, CASES.map(([mode, label]) => ({ label, run: () => act('changeCase', mode) })))} />
+                <Button icon="clearFormat" title={t('Clear all formatting')} onClick={() => dispatch({ op: 'clearFormat' })} />
               </>
               <>
                 <Button icon="bold" title={t('Bold (Ctrl+B)')} pressed={format.bold} onClick={() => dispatch({ op: 'toggleFormat', tag: 'bold' })} />
                 <Button icon="italic" title={t('Italic (Ctrl+I)')} pressed={format.italic} onClick={() => dispatch({ op: 'toggleFormat', tag: 'italic' })} />
                 <Button icon="underline" title={t('Underline (Ctrl+U)')} pressed={format.underline} onClick={() => dispatch({ op: 'toggleFormat', tag: 'underline' })} />
                 <Button icon="strike" title={t('Strikethrough')} pressed={format.strike} onClick={() => dispatch({ op: 'toggleFormat', tag: 'strike' })} />
-                <Button icon="chevronDown" label="x₂" title={t('Subscript')} pressed={format.vertAlign === 'subscript'} onClick={() => run({ vertAlign: format.vertAlign === 'subscript' ? null : 'subscript' })} />
-                <Button icon="chevronUp" label="x²" title={t('Superscript')} pressed={format.vertAlign === 'superscript'} onClick={() => run({ vertAlign: format.vertAlign === 'superscript' ? null : 'superscript' })} />
+                <Button icon="subscript" title={t('Subscript')} pressed={format.vertAlign === 'subscript'} onClick={() => run({ vertAlign: format.vertAlign === 'subscript' ? null : 'subscript' })} />
+                <Button icon="superscript" title={t('Superscript')} pressed={format.vertAlign === 'superscript'} onClick={() => run({ vertAlign: format.vertAlign === 'superscript' ? null : 'superscript' })} />
                 <Separator />
-                <Button icon="wand" label="A" title={t('Text effects — an outline, a shadow or a glow on the selected words')} onClick={(e) => menu.open(e, [
+                <Button dropdown icon="textEffects" title={t('Text effects: an outline, a shadow or a glow on the selected words')} onClick={(e) => menu.open(e, [
                   { label: t('Outline'), icon: format.outline ? 'check' : undefined, run: () => run({ outline: !format.outline }) },
                   { label: t('Shadow'), icon: format.shadow ? 'check' : undefined, run: () => run({ shadow: !format.shadow }) },
                   '-',
@@ -386,8 +386,8 @@ export default function WordRibbon({
                   '-',
                   { label: t('Clear effects'), run: () => run({ outline: false, shadow: false, glow: null }) },
                 ])} />
-                <Button icon="wand" title={t('Text highlight colour')} pressed={Boolean(format.highlight)} onClick={(e) => colourMenu(e, 'highlight', HIGHLIGHTS)} />
-                <Button icon="contrast" title={t('Font colour')} onClick={(e) => colourMenu(e, 'fontColour', TEXT_COLOURS)} />
+                <Button dropdown icon="highlighter" title={t('Text highlight colour')} pressed={Boolean(format.highlight)} onClick={(e) => colourMenu(e, 'highlight', HIGHLIGHTS)} />
+                <Button dropdown icon="fontColour" title={t('Font colour')} onClick={(e) => colourMenu(e, 'fontColour', TEXT_COLOURS)} />
               </>
             </Rows>
           </Group>
@@ -397,7 +397,7 @@ export default function WordRibbon({
               <>
                 <Button icon="listBullet" title={t('Bullets')} pressed={format.listType === 'bullet'} onClick={() => toggleList('bullet')} />
                 <Button icon="listNumber" title={t('Numbering')} pressed={format.listType === 'number'} onClick={() => toggleList('number')} />
-                <Button icon="listNumber" className="wd-multilevel" title={t('Multilevel List — a list library: 1. 1.1. 1.1.1., 1) a) i), I. A. 1. or Article and Section; deeper with Increase indent')} pressed={format.listType === 'number' && (format.listLevel || 0) > 0} onClick={(e) => menu.open(e, [
+                <Button dropdown icon="listMulti" className="wd-multilevel" title={t('Multilevel List: a list library: 1. 1.1. 1.1.1., 1) a) i), I. A. 1. or Article and Section; deeper with Increase indent')} pressed={format.listType === 'number' && (format.listLevel || 0) > 0} onClick={(e) => menu.open(e, [
                   { heading: true, label: t('List Library') },
                   ...MULTILEVEL.map(([list, label]) => ({ label, icon: 'listNumber', run: () => para({ list }) })),
                   '-',
@@ -405,13 +405,13 @@ export default function WordRibbon({
                   { label: t('Define New Multilevel List…'), icon: 'listNumber', run: () => openDialog('defineList') },
                 ])} />
                 <Separator />
-                <Button icon="chevronLeft" title={t('Decrease indent')} disabled={!format.indentLevel} onClick={() => para({ indentDelta: -1 })} />
-                <Button icon="chevronRight" title={t('Increase indent')} onClick={() => para({ indentDelta: 1 })} />
-                <Button icon="sort" title={t('Sort paragraphs — A to Z or Z to A; the whole document when nothing is selected')} onClick={(e) => menu.open(e, [
+                <Button icon="indentLess" title={t('Decrease indent')} disabled={!format.indentLevel} onClick={() => para({ indentDelta: -1 })} />
+                <Button icon="indentMore" title={t('Increase indent')} onClick={() => para({ indentDelta: 1 })} />
+                <Button dropdown icon="sort" title={t('Sort paragraphs: A to Z or Z to A; the whole document when nothing is selected')} onClick={(e) => menu.open(e, [
                   { label: t('A to Z'), run: () => dispatch({ op: 'sortParagraphs', descending: false }) },
                   { label: t('Z to A'), run: () => dispatch({ op: 'sortParagraphs', descending: true }) },
                 ])} />
-                <Button icon="formula" title={t('Show formatting marks (¶)')} pressed={Boolean(view.marks)} onClick={() => act('toggleMarks')} />
+                <Button icon="pilcrow" title={t('Show formatting marks (¶)')} pressed={Boolean(view.marks)} onClick={() => act('toggleMarks')} />
                 <Separator />
                 <Button icon="textLtr" title={t('Left-to-right text direction')} pressed={!format.rtl} onClick={() => para({ rtl: false })} />
                 <Button icon="textRtl" title={t('Right-to-left text direction — the paragraph runs from the right margin, as Arabic, Hebrew, Persian and Urdu do')} pressed={Boolean(format.rtl)} onClick={() => para({ rtl: true })} />
@@ -427,7 +427,7 @@ export default function WordRibbon({
                     menu.open(e, KASHIDA.map(([v, label]) => ({ label: t(label), icon: format.paragraphAlign === v ? 'check' : undefined, run: () => para({ align: v }) })))} />
                 ) : null}
                 <Separator />
-                <Button icon="listNumber" title={format.lineSpacing ? t('Line and paragraph spacing — {spacing}', { spacing: format.lineSpacing }) : t('Line and paragraph spacing')} onClick={(e) =>
+                <Button dropdown icon="listNumber" title={format.lineSpacing ? t('Line and paragraph spacing: {spacing}', { spacing: format.lineSpacing }) : t('Line and paragraph spacing')} onClick={(e) =>
                   menu.open(e, [
                     ...SPACING.map(([v, l]) => ({ label: l, icon: format.lineSpacing === v ? 'check' : undefined, run: () => para({ lineSpacing: v }) })),
                     '-',
@@ -437,8 +437,8 @@ export default function WordRibbon({
                     { label: t('Remove space after paragraph'), run: () => para({ spaceAfter: 0 }) },
                   ])
                 } />
-                <Button icon="wand" title={t('Shading — a colour behind the paragraph')} onClick={(e) => menu.open(e, SHADES.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => para({ shading: value }) })))} />
-                <Button icon="grid" title={t('Borders — lines round the paragraph')} onClick={(e) => menu.open(e, BORDERS.map(([label, value]) => ({ label, icon: value ? undefined : 'close', run: () => para({ borders: value }) })))} />
+                <Button dropdown icon="bucketFill" title={t('Shading: a colour behind the paragraph')} onClick={(e) => menu.open(e, SHADES.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => para({ shading: value }) })))} />
+                <Button dropdown icon="borders" title={t('Borders: lines round the paragraph')} onClick={(e) => menu.open(e, BORDERS.map(([label, value]) => ({ label, icon: value ? undefined : 'close', run: () => para({ borders: value }) })))} />
               </>
             </Rows>
           </Group>
@@ -472,9 +472,9 @@ export default function WordRibbon({
             <Rows>
               <>
                 <Button icon="find" label={t('Find')} title={t('Find (Ctrl+F)')} onClick={() => openDialog('find')} />
-                <Button icon="refresh" label={t('Replace')} title={t('Replace (Ctrl+H)')} onClick={() => openDialog('find')} />
+                <Button icon="replace" label={t('Replace')} title={t('Replace (Ctrl+H)')} onClick={() => openDialog('find')} />
               </>
-              <Button icon="check" label={t('Select')} title={t('Select all (Ctrl+A)')} onClick={() => dispatch({ op: 'selectAll' })} />
+              <Button icon="pointer" label={t('Select')} title={t('Select all (Ctrl+A)')} onClick={() => dispatch({ op: 'selectAll' })} />
             </Rows>
           </Group>
 
@@ -494,19 +494,19 @@ export default function WordRibbon({
           </Group>
           <Group label={t('Tables')}>
             <Button tall icon="table" label={t('Table')} onClick={() => openDialog('table')} />
-            <Button icon="table" label={t('Text to Table')} disabled={Boolean(table)} title={table ? t('Convert Text to Table — the caret is in a table already') : t('Convert Text to Table — the selected paragraphs as rows, split at their tabs or commas')} onClick={(e) => menu.open(e, [
+            <Button dropdown icon="table" label={t('Text to Table')} disabled={Boolean(table)} title={table ? t('Convert Text to Table: the caret is in a table already') : t('Convert Text to Table: the selected paragraphs as rows, split at their tabs or commas')} onClick={(e) => menu.open(e, [
               { label: t('Split at tabs'), run: () => dispatch({ op: 'textToTable', separator: 'tab' }) },
               { label: t('Split at commas'), run: () => dispatch({ op: 'textToTable', separator: 'comma' }) },
             ])} />
           </Group>
           <Group label={t('Illustrations')}>
             <Button tall icon="picture" label={t('Pictures')} onClick={insertPicture} />
-            <Button tall icon="shape" label={t('Shapes')} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', preset, widthPx: 200, heightPx: 120 }) })))} />
+            <Button dropdown tall icon="shape" label={t('Shapes')} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', preset, widthPx: 200, heightPx: 120 }) })))} />
             <Button tall icon="star" label={t('Icons')} title={t("Icons — one of the suite's own icons, in the colour you choose, as a picture at the caret")} onClick={() => act('icons')} />
             <Button tall icon="qrcode" label={t('QR Code')} className="wd-qr-insert" title={t('QR Code: a code a phone can scan, for a web address or any words, put in as a picture at the caret; double-click it to change it')} onClick={() => act('qrcode')} />
             <Button tall icon="shape" label={t('3D Models')} className="wd-model3d-insert" title={t('3D Models — a model from a .glb or .gltf file on this computer, drawn as a picture at the caret; turn it from the 3D Model tab')} onClick={() => act('model3d')} />
             <Button tall icon="grid" label={t('SmartArt')} title={t('SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes after this paragraph')} onClick={() => act('insertSmartArt')} />
-            <Button tall icon="chart" label={t('Chart')} title={t('A chart drawn from the table the caret is in — put the caret in a table first')} onClick={(e) => menu.open(e, CHARTS.map(([k, l]) => ({ label: l, icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: k }) })))} />
+            <Button dropdown tall icon="chart" label={t('Chart')} title={t('A chart drawn from the table the caret is in: put the caret in a table first')} onClick={(e) => menu.open(e, CHARTS.map(([k, l]) => ({ label: l, icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: k }) })))} />
             <Button tall icon="picture" label={t('Screenshot')} title={t('Screenshot — a picture of another open window, or of a whole screen, put in at the caret')} onClick={() => act('screenshot')} />
           </Group>
           <Group label={t('Media')}>
@@ -518,15 +518,15 @@ export default function WordRibbon({
             <Button icon="link" label={t('Cross-reference')} title={t('Cross-reference — a REF field to a bookmark, its words kept live by Update Fields')} onClick={() => openDialog('crossReference')} />
           </Group>
           <Group label={t('Comments')}>
-            <Button tall icon="reply" label={t('Comment')} onClick={() => openDialog('comment')} />
+            <Button tall icon="comment" label={t('Comment')} onClick={() => openDialog('comment')} />
           </Group>
           <Group label={t('Header & Footer')}>
-            <Button tall icon="chevronUp" label={t('Header')} onClick={() => openDialog('header')} />
-            <Button tall icon="chevronDown" label={t('Footer')} onClick={() => openDialog('footer')} />
+            <Button tall icon="header" label={t('Header')} onClick={() => openDialog('header')} />
+            <Button tall icon="footer" label={t('Footer')} onClick={() => openDialog('footer')} />
             <Button tall icon="file" label={t('Page Number')} onClick={() => openDialog('pageNumber')} />
           </Group>
           <Group label={t('Text')}>
-            <Button tall icon="textbox" label={t('Text Box')} title={t('Text Box — a box of words that floats on the page, the text wrapping round it')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="textbox" label={t('Text Box')} title={t('Text Box: a box of words that floats on the page, the text wrapping round it')} onClick={(e) => menu.open(e, [
               { heading: true, label: t('Built-in') },
               { label: t('Simple Text Box'), icon: 'textbox', run: () => act('textBox', 'simple') },
               { label: t('Sidebar'), icon: 'textbox', run: () => act('textBox', 'sidebar') },
@@ -534,9 +534,9 @@ export default function WordRibbon({
               '-',
               { label: t('Draw Text Box'), icon: 'shape', run: () => act('drawTextBox') },
             ])} />
-            {references ? <Button icon="file" label={t('Quick Parts')} title={t("Quick Parts — words you keep to put in again, AutoText, a field: a page number, the date, the file's name")} onClick={(e) => menu.open(e, [...(blocks?.head() || []), ...references.quickParts(), ...(blocks?.tail() || [])])} /> : null}
-            <Button icon="wand" label={t('WordArt')} title={t('WordArt — decorative words in a box of their own that floats on the page')} onClick={(e) => menu.open(e, WORDART.map(([label, spec]) => ({ label, icon: 'wand', run: () => act('wordArt', spec) })))} />
-            <Button icon="textbox" label={t('Drop Cap')} title={t('Drop Cap — the first letter, framed to stand tall beside the words that follow it')} onClick={(e) => menu.open(e, [
+            {references ? <Button dropdown icon="file" label={t('Quick Parts')} title={t("Quick Parts: words you keep to put in again, AutoText, a field: a page number, the date, the file's name")} onClick={(e) => menu.open(e, [...(blocks?.head() || []), ...references.quickParts(), ...(blocks?.tail() || [])])} /> : null}
+            <Button dropdown icon="wordArt" label={t('WordArt')} title={t('WordArt: decorative words in a box of their own that floats on the page')} onClick={(e) => menu.open(e, WORDART.map(([label, spec]) => ({ label, icon: 'wand', run: () => act('wordArt', spec) })))} />
+            <Button dropdown icon="textbox" label={t('Drop Cap')} title={t('Drop Cap: the first letter, framed to stand tall beside the words that follow it')} onClick={(e) => menu.open(e, [
               { label: t('None'), icon: !format.dropCap ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: null }) },
               { label: t('Dropped'), icon: format.dropCap?.kind === 'drop' && format.dropCap?.lines === 3 ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: { kind: 'drop', lines: 3 } }) },
               { label: t('Dropped, two lines'), icon: format.dropCap?.kind === 'drop' && format.dropCap?.lines === 2 ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: { kind: 'drop', lines: 2 } }) },
@@ -548,7 +548,7 @@ export default function WordRibbon({
           </Group>
           <Group label={t('Symbols')}>
             <Button tall icon="formula" label={t('Equation')} title={t("Equation — type one in Word's linear format, or build it from structures and symbols (Alt+=)")} onClick={() => act('equation')} />
-            <Button
+            <Button dropdown
               icon="chevronDown"
               label={t('Built-in')}
               title={t('Built-in equations — the quadratic formula, the area of a circle, the binomial theorem and more, put in at the caret')}
@@ -565,13 +565,13 @@ export default function WordRibbon({
           <Group label={t('Drawing Tools')}>
             <Button tall icon="mouse" label={t('Select')} pressed={!ink?.tool} title={t('Select — put the pen down and type again (Esc)')} onClick={() => act('inkTool', null)} />
             <Button tall icon="shape" label={t('Lasso')} pressed={ink?.tool === 'lasso'} title={t('Lasso Select — draw a loop round strokes to select them')} onClick={() => act('inkTool', 'lasso')} />
-            <Button tall icon="close" label={t('Eraser')} pressed={ink?.tool === 'eraser'} title={t('Eraser — take away each stroke the pointer passes over')} onClick={() => act('inkTool', 'eraser')} />
+            <Button tall icon="eraser" label={t('Eraser')} pressed={ink?.tool === 'eraser'} title={t('Eraser: take away each stroke the pointer passes over')} onClick={() => act('inkTool', 'eraser')} />
             {(ink?.pens || []).map((p) => {
               const on = ink.tool === 'pen' && ink.penId === p.id;
               const label = { pen: t('Pen'), pencil: t('Pencil'), highlighter: t('Highlighter') }[p.tool];
               return (
                 <Button key={p.id} tall icon="wand" label={label} pressed={on} className={`sl-pen sl-pen-${p.tool}`} data-pen={p.id} style={{ '--pen': p.color }}
-                  title={on ? t('{label} — click again for its colour and thickness', { label }) : t('{label} — draw on the page', { label })}
+                  title={on ? t('{label}: click again for its colour and thickness', { label }) : t('{label}: draw on the page', { label })}
                   onClick={(e) => {
                     if (!on) { act('inkTool', p.id); return; }
                     menu.open(e, [
@@ -583,7 +583,7 @@ export default function WordRibbon({
                   }} />
               );
             })}
-            <Button tall icon="plus" label={t('Add')} title={t('Add Pen — another pen or highlighter in the gallery')} onClick={(e) => menu.open(e, [['pen', t('Pen')], ['highlighter', t('Highlighter')]].map(([tool, label]) => ({ label, icon: 'plus', run: () => act('inkAdd', tool) })))} />
+            <Button dropdown tall icon="plus" label={t('Add')} title={t('Add Pen: another pen or highlighter in the gallery')} onClick={(e) => menu.open(e, [['pen', t('Pen')], ['highlighter', t('Highlighter')]].map(([tool, label]) => ({ label, icon: 'plus', run: () => act('inkAdd', tool) })))} />
           </Group>
           <Group label={t('Touch')}>
             <Button tall icon="wand" label={t('Draw with Touch')} pressed={ink?.touch !== false} title={t('Draw with Touch — a finger draws with the pen in hand; off, only a pen or the mouse does')} onClick={() => act('inkTouch')} />
@@ -596,7 +596,7 @@ export default function WordRibbon({
             <Soon tall icon="formula" label={t('Ink to Maths')} why={t('Turning handwriting into an equation needs handwriting recognition, which this suite does not have.')} />
           </Group>
           <Group label={t('Insert')}>
-            <Button tall icon="shape" label={t('Shape')} title={t('The shapes the engine can draw')} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', preset, widthPx: 200, heightPx: 120 }) })))} />
+            <Button dropdown tall icon="shape" label={t('Shape')} title={t('The shapes the engine can draw')} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', preset, widthPx: 200, heightPx: 120 }) })))} />
           </Group>
         </>
       ) : null}
@@ -605,7 +605,7 @@ export default function WordRibbon({
       {tab === 'design' ? (
         <>
           <Group label={t('Document Formatting')}>
-            <Button
+            <Button dropdown
               tall
               icon="wand"
               label={t('Themes')}
@@ -619,19 +619,19 @@ export default function WordRibbon({
                 </button>
               ))}
             </div>
-            <Button
+            <Button dropdown
               icon="contrast"
               label={t('Colours')}
               title={t("Colours — the theme's twelve colours, which headings and theme-coloured text follow; now {colours}", { colours: design?.colorName || 'Office' })}
               onClick={(e) => menu.open(e, PALETTES.map((p) => ({ label: t(p.name), icon: design?.colorName === p.name ? 'check' : undefined, run: () => dispatch({ op: 'setDocTheme', spec: { colors: p.id } }) })))}
             />
-            <Button
+            <Button dropdown
               icon="word"
               label={t('Fonts')}
               title={t("Fonts — the theme's heading and body faces, which the styles follow; now {fonts}", { fonts: design?.fonts ? `${design.fonts.major} / ${design.fonts.minor}` : 'Calibri Light / Calibri' })}
               onClick={(e) => menu.open(e, FONT_PAIRS.map((p) => ({ label: `${t(p.name)} — ${p.major} / ${p.minor}`, icon: design?.fontName === p.name ? 'check' : undefined, run: () => dispatch({ op: 'setDocTheme', spec: { fonts: p.id } }) })))}
             />
-            <Button icon="listNumber" label={t('Paragraph Spacing')} title={t('Spacing for the paragraphs you have selected')} onClick={(e) =>
+            <Button dropdown icon="listNumber" label={t('Paragraph Spacing')} title={t('Spacing for the paragraphs you have selected')} onClick={(e) =>
               menu.open(e, [
                 { label: t('No paragraph space'), run: () => para({ spaceBefore: 0, spaceAfter: 0, lineSpacing: 1 }) },
                 { label: t('Compact'), run: () => para({ spaceBefore: 0, spaceAfter: 4, lineSpacing: 1 }) },
@@ -641,7 +641,7 @@ export default function WordRibbon({
                 { label: t('Double'), run: () => para({ spaceBefore: 0, spaceAfter: 8, lineSpacing: 2 }) },
               ])
             } />
-            <Button
+            <Button dropdown
               icon="wand"
               label={t('Effects')}
               title={t('Effects — the fills, lines and shadows that shapes taking their look from the theme are drawn with; now {effects}', { effects: design?.effectName || 'Office' })}
@@ -650,14 +650,14 @@ export default function WordRibbon({
             <Button icon="check" label={t('Set as Default')} title={t("Set as Default — new blank documents start in this document's theme and styles")} onClick={() => act('setDefaultDesign')} />
           </Group>
           <Group label={t('Page Background')}>
-            <Button tall icon="shield" label={t('Watermark')} title={t('Watermark — faint words, or a picture, behind every page')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="shield" label={t('Watermark')} title={t('Watermark: faint words, or a picture, behind every page')} onClick={(e) => menu.open(e, [
               ...WATERMARKS.map((text) => ({ label: text, run: () => dispatch({ op: 'setWatermark', text }) })),
               { label: t('Custom watermark…'), icon: 'textbox', run: () => openDialog('watermark') },
               { label: t('Picture watermark…'), icon: 'picture', run: () => act('pictureWatermark') },
               { label: t('Remove watermark'), icon: 'close', run: () => dispatch({ op: 'setWatermark', text: null }) },
             ])} />
-            <Button tall icon="contrast" label={t('Page Colour')} title={t('Page Colour — a colour behind every page')} onClick={(e) => menu.open(e, SHADES.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => dispatch({ op: 'setPageColour', colour: value }) })))} />
-            <Button tall icon="grid" label={t('Page Borders')} title={t('Page Borders — a frame around every page')} onClick={(e) => menu.open(e, PAGE_BORDERS.map(([label, borders]) => ({ label, icon: borders ? undefined : 'close', run: () => dispatch({ op: 'setPageBorders', borders }) })))} />
+            <Button dropdown tall icon="contrast" label={t('Page Colour')} title={t('Page Colour: a colour behind every page')} onClick={(e) => menu.open(e, SHADES.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => dispatch({ op: 'setPageColour', colour: value }) })))} />
+            <Button dropdown tall icon="grid" label={t('Page Borders')} title={t('Page Borders: a frame around every page')} onClick={(e) => menu.open(e, PAGE_BORDERS.map(([label, borders]) => ({ label, icon: borders ? undefined : 'close', run: () => dispatch({ op: 'setPageBorders', borders }) })))} />
           </Group>
         </>
       ) : null}
@@ -666,15 +666,15 @@ export default function WordRibbon({
       {tab === 'layout' ? (
         <>
           <Group label={t('Page Setup')}>
-            <Button tall icon="crop" label={t('Margins')} onClick={(e) => menu.open(e, MARGINS.map(([v, l]) => ({ label: l, run: () => dispatch({ op: 'setPageSetup', spec: { margins: v } }) })))} />
-            <Button tall icon="rotate" label={t('Orientation')} title={landscape ? t('Orientation — now landscape') : t('Orientation — now portrait')} onClick={(e) =>
+            <Button dropdown tall icon="crop" label={t('Margins')} onClick={(e) => menu.open(e, MARGINS.map(([v, l]) => ({ label: l, run: () => dispatch({ op: 'setPageSetup', spec: { margins: v } }) })))} />
+            <Button dropdown tall icon="rotate" label={t('Orientation')} title={landscape ? t('Orientation: now landscape') : t('Orientation: now portrait')} onClick={(e) =>
               menu.open(e, [
                 { label: t('Portrait'), icon: landscape ? undefined : 'check', run: () => dispatch({ op: 'setPageSetup', spec: { orientation: 'portrait' } }) },
                 { label: t('Landscape'), icon: landscape ? 'check' : undefined, run: () => dispatch({ op: 'setPageSetup', spec: { orientation: 'landscape' } }) },
               ])
             } />
-            <Button tall icon="file" label={t('Size')} onClick={(e) => menu.open(e, PAGE_SIZES.map(([v, l]) => ({ label: l, run: () => dispatch({ op: 'setPageSetup', spec: { size: v } }) })))} />
-            <Button tall icon="grid" label={t('Columns')} title={colCount > 1 ? t('Columns — now {count}', { count: colCount }) : t('Columns — now one')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="file" label={t('Size')} onClick={(e) => menu.open(e, PAGE_SIZES.map(([v, l]) => ({ label: l, run: () => dispatch({ op: 'setPageSetup', spec: { size: v } }) })))} />
+            <Button dropdown tall icon="grid" label={t('Columns')} title={colCount > 1 ? t('Columns: now {count}', { count: colCount }) : t('Columns: now one')} onClick={(e) => menu.open(e, [
               { label: t('One'), icon: isColumnPreset('one') ? 'check' : undefined, run: () => setColumns(null) },
               { label: t('Two'), icon: isColumnPreset('two') ? 'check' : undefined, run: () => setColumns({ count: 2, spaceTwips: 720, separator: Boolean(columns.separator) }) },
               { label: t('Three'), icon: isColumnPreset('three') ? 'check' : undefined, run: () => setColumns({ count: 3, spaceTwips: 720, separator: Boolean(columns.separator) }) },
@@ -691,19 +691,19 @@ export default function WordRibbon({
                 }),
               },
             ])} />
-            <Button icon="file" label={t('Breaks')} onClick={(e) =>
+            <Button dropdown icon="file" label={t('Breaks')} onClick={(e) =>
               menu.open(e, [
                 { label: t('Page break'), icon: 'file', run: () => dispatch({ op: 'insertPageBreak' }) },
                 { label: t('Section break — not built yet'), disabled: true },
               ])
             } />
-            <Button icon="listNumber" label={t('Line Numbers')} title={t('Line Numbers — a number beside every line, down the left margin')} onClick={(e) => menu.open(e, [
+            <Button dropdown icon="listNumber" label={t('Line Numbers')} title={t('Line Numbers: a number beside every line, down the left margin')} onClick={(e) => menu.open(e, [
               { label: t('None'), icon: 'close', run: () => dispatch({ op: 'setLineNumbers', spec: null }) },
               { label: t('Continuous'), run: () => dispatch({ op: 'setLineNumbers', spec: { countBy: 1, restart: 'continuous' } }) },
               { label: t('Restart each page'), run: () => dispatch({ op: 'setLineNumbers', spec: { countBy: 1, restart: 'newPage' } }) },
               { label: t('Every fifth line'), run: () => dispatch({ op: 'setLineNumbers', spec: { countBy: 5, restart: 'continuous' } }) },
             ])} />
-            <Button icon="minus" label={t('Hyphenation')} title={model?.hyphenation?.auto ? t('Hyphenation — words broken at the ends of lines: now automatic') : t('Hyphenation — words broken at the ends of lines: now none')} onClick={(e) => menu.open(e, [
+            <Button dropdown icon="minus" label={t('Hyphenation')} title={model?.hyphenation?.auto ? t('Hyphenation: words broken at the ends of lines: now automatic') : t('Hyphenation: words broken at the ends of lines: now none')} onClick={(e) => menu.open(e, [
               { label: t('None'), icon: !model?.hyphenation?.auto ? 'check' : undefined, run: () => act('hyphenation', 'none') },
               { label: t('Automatic'), icon: model?.hyphenation?.auto ? 'check' : undefined, run: () => act('hyphenation', 'auto') },
               { label: t('Manual'), run: () => act('hyphenation', 'manual') },
@@ -736,12 +736,12 @@ export default function WordRibbon({
             <Button tall icon="textbox" label={t('Draw Text Box')} pressed={Boolean(view.drawBox)} title={t('Draw Text Box — drag on the page to draw one')} onClick={() => act('drawTextBox')} />
           </Group>
           <Group label={t('Shape Styles')}>
-            <Button tall icon="wand" label={t('Shape Fill')} disabled={!shapeLike} title={shapeLike ? (look.fill ? t('Shape Fill — now {fill}', { fill: look.fill }) : t('Shape Fill — now no fill')) : t('Shape Fill — select a text box or a shape first')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="wand" label={t('Shape Fill')} disabled={!shapeLike} title={shapeLike ? (look.fill ? t('Shape Fill: now {fill}', { fill: look.fill }) : t('Shape Fill: now no fill')) : t('Shape Fill: select a text box or a shape first')} onClick={(e) => menu.open(e, [
               { label: t('No Fill'), icon: 'close', run: () => act('boxFormat', { fill: null }) },
               '-',
               ...SHAPE_COLOURS.map(([hex, label]) => ({ label, icon: look.fill && look.fill.replace('#', '').toUpperCase() === hex ? 'check' : undefined, run: () => act('boxFormat', { fill: hex }) })),
             ])} />
-            <Button tall icon="shape" label={t('Shape Outline')} disabled={!shapeLike} title={shapeLike ? (look.line ? t('Shape Outline — now {line}', { line: look.line }) : t('Shape Outline — now no outline')) : t('Shape Outline — select a text box or a shape first')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="shape" label={t('Shape Outline')} disabled={!shapeLike} title={shapeLike ? (look.line ? t('Shape Outline: now {line}', { line: look.line }) : t('Shape Outline: now no outline')) : t('Shape Outline: select a text box or a shape first')} onClick={(e) => menu.open(e, [
               { label: t('No Outline'), icon: 'close', run: () => act('boxFormat', { line: null }) },
               '-',
               ...SHAPE_COLOURS.map(([hex, label]) => ({ label, icon: look.line && look.line.replace('#', '').toUpperCase() === hex ? 'check' : undefined, run: () => act('boxFormat', { line: { colour: hex, widthPx: look.lineWidthPx || 1 } }) })),
@@ -750,17 +750,17 @@ export default function WordRibbon({
             ])} />
           </Group>
           <Group label={t('Text')}>
-            <Button tall icon="rotate" label={t('Text Direction')} disabled={drawing?.kind !== 'textbox'} title={t('Text Direction — across, or turned to read down or up')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="rotate" label={t('Text Direction')} disabled={drawing?.kind !== 'textbox'} title={t('Text Direction: across, or turned to read down or up')} onClick={(e) => menu.open(e, [
               { label: t('Horizontal'), icon: (look.vert || 'horz') === 'horz' ? 'check' : undefined, run: () => act('boxFormat', { vert: 'horz' }) },
               { label: t('Rotate all text 90°'), icon: look.vert === 'vert' ? 'check' : undefined, run: () => act('boxFormat', { vert: 'vert' }) },
               { label: t('Rotate all text 270°'), icon: look.vert === 'vert270' ? 'check' : undefined, run: () => act('boxFormat', { vert: 'vert270' }) },
             ])} />
-            <Button tall icon="alignCenter" label={t('Align Text')} disabled={drawing?.kind !== 'textbox'} title={t('Align Text — the words at the top, middle or bottom of the box')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="alignCenter" label={t('Align Text')} disabled={drawing?.kind !== 'textbox'} title={t('Align Text: the words at the top, middle or bottom of the box')} onClick={(e) => menu.open(e, [
               { label: t('Top'), icon: (look.vAnchor || 'top') === 'top' ? 'check' : undefined, run: () => act('boxFormat', { vAnchor: 'top' }) },
               { label: t('Middle'), icon: look.vAnchor === 'middle' ? 'check' : undefined, run: () => act('boxFormat', { vAnchor: 'middle' }) },
               { label: t('Bottom'), icon: look.vAnchor === 'bottom' ? 'check' : undefined, run: () => act('boxFormat', { vAnchor: 'bottom' }) },
             ])} />
-            <Button tall icon="crop" label={t('Margins')} disabled={drawing?.kind !== 'textbox'} title={t("Margins — the room between the box's edge and its words")} onClick={(e) => menu.open(e, BOX_MARGINS.map(([label, insets]) => ({
+            <Button dropdown tall icon="crop" label={t('Margins')} disabled={drawing?.kind !== 'textbox'} title={t("Margins: the room between the box's edge and its words")} onClick={(e) => menu.open(e, BOX_MARGINS.map(([label, insets]) => ({
               label, icon: look.insets && ['l', 't', 'r', 'b'].every((k) => Math.abs((look.insets[k] || 0) - insets[k]) < 0.6) ? 'check' : undefined, run: () => act('boxFormat', { insets }),
             })))} />
           </Group>
@@ -771,12 +771,12 @@ export default function WordRibbon({
                 key={p.id} tall icon="wand" label={t(p.label)} className="wd-warp" data-preset={p.id}
                 disabled={drawing?.kind !== 'textbox'}
                 pressed={drawing?.kind === 'textbox' && (look.warp || 'textNoShape') === p.id}
-                title={drawing?.kind !== 'textbox' ? t('{label} — select a text box or WordArt first', { label: t(p.label) }) : p.id === 'textNoShape' ? t('No Transform — the words in straight lines') : p.label === 'Button' ? t('Transform — the words along a button: an arc, a line and an arc') : p.label === 'Circle' ? t('Transform — the words along the circle of the box') : t('Transform — the words along the arc of the box')}
+                title={drawing?.kind !== 'textbox' ? t('{label}: select a text box or WordArt first', { label: t(p.label) }) : p.id === 'textNoShape' ? t('No Transform: the words in straight lines') : p.label === 'Button' ? t('Transform: the words along a button: an arc, a line and an arc') : p.label === 'Circle' ? t('Transform: the words along the circle of the box') : t('Transform: the words along the arc of the box')}
                 onClick={() => act('boxFormat', { warp: p.id === 'textNoShape' ? null : p.id })}
               />
             ))}
             {/* The warps, the rest of Office's gallery, from a menu. */}
-            <Button tall disabled={drawing?.kind !== 'textbox'} icon="wand" label={t('More')} className="wd-warp-more" pressed={WARP_MORE.some((p) => p.id === look.warp)} title={WARP_MORE.some((p) => p.id === look.warp) ? t('Transform — now {warp}; the warps: the words stretched between two curves', { warp: t(warpLabel(look.warp)) }) : t('More Transforms — the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest')} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: t(p.label), icon: look.warp === p.id ? 'check' : 'wand', run: () => act('boxFormat', { warp: p.id }) })))} />
+            <Button dropdown tall disabled={drawing?.kind !== 'textbox'} icon="wand" label={t('More')} className="wd-warp-more" pressed={WARP_MORE.some((p) => p.id === look.warp)} title={WARP_MORE.some((p) => p.id === look.warp) ? t('Transform: now {warp}; the warps: the words stretched between two curves', { warp: t(warpLabel(look.warp)) }) : t('More Transforms: the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest')} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: t(p.label), icon: look.warp === p.id ? 'check' : 'wand', run: () => act('boxFormat', { warp: p.id }) })))} />
           </Group>
           {arrange}
           <Group label={t('Size')}>
@@ -804,7 +804,7 @@ export default function WordRibbon({
             </Rows>
           </Group>
           <Group label={t('Table Styles')}>
-            <Button tall icon="table" label={t('Table Styles')} title={tableStyleId ? t("Table Styles — Word's own, in this document's theme colours; now {style}", { style: t(TABLE_STYLES.find((st) => st.id === tableStyleId)?.name || tableStyleId) }) : t("Table Styles — Word's own, in this document's theme colours; now none")} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="table" label={t('Table Styles')} title={tableStyleId ? t("Table Styles: Word's own, in this document's theme colours; now {style}", { style: t(TABLE_STYLES.find((st) => st.id === tableStyleId)?.name || tableStyleId) }) : t("Table Styles: Word's own, in this document's theme colours; now none")} onClick={(e) => menu.open(e, [
               { heading: true, label: t('Plain Tables') },
               ...TABLE_STYLES.filter((st) => st.family === 'plain').map((st) => ({ label: t(st.name), icon: st.id === tableStyleId ? 'check' : undefined, run: () => tableOp('style', { id: st.id }) })),
               { heading: true, label: t('Grid Tables') },
@@ -817,22 +817,22 @@ export default function WordRibbon({
           </Group>
           <Group label={t('Borders')}>
             <Rows>
-              <Button icon="minus" label={t('Line: {style}', { style: PEN_STYLES.find(([v]) => v === pen.val)?.[1] || t('Single') })} title={t("Line Style — the pen's line for the borders it draws")} onClick={(e) => menu.open(e, PEN_STYLES.map(([val, label]) => ({ label, icon: pen.val === val ? 'check' : undefined, run: () => setPen({ ...pen, val }) })))} />
-              <Button icon="sliders" label={t('Weight: {weight}', { weight: PEN_WEIGHTS.find(([sz]) => sz === pen.sz)?.[1] || t('½ pt') })} title={t('Pen Weight — how thick a line the pen draws')} onClick={(e) => menu.open(e, PEN_WEIGHTS.map(([sz, label]) => ({ label, icon: pen.sz === sz ? 'check' : undefined, run: () => setPen({ ...pen, sz }) })))} />
-              <Button icon="wand" label={t('Pen Colour')} title={t('Pen Colour — now {colour}', { colour: SHAPE_COLOURS.find(([hex]) => hex === pen.color)?.[1] || t('Automatic') })} onClick={(e) => menu.open(e, [
+              <Button dropdown icon="minus" label={t('Line: {style}', { style: PEN_STYLES.find(([v]) => v === pen.val)?.[1] || t('Single') })} title={t("Line Style: the pen's line for the borders it draws")} onClick={(e) => menu.open(e, PEN_STYLES.map(([val, label]) => ({ label, icon: pen.val === val ? 'check' : undefined, run: () => setPen({ ...pen, val }) })))} />
+              <Button dropdown icon="sliders" label={t('Weight: {weight}', { weight: PEN_WEIGHTS.find(([sz]) => sz === pen.sz)?.[1] || t('½ pt') })} title={t('Pen Weight: how thick a line the pen draws')} onClick={(e) => menu.open(e, PEN_WEIGHTS.map(([sz, label]) => ({ label, icon: pen.sz === sz ? 'check' : undefined, run: () => setPen({ ...pen, sz }) })))} />
+              <Button dropdown icon="wand" label={t('Pen Colour')} title={t('Pen Colour: now {colour}', { colour: SHAPE_COLOURS.find(([hex]) => hex === pen.color)?.[1] || t('Automatic') })} onClick={(e) => menu.open(e, [
                 { label: t('Automatic'), icon: pen.color === 'auto' ? 'check' : undefined, run: () => setPen({ ...pen, color: 'auto' }) },
                 '-',
                 ...SHAPE_COLOURS.map(([hex, label]) => ({ label, icon: pen.color === hex ? 'check' : undefined, run: () => setPen({ ...pen, color: hex }) })),
               ])} />
             </Rows>
-            <Button tall icon="grid" label={t('Borders')} title={t("Borders — lines round, between or through the selected cells, in the pen's line")} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="borders" label={t('Borders')} title={t("Borders: lines round, between or through the selected cells, in the pen's line")} onClick={(e) => menu.open(e, [
               ['bottom', t('Bottom Border')], ['top', t('Top Border')], ['left', t('Left Border')], ['right', t('Right Border')], '-',
               ['none', t('No Border')], ['all', t('All Borders')], ['outside', t('Outside Borders')], ['inside', t('Inside Borders')], '-',
               ['insideH', t('Inside Horizontal Border')], ['insideV', t('Inside Vertical Border')],
             ].map((item) => (item === '-' ? '-' : { label: item[1], run: () => tableOp('borders', { kind: item[0], pen }) })))} />
           </Group>
           <Group label={t('Shading')}>
-            <Button tall icon="wand" label={t('Shading')} title={t("Shading — the selected cells' background")} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="bucketFill" label={t('Shading')} title={t("Shading: the selected cells' background")} onClick={(e) => menu.open(e, [
               { label: t('No Colour'), icon: 'close', run: () => tableOp('shading', { fill: null }) },
               '-',
               ...SHAPE_COLOURS.map(([hex, label]) => ({ label, run: () => tableOp('shading', { fill: hex }) })),
@@ -846,11 +846,11 @@ export default function WordRibbon({
         <>
           <Group label={t('Draw')}>
             <Button tall icon="pen" label={t('Draw Table')} pressed={view.tableDraw === 'pen'} title={t('Draw Table — draw a line down a cell to split it into two columns there, or across it to split it into two rows; Escape puts the pen down')} onClick={() => act('tableDraw', 'pen')} />
-            <Button tall icon="eraser" label={t('Eraser')} pressed={view.tableDraw === 'eraser'} title={t('Eraser — click a line between two cells to join them into one; Escape puts the eraser down')} onClick={() => act('tableDraw', 'eraser')} />
+            <Button tall icon="eraser" label={t('Eraser')} pressed={view.tableDraw === 'eraser'} title={t('Eraser: click a line between two cells to join them into one; Escape puts the eraser down')} onClick={() => act('tableDraw', 'eraser')} />
           </Group>
           <Group label={t('Table')}>
             <Button tall icon="settings" label={t('Properties')} title={t("Table Properties — the table's width, alignment and alt text, the caret's row and column")} onClick={() => openDialog('tableProperties')} />
-            <Button tall icon="alignCenter" label={t('Align Table')} title={t('Align Table — the table at the left margin, centred or at the right')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="alignCenter" label={t('Align Table')} title={t('Align Table: the table at the left margin, centred or at the right')} onClick={(e) => menu.open(e, [
               { label: t('Left'), run: () => tableOp('align', { align: 'left' }) },
               { label: t('Centre'), run: () => tableOp('align', { align: 'center' }) },
               { label: t('Right'), run: () => tableOp('align', { align: 'right' }) },
@@ -858,7 +858,7 @@ export default function WordRibbon({
             <Button tall icon="grid" label={t('View Gridlines')} pressed={!view.noTableGridlines} title={t("View Gridlines — a table's faint dashes where it has no lines of its own; on screen only, never printed")} onClick={() => act('toggleTableGridlines')} />
           </Group>
           <Group label={t('Rows & Columns')}>
-            <Button tall icon="minus" label={t('Delete')} title={t('Delete — the row, the column or the whole table at the caret')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="minus" label={t('Delete')} title={t('Delete: the row, the column or the whole table at the caret')} onClick={(e) => menu.open(e, [
               { label: t('Delete columns'), icon: 'minus', run: () => tableOp('deleteColumn') },
               { label: t('Delete rows'), icon: 'minus', run: () => tableOp('deleteRow') },
               { label: t('Delete table'), icon: 'trash', run: () => tableOp('deleteTable') },
@@ -899,7 +899,7 @@ export default function WordRibbon({
                 <span className="wd-field-value" style={{ minWidth: 0 }}>{t('cm')}</span>
               </div>
             </Rows>
-            <Button tall icon="table" label={t('AutoFit')} title={t('AutoFit — the table to the window, to fixed column widths, or to its contents')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="table" label={t('AutoFit')} title={t('AutoFit: the table to the window, to fixed column widths, or to its contents')} onClick={(e) => menu.open(e, [
               { label: t('AutoFit Contents'), run: () => tableOp('autoFit', { mode: 'contents' }) },
               { label: t('AutoFit Window'), run: () => tableOp('autoFit', { mode: 'window' }) },
               { label: t('Fixed Column Width'), run: () => tableOp('autoFit', { mode: 'fixed' }) },
@@ -907,17 +907,17 @@ export default function WordRibbon({
             <Button tall icon="sliders" label={t('Distribute Columns')} title={t('Distribute Columns — every column the same width, the table as wide as before')} onClick={() => tableOp('distributeColumns')} />
           </Group>
           <Group label={t('Alignment')}>
-            <Button tall icon="rotate" label={t('Text Direction')} title={t("Text Direction — the selected cells' words across, or turned to read down or up")} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="rotate" label={t('Text Direction')} title={t("Text Direction: the selected cells' words across, or turned to read down or up")} onClick={(e) => menu.open(e, [
               { label: t('Horizontal'), run: () => tableOp('textDirection', { dir: null }) },
               { label: t('Rotate all text 90°'), run: () => tableOp('textDirection', { dir: 'down' }) },
               { label: t('Rotate all text 270°'), run: () => tableOp('textDirection', { dir: 'up' }) },
             ])} />
-            <Button tall icon="crop" label={t('Cell Margins')} title={t('Cell Margins — the room inside every cell of the table')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="crop" label={t('Cell Margins')} title={t('Cell Margins: the room inside every cell of the table')} onClick={(e) => menu.open(e, [
               { label: t('Narrow'), run: () => tableOp('cellMargins', { margins: { top: 0, left: 57, bottom: 0, right: 57 } }) },
               { label: t('Normal'), run: () => tableOp('cellMargins', { margins: { top: 0, left: 108, bottom: 0, right: 108 } }) },
               { label: t('Wide'), run: () => tableOp('cellMargins', { margins: { top: 72, left: 216, bottom: 72, right: 216 } }) },
             ])} />
-            <Button tall icon="alignCenter" label={t('Cell Alignment')} title={t('Cell Alignment — the words at the top, centre or bottom of the selected cells; now {align}', { align: { top: t('top'), center: t('centre'), bottom: t('bottom') }[cellAlign] || cellAlign })} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="alignCenter" label={t('Cell Alignment')} title={t('Cell Alignment: the words at the top, centre or bottom of the selected cells; now {align}', { align: { top: t('top'), center: t('centre'), bottom: t('bottom') }[cellAlign] || cellAlign })} onClick={(e) => menu.open(e, [
               { label: t('Top'), icon: cellAlign === 'top' ? 'check' : undefined, run: () => tableOp('cellVAlign', { v: 'top' }) },
               { label: t('Centre'), icon: cellAlign === 'center' ? 'check' : undefined, run: () => tableOp('cellVAlign', { v: 'center' }) },
               { label: t('Bottom'), icon: cellAlign === 'bottom' ? 'check' : undefined, run: () => tableOp('cellVAlign', { v: 'bottom' }) },
@@ -927,19 +927,19 @@ export default function WordRibbon({
             <Button tall icon="textRtl" label={t('Right to Left')} title={t("Right to left — the table's columns run from the right, as an Arabic or Hebrew table's do")} pressed={table.rtl} onClick={() => tableOp('direction', { rtl: !table.rtl })} />
           </Group>
           <Group label={t('Data')}>
-            <Button tall icon="sort" label={t('Sort')} title={t("Sort — the table's rows by the caret's column, its header row kept at the top")} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="sort" label={t('Sort')} title={t("Sort: the table's rows by the caret's column, its header row kept at the top")} onClick={(e) => menu.open(e, [
               { label: t('Sort A to Z by this column'), run: () => tableOp('sort', { descending: false }) },
               { label: t('Sort Z to A by this column'), run: () => tableOp('sort', { descending: true }) },
               '-',
               { label: t('A to Z, the first row a header'), run: () => tableOp('sort', { descending: false, header: true }) },
               { label: t('Z to A, the first row a header'), run: () => tableOp('sort', { descending: true, header: true }) },
             ])} />
-            <Button tall icon="file" label={t('Convert to Text')} title={t('Convert to Text — each row a paragraph, its cells between tabs or commas')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="file" label={t('Convert to Text')} title={t('Convert to Text: each row a paragraph, its cells between tabs or commas')} onClick={(e) => menu.open(e, [
               { label: t('Separated by tabs'), run: () => tableOp('toText', { separator: 'tab' }) },
               { label: t('Separated by commas'), run: () => tableOp('toText', { separator: 'comma' }) },
               { label: t('Each cell its own paragraph'), run: () => tableOp('toText', { separator: 'paragraph' }) },
             ])} />
-            <Button tall icon="formula" label={t('Formula')} title={t("Formula — a field in the caret's cell worked out from the numbers above or to the left of it, or from cells like B2 and B2:B4, as Word's =SUM(ABOVE)")} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="formula" label={t('Formula')} title={t("Formula: a field in the caret's cell worked out from the numbers above or to the left of it, or from cells like B2 and B2:B4, as Word's =SUM(ABOVE)")} onClick={(e) => menu.open(e, [
               { label: t('Sum above'), run: () => tableOp('formula', { formula: '=SUM(ABOVE)' }) },
               { label: t('Sum left'), run: () => tableOp('formula', { formula: '=SUM(LEFT)' }) },
               { label: t('Average above'), run: () => tableOp('formula', { formula: '=AVERAGE(ABOVE)', format: '#,##0.00' }) },
@@ -964,7 +964,7 @@ export default function WordRibbon({
             <Group label={t('3D Model Views')}>
               {rows.map((row, i) => (
                 <Rows key={i}>
-                  {row.map(([key, label, view]) => <Button key={key} icon={at(view) ? 'check' : 'shape'} label={t(label)} className="wd-model3d-view" data-view={key} pressed={at(view)} title={t('{label} — the model turned to show it from there', { label: t(label) })} onClick={() => act('model3dView', view)} />)}
+                  {row.map(([key, label, view]) => <Button key={key} icon={at(view) ? 'check' : 'shape'} label={t(label)} className="wd-model3d-view" data-view={key} pressed={at(view)} title={t('{label}: the model turned to show it from there', { label: t(label) })} onClick={() => act('model3dView', view)} />)}
                 </Rows>
               ))}
             </Group>
@@ -1014,7 +1014,7 @@ export default function WordRibbon({
         <>
           <Group label={t('Table of Contents')}>
             <Button tall icon="listBullet" label={t('Table of Contents')} title={t('Table of Contents — a live field built from the headings, with page numbers')} onClick={() => act('tableOfContents')} />
-            <Button icon="plus" label={t('Add Text')} title={t('Make this paragraph a heading, so it appears in the table of contents')} onClick={(e) =>
+            <Button dropdown icon="plus" label={t('Add Text')} title={t('Make this paragraph a heading, so it appears in the table of contents')} onClick={(e) =>
               menu.open(e, [
                 { label: t('Do not show in table of contents'), run: () => para({ styleId: null }) },
                 { label: t('Level 1 (Heading 1)'), run: () => para({ styleId: 'Heading1' }) },
@@ -1069,13 +1069,13 @@ export default function WordRibbon({
             <Button tall icon="globe" label={t('Language')} title={t('Language — mark the selected words as a language, or as not to be checked, for Spelling here and proofing in Office')} onClick={() => act('language')} />
           </Group>
           <Group label={t('Comments')}>
-            <Button tall icon="reply" label={t('New Comment')} onClick={() => openDialog('comment')} />
-            <Button
+            <Button tall icon="comment" label={t('New Comment')} onClick={() => openDialog('comment')} />
+            <Button dropdown
               tall
               icon="trash"
               label={t('Delete')}
               disabled={!comments.length}
-              title={comments.length ? t("Delete — the comment on the caret's paragraph, or every comment in the document") : t('Delete — this document has no comments')}
+              title={comments.length ? t("Delete: the comment on the caret's paragraph, or every comment in the document") : t('Delete: this document has no comments')}
               onClick={(e) => menu.open(e, [
                 { label: t('Delete'), icon: 'trash', disabled: !comments.some((c) => c.blockIndex === (model?.selection?.focus?.block ?? -1)), run: () => act('deleteComment') },
                 { label: t('Delete All Comments in Document'), icon: 'trash', run: () => act('deleteComment', 'all') },
@@ -1087,7 +1087,7 @@ export default function WordRibbon({
           </Group>
           <Group label={t('Tracking')}>
             <Button tall icon="eye" label={t('Track Changes')} pressed={Boolean(model?.trackRevisions)} disabled={Boolean(model?.protection?.lockedTracking)} title={model?.protection?.lockedTracking ? t('Track Changes — locked on: the document is protected for tracked changes') : t('Track Changes — record every insertion and deletion as w:ins / w:del while you edit')} onClick={() => act('toggleTrackChanges')} />
-            <Button icon="eye" label={MARKUP_LABELS[view.markupMode] || t('Simple Markup')} title={t('Display for Review — how tracked changes are shown')} onClick={(e) => menu.open(e, [
+            <Button dropdown icon="eye" label={MARKUP_LABELS[view.markupMode] || t('Simple Markup')} title={t('Display for Review: how tracked changes are shown')} onClick={(e) => menu.open(e, [
               { label: t('All Markup'), run: () => act('markupMode', 'all') },
               { label: t('Simple Markup'), run: () => act('markupMode', 'simple') },
               { label: t('No Markup'), run: () => act('markupMode', 'final') },
@@ -1096,11 +1096,11 @@ export default function WordRibbon({
             <Button icon="list" label={t('Reviewing Pane')} title={t('Every tracked change in this document')} disabled={!model?.blocks?.some((b) => b.tracked)} onClick={() => openDialog('tracked')} />
           </Group>
           <Group label={t('Changes')}>
-            <Button tall icon="check" label={t('Accept')} disabled={!trackedHere || Boolean(model?.protection?.lockedTracking)} title={t('Accept — keep this change')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="check" label={t('Accept')} disabled={!trackedHere || Boolean(model?.protection?.lockedTracking)} title={t('Accept: keep this change')} onClick={(e) => menu.open(e, [
               { label: t('Accept This Change'), run: () => act('acceptChanges') },
               { label: t('Accept All Changes'), run: () => act('acceptChanges', 'all') },
             ])} />
-            <Button tall icon="close" label={t('Reject')} disabled={!trackedHere || Boolean(model?.protection?.lockedTracking)} title={t('Reject — undo this change')} onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="close" label={t('Reject')} disabled={!trackedHere || Boolean(model?.protection?.lockedTracking)} title={t('Reject: undo this change')} onClick={(e) => menu.open(e, [
               { label: t('Reject This Change'), run: () => act('rejectChanges') },
               { label: t('Reject All Changes'), run: () => act('rejectChanges', 'all') },
             ])} />
@@ -1120,21 +1120,21 @@ export default function WordRibbon({
       {tab === 'immersive' && view.immersive ? (
         <>
           <Group label={t('Immersive Reader')}>
-            <Button
+            <Button dropdown
               tall
               icon="alignJustify"
               label={t('Column Width')}
               title={t('Column Width — how long the lines are')}
               onClick={(e) => menu.open(e, IR_WIDTHS.map(([k, label]) => ({ label, icon: view.immersive.width === k ? 'check' : undefined, run: () => act('immersiveSet', { width: k }) })))}
             />
-            <Button
+            <Button dropdown
               tall
               icon="contrast"
               label={t('Page Color')}
               title={t('Page Color — the colour behind the words')}
               onClick={(e) => menu.open(e, IR_COLOURS.map(([k, label]) => ({ label, icon: view.immersive.colour === k ? 'check' : undefined, run: () => act('immersiveSet', { colour: k }) })))}
             />
-            <Button
+            <Button dropdown
               tall
               icon="eye"
               label={t('Line Focus')}
@@ -1174,7 +1174,7 @@ export default function WordRibbon({
             <Button icon="list" label={t('Navigation Pane')} pressed={Boolean(view.navigation)} title={t('Headings, to move around a long document')} onClick={() => act('toggleNavigation')} />
           </Group>
           <Group label={t('Zoom')}>
-            <Button tall icon="find" label={t('Zoom')} onClick={(e) => menu.open(e, [50, 75, 100, 125, 150, 200].map((z) => ({ label: `${z}%`, run: () => act('zoom', z / 100) })))} />
+            <Button dropdown tall icon="find" label={t('Zoom')} onClick={(e) => menu.open(e, [50, 75, 100, 125, 150, 200].map((z) => ({ label: `${z}%`, run: () => act('zoom', z / 100) })))} />
             <Button icon="check" label="100%" onClick={() => act('zoom', 1)} />
             <Button icon="file" label={t('One Page')} onClick={() => act('zoom', 'page')} />
             <Button icon="copy" label={t('Multiple Pages')} onClick={() => act('zoom', 'pages')} />
