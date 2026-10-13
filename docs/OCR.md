@@ -69,6 +69,17 @@ bytes with the layer after them. Refused by name: files protected with a
 password, and files whose cross-references had to be rebuilt (save a copy
 first).
 
+**Pictures and Image: Copy Text from Picture** (Pictures: the Home tab
+and the viewer's bar under the picture, where the ribbon folds away, and
+the picture's menu; Image: the Home tab). The picture is read once on the
+pool, every word goes on the clipboard in reading order, and the lines are
+laid over the picture as invisible text, outlined faintly, where a drag
+selects and copies words or a line alone; a bar over the picture says how
+many lines were found, with Copy All and Hide. The lines follow the picture
+as it is zoomed, scrolled or turned in Pictures; in Image the picture is read
+as it is edited, and any edit takes the words away. Languages chooses which
+of the six are read (Urdu marked beta), remembered for every window.
+
 ## Page analysis and layout of our own
 
 Around the engine, in `packages/ocr/src/analyse.js` and `layout.js`,

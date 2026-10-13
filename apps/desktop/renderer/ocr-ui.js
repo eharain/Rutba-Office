@@ -8,8 +8,8 @@
 // the picker that chooses them with Urdu marked beta, pixels from a picture
 // or a canvas, and the words laid over a picture so they can be selected.
 
-import React, { useLayoutEffect, useRef, useState } from 'react';
-import { t, language } from '@rutba/office-ui';
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { Button, Dialog, Spinner, t, tn, language } from '@rutba/office-ui';
 import { languagesFor, CODES } from '@rutba/ocr/languages';
 
 const KEY = 'rutba-ocr-languages';
@@ -82,6 +82,9 @@ export const OCR_CSS = `
 .ocr-layer br { position: absolute; }
 .ocr-layer .ocr-line { position: absolute; white-space: pre; color: transparent; line-height: 1; transform-origin: 0 0; font-family: Arial, 'Segoe UI', 'Noto Naskh Arabic', 'Nirmala UI', 'Microsoft YaHei', 'Yu Gothic', sans-serif; }
 .ocr-layer .ocr-line::selection { background: rgba(0, 92, 230, 0.32); color: transparent; }
+.ocr-bar { position: sticky; top: 10px; grid-area: 1 / 1; align-self: start; justify-self: center; z-index: 6; display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 12px; max-width: calc(100% - 24px); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--r-3); box-shadow: var(--shadow-2); font-size: 12.5px; line-height: 1.3; cursor: default; }
+.ocr-bar .rw-spinner { width: 16px; height: 16px; }
+.ocr-bar-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-inline-end: 4px; }
 .ocr-layer.show-lines .ocr-line { outline: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 2px; }
 `;
 
@@ -114,6 +117,116 @@ export function loadPicture(url) {
     img.onerror = () => reject(new Error(t('The picture could not be read.')));
     img.src = url;
   });
+}
+
+/**
+ * Copy Text from Picture, as Pictures and Image use it: the picture read
+ * once (by its `key`), all its text put on the clipboard, and the result
+ * kept to lay its lines over the picture. A second press with the same
+ * picture copies again without reading again.
+ */
+export function usePictureText({ shell, toast }) {
+  const [state, setState] = useState(null); // { key, result, pixelScale }
+  const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const seq = useRef(0);
+  const live = useRef(null);
+
+  const copyAll = useCallback(async (result) => {
+    await shell.clipboard.writeText({ text: result.text });
+  }, [shell]);
+
+  const read = useCallback(async (key, getPixels) => {
+    if (state?.key === key && state.result) {
+      await copyAll(state.result);
+      toast(t('Text copied'), { tone: 'good' });
+      return;
+    }
+    const n = ++seq.current;
+    live.current = `picture-${n}`;
+    setBusy(true);
+    try {
+      const pixels = await getPixels();
+      const result = await recognisePixels(shell, pixels, { languages: chosenOcrLanguages(), job: live.current });
+      if (n !== seq.current) return;
+      if (!result.words.length) {
+        setState(null);
+        toast(t('No text was found in this picture.'), { ms: 4000 });
+        return;
+      }
+      await copyAll(result);
+      setState({ key, result, pixelScale: pixels.scale || 1 });
+      toast(tn(result.lines.length, 'Text copied: {count} line. Select words on the picture to copy only those.', 'Text copied: {count} lines. Select words on the picture to copy only those.'), { tone: 'good', ms: 5000 });
+    } catch (err) {
+      if (n === seq.current && err?.code !== 'OCR_CANCELLED') toast(t('Text could not be recognised: {reason}', { reason: err.message }), { tone: 'bad', ms: 7000 });
+    } finally {
+      if (n === seq.current) setBusy(false);
+    }
+  }, [state, shell, toast, copyAll]);
+
+  /** Stop a reading under way, and take the words off the picture. */
+  const clear = useCallback(() => {
+    seq.current += 1;
+    if (live.current) shell.ocr.cancel({ job: live.current }).catch(() => {});
+    live.current = null;
+    setBusy(false);
+    setState(null);
+  }, [shell]);
+
+  return {
+    state,
+    busy,
+    read,
+    clear,
+    copyAll: () => state && copyAll(state.result).then(() => toast(t('Text copied'), { tone: 'good' })),
+    asking,
+    setAsking,
+  };
+}
+
+/** The bar over a picture while its words are read, and once they are there. */
+export function PictureTextBar({ text }) {
+  if (text.busy) {
+    return (
+      <div className="ocr-bar" data-role="ocr-bar" data-state="reading" onMouseDown={(e) => e.stopPropagation()}>
+        <Spinner />
+        <span className="ocr-bar-text">{t('Reading the words in the picture…')}</span>
+        <Button ghost label={t('Cancel')} onClick={text.clear} />
+      </div>
+    );
+  }
+  if (!text.state) return null;
+  const lines = text.state.result.lines.length;
+  return (
+    <div className="ocr-bar" data-role="ocr-bar" data-state="ready" data-lines={lines} onMouseDown={(e) => e.stopPropagation()}>
+      <span className="ocr-bar-text">{tn(lines, '{count} line of text. Select words to copy them.', '{count} lines of text. Select words to copy them.')}</span>
+      <Button icon="copy" label={t('Copy All')} data-role="ocr-copy-all" onClick={text.copyAll} />
+      <Button ghost icon="close" title={t('Hide the text')} onClick={text.clear} data-role="ocr-hide" />
+    </div>
+  );
+}
+
+/** Text Languages: which languages Copy Text reads, remembered for every window. */
+export function OcrLanguagesDialog({ onClose }) {
+  const [value, setValue] = useState(chosenOcrLanguages);
+  return (
+    <Dialog
+      title={t('Text Languages')}
+      onClose={onClose}
+      actions={(
+        <>
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('OK')} data-role="ocr-languages-ok" onClick={() => { rememberOcrLanguages(value); onClose(); }} />
+        </>
+      )}
+    >
+      <div className="ocr-form" data-role="ocr-languages">
+        <div className="ocr-form-label">{t('Languages in the picture')}</div>
+        <OcrLanguagePicker value={value} onChange={setValue} />
+        <div className="ocr-foot">{t('The words are read on this computer. Nothing is sent anywhere.')}</div>
+      </div>
+    </Dialog>
+  );
 }
 
 /** Read the text in pixels on the main process's pool; `job` names it so it can be cancelled. */

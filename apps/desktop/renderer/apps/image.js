@@ -44,6 +44,7 @@ import { LayerStage, STAGE_CSS } from './image/stage.js';
 import { InsertGroups, INSERT_CSS } from './image/insert.js';
 import { CanvasSizeDialog, CANVAS_CSS } from './image/canvas-size.js';
 import { nameOf } from './image/words.js';
+import { usePictureText, PictureTextBar, OcrLanguagesDialog, TextOverLayer, pixelsOf, OCR_CSS } from '../ocr-ui.js';
 
 /** The opened picture, with its quick edits, as the bottom layer of a layered picture. */
 const BACKGROUND = 'rimg:bitmaps/background.png';
@@ -551,6 +552,13 @@ export default function ImageTool({ app, shell, boot }) {
     return renderFull(s);
   }, [renderFull, assetsNow]);
   const hasResult = Boolean(layered || (image && plan));
+
+  // Copy Text from Picture: the picture as it is now, read on the main process's threads; any edit takes the words away.
+  const pictureText = usePictureText({ shell, toast });
+  const textKey = useMemo(() => ({}), [image, plan, layered]); // eslint-disable-line react-hooks/exhaustive-deps
+  const clearText = pictureText.clear;
+  const textFor = pictureText.state?.key;
+  useEffect(() => { if (textFor && textFor !== textKey) clearText(); }, [textKey, textFor, clearText]);
   const resultSize = layered ? layered.size : plan ? plan.target : null;
 
   const sourceFormat = formatOf(path || '') || 'png';
@@ -1727,9 +1735,11 @@ export default function ImageTool({ app, shell, boot }) {
       'image.rotateLeft': { label: t('Rotate left'), icon: 'rotateLeft', run: () => addOp({ op: OPS.rotate, degrees: 270 }) },
       'image.flipX': { label: t('Flip horizontally'), icon: 'flip', run: () => addOp({ op: OPS.flip, axis: 'x' }) },
       'image.flipY': { label: t('Flip vertically'), icon: 'flipVertical', run: () => addOp({ op: OPS.flip, axis: 'y' }) },
+      'image.text': { label: t('Copy Text from Picture'), icon: 'scanText', when: () => hasResult, run: () => pictureText.read(textKey, async () => { commitDraft(); return pixelsOf(await renderResult(1)); }) },
+      'image.textLanguages': { label: t('Text Languages…'), icon: 'globe', run: () => pictureText.setAsking(true) },
     }),
     [openFile, exportPicture, undo, redo, reset, copy, paste, commitDraft, draft, crop, tool, addOp, editFor, layered, putBack, saveProject, saveProjectAs, newPicture, hasResult, selected, removeChosen, editLayers,
-      selection, selectAllNow, deselect, invertSel, copyToLayer, clearSelection, copySelection, pickTool, ptool]
+      selection, selectAllNow, deselect, invertSel, copyToLayer, clearSelection, copySelection, pickTool, ptool, pictureText, textKey, renderResult]
   );
 
   useCommands(commands, [image, plan, draft, crop, tool, layered, selected, editFor, hasResult]);
@@ -1842,6 +1852,10 @@ export default function ImageTool({ app, shell, boot }) {
           <Group label={t('Clipboard')}>
             <Button tall icon="paste" label={t('Paste')} title={t('Paste: a picture on the clipboard, as a new picture (Ctrl+V)')} onClick={paste} />
             <Button tall icon="copy" label={t('Copy')} title={t('Copy: the edited picture, to paste anywhere (Ctrl+C)')} disabled={!hasResult} onClick={copy} />
+          </Group>
+          <Group label={t('Text')}>
+            <Button tall icon="scanText" label={t('Copy Text')} title={t('Copy Text: the words in this picture read on this computer and copied; then select words on the picture to copy only those')} disabled={!hasResult || pictureText.busy} onClick={() => commands['image.text'].run()} data-role="copy-text" />
+            <Button icon="globe" label={t('Languages')} title={t('Languages: which languages Copy Text reads')} onClick={() => pictureText.setAsking(true)} data-role="text-languages" />
           </Group>
           <Group label={t('Rotate and flip')}>
             <Button tall icon="rotate" label={t('Right')} disabled={!image} onClick={() => commands['image.rotateRight'].run()} />
@@ -2195,6 +2209,7 @@ export default function ImageTool({ app, shell, boot }) {
                   />
                 ) : null}
                 {crop && cropFrame ? <CropBox crop={crop} plan={cropFrame} onChange={(c) => setCrop(constrainCrop(c, cropFrame.target, ratio))} /> : null}
+                {pictureText.state && pictureText.state.key === textKey && !crop && !tool ? <TextOverLayer result={pictureText.state.result} pixelScale={pictureText.state.pixelScale} scale={scale} showLines /> : null}
                 {tool && plan && pictureBox ? (
                   <div className="im-picture-box" style={pictureBox}>
                     <DrawLayer
@@ -2210,6 +2225,7 @@ export default function ImageTool({ app, shell, boot }) {
                   </div>
                 ) : null}
               </div>
+              <PictureTextBar text={pictureText} />
             </div>
             </div>
             </div>
@@ -2369,7 +2385,8 @@ export default function ImageTool({ app, shell, boot }) {
           }}
         />
       ) : null}
-      <style>{CSS + LAYERS_CSS + STAGE_CSS + INSERT_CSS + CANVAS_CSS + TOOLS_CSS + TOOL_STAGE_CSS + SELECTION_CSS}</style>
+      {pictureText.asking ? <OcrLanguagesDialog onClose={() => pictureText.setAsking(false)} /> : null}
+      <style>{CSS + LAYERS_CSS + STAGE_CSS + INSERT_CSS + CANVAS_CSS + TOOLS_CSS + TOOL_STAGE_CSS + SELECTION_CSS + OCR_CSS}</style>
     </AppFrame>
   );
 }

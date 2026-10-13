@@ -35,6 +35,7 @@ import { durationOf, peekLength } from './pictures/durations.js';
 import { nextIndex, formatLength, advanceAfter } from './pictures/show.js';
 import { useMarks, useFolderCount } from './pictures/marks.js';
 import { BatchDialog, canBatch } from './image/batch.js';
+import { usePictureText, PictureTextBar, OcrLanguagesDialog, TextOverLayer, pixelsOf, loadPicture, OCR_CSS } from '../ocr-ui.js';
 
 const INTERVALS = [
   { label: t('{seconds}s', { seconds: 2 }), value: 2000 },
@@ -148,6 +149,11 @@ export default function Pictures({ app, shell, boot }) {
   const mediaRef = useRef(null);
 
   const menu = useMenu();
+  // Copy Text from Picture: the words read on the main process's threads, laid over the picture to select.
+  const pictureText = usePictureText({ shell, toast });
+  const clearText = pictureText.clear;
+  const textKey = pictureText.state?.key;
+  useEffect(() => { if (textKey && textKey !== current) clearText(); }, [current, textKey, clearText]);
   const openFileRef = useRef(null);
   const appMenu = useAppMenu({ shell, appKey: 'pictures', onOpen: () => openFileRef.current?.() });
 
@@ -622,6 +628,8 @@ export default function Pictures({ app, shell, boot }) {
       // A PDF met among the pictures opens in the PDF app, to work on its pages.
       'file.pdf': { label: t('Open in PDF'), icon: 'pdf', run: () => current && shell.win.create({ app: 'pdf', file: current }) },
       'file.reveal': { label: t('Show in folder'), icon: 'folderOpen', run: () => current && shell.shell.showInFolder({ path: current }) },
+      'file.text': { label: t('Copy Text from Picture'), icon: 'scanText', when: () => isStill && !showOpen, run: () => current && pictureText.read(current, async () => pixelsOf(await loadPicture(fileUrl(current)))) },
+      'file.textLanguages': { label: t('Text Languages…'), icon: 'globe', run: () => pictureText.setAsking(true) },
       'file.copy': {
         label: t('Copy the path'),
         icon: 'copy',
@@ -644,7 +652,7 @@ export default function Pictures({ app, shell, boot }) {
         },
       },
     }),
-    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip, showOpen, startShow, rate, rotateFile, isStill]
+    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip, showOpen, startShow, rate, rotateFile, isStill, pictureText]
   );
 
   useCommands(commands, [files, at, current, folder, playing, frozen]);
@@ -755,6 +763,10 @@ export default function Pictures({ app, shell, boot }) {
               </Group>
               <Group label={t('Clipboard')}>
                 <Button icon="copy" label={t('Copy path')} disabled={!current} onClick={() => commands['file.copy'].run()} />
+              </Group>
+              <Group label={t('Text')}>
+                <Button tall icon="scanText" label={t('Copy Text')} title={t('Copy Text: the words in this picture read on this computer and copied; then select words on the picture to copy only those')} disabled={!isStill || pictureText.busy} onClick={() => commands['file.text'].run()} data-role="copy-text" />
+                <Button icon="globe" label={t('Languages')} title={t('Languages: which languages Copy Text reads')} onClick={() => pictureText.setAsking(true)} data-role="text-languages" />
               </Group>
             </>
           ) : tab === 'navigate' ? (
@@ -898,7 +910,8 @@ export default function Pictures({ app, shell, boot }) {
             mediaRef={mediaRef}
             onEnded={() => playing && step(1)}
             onMediaError={() => { setFailed(current); toast(t('This file could not be played.'), { tone: 'bad' }); }}
-            onMenu={(e) => menu.open(e, menuItems(commands, ['nav.prev', 'nav.next', 'nav.back', '-', 'view.fit', 'view.actual', 'view.rotate', 'file.rotate', '-', 'file.edit', 'file.reveal', '-', 'file.trash']))}
+            onMenu={(e) => menu.open(e, menuItems(commands, ['nav.prev', 'nav.next', 'nav.back', '-', 'view.fit', 'view.actual', 'view.rotate', 'file.rotate', '-', 'file.text', 'file.edit', 'file.reveal', '-', 'file.trash']))}
+            text={pictureText}
           />
         )}
 
@@ -939,6 +952,13 @@ export default function Pictures({ app, shell, boot }) {
             <Button icon="zoomOut" title={t('Zoom out')} onClick={() => commands['view.out'].run()} />
             <Button icon="zoomIn" title={t('Zoom in')} onClick={() => commands['view.in'].run()} />
             <Button icon="maximize" title={t('Fit to window')} pressed={zoom === 0} onClick={() => setZoom(0)} />
+            {isStill ? (
+              <>
+                <Separator />
+                <Button icon="scanText" label={t('Copy Text')} title={t('Copy Text: the words in this picture read on this computer and copied; then select words on the picture to copy only those')} disabled={pictureText.busy} data-role="copy-text" onClick={() => commands['file.text'].run()} />
+                <Button icon="globe" title={t('Languages: which languages Copy Text reads')} data-role="text-languages" onClick={() => pictureText.setAsking(true)} />
+              </>
+            ) : null}
             {kind === 'pdf' ? (
               <>
                 <Separator />
@@ -1005,7 +1025,8 @@ export default function Pictures({ app, shell, boot }) {
       {batching ? (
         <BatchDialog shell={shell} files={files} folder={folder} onClose={() => setBatching(false)} onDone={() => folder && list(folder)} />
       ) : null}
-      <style>{CSS}</style>
+      {pictureText.asking ? <OcrLanguagesDialog onClose={() => pictureText.setAsking(false)} /> : null}
+      <style>{CSS + OCR_CSS}</style>
     </AppFrame>
   );
 }
@@ -1318,13 +1339,13 @@ function Strip({ files, at, onGo, shell }) {
 
 /* ── the stage ───────────────────────────────────────────────────────────── */
 
-function Stage({ current, shown, kind, failed, playing, zoom, setZoom, rotation, natural, frozen, imgRef, freezeRef, mediaRef, onEnded, onMediaError, onMenu }) {
+function Stage({ current, shown, kind, failed, playing, zoom, setZoom, rotation, natural, frozen, imgRef, freezeRef, mediaRef, onEnded, onMediaError, onMenu, text }) {
   const ref = useRef(null);
   const isMedia = kind === 'video' || kind === 'audio';
   // A zoomed picture is dragged about with the mouse, as well as scrolled.
   const drag = useRef(null);
   const onMouseDown = (e) => {
-    if (!zoom || e.button !== 0) return;
+    if (!zoom || e.button !== 0 || e.target.closest?.('.ocr-layer, .ocr-bar')) return;
     drag.current = { x: e.clientX, y: e.clientY, left: ref.current.scrollLeft, top: ref.current.scrollTop };
     e.preventDefault();
   };
@@ -1356,7 +1377,7 @@ function Stage({ current, shown, kind, failed, playing, zoom, setZoom, rotation,
     <div
       ref={ref}
       className={`pv-stage viewing${zoom ? ' zoomed' : ''}`}
-      onDoubleClick={() => setZoom((z) => (z ? 0 : 1))}
+      onDoubleClick={(e) => { if (!e.target.closest?.('.ocr-layer, .ocr-bar')) setZoom((z) => (z ? 0 : 1)); }}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={stopDrag}
@@ -1405,8 +1426,35 @@ function Stage({ current, shown, kind, failed, playing, zoom, setZoom, rotation,
           />
           {/* The held frame of an animation, drawn once and shown in its place. */}
           <canvas ref={freezeRef} className={`pv-image${frozen ? '' : ' hidden'}`} style={{ transform: `rotate(${rotation}deg)` }} />
+          {text?.state && text.state.key === shown && !frozen ? <PictureTextOver imgRef={imgRef} natural={natural} rotation={rotation} zoom={zoom} text={text} /> : null}
+          {text && (text.busy || (text.state && text.state.key === shown)) ? <PictureTextBar text={text} /> : null}
         </>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The words read from the picture on the stage, laid exactly over it: the
+ * picture's own box measured as it is drawn (fitted, zoomed, scrolled or
+ * turned), and the recognised lines placed in it as invisible text.
+ */
+function PictureTextOver({ imgRef, natural, rotation, zoom, text }) {
+  const [box, setBox] = useState(null);
+  useLayoutEffect(() => {
+    const img = imgRef.current;
+    if (!img) return undefined;
+    const measure = () => setBox({ left: img.offsetLeft, top: img.offsetTop, width: img.offsetWidth, height: img.offsetHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(img);
+    if (img.parentElement) ro.observe(img.parentElement);
+    return () => ro.disconnect();
+  }, [imgRef, zoom, natural]);
+  if (!box || !natural?.w) return null;
+  return (
+    <div className="pv-text-over" style={{ left: box.left, top: box.top, width: box.width, height: box.height, transform: `rotate(${rotation}deg)` }}>
+      <TextOverLayer result={text.state.result} pixelScale={text.state.pixelScale} scale={box.width / natural.w} showLines />
     </div>
   );
 }
@@ -1498,6 +1546,7 @@ const CSS = `
   background: var(--sunken); padding: 16px; position: relative; scrollbar-width: thin;
 }
 .pv-stage > * { min-width: 0; min-height: 0; }
+.pv-text-over { position: absolute; z-index: 3; }
 /* With a picture open, the stage keeps almost nothing back from it — and is
    dark, whatever the theme, because a photograph reads best against near-black. */
 .pv-stage.viewing { padding: 4px; background: #15171b; }

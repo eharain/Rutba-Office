@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6402,
+  "count": 6415,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -5186,6 +5186,7 @@
         "apps/desktop/renderer/apps/word/untracked.js",
         "apps/desktop/renderer/icons-insert.js",
         "apps/desktop/renderer/object-insert.js",
+        "apps/desktop/renderer/ocr-ui.js",
         "apps/desktop/renderer/print.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/qrcode.js",
@@ -7278,9 +7279,36 @@
       ]
     },
     {
+      "message": "Copy All",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
       "message": "Copy Cells",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Copy Text",
+      "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Copy Text from Picture",
+      "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Copy Text: the words in this picture read on this computer and copied; then select words on the picture to copy only those",
+      "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pictures.js"
       ]
     },
     {
@@ -13804,6 +13832,12 @@
       ]
     },
     {
+      "message": "Hide the text",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
       "message": "Hide this drawing",
       "where": [
         "apps/desktop/renderer/apps/word/drawings.js"
@@ -15924,6 +15958,8 @@
     {
       "message": "Languages",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pictures.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -15937,6 +15973,13 @@
       "message": "Languages in the picture",
       "where": [
         "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
+      "message": "Languages: which languages Copy Text reads",
+      "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pictures.js"
       ]
     },
     {
@@ -20089,6 +20132,12 @@
       ]
     },
     {
+      "message": "No text was found in this picture.",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
       "message": "No title",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -20747,6 +20796,7 @@
         "apps/desktop/renderer/apps/word/signature.js",
         "apps/desktop/renderer/apps/word/untracked.js",
         "apps/desktop/renderer/object-insert.js",
+        "apps/desktop/renderer/ocr-ui.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/qrcode.js",
         "apps/desktop/renderer/shell.js",
@@ -24107,6 +24157,12 @@
       "message": "Reading the source…",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Reading the words in the picture…",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
       ]
     },
     {
@@ -31120,6 +31176,7 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -31186,6 +31243,19 @@
       ]
     },
     {
+      "message": "Text Languages",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
+      "message": "Text Languages…",
+      "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
       "message": "Text Spacing",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -31235,9 +31305,23 @@
       ]
     },
     {
+      "message": "Text copied",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
+      "message": "Text copied: {count} line. Select words on the picture to copy only those.",
+      "plural": "Text copied: {count} lines. Select words on the picture to copy only those.",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
       "message": "Text could not be recognised: {reason}",
       "where": [
-        "apps/desktop/renderer/apps/pdf/index.js"
+        "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/ocr-ui.js"
       ]
     },
     {
@@ -32765,7 +32849,8 @@
     {
       "message": "The words are read on this computer. Nothing is sent anywhere.",
       "where": [
-        "apps/desktop/renderer/apps/pdf/ocr.js"
+        "apps/desktop/renderer/apps/pdf/ocr.js",
+        "apps/desktop/renderer/ocr-ui.js"
       ]
     },
     {
@@ -39225,6 +39310,13 @@
       "plural": "{count} left as they were",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{count} line of text. Select words to copy them.",
+      "plural": "{count} lines of text. Select words to copy them.",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
       ]
     },
     {
