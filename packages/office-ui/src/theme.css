@@ -697,6 +697,8 @@ textarea,
   animation: rw-keytip 90ms var(--ease);
 }
 .rw-keytip.off { opacity: 0.22; }
+/* Moved through from the keyboard, the control the keyboard is on shows its ring however it was given the focus. */
+.rw-ribbon[data-kbd] :is(.rw-tab, .rw-btn, .rw-fold, .rw-collapse, .rw-ribbon-options, select, input):focus { outline: 2px solid var(--accent); outline-offset: -2px; }
 :root[data-theme='dark'] .rw-keytip { background: #f2f4f7; color: #1b1d22; }
 @keyframes rw-keytip { from { opacity: 0; transform: translate(-50%, -40%); } }
 @keyframes rw-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }

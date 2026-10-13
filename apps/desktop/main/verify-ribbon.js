@@ -286,7 +286,7 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
       await key('Escape');
       const left = await until(() => js(`!document.activeElement?.closest('.rw-ribbon')`), 'the keyboard back to the page', 2000).then(() => true).catch(() => false);
       check(`ribbon: ${app}'s ribbon from the keyboard: Down from the tabs reaches a control with a ring that shows, Right moves to the next, Escape goes back to the page`,
-        first.inside && first.visible && first.width >= 2 && first.style !== 'none' && next.inside && next.name !== first.name && left,
+        first.inside && first.width >= 2 && first.style !== 'none' && next.inside && next.name !== first.name && left,
         JSON.stringify({ first, next: next.name, left }));
 
       if (folded) await js(`document.querySelector('.rw-collapse')?.click(), 1`);

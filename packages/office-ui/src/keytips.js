@@ -104,6 +104,9 @@ function nearest(from, all, dir) {
   return best;
 }
 
+/** The keyboard is moving through the ribbon: its ring shows, until a press of the mouse. */
+const byKeys = (root) => { if (root) root.dataset.kbd = '1'; };
+
 const usable = (root) => [...root.querySelectorAll(CONTROLS)].filter((n) => !n.disabled && shown(n) && !n.closest('[aria-hidden="true"]'));
 
 /**
@@ -142,7 +145,7 @@ export function useRibbonKeys({ ref, tabs, active, onTab, collapsed, peek }) {
       if (document.querySelector('.rw-dialog, [role="dialog"][aria-modal="true"]')) return;
       setMode((m) => (m ? null : { level: 'tabs', typed: '' }));
     };
-    const off = () => { armed.current = false; };
+    const off = () => { armed.current = false; if (ref.current) delete ref.current.dataset.kbd; };
     window.addEventListener('keydown', down, true);
     window.addEventListener('keyup', up, true);
     window.addEventListener('mousedown', off, true);
@@ -236,6 +239,7 @@ export function useRibbonKeys({ ref, tabs, active, onTab, collapsed, peek }) {
         const root = ref.current;
         setMode(null);
         if (!root) return;
+        byKeys(root);
         if (mode.level === 'tabs' && e.key !== 'ArrowDown') root.querySelector('.rw-tab[aria-selected="true"]')?.focus();
         else usable(root.querySelector('.rw-groups') || root)[0]?.focus();
         return;
@@ -280,6 +284,7 @@ export function useRibbonKeys({ ref, tabs, active, onTab, collapsed, peek }) {
     }
     if (!e.key.startsWith('Arrow')) return;
     if (at.matches('select, input, textarea')) return;
+    byKeys(root);
     const { tabs: all, onTab: choose } = live.current;
     if (at.matches('.rw-tab')) {
       const nodes = [...root.querySelectorAll('.rw-tab')];
