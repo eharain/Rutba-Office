@@ -6341,7 +6341,7 @@ export default {
   'The folder {folder} of {source}': 'المجلد {folder} من {source}',
   'The search {query}': 'البحث {query}',
   'The sources were opened for reading only; nothing in them was changed.': 'فُتحت المصادر للقراءة فقط؛ لم يتغير فيها شيء.',
-  'The {count} result of the search {query}': { zero: 'لا نتائج للبحث {query}', one: 'النتيجة الوحيدة للبحث {query}', two: 'نتيجتا البحث {query}', few: 'نتائج البحث {query} الـ{count}', many: 'نتائج البحث {query} الـ{count}', other: 'نتائج البحث {query} الـ{count}' },
+  'The {count} result of the search {query}': { zero: 'لا نتائج للبحث {query}', one: 'النتيجة الوحيدة للبحث {query}', two: 'نتيجتا البحث {query}', few: 'نتائج البحث {query} ({count})', many: 'نتائج البحث {query} ({count})', other: 'نتائج البحث {query} ({count})' },
   'These accounts': 'هذه الحسابات',
   'These words, together and in this order, anywhere in the message': 'هذه الكلمات، معًا وبهذا الترتيب، في أي مكان من الرسالة',
   'This folder: search only the folder that is open': 'هذا المجلد: البحث في المجلد المفتوح فقط',

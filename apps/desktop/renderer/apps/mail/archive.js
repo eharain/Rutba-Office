@@ -52,7 +52,7 @@ export function searchSyntax() {
     ['filename:pdf', t('A file whose name holds this')],
     ['is:unread  is:read  is:starred', t('Read or not, starred or not')],
     ['after:2019-01-01  before:2020-01-01', t('Sent on or after a day, or before it')],
-    ['received:2019-03  received:>=2019-03-01', t('In a month or a year, or with >, >=, < and <=')],
+    ['received:2019-03  received:>=2019-03', t('In a month or a year, or with >, >=, < and <=')],
     ['received:2019-01-01..2019-06-30', t('Between two days')],
     ['older_than:1y  newer_than:30d', t('Older or newer than so many days (d), weeks (w), months (m) or years (y)')],
     ['size>1mb  larger:5m  smaller:100kb', t('Larger or smaller than a size')],
@@ -388,12 +388,12 @@ export const ARCHIVE_CSS = `
 .ml-help-lead { margin: 0 0 10px; color: var(--ink-2); font-size: 12.5px; }
 .ml-help-table { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-2); overflow: hidden; max-height: 420px; overflow-y: auto; }
 .ml-help-row {
-  display: grid; grid-template-columns: minmax(200px, 44%) 1fr; gap: 12px; align-items: baseline; text-align: start;
+  display: grid; grid-template-columns: minmax(250px, 46%) 1fr; gap: 12px; align-items: baseline; text-align: start;
   padding: 6px 12px; border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer;
 }
 .ml-help-row:last-child { border-bottom: 0; }
 .ml-help-row:hover { background: var(--hover); }
-.ml-help-row code { font-family: var(--mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; font-size: 11.5px; color: var(--accent); text-align: left; white-space: pre-wrap; }
+.ml-help-row code { font-family: var(--mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; font-size: 11.5px; color: var(--accent); text-align: left; white-space: pre; }
 .ml-help-row span { color: var(--ink-2); }
 
 .ml-hold-section { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); margin: 4px 0 6px; }

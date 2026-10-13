@@ -99,7 +99,8 @@ function drawMessage(sheet, m, where, L) {
       columns: [
         { key: 'name', label: L.name, flex: 3 },
         { key: 'size', label: L.size, width: 58, align: 'right' },
-        { key: 'sha', label: L.sha256, flex: 4, font: 'Courier', size: 7 },
+        { key: 'gap', label: '', width: 14 },
+        { key: 'sha', label: L.sha256, width: 278, font: 'Courier', size: 7 },
       ],
       rows: files.map((a) => ({ name: a.filename || '', size: bytesText(a.size ?? a.bytes?.length ?? 0), sha: a.sha256 || '' })),
     });
@@ -174,7 +175,8 @@ function drawSummary(sheet, info, L) {
       columns: [
         { key: 'name', label: L.name, flex: 2 },
         { key: 'size', label: L.size, width: 58, align: 'right' },
-        { key: 'sha256', label: L.sha256, flex: 4, font: 'Courier', size: 7 },
+        { key: 'gap', label: '', width: 14 },
+        { key: 'sha256', label: L.sha256, width: 278, font: 'Courier', size: 7 },
       ],
       rows: info.files.map((f) => ({ ...f, size: bytesText(f.size) })),
     });

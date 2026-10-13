@@ -36,7 +36,7 @@ const b64 = (bytes) => (Buffer.from(bytes).toString('base64').match(/.{1,76}/g) 
 
 /** A text part: plain 7-bit when it can be, else base64 UTF-8. */
 function textPart(type, text) {
-  const s = String(text ?? '').replace(/\r?\n/g, CRLF);
+  const s = String(text ?? '').replace(/\r?\n/g, () => CRLF);
   if (ascii(s.replace(/\r\n/g, '')) && s.split(CRLF).every((l) => l.length <= 998)) {
     return `Content-Type: ${type}; charset=us-ascii${CRLF}Content-Transfer-Encoding: 7bit${CRLF}${CRLF}${s}${CRLF}`;
   }
