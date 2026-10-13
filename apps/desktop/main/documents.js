@@ -86,6 +86,7 @@ import { passwordHost } from './password-host.js';
 import { randomBytes } from 'node:crypto';
 import { readZip } from '@rutba/ooxml/zip';
 import { createProofing } from './proofing.js';
+import { TEMPLATES as GALLERY, CATEGORIES as GALLERY_CATEGORIES, templateById, templateForLegacy, readTemplate, thumbPath } from '@rutba/templates';
 
 let seq = 0;
 const KIND_FOR_APP = { word: 'doc', sheets: 'sheet', slides: 'deck' };
@@ -1449,6 +1450,21 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     deck: () => DECK_TEMPLATES.blank(),
     pitch: () => DECK_TEMPLATES.pitch(),
   };
+
+  /** A gallery template's picture as a data address, read once; null when it has none yet. */
+  const galleryThumbs = new Map();
+  function galleryThumb(entry) {
+    if (!galleryThumbs.has(entry.id)) {
+      let url = null;
+      try {
+        url = 'data:image/png;base64,' + fs.readFileSync(thumbPath(entry)).toString('base64');
+      } catch {
+        url = null;
+      }
+      galleryThumbs.set(entry.id, url);
+    }
+    return galleryThumbs.get(entry.id);
+  }
 
   /* ── models ───────────────────────────────────────────────────────────── */
 
@@ -2948,6 +2964,20 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         sessions.set(session.id, session);
         return { ...session.meta(), model: modelOf(session) };
       }
+      // File > New > a template from the gallery (by its id, or a launcher
+      // quick start the gallery now stands behind): an untitled copy of it,
+      // the template itself never opened.
+      const galleryApp = { word: 'word', doc: 'word', sheets: 'sheets', sheet: 'sheets', slides: 'slides', deck: 'slides' }[kind] || null;
+      const gallery = template ? templateById(template) || (galleryApp ? templateForLegacy(galleryApp, template) : null) : null;
+      if (gallery && (!galleryApp || gallery.app === galleryApp)) {
+        const madeKind = KIND_FOR_APP[gallery.app];
+        const engine = engineFor(madeKind, readTemplate(gallery.id));
+        const session = new Session({ id: nextId(), kind: madeKind, filePath: null, engine, source: 'new' });
+        session.windowId = win?.id ?? null;
+        session.gallery = gallery.id;
+        sessions.set(session.id, session);
+        return { ...session.meta(), model: modelOf(session) };
+      }
       const make = TEMPLATES[template] || TEMPLATES[KIND_FOR_APP[kind] || kind] || TEMPLATES.doc;
       const bytes = make();
       const resolved = template && TEMPLATES[template] ? (['budget', 'invoice', 'sheet'].includes(template) ? 'sheet' : ['pitch', 'deck'].includes(template) ? 'deck' : 'doc') : KIND_FOR_APP[kind] || kind;
@@ -2962,6 +2992,16 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
 
       return { ...session.meta(), model: modelOf(session) };
     },
+
+    /**
+     * File > New's gallery: every template, its app, its categories, and the
+     * picture the suite drew of it (a data address, read once), with the
+     * categories in order. `app` limits it to one app's templates.
+     */
+    gallery: ({ app = null } = {}) => ({
+      categories: GALLERY_CATEGORIES,
+      templates: GALLERY.filter((t) => !app || t.app === app).map((t) => ({ id: t.id, app: t.app, name: t.name, description: t.description, categories: t.categories, thumbnail: galleryThumb(t) })),
+    }),
 
     open: (args, win) => openNow(openSteps(args, win)),
     // The windows open through this one (see main.js): the same steps, waited on.

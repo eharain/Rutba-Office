@@ -11,6 +11,7 @@ import { APPS, NEW_DOCUMENTS, SITE } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension, KINDS } from '@rutba/office-formats/sniff';
 import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop, templatesFolder } from '../shell.js';
 import { WhatsNew } from '../whatsnew.js';
+import { TemplateGallery } from '../template-gallery.js';
 
 const ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video'];
 
@@ -58,6 +59,8 @@ export default function Home({ app, shell }) {
 
   // Templates of one's own, from the folder Office keeps them in (shell.js).
   const [personal, setPersonal] = useState([]);
+  // The template gallery, over the launcher (?templates opens with it).
+  const [gallery, setGallery] = useState(() => new URLSearchParams(location.search).has('templates'));
 
   const refresh = useCallback(() => {
     shell.app.recent().then(setRecent).catch(() => setRecent([]));
@@ -137,6 +140,7 @@ export default function Home({ app, shell }) {
     // words-ok: the suite's own name
     <AppFrame app={app} shell={shell} title="Rutba Office" menu={menu} status={<HomeStatus version={version} recent={recent.length} shell={shell} />}>
       <style>{CSS}</style>
+      {gallery ? <TemplateGallery shell={shell} onClose={() => setGallery(false)} /> : null}
       <div className="home">
         <header className="home-hero">
           <div>
@@ -257,6 +261,13 @@ export default function Home({ app, shell }) {
                 <span>{tpl.name}</span>
               </button>
             ))}
+            {/* Every template, by app and by category: the gallery. */}
+            <button type="button" className="home-template home-more" data-tip={t('More templates: letters, reports, budgets, invoices, decks and more, and your own')} onClick={() => setGallery(true)}>
+              <span className="tpl-glyph more">
+                <Icon name="grid" size={16} />
+              </span>
+              <span>{t('More templates')}</span>
+            </button>
           </div>
         </section>
 
@@ -722,6 +733,8 @@ const CSS = `
 .tpl-glyph[data-app='slides'] { background: #d9534f; }
 .tpl-glyph[data-app='video'] { background: #c2408f; }
 .tpl-glyph[data-app='pdf'] { background: #b3261e; }
+.tpl-glyph.more { background: var(--ink-3); }
+.home-more { font-weight: 600; }
 
 /* The list takes what is left of the window and scrolls inside it. It used
    to be clipped instead: a flex item that hides its overflow may shrink

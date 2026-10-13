@@ -98,6 +98,7 @@ export const METHODS = {
   // about to paint, and nothing else crosses.
   doc: [
     'new',          // ({ kind, template, design }) -> { id, kind, model, meta } — design: Set as Default's theme and styles, for a blank document
+    'gallery',      // ({ app }) -> { categories, templates: [{ id, app, name, description, categories, thumbnail }] }: File > New's templates; doc.new({ template: id }) makes an untitled copy of one
     'design',       // ({ id }) -> { theme, styles, name } — a document's theme and styles, for Design → Set as Default
     'open',         // ({ path, kind, password }) -> { id, kind, model, meta } | { locked, name, wrong } — a protected file asks for its password
     'setPassword',  // ({ id, password }) -> meta — File → Info → Encrypt with Password; '' goes back to a plain save

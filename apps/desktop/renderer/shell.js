@@ -12,6 +12,7 @@ import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { pathOf } from '@rutba/office-shell/client';
 import { WhatsNew } from './whatsnew.js';
 import { filtersInLanguage } from './registry-words.js';
+import { TemplateGallery } from './template-gallery.js';
 
 /**
  * The languages the windows can be shown in, each named in its own words
@@ -47,6 +48,9 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
   // The language setting as stored: a tag, or none for the system's.
   const [chosenLanguage, setChosenLanguage] = useState(undefined);
   const [chosenDigits, setChosenDigits] = useState(null);
+  // File > New's template gallery, in the three document apps.
+  const [gallery, setGallery] = useState(false);
+  const galleryApp = ['word', 'sheets', 'slides'].includes(appKey) ? appKey : null;
 
   useEffect(() => {
     shell.app.recent().then(setRecent).catch(() => {});
@@ -85,6 +89,7 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
       const rect = e.currentTarget.getBoundingClientRect();
       const items = [];
       if (onNew) items.push({ label: t('New'), icon: 'new', key: 'Ctrl+N', run: onNew });
+      if (galleryApp) items.push({ label: t('New from Template…'), icon: 'grid', run: () => setGallery(true) });
       if (onOpen) items.push({ label: t('Open…'), icon: 'open', key: 'Ctrl+O', run: onOpen });
       if (extra.length) items.push('-', ...extra);
 
@@ -127,10 +132,19 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
 
       setMenu({ x: rect.left, y: rect.bottom + 4, items });
     },
-    [recent, onNew, onOpen, extra, mode, setTheme, shell, appKey, chosenLanguage, chooseLanguage, chosenDigits, chooseDigits]
+    [recent, onNew, onOpen, extra, mode, setTheme, shell, appKey, galleryApp, chosenLanguage, chooseLanguage, chosenDigits, chooseDigits]
   );
 
-  return { open, node: menu ? <Menu {...menu} onClose={() => setMenu(null)} /> : null };
+  return {
+    open,
+    openGallery: () => setGallery(true),
+    node: (
+      <>
+        {menu ? <Menu {...menu} onClose={() => setMenu(null)} /> : null}
+        {gallery && galleryApp ? <TemplateGallery shell={shell} app={galleryApp} onClose={() => setGallery(false)} /> : null}
+      </>
+    ),
+  };
 }
 
 /**

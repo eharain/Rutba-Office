@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6173,
+  "count": 6222,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -718,6 +718,12 @@
       ]
     },
     {
+      "message": "A business letter: your details, the date, the address, a subject line and a signature block",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "A calendar or contacts server is reached over HTTPS — give its address with https://",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -781,6 +787,12 @@
       "message": "A conditional column needs a rule",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A course session: objectives, the agenda, the lessons, a quick check and a summary",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -1037,6 +1049,12 @@
       ]
     },
     {
+      "message": "A newsletter with a masthead, two columns of stories and a dates panel",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "A note on this cell, shown when the pointer rests on it (Shift+F2)",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -1046,6 +1064,12 @@
       "message": "A note on {cell}",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "A one-page CV: a profile, experience, education and skills",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -1175,6 +1199,12 @@
       ]
     },
     {
+      "message": "A report with a cover page, a table of contents and numbered sections",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "A rule files mail as it arrives — a newsletter into its own folder, an invoice starred, a mailing list marked read. You can see exactly what one would do before it does anything.",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
@@ -1253,6 +1283,12 @@
       ]
     },
     {
+      "message": "A simple cash book: money in, money out and the running balance",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "A slicer is not grouped with other objects here — take it out of the selection.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -1292,6 +1328,12 @@
       "message": "A table needs columns.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A table of tasks with owners, due dates, priorities and progress",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -1377,6 +1419,12 @@
       "message": "A web address, or mailto: for an email link. Ctrl+click the shape to follow it.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "A week of hours: start, finish and breaks, with the hours and pay worked out",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -1621,6 +1669,12 @@
       "message": "Accounts (JSON)",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Accounts ledger",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -2653,6 +2707,12 @@
       ]
     },
     {
+      "message": "All templates",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "All the columns on one page across",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -2856,6 +2916,18 @@
       "message": "An invitation from {name}.",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "An invoice that adds itself up: quantities, prices, tax and the total due",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "An invoice to print or send: who it is from and to, the items, the total and how to pay",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -4102,7 +4174,8 @@
     {
       "message": "Blank document",
       "where": [
-        "apps/desktop/renderer/registry-words.js"
+        "apps/desktop/renderer/registry-words.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -4114,7 +4187,8 @@
     {
       "message": "Blank presentation",
       "where": [
-        "apps/desktop/renderer/registry-words.js"
+        "apps/desktop/renderer/registry-words.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -4126,7 +4200,8 @@
     {
       "message": "Blank worksheet",
       "where": [
-        "apps/desktop/renderer/registry-words.js"
+        "apps/desktop/renderer/registry-words.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -4677,6 +4752,12 @@
       ]
     },
     {
+      "message": "Business",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Button",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -4728,6 +4809,12 @@
       "message": "CONFIDENTIAL",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "CV",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -5088,6 +5175,12 @@
       ]
     },
     {
+      "message": "Career",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Cart",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
@@ -5127,7 +5220,8 @@
       "message": "Categories",
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
-        "apps/desktop/renderer/apps/word/references-figures.js"
+        "apps/desktop/renderer/apps/word/references-figures.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -6227,6 +6321,12 @@
       "message": "Close the file",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Close the gallery",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -8950,7 +9050,8 @@
     {
       "message": "Documents",
       "where": [
-        "apps/desktop/renderer/registry-words.js"
+        "apps/desktop/renderer/registry-words.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -9775,6 +9876,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides/custom-shows.js",
         "apps/desktop/renderer/apps/word/references.js"
+      ]
+    },
+    {
+      "message": "Education",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -11083,6 +11190,12 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Finance",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -13559,6 +13672,12 @@
       ]
     },
     {
+      "message": "Household",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "How close",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
@@ -14071,6 +14190,12 @@
       "message": "Include subfolders — the folders inside this one searched too",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Income and spending, planned against actual, with charts of where the money goes",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -14941,7 +15066,8 @@
     {
       "message": "Invoice",
       "where": [
-        "apps/desktop/renderer/registry-words.js"
+        "apps/desktop/renderer/registry-words.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -15883,7 +16009,8 @@
     {
       "message": "Letter",
       "where": [
-        "apps/desktop/renderer/registry-words.js"
+        "apps/desktop/renderer/registry-words.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -16393,9 +16520,21 @@
       ]
     },
     {
+      "message": "Loading the templates…",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Loading…",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Loan calculator",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -17261,6 +17400,12 @@
       ]
     },
     {
+      "message": "Meeting minutes",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Merge",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js",
@@ -17596,6 +17741,12 @@
       ]
     },
     {
+      "message": "Minutes of a meeting: who came, what was discussed and decided, and who does what next",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Mirror",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
@@ -17706,6 +17857,12 @@
       ]
     },
     {
+      "message": "Monthly budget",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Moon",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
@@ -17774,6 +17931,18 @@
       "message": "More junk is caught, and now and then a good message with it — look in Junk once in a while.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "More templates",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "More templates: letters, reports, budgets, invoices, decks and more, and your own",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -18307,6 +18476,7 @@
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shell.js",
+        "apps/desktop/renderer/template-gallery.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
@@ -18468,6 +18638,18 @@
       ]
     },
     {
+      "message": "New from Template…",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "New from a template",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "New message",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
@@ -18551,6 +18733,12 @@
       "where": [
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/pictures/library.js"
+      ]
+    },
+    {
+      "message": "Newsletter",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -19400,6 +19588,18 @@
       "message": "No table of contents in this document yet.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "No templates match",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "No templates of your own yet",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -21609,6 +21809,12 @@
       ]
     },
     {
+      "message": "Personal",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Perspective",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
@@ -21673,6 +21879,12 @@
       "message": "Photo Album — a new presentation of your pictures, one, two or four to a slide, captioned if you like",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Photo album",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -21807,6 +22019,12 @@
       ]
     },
     {
+      "message": "Pictures with captions, one large and in pairs, on a dark theme",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Pictures — a picture from a file, at the cell, at its own proportions",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -21876,7 +22094,8 @@
     {
       "message": "Pitch deck",
       "where": [
-        "apps/desktop/renderer/registry-words.js"
+        "apps/desktop/renderer/registry-words.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -22026,6 +22245,12 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Planning",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -22297,7 +22522,8 @@
     {
       "message": "Presentations",
       "where": [
-        "apps/desktop/renderer/registry-words.js"
+        "apps/desktop/renderer/registry-words.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -22725,6 +22951,12 @@
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/ribbon.js"
+      ]
+    },
+    {
+      "message": "Project status",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -24392,7 +24624,8 @@
       "message": "Report",
       "where": [
         "apps/desktop/renderer/registry-words.js",
-        "apps/desktop/renderer/shared-words.js"
+        "apps/desktop/renderer/shared-words.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -25617,6 +25850,12 @@
       ]
     },
     {
+      "message": "Save a document as a template from the app menu (Save as Template) and it is listed here.",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Save all",
       "where": [
         "apps/desktop/renderer/apps/mail/reader.js"
@@ -26145,6 +26384,12 @@
       "message": "Search recent files",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Search templates",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -30032,6 +30277,18 @@
       ]
     },
     {
+      "message": "Template categories",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "Templates",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Tentative",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
@@ -31090,6 +31347,12 @@
       ]
     },
     {
+      "message": "The monthly payment, the total interest and a year-by-year schedule for a loan",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "The most obvious junk goes to Junk.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -31471,6 +31734,12 @@
       "message": "The stop value is a number",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The story of a business in eight slides: problem, product, market, traction, team and the ask",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -32876,6 +33145,12 @@
       ]
     },
     {
+      "message": "Timesheet",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Timing",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -33028,6 +33303,12 @@
       "message": "To {to}",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "To-do list",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -33299,6 +33580,12 @@
       "message": "Tracking",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Training deck",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -33583,6 +33870,12 @@
       "message": "Try a different search.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Try other words, or look in All templates.",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -35054,6 +35347,12 @@
       ]
     },
     {
+      "message": "Where a project stands: progress, milestones, risks and next steps",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Where the sparkline goes — one cell, or one per row of the data.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -35462,7 +35761,8 @@
       "message": "Worksheets",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
-        "apps/desktop/renderer/registry-words.js"
+        "apps/desktop/renderer/registry-words.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -35627,7 +35927,8 @@
     {
       "message": "Your template: a new document made from {name}",
       "where": [
-        "apps/desktop/renderer/apps/home.js"
+        "apps/desktop/renderer/apps/home.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -35648,6 +35949,12 @@
       "where": [
         "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Yours",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {

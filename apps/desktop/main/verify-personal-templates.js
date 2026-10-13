@@ -43,6 +43,19 @@ export async function verifyPersonalTemplates({ open, check, until, wait, errors
     const home = await open('home');
     const hjs = (code) => home.webContents.executeJavaScript(code);
     const listed = await until(() => hjs(`[...document.querySelectorAll('.home-template.personal')].some((b) => b.textContent.trim() === 'Letterhead')`), 'the template on Home', 6000).then(() => true).catch(() => false);
+    // The gallery lists it too, under Personal, as Word's File > New does.
+    await hjs(`document.querySelector('.home-more')?.click(), 1`);
+    await until(() => hjs(`Boolean(document.querySelector('.tg-rail-item[data-view="personal"]'))`), 'the gallery', 6000).catch(() => {});
+    await hjs(`document.querySelector('.tg-rail-item[data-view="personal"]')?.click(), 1`);
+    const inGallery = await until(() => hjs(`[...document.querySelectorAll('.tg-card.personal')].some((c) => c.textContent.trim() === 'Letterhead' && c.dataset.template.endsWith('Letterhead.dotx'))`), 'Letterhead under Personal', 6000).then(() => true).catch(() => false);
+    check('templates: the gallery lists a template saved with Save as Template under Personal', inGallery, String(await hjs(`[...document.querySelectorAll('.tg-card')].map((c) => c.textContent.trim()).join(' | ')`)));
+    if (process.env.RUTBA_VERIFY_CAPTURE) {
+      home.webContents.invalidate();
+      await new Promise((r) => setTimeout(r, 700));
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'templates-personal.png'), (await home.webContents.capturePage()).toPNG());
+    }
+    await hjs(`document.querySelector('.tg-close')?.click(), 1`);
+    await until(() => hjs(`!document.querySelector('.tg')`), 'the gallery to close', 4000).catch(() => {});
     const before = new Set(doc.sessions().map((s) => s.id));
     const windowsBefore = new Set(BrowserWindow.getAllWindows().map((w) => w.id));
     await hjs(`[...document.querySelectorAll('.home-template.personal')].find((b) => b.textContent.trim() === 'Letterhead')?.click(), 1`);
