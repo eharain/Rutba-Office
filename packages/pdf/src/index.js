@@ -26,6 +26,8 @@ const { shapeArabic, hasArabic } = require('./shaping');
 const { stretchArabic, kashidaPlaces, KASHIDA_SHARE } = require('./kashida');
 const { visualPieces, visualText, hasRtl } = require('./bidi');
 const { readTrueType } = require('./truetype');
+const { openPdf, PdfFile, PdfReadError } = require('./reader');
+const { assemble, splitEvery, splitBefore, parsePageRange } = require('./assemble');
 
 module.exports = {
   shapeArabic, hasArabic, visualPieces, visualText, hasRtl, readTrueType, stretchArabic, kashidaPlaces, KASHIDA_SHARE,
@@ -35,5 +37,6 @@ module.exports = {
   decodePng, isPng,
   appendExecutionPage, overlayPages, describePages, PdfUnsupportedError,
   metrics, encoding,
+  openPdf, PdfFile, PdfReadError, assemble, splitEvery, splitBefore, parsePageRange,
   FONTS: metrics.FONTS,
 };
