@@ -320,3 +320,9 @@ authors named in their licence files; MIT and BSD-style terms), shipped as
 the npm packages dictionary-en and dictionary-en-gb with their licence files.
 [packages/proofing/README.md](packages/proofing/README.md) reproduces the
 notice.
+
+Notice: the PDF app draws pages with pdf.js (Apache-2.0, © Mozilla
+Foundation), vendored with its licence in apps/desktop/vendor/pdfjs, together
+with the standard fonts it ships (PDFium's, BSD-style; Liberation, SIL Open
+Font Licence) and its WebAssembly decoders (OpenJPEG, BSD; PDFium's JBIG2,
+BSD-style; qcms, MIT), each with its own licence file there.
