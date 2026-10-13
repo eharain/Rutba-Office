@@ -832,7 +832,8 @@ class PdfFile {
       const kids = this.resolve(node.get('Kids'));
       const type = node.type;
       if (type === 'Pages' || (type !== 'Page' && Array.isArray(kids))) {
-        for (const kid of kids || []) visit(kid, own, depth + 1);
+        // A damaged file can leave Kids a number or a dictionary: no pages there.
+        if (Array.isArray(kids)) for (const kid of kids) visit(kid, own, depth + 1);
         return;
       }
       out.push({ ref: ref instanceof Ref ? ref : null, dict: node, inherited });

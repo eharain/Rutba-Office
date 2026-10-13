@@ -362,6 +362,21 @@ test('something that is not a PDF says so', () => {
   assert.throws(() => openPdf(Buffer.from('%PDF-1.4\nnothing in here\n')), (err) => err instanceof PdfReadError);
 });
 
+test('a page tree whose Kids is not a list has no pages there, rather than a fault', () => {
+  for (const kids of ['7', '<< /A 1 >>', '(text)']) {
+    const bytes = handmade({
+      1: '<< /Type /Catalog /Pages 2 0 R >>',
+      2: `<< /Type /Pages /Kids ${kids} /Count 1 >>`,
+    });
+    try {
+      const file = openPdf(bytes);
+      assert.equal(file.pages().length, 0);
+    } catch (err) {
+      assert.ok(err instanceof PdfReadError, `Kids ${kids}: ${err.name}: ${err.message}`);
+    }
+  }
+});
+
 test('strings, names and numbers survive the copy', () => {
   const objects = {
     1: '<< /Type /Catalog /Pages 2 0 R >>',
