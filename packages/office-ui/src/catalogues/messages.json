@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6360,
+  "count": 6368,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -31087,6 +31087,12 @@
       ]
     },
     {
+      "message": "Text can be read from pixels or a PNG picture.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Text contains",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -31139,6 +31145,30 @@
       "message": "Text orientation",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Text recognition could not start.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Text recognition failed.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Text recognition stopped unexpectedly.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Text recognition was cancelled.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -32182,6 +32212,12 @@
       ]
     },
     {
+      "message": "The picture to read has no pixels.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The pins cross. Put them on four corners, in order round the shape.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -32471,6 +32507,12 @@
       "message": "The text of \"{column}\" before",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "The text recognition model for {key} could not be loaded.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -32824,6 +32866,12 @@
     },
     {
       "message": "There is no table called \"{table}\"",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "There is no text recognition for \"{code}\".",
       "where": [
         "apps/desktop/renderer/engine-words.js"
       ]

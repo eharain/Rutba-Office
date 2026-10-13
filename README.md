@@ -329,3 +329,9 @@ Foundation), vendored with its licence in apps/desktop/vendor/pdfjs, together
 with the standard fonts it ships (PDFium's, BSD-style; Liberation, SIL Open
 Font Licence) and its WebAssembly decoders (OpenJPEG, BSD; PDFium's JBIG2,
 BSD-style; qcms, MIT), each with its own licence file there.
+
+Notice: text recognition reads with Tesseract 5 compiled to WebAssembly, as
+tesseract.js 7 ships it (tesseract.js-core, Apache-2.0, © the tesseract.js
+authors; Tesseract, Apache-2.0, © Google and the Tesseract contributors), and
+the fast models of tessdata_fast (Apache-2.0, © Google and the Tesseract
+contributors), vendored with their licences in packages/ocr/vendor.

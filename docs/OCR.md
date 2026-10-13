@@ -24,6 +24,27 @@ engine is used: 2.9 MB of WebAssembly. The six models are 13.0 MB:
 | urd | 1.4 MB |
 | hin | 1.1 MB |
 
+## Where it runs
+
+`@rutba/ocr` (packages/ocr) answers `recognize(image, { languages })` with
+the text, its lines and its words, each word with its box in the picture's
+pixels and a confidence from 0 to 100. Pages are read on a pool of worker
+threads (`src/host.js`): one page a thread, at most one thread a core and
+never more than four, the rest waiting in a queue in the order asked, so a
+long scan holds nothing else up; a job can be cancelled while it waits or
+while it is read. Nothing is read on the main process or on a window's
+thread. The windows reach it through the `ocr` namespace
+(apps/desktop/main/ocr.js): `recognize`, `cancel`, `languages` and
+`stats`. A window that closes cancels what it was waiting for.
+
+The engine and the models are vendored in `packages/ocr/vendor` by
+`tools/vendor-ocr.mjs` and unpacked beside the installed app's archive,
+where the threads read them. The engine is handed its WebAssembly as bytes
+and its models are written into its own memory, so it has nowhere to fetch
+anything from; the package's tests run a recognition with every way to the
+network refused, in the process and its threads, and check that none was
+tried.
+
 ## How it was measured
 
 **Corpus.** `tools/ocr-corpus.js` sets four sentences of each language
@@ -71,8 +92,8 @@ Fast models, SIMD build. CER and WER in percent; time per further page.
 - **Time.** A page of this size takes about a second once the engine is
   running (median 1.2 s) and about two seconds from a cold start (median
   1.8 s, of which starting the engine and loading a model is 0.2 to 0.6 s).
-  The engine reads on one thread; reading pages on several threads at once
-  divides a long scan's time by their number.
+  The engine reads on one thread; the pool reads pages on up to four
+  threads at once, so a long scan goes up to four times as fast.
 - **Memory.** 100 to 135 MB of peak resident memory per process for one
   page, Node's own share included; the engine and one model hold roughly
   40 to 80 MB of it. Four engines reading at once would stay under half a

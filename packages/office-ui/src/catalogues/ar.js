@@ -6369,4 +6369,13 @@ export default {
   'Outlook data file (.pst)': 'ملف بيانات Outlook (.pst)',
   'Outlook for Mac archive (.olm)': 'أرشيف Outlook لنظام Mac (.olm)',
   'Outlook offline file (.ost)': 'ملف Outlook دون اتصال (.ost)',
+  // Text recognition (packages/ocr, apps/desktop/main/ocr.js) and its commands in PDF, Pictures, Image and Worksheets.
+  'Text recognition was cancelled.': 'أُلغي التعرف على النص.',
+  'Text recognition stopped unexpectedly.': 'توقف التعرف على النص على نحو غير متوقع.',
+  'Text recognition could not start.': 'تعذر بدء التعرف على النص.',
+  'Text recognition failed.': 'فشل التعرف على النص.',
+  'The picture to read has no pixels.': 'الصورة المراد قراءتها لا تحتوي على بكسلات.',
+  'Text can be read from pixels or a PNG picture.': 'يمكن قراءة النص من البكسلات أو من صورة PNG.',
+  'There is no text recognition for "{code}".': 'لا يتوفر التعرف على النص للغة "{code}".',
+  'The text recognition model for {key} could not be loaded.': 'تعذر تحميل نموذج التعرف على النص لـ {key}.',
 };

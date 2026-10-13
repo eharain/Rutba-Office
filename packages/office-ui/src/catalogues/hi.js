@@ -6369,4 +6369,13 @@ export default {
   'Outlook data file (.pst)': 'आउटलुक डेटा फ़ाइल (.pst)',
   'Outlook for Mac archive (.olm)': 'मैक के लिए आउटलुक संग्रह (.olm)',
   'Outlook offline file (.ost)': 'आउटलुक ऑफ़लाइन फ़ाइल (.ost)',
+  // Text recognition (packages/ocr, apps/desktop/main/ocr.js) and its commands in PDF, Pictures, Image and Worksheets.
+  'Text recognition was cancelled.': 'टेक्स्ट पहचान रद्द कर दी गई।',
+  'Text recognition stopped unexpectedly.': 'टेक्स्ट पहचान अचानक रुक गई।',
+  'Text recognition could not start.': 'टेक्स्ट पहचान शुरू नहीं हो सकी।',
+  'Text recognition failed.': 'टेक्स्ट पहचान विफल रही।',
+  'The picture to read has no pixels.': 'पढ़े जाने वाले चित्र में कोई पिक्सेल नहीं है।',
+  'Text can be read from pixels or a PNG picture.': 'टेक्स्ट पिक्सेल या PNG चित्र से पढ़ा जा सकता है।',
+  'There is no text recognition for "{code}".': '"{code}" के लिए टेक्स्ट पहचान उपलब्ध नहीं है।',
+  'The text recognition model for {key} could not be loaded.': '{key} के लिए टेक्स्ट पहचान मॉडल लोड नहीं हो सका।',
 };

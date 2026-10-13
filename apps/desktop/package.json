@@ -35,6 +35,7 @@
     "@rutba/imaging": "*",
     "@rutba/mailbox": "*",
     "@rutba/media": "*",
+    "@rutba/ocr": "*",
     "@rutba/office-formats": "*",
     "@rutba/office-shell": "*",
     "@rutba/office-ui": "*",

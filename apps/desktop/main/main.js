@@ -25,6 +25,7 @@ import { createContactsService } from './contacts.js';
 import { createCalendarService } from './calendar.js';
 import { createDavService } from './dav-sync.js';
 import { createPdfService } from './pdf.js';
+import { createOcrService } from './ocr.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -172,6 +173,8 @@ createShell({
       present: createPresentService({ broadcast }),
       // The PDF app: its files read once, and new PDFs made from their pages.
       pdf: createPdfService(),
+      // Text recognition on threads of its own: Recognise Text, Copy Text from Picture, Data from Picture.
+      ocr: createOcrService(),
       oauth,
       mail: createMailService({
         stores,

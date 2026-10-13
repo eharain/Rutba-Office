@@ -1,1 +1,2 @@
 apps/desktop/vendor/** -text
+packages/ocr/vendor/** -text

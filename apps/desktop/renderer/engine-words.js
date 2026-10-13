@@ -97,6 +97,15 @@ export const ENGINE_WORDS = [
   msg('That PDF is no longer open.'),
   msg('{name} is not a PDF.'),
   msg('{name} could not be read as a PDF: {reason}'),
+  // packages/ocr (through apps/desktop/main/ocr.js)
+  msg('Text recognition was cancelled.'),
+  msg('Text recognition stopped unexpectedly.'),
+  msg('Text recognition could not start.'),
+  msg('Text recognition failed.'),
+  msg('The picture to read has no pixels.'),
+  msg('Text can be read from pixels or a PNG picture.'),
+  msg('There is no text recognition for "{code}".'),
+  msg('The text recognition model for {key} could not be loaded.'),
   // packages/doc-view/src/view.js
   msg('Sort works on the body\'s paragraphs; a table sorts by its own rows.'),
   msg('This selection crosses a table boundary — delete inside one cell at a time.'),

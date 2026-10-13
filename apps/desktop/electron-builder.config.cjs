@@ -40,9 +40,11 @@ module.exports = async () => {
     asar: true,
     // The taskbar reads an app's icon straight from disk, so the tiles sit
     // beside the archive rather than inside it.
-    asarUnpack: ['resources/apps/*.ico'],
-    // The engines read their own sources at runtime through the package
-    // exports; nothing needs unpacking, and an asar makes cold start faster.
+    // Text recognition's engine and models are read from disk by its worker
+    // threads (packages/ocr/src/engine.js looks beside the archive first).
+    asarUnpack: ['resources/apps/*.ico', '**/node_modules/@rutba/ocr/vendor/**'],
+    // The other engines read their own sources at runtime through the package
+    // exports; nothing else needs unpacking, and an asar makes cold start faster.
     compression: 'maximum',
     removePackageScripts: true,
     npmRebuild: false,

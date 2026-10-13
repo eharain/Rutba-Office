@@ -282,6 +282,14 @@ export const METHODS = {
     'text',         // ({ id, page }) -> string: the words a page's content draws
     'inspect',      // ({ path }) -> { pages: [{ width, height, rotate, text }], encrypted, title }: a file read and let go, for the checks
   ],
+  // Text recognition (apps/desktop/main/ocr.js, @rutba/ocr): read on a pool of
+  // threads, never this process's or the window's; nothing leaves the computer.
+  ocr: [
+    'recognize',    // ({ image: { width, height, data } | pngBytes, languages, dpi, mode, job }) -> { text, lines, words: [{ text, box, confidence, line }], width, height, languages, angle, ms }
+    'cancel',       // ({ job }) -> { cancelled }   a job this window named, waiting or reading
+    'languages',    // () -> [{ code, name, script, direction, beta? }]
+    'stats',        // () -> { threads, busy, queued, limit, done, failed, cancelled }   for the checks
+  ],
   clipboard: [
     'writeText',    // ({ text }) -> void
     'readText',     // () -> string

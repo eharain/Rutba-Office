@@ -1,0 +1,6 @@
+tesseract.js 7.0.0
+tesseract.js-core 7.0.0
+
+e48e2f02ddae3716c8dd24bf41cd290d4efa96892d689cdc4013c2545d63f469  tesseract-core-simd-lstm.cjs
+34e8d50cac216427d86bf397d610fdd9f49492539bbcdfbfccc4eda20c810bea  tesseract-core-simd-lstm.wasm
+c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08  LICENSE

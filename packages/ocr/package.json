@@ -1,0 +1,21 @@
+{
+  "name": "@rutba/ocr",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "Text recognition on this computer: recognize(image, { languages }) answers the text, its lines and its words with their boxes and confidence, worked out on a pool of threads by Tesseract 5 in WebAssembly with six fast models shipped inside, never fetching anything; and the page analysis of our own around it (deskew, binarisation, text size, lines, columns and table cells).",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./host": "./src/host.js",
+    "./languages": "./src/languages.js",
+    "./pixels": "./src/pixels.js",
+    "./png": "./src/png.js",
+    "./results": "./src/results.js"
+  },
+  "files": [
+    "src",
+    "vendor"
+  ],
+  "sideEffects": false
+}
