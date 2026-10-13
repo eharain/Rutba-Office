@@ -32,7 +32,7 @@ body.pdf-dragging, body.pdf-dragging * { cursor: grabbing !important; }
 .pdf-view.layout-single .pdf-view-inner { min-height: 100%; justify-content: center; }
 
 /* pdf.js's text layer: the words, invisible, over the drawing, to select and find. */
-.textLayer { position: absolute; text-align: initial; inset: 0; overflow: clip; opacity: 1; line-height: 1; text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; caret-color: CanvasText; z-index: 0;
+.textLayer { user-select: text; -webkit-user-select: text; position: absolute; text-align: initial; inset: 0; overflow: clip; opacity: 1; line-height: 1; text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; caret-color: CanvasText; z-index: 0;
   --scale-round-x: 1px; --scale-round-y: 1px;
   --min-font-size: 1; --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size)); --min-font-size-inv: calc(1 / var(--min-font-size)); }
 .textLayer :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; }

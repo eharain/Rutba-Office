@@ -6,8 +6,12 @@
 // page count, the order of its pages (by the words on each) and the turn;
 // it opens again the same; two files are merged into one in an empty
 // window; the six pages are split into files of two; a word is found and
-// marked on its page; Pictures offers the PDF to the PDF app; and the
-// window stands right to left in Urdu with the pages left as they are.
+// marked on its page; the words on a page are selected as text; unsaved
+// changes leave a recovery copy; the three page displays show two pages side
+// by side, one at a time and all in a column; Save asks before replacing
+// the file the pages came from; the launcher has the PDF card; Pictures
+// offers the PDF to the PDF app; and the window stands right to left in
+// Urdu with the pages left as they are.
 // Run alone with RUTBA_VERIFY_ONLY=pdf-app.
 
 import fs from 'node:fs';
@@ -126,6 +130,20 @@ export async function verifyPdfApp(h, { dir }) {
   check('pdf: a five-page PDF opens with five thumbnails beside its first page, drawn', five && look.side && look.view && look.side.right <= look.view.left + 2 && look.page?.width > 300,
     JSON.stringify({ five, look }));
   check('pdf: the status bar says which page of how many', /Page 1 of 5/.test(look.status), look.status);
+  // The words lie over the drawing, to select and copy.
+  await until(() => d.js(`/Page one/.test([...document.querySelectorAll('.pdf-page .textLayer[data-ready] span')].map((n) => n.textContent).join(''))`), 'the words of the first page', 8000).catch(() => {});
+  const copied = await d.js(`(() => {
+    const layer = document.querySelector('.pdf-page .textLayer[data-ready]');
+    if (!layer) return '';
+    const r = document.createRange();
+    r.selectNodeContents(layer);
+    getSelection().removeAllRanges();
+    getSelection().addRange(r);
+    const text = getSelection().toString();
+    getSelection().removeAllRanges();
+    return text;
+  })()`);
+  check('pdf: the words on a page can be selected, as text', /Page one/.test(copied) && /The opening page./.test(copied), JSON.stringify(copied.slice(0, 80)));
 
   // Page 3 dragged to the front.
   const lineShown = await d.drag(2, 0);
@@ -147,6 +165,9 @@ export async function verifyPdfApp(h, { dir }) {
   const delPress = await d.role('delete-pages');
   const deleted = await until(async () => (await d.thumbs()).map((t) => t.page).join() === '2,0,1,3', 'four pages', 5000).then(() => true).catch(() => false);
   check('pdf: Delete takes the selected page out', deleted, JSON.stringify({ delPress, order: (await d.thumbs()).map((t) => t.page) }));
+  // Unsaved work leaves a recovery copy for the launcher.
+  const copyKept = await until(() => d.js(`window.rutbaOffice.doc.recoverable().then((list) => list.some((e) => e.kind === 'pdf' && e.name === 'report.pdf'))`), 'a recovery copy', 8000).then(() => true).catch(() => false);
+  check('pdf: unsaved page changes leave a recovery copy the launcher can offer back', copyKept);
 
   // The appendix inserted after page 2 of the list (the old page 1).
   await d.pick(1);
@@ -185,6 +206,22 @@ export async function verifyPdfApp(h, { dir }) {
   const reopened = await until(async () => (await a.count()) === 6, 'the saved file reopened', 15000).then(() => true).catch(() => false);
   const firstTurned = reopened && (await a.thumbs())[0].rotate === 90;
   check('pdf: the saved file opens again with its six pages and the turn kept', reopened && firstTurned, JSON.stringify(await a.thumbs()));
+
+  // The three page displays.
+  await a.tab('View');
+  await wait(150);
+  await a.role('layout-two');
+  const two = await until(() => a.js(`(() => { const row = document.querySelector('.pdf-row'); const p = row ? row.querySelectorAll('.pdf-page') : []; return p.length === 2 && p[0].getBoundingClientRect().right <= p[1].getBoundingClientRect().left; })()`), 'two pages side by side', 5000).then(() => true).catch(() => false);
+  await a.capture('pdf-08-two-pages.png');
+  await a.role('layout-single');
+  const single = await until(() => a.js(`document.querySelectorAll('.pdf-page').length === 1`), 'one page', 5000).then(() => true).catch(() => false);
+  await a.js(`document.querySelector('.rw-status .rw-btn[data-tip^="Next page"]')?.click(), 1`);
+  const stepped = await until(() => a.js(`document.querySelector('.pdf-page')?.dataset.index === '1' && /Page 2 of 6/.test(document.querySelector('.rw-status')?.textContent || '')`), 'the next page alone', 5000).then(() => true).catch(() => false);
+  await a.capture('pdf-09-single.png');
+  await a.role('layout-continuous');
+  const continuous = await until(() => a.js(`document.querySelectorAll('.pdf-page').length === 6`), 'every page in a column', 5000).then(() => true).catch(() => false);
+  await a.tab('Home');
+  check('pdf: View shows two pages side by side, one page at a time (Next page steps on), or every page in a column', two && single && stepped && continuous, JSON.stringify({ two, single, stepped, continuous }));
 
   // Find: a word on page six (the old page four), marked where it is.
   await a.js(`[...document.querySelectorAll('.rw-groups .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Find'))?.click(), 1`);
@@ -255,6 +292,19 @@ export async function verifyPdfApp(h, { dir }) {
 
   const errs = [...(await errorsIn(win)), ...(await errorsIn(again)), ...(await errorsIn(empty))];
   check('pdf: no errors in the windows', errs.length === 0, errs.slice(0, 3).join(' | '));
+  // The recovery copies these windows left are not anybody's work: the launcher's checks later in the run must not meet them.
+  await d.js(`window.rutbaOffice.doc.recoverable().then((list) => Promise.all(list.filter((e) => e.kind === 'pdf').map((e) => window.rutbaOffice.doc.discardRecovery({ file: e.file })))).then(() => 1)`).catch(() => {});
+
+  // The launcher: the PDF card among the apps.
+  const home = await open('home', null);
+  await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="pdf"]'))`), 'the PDF card', 6000).catch(() => {});
+  const card = await home.webContents.executeJavaScript(`document.querySelector('.home-card[data-app="pdf"]')?.textContent || ''`);
+  if (process.env.RUTBA_VERIFY_CAPTURE) {
+    home.webContents.invalidate();
+    await wait(700);
+    fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'pdf-10-launcher.png'), (await home.webContents.capturePage()).toPNG());
+  }
+  check('pdf: the launcher has a PDF card among the apps', /PDF/.test(card || ''), String(card || ''));
 
   // Pictures offers a PDF it shows to the PDF app.
   const pics = await open('pictures', out);
