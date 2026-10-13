@@ -32,6 +32,8 @@ import { CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/des
 import { SlicerPanel, InsertSlicersDialog, ObjectHandles, RotateHandle, SelectionPane, angleAt, followPointer, OBJECTS_CSS } from './sheets/objects.js';
 import { IconsDialog } from '../icons-insert.js';
 import { QrDialog, qrOf } from '../qrcode.js';
+import { DataFromPictureDialog, PICTURE_DATA_CSS } from './sheets/picture-data.js';
+import { OCR_CSS } from '../ocr-ui.js';
 import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise } from './slides/ink.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
@@ -2972,6 +2974,13 @@ export default function Sheets({ app, shell, boot }) {
       case 'icons': setDialog('icons'); return;
       // Insert > QR Code: a new code at the cell.
       case 'qrcode': setDialog({ kind: 'qrcode' }); return;
+      // Data from Picture: a table in a picture (a file, or the clipboard's) read into cells after a preview.
+      case 'dataFromPicture': {
+        if (arg === 'clipboard') { setDialog({ kind: 'pictureData', source: { clipboard: true } }); return; }
+        const file = (await shell.dialog.open({ title: t('Data from Picture'), filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'bmp', 'webp', 'gif'] }] }))?.[0];
+        if (file) setDialog({ kind: 'pictureData', source: { path: file } });
+        return;
+      }
       // Insert → Equation: typed in its linear form, set as math over the selection.
       case 'equation': setDialog({ kind: 'equation', id: null, initial: '' }); return;
       // Insert → WordArt: the words asked for, in the chosen style.
@@ -3312,7 +3321,7 @@ export default function Sheets({ app, shell, boot }) {
         </div>
       ) : (
         <div className={`sh${model.rtl ? ' rtl' : ''}${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
-          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS}</style>
+          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + OCR_CSS + PICTURE_DATA_CSS}</style>
 
           <div className="sh-formula" hidden={view.formulaBar === false}>
             <div className="sh-namebox">{sel?.ref}</div>
@@ -3746,6 +3755,19 @@ export default function Sheets({ app, shell, boot }) {
           onInsert={async ({ name, bytes, contentType }) => {
             setDialog(null);
             await dispatch({ op: 'insertPicture', name: `${name}.png`, contentType, data: bytes, widthPx: 96, heightPx: 96 });
+          }}
+        />
+      ) : null}
+      {dialog?.kind === 'pictureData' ? (
+        <DataFromPictureDialog
+          shell={shell}
+          source={dialog.source}
+          at={model?.selection?.active ? refText(model.selection.active.row, model.selection.active.col) : 'A1'}
+          onClose={() => setDialog(null)}
+          onInsert={async (rows) => {
+            const text = rows.map((r) => r.map((v) => String(v ?? '').replace(/[\t\n\r]+/g, ' ')).join('\t')).join('\n');
+            await dispatch({ op: 'paste', text, html: null });
+            toast(tn(rows.length, '{count} row of data from the picture inserted', '{count} rows of data from the picture inserted'), { tone: 'good' });
           }}
         />
       ) : null}

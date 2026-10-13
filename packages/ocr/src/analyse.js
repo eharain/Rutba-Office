@@ -206,6 +206,25 @@ export function scale(grey, factor) {
   return { width: w, height: h, data: out };
 }
 
+/** A part of a grey picture, with `pad` pixels of paper round it (the engine reads a word best with a margin). */
+export function cropPadded(grey, x, y, w, h, pad = 12, fill = 255) {
+  const x0 = Math.max(0, Math.floor(x)), y0 = Math.max(0, Math.floor(y));
+  const x1 = Math.min(grey.width, Math.ceil(x + w)), y1 = Math.min(grey.height, Math.ceil(y + h));
+  const cw = Math.max(1, x1 - x0), ch = Math.max(1, y1 - y0);
+  const out = { width: cw + pad * 2, height: ch + pad * 2, data: new Uint8Array((cw + pad * 2) * (ch + pad * 2)).fill(fill) };
+  for (let yy = 0; yy < ch; yy++) out.data.set(grey.data.subarray((y0 + yy) * grey.width + x0, (y0 + yy) * grey.width + x0 + cw), (yy + pad) * out.width + pad);
+  return out;
+}
+
+/** How many ink pixels a binary picture has inside a rectangle. */
+export function inkIn(binary, x, y, w, h) {
+  let n = 0;
+  for (let yy = Math.max(0, Math.floor(y)); yy < Math.min(binary.height, Math.ceil(y + h)); yy++) {
+    for (let xx = Math.max(0, Math.floor(x)); xx < Math.min(binary.width, Math.ceil(x + w)); xx++) if (binary.data[yy * binary.width + xx] === 0) n++;
+  }
+  return n;
+}
+
 /**
  * The connected blobs of ink (eight-connected), each with its box and
  * pixel count; runs are labelled row by row and joined with union-find.

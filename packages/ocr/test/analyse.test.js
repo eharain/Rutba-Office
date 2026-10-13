@@ -196,3 +196,21 @@ test('tableCells: ruling lines decide the cells, an empty cell stays empty, and 
   assert.equal(t.columns.length, 3);
   assert.deepEqual(tableCells([]).cells, []);
 });
+
+test('cropPadded and inkIn: a part of a picture with paper round it, and the ink inside a rectangle', async () => {
+  const { cropPadded, inkIn } = await import('@rutba/ocr/analyse');
+  const p = page(40, 30);
+  fill(p, 10, 10, 5, 4);
+  const c = cropPadded(p, 8, 8, 10, 8, 2);
+  assert.deepEqual([c.width, c.height], [14, 12]);
+  assert.equal(c.data[0], 255);
+  assert.equal(c.data[(2 + 2) * 14 + 2 + 2], 0, 'the ink where it was, moved by the crop and the margin');
+  const b = binarise(p, { method: 'otsu' });
+  assert.equal(inkIn(b, 0, 0, 40, 30), 20);
+  assert.equal(inkIn(b, 12, 10, 10, 10), 12);
+  assert.equal(inkIn(b, 30, 0, 10, 10), 0);
+  const words = [word('a', 0, 0), word('b', 100, 0)];
+  words[0].confidence = 40;
+  words[1].confidence = 90;
+  assert.deepEqual(tableCells(words).confidence, [[40, 90]]);
+});

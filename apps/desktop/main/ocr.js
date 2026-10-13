@@ -28,10 +28,10 @@ export function createOcrService({ host = ocrHost() } = {}) {
     languages: () => LANGUAGES.map((l) => ({ ...l })),
 
     /**
-     * ({ image: { width, height, data } | PNG bytes, languages, dpi, mode, job })
-     * -> { text, lines, words, width, height, languages, angle, ms }
+     * ({ image: { width, height, data } | PNG bytes, languages, dpi, mode, table, job })
+     * -> { text, lines, words, width, height, languages, angle, ms, table? }
      */
-    async recognize({ image, languages, dpi, mode, job } = {}, win) {
+    async recognize({ image, languages, dpi, mode, table, job } = {}, win) {
       const controller = new AbortController();
       const name = job ? `${win?.id ?? 0}:${job}` : null;
       if (name) {
@@ -40,7 +40,7 @@ export function createOcrService({ host = ocrHost() } = {}) {
       }
       watch(win);
       try {
-        return await host.recognize(image, { languages, dpi, mode, signal: controller.signal });
+        return await host.recognize(image, { languages, dpi, mode, table: Boolean(table), signal: controller.signal });
       } finally {
         if (name && jobs.get(name)?.controller === controller) jobs.delete(name);
       }

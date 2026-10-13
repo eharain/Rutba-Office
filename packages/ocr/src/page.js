@@ -15,9 +15,66 @@
 import { checkLanguages } from './languages.js';
 import { isPng, decodePng } from './png.js';
 import { toGrey } from './pixels.js';
-import { binarise, estimateSkew, rotate, unrotatePoint, scale, textHeight, unevenPaper } from './analyse.js';
+import { binarise, estimateSkew, rotate, unrotatePoint, scale, textHeight, unevenPaper, rulings, cropPadded, inkIn } from './analyse.js';
+import { tableCells } from './layout.js';
 import { fromEngine } from './results.js';
 import { PSM } from './engine.js';
+
+/**
+ * A table read from its picture, by our own layout over the engine's words.
+ * The engine's page segmentation is made for pages, not grids: it can drop
+ * a narrow column of numbers whole, and its sparse mode, which keeps the
+ * column, drops a figure standing alone. So the words of both readings are
+ * merged (one word where two overlap, the surer kept), the grid is found
+ * from the table's rules or its spacing, and a cell that came out empty
+ * though there is ink in it is read again on its own as one line.
+ */
+function readTable(engine, { grey, prepared, how, langs, dpi, result, map }) {
+  const level = how.turn ? rotate(grey, -how.turn) : grey;
+  const binary = binarise(level, { method: how.uneven ? 'sauvola' : 'otsu' });
+  const rules = rulings(binary);
+  const rtl = result.lines.filter((l) => l.direction === 'rtl').length > result.lines.length / 2;
+  // Boxes on the level picture: the rules were found there.
+  const toLevel = (b) => (how.turn ? turnBox(b, how.turn, grey.width, grey.height) : b);
+  const sparse = fromEngine(engine.read(prepared, { languages: langs, dpi: dpi ? dpi * how.factor : 0, psm: PSM.sparse }).json, { width: grey.width, height: grey.height, languages: langs, map });
+  const words = result.words.map((w) => ({ ...w, box: toLevel(w.box) }));
+  const overlap = (a, b) => {
+    const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+    const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+    return w > 0 && h > 0 ? (w * h) / Math.min(a.width * a.height, b.width * b.height) : 0;
+  };
+  for (const s of sparse.words) {
+    const box = toLevel(s.box);
+    const same = words.findIndex((w) => overlap(w.box, box) > 0.4);
+    if (same < 0) words.push({ ...s, box });
+    else if (s.confidence > words[same].confidence + 10 && s.text.length >= words[same].text.length) words[same] = { ...s, box };
+  }
+  const grid = tableCells(words, rules, { rtl });
+  // An empty cell with ink in it: read alone, as a line.
+  const pad = 3;
+  grid.rows.forEach((row, r) => {
+    grid.columns.forEach((col, c) => {
+      if (grid.cells[r][c]) return;
+      const x = col.x0 + pad, y = row.y0 + pad, w = col.x1 - col.x0 - pad * 2, h = row.y1 - row.y0 - pad * 2;
+      if (w < 4 || h < 4 || inkIn(binary, x, y, w, h) < 12) return;
+      const crop = cropPadded(level, x, y, w, h);
+      const again = fromEngine(engine.read(crop, { languages: langs, psm: PSM.line }).json, { width: crop.width, height: crop.height, languages: langs });
+      const text = again.text.replace(/\s+/g, ' ').trim().replace(/^[|│¦_]+|[|│¦_]+$/g, '').trim();
+      if (text) {
+        grid.cells[r][c] = text;
+        grid.confidence[r][c] = again.words.length ? Math.min(...again.words.map((x2) => x2.confidence)) : 0;
+      }
+    });
+  });
+  return grid;
+}
+
+/** A box in the picture as it lies in the picture turned back by `turn`. */
+function turnBox(b, turn, width, height) {
+  const corners = [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]].map(([x, y]) => unrotatePoint(x, y, turn, width, height));
+  const xs = corners.map((c) => c.x), ys = corners.map((c) => c.y);
+  return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+}
 
 /** Pixels from whatever was handed over. */
 export function picture(image) {
@@ -61,9 +118,11 @@ export function plan(grey, { deskew = true, rescale = true } = {}) {
 
 /**
  * @param engine from createEngine
- * @param {{ image, languages?, dpi?, mode?: 'auto'|'block'|'line'|'sparse', deskew?: boolean, rescale?: boolean }} job
+ * @param {{ image, languages?, dpi?, mode?: 'auto'|'block'|'line'|'sparse', deskew?: boolean, rescale?: boolean, table?: boolean }} job
+ *   `table`: the picture is a table; the answer carries `table` too, its rows,
+ *   columns and cells from its ruling lines or its spacing (layout.js)
  */
-export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto', deskew = true, rescale = true }) {
+export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto', deskew = true, rescale = true, table = false }) {
   const langs = checkLanguages(languages);
   const started = Date.now();
   const pixels = picture(image);
@@ -83,6 +142,7 @@ export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto'
   };
   const result = fromEngine(json, { width: pixels.width, height: pixels.height, languages: langs, angle: how.angle, map });
   result.prepared = { turned: how.turn, factor: how.factor, binarised: how.uneven, textHeight: how.textHeight };
+  if (table) result.table = readTable(engine, { grey, prepared, how, langs, dpi, result, map });
   result.ms = Date.now() - started;
   return result;
 }

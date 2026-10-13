@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6415,
+  "count": 6432,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -5155,6 +5155,7 @@
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
+        "apps/desktop/renderer/apps/sheets/picture-data.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/sheets/words.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -5573,6 +5574,7 @@
       "message": "Change…",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/sheets/picture-data.js",
         "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
@@ -5739,6 +5741,19 @@
       "message": "Check spelling as you type",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Check the data before it goes in: words read from a picture can be wrong.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
+      ]
+    },
+    {
+      "message": "Check the data before it goes in: {count} cell the reading was unsure of is marked.",
+      "plural": "Check the data before it goes in: {count} cells the reading was unsure of are marked.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
       ]
     },
     {
@@ -8194,6 +8209,13 @@
       "message": "Data Validation",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Data from Picture",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
       ]
     },
     {
@@ -12664,6 +12686,18 @@
       ]
     },
     {
+      "message": "From Picture",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "From Picture: a table in a picture read into cells on this computer, checked in a preview before it goes in",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
       "message": "From Right",
       "where": [
         "apps/desktop/renderer/apps/slides/animate.js",
@@ -14869,6 +14903,12 @@
       ]
     },
     {
+      "message": "Insert Data",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
+      ]
+    },
+    {
       "message": "Insert Endnote",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -15980,6 +16020,12 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Languages: {list}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
       ]
     },
     {
@@ -20120,6 +20166,12 @@
       ]
     },
     {
+      "message": "No table was found in this picture.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
+      ]
+    },
+    {
       "message": "No templates match",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
@@ -22586,6 +22638,18 @@
       ]
     },
     {
+      "message": "Picture From Clipboard",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Picture From File…",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
       "message": "Picture Watermark",
       "where": [
         "apps/desktop/renderer/apps/word.js"
@@ -24045,6 +24109,12 @@
       ]
     },
     {
+      "message": "Read Again",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
+      ]
+    },
+    {
       "message": "Read Aloud",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -24157,6 +24227,12 @@
       "message": "Reading the source…",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Reading the table in the picture…",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
       ]
     },
     {
@@ -26101,6 +26177,12 @@
       "message": "Row input cell",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Row {row}, column {column}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
       ]
     },
     {
@@ -31949,6 +32031,12 @@
       ]
     },
     {
+      "message": "The data goes in from the selected cell, {cell}.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
+      ]
+    },
+    {
       "message": "The data with its headings in the first row — the list round the cell to start with.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -32737,6 +32825,12 @@
       ]
     },
     {
+      "message": "The table could not be read: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
+      ]
+    },
+    {
       "message": "The take is in its scene. Record it again for another take; every take is kept.",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -33103,6 +33197,12 @@
       "message": "There is no picture on the clipboard to paste.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "There is no picture on the clipboard.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/picture-data.js"
       ]
     },
     {
@@ -39586,6 +39686,13 @@
       "plural": "{count} rows loaded",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "{count} row of data from the picture inserted",
+      "plural": "{count} rows of data from the picture inserted",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {

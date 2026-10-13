@@ -241,3 +241,20 @@ test('recognize: Urdu and Arabic keep their own comma where the model reads a La
     await host.stop();
   }
 });
+
+test('recognize with table: a ruled table and one set with space alone come back as their rows and cells, numbers and all', async () => {
+  const host = createOcrHost({ threads: 1 });
+  try {
+    const truth = JSON.parse(fixture('table.json').toString('utf8'));
+    for (const name of ['table-ruled', 'table-plain']) {
+      const r = await host.recognize(fixture(`${name}.png`), { languages: ['eng'], table: true });
+      assert.deepEqual(r.table.cells, truth, name);
+      assert.equal(r.table.ruled, name === 'table-ruled');
+      assert.ok(r.table.confidence.flat().every((c) => c > 50), JSON.stringify(r.table.confidence));
+    }
+    const plain = await host.recognize(fixture('table-plain.png'), { languages: ['eng'] });
+    assert.equal(plain.table, undefined, 'a table only when asked for');
+  } finally {
+    await host.stop();
+  }
+});

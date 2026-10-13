@@ -645,6 +645,10 @@ export default function SheetsRibbon({
               { label: t('Into this workbook, as a query…'), icon: 'table', run: () => act('queryFromCsv') },
               { label: t('Open as a workbook…'), icon: 'open', run: openFile },
             ])} />
+            <Button tall icon="scanTable" label={t('From Picture')} title={t('From Picture: a table in a picture read into cells on this computer, checked in a preview before it goes in')} data-role="data-from-picture" onClick={(e) => menu.open(e, [
+              { label: t('Picture From File…'), icon: 'picture', run: () => act('dataFromPicture', 'file') },
+              { label: t('Picture From Clipboard'), icon: 'paste', run: () => act('dataFromPicture', 'clipboard') },
+            ])} />
             <Soon tall icon="globe" label={t('From Web')} why={t('Fetching a table from a web page is a network feature this suite does not do on its own.')} />
             <Button icon="table" label={t('From Table/Range')} title={t('From Table/Range — a query on the table or the list round the cell, shaped in the Power Query Editor and loaded on a sheet of its own')} onClick={() => act('queryFromRange')} />
             <Button icon="clock" label={t('Recent Sources')} title={t('Recent Sources — a file a query read lately, in a new query')} onClick={(e) => {

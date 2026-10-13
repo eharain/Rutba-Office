@@ -123,10 +123,11 @@ function cluster(values, near) {
  * @param {object[]} words
  * @param {{ horizontal: object[], vertical: object[] }} [rules]
  * @param {{ rtl?: boolean }} [options] right-to-left: the first column is the rightmost
- * @returns {{ rows: { y0, y1 }[], columns: { x0, x1 }[], cells: string[][], ruled: boolean }}
+ * @returns {{ rows: { y0, y1 }[], columns: { x0, x1 }[], cells: string[][], confidence: (number|null)[][], ruled: boolean }}
+ *   `confidence`: each cell's least sure word (0 to 100), null for an empty cell
  */
 export function tableCells(words, rules = { horizontal: [], vertical: [] }, { rtl = false } = {}) {
-  if (!words.length) return { rows: [], columns: [], cells: [], ruled: false };
+  if (!words.length) return { rows: [], columns: [], cells: [], confidence: [], ruled: false };
   const h = median(words.map((w) => w.box.height)) || 10;
   const left = Math.min(...words.map((w) => w.box.x)), right = Math.max(...words.map((w) => w.box.x + w.box.width));
   const top = Math.min(...words.map((w) => w.box.y)), bottom = Math.max(...words.map((w) => w.box.y + w.box.height));
@@ -138,6 +139,9 @@ export function tableCells(words, rules = { horizontal: [], vertical: [] }, { rt
   if (hy.length >= 2) rowEdges = hy;
   if (vx.length >= 2) colEdges = vx;
 
+  // A ruled table's rules can be read as strokes of their own (a bar, a dash): they are not words.
+  if (ruled) words = words.filter((w) => !/^[|│¦_\-\u2014\u2013=]+$/.test(w.text));
+  if (!words.length) return { rows: [], columns: [], cells: [], confidence: [], ruled };
   const lines = groupLines(words, { rtl });
   if (!rowEdges) {
     // Rows from the lines of words: a boundary halfway between each line and the next.
@@ -176,12 +180,14 @@ export function tableCells(words, rules = { horizontal: [], vertical: [] }, { rt
     }
   }
   const text = cells.map((row) => row.map((ws) => groupLines(ws, { rtl }).map((l) => l.words.map((w) => w.text).join(' ')).join(' ')));
+  const sure = cells.map((row) => row.map((ws) => (ws.length && ws.every((w) => typeof w.confidence === 'number') ? Math.min(...ws.map((w) => w.confidence)) : ws.length ? 100 : null)));
   // Rows that came out empty in every cell (the space between two ruled tables) are dropped.
   const used = text.map((row) => row.some((v) => v !== ''));
   return {
     rows: keepRows.filter((_, i) => used[i]),
     columns: cols,
     cells: text.filter((_, i) => used[i]),
+    confidence: sure.filter((_, i) => used[i]),
     ruled,
   };
 }

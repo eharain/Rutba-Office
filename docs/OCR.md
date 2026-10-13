@@ -80,6 +80,25 @@ as it is zoomed, scrolled or turned in Pictures; in Image the picture is read
 as it is edited, and any edit takes the words away. Languages chooses which
 of the six are read (Urdu marked beta), remembered for every window.
 
+**Worksheets: Data from Picture** (Data, From Picture: Picture From File or
+Picture From Clipboard). The picture is read with the table pass (below)
+and shown beside a preview grid of its cells, each one editable; cells the
+reading was unsure of (a word under 75 of 100) are marked to check. Insert
+Data puts the grid in at the selected cell as one step Undo takes back,
+numbers as numbers. The languages can be changed and the picture read again
+in the dialog.
+
+**The table pass** (`recognize(image, { table: true })`). The engine's page
+segmentation is made for pages, not grids: on a table set with space alone
+it dropped a narrow column of figures whole, and its sparse mode, which
+keeps the column, dropped a figure standing alone. So a table is read both
+ways and the words merged (one word where two overlap, the surer kept),
+the grid is found from the table's ruling lines when they make one and
+otherwise from its lines of words and the white every row leaves, and a
+cell that came out empty though there is ink in it is read again on its own
+as one line. Each cell carries its least sure word's confidence. Both test
+tables (one ruled, one not) come back cell for cell.
+
 ## Page analysis and layout of our own
 
 Around the engine, in `packages/ocr/src/analyse.js` and `layout.js`,

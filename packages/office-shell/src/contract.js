@@ -286,7 +286,7 @@ export const METHODS = {
   // Text recognition (apps/desktop/main/ocr.js, @rutba/ocr): read on a pool of
   // threads, never this process's or the window's; nothing leaves the computer.
   ocr: [
-    'recognize',    // ({ image: { width, height, data } | pngBytes, languages, dpi, mode, job }) -> { text, lines, words: [{ text, box, confidence, line }], width, height, languages, angle, ms }
+    'recognize',    // ({ image: { width, height, data } | pngBytes, languages, dpi, mode, table, job }) -> { text, lines, words: [{ text, box, confidence, line }], width, height, languages, angle, ms, table?: { rows, columns, cells, confidence, ruled } }
     'cancel',       // ({ job }) -> { cancelled }   a job this window named, waiting or reading
     'languages',    // () -> [{ code, name, script, direction, beta? }]
     'stats',        // () -> { threads, busy, queued, limit, done, failed, cancelled }   for the checks
