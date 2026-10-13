@@ -15,9 +15,9 @@ with the network switched off.
 | **Documents** | Documents that open the same everywhere, laid out on pages | `.docx` on an engine we own, opening and saving `.odt`, `.rtf` and web pages whole, reading `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.xls` of every age, `.ods` and `.csv` |
 | **Presentations** | Slides that survive the round trip, shapes you move and recolour by hand | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen; reading `.ppt` and `.odp` |
-| **PDF** | Pages put in order, without redrawing them | Read, find and copy; reorder, rotate, delete, extract, insert, split and merge, each page copied into the new file exactly as it was; pages drawn by pdf.js, offline |
+| **PDF** | Pages put in order, without redrawing them | Read, find and copy; reorder, rotate, delete, extract, insert, split and merge, each page copied into the new file exactly as it was; Recognise Text makes scanned pages searchable with an invisible text layer; pages drawn by pdf.js, offline |
 
-| **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn; star ratings and tags kept on this computer, a search through the folders inside, and a whole folder resized, converted and renamed in one go |
+| **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn; star ratings and tags kept on this computer, a search through the folders inside, and a whole folder resized, converted and renamed in one go; Copy Text from Picture reads the words in a photo or scan |
 | **Image** | Crop, correct, select, paint, layer, export | Levels, curves, white balance, straighten; selections, brushes, clone and heal, masks and perspective; layers with blend modes and adjustments, saved as a project; Edit in Image from the other apps; non-destructive, so your original is never touched |
 | **Video** | An editor on a timeline, a screen recorder and introduction videos, without a render farm | Clips, stills and sound on lanes, split and trim, transitions, titles and captions, the screen recorded with the camera beside it, introductions made scene by scene with a teleprompter, and export with sound to MP4 or WebM for where it is going; no ffmpeg, no native binaries, nothing to install |
 
@@ -111,7 +111,7 @@ installations on the version they have.
 git clone https://github.com/eharain/Rutba-Office.git office
 cd office
 npm install
-npm test          # 2,369 tests, no network needed
+npm test          # 2,399 tests, no network needed
 npm run build     # bundle the renderer
 npm start         # run the app
 npm run dev       # run the app, rebuilding the window's code on every save
@@ -139,6 +139,7 @@ packages/
   studio           the layer renderer the Video and Image editors are built on
   templates        the templates gallery, made by the engines and kept as files
   barcode          QR codes encoded and read, with no dependencies
+  ocr              text recognition on worker threads: Tesseract 5 in WebAssembly, our own page analysis, layout and tables
   proofing         spelling, the thesaurus and the accessibility check
   calendar         iCalendar read and written, recurrence, time zones
   contacts         vCard and CSV address books, read and written
@@ -284,7 +285,7 @@ Other things worth reading:
 
 ```bash
 npm run gate            # all four passes, in the order that finds problems soonest
-npm test                # the engine suite: 2,369 checks, no windows
+npm test                # the engine suite: 2,399 checks, no windows
 npm run verify:edit     # do keystrokes reach the document?
 npm run verify:apps     # does each app open, change and save a real file?
 npm run smoke           # boot the real app, photograph every window, report
@@ -293,8 +294,8 @@ RUTBA_CORPUS_DIRS="D:\docs" npm run verify:corpus   # open every file in a folde
 node tools/fuzz-open.js 500                         # damage good files at random; every one must draw or refuse in a sentence
 ```
 
-`npm run gate` is what runs before a release: 2,374 engine tests, 12 editing checks,
-1,500 application checks (most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard) and 11 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about twenty minutes.
+`npm run gate` is what runs before a release: 2,404 engine tests, 12 editing checks,
+1,524 application checks (most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard) and 11 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about twenty minutes.
 
 The engine suite includes `tests/rich-fixtures.test.js`, which opens a workbook, a document and a deck that Excel, Word and PowerPoint themselves wrote — charts, shapes, pictures, cross-sheet formulas, names, number formats, notes, footnotes, tracked changes, fields, a watermark — and holds the engine to Excel's own results. `tools/make-rich-fixtures.ps1` regenerates them on a machine with Office; docs/TESTING.md says what they hold and what they found.
 
