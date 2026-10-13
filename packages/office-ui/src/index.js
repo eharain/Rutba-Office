@@ -342,20 +342,24 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
   return (
     <div ref={ref} className={`rw-ribbon${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}`} onMouseDown={keepEditorFocus}>
       <div className="rw-tabs" role="tablist">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            className="rw-tab"
-            aria-selected={t.id === active}
-            onClick={() => {
-              onTab(t.id);
-              if (collapsed) setPeek((p) => !(p && t.id === active));
-            }}
-          >
-            {t.label}
-          </button>
+        {tabs.map((t, i) => (
+          <React.Fragment key={t.id}>
+            {/* The contextual tabs, set off from the others by a line, as a group of their own. */}
+            {t.contextual && !tabs[i - 1]?.contextual ? <span className="rw-tab-sep" aria-hidden="true" /> : null}
+            <button
+              type="button"
+              role="tab"
+              className={t.contextual ? 'rw-tab contextual' : 'rw-tab'}
+              data-label={typeof t.label === 'string' ? t.label : undefined}
+              aria-selected={t.id === active}
+              onClick={() => {
+                onTab(t.id);
+                if (collapsed) setPeek((p) => !(p && t.id === active));
+              }}
+            >
+              {t.label}
+            </button>
+          </React.Fragment>
         ))}
         <div className="rw-quick">
           {quick}
@@ -435,6 +439,7 @@ export function Button({
   pressed,
   disabled,
   busy,
+  dropdown,
   title,
   onClick,
   children,
@@ -443,14 +448,18 @@ export function Button({
 }) {
   // `busy`: its work is under way (a password being checked): it cannot be
   // pressed again, and a small spinner says so in place of its icon.
+  // `dropdown`: it opens a menu, and a small chevron says so: after its name
+  // on a large button, as Office draws it, and after its picture on a small one.
   const classes = ['rw-btn', tall ? 'tall' : '', primary ? 'primary' : '', ghost ? 'ghost' : '', !label && !children ? 'icon' : '', busy ? 'busy' : '', className]
     .filter(Boolean)
     .join(' ');
+  const caret = dropdown ? <Icon name="chevronDown" size={9} strokeWidth={2.2} className="rw-caret" /> : null;
   return (
     <button
       type="button"
       className={classes}
       aria-pressed={pressed === undefined ? undefined : Boolean(pressed)}
+      aria-haspopup={dropdown ? 'menu' : undefined}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
       data-tip={title || label}
@@ -458,9 +467,10 @@ export function Button({
       onClick={onClick}
       {...rest}
     >
-      {busy ? <Spinner /> : icon ? <Icon name={icon} size={tall ? 20 : 16} /> : null}
-      {label ? <span>{label}</span> : null}
+      {busy ? <Spinner /> : icon ? <Icon name={icon} size={tall ? 24 : 16} strokeWidth={tall ? 1.5 : 1.7} /> : null}
+      {label ? <span>{label}{tall ? caret : null}</span> : null}
       {children}
+      {tall && label ? null : caret}
     </button>
   );
 }
@@ -777,7 +787,7 @@ export function Dialog({ title, children, actions, onClose, width, className = n
  * A context menu placed where it was asked for, then nudged back on screen —
  * a menu opened near the bottom edge should not run off it.
  */
-export function Menu({ x, y, items, onClose }) {
+export function Menu({ x, y, rtl = false, items, onClose }) {
   const ref = useRef(null);
   const [pos, setPos] = useState({ x, y });
 
@@ -786,10 +796,10 @@ export function Menu({ x, y, items, onClose }) {
     if (!el) return;
     const r = el.getBoundingClientRect();
     setPos({
-      x: Math.min(x, window.innerWidth - r.width - 8),
+      x: Math.max(8, Math.min(rtl ? x - r.width : x, window.innerWidth - r.width - 8)),
       y: Math.min(y, window.innerHeight - r.height - 8),
     });
-  }, [x, y]);
+  }, [x, y, rtl]);
 
   useEffect(() => {
     const off = () => onClose?.();
@@ -840,7 +850,17 @@ export function useMenu() {
   const open = useCallback((e, items) => {
     e.preventDefault();
     e.stopPropagation();
-    setMenu({ x: e.clientX, y: e.clientY, items });
+    // A ribbon button's menu drops from the button, as Office's do, rather
+    // than from wherever the pointer was on it, and from its far edge right
+    // to left. A right click anywhere else opens where it was made.
+    const button = e.currentTarget instanceof Element && e.type !== 'contextmenu' ? e.currentTarget.closest('.rw-ribbon button') : null;
+    const r = button?.getBoundingClientRect();
+    if (r && r.width) {
+      const rtl = getComputedStyle(button).direction === 'rtl';
+      setMenu({ x: rtl ? r.right : r.left, y: r.bottom + 2, rtl, items });
+    } else {
+      setMenu({ x: e.clientX, y: e.clientY, items });
+    }
   }, []);
   const close = useCallback(() => setMenu(null), []);
   const node = menu ? <Menu {...menu} onClose={close} /> : null;

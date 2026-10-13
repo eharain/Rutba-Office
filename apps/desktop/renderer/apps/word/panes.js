@@ -56,14 +56,24 @@ export function NavigationPane({ blocks, at, onGo, onClose }) {
 
 const CSS = `
 /* the ribbon's own controls ------------------------------------------------ */
-.wd-styles { display: flex; gap: 3px; align-items: stretch; }
+/*
+  The style gallery as Word's: each style a small sheet of paper with a
+  sample in its look and its name under it. Paper, so dark or light the
+  sample is the colour it will be on the page.
+*/
+.wd-styles { display: flex; gap: 2px; align-items: center; height: 100%; padding: 3px; border: 1px solid var(--line-soft); border-radius: var(--r-2); background: var(--surface-2); }
 .wd-style {
-  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
-  border-radius: var(--r-1); padding: 4px 9px; font: inherit; font-size: 12px; cursor: pointer;
-  white-space: nowrap; min-width: 58px; text-align: center; line-height: 1.2; height: 44px;
+  border: 1px solid transparent; background: #ffffff; color: #1b1b1b;
+  border-radius: var(--r-1); padding: 3px 6px 2px; font: inherit; font-size: 13px; cursor: pointer;
+  white-space: nowrap; min-width: 64px; max-width: 86px; height: 100%; text-align: center; line-height: 1.15;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06); transition: border-color var(--fast), box-shadow var(--fast);
 }
-.wd-style:hover { border-color: var(--accent-line); background: var(--hover); }
-.wd-style.on { border-color: var(--accent); background: var(--selected); }
+.wd-style::before { content: 'AaBbCc'; display: block; padding-top: 6px; max-width: 100%; overflow: hidden; }
+.wd-style-name { font: 400 11px/1.3 var(--font); font-style: normal; color: #5b5f66; text-transform: capitalize; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.wd-style:hover { border-color: var(--accent-line); }
+.wd-style.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.wd-style:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .wd-fields { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-2); }
 .wd-fields label { min-width: 44px; }
 .wd-field-value { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }

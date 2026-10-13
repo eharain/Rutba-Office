@@ -454,7 +454,7 @@ export default function WordRibbon({
                   onClick={() => para({ styleId: s.id === 'Normal' && !styles.some((x) => x.id === 'Normal') ? null : s.id })}
                   style={STYLE_LOOK[s.id] || undefined}
                 >
-                  {s.name || s.id}
+                  <span className="wd-style-name">{s.name || s.id}</span>
                 </button>
               ))}
             </div>
@@ -615,7 +615,7 @@ export default function WordRibbon({
             <div className="wd-styles">
               {(styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).slice(0, 6).map((s) => (
                 <button key={s.id} type="button" className={`wd-style${(format.paragraphStyle || 'Normal') === s.id ? ' on' : ''}`} style={STYLE_LOOK[s.id] || undefined} title={t('Apply {style} to this paragraph', { style: s.name || s.id })} onClick={() => para({ styleId: s.id })}>
-                  {s.name || s.id}
+                  <span className="wd-style-name">{s.name || s.id}</span>
                 </button>
               ))}
             </div>

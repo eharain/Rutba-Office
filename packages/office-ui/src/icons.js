@@ -242,6 +242,7 @@ export function Icon({ name, size = 16, className, style, title, strokeWidth = 1
       'aria-hidden': title ? undefined : 'true',
       role: title ? 'img' : undefined,
       focusable: 'false',
+      'data-icon': name,
     },
     title ? React.createElement('title', null, title) : null,
     paths.map((p, i) => React.createElement('path', { key: i, ...p }))
