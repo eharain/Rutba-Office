@@ -3465,8 +3465,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     try {
       // The folder itself, so the picture is browsed rather than opened —
       // the ribbon is never collapsed there, which the slideshow's own
-      // controls need to be reachable.
-      const win = await open('pictures', dir);
+      // controls need to be reachable. A folder of its own, holding just the
+      // two pictures and the clip: by this point in the full run the shared
+      // folder holds every earlier block's files, a clip's length is read
+      // only as its tile comes into view, and the taller ribbon of 1.48 put
+      // the clip's tile below the fold.
+      const showDir = path.join(dir, 'slideshow');
+      fs.mkdirSync(showDir, { recursive: true });
+      for (const name of ['show-a.png', 'show-b.png', 'tone.wav']) fs.copyFileSync(path.join(dir, name), path.join(showDir, name));
+      const win = await open('pictures', showDir);
       const js = (code) => win.webContents.executeJavaScript(code);
       await until(() => js(`document.querySelectorAll('.pv-tile').length >= 3`), 'the folder’s tiles (two pictures, one clip)', 6000);
 
