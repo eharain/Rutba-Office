@@ -265,11 +265,28 @@ slightly worse, at the same speed and 3.3 MB more. The fast models are
 shipped; English and Arabic could move to best_int later if real scans
 show the same gain.
 
+### Real scans
+
+Three printed pages scanned by others, public domain, each with a
+transcription proofread by Wikisource's volunteers (validated or
+proofread pages), read as a 1,800 to 1,920 pixel wide JPEG of the page:
+
+| Page | Engine alone | Through @rutba/ocr |
+| :-- | :-- | :-- |
+| English: Alice's Adventures in Wonderland (1866 printing), page 3 | 2.3 / 3.4 | 2.3 / 3.4 |
+| Hindi: आग और धुआं (Chatursen), page 148 | 2.7 / 12.5 | 2.8 / 12.5 |
+| Urdu, Nastaliq: بیوی کی تربیت (Khwaja Hasan Nizami), page 22, lithographed | 50.4 / 90.4 | 50.2 / 89.3 |
+
+CER / WER in percent. Each page's running head is not in its transcription
+but is read, so a point or two of each rate is the head. The real pages
+agree with the corpus: English and Hindi read well, and Nastaliq print is
+not read reliably, which is why Urdu is beta. The pages are not kept in the
+repository; `Page:` titles on en, hi and ur.wikisource.org find them.
+
 ### Not measured yet
 
-- Real scans and photographs of pages (receipts, letters, a newspaper
-  column). The simulated scans stand in for them until a set of real pages
-  with their text is gathered.
+- Photographs of pages (receipts, letters, a newspaper column) and more
+  real scans in every language.
 - A second engine for Chinese, Japanese and difficult layouts.
 
 ## A model of our own
