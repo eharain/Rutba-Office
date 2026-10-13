@@ -2,6 +2,11 @@
 //
 //   node tools/ocr-measure.mjs --corpus <dir> --core <dir> --models <dir>
 //        [--build simd-lstm] [--label fast] [--out results.json]
+//   node tools/ocr-measure.mjs --corpus <dir> --ocr [--out results.json]
+//
+// --ocr reads through @rutba/ocr instead, as the suite does: the shipped
+// engine and models, with our own analysis first (deskew, scaling, and
+// ink and paper for unevenly lit pages), on the package's thread pool.
 //
 // --core is a directory holding tesseract-core-<build>.js and .wasm (the
 // engine tesseract.js 7 runs, tesseract.js-core 7), --models one holding
@@ -25,8 +30,23 @@ const arg = (name, fallback) => {
   return at > 0 ? process.argv[at + 1] : fallback;
 };
 
+/** One page read through @rutba/ocr, our own analysis included, on its pool of one thread. */
+async function oneThroughPackage() {
+  const { createOcrHost } = await import('@rutba/ocr');
+  const host = createOcrHost({ threads: 1 });
+  const picture = fs.readFileSync(arg('picture').replace(/\.jpg$/, '.png'));
+  const started = performance.now();
+  const r = await host.recognize(picture, { languages: arg('lang').split('+') });
+  const first = performance.now();
+  await host.recognize(picture, { languages: arg('lang').split('+') });
+  const second = performance.now();
+  await host.stop();
+  process.stdout.write(`${JSON.stringify({ text: r.text, angle: r.angle, prepared: r.prepared, loadMs: 0, firstMs: Math.round(first - started), pageMs: Math.round(second - first), peakMB: Math.round(process.resourceUsage().maxRSS / 1024) })}\n`);
+}
+
 /** One page, in this process: prints a JSON line and exits. */
 async function one() {
+  if (process.argv.includes('--ocr')) return oneThroughPackage();
   const core = path.resolve(arg('core'));
   const build = arg('build', 'simd-lstm');
   const started = performance.now();
@@ -94,8 +114,8 @@ async function all() {
   const results = [];
   for (const p of pages) {
     if (only && !p.id.startsWith(only)) continue;
-    const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--one',
-      '--core', arg('core'), '--models', arg('models'), '--build', build, '--lang', p.lang, '--picture', path.join(corpus, p.picture)],
+    const run = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--one', ...(process.argv.includes('--ocr') ? ['--ocr'] : []),
+      '--core', arg('core', ''), '--models', arg('models', ''), '--build', build, '--lang', p.lang, '--picture', path.join(corpus, p.picture)],
     { encoding: 'utf8', maxBuffer: 1 << 24 });
     if (run.status !== 0) {
       console.log(`${p.id}: failed ${run.stderr.split('\n').slice(0, 3).join(' ')}`);

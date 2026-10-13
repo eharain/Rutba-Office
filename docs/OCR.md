@@ -45,6 +45,48 @@ anything from; the package's tests run a recognition with every way to the
 network refused, in the process and its threads, and check that none was
 tried.
 
+## Page analysis and layout of our own
+
+Around the engine, in `packages/ocr/src/analyse.js` and `layout.js`,
+classical image processing and geometry that the engine tests prove on
+pages drawn with known answers:
+
+- **Ink and paper**: Otsu's threshold for evenly lit pages, Sauvola's
+  local threshold where the paper's brightness varies across the page (a
+  shadow down a fold, a photo lit from one side), chosen by measuring the
+  paper in a six by six grid. On a page lit from one side Otsu gets more
+  than a tenth of the pixels wrong; Sauvola under 2 percent.
+- **Skew**: the rows of ink projected at angles from minus to plus eight
+  degrees, coarse then fine; the angle where text lines fall into the
+  sharpest peaks is the page's turn, measured to a tenth of a degree.
+- **Text height**: the median height of the letter-like blobs, each counted
+  by its ink, so Arabic's dots and the parts of a Han character do not pull
+  it down.
+- **Ruling lines**: long runs of ink along rows and columns, short breaks
+  bridged, thick blocks and letters refused.
+- **Lines, columns and table cells**: words gathered into lines by their
+  vertical overlap; columns from white strips no line crosses (a heading
+  wider than the body is allowed); a table's rows and columns from its
+  ruling lines when they make a grid, otherwise from its lines of words and
+  the white every row leaves, each word in the cell its centre falls in,
+  right to left for Urdu and Arabic.
+
+Before reading, a page turned by two degrees or more is turned back level,
+text smaller than 10 pixels is scaled up (a screenshot) and text larger
+than 64 down, and an unevenly lit page is handed over as ink and paper.
+After reading, the engine's lines are put in reading order by geometry
+(columns, then lines top to bottom, right to left for Urdu and Arabic), a
+line the engine split into two blocks is joined again, a word the engine
+boxed as a sliver takes its line's height, and in Urdu and Arabic a Latin
+comma, semicolon or question mark after a letter becomes the Arabic one.
+
+Two of these were measured and changed: turning a page back by resampling
+it cost more than the 1.2 degree tilt of the simulated scans did (Japanese
+3.1 to 13.3 percent CER, Nastaliq 44.5 to 59.7), because the engine reads
+a small tilt well itself, so only two degrees or more is turned back; and
+scaling 300 dpi pages towards a smaller text height cost Hindi and
+Nastaliq, so only very large text is scaled down.
+
 ## How it was measured
 
 **Corpus.** `tools/ocr-corpus.js` sets four sentences of each language
@@ -115,6 +157,28 @@ Fast models, SIMD build. CER and WER in percent; time per further page.
   at 300 dots per inch 12 point type is 50 pixels high and some scripts read
   a little worse than at 150, so scaling a page's text towards that size
   before reading is worth doing.
+
+### Through @rutba/ocr
+
+The same pages read as the suite reads them, through `@rutba/ocr` with the
+analysis above (`tools/ocr-measure.mjs --ocr`), against the engine alone:
+
+| Page | Engine alone | Through @rutba/ocr |
+| :-- | :-- | :-- |
+| Urdu, Naskh, 150 / 300 / scan | 4.0 / 5.5 / 7.3 (WER 7.5 / 8.6 / 10.8) | 3.1 / 4.7 / 6.4 (WER 3.2 / 5.4 / 7.5) |
+| Urdu, Nastaliq, 150 / 300 / scan | 20.9 / 19.4 / 50.0 (WER 64.5 / 62.4 / 86.0) | 19.0 / 18.7 / 44.5 (WER 65.6 / 60.2 / 75.3) |
+| Arabic, 150 / 300 / scan | 1.0 / 3.2 / 3.4 (WER 5.7 / 8.6 / 10.0) | 2.2 / 2.2 / 2.4 (WER 2.9 / 2.9 / 4.3) |
+| English, Hindi | as above | the same, but for one English page at 150 dpi (0.6, one letter) |
+| Chinese, 150 / 300 / scan | 1.5 / 2.9 / 2.2 | 2.2 / 3.7 / 2.2 |
+| Japanese, 150 / 300 / scan | 0.0 / 0.0 / 3.1 | 0.0 / 2.6 / 3.1 |
+
+Urdu and Arabic gain most, from the punctuation and the reading order.
+Chinese and Japanese lose a character or two on clean pages: the engine
+reads the picture as grey pixels from the suite rather than decoding the
+colour PNG itself, and a few glyphs come out differently. A page read
+through the package takes the same time (median 1.07 s a further page,
+1.50 s the first) and up to 176 MB at peak, the analysis's copies of the
+page included.
 
 ### The engine's builds
 

@@ -6,14 +6,14 @@
 // Each language's sentences (tools/ocr-texts.json) are set as one page in a
 // font that draws the script, at 150 and 300 dots per inch, and once more at
 // 300 as a simulated scan: turned a little, softened, on a grain of paper
-// and saved as a JPEG. Beside each picture is its text, and manifest.json
+// and saved as a JPEG (and that JPEG decoded again as a PNG). Beside each picture is its text, and manifest.json
 // lists them all for tools/ocr-measure.mjs.
 //
 // Fonts: the Noto files under --fonts are OFL and are not kept in the
 // repository (docs/OCR.md lists them); the Latin, Chinese and Japanese
 // pages use fonts Windows already has.
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, nativeImage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -93,6 +93,8 @@ app.whenReady().then(async () => {
       const shot = frame;
       const picture = k.kind === 'scan' ? `${id}.jpg` : `${id}.png`;
       fs.writeFileSync(path.join(out, picture), k.kind === 'scan' ? shot.toJPEG(55) : shot.toPNG());
+      // The scan decoded again as a PNG too, for readers that take pixels or PNG only.
+      if (k.kind === 'scan') fs.writeFileSync(path.join(out, `${id}.png`), nativeImage.createFromBuffer(fs.readFileSync(path.join(out, picture))).toPNG());
       const truth = texts[v.lang].join('\n');
       fs.writeFileSync(path.join(out, `${id}.txt`), `${truth}\n`);
       const size = shot.getSize();

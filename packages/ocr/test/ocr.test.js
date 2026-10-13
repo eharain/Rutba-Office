@@ -202,3 +202,42 @@ test('recognize makes no network request: every way out is refused in the proces
   assert.deepEqual({ guarded: got.guarded, inMain: got.inMain, attempts: got.attempts, failed: got.failed }, { guarded: true, inMain: true, attempts: 0, failed: 0 });
   assert.ok(got.words > 10);
 });
+
+test('recognize: a page turned two and a half degrees is turned back first, its words boxed where they are on the turned page; tiny text is scaled up to be read', async () => {
+  const { rotate, scale } = await import('@rutba/ocr/analyse');
+  const host = createOcrHost({ threads: 1 });
+  try {
+    const truth = fixture('eng-serif.txt').toString('utf8');
+    const grey = toGrey(decodePng(fixture('eng-serif.png')));
+    const turned = rotate(grey, 2.5);
+    const r = await host.recognize(turned, { languages: ['eng'] });
+    assert.ok(Math.abs(r.angle - 2.5) <= 0.15, `measured ${r.angle}`);
+    assert.ok(cer(truth, r.text) <= 0.02, r.text);
+    const ink = (b) => { let n = 0; for (let y = b.y; y < b.y + b.height; y++) for (let x = b.x; x < b.x + b.width; x++) if (turned.data[y * turned.width + x] < 128) n++; return n / (b.width * b.height); };
+    for (const w of r.words.slice(0, 12)) assert.ok(ink(w.box) > 0.05, `${w.text} boxed over ink`);
+    const plain = await host.recognize(grey, { languages: ['eng'] });
+    assert.ok(Math.abs(plain.angle) <= 0.1, `a level page measured ${plain.angle}`);
+    assert.equal(plain.prepared.turned, 0);
+    assert.equal(plain.prepared.factor, 1);
+    assert.ok(Math.abs(r.prepared.turned - 2.5) <= 0.15, 'turned back before reading');
+
+    const tiny = scale(grey, 0.42);
+    const small = await host.recognize(tiny, { languages: ['eng'] });
+    assert.ok(small.prepared.factor > 1, JSON.stringify(small.prepared));
+    assert.ok(cer(truth, small.text) <= 0.05, small.text);
+    assert.ok(small.words.every((w) => w.box.x + w.box.width <= tiny.width && w.box.y + w.box.height <= tiny.height));
+  } finally {
+    await host.stop();
+  }
+});
+
+test('recognize: Urdu and Arabic keep their own comma where the model reads a Latin one', async () => {
+  const host = createOcrHost({ threads: 1 });
+  try {
+    const r = await host.recognize(fixture('urd-naskh.png'), { languages: ['urd'] });
+    assert.ok(r.text.includes('\u060c'), r.text);
+    assert.ok(!/[\u0600-\u06ff],/.test(r.text), r.text);
+  } finally {
+    await host.stop();
+  }
+});
