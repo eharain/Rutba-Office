@@ -6,3 +6,6 @@ export { PstFile } from './pst/index.js';
 export { MailStore, messageKey } from './store.js';
 export { identify, scan, read, preview, fileReader } from './import.js';
 export { PROPS, PT, MSG_FLAG, RECIPIENT_TYPE, filetimeToIso } from './props.js';
+export { SearchIndex, tokenise, docOf } from './search-index.js';
+export { parseSearch, parseSize, parseDay } from './query.js';
+export { openArchive, indexSteps, indexArchive, runSliced, bodyText } from './archive.js';

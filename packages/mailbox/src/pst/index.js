@@ -26,9 +26,10 @@ export { Ndb, NdbError, bufferReader };
 
 const NID_RECIPIENT_TABLE = 0x692;
 const NID_ATTACHMENT_TABLE = 0x671;
+const SKIP_DATA = new Set([0x3701]);
 
 /** Folders Outlook creates and hides; a person never asked for these. */
-const HIDDEN_FOLDERS = new Set([
+export const HIDDEN_FOLDERS = new Set([
   'Top of Personal Folders',
   'Top of Outlook data file',
   'Root - Mailbox',
@@ -271,6 +272,11 @@ export class PstFile {
       .filter(Boolean);
   }
 
+  /** The node ids of a folder's messages, from the node B-tree, which is always complete. */
+  messageNids(folderNid) {
+    return (this.#relations().messagesByFolder.get(folderNid) || []).slice();
+  }
+
   /** How many messages a folder holds, without reading any of them. */
   messageCount(folderNid) {
     const table = this.ndb.node(siblingNid(folderNid, NID_TYPE.CONTENTS_TABLE));
@@ -317,8 +323,12 @@ export class PstFile {
     };
   }
 
-  /** One message, in full. */
-  message(nid) {
+  /**
+   * One message, in full. `withBytes: false` leaves its attachments' data
+   * unread - their names, types and sizes are still there - for a search
+   * index, which reads every message and wants none of the files.
+   */
+  message(nid, { withBytes = true } = {}) {
     const node = this.ndb.node(nid >>> 0);
     if (!node) return null;
     const pc = nodePc(node, this.ndb);
@@ -326,7 +336,7 @@ export class PstFile {
     const flags = Number(p.messageFlags || 0);
 
     const recipients = this.#recipients(node);
-    const attachments = this.#attachments(node);
+    const attachments = this.#attachments(node, withBytes);
     const html = decodeText(p.bodyHtml);
     const text = decodeText(p.body);
 
@@ -373,7 +383,7 @@ export class PstFile {
       .filter((r) => r.name || r.address);
   }
 
-  #attachments(node) {
+  #attachments(node, withBytes = true) {
     const out = [];
     if (!node.subnodes) return out;
     for (const [subNid, sub] of node.subnodes) {
@@ -381,7 +391,7 @@ export class PstFile {
       const attachNode = this.ndb.subnode(sub);
       if (!attachNode) continue;
       const heap = new Heap(attachNode.parts);
-      const props = values(readPc(heap, attachNode.subnodes, this.ndb));
+      const props = values(readPc(heap, attachNode.subnodes, this.ndb, withBytes ? null : SKIP_DATA));
       const data = props.attachData;
       out.push({
         nid: subNid,

@@ -39,7 +39,7 @@ function when(value) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-function messageFrom(el) {
+export function messageFrom(el) {
   const html = text(el, 'OPFMessageCopyHTMLBody');
   const body = text(el, 'OPFMessageCopyBody');
   const attachments = all(el, 'messageAttachment').map((a, i) => {
@@ -74,7 +74,7 @@ function messageFrom(el) {
 }
 
 /** Folder path from an entry name: `Local/Inbox/Messages/x.xml` → `Inbox`. */
-function folderOf(entryName) {
+export function folderOf(entryName) {
   const parts = entryName.split('/').filter(Boolean);
   const trimmed = parts.filter((p) => p !== 'Local' && p !== 'Messages' && !p.endsWith('.xml'));
   return trimmed.join('/') || 'Archive';

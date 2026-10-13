@@ -135,7 +135,11 @@ export function resolveHnid(hnid, heap, subnodes, ndb) {
  * a recipient.
  * @returns {Map<number, { id: number, type: number, name: string, value: any }>}
  */
-export function readPc(heap, subnodes, ndb) {
+/**
+ * `skip` names properties whose bytes are not wanted (an attachment's data,
+ * when only its name and size are): they are listed with a null value.
+ */
+export function readPc(heap, subnodes, ndb, skip = null) {
   const out = new Map();
   if (!heap?.valid || heap.clientSig !== CLIENT_SIG.PROPERTY_CONTEXT) return out;
   const { entries } = readBth(heap, heap.userRoot);
@@ -153,7 +157,7 @@ export function readPc(heap, subnodes, ndb) {
       value = decodeValue(type, inline);
     } else if (type === PT.BOOLEAN) {
       value = (raw & 0xff) !== 0;
-    } else if (type === PT.NULL || type === PT.UNSPECIFIED) {
+    } else if (type === PT.NULL || type === PT.UNSPECIFIED || skip?.has(id)) {
       value = null;
     } else {
       const bytes = resolveHnid(raw, heap, subnodes, ndb);

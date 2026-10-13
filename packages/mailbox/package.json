@@ -16,7 +16,10 @@
     "./store": "./src/store.js",
     "./props": "./src/props.js",
     "./signature": "./src/signature.js",
-    "./schedule": "./src/schedule.js"
+    "./schedule": "./src/schedule.js",
+    "./search": "./src/search-index.js",
+    "./query": "./src/query.js",
+    "./archive": "./src/archive.js"
   },
   "dependencies": {
     "@rutba/office-formats": "*",
