@@ -39,6 +39,9 @@ import { SheetView } from '@rutba/sheet-view';
 import { buildPptx, Deck } from '@rutba/presentation';
 import { dateTimeAt, writeCalendar } from '@rutba/calendar/ical';
 import { writeVCards } from '@rutba/contacts/vcard';
+import { Sheet, INK } from '@rutba/pdf';
+import { emptyProject, addMedia, setTransition, addTitle, addMarker } from '@rutba/studio/project';
+import { writeRvid } from '@rutba/studio/rvid';
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.resolve(process.argv[2] || path.join(appDir, 'build', 'screens'));
@@ -412,12 +415,93 @@ fs.writeFileSync(
   ]),
 );
 
+/**
+ * A report as a PDF, for the PDF app's capture: a title, prose, a table and
+ * a bar chart over four pages, so the thumbnail strip shows pages that
+ * differ. Drawn by the suite's own writer; the figures are invented.
+ */
+function writeReportPdf(file) {
+  const sheet = new Sheet({ title: 'Northbank Logistics: Annual Review 2026', author: 'Northbank Logistics', created: '2026-10-13T09:00:00Z', footer: 'Northbank Logistics · Annual Review 2026', fontSize: 10.5 });
+  const regions = [['North', 412, 468], ['Midlands', 386, 401], ['South East', 521, 590], ['South West', 244, 262], ['Scotland', 198, 231], ['Wales', 156, 170]];
+  sheet.heading('Annual Review 2026', { size: 26, gap: 4 });
+  sheet.paragraph('Northbank Logistics', { size: 13, colour: INK.quiet, gap: 14 });
+  sheet.paragraph('A year of steady growth: every region moved more freight than last year, the new South East depot opened on time, and the fleet ran its first full year on renewable diesel. This review sets out the figures region by region, what changed, and where we go next.', { gap: 10 });
+  sheet.keyValues([['Revenue', '£48.6 million'], ['Deliveries', '1.2 million'], ['On time', '97.4%'], ['Depots', '14']], { width: 260, gap: 3 });
+  sheet.spacer(10);
+  sheet.heading('Freight by region', { size: 15 });
+  sheet.table({
+    columns: [{ key: 'r', label: 'Region', flex: 2 }, { key: 'a', label: '2025 (kt)', align: 'right' }, { key: 'b', label: '2026 (kt)', align: 'right' }, { key: 'c', label: 'Change', align: 'right' }],
+    rows: regions.map(([r, a, b]) => ({ r, a: String(a), b: String(b), c: `+${(((b - a) / a) * 100).toFixed(1)}%` })),
+    zebra: true,
+  });
+  sheet.spacer(6);
+  sheet.space(170);
+  const base = sheet.y + 150;
+  const barW = 26;
+  regions.forEach(([r, a, b], i) => {
+    const x = sheet.left + 20 + i * 82;
+    sheet.page.rect(x, base - a * 0.24, barW, a * 0.24, { fill: '#9db8e6' });
+    sheet.page.rect(x + barW + 4, base - b * 0.24, barW, b * 0.24, { fill: '#2b5797' });
+    sheet.page.text(r, x, base + 14, { size: 8.5, colour: INK.quiet });
+  });
+  sheet.page.rect(sheet.left, base, sheet.contentWidth, 0.6, { fill: INK.rule });
+  sheet.y = base + 30;
+  sheet.newPage();
+  sheet.heading('What changed', { size: 15 });
+  for (const para of [
+    'The South East depot at Dartford opened in March and handled a fifth of the region\'s freight by the summer. Journeys into London fell by a quarter, and with them the hours lost to traffic.',
+    'Scotland grew fastest, at more than sixteen per cent, after two supermarket contracts moved to us in the spring. The Glasgow cross-dock now runs a night shift.',
+    'Every lorry ran on renewable diesel from January, cutting the fleet\'s emissions by about four fifths for the same miles. The cost was a little over two per cent of fuel spend.',
+  ]) sheet.paragraph(para, { gap: 10 });
+  sheet.heading('Next year', { size: 15 });
+  for (const para of [
+    'Two electric tractor units go into service on the Midlands trunk routes in January, charged at the Daventry depot overnight.',
+    'A new booking system lets customers choose a delivery hour rather than a day, starting with the North in February.',
+  ]) sheet.paragraph(para, { gap: 10 });
+  sheet.newPage();
+  sheet.heading('Our people', { size: 15 });
+  sheet.paragraph('We employ 1,840 people across fourteen depots, 212 more than a year ago. Staff turnover fell to nine per cent, the lowest since 2019, and every driver completed the new safety course.', { gap: 10 });
+  sheet.keyValues([['Employees', '1,840'], ['Drivers', '1,106'], ['Apprentices', '64'], ['Turnover', '9%']], { width: 260, gap: 3 });
+  sheet.newPage();
+  sheet.heading('Accounts in brief', { size: 15 });
+  sheet.table({
+    columns: [{ key: 'k', label: '', flex: 3 }, { key: 'a', label: '2025', align: 'right' }, { key: 'b', label: '2026', align: 'right' }],
+    rows: [['Revenue', '£44.1m', '£48.6m'], ['Operating costs', '£39.8m', '£43.2m'], ['Operating profit', '£4.3m', '£5.4m'], ['Margin', '9.8%', '11.1%']].map(([k, a, b]) => ({ k, a, b })),
+    zebra: true,
+  });
+  fs.writeFileSync(file, sheet.toBuffer());
+}
+writeReportPdf(at('Annual Review 2026.pdf'));
+
+/**
+ * A video project for the Video app's capture: the sample pictures as stills
+ * on the timeline with fades between them, a title over the first and a
+ * marker, so the timeline, the preview and the layers all have something
+ * to show. Video sources are not generated (the suite writes no sample
+ * film), but stills are what an introduction video is often made of.
+ */
+function writeVideoProject(file) {
+  let doc = emptyProject();
+  const stills = fs.readdirSync(picturesDir).filter((n) => /\.(png|jpe?g|webp)$/i.test(n)).sort();
+  for (const name of stills) {
+    const full = path.join(picturesDir, name);
+    doc = addMedia(doc, { url: full, name, kind: 'image', width: 1200, height: 800, size: fs.statSync(full).size }).doc;
+  }
+  const ids = doc.patches.filter((p) => p.type === 'image').map((p) => p.id);
+  for (const id of ids.slice(1)) doc = setTransition(doc, id, { kind: 'fade', seconds: 1 });
+  doc = addTitle(doc, 'title', { at: 0, text: 'Our year at Northbank' }).doc;
+  doc = addMarker(doc, 10, 'Depot opening');
+  fs.writeFileSync(file, writeRvid(doc, { projectPath: file }));
+}
+writeVideoProject(at('Our year.rvid'));
+
 /** app -> the file it should open, or null for its empty state. */
 const PLAN = [
   ['home', null],
   ['word', at('quarterly-review.docx')],
   ['sheets', at('regional-sales.xlsx')],
   ['slides', at('product-review.pptx')],
+  ['pdf', at('Annual Review 2026.pdf')],
   ['mail', null],
   // Added when the site was found publishing seven apps over a suite of nine:
   // Calendar and Contacts shipped in 1.8.0 and this list was never extended, so
@@ -431,9 +515,9 @@ const PLAN = [
   // build artefact. See the note above `gradientPng`.
   ['pictures', firstPicture()],
   ['image', firstPicture()],
-  // Video has no generated sample — this suite writes no video — so it is
-  // captured empty rather than pointed anywhere real.
-  ['video', null],
+  // Video opens a project of the sample stills (writeVideoProject above):
+  // nothing real is pointed at, and the timeline has something to show.
+  ['video', at('Our year.rvid')],
 ];
 
 /**
@@ -443,6 +527,9 @@ const PLAN = [
  */
 const SIZE = {
   home: '1180x780',
+  // The timeline takes a fixed height, so the preview only has room to
+  // show the film in a taller window.
+  video: '1440x1080',
 };
 
 /**
@@ -454,6 +541,8 @@ const SIZE = {
  */
 const SETTLE = {
   home: 1500,
+  pdf: 4000,
+  video: 5000,
   pictures: 6000,
   image: 5000,
   mail: 5000,
@@ -515,7 +604,9 @@ function capture(app, file, profile) {
 }
 
 const results = [];
-for (const [app, file] of PLAN) {
+// `RUTBA_SCREENS_ONLY=pdf,video` captures just those, to look at one again.
+const only = (process.env.RUTBA_SCREENS_ONLY || '').split(',').filter(Boolean);
+for (const [app, file] of PLAN.filter(([name]) => !only.length || only.includes(name))) {
   // A profile per app, not per run: the mail seeder is idempotent-ish but the
   // recent-files list is not, and a "recently opened" panel full of temp paths
   // is exactly the detail that makes a screenshot look like a test artefact.
