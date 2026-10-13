@@ -114,9 +114,23 @@ function whatsNew() {
   fs.writeFileSync(path.join(out, 'whatsnew.json'), JSON.stringify({ version, notes }));
 }
 
+/**
+ * pdf.js, which the PDF app draws pages with: vendored whole in
+ * vendor/pdfjs (tools/vendor-pdfjs.mjs says what and why) and served from
+ * the app beside the bundle, loaded by the window when it first needs it.
+ */
+function pdfjs() {
+  const from = path.join(app, 'vendor', 'pdfjs');
+  const to = path.join(out, 'pdfjs');
+  if (!fs.existsSync(from)) return;
+  fs.rmSync(to, { recursive: true, force: true });
+  fs.cpSync(from, to, { recursive: true });
+}
+
 async function run() {
   fs.writeFileSync(path.join(out, 'index.html'), html);
   whatsNew();
+  pdfjs();
 
   if (watch) {
     const a = await esbuild.context(rendererOptions);

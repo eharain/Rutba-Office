@@ -72,6 +72,7 @@ const MIME = {
   '.opus': 'audio/opus',
   '.pdf': 'application/pdf',
   '.txt': 'text/plain; charset=utf-8',
+  '.wasm': 'application/wasm',
 };
 
 export function mimeFor(p) {
@@ -178,6 +179,13 @@ const CSP = [
 const WORKER_CSP = "default-src 'none'; script-src 'self' 'unsafe-eval'";
 
 /**
+ * The PDF app's page drawer (pdf.js's worker): it compiles its image
+ * decoders from WebAssembly and fetches the fonts a PDF names from the
+ * app's own files, and reaches nothing else.
+ */
+const PDF_WORKER_CSP = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' data: blob:";
+
+/**
  * @param {object} o
  * @param {string} o.rendererDir directory holding index.html and the bundle
  * @param {(p: string) => boolean} [o.allowFile] gate for rutba://file reads
@@ -204,7 +212,7 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
       headers.set('content-type', mimeFor(full));
       // The renderer runs no remote code and makes no remote requests. Media and
       // images arrive over rutba://file, which is same-scheme.
-      headers.set('content-security-policy', rel === 'scripts-worker.js' ? WORKER_CSP : CSP);
+      headers.set('content-security-policy', rel === 'scripts-worker.js' ? WORKER_CSP : rel === 'pdfjs/pdf.worker.min.mjs' ? PDF_WORKER_CSP : CSP);
       return new Response(res.body, { status: res.status, headers });
     }
 

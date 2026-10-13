@@ -28,7 +28,7 @@ const isMac = process.platform === 'darwin';
 registerSchemePrivileges();
 
 /** The apps the Apps menu offers, in its order. */
-const MENU_APPS = ['mail', 'word', 'sheets', 'slides', 'pictures', 'image', 'video'];
+const MENU_APPS = ['mail', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video'];
 
 function buildMenu({ send, appName, appShortNames = {} }) {
   const cmd = (command, args) => () => send(command, args);

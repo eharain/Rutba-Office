@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6074,
+  "count": 6173,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -688,6 +688,18 @@
       ]
     },
     {
+      "message": "A PDF needs at least one page.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A PDF needs at least one page. Select fewer pages to delete.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "A PDF with no pages is not a document. Add a page first.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -992,6 +1004,12 @@
       "message": "A name turns",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "A new file at each selected page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -1651,7 +1669,14 @@
     {
       "message": "Actual Size",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "packages/office-shell/src/electron/main.js"
+      ]
+    },
+    {
+      "message": "Actual Size: the page at 100% (Ctrl+0)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -2592,6 +2617,7 @@
       "message": "All files",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/registry-words.js"
       ]
@@ -4922,6 +4948,7 @@
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/richtext.js",
         "apps/desktop/renderer/apps/mail/rules.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
@@ -5546,6 +5573,12 @@
       ]
     },
     {
+      "message": "Choose PDFs",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Choose a SmartArt Graphic",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
@@ -5562,6 +5595,12 @@
       "message": "Choose a file…",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Choose a folder for the files",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -6131,6 +6170,18 @@
       ]
     },
     {
+      "message": "Close Find",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Close Find (Esc)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Close Gap",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -6460,6 +6511,12 @@
       "message": "Columns — now {count}",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Combined PDF",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -6793,7 +6850,14 @@
     {
       "message": "Continuous",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Continuous: every page in one column",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -8107,6 +8171,7 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -8177,6 +8242,12 @@
       "message": "Delete Layout",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Delete Pages",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -8473,6 +8544,12 @@
       "message": "Delete — this layout, which no slide uses",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Delete: the selected pages (Delete)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -10541,7 +10618,26 @@
     {
       "message": "Extract",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Extract Pages…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Extract pages {range}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Extract: the selected pages as a new PDF, this one left as it is",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -10730,6 +10826,7 @@
       "message": "File",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -10999,6 +11096,7 @@
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -11094,6 +11192,12 @@
       ]
     },
     {
+      "message": "Find in the document",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Find my mail",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -11115,6 +11219,12 @@
       "message": "Find:",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Find: words on every page (Ctrl+F)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -11232,6 +11342,30 @@
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/ribbon.js"
+      ]
+    },
+    {
+      "message": "Fit Page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Fit Page: the whole page in the window",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Fit Width",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Fit Width: the page as wide as the window",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -13374,6 +13508,7 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -13848,6 +13983,18 @@
       ]
     },
     {
+      "message": "In PDF",
+      "where": [
+        "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "In PDF: open this PDF in the PDF app, to rotate, move, extract and insert its pages",
+      "where": [
+        "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
       "message": "In Slide Master view the font, size, colour, weight and alignment of a placeholder are its text style; the rest belongs to a slide.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -14119,6 +14266,7 @@
       "message": "Insert",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/slides/zoom.js",
@@ -14479,6 +14627,24 @@
       ]
     },
     {
+      "message": "Insert from File",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Insert from File: the pages of other PDFs, after the selected page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Insert from File…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Insert function",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -14690,6 +14856,12 @@
       "message": "Into 3 columns",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Into files of",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -17132,6 +17304,30 @@
       ]
     },
     {
+      "message": "Merge Files",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Merge Files: other PDFs added at the end, or combined into a new one",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Merge Files: several PDFs combined into one",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Merge Files…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Merge Queries",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -18321,6 +18517,12 @@
       ]
     },
     {
+      "message": "New window",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "New {kind}",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -18450,7 +18652,20 @@
     {
       "message": "Next match",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Next match (F3)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Next page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -18557,6 +18772,12 @@
       "message": "No Outline",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "No PDF open",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -18902,6 +19123,12 @@
       "message": "No mail here yet",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "No matches",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -20212,6 +20439,7 @@
       "where": [
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -20226,6 +20454,18 @@
       "message": "Open Recent",
       "where": [
         "packages/office-shell/src/electron/main.js"
+      ]
+    },
+    {
+      "message": "Open a PDF",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Open a PDF to read it, or to rotate, move, delete, extract and insert pages. Merge Files combines several into one. Your file is changed only when you save over it.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -20267,7 +20507,8 @@
     {
       "message": "Open another",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -20295,6 +20536,18 @@
       ]
     },
     {
+      "message": "Open in PDF",
+      "where": [
+        "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Open in PDF: this PDF in the PDF app, to rotate, move, extract and insert its pages",
+      "where": [
+        "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
       "message": "Open in Video",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -20310,6 +20563,12 @@
       "message": "Open {n}",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Open: a PDF in this window, or in a new one when this one has a document (Ctrl+O)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -20383,6 +20642,7 @@
       "message": "Opening…",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/protect.js"
       ]
     },
@@ -20408,6 +20668,7 @@
       "message": "Open…",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -20504,6 +20765,12 @@
       "message": "Order",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Organise",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -20710,6 +20977,7 @@
     {
       "message": "PDF Document (.pdf)",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/registry-words.js"
       ]
     },
@@ -20808,6 +21076,12 @@
       "message": "Page Colour — a colour behind every page",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Page Display",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -20943,6 +21217,12 @@
       ]
     },
     {
+      "message": "Page {page} of {count}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Page {page} of {total}",
       "where": [
         "apps/desktop/renderer/apps/word.js"
@@ -20951,6 +21231,8 @@
     {
       "message": "Pages",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/pdf/view.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
       ]
@@ -21982,6 +22264,12 @@
       ]
     },
     {
+      "message": "Preparing to print…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Present",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -22193,7 +22481,20 @@
     {
       "message": "Previous match",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Previous match (Shift+F3)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Previous page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -22247,6 +22548,7 @@
     {
       "message": "Print",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
@@ -22329,6 +22631,12 @@
       ]
     },
     {
+      "message": "Print: every page, through the printer dialog (Ctrl+P)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Printed at the foot of every page; empty prints nothing there.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -22355,6 +22663,7 @@
     {
       "message": "Print…",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js",
@@ -22532,6 +22841,12 @@
       "message": "Protect workbook for",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Protected: read only",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -22921,6 +23236,12 @@
       ]
     },
     {
+      "message": "Reading…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Real formulas, real recalculation",
       "where": [
         "apps/desktop/renderer/registry-words.js"
@@ -23136,6 +23457,12 @@
       ]
     },
     {
+      "message": "Recovered PDF",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Recovered picture",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -23145,6 +23472,7 @@
       "message": "Recovered unsaved work. Save it to keep it.",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -23226,6 +23554,7 @@
       "message": "Redo",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -23236,6 +23565,7 @@
     {
       "message": "Redo (Ctrl+Y)",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -23962,6 +24292,12 @@
       ]
     },
     {
+      "message": "Replace the Original",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Replace with",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -23975,6 +24311,12 @@
       "message": "Replace would write over the original pictures themselves.",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js"
+      ]
+    },
+    {
+      "message": "Replace {name}?",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -24558,6 +24900,7 @@
     {
       "message": "Rotate",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -24568,6 +24911,7 @@
     {
       "message": "Rotate Left",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/index.js"
       ]
     },
@@ -24580,8 +24924,15 @@
       ]
     },
     {
+      "message": "Rotate Left: the selected pages a quarter turn anticlockwise (Ctrl+L)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Rotate Right",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/index.js"
       ]
     },
@@ -24591,6 +24942,12 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Rotate Right: the selected pages a quarter turn clockwise (Ctrl+R)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -25189,6 +25546,7 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/rules.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -25207,6 +25565,7 @@
     {
       "message": "Save (Ctrl+S)",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -25221,13 +25580,21 @@
     {
       "message": "Save As",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
+      "message": "Save As: the pages as a new PDF (Ctrl+Shift+S)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Save As…",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
@@ -25241,6 +25608,12 @@
       "message": "Save Selection to Quick Part Gallery…",
       "where": [
         "apps/desktop/renderer/apps/word/blocks.js"
+      ]
+    },
+    {
+      "message": "Save a Copy…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -25270,6 +25643,7 @@
     {
       "message": "Save as",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/shell.js"
       ]
@@ -25389,6 +25763,12 @@
       ]
     },
     {
+      "message": "Save: the pages as they are now; the original is replaced only after you say so (Ctrl+S)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Save: the picture with its layers, as a project (.rimg) to edit again (Ctrl+S)",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -25424,6 +25804,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -25450,10 +25831,17 @@
       ]
     },
     {
+      "message": "Saving writes the pages as they are now over the original file. Save a Copy keeps the original as it is.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Saving…",
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
-        "apps/desktop/renderer/apps/mail/dialogs.js"
+        "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -27064,6 +27452,7 @@
       "message": "Show",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/custom-shows.js",
@@ -27535,6 +27924,18 @@
       "message": "Single",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Single Page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Single Page: one page at a time (Page Up and Page Down)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -28380,6 +28781,7 @@
     {
       "message": "Split",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/animate.js",
         "apps/desktop/renderer/apps/slides/motion.js",
@@ -28436,6 +28838,12 @@
       ]
     },
     {
+      "message": "Split and Merge",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Split at commas",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -28460,6 +28868,13 @@
       ]
     },
     {
+      "message": "Split into {count} file in {folder}",
+      "plural": "Split into {count} files in {folder}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Split — drag to move; drag to the edge to take it away",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -28475,6 +28890,12 @@
       "message": "Split — the window in four panes at the active cell (two in its first row or column), each scrolling on its own; press again to take it away",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Split: this PDF into several files, by a number of pages or at the selected pages",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -29860,6 +30281,12 @@
       ]
     },
     {
+      "message": "That PDF is no longer open.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "That account does not use a signed-in provider.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -30124,6 +30551,18 @@
       "message": "The Book of Things",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
+      ]
+    },
+    {
+      "message": "The PDF could not be saved: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "The PDF could not be split: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -30732,6 +31171,18 @@
       "message": "The outline of the selected shape, in the Format pane",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "The pages could not be extracted: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "The pages could not be printed: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -31347,6 +31798,12 @@
       ]
     },
     {
+      "message": "There is no page {page} in that file.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "There is no paragraph style \"{style}\" to link a level to.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -31524,6 +31981,30 @@
       "message": "This Device…",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "This PDF is damaged: no part of it says where its pages begin.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This PDF is protected",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "This PDF is protected with a password, and changing the pages of a protected PDF is not built yet.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This PDF is protected, so its pages can be read but not changed or saved yet.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -31789,6 +32270,7 @@
       "message": "This file could not be opened",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -31799,6 +32281,12 @@
       "message": "This file could not be played.",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "This file has no objects a PDF reader can find.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -31841,6 +32329,12 @@
       "message": "This is an ordinary document again — no mail merge.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "This is not a PDF: it does not begin as one.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -31907,6 +32401,13 @@
       "message": "This list has no subtotals to remove",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This makes {count} file, in a folder you choose. This document is not changed.",
+      "plural": "This makes {count} files, in a folder you choose. This document is not changed.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -32281,6 +32782,18 @@
       "message": "Thu",
       "where": [
         "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
+      "message": "Thumbnails",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Thumbnails: the strip of pages beside the document",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -33172,6 +33685,18 @@
       ]
     },
     {
+      "message": "Two Pages",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Two Pages: pages side by side",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Two columns",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -33329,6 +33854,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -33339,6 +33865,7 @@
     {
       "message": "Undo (Ctrl+Z)",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -33604,6 +34131,7 @@
     {
       "message": "Untitled",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/shell.js"
       ]
     },
@@ -34151,6 +34679,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -35167,6 +35696,7 @@
       "message": "Zoom",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/animate.js",
@@ -35181,15 +35711,29 @@
     {
       "message": "Zoom In",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/index.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
     {
+      "message": "Zoom In (Ctrl++)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Zoom Out",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/index.js",
         "packages/office-shell/src/electron/main.js"
+      ]
+    },
+    {
+      "message": "Zoom Out (Ctrl+-)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -36149,6 +36693,18 @@
       ]
     },
     {
+      "message": "pages each",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "pages {range}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "paragraph {number}",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
@@ -36867,6 +37423,12 @@
       ]
     },
     {
+      "message": "{at} of {count}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "{at} of {total}",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -37172,6 +37734,20 @@
       ]
     },
     {
+      "message": "{count} file added at the end",
+      "plural": "{count} files added at the end",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "{count} file combined",
+      "plural": "{count} files combined",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "{count} file had moved with the project and was found again.",
       "plural": "{count} files had moved with the project and were found again.",
       "where": [
@@ -37314,6 +37890,34 @@
       "plural": "{count} page breaks put by hand",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "{count} page deleted",
+      "plural": "{count} pages deleted",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "{count} page extracted to {name}",
+      "plural": "{count} pages extracted to {name}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "{count} page inserted",
+      "plural": "{count} pages inserted",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "{count} page selected",
+      "plural": "{count} pages selected",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -37872,10 +38476,22 @@
       ]
     },
     {
+      "message": "{name} could not be drawn: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "{name} could not be opened: {reason}",
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "{name} could not be read as a PDF: {reason}",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -37903,6 +38519,12 @@
       ]
     },
     {
+      "message": "{name} is not a PDF.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "{name} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -37922,6 +38544,18 @@
       ]
     },
     {
+      "message": "{name} is protected with a password. Opening a PDF that needs a password to be read is not built yet.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "{name} is protected, and its pages cannot be inserted yet.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "{name} layout: used by {count} slide",
       "plural": "{name} layout: used by {count} slides",
       "where": [
@@ -37932,6 +38566,12 @@
       "message": "{name} refreshed",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "{name} was damaged, and was read by finding its pages. Save it to keep a whole copy.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -38345,6 +38985,12 @@
       "message": "{width} × {height} canvas",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "{width} × {height} mm",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {

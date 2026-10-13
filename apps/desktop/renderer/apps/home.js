@@ -12,10 +12,10 @@ import { appFor, kindFromExtension, KINDS } from '@rutba/office-formats/sniff';
 import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop, templatesFolder } from '../shell.js';
 import { WhatsNew } from '../whatsnew.js';
 
-const ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pictures', 'image', 'video'];
+const ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video'];
 
 /** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
-const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : r.kind === 'image' ? 'image' : 'word');
+const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : r.kind === 'image' ? 'image' : r.kind === 'pdf' ? 'pdf' : 'word');
 
 function AppCard({ app, onOpen, onNew }) {
   return (
@@ -210,7 +210,10 @@ export default function Home({ app, shell }) {
                 key={key}
                 app={APPS[key]}
                 onOpen={() => openApp(key)}
-                onNew={NEW_DOCUMENTS.some((n) => n.app === key) ? () => newDocument({ app: key, template: 'blank' }) : null}
+                onNew={NEW_DOCUMENTS.some((n) => n.app === key)
+                  ? () => newDocument({ app: key, template: 'blank' })
+                  // A new PDF is made of other files: the window opens asking for them.
+                  : key === 'pdf' ? () => shell.win.create({ app: 'pdf', query: { combine: 1 } }) : null}
               />
             ))}
           </div>
@@ -718,6 +721,7 @@ const CSS = `
 .tpl-glyph[data-app='sheets'] { background: #0f9d58; }
 .tpl-glyph[data-app='slides'] { background: #d9534f; }
 .tpl-glyph[data-app='video'] { background: #c2408f; }
+.tpl-glyph[data-app='pdf'] { background: #b3261e; }
 
 /* The list takes what is left of the window and scrolls inside it. It used
    to be clipped instead: a flex item that hides its overflow may shrink
@@ -741,6 +745,7 @@ const CSS = `
 .home-recovered-row .glyph[data-app='sheets'] { background: #0f9d58; }
 .home-recovered-row .glyph[data-app='slides'] { background: #d9534f; }
 .home-recovered-row .glyph[data-app='video'] { background: #c2408f; }
+.home-recovered-row .glyph[data-app='pdf'] { background: #b3261e; }
 .home-recovered-row .glyph[data-app='image'] { background: #e08b2b; }
 .home-recovered-text { display: flex; flex-direction: column; min-width: 0; }
 .home-recovered-text small { color: var(--ink-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

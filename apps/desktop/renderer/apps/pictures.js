@@ -619,6 +619,8 @@ export default function Pictures({ app, shell, boot }) {
       'media.animation': { label: frozen ? t('Resume animation') : t('Hold this frame'), icon: frozen ? 'play' : 'pause', run: toggleAnimation },
       'file.edit': { label: t('Edit this picture'), icon: 'wand', run: () => current && shell.win.create({ app: 'image', file: current }) },
       'file.video': { label: t('Open in Video'), icon: 'video', run: () => current && shell.win.create({ app: 'video', file: current }) },
+      // A PDF met among the pictures opens in the PDF app, to work on its pages.
+      'file.pdf': { label: t('Open in PDF'), icon: 'pdf', run: () => current && shell.win.create({ app: 'pdf', file: current }) },
       'file.reveal': { label: t('Show in folder'), icon: 'folderOpen', run: () => current && shell.shell.showInFolder({ path: current }) },
       'file.copy': {
         label: t('Copy the path'),
@@ -739,7 +741,11 @@ export default function Pictures({ app, shell, boot }) {
                 <Button tall icon="chevronUp" label={t('Up')} disabled={!hasParent} onClick={() => enterFolder(parent)} />
               </Group>
               <Group label={t('This file')}>
-                <Button tall icon="wand" label={t('Edit')} disabled={!current || isMedia} onClick={() => commands['file.edit'].run()} />
+                {kind === 'pdf' ? (
+                  <Button tall icon="pdf" label={t('In PDF')} title={t('In PDF: open this PDF in the PDF app, to rotate, move, extract and insert its pages')} data-role="ribbon-open-in-pdf" onClick={() => commands['file.pdf'].run()} />
+                ) : (
+                  <Button tall icon="wand" label={t('Edit')} disabled={!current || isMedia} onClick={() => commands['file.edit'].run()} />
+                )}
                 <Button tall icon="video" label={t('In Video')} disabled={!current || !isMedia} onClick={() => commands['file.video'].run()} />
                 <Button tall icon="folderOpen" label={t('Reveal')} disabled={!current} onClick={() => commands['file.reveal'].run()} />
                 <Button tall icon="trash" label={t('Trash')} disabled={!current} onClick={() => commands['file.trash'].run()} />
@@ -933,6 +939,12 @@ export default function Pictures({ app, shell, boot }) {
             <Button icon="zoomOut" title={t('Zoom out')} onClick={() => commands['view.out'].run()} />
             <Button icon="zoomIn" title={t('Zoom in')} onClick={() => commands['view.in'].run()} />
             <Button icon="maximize" title={t('Fit to window')} pressed={zoom === 0} onClick={() => setZoom(0)} />
+            {kind === 'pdf' ? (
+              <>
+                <Separator />
+                <Button icon="pdf" label={t('Open in PDF')} title={t('Open in PDF: this PDF in the PDF app, to rotate, move, extract and insert its pages')} data-role="open-in-pdf" onClick={() => commands['file.pdf'].run()} />
+              </>
+            ) : null}
           </div>
         ) : null}
 
@@ -984,6 +996,7 @@ export default function Pictures({ app, shell, boot }) {
               <div className="pv-detail-wait">{t('Reading the file…')}</div>
             )}
             {!isMedia && kind !== 'pdf' ? <Button icon="wand" label={t('Edit this picture')} onClick={() => commands['file.edit'].run()} /> : null}
+            {kind === 'pdf' ? <Button icon="pdf" label={t('Open in PDF')} onClick={() => commands['file.pdf'].run()} /> : null}
           </div>
         </Panel>
       ) : null}

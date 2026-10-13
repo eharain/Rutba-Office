@@ -89,6 +89,7 @@ export const contacts = namespaces.contacts;
 export const dav = namespaces.dav;
 export const thumbs = namespaces.thumbs;
 export const capture = namespaces.capture;
+export const pdf = namespaces.pdf;
 
 export function on(event, handler) {
   if (!EVENTS.includes(event)) throw new Error(`unknown event: ${event}`);
@@ -104,4 +105,4 @@ export function boot() {
   return hasShell() ? bridge().boot() : { app: 'home', file: null, platform: 'web', arch: '', versions: {} };
 }
 
-export default { app, win, fs, dialog, shell, store, doc, mail, oauth, present, update, announce, defaults, discover, print, clipboard, calendar, contacts, dav, thumbs, capture, on, boot, pathOf, hasShell };
+export default { app, win, fs, dialog, shell, store, doc, mail, oauth, present, update, announce, defaults, discover, print, clipboard, calendar, contacts, dav, thumbs, capture, pdf, on, boot, pathOf, hasShell };

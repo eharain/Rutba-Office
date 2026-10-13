@@ -142,6 +142,7 @@
 [data-app='pictures'] { --accent: #7b5cd6; }
 [data-app='image'] { --accent: #e08b2b; }
 [data-app='video'] { --accent: #c2408f; }
+[data-app='pdf'] { --accent: #b3261e; }
 [data-app='home'] { --accent: #2b5fd9; }
 [data-app='calendar'] { --accent: #1a9f7a; }
 [data-app='contacts'] { --accent: #5d6d7e; }

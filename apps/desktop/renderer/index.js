@@ -22,6 +22,7 @@ import Slides from './apps/slides.js';
 import Pictures from './apps/pictures.js';
 import ImageTool from './apps/image.js';
 import VideoTool from './apps/video/index.js';
+import PdfTool from './apps/pdf/index.js';
 import Mail from './apps/mail.js';
 import Calendar from './apps/calendar.js';
 import Contacts from './apps/contacts.js';
@@ -34,6 +35,7 @@ const APP_COMPONENTS = {
   pictures: Pictures,
   image: ImageTool,
   video: VideoTool,
+  pdf: PdfTool,
   mail: Mail,
   calendar: Calendar,
   contacts: Contacts,

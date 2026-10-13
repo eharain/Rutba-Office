@@ -107,7 +107,7 @@ export const KINDS = {
   vcf: { app: 'contacts', label: 'Contact Card', ext: '.vcf', mime: 'text/vcard', edit: true },
   ics: { app: 'calendar', label: 'Calendar', ext: '.ics', mime: 'text/calendar', edit: true },
 
-  pdf: { app: 'pictures', label: 'PDF Document', ext: '.pdf', mime: 'application/pdf', edit: false },
+  pdf: { app: 'pdf', label: 'PDF Document', ext: '.pdf', mime: 'application/pdf', edit: true },
   zip: { app: null, label: 'Zip Archive', ext: '.zip', mime: 'application/zip', edit: false },
   unknown: { app: null, label: 'Unknown', ext: '', mime: 'application/octet-stream', edit: false },
 };

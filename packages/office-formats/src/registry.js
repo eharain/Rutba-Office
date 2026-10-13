@@ -25,7 +25,7 @@ export const SITE = {
   company: 'https://tech-style.co',
 };
 
-/** @typedef {'mail'|'word'|'sheets'|'slides'|'pictures'|'image'|'video'} AppKey */
+/** @typedef {'mail'|'word'|'sheets'|'slides'|'pdf'|'pictures'|'image'|'video'} AppKey */
 
 export const APPS = {
   mail: {
@@ -68,6 +68,18 @@ export const APPS = {
     tagline: 'Slides that survive the round trip',
     accent: '#d9534f',
     icon: 'slides',
+  },
+  // The suite's tenth app: reading a PDF and putting its pages in order
+  // (renderer/apps/pdf, docs/PDF.md). It owns .pdf; Pictures still shows a
+  // PDF met in a folder of pictures.
+  pdf: {
+    key: 'pdf',
+    name: 'Rutba PDF',
+    short: 'PDF',
+    noun: 'PDF',
+    tagline: 'Read, rotate, reorder, split and merge',
+    accent: '#b3261e',
+    icon: 'pdf',
   },
   pictures: {
     key: 'pictures',
@@ -118,6 +130,7 @@ export const APP_EXTENSIONS = {
   word: ['docx', 'docm', 'dotx', 'doc', 'dot', 'wri', 'odt', 'rtf', 'txt', 'md', 'markdown', 'html', 'htm'],
   sheets: ['xlsx', 'xlsm', 'xltx', 'xls', 'xlt', 'ods', 'csv', 'tsv'],
   slides: ['pptx', 'pptm', 'potx', 'ppsx', 'ppt', 'pps', 'pot', 'odp'],
+  pdf: ['pdf'],
   pictures: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'bmp', 'tif', 'tiff', 'ico', 'svg', 'pdf'],
   image: ['rimg', 'jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'avif'],
   video: ['rvid', 'mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'mp3', 'm4a', 'wav', 'flac', 'ogg'],
@@ -148,6 +161,7 @@ export const WRITABLE = {
     { kind: 'odp', label: 'OpenDocument Presentation (.odp)' },
     { kind: 'pdf', label: 'PDF Document (.pdf)' },
   ],
+  pdf: [{ kind: 'pdf', label: 'PDF Document (.pdf)' }],
   image: [
     { kind: 'rimg', label: 'Rutba Image Project (.rimg)' },
     { kind: 'png', label: 'PNG Image (.png)' },
@@ -171,6 +185,7 @@ const TITLES = {
   word: 'Documents',
   sheets: 'Worksheets',
   slides: 'Presentations',
+  pdf: 'PDF documents',
   pictures: 'Pictures and PDFs',
   image: 'Images',
   video: 'Video and audio',

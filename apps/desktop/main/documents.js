@@ -3204,7 +3204,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (!recoveryDir) return null;
       const safe = String(key || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
       if (!safe) throw new Error('A recovery copy needs a key.');
-      const ext = kind === 'video' ? '.rvid' : kind === 'image' ? '.rimg' : '.bin';
+      const ext = kind === 'video' ? '.rvid' : kind === 'image' ? '.rimg' : kind === 'pdf' ? '.pdf' : '.bin';
       const file = `window-${safe}${ext}`;
       const data = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
       try {

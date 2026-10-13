@@ -93,6 +93,10 @@ export const ENGINE_WORDS = [
   msg('The sign-in came back with the wrong state, so it was refused.'),
   msg('The sign-in was not completed in five minutes. Nothing has been changed.'),
   msg('No {label} client id is set up in this build. See docs/OAUTH.md — it takes about five minutes and is free.'),
+  // apps/desktop/main/pdf.js
+  msg('That PDF is no longer open.'),
+  msg('{name} is not a PDF.'),
+  msg('{name} could not be read as a PDF: {reason}'),
   // packages/doc-view/src/view.js
   msg('Sort works on the body\'s paragraphs; a table sorts by its own rows.'),
   msg('This selection crosses a table boundary — delete inside one cell at a time.'),
@@ -189,9 +193,17 @@ export const ENGINE_WORDS = [
   // packages/pdf/src/document.js
   msg('A PDF with no pages is not a document. Add a page first.'),
   msg('"{value}" is not a colour this can draw with.'),
+  // packages/pdf/src/assemble.js
+  msg('This PDF is protected with a password, and changing the pages of a protected PDF is not built yet.'),
+  msg('A PDF needs at least one page.'),
+  msg('There is no page {page} in that file.'),
   // packages/pdf/src/images.js
   msg('PNG colour type {colorType} is not supported'),
   msg('PNG filter {filter} is not in the specification'),
+  // packages/pdf/src/reader.js
+  msg('This is not a PDF: it does not begin as one.'),
+  msg('This PDF is damaged: no part of it says where its pages begin.'),
+  msg('This file has no objects a PDF reader can find.'),
   // packages/pdf/src/sheet.js
   msg('A table needs columns.'),
   msg('A table row does not fit even on an empty page; the margins leave no body.'),

@@ -18,6 +18,7 @@ test('the apps carry their names: Documents and Presentations, plurals beside Wo
     word: 'Documents',
     sheets: 'Worksheets',
     slides: 'Presentations',
+    pdf: 'PDF',
     pictures: 'Pictures',
     image: 'Image',
     video: 'Video',
@@ -39,6 +40,8 @@ test('a rename leaves every key where people\'s pins and defaults expect it', ()
   assert.equal(owner.docx, 'word');
   assert.equal(owner.pptx, 'slides');
   assert.equal(owner.xlsx, 'sheets');
+  // The PDF app owns .pdf since it arrived; Pictures still shows one met among its pictures.
+  assert.equal(owner.pdf, 'pdf');
   for (const key of Object.keys(APP_EXTENSIONS)) assert.ok(APPS[key], `${key}, which owns extensions, is still an app key`);
 });
 

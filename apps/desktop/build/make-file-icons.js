@@ -33,6 +33,7 @@ const GLYPHS = {
   calendar: ['M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z', 'M4 10h16', 'M8 2v4M16 2v4', 'M8 14h3M13 14h3M8 17h3'],
   contacts: ['M5 4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z', 'M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M7 18c1-2.5 3-3.5 5-3.5s4 1 5 3.5'],
   mail: ['M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'm3.5 7.5 8.5 6 8.5-6'],
+  pdf: ['M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z', 'M14 3v5h4', 'M8 17v-4h1.5a1.2 1.2 0 0 1 0 2.4H8M13 17v-4h1.6c1 0 1.6.8 1.6 2s-.6 2-1.6 2z'],
 };
 
 /** The app's colour, as theme.css has it; PDF gets a red of its own. */
@@ -83,13 +84,19 @@ const APPS = {
   mail: { colour: '#3b7de0', glyph: 'mail' },
   calendar: { colour: '#1a9f7a', glyph: 'calendar' },
   contacts: { colour: '#5d6d7e', glyph: 'contacts' },
+  // PDF: a page with the format's name across it, as the file-type icon has.
+  pdf: { colour: '#b3261e', glyph: 'pdf', text: 'PDF' },
 };
 
-function tileSvg({ colour, glyph }) {
-  const paths = GLYPHS[glyph].map((d) => `<path d="${d}"/>`).join('');
+function tileSvg({ colour, glyph, text }) {
+  const paths = (text ? GLYPHS[glyph].slice(0, 2) : GLYPHS[glyph]).map((d) => `<path d="${d}"/>`).join('');
+  const words = text
+    ? `<rect x="58" y="128" width="140" height="62" rx="12" fill="${colour}"/><text x="128" y="177" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="800" font-size="54" fill="#ffffff">${text}</text>`
+    : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
   <rect x="8" y="8" width="240" height="240" rx="52" fill="${colour}"/>
   <g transform="translate(44 44) scale(7)" fill="none" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${paths}</g>
+  ${words}
 </svg>`;
 }
 

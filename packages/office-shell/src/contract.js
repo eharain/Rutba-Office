@@ -266,6 +266,15 @@ export const METHODS = {
     'toPDF',        // ({ landscape, margins, pageSize }) -> { bytes }
     'print',        // ({ silent }) -> void
   ],
+  // The PDF app: the files a window has open, read once, and new PDFs made
+  // from their pages without drawing anything (apps/desktop/main/pdf.js).
+  pdf: [
+    'open',         // ({ path } | { bytes, name }) -> { id, name, path, size, version, encrypted, repaired, title, pages: [{ width, height, rotate }] }
+    'close',        // ({ id }) -> { closed }
+    'assemble',     // ({ pages: [{ source, page, rotate }], path, title }) -> { path, size } | { bytes, size }: written whole, or handed back
+    'text',         // ({ id, page }) -> string: the words a page's content draws
+    'inspect',      // ({ path }) -> { pages: [{ width, height, rotate, text }], encrypted, title }: a file read and let go, for the checks
+  ],
   clipboard: [
     'writeText',    // ({ text }) -> void
     'readText',     // () -> string

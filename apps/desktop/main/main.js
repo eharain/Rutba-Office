@@ -24,6 +24,7 @@ import { createDiscoveryService } from './discover.js';
 import { createContactsService } from './contacts.js';
 import { createCalendarService } from './calendar.js';
 import { createDavService } from './dav-sync.js';
+import { createPdfService } from './pdf.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -169,6 +170,8 @@ createShell({
       defaults: createDefaultsService({ associations: fileAssociations() }),
       discover: createDiscoveryService(),
       present: createPresentService({ broadcast }),
+      // The PDF app: its files read once, and new PDFs made from their pages.
+      pdf: createPdfService(),
       oauth,
       mail: createMailService({
         stores,
