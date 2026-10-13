@@ -205,7 +205,7 @@ Fast models, SIMD build. CER and WER in percent; time per further page.
   half the characters on a simulated scan. Urdu recognition is therefore
   labelled beta in the suite, good on Naskh and on Urdu typed in a Naskh
   font, not yet for Nastaliq print. A recogniser of our own for Nastaliq is
-  planned.
+  being prepared (below, "A model of our own").
 - **Chinese** loses a character or two a page (1.5 to 2.9 percent).
 - **150 or 300 dots per inch.** The models read type of 20 to 30 pixels best;
   at 300 dots per inch 12 point type is 50 pixels high and some scripts read
@@ -272,12 +272,50 @@ show the same gain.
   with their text is gathered.
 - A second engine for Chinese, Japanese and difficult layouts.
 
+## A model of our own
+
+Nastaliq is where the shipped model is weakest, so it is the first script
+for a recogniser trained by us. The training data is made by the suite
+itself: `tools/ocr-lines.js` sets lines of text in an OFL font (Noto
+Nastaliq Urdu first) with the suite's renderer, so every line is shaped as
+the suite shows it, and spoils them as print and scans do (a slight turn,
+softening, paper grain, a shadow, drawn small and enlarged, JPEG loss), each
+choice from a seed so a set can be made again exactly. The text can be a
+file, or the suite's own catalogue for a language (`--catalogue ur`: our own
+translations, so nothing of anyone else's is trained on). Each line is a PNG
+beside its text in logical order, the form line recognisers and Tesseract's
+own training read, with a manifest of every line's settings.
+
+`tools/ocr-measure.mjs --lines <folder>` reads such a folder line by line
+through @rutba/ocr and gives the rates over the whole set. The shipped
+`urd` model on lines the generator made:
+
+| Lines | CER | WER | Lines read without an error |
+| :-- | --: | --: | --: |
+| Nastaliq, spoiled as scans (390) | 37.3 | 78.1 | 2.8 |
+| Nastaliq, clean (300) | 29.3 | 73.2 | 3.7 |
+| Naskh, spoiled as scans (300) | 15.9 | 23.6 | 42.7 |
+
+A line read alone is harder than a page (no neighbouring lines to steady
+the layout, and many catalogue lines are two or three words), so these
+rates are higher than the page corpus's; they are what a line model is
+compared with. A model of our own replaces it, behind the same `recognize()`, only when it
+reads these sets and a set of real printed Nastaliq pages clearly better,
+with its rates published here.
+
 ## Measuring again
 
 ```bash
 npm install --prefix <scratch> tesseract.js@7
 npx electron tools/ocr-corpus.js --fonts <folder with the Noto fonts> --out <corpus>
 node tools/ocr-measure.mjs --corpus <corpus> --core <scratch>/node_modules/tesseract.js/node_modules/tesseract.js-core --models <tessdata_fast folder> --out results.json
+```
+
+Lines for training and testing:
+
+```bash
+npx electron tools/ocr-lines.js --catalogue ur --fonts <fonts> --language urd --font NotoNastaliqUrdu.ttf --out <lines> --count 4000 --test 0.1 --seed 1
+node tools/ocr-measure.mjs --lines <lines>/test --language urd
 ```
 
 The Noto fonts (SIL Open Font Licence) are not kept in the repository:

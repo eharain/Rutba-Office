@@ -8,6 +8,13 @@
 // engine and models, with our own analysis first (deskew, scaling, and
 // ink and paper for unevenly lit pages), on the package's thread pool.
 //
+//   node tools/ocr-measure.mjs --lines <dir> --language urd [--out results.json]
+//
+// --lines reads every <id>.png in a folder of single lines (tools/ocr-lines.js
+// makes them) as one line each through @rutba/ocr and compares it with its
+// <id>.gt.txt: the rates over the whole set (edits over characters, not a
+// mean of each line's rate), and the share of lines read without an error.
+//
 // --core is a directory holding tesseract-core-<build>.js and .wasm (the
 // engine tesseract.js 7 runs, tesseract.js-core 7), --models one holding
 // <lang>.traineddata. Each page is read in a process of its own, twice: the
@@ -133,5 +140,35 @@ async function all() {
   if (out) fs.writeFileSync(out, `${JSON.stringify(results, null, 2)}\n`);
 }
 
+/** A folder of line pictures, each read as one line and compared with its ground truth. */
+async function lines() {
+  const { createOcrHost } = await import('@rutba/ocr');
+  const dir = path.resolve(arg('lines'));
+  const lang = arg('language', 'urd');
+  const host = createOcrHost({ threads: Number(arg('threads', 3)) });
+  const ids = fs.readdirSync(dir).filter((f) => f.endsWith('.png')).map((f) => f.slice(0, -4)).sort();
+  let edits = 0, chars = 0, wordEdits = 0, words = 0, exact = 0;
+  const started = Date.now();
+  const rows = await Promise.all(ids.map(async (id) => {
+    const truth = fs.readFileSync(path.join(dir, `${id}.gt.txt`), 'utf8').trim();
+    const r = await host.recognize(fs.readFileSync(path.join(dir, `${id}.png`)), { languages: [lang], mode: 'line' });
+    return { id, truth, read: r.text.replace(/\s+/g, ' ').trim() };
+  }));
+  await host.stop();
+  for (const row of rows) {
+    const a = normal(row.truth, lang), b = normal(row.read, lang);
+    const e = distance([...a], [...b]);
+    edits += e; chars += [...a].length;
+    const wa = a.split(' '), wb = b ? b.split(' ') : [];
+    wordEdits += distance(wa, wb); words += wa.length;
+    if (e === 0) exact += 1;
+  }
+  const summary = { lines: rows.length, cer: edits / Math.max(1, chars), wer: wordEdits / Math.max(1, words), exact: exact / Math.max(1, rows.length), seconds: (Date.now() - started) / 1000 };
+  console.log(`${rows.length} lines: CER ${(summary.cer * 100).toFixed(1)}%  WER ${(summary.wer * 100).toFixed(1)}%  lines exact ${(summary.exact * 100).toFixed(1)}%  in ${summary.seconds.toFixed(0)} s`);
+  const out = arg('out');
+  if (out) fs.writeFileSync(out, `${JSON.stringify({ summary, rows }, null, 2)}\n`);
+}
+
 if (process.argv.includes('--one')) await one();
+else if (process.argv.includes('--lines')) await lines();
 else if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await all();
