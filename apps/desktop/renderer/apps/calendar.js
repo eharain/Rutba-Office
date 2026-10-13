@@ -827,10 +827,10 @@ const CSS = `
 .cal-view.on { background: var(--selected); color: var(--ink); font-weight: 600; }
 .cal-body { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 14px; display: flex; flex-direction: column; }
 .cal-month { display: flex; flex-direction: column; flex: 1; min-height: 540px; }
-.cal-month-head { display: grid; grid-template-columns: repeat(7, 1fr); font-size: 11px; font-weight: 600; color: var(--ink-3); padding: 4px 0; }
+.cal-month-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); font-size: 11px; font-weight: 600; color: var(--ink-3); padding: 4px 0; }
 .cal-month-head div { padding-left: 6px; }
-.cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr; flex: 1; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
-.cal-day { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px; min-height: 84px; display: flex; flex-direction: column; gap: 2px; cursor: cell; }
+.cal-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: 1fr; flex: 1; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.cal-day { min-width: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px; min-height: 84px; display: flex; flex-direction: column; gap: 2px; cursor: cell; }
 .cal-day.other { background: var(--sunken); color: var(--ink-3); }
 .cal-day.today .cal-day-n { background: var(--accent); color: white; }
 .cal-day-n { align-self: flex-end; font-size: 12px; font-weight: 600; padding: 1px 6px; border-radius: 10px; }
