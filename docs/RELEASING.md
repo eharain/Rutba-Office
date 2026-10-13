@@ -69,6 +69,13 @@ It damages a new document, workbook and deck and every old-format file in
 two-second limit, and fails on anything that is not a document, a password
 asked for, or a refusal in a sentence.
 
+The PDF reader has its own, since 1.46.0, because the PDF app reads files it
+did not write on the main process:
+
+```
+node tools/fuzz-pdf.js 300 <seed>
+```
+
 ## Publishing
 
 1. `git fetch`; the integration branch must have `origin/main` in it.
