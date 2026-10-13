@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6432,
+  "count": 6436,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -10625,6 +10625,12 @@
       ]
     },
     {
+      "message": "Every button its picture alone; its name shows when the pointer rests on it",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
       "message": "Every comment in the presentation deleted",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -14255,6 +14261,12 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Icons only",
+      "where": [
+        "packages/office-ui/src/index.js"
       ]
     },
     {
@@ -25770,6 +25782,12 @@
       ]
     },
     {
+      "message": "Ribbon display options",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
       "message": "Riblet",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -28762,6 +28780,12 @@
       "message": "Show its layers",
       "where": [
         "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
+      "message": "Show labels",
+      "where": [
+        "packages/office-ui/src/index.js"
       ]
     },
     {

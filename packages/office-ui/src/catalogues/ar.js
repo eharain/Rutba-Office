@@ -6442,4 +6442,8 @@ export default {
   'The table could not be read: {reason}': 'تعذّرت قراءة الجدول: {reason}',
   'There is no picture on the clipboard.': 'لا توجد صورة في الحافظة.',
   '{count} row of data from the picture inserted': { zero: 'لم يُدرج أي صف من الصورة', one: 'أُدرج صف واحد من بيانات الصورة', two: 'أُدرج صفان من بيانات الصورة', few: 'أُدرجت {count} صفوف من بيانات الصورة', many: 'أُدرج {count} صفًا من بيانات الصورة', other: 'أُدرج {count} صف من بيانات الصورة' },
+  'Ribbon display options': 'خيارات عرض الشريط',
+  'Show labels': 'إظهار التسميات',
+  'Icons only': 'الأيقونات فقط',
+  'Every button its picture alone; its name shows when the pointer rests on it': 'كل زر بصورته وحدها؛ ويظهر اسمه حين يستقر المؤشر عليه',
 };

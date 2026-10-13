@@ -2,7 +2,7 @@
 // don't. A window frame with its own caption, a ribbon, panels, dialogs, menus
 // and toasts — all of it unaware of documents, mail or media.
 
-import React, { createContext, useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './icons.js';
 import { t, tFilled } from './messages.js';
 
@@ -275,6 +275,16 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
   const collapsed = collapsible && (collapsedProp ?? own);
   const [peek, setPeek] = useState(false);
   const ref = useRef(null);
+  // Icons only: every button its picture, its name in its tip. A choice for
+  // every window, kept where the window keeps its own small things.
+  const [iconsOnly, setIconsOnlyState] = useState(() => {
+    try { return localStorage.getItem('rutba.ribbon.icons') === 'only'; } catch { return false; }
+  });
+  const setIconsOnly = (next) => {
+    setIconsOnlyState(next);
+    try { localStorage.setItem('rutba.ribbon.icons', next ? 'only' : 'names'); } catch { /* kept for this window alone */ }
+  };
+  const [options, setOptions] = useState(null);
   const setCollapsed = (next) => {
     if (onCollapse) onCollapse(next);
     if (collapsedProp === undefined) setOwn(next);
@@ -325,6 +335,32 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
       ro?.disconnect();
     };
   }, [showGroups, active, children]);
+
+  // The groups fitted to the window, again whenever it or what is in the
+  // groups changes (a tab chosen, a contextual group come and gone).
+  useLayoutEffect(() => {
+    const el = groupsRef.current;
+    if (!el || !showGroups) return undefined;
+    let frame = 0;
+    const fit = () => {
+      frame = 0;
+      fitGroups(el, iconsOnly);
+      el.dispatchEvent(new Event('scroll'));
+    };
+    const later = () => { if (!frame) frame = requestAnimationFrame(fit); };
+    fitGroups(el, iconsOnly);
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(later) : null;
+    ro?.observe(el);
+    // Changes the fitting makes itself (a folded group's picture) are not a reason to fit again.
+    const mo = typeof MutationObserver === 'function' ? new MutationObserver((list) => { if (list.some((m) => !(m.target instanceof Element && m.target.closest('.rw-fold')))) later(); }) : null;
+    mo?.observe(el, { childList: true, subtree: true, characterData: true });
+    document.fonts?.ready?.then(later).catch(() => {});
+    return () => {
+      ro?.disconnect();
+      mo?.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [showGroups, active, iconsOnly]);
   const scrollGroups = (dir) => {
     const el = groupsRef.current;
     if (el) el.scrollBy({ left: dir * Math.max(240, el.clientWidth * 0.6), behavior: 'smooth' });
@@ -340,7 +376,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
   };
 
   return (
-    <div ref={ref} className={`rw-ribbon${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}`} onMouseDown={keepEditorFocus}>
+    <div ref={ref} className={`rw-ribbon${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}${iconsOnly ? ' icons-only' : ''}`} onMouseDown={keepEditorFocus}>
       <div className="rw-tabs" role="tablist">
         {tabs.map((t, i) => (
           <React.Fragment key={t.id}>
@@ -361,8 +397,35 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
             </button>
           </React.Fragment>
         ))}
+        {options ? (
+          <Menu
+            x={options.x}
+            y={options.y}
+            rtl={options.rtl}
+            onClose={() => setOptions(null)}
+            items={[
+              { label: t('Show labels'), icon: iconsOnly ? undefined : 'check', run: () => setIconsOnly(false) },
+              { label: t('Icons only'), icon: iconsOnly ? 'check' : undefined, title: t('Every button its picture alone; its name shows when the pointer rests on it'), run: () => setIconsOnly(true) },
+              ...(collapsible ? ['-', { label: collapsed ? t('Expand the ribbon') : t('Collapse the ribbon'), key: 'Ctrl+F1', run: () => setCollapsed(!collapsed) }] : []),
+            ]}
+          />
+        ) : null}
         <div className="rw-quick">
           {quick}
+          <button
+            type="button"
+            className="rw-ribbon-options"
+            title={t('Ribbon display options')}
+            aria-label={t('Ribbon display options')}
+            aria-haspopup="menu"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              const rtl = getComputedStyle(e.currentTarget).direction === 'rtl';
+              setOptions(options ? null : { x: rtl ? r.left : r.right, y: r.bottom + 4, rtl: !rtl });
+            }}
+          >
+            <Icon name="sliders" size={13} />
+          </button>
           {collapsible ? (
             <button
               type="button"
@@ -392,7 +455,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
             onClick={(e) => {
               // A command pressed from a peek closes the peek, as in Office; a
               // dropdown keeps it, because a dropdown that closes cannot open.
-              if (collapsed && peek && e.target.closest('button') && !e.target.closest('select')) setPeek(false);
+              if (collapsed && peek && e.target.closest('button') && !e.target.closest('select, .rw-fold')) setPeek(false);
             }}
           >
             {children}
@@ -408,13 +471,160 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
   );
 }
 
-export function Group({ label, children }) {
+/**
+ * A group of the ribbon: its controls, and its name under them.
+ *
+ * When the window is too narrow for every group, the ribbon folds the groups
+ * from its end inwards (see `fitGroups`), and a folded group is one button
+ * the height of the ribbon, with the group's picture and name: pressed, it
+ * drops the group's controls under it, as they are when there is room, and
+ * a command pressed there, a press elsewhere or Escape puts them away.
+ * `icon` names the folded button's picture; without one it takes the
+ * picture of the group's first control.
+ */
+export function Group({ label, icon, children }) {
+  const ref = useRef(null);
+  const [open, setOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const group = ref.current;
+    const fold = group?.querySelector(':scope > .rw-fold');
+    const pop = group?.querySelector(':scope > .rw-group-body');
+    if (!group || !fold || !pop) return undefined;
+    // Under the folded button, from its start edge, kept inside the window.
+    const r = fold.getBoundingClientRect();
+    const w = pop.offsetWidth;
+    const rtl = getComputedStyle(group).direction === 'rtl';
+    const x = Math.max(6, Math.min(window.innerWidth - w - 6, rtl ? r.right - w : r.left));
+    pop.style.left = `${Math.round(x)}px`;
+    pop.style.top = `${Math.round(r.bottom + 4)}px`;
+    // The keyboard goes with it: to the first control, and back on Escape.
+    if (group.dataset.keyOpened) pop.querySelector(FOCUSABLE)?.focus();
+    const away = (e) => { if (!group.contains(e.target) && !e.target.closest?.('.rw-menu')) setOpen(false); };
+    const key = (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setOpen(false);
+      fold.focus();
+    };
+    // A group that unfolds (the window grew) or a ribbon that moves puts it away.
+    const gone = () => setOpen(false);
+    const watch = typeof MutationObserver === 'function' ? new MutationObserver(() => { if (!group.classList.contains('folded')) setOpen(false); }) : null;
+    watch?.observe(group, { attributes: true, attributeFilter: ['class'] });
+    document.addEventListener('mousedown', away, true);
+    group.addEventListener('keydown', key);
+    window.addEventListener('resize', gone);
+    window.addEventListener('blur', gone);
+    return () => {
+      delete group.dataset.keyOpened;
+      watch?.disconnect();
+      document.removeEventListener('mousedown', away, true);
+      group.removeEventListener('keydown', key);
+      window.removeEventListener('resize', gone);
+      window.removeEventListener('blur', gone);
+    };
+  }, [open]);
+
   return (
-    <div className="rw-group">
-      <div className="rw-group-items">{children}</div>
-      {label ? <div className="rw-group-label">{label}</div> : null}
+    <div ref={ref} className="rw-group" data-open={open ? 'true' : undefined}>
+      {/* The folded group's button; drawn only when the group is folded. Its name is drawn from data-label. */}
+      <button
+        type="button"
+        className="rw-fold"
+        data-label={typeof label === 'string' ? label : undefined}
+        aria-label={typeof label === 'string' ? label : undefined}
+        aria-haspopup="true"
+        aria-expanded={open}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') { ref.current.dataset.keyOpened = '1'; if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); } } }}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="rw-fold-icon">{icon ? <Icon name={icon} size={24} strokeWidth={1.5} /> : null}</span>
+        <Icon name="chevronDown" size={9} strokeWidth={2.2} className="rw-caret" />
+      </button>
+      <div
+        className="rw-group-body"
+        onClick={(e) => {
+          // A command pressed in a dropped group puts the group away, as in
+          // Office; a field or a list stays, since it is not done with.
+          if (open && e.target.closest('button') && !e.target.closest('select, input')) setTimeout(() => setOpen(false), 0);
+        }}
+      >
+        <div className="rw-group-items">{children}</div>
+        {label ? <div className="rw-group-label">{label}</div> : null}
+      </div>
     </div>
   );
+}
+
+/**
+ * Fit the groups to the ribbon's width, as Office does when its window
+ * narrows: first the large buttons become small ones stacked three high,
+ * then the small buttons lose their names and keep their pictures, and last
+ * whole groups fold into a button each; every step taken from the end of
+ * the ribbon inwards, and no more of them than it takes. A group whose
+ * pictures repeat keeps its names, since its buttons could not be told
+ * apart without them. Classes on the groups' own nodes: React never sets
+ * them, so a render keeps them.
+ */
+const STAGES = ['compact', 'small', 'folded'];
+function fitGroups(el, iconsOnly = false) {
+  const groups = [...el.querySelectorAll(':scope > .rw-group')];
+  for (const g of groups) g.classList.remove(...STAGES);
+  const fits = () => el.scrollWidth <= el.clientWidth + 1;
+  if (!groups.length || fits()) return;
+  // Icons only, every group is small already; what does not fit still folds.
+  for (const stage of iconsOnly ? ['folded'] : STAGES) {
+    for (let i = groups.length - 1; i >= 0; i--) {
+      const g = groups[i];
+      if (g.classList.contains('folded')) continue;
+      if (stage === 'folded') {
+        g.classList.remove('compact', 'small');
+        const slot = g.querySelector(':scope > .rw-fold > .rw-fold-icon');
+        if (slot && !slot.firstChild) {
+          const first = g.querySelector('.rw-group-items svg:not(.rw-caret)');
+          if (first) slot.appendChild(first.cloneNode(true));
+        }
+        g.classList.add('folded');
+      } else {
+        if (stage === 'small' && !namesCanGo(g)) continue;
+        const before = g.getBoundingClientRect().width;
+        g.classList.add(stage);
+        if (g.getBoundingClientRect().width >= before - 1) {
+          g.classList.remove(stage);
+          continue;
+        }
+      }
+      if (fits()) return giveBack(groups, fits);
+    }
+  }
+}
+
+/**
+ * A group shrunk early may have room again once a later one has folded:
+ * from the start of the ribbon, each gets back what it gave up, where the
+ * ribbon still fits.
+ */
+function giveBack(groups, fits) {
+  for (const g of groups) {
+    for (const stage of ['small', 'compact']) {
+      if (!g.classList.contains(stage)) continue;
+      g.classList.remove(stage);
+      if (!fits()) {
+        g.classList.add(stage);
+        break;
+      }
+    }
+  }
+}
+
+/** Whether a group's buttons can be told apart by their pictures alone. */
+function namesCanGo(g) {
+  const named = [...g.querySelectorAll('.rw-group-items .rw-btn')].filter((b) => b.querySelector(':scope > span') && b.querySelector(':scope > svg:not(.rw-caret)'));
+  if (!named.length) return false;
+  const all = [...g.querySelectorAll('.rw-group-items .rw-btn > svg:not(.rw-caret)')].map((s) => s.getAttribute('data-icon'));
+  const mine = named.map((b) => b.querySelector(':scope > svg:not(.rw-caret)').getAttribute('data-icon'));
+  return mine.every((icon) => all.filter((x) => x === icon).length === 1);
 }
 
 /**
@@ -508,8 +718,14 @@ function useTips() {
         held = null;
       }
     };
-    const show = (el, text) => {
-      tip.textContent = text;
+    const show = (el, text, lead = '') => {
+      tip.textContent = '';
+      if (lead) {
+        const b = document.createElement('b');
+        b.textContent = lead;
+        tip.append(b, document.createElement('br'));
+      }
+      tip.append(text);
       tip.classList.add('on');
       const r = el.getBoundingClientRect();
       const w = tip.offsetWidth;
@@ -525,13 +741,17 @@ function useTips() {
       const el = e.target.closest?.('[data-tip], [title]');
       if (!el || el === held?.el) return;
       hide();
-      const text = el.getAttribute('data-tip') || el.getAttribute('title');
+      let text = el.getAttribute('data-tip') || el.getAttribute('title');
+      // A button's name, when its tip does not begin with it, comes first: with
+      // the ribbon showing icons only, the tip is where the name is read.
+      const name = el.matches?.('.rw-btn') ? el.querySelector(':scope > span')?.textContent.trim() : '';
+      const lead = name && text && !text.startsWith(name) ? name : '';
       if (!text || el.disabled === true && !el.getAttribute('data-tip')) return;
       if (el.hasAttribute('title')) {
         held = { el, title: el.getAttribute('title') };
         el.removeAttribute('title');
       }
-      timer = setTimeout(() => show(el, text), 420);
+      timer = setTimeout(() => show(el, text, lead), 420);
       const leave = () => {
         el.removeEventListener('mouseleave', leave);
         hide();

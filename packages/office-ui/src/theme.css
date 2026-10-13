@@ -374,13 +374,16 @@ textarea,
 .rw-quick .rw-btn:disabled { opacity: 0.45; }
 
 /* Collapsing: the chevron at the strip's end; a peek floats the groups over the content. */
-.rw-collapse {
+.rw-collapse,
+.rw-ribbon-options {
   border: 0; background: transparent; color: var(--ink-3); width: 26px; height: 26px; margin-inline-start: 4px;
   border-radius: var(--r-1); display: grid; place-items: center; cursor: pointer;
   transition: background var(--fast), color var(--fast);
 }
-.rw-collapse:hover { background: var(--hover); color: var(--ink); }
-.rw-collapse:focus-visible { outline-offset: -2px; }
+.rw-collapse:hover,
+.rw-ribbon-options:hover { background: var(--hover); color: var(--ink); }
+.rw-collapse:focus-visible,
+.rw-ribbon-options:focus-visible { outline-offset: -2px; }
 .rw-ribbon.collapsed .rw-tabs { border-bottom: 0; }
 .rw-ribbon.peek .rw-groups-wrap {
   position: absolute; left: 0; right: 0; top: calc(100% + 1px); z-index: 30;
@@ -598,6 +601,85 @@ textarea,
 .rw-btn.ghost { color: var(--ink-2); }
 
 .rw-sep { width: 1px; align-self: stretch; margin: 3px 5px; background: var(--line-soft); }
+
+/*
+  A narrow window, as Office meets it: the groups give up room from the end
+  of the ribbon inwards. `compact`, the large buttons become small ones three
+  high; `small`, the small ones keep their pictures and lose their names (the
+  tip still names them); `folded`, the whole group is one button that drops
+  its controls under it.
+*/
+.rw-group-body { display: contents; }
+:is(.rw-group.compact, .rw-group.small) .rw-group-items {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(3, var(--rw-row-h));
+  align-content: space-evenly;
+  align-items: center;
+  column-gap: 2px;
+  row-gap: 1px;
+}
+:is(.rw-group.compact, .rw-group.small) .rw-group-items > :not(.rw-btn) { grid-row: 1 / -1; }
+:is(.rw-group.compact, .rw-group.small) .rw-group-items > :is(.rw-btn.tall, .rw-btn:has(> span):has(> svg:not(.rw-caret))) {
+  grid-row: auto;
+  flex-direction: row;
+  align-self: center;
+  justify-content: flex-start;
+  height: var(--rw-row-h);
+  min-width: 0;
+  padding: 0 6px;
+  gap: 5px;
+  font-size: 12.5px;
+}
+:is(.rw-group.compact, .rw-group.small) .rw-group-items > :is(.rw-btn.tall, .rw-btn:has(> span):has(> svg:not(.rw-caret))) svg:not(.rw-caret) { width: 16px; height: 16px; stroke-width: 1.7; }
+:is(.rw-group.compact, .rw-group.small) .rw-group-items > :is(.rw-btn.tall, .rw-btn:has(> span):has(> svg:not(.rw-caret))) > span { white-space: nowrap; max-width: none; max-height: none; text-align: start; }
+:is(.rw-group.small, .rw-ribbon.icons-only .rw-group:not(.folded)) .rw-btn:has(> svg:not(.rw-caret)) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+:is(.rw-group.small, .rw-ribbon.icons-only .rw-group:not(.folded)) .rw-btn:has(> svg:not(.rw-caret)) { min-width: 28px; justify-content: center; position: relative; }
+/* Icons only, a large button stays large: its picture in the middle of the full height, its name in its tip. */
+.rw-ribbon.icons-only .rw-group:not(.folded):not(.compact):not(.small) .rw-group-items > :is(.rw-btn.tall, .rw-btn:has(> span):has(> svg:not(.rw-caret))) { justify-content: center; padding: 0 7px; min-width: 40px; }
+
+.rw-fold { display: none; }
+.rw-group.folded > .rw-group-body { display: none; }
+.rw-group.folded > .rw-fold {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  height: calc(var(--rw-items-h) + var(--rw-label-h));
+  min-width: 52px;
+  padding: 7px 6px 3px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.22;
+  cursor: pointer;
+  transition: background var(--fast);
+}
+.rw-group.folded > .rw-fold::after { content: attr(data-label); order: 1; white-space: normal; max-width: 6.8em; text-wrap: balance; text-align: center; }
+.rw-fold .rw-caret { order: 2; width: 9px; height: 9px; opacity: 0.72; flex: none; }
+.rw-fold-icon { display: grid; place-items: center; height: 24px; }
+.rw-fold-icon svg { width: 24px; height: 24px; }
+.rw-group.folded > .rw-fold:hover { background: var(--hover); }
+.rw-group.folded[data-open] > .rw-fold { background: var(--active); }
+.rw-group.folded > .rw-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rw-group.folded[data-open] > .rw-group-body {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  z-index: 60;
+  padding: 5px 8px 2px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-3);
+  animation: rw-drop 120ms var(--ease);
+}
+@keyframes rw-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+:root:is([lang='ur'], [lang='ar']) .rw-group.folded > .rw-fold { font-size: 12.5px; line-height: 1.3; }
 
 /* Right to left, the arrows that mean before and after point the other way, as Office's do. */
 [dir='rtl'] .rw-ribbon .rw-btn svg:is([data-icon='chevronLeft'], [data-icon='chevronRight'], [data-icon='undo'], [data-icon='redo'], [data-icon='reply'], [data-icon='replyAll'], [data-icon='forward']) { transform: scaleX(-1); }

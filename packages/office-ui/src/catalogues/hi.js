@@ -6442,4 +6442,8 @@ export default {
   'The table could not be read: {reason}': 'तालिका पढ़ी नहीं जा सकी: {reason}',
   'There is no picture on the clipboard.': 'क्लिपबोर्ड पर कोई चित्र नहीं है।',
   '{count} row of data from the picture inserted': { one: 'चित्र से डेटा की {count} पंक्ति डाली गई', other: 'चित्र से डेटा की {count} पंक्तियाँ डाली गईं' },
+  'Ribbon display options': 'रिबन प्रदर्शन विकल्प',
+  'Show labels': 'नाम दिखाएँ',
+  'Icons only': 'केवल आइकन',
+  'Every button its picture alone; its name shows when the pointer rests on it': 'हर बटन पर केवल उसका चित्र; पॉइंटर उस पर रुकने पर उसका नाम दिखता है',
 };

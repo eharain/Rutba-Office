@@ -95,12 +95,12 @@ const MEASURE = `(() => {
     const gb = grp.getBoundingClientRect();
     const items = grp.classList.contains('folded') ? [] : [...grp.querySelectorAll('.rw-group-items button, .rw-group-items select, .rw-group-items input')];
     for (const n of items) {
-      if (!shown(n) || n.closest('.rw-fold-pop')) continue;
+      if (!shown(n)) continue;
       const b = n.getBoundingClientRect();
       if (b.left < gb.left - 1 || b.right > gb.right + 1 || b.bottom > g.bottom + 1 || b.top < g.top - 1) clipped.push(name(n));
     }
     for (const s of grp.querySelectorAll('.rw-btn > span, .rw-group-label')) {
-      if (!shown(s) || s.closest('.rw-fold-pop')) continue;
+      if (!shown(s) || s.getBoundingClientRect().width <= 1) continue;
       if (s.scrollWidth > s.clientWidth + 1 && getComputedStyle(s).textOverflow !== 'clip') short.push(s.textContent.trim().slice(0, 30));
     }
   }
@@ -126,7 +126,7 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
     const wc = win.webContents;
     wc.invalidate();
     await wait(700);
-    const bottom = await wc.executeJavaScript(`(() => { const r = document.querySelector('.rw-ribbon')?.getBoundingClientRect(); const pop = document.querySelector('.rw-fold-pop.open')?.getBoundingClientRect(); return Math.ceil(Math.max(r ? r.bottom : 200, pop ? pop.bottom : 0) + 10); })()`);
+    const bottom = await wc.executeJavaScript(`(() => { const r = document.querySelector('.rw-ribbon')?.getBoundingClientRect(); const pop = document.querySelector('.rw-group[data-open] > .rw-group-body')?.getBoundingClientRect(); return Math.ceil(Math.max(r ? r.bottom : 200, pop ? pop.bottom : 0) + 10); })()`);
     const [w] = win.getContentSize();
     fs.writeFileSync(path.join(capture, name), (await wc.capturePage({ x: 0, y: 0, width: w, height: Math.min(bottom, 600) })).toPNG());
   };
@@ -155,12 +155,12 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
       if (folded) await js(`document.querySelector('.rw-collapse')?.click(), 1`);
       const names = await tabs(js);
       const views = [];
-      for (const width of [WIDE, min]) {
+      for (const width of [WIDE, 1280, min]) {
         await size(win, width);
         for (let i = 0; i < names.length; i++) {
           await pick(js, i);
           const m = await js(MEASURE);
-          views.push({ width, tab: names[i], ...m });
+          views.push({ ...m, asked: width, tab: names[i] });
           await snap(win, `ribbon-${app}-${width}-${String(i).padStart(2, '0')}-${slug(names[i])}.png`);
         }
       }
@@ -170,12 +170,78 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
       await js(`document.documentElement.dataset.theme = 'dark', 1`);
       await snap(win, `ribbon-${app}-dark.png`);
       await js(`document.documentElement.dataset.theme = 'light', 1`);
+
+      // A folded group, at the narrowest window, drops its controls under its
+      // button, inside the window; a press of one of them, or Escape, puts
+      // them away.
+      const narrow = views.findIndex((v) => v.asked === min && v.stages?.includes('F'));
+      if (narrow >= 0) {
+        await size(win, min);
+        await pick(js, names.indexOf(views[narrow].tab));
+        const dropped = await js(`(async () => {
+          const g = document.querySelector('.rw-groups > .rw-group.folded');
+          const fold = g?.querySelector(':scope > .rw-fold');
+          if (!fold) return { none: true };
+          fold.click();
+          for (let i = 0; i < 40 && !g.matches('[data-open]'); i++) await new Promise((r) => setTimeout(r, 50));
+          await new Promise((r) => setTimeout(r, 200));
+          const body = g.querySelector(':scope > .rw-group-body').getBoundingClientRect();
+          const f = fold.getBoundingClientRect();
+          const controls = [...g.querySelectorAll('.rw-group-items button, .rw-group-items select')].filter((n) => n.getBoundingClientRect().width > 0);
+          return {
+            label: fold.dataset.label, open: g.matches('[data-open]'), controls: controls.length,
+            under: body.top >= f.bottom - 1 && body.top <= f.bottom + 12,
+            inside: body.left >= 0 && body.right <= innerWidth + 1 && body.bottom <= innerHeight,
+            icon: Boolean(fold.querySelector('.rw-fold-icon svg')),
+          };
+        })()`);
+        await snap(win, `ribbon-${app}-${min}-dropped.png`);
+        await js(`document.querySelector('.rw-groups > .rw-group.folded[data-open]')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 1`);
+        const shut = await until(() => js(`!document.querySelector('.rw-group[data-open]')`), 'the dropped group to close', 3000).then(() => true).catch(() => false);
+        check(`ribbon: ${app}'s folded group (${dropped.label}) drops its controls under its button inside the window, and Escape puts them away`,
+          !dropped.none && dropped.open && dropped.controls > 0 && dropped.under && dropped.inside && dropped.icon && shut, JSON.stringify({ ...dropped, shut }));
+      }
+
+      // Icons only, chosen from the ribbon's display options: the names go
+      // and the pictures stay, each name in its button's tip, shown when the
+      // pointer rests there; and Show labels puts them back.
+      await size(win, WIDE);
+      await pick(js, 0);
+      const choose = (label) => js(`(async () => {
+        document.querySelector('.rw-ribbon-options')?.click();
+        for (let i = 0; i < 20 && !document.querySelector('.rw-menu'); i++) await new Promise((r) => setTimeout(r, 50));
+        const item = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)});
+        if (!item) return 'no ' + ${JSON.stringify(label)};
+        item.click();
+        return 'chosen';
+      })()`);
+      const iconsChosen = await choose('Icons only');
+      await until(() => js(`Boolean(document.querySelector('.rw-ribbon.icons-only'))`), 'icons only', 3000).catch(() => {});
+      await wait(300);
+      const bare = await js(`(() => {
+        const named = [...document.querySelectorAll('.rw-groups .rw-btn')].filter((b) => b.getBoundingClientRect().width > 0 && b.querySelector(':scope > span') && b.querySelector(':scope > svg:not(.rw-caret)'));
+        const showing = named.filter((b) => b.querySelector(':scope > span').getBoundingClientRect().width > 1);
+        const tipped = named.filter((b) => b.querySelector(':scope > span').textContent.trim() && (b.dataset.tip || '').trim());
+        return { named: named.length, showing: showing.length, tipped: tipped.length, first: named[0]?.dataset.tip?.slice(0, 30) || '', height: Math.round(document.querySelector('.rw-ribbon').getBoundingClientRect().height) };
+      })()`);
+      await snap(win, `ribbon-${app}-icons-only.png`);
+      // The tip under the pointer.
+      await js(`(() => { const all = [...document.querySelectorAll('.rw-groups .rw-btn')].filter((n) => n.getBoundingClientRect().width > 0 && n.querySelector(':scope > span')); const b = all.find((n) => !(n.dataset.tip || '').startsWith(n.querySelector(':scope > span').textContent.trim())) || all[0]; window.__tipName = b?.querySelector(':scope > span').textContent.trim(); b?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); return 1; })()`);
+      const tip = await until(() => js(`(() => { const t = document.querySelector('.rw-tip.on')?.textContent || ''; return t && t.startsWith(window.__tipName || '') ? t : ''; })()`), 'the tip', 3000).catch(() => '');
+      await js(`(() => { const b = [...document.querySelectorAll('.rw-groups .rw-btn')].find((n) => n.getBoundingClientRect().width > 0 && n.querySelector(':scope > span')); b?.dispatchEvent(new MouseEvent('mouseleave')); return 1; })()`);
+      const namesBack = await choose('Show labels');
+      const back = await until(() => js(`!document.querySelector('.rw-ribbon.icons-only')`), 'the names back', 3000).then(() => true).catch(() => false);
+      check(`ribbon: ${app}'s ribbon shows icons only when chosen, every name in its button's tip, and its names again on Show labels`,
+        iconsChosen === 'chosen' && (bare.named === 0 || (bare.showing === 0 && bare.tipped === bare.named && Boolean(tip))) && namesBack === 'chosen' && back,
+        JSON.stringify({ iconsChosen, ...bare, tip: String(tip).slice(0, 30), namesBack, back }));
+
       if (folded) await js(`document.querySelector('.rw-collapse')?.click(), 1`);
       const heights = [...new Set(views.filter((v) => !v.none).map((v) => v.ribbon.height))];
       check(`ribbon: ${app}'s ribbon is one height on every tab`, heights.length === 1, heights.join(', '));
       seen.push({ app, views });
-      const bad = views.filter((v) => !v.none && (v.past > 0 || v.clipped.length || v.short.length));
-      check(`ribbon: ${app}'s ribbon fits the window on every tab, wide and narrow, with no control cut off`, !bad.length,
+      // Nothing to scroll sideways to, and the folded groups the last ones.
+      const bad = views.filter((v) => !v.none && (v.past > 0 || v.over > 1 || v.clipped.length || v.short.length || !/^[-CS]*F*$/.test(v.stages)));
+      check(`ribbon: ${app}'s ribbon fits the window on every tab, wide, middling and narrow, folding from its end with no control cut off`, !bad.length,
         bad.slice(0, 6).map((v) => `${v.tab}@${v.width}: past ${v.past}, over ${v.over}, stages ${v.stages}, clipped [${v.clipped.slice(0, 4).join('|')}], short [${v.short.slice(0, 3).join('|')}]`).join('; ') || `${views.length} views`);
     } catch (err) {
       check(`ribbon: ${app}'s ribbon checks ran`, false, err.message);
@@ -202,7 +268,7 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
           views.push({ width, ...(await js(MEASURE)) });
           await snap(win, `ribbon-${app}-ur-${width}.png`);
         }
-        const bad = views.filter((v) => !v.none && (v.dir !== 'rtl' || v.past > 0 || v.clipped.length));
+        const bad = views.filter((v) => !v.none && (v.dir !== 'rtl' || v.past > 0 || v.over > 1 || v.clipped.length || !/^[-CS]*F*$/.test(v.stages)));
         check(`ribbon: ${app}'s ribbon in Urdu runs right to left and fits, wide and narrow`, !bad.length,
           bad.map((v) => `${v.width}: dir ${v.dir}, past ${v.past}, stages ${v.stages}, clipped [${v.clipped.slice(0, 4).join('|')}]`).join('; ') || views.map((v) => `${v.width}:${v.stages}`).join(' '));
         win.destroy();

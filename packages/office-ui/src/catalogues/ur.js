@@ -6440,4 +6440,8 @@ export default {
   'The table could not be read: {reason}': 'جدول پڑھا نہیں جا سکا: {reason}',
   'There is no picture on the clipboard.': 'کلپ بورڈ پر کوئی تصویر نہیں ہے۔',
   '{count} row of data from the picture inserted': { one: 'تصویر سے ڈیٹا کی {count} قطار شامل کی گئی', other: 'تصویر سے ڈیٹا کی {count} قطاریں شامل کی گئیں' },
+  'Ribbon display options': 'ربن دکھانے کے اختیارات',
+  'Show labels': 'نام دکھائیں',
+  'Icons only': 'صرف آئیکن',
+  'Every button its picture alone; its name shows when the pointer rests on it': 'ہر بٹن پر صرف اس کی تصویر؛ اس کا نام اس وقت دکھائی دیتا ہے جب پوائنٹر اس پر رکے',
 };
