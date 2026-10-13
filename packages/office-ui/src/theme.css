@@ -702,6 +702,20 @@ textarea,
 @keyframes rw-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 :root:is([lang='ur'], [lang='ar']) .rw-group.folded > .rw-fold { font-size: 12.5px; line-height: 1.3; }
 
+/*
+  The suite's own colour on its ribbons: each large button's picture in its
+  app's colour (Documents blue, Worksheets green, Presentations red...), its
+  name in ink; and the pictures Office draws in colour drawn so, the font
+  colour's bar red, the highlighter's yellow, the fill's drop blue.
+*/
+.rw-ribbon { --rw-icon-accent: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+:root[data-theme='dark'] .rw-ribbon { --rw-icon-accent: color-mix(in srgb, var(--accent) 70%, white); }
+.rw-groups .rw-group-items > :is(.rw-btn.tall, .rw-btn:has(> span):has(> svg:not(.rw-caret))):not(:disabled) > svg:not(.rw-caret),
+.rw-fold-icon svg { color: var(--rw-icon-accent); }
+.rw-btn:not(:disabled) svg[data-icon='fontColour'] path:last-child { stroke: #e03131; }
+.rw-btn:not(:disabled) svg[data-icon='highlighter'] path:last-child { stroke: #f2bf00; }
+.rw-btn:not(:disabled) svg[data-icon='bucketFill'] path:last-child { stroke: #2b8be6; fill: #2b8be6; }
+
 /* Right to left, the arrows that mean before and after point the other way, as Office's do. */
 [dir='rtl'] .rw-ribbon .rw-btn svg:is([data-icon='chevronLeft'], [data-icon='chevronRight'], [data-icon='undo'], [data-icon='redo'], [data-icon='reply'], [data-icon='replyAll'], [data-icon='forward']) { transform: scaleX(-1); }
 /* Urdu and Arabic letters at the size of the Latin ones beside them. */
