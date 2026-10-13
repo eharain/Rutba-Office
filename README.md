@@ -52,7 +52,9 @@ wrongly and places where the way to do something is not yet obvious. The
 issue tracker is where those go, and the release notes say what each
 release fixed.
 
-Downloads are built for Windows, macOS and Linux:
+Downloads are built for Windows. The build configuration has macOS and Linux targets, but
+no release has carried them yet; build them from source with `npm run dist:mac` or
+`npm run dist:linux`, and they are named as below:
 
 
 | Platform | File |
