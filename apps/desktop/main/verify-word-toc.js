@@ -65,7 +65,11 @@ export async function verifyWordToc(h, { file }) {
     );
 
     // The entries are drawn on the page too, not just held in the model.
-    const onPage = await js(`[...document.querySelectorAll('.wd-link')].map((l) => l.closest('[data-block]')?.textContent || '').filter(Boolean)`);
+    // Waited for: the model has them a beat before the page draws them, and
+    // a busy full run read the page in between.
+    const drawn = `[...document.querySelectorAll('.wd-link')].map((l) => l.closest('[data-block]')?.textContent || '').filter(Boolean)`;
+    await until(() => js(`${drawn}.length > 0`), 'the entries drawn on the page', 5000).catch(() => {});
+    const onPage = await js(drawn);
     check(
       'word: the entries are drawn on the page, as clickable text with a page number',
       onPage.some((t) => t.includes('Introduction')) && onPage.some((t) => t.includes('Method')),
