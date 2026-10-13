@@ -4,6 +4,7 @@
 
 import React, { createContext, useContext, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './icons.js';
+import { useRibbonKeys } from './keytips.js';
 import { t, tFilled } from './messages.js';
 
 export { Icon };
@@ -308,6 +309,8 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
   }, [collapsed, collapsible, collapsedProp, onCollapse]);
 
   const showGroups = !collapsed || peek;
+  // KeyTips and the arrow keys (keytips.js).
+  const keys = useRibbonKeys({ ref, tabs, active, onTab, collapsed, peek: setPeek });
 
   // The groups are wider than most windows. There is no bar (a bar under a
   // toolbar reads as a fault); a chevron appears on whichever side has more,
@@ -376,7 +379,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
   };
 
   return (
-    <div ref={ref} className={`rw-ribbon${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}${iconsOnly ? ' icons-only' : ''}`} onMouseDown={keepEditorFocus}>
+    <div ref={ref} className={`rw-ribbon${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}${iconsOnly ? ' icons-only' : ''}${keys.keyTips ? ' keytips' : ''}`} onMouseDown={keepEditorFocus} onKeyDown={keys.onKeyDown}>
       <div className="rw-tabs" role="tablist">
         {tabs.map((t, i) => (
           <React.Fragment key={t.id}>
@@ -467,6 +470,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
           ) : null}
         </div>
       ) : null}
+      {keys.overlay}
     </div>
   );
 }

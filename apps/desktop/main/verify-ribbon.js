@@ -235,6 +235,60 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
         iconsChosen === 'chosen' && (bare.named === 0 || (bare.showing === 0 && bare.tipped === bare.named && Boolean(tip))) && namesBack === 'chosen' && back,
         JSON.stringify({ iconsChosen, ...bare, tip: String(tip).slice(0, 30), namesBack, back }));
 
+      // The keyboard: Alt alone letters the tabs, a tab's letter chooses it
+      // and letters its controls, Escape goes back a step at a time; the
+      // arrows go from the tabs into the controls with a ring that shows,
+      // and Escape gives the keyboard back to the page.
+      await size(win, WIDE);
+      await pick(js, 0);
+      const wc = win.webContents;
+      const key = async (code, char) => {
+        wc.sendInputEvent({ type: 'keyDown', keyCode: code });
+        if (char) wc.sendInputEvent({ type: 'char', keyCode: char });
+        wc.sendInputEvent({ type: 'keyUp', keyCode: code });
+        await wait(120);
+      };
+      const tipsNow = () => js(`[...document.querySelectorAll('.rw-keytip')].map((n) => ({ code: n.dataset.code, tab: n.dataset.tab || null }))`);
+      await key('Alt');
+      await until(() => tipsNow().then((l) => l.some((t) => t.tab)), 'the tabs\' KeyTips', 3000).catch(() => {});
+      const onTabs = await tipsNow();
+      const tabCodes = onTabs.filter((t) => t.tab);
+      const second = tabCodes[1];
+      const prefixFree = (list) => list.every((a, i) => list.every((b, j) => i === j || !b.code.startsWith(a.code)));
+      for (const ch of second?.code || '') await key(ch);
+      await until(() => tipsNow().then((l) => l.length > 0 && !l.some((t) => t.tab)), 'the controls\' KeyTips', 3000).catch(() => {});
+      const onControls = await tipsNow();
+      const chosen = await js(`document.querySelectorAll('.rw-tab')[1]?.getAttribute('aria-selected') === 'true'`);
+      await snap(win, `ribbon-${app}-keytips.png`);
+      await key('Escape');
+      const backToTabs = await until(() => tipsNow().then((l) => l.some((t) => t.tab)), 'back to the tabs', 2000).then(() => true).catch(() => false);
+      await key('Escape');
+      const gone = await until(() => tipsNow().then((l) => !l.length), 'the KeyTips gone', 2000).then(() => true).catch(() => false);
+      check(`ribbon: ${app}'s KeyTips: Alt letters every tab, the second tab's letters (${second?.code}) choose it and letter its controls, all prefix-free, and Escape steps back and away`,
+        tabCodes.length === names.length && prefixFree(tabCodes) && chosen && onControls.length > 0 && prefixFree(onControls) && backToTabs && gone,
+        JSON.stringify({ tabs: tabCodes.map((t) => t.code).join(' '), controls: onControls.length, sample: onControls.slice(0, 8).map((t) => t.code).join(' '), chosen, backToTabs, gone }));
+
+      await pick(js, 0);
+      await key('Alt');
+      await until(() => tipsNow().then((l) => l.length > 0), 'the KeyTips', 2000).catch(() => {});
+      await key('Down');
+      const ring = async () => js(`(() => {
+        const a = document.activeElement;
+        if (!a || !a.closest('.rw-groups')) return { inside: false, name: a?.className || '' };
+        const cs = getComputedStyle(a);
+        return { inside: true, visible: a.matches(':focus-visible'), width: parseFloat(cs.outlineWidth) || 0, style: cs.outlineStyle, name: (a.dataset.tip || a.textContent || '').trim().slice(0, 20) };
+      })()`);
+      await until(() => ring().then((r) => r.inside), 'the keyboard in the ribbon', 2000).catch(() => {});
+      const first = await ring();
+      await key('Right');
+      const next = await ring();
+      await snap(win, `ribbon-${app}-focus.png`);
+      await key('Escape');
+      const left = await until(() => js(`!document.activeElement?.closest('.rw-ribbon')`), 'the keyboard back to the page', 2000).then(() => true).catch(() => false);
+      check(`ribbon: ${app}'s ribbon from the keyboard: Down from the tabs reaches a control with a ring that shows, Right moves to the next, Escape goes back to the page`,
+        first.inside && first.visible && first.width >= 2 && first.style !== 'none' && next.inside && next.name !== first.name && left,
+        JSON.stringify({ first, next: next.name, left }));
+
       if (folded) await js(`document.querySelector('.rw-collapse')?.click(), 1`);
       const heights = [...new Set(views.filter((v) => !v.none).map((v) => v.ribbon.height))];
       check(`ribbon: ${app}'s ribbon is one height on every tab`, heights.length === 1, heights.join(', '));

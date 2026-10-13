@@ -678,6 +678,27 @@ textarea,
   box-shadow: var(--shadow-3);
   animation: rw-drop 120ms var(--ease);
 }
+/* KeyTips: a small dark tag over each tab and control, its letters the keys that press it. */
+.rw-keytips { position: fixed; inset: 0; pointer-events: none; z-index: 80; }
+.rw-keytip {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--n-90);
+  color: #ffffff;
+  font: 600 10.5px/17px var(--font);
+  letter-spacing: 0.03em;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  animation: rw-keytip 90ms var(--ease);
+}
+.rw-keytip.off { opacity: 0.22; }
+:root[data-theme='dark'] .rw-keytip { background: #f2f4f7; color: #1b1d22; }
+@keyframes rw-keytip { from { opacity: 0; transform: translate(-50%, -40%); } }
 @keyframes rw-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 :root:is([lang='ur'], [lang='ar']) .rw-group.folded > .rw-fold { font-size: 12.5px; line-height: 1.3; }
 
