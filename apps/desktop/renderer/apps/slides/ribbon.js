@@ -489,6 +489,7 @@ export default function SlidesRibbon({
           <Group label={t('Illustrations')}>
             <Button tall icon="shape" label={t('Shapes')} title={t("Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours")} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
 
+            <Button tall icon="qrcode" label={t('QR Code')} className="sl-qr-insert" title={t('QR Code: a code a phone can scan, for a web address or any words, put in as a picture on this slide; double-click it to change it')} onClick={() => act('qrcode')} />
             <Button tall icon="star" label={t('Icons')} title={t("Icons — one of the suite's own icons, in the colour you choose, as a picture on this slide")} onClick={() => act('icons')} />
             <Button tall icon="shape" label={t('3D Models')} className="sl-model3d-insert" title={t('3D Models — a model from a .glb or .gltf file on this computer, drawn on the slide; turn it from the 3D Model tab or by its handle')} onClick={() => act('model3d')} />
             <Button tall icon="shape" label={t('SmartArt')} title={t('SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes')} onClick={() => act('insertSmartArt')} />

@@ -3810,7 +3810,7 @@ export class Deck {
    * part when nothing else uses it and it is the same kind, in a new one
    * when something does.
    */
-  replacePicture(slideIndex, shapeId, { data, contentType = 'image/png', aspect = null }) {
+  replacePicture(slideIndex, shapeId, { data, contentType = 'image/png', aspect = null, alt = null }) {
     const at = this.#pictureAt(slideIndex, shapeId);
     const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data ?? ''), 'base64');
     if (!bytes.length) throw new Error('the picture has no bytes');
@@ -3827,6 +3827,10 @@ export class Deck {
     } else {
       const { rId } = this.#embedImage(at.part, { data: bytes, contentType: jpeg ? 'image/jpeg' : 'image/png' });
       pic = pic.replace(/(<a:blip\b[^>]*\br:embed=")[^"]*(")/, (m, a, b) => `${a}${rId}${b}`);
+    }
+    // Its alt text and title written again with it (a QR Code's text).
+    if (alt) {
+      pic = pic.replace(/<p:cNvPr\b([^>]*?)(\/?)>/, (m, rest, close) => `<p:cNvPr${rest.replace(/\s(descr|title)="[^"]*"/g, '')}${alt.descr != null ? ` descr="${escapeXml(String(alt.descr))}"` : ''}${alt.title != null ? ` title="${escapeXml(String(alt.title))}"` : ''}${close}>`);
     }
     // The width kept, the height from the new picture's shape.
     if (Number(aspect) > 0) pic = pic.replace(/(<a:xfrm\b[^>]*>[\s\S]*?<a:ext\b[^>]*\bcx=")(\d+)("[^>]*\bcy=")\d+(")/, (m2, a, cx, b, c) => `${a}${cx}${b}${Math.round(Number(cx) * Number(aspect))}${c}`);
@@ -3955,7 +3959,7 @@ export class Deck {
     return true;
   }
 
-  addPicture(slideIndex, { data, contentType, name = 'Picture', x = 0, y = 0, w, h }) {
+  addPicture(slideIndex, { data, contentType, name = 'Picture', x = 0, y = 0, w, h, descr = null, title = null }) {
     const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     if (!(w > 0) || !(h > 0)) throw new Error('a picture needs a positive width and height');
@@ -3970,7 +3974,7 @@ export class Deck {
     const id = nextShapeId(xml);
     const label = escapeXml(name);
     const pic =
-      `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${label}" descr="${label}"/>` +
+      `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${label}" descr="${descr != null ? escapeXml(String(descr)) : label}"${title != null ? ` title="${escapeXml(String(title))}"` : ''}/>` +
       `<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>` +
       `<p:blipFill><a:blip r:embed="${rId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
       `<p:spPr><a:xfrm><a:off x="${pxToEmu(x)}" y="${pxToEmu(y)}"/>` +

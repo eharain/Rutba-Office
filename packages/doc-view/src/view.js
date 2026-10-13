@@ -1710,12 +1710,12 @@ export class DocView {
    * was, and its height set from the new picture's shape (its width kept)
    * when that changed. One undo step that brings the old picture back.
    */
-  replacePicture({ block, image = 0, data, contentType = 'image/png', widthPx = null, heightPx = null } = {}) {
+  replacePicture({ block, image = 0, data, contentType = 'image/png', widthPx = null, heightPx = null, alt = null } = {}) {
     if (typeof this.doc.replacePicture !== 'function') throw new Error('this document backend cannot replace a picture');
     if (!this.block(block)) throw new Error('no paragraph at index ' + block);
     this.doc.preparePicture(block, image);
     return this._edit('change picture', null, () => {
-      this.doc.replacePicture(block, image, { data, contentType });
+      this.doc.replacePicture(block, image, { data, contentType, alt });
       if (widthPx > 0 && heightPx > 0 && typeof this.doc.setImageSize === 'function') this.doc.setImageSize(block, image, { widthPx, heightPx });
       this._invalidate();
       return this;
@@ -1744,7 +1744,7 @@ export class DocView {
     return this.doc.model3dSource(block, image);
   }
 
-  insertImage({ name, contentType, data, widthPx, heightPx, model3d = null } = {}) {
+  insertImage({ name, contentType, data, widthPx, heightPx, model3d = null, descr = null, title = null } = {}) {
     if (typeof this.doc.insertImage !== 'function') {
       throw new Error('this document backend does not support pictures');
     }
@@ -1754,7 +1754,7 @@ export class DocView {
     return this._edit('insert picture', null, () => {
       const { block } = this.focus;
       if (!this.block(block)) throw new Error('no paragraph at index ' + block);
-      this.doc.insertImage(block, { name, contentType, data, widthPx, heightPx, model3d });
+      this.doc.insertImage(block, { name, contentType, data, widthPx, heightPx, model3d, descr, title });
       this._invalidate();
       this.collapseTo({ block: block + 1, offset: 0 });
       return this;

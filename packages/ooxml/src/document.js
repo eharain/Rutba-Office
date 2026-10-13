@@ -847,6 +847,19 @@ function blankNestedTables(xml) {
   return out;
 }
 
+/**
+ * A drawing's alt text and title (`descr`, `title`) set on its docPr and
+ * every cNvPr in it, an attribute already there replaced.
+ */
+export function withAltText(xml, { descr = null, title = null } = {}) {
+  return String(xml).replace(/<(wp:docPr|pic:cNvPr)\b([^>]*?)(\/?)>/g, (m, tag, rest, close) => {
+    let a = rest.replace(/\s(descr|title)="[^"]*"/g, '');
+    if (descr != null) a += ' descr="' + esc(String(descr)) + '"';
+    if (title != null) a += ' title="' + esc(String(title)) + '"';
+    return '<' + tag + a + close + '>';
+  });
+}
+
 export class Document {
   constructor(pkg) {
     this.pkg = pkg;
@@ -2024,8 +2037,12 @@ export class Document {
       const target = relId ? rels.get(relId) : null;
       const part = target ? OoxmlPackage.resolveTarget(this.mainPart, target) : null;
       const bytes = part && this.pkg.has(part) ? this.pkg.read(part) : null;
+      const pr = namePr ? attrs(namePr[1]) : {};
       out.push({
-        name: namePr ? attrs(namePr[1]).name ?? null : null,
+        name: namePr ? pr.name ?? null : null,
+        // Its alt text and title, as the file keeps them.
+        ...(pr.descr != null ? { descr: unesc(pr.descr) } : {}),
+        ...(pr.title != null ? { title: unesc(pr.title) } : {}),
         part,
         // EMU -> px; a missing extent falls back to something visible.
         widthPx: ext.cx ? Number(ext.cx) / 9525 : 96,
@@ -2146,7 +2163,7 @@ export class Document {
    * picture's own part when nothing else points at it and it is the same
    * kind, in a new part when something does.
    */
-  replacePicture(index, imageIndex, { data, contentType = 'image/png' }) {
+  replacePicture(index, imageIndex, { data, contentType = 'image/png', alt = null }) {
     const at = this._pictureAt(index, imageIndex);
     const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data ?? ''), 'base64');
     if (!bytes.length) throw new Error('the picture has no bytes');
@@ -2169,6 +2186,8 @@ export class Document {
       const rId = this._addRel(IMAGE_REL_TYPE, 'media/rutba' + n + '.' + suffix);
       drawing = drawing.replace(/(<a:blip\b[^>]*\br:embed=")[^"]*(")/, (m, a, b) => a + rId + b);
     }
+    // Its alt text and title written again with it, when the picture says what it shows (a QR Code's text).
+    if (alt) drawing = withAltText(drawing, alt);
     const p = this.editParagraph(index);
     const xml = p.xml.slice(0, at.d.index) + drawing + p.xml.slice(at.d.index + at.d[0].length);
     this._spliceBody(p.start, p.end, xml);
@@ -3900,7 +3919,7 @@ export class Document {
    * its namespaces declared inline, so it lands correctly even in a minimal
    * document whose root declares only `xmlns:w`.
    */
-  insertImageParagraph(index, { name = 'Picture', contentType, data, widthPx, heightPx, model3d = null }) {
+  insertImageParagraph(index, { name = 'Picture', contentType, data, widthPx, heightPx, model3d = null, descr = null, title = null }) {
     const ext = IMAGE_EXTENSIONS[contentType];
     if (!ext) {
       throw new Error('unsupported image type: ' + contentType + ' (png, jpeg, gif, bmp or webp)');
@@ -3925,6 +3944,8 @@ export class Document {
     const cy = h * PX_TO_EMU;
     const id = this._nextDrawingId();
     const label = esc(String(name));
+    // Its alt text (and title), as Word keeps them on the drawing's docPr and the picture's cNvPr.
+    const alt = (descr != null ? ' descr="' + esc(String(descr)) + '"' : '') + (title != null ? ' title="' + esc(String(title)) + '"' : '');
     // Insert → 3D Models: the .glb kept beside the picture, named from the picture's cNvPr with its view.
     let modelExt = '';
     if (model3d) {
@@ -3939,11 +3960,11 @@ export class Document {
     const drawing =
       '<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">' +
       '<wp:extent cx="' + cx + '" cy="' + cy + '"/>' +
-      '<wp:docPr id="' + id + '" name="' + label + '"/>' +
+      '<wp:docPr id="' + id + '" name="' + label + '"' + alt + '/>' +
       '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
       '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
       '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
-      '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="' + label + '"' + (modelExt ? '>' + modelExt + '</pic:cNvPr>' : '/>') + '<pic:cNvPicPr/></pic:nvPicPr>' +
+      '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="' + label + '"' + alt + (modelExt ? '>' + modelExt + '</pic:cNvPr>' : '/>') + '<pic:cNvPicPr/></pic:nvPicPr>' +
       '<pic:blipFill><a:blip r:embed="' + rId + '" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>' +
       '<a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
       '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>' +

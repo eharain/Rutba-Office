@@ -264,6 +264,12 @@ export function parseDrawingAnchors(drawingXml) {
         const pr = firstElement(anchor, 'cNvPr');
         return pr ? (attrs(pr.slice(0, pr.indexOf('>') + 1)).name !== undefined ? unesc(attrs(pr.slice(0, pr.indexOf('>') + 1)).name) : null) : null;
       })(),
+      // Its alt text and title, as the file keeps them (a QR Code's text is its alt text).
+      ...(() => {
+        const pr = firstElement(anchor, 'cNvPr');
+        const a = pr ? attrs(pr.slice(0, pr.indexOf('>') + 1)) : {};
+        return { ...(a.descr !== undefined ? { descr: unesc(a.descr) } : {}), ...(a.title !== undefined ? { title: unesc(a.title) } : {}) };
+      })(),
       // The drawing's own id (cNvPr id), which stays put when the order
       // changes, and whether the Selection Pane has hidden it.
       nvId: (() => {

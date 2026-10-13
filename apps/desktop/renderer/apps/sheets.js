@@ -31,6 +31,7 @@ import { WorkbookGallery, SHEET_DESIGN_CSS } from './sheets/design.js';
 import { CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 import { SlicerPanel, InsertSlicersDialog, ObjectHandles, RotateHandle, SelectionPane, angleAt, followPointer, OBJECTS_CSS } from './sheets/objects.js';
 import { IconsDialog } from '../icons-insert.js';
+import { QrDialog, qrOf } from '../qrcode.js';
 import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise } from './slides/ink.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
@@ -1539,7 +1540,8 @@ export default function Sheets({ app, shell, boot }) {
               onMouseDown={(e) => press(e, d)}
               // An equation opens again in the equation editor.
               // A text box or a shape with words (WordArt among them) opens its words.
-              onDoubleClick={d.kind === 'equation' ? () => setDialog({ kind: 'equation', id: d.id, initial: d.linear || '' }) : d.kind === 'shape' && (d.textBox || d.text) ? () => setDialog({ kind: 'words', id: d.id, initial: d.text || '', title: t('Edit Text') }) : undefined}
+              // A QR Code opens its dialog again, its text, level and colour as they were.
+              onDoubleClick={qrOf(d) ? () => setDialog({ kind: 'qrcode', id: d.id, initial: { ...qrOf(d), size: Math.round(d.width || 192) } }) : d.kind === 'equation' ? () => setDialog({ kind: 'equation', id: d.id, initial: d.linear || '' }) : d.kind === 'shape' && (d.textBox || d.text) ? () => setDialog({ kind: 'words', id: d.id, initial: d.text || '', title: t('Edit Text') }) : undefined}
               {...(d.svg ? { dangerouslySetInnerHTML: { __html: d.svg } } : {})}
             >
               {d.svg ? null : d.members ? d.members.map((m) => (
@@ -2968,6 +2970,8 @@ export default function Sheets({ app, shell, boot }) {
       case 'picture': await insertPicture(); return;
       // Insert → Icons: one of the suite's own icons, as a picture at the cell.
       case 'icons': setDialog('icons'); return;
+      // Insert > QR Code: a new code at the cell.
+      case 'qrcode': setDialog({ kind: 'qrcode' }); return;
       // Insert → Equation: typed in its linear form, set as math over the selection.
       case 'equation': setDialog({ kind: 'equation', id: null, initial: '' }); return;
       // Insert → WordArt: the words asked for, in the chosen style.
@@ -3742,6 +3746,18 @@ export default function Sheets({ app, shell, boot }) {
           onInsert={async ({ name, bytes, contentType }) => {
             setDialog(null);
             await dispatch({ op: 'insertPicture', name: `${name}.png`, contentType, data: bytes, widthPx: 96, heightPx: 96 });
+          }}
+        />
+      ) : null}
+      {dialog?.kind === 'qrcode' ? (
+        <QrDialog
+          initial={dialog.initial || null}
+          onClose={() => setDialog(null)}
+          onInsert={async ({ bytes, widthPx, heightPx, contentType, name, descr, title }) => {
+            const at = dialog;
+            setDialog(null);
+            if (at.initial) await dispatch({ op: 'replacePicture', id: at.id, data: bytes, contentType, alt: { descr, title } });
+            else await dispatch({ op: 'insertPicture', name, contentType, data: bytes, widthPx, heightPx, descr, title });
           }}
         />
       ) : null}

@@ -1028,12 +1028,16 @@ function readPicture(pic, ctx, container, groupId) {
   const model3d = m3d ? { view: { yaw: Number(m3d.attrs.yaw) || 0, pitch: Number(m3d.attrs.pitch) || 0, roll: Number(m3d.attrs.roll) || 0 } } : null;
   // Record with the camera: a video that is a cameo's recording.
   const cameoRecording = Boolean(nvPr && first(nvPr, 'rcam:recording'));
+  // Its alt text and title (a QR Code's text is its alt text).
+  const cNv = first(kids(pic, P('nvPicPr'))[0] || pic, P('cNvPr'));
   return {
     kind: 'picture',
     ...meta,
     ...(media ? { media } : {}),
     ...(model3d ? { model3d } : {}),
     ...(cameoRecording ? { cameoRecording: true } : {}),
+    ...(cNv?.attrs.descr != null ? { descr: cNv.attrs.descr } : {}),
+    ...(cNv?.attrs.title != null ? { title: cNv.attrs.title } : {}),
     groupId,
     placeholder: placeholderOf(pic),
     geometry: placeInContainer(container, readXfrm(spPr)),

@@ -977,7 +977,7 @@ export class SheetView {
    * one-cell anchor at the cell pointing at them, at the size asked for.
    * Drawn at once over the cells. One undo step, the parts going with it.
    */
-  insertPicture({ name = 'Picture', contentType, data, widthPx, heightPx } = {}) {
+  insertPicture({ name = 'Picture', contentType, data, widthPx, heightPx, descr = null, title = null } = {}) {
     const ext = { 'image/png': 'png', 'image/jpeg': 'jpeg', 'image/gif': 'gif', 'image/bmp': 'bmp', 'image/webp': 'webp' }[contentType];
     if (!ext) throw new Error('unsupported image type: ' + contentType + ' (png, jpeg, gif, bmp or webp)');
     const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data ?? ''), 'base64');
@@ -999,6 +999,7 @@ export class SheetView {
       const rId = this.pkg.addRelationshipTo(drawingPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', '../media/image' + n + '.' + ext);
       this.workbook.appendDrawingAnchor(drawingPart, (id) => drawingAnchorXml({
         kind: 'picture', id, name: String(name || 'Picture'), from: { col, row }, widthPx: w, heightPx: h,
+        ...(descr != null ? { descr: String(descr) } : {}), ...(title != null ? { title: String(title) } : {}),
       }, () => rId));
       this.drawings.set(this.activeSheet, this._readDrawings(sheetPartName));
       this._structuralDirty = true;
@@ -1465,6 +1466,8 @@ export class SheetView {
       return {
         // Its place among the sheet's drawings, which Alt Text names it by.
         id: d.id, index: d.index, kind: d.kind, name: d.name, x, y, width, height, svg, unsupported,
+        // A picture's alt text and title (a QR Code's text, for a double-click to open it again).
+        ...(d.kind === 'image' && d.descr != null ? { descr: d.descr, title: d.title ?? null } : {}),
         // An equation's linear form, for Insert → Equation to open it again.
         ...(d.kind === 'equation' && d.omml ? { linear: safeLinear(d.omml) } : {}),
         // A shape's words, for a double-click to change them; whether it is a text box (WordArt is one).
@@ -5628,7 +5631,7 @@ export class SheetView {
    * it), its anchor kept; its height follows the new picture's shape
    * (`aspect`, its height over its width) when that is given. One undo step.
    */
-  replacePicture({ id, data, contentType = 'image/png', aspect = null }) {
+  replacePicture({ id, data, contentType = 'image/png', aspect = null, alt = null }) {
     const d = this._drawingById(id);
     if (d.kind !== 'image') throw new Error('That is not a picture.');
     if (this.protection().sheet) throw protectionError('This sheet is protected. Unprotect it before changing pictures.');
@@ -5647,6 +5650,12 @@ export class SheetView {
       const rId = this.pkg.addRelationshipTo(drawingPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', '../media/image' + n + '.' + ext);
       const span = spans[d.index];
       let next = span.xml.replace(/(<a:blip\b[^>]*\br:embed=")[^"]*(")/, (m, a, b) => a + rId + b);
+      // Its alt text and title written again with it (a QR Code's text).
+      if (alt) {
+        const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        next = next.replace(/<xdr:cNvPr\b([^>]*?)(\/?)>/, (m, rest, close) => '<xdr:cNvPr' + rest.replace(/\s(descr|title)="[^"]*"/g, '')
+          + (alt.descr != null ? ' descr="' + esc(alt.descr) + '"' : '') + (alt.title != null ? ' title="' + esc(alt.title) + '"' : '') + close + '>');
+      }
       if (box && Math.abs(box.height - box.width * aspect) > 1) next = anchorWithBox(next, { x: box.x, y: box.y, width: box.width, height: Math.max(8, Math.round(box.width * aspect)) }, (px, py) => this._markerAt(px, py));
       const out = xml.slice(0, span.start) + next + xml.slice(span.end);
       // The old picture's relationship goes when no anchor names it any more.

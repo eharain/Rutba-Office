@@ -280,7 +280,8 @@ function drawingPartXml(drawings, relIdOf) {
         : '<xdr:ext cx="' + Math.round((d.widthPx ?? 96) * EMU_PX) + '" cy="' + Math.round((d.heightPx ?? 48) * EMU_PX) + '"/>';
       const anchor = d.to ? 'twoCellAnchor' : 'oneCellAnchor';
       return '<xdr:' + anchor + (d.to ? editAs : '') + '>' + from + ext
-        + '<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="' + d.id + '" name="' + esc(d.name ?? 'Picture') + '"/>'
+        + '<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="' + d.id + '" name="' + esc(d.name ?? 'Picture') + '"'
+        + (d.descr != null ? ' descr="' + esc(d.descr) + '"' : '') + (d.title != null ? ' title="' + esc(d.title) + '"' : '') + '/>'
         + '<xdr:cNvPicPr/></xdr:nvPicPr>'
         + '<xdr:blipFill><a:blip r:embed="' + relIdOf(d) + '"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'
         // Its own box and a rectangle to clip to: Excel draws no picture without them.

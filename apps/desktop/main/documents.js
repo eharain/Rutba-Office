@@ -2035,6 +2035,9 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
               cameoRecording: Boolean(s.cameoRecording),
               // Insert → 3D Models: the view the model is drawn at.
               model3d: s.model3d ?? null,
+              // A picture's alt text and title: a QR Code's text, for a double-click to open it again.
+              descr: s.descr ?? null,
+              title: s.title ?? null,
               // Insert → Object: the embedded document's program and name, for a double-click to open it.
               object: s.object ? { progId: s.object.progId, name: s.object.name, part: s.object.source?.part || null } : null,
               // What a run that states nothing is drawn with — the master's,
@@ -2278,7 +2281,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     formatAsTable: (v, a) => v.formatAsTable(a),
     insertPicture: (v, a) => v.insertPicture(a),
     pictureSource: (v, a) => { const src = v.pictureSource({ id: a.id }); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), contentType: src.contentType, name: src.name }); },
-    replacePicture: (v, a) => v.replacePicture({ id: a.id, data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', aspect: a.aspect ?? null }),
+    replacePicture: (v, a) => v.replacePicture({ id: a.id, data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', aspect: a.aspect ?? null, alt: a.alt ?? null }),
     deleteName: (v, a) => v.deleteName(a.name),
     gotoName: (v, a) => v.gotoName(a.name),
     autoFilter: (v) => v.toggleAutoFilter(),
@@ -2394,7 +2397,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     setImageSize: (v, a) => v.setImageSize(a),
     // Edit in Image: the picture's bytes out (base64 JSON), and the edited picture back in its place.
     pictureSource: (v, a) => { const src = v.pictureSource(a.block, a.image ?? 0); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), contentType: src.contentType, name: src.name }); },
-    replacePicture: (v, a) => v.replacePicture({ block: a.block, image: a.image ?? 0, data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', widthPx: a.widthPx ?? null, heightPx: a.heightPx ?? null }),
+    replacePicture: (v, a) => v.replacePicture({ block: a.block, image: a.image ?? 0, data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', widthPx: a.widthPx ?? null, heightPx: a.heightPx ?? null, alt: a.alt ?? null }),
     // Insert → 3D Models: the model's .glb for the window to draw again, and its picture at a new view.
     model3dSource: (v, a) => { const src = v.model3dSource(a.block, a.image ?? 0); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), view: src.view }); },
     setModel3dView: (v, a) => v.setModel3dView(a.block, a.image ?? 0, { png: a.png instanceof Uint8Array ? Buffer.from(a.png) : Buffer.from(String(a.png ?? ''), 'base64'), view: a.view || {} }),
@@ -2587,7 +2590,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // The model's .glb, for the window to draw it again at another view.
     model3dSource: (d, a) => { const src = d.model3dSource(a.slide, a.shape); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), view: src.view }); },
     pictureSource: (d, a) => { const src = d.pictureSource(a.slide, a.shape); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), contentType: src.contentType, name: src.name }); },
-    replacePicture: (d, a) => d.replacePicture(a.slide, a.shape, { data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', aspect: a.aspect ?? null }),
+    replacePicture: (d, a) => d.replacePicture(a.slide, a.shape, { data: a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64'), contentType: a.contentType || 'image/png', aspect: a.aspect ?? null, alt: a.alt ?? null }),
     // 3D Model Views, a turn, Reset: the picture drawn again at the new view.
     setModel3dView: (d, a) => d.setModel3dView(a.slide, a.shape, { png: a.png instanceof Uint8Array ? Buffer.from(a.png) : Buffer.from(String(a.png ?? ''), 'base64'), view: a.view || {} }),
     setTransitionSound: (d, a) => d.setTransitionSound(a.slide, a.sound == null ? null : { ...a.sound, data: a.sound.data ? (Buffer.isBuffer(a.sound.data) ? a.sound.data : Buffer.from(a.sound.data)) : undefined }),

@@ -132,6 +132,8 @@ const PATHS = {
   grid: [P('M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z')],
   list: [P('M8 6h12M8 12h12M8 18h12'), P('M4 6h.01M4 12h.01M4 18h.01', { strokeWidth: 2.4 })],
   clock: [P('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z'), P('M12 7v5l3 2')],
+  // Insert > QR Code: three finder squares and a scatter of modules.
+  qrcode: [P('M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z'), P('M14 14h2v2h-2zM18 14h2M14 19v1M18 18h2v2h-2z')],
   star: [P('m12 3 2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.8 6.7 19.6l1.1-6L3.4 9.4l6-.8z')],
   lock: [P('M6 11h12v9a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1z'), P('M8.5 11V8a3.5 3.5 0 0 1 7 0v3')],
   eye: [P('M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z'), P('M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z')],

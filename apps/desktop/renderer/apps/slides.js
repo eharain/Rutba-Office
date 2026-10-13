@@ -52,6 +52,7 @@ import { BEVELS, CAMERAS, DEPTHS } from '@rutba/presentation/shape3d';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise, replayInk } from './slides/ink.js';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog, iconPng } from '../icons-insert.js';
+import { QrDialog, qrOf } from '../qrcode.js';
 import { PointsOverlay, POINTS_CSS } from './slides/points.js';
 import { presetCommands, parsePath, fit as fitPath } from '@rutba/presentation/points';
 import { CameoLayer, CameraRecorder, CAMEO_CSS } from './slides/cameo.js';
@@ -166,6 +167,8 @@ export default function Slides({ app, shell, boot }) {
   // While Screen Recording runs, the take so far is kept as a recovery copy under this key.
   const recCopy = useRef(`slides-rec-${Date.now().toString(36)}`);
   const [iconsOpen, setIconsOpen] = useState(false);
+  // Insert > QR Code: {} for a new one, { shape, initial } for one double-clicked.
+  const [qrDialog, setQrDialog] = useState(null);
   // The slide the show was on before this one, for a "last slide viewed" action.
   const lastViewed = useRef(null);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -1940,6 +1943,8 @@ export default function Slides({ app, shell, boot }) {
       }
       // Insert → Icons: one of the suite's own icons, as a picture on this slide.
       case 'icons': setIconsOpen(true); return;
+      // Insert > QR Code: a new code in the middle of the slide.
+      case 'qrcode': setQrDialog({}); return;
       case 'insertMedia': await insertMedia(arg); return;
       // Insert → Action: what a click on the selected shape does in the show.
       case 'action':
@@ -2813,6 +2818,8 @@ export default function Slides({ app, shell, boot }) {
                         }}
                         onDoubleClick={() => {
                           if (s.kind === 'chart') { setSelected(s.id); setChartDataOpen(s.id); return; }
+                          // A QR Code opens its dialog again, its text, level and colour as they were.
+                          if (qrOf(s)) { setSelected(s.id); setQrDialog({ shape: s.id, initial: { ...qrOf(s), size: Math.round(s.geometry?.w || 192) } }); return; }
                           if (s.object) { setSelected(s.id); act('openObject', s); return; }
                           // An equation opens in the equation editor, in its linear form.
                           const eq = (s.text?.paragraphs || []).flatMap((p) => p.runs || []).find((r) => r.math);
@@ -3216,6 +3223,26 @@ export default function Slides({ app, shell, boot }) {
 
       {symbolOpen ? (
         <SymbolDialog onClose={() => setSymbolOpen(false)} onInsert={(ch) => { setSymbolOpen(false); act('insertSymbol', ch); }} />
+      ) : null}
+
+      {qrDialog ? (
+        <QrDialog
+          initial={qrDialog.initial || null}
+          onClose={() => setQrDialog(null)}
+          onInsert={async ({ bytes, widthPx, heightPx, contentType, name, descr, title }) => {
+            const at = qrDialog;
+            setQrDialog(null);
+            if (at.initial) {
+              await apply({ op: 'replacePicture', slide: index, shape: at.shape, data: bytes, contentType, alt: { descr, title } });
+              return;
+            }
+            const x = Math.round(((model?.size?.width || 1280) - widthPx) / 2);
+            const y = Math.round(((model?.size?.height || 720) - heightPx) / 2);
+            const next = await apply({ op: 'addPicture', slide: index, name, contentType, data: bytes, x, y, w: widthPx, h: heightPx, descr, title });
+            const added = next?.model?.slide?.shapes?.slice(-1)[0];
+            if (added) setSelected(added.id);
+          }}
+        />
       ) : null}
 
       {iconsOpen ? (

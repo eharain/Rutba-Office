@@ -434,6 +434,7 @@ export default function SheetsRibbon({
           <Group label={t('Illustrations')}>
             <Button tall icon="picture" label={t('Pictures')} title={t('Pictures — a picture from a file, at the cell, at its own proportions')} onClick={() => act('picture')} />
             <Button tall icon="shape" label={t('Shapes')} onClick={(e) => menu.open(e, SHAPES.map(([geometry, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', geometry, text: '' }) })))} />
+            <Button icon="qrcode" label={t('QR Code')} className="sh-qr-insert" title={t('QR Code: a code a phone can scan, for a web address or any words, put in as a picture at the cell; double-click it to change it')} onClick={() => act('qrcode')} />
             <Button icon="star" label={t('Icons')} title={t("Icons — one of the suite's own icons, in the colour you choose, as a picture at the cell")} onClick={() => act('icons')} />
             <Button icon="shape" label={t('SmartArt')} title={t('SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes at the cell')} onClick={() => act('smartArt')} />
           </Group>

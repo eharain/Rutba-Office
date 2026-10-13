@@ -1,0 +1,15 @@
+{
+  "name": "@rutba/barcode",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "QR Codes, encoded here: every version and error correction level, the masks scored by the standard's penalty rules; and a reader for the symbols the suite draws, for the tests and the window checks.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./qr": "./src/qr.js",
+    "./decode": "./src/decode.js",
+    "./png-read": "./src/png-read.js"
+  },
+  "sideEffects": false
+}

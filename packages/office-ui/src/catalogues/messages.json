@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6222,
+  "count": 6244,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -4138,7 +4138,8 @@
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/icons-insert.js"
+        "apps/desktop/renderer/icons-insert.js",
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -5072,6 +5073,7 @@
         "apps/desktop/renderer/object-insert.js",
         "apps/desktop/renderer/print.js",
         "apps/desktop/renderer/protect.js",
+        "apps/desktop/renderer/qrcode.js",
         "apps/desktop/renderer/screenshot.js",
         "apps/desktop/renderer/shell.js",
         "apps/desktop/renderer/smartart-dialog.js",
@@ -6426,7 +6428,8 @@
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/icons-insert.js"
+        "apps/desktop/renderer/icons-insert.js",
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -7838,13 +7841,26 @@
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/icons-insert.js"
+        "apps/desktop/renderer/icons-insert.js",
+        "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
+      "message": "Dark brown",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
       "message": "Dark downward diagonal",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Dark green",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -7866,7 +7882,14 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
+      "message": "Dark teal",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -9707,6 +9730,12 @@
       ]
     },
     {
+      "message": "Edit QR Code",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
       "message": "Edit Recipient List — tick who the merge goes to, sort, filter and find duplicates",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -10316,6 +10345,12 @@
       ]
     },
     {
+      "message": "Error correction",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
       "message": "Errors",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -10720,6 +10755,12 @@
       "message": "Extend the selection",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Extra large",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -13516,6 +13557,12 @@
       ]
     },
     {
+      "message": "High (30%)",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
       "message": "Highest rated",
       "where": [
         "apps/desktop/renderer/apps/pictures/library.js"
@@ -14401,6 +14448,7 @@
         "apps/desktop/renderer/apps/word/equations.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js",
+        "apps/desktop/renderer/qrcode.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -14566,6 +14614,12 @@
       "message": "Insert Placeholder — pick a layout; the master holds the placeholders every layout draws from",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Insert QR Code",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -15545,7 +15599,8 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/apps/video/recorder/panel.js",
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -16760,6 +16815,12 @@
       ]
     },
     {
+      "message": "Low (7%)",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
       "message": "Low (smaller file)",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
@@ -17378,7 +17439,14 @@
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
+        "apps/desktop/renderer/qrcode.js",
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Medium (15%)",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -17928,6 +17996,12 @@
       ]
     },
     {
+      "message": "More correction still scans when part of the code is covered or worn, at the cost of a denser code.",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
       "message": "More junk is caught, and now and then a good message with it — look in Junk once in a while.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -18416,6 +18490,12 @@
       "message": "Navigation Pane",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Navy",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -20250,6 +20330,7 @@
         "apps/desktop/renderer/apps/word/untracked.js",
         "apps/desktop/renderer/object-insert.js",
         "apps/desktop/renderer/protect.js",
+        "apps/desktop/renderer/qrcode.js",
         "apps/desktop/renderer/shell.js",
         "apps/desktop/renderer/smartart-dialog.js",
         "packages/office-ui/src/proofing.js"
@@ -22588,7 +22669,8 @@
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/list-dialog.js",
-        "apps/desktop/renderer/apps/word/mailings.js"
+        "apps/desktop/renderer/apps/word/mailings.js",
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -23149,7 +23231,8 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/icons-insert.js"
+        "apps/desktop/renderer/icons-insert.js",
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -23215,6 +23298,32 @@
       ]
     },
     {
+      "message": "QR Code",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "QR Code: a code a phone can scan, for a web address or any words, put in as a picture at the caret; double-click it to change it",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "QR Code: a code a phone can scan, for a web address or any words, put in as a picture at the cell; double-click it to change it",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "QR Code: a code a phone can scan, for a web address or any words, put in as a picture on this slide; double-click it to change it",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
       "message": "Quadratic Formula",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -23234,6 +23343,12 @@
       "message": "Quarterly sales",
       "where": [
         "apps/desktop/renderer/apps/sheets/design.js"
+      ]
+    },
+    {
+      "message": "Quartile (25%)",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -28213,7 +28328,8 @@
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/protect.js"
+        "apps/desktop/renderer/protect.js",
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -28505,7 +28621,8 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/apps/video/recorder/panel.js",
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -30459,6 +30576,12 @@
       ]
     },
     {
+      "message": "Text or web address",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
       "message": "Text orientation",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -30680,6 +30803,12 @@
       "message": "That is the table's own edge — there is no cell beyond it to join.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That is too much for a QR Code at this level of error correction. Choose a lower level, or shorten the text.",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -34071,6 +34200,12 @@
       ]
     },
     {
+      "message": "Type the words or the address the code should hold.",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
       "message": "Type your comment…",
       "where": [
         "apps/desktop/renderer/apps/slides/comments.js"
@@ -34842,6 +34977,12 @@
       "message": "Version {version} is ready — restart to update, or it installs when you quit.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Version {version}, {n} by {n} modules",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -38755,6 +38896,12 @@
       "message": "{name} (dark)",
       "where": [
         "apps/desktop/renderer/apps/slides/design.js"
+      ]
+    },
+    {
+      "message": "{name} ({px} px)",
+      "where": [
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {

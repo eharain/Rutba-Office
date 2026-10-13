@@ -44,6 +44,7 @@ import { useWordReview } from './word/review.js';
 import { LanguageDialog, PromptDialog } from '@rutba/office-ui/proofing';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog } from '../icons-insert.js';
+import { QrDialog, qrOf } from '../qrcode.js';
 import { CompareDialog, COMPARE_CSS } from './word/compare.js';
 import { SplitPane, SPLIT_CSS } from './word/split.js';
 import { ObjectDialog, OBJECT_CSS, objectIcon, typeOfExt, appOfProgId } from '../object-insert.js';
@@ -246,6 +247,8 @@ export default function Word({ app, shell, boot }) {
   const [languageDialog, setLanguageDialog] = useState(null);
   const [shotOpen, setShotOpen] = useState(false);
   const [iconsOpen, setIconsOpen] = useState(false);
+  // Insert > QR Code: {} for a new one, { block, image, initial } for one double-clicked.
+  const [qrDialog, setQrDialog] = useState(null);
   const [signatureOpen, setSignatureOpen] = useState(false);
   // The equation editor: null, or what it opened on — a new equation, or
   // one being edited at `block`/`offset`.
@@ -1639,6 +1642,10 @@ export default function Word({ app, shell, boot }) {
         case 'icons':
           setIconsOpen(true);
           return;
+        // Insert > QR Code: a new code at the caret, or (from a double-click) the one picked.
+        case 'qrcode':
+          setQrDialog(arg && arg.qr ? { block: arg.block, image: arg.image, initial: { ...arg.qr, size: arg.size } } : {});
+          return;
         // Review → Language: the dialog opens on the selection's language,
         // with the document's own beside it.
         case 'language': {
@@ -2282,6 +2289,14 @@ export default function Word({ app, shell, boot }) {
     const open = (e) => act('openObject', e.detail || null);
     el.addEventListener('wd-open-object', open);
     return () => el.removeEventListener('wd-open-object', open);
+  }, [act, busy, model === null]);
+  // A QR Code double-clicked on the page opens its dialog again.
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el) return undefined;
+    const open = (e) => act('qrcode', e.detail || null);
+    el.addEventListener('wd-edit-qr', open);
+    return () => el.removeEventListener('wd-edit-qr', open);
   }, [act, busy, model === null]);
   actRef.current = act;
 
@@ -3151,6 +3166,19 @@ export default function Word({ app, shell, boot }) {
             setIconsOpen(false);
             // An inch square, as Word puts an icon in.
             await apply({ op: 'insertImage', name: `${name}.png`, contentType, data: bytes, widthPx: 96, heightPx: 96 });
+          }}
+        />
+      ) : null}
+
+      {qrDialog ? (
+        <QrDialog
+          initial={qrDialog.initial || null}
+          onClose={() => setQrDialog(null)}
+          onInsert={async ({ bytes, widthPx, heightPx, contentType, name, descr, title }) => {
+            const at = qrDialog;
+            setQrDialog(null);
+            if (at.initial) await apply({ op: 'replacePicture', block: at.block, image: at.image, data: bytes, contentType, widthPx, heightPx, alt: { descr, title } });
+            else await apply({ op: 'insertImage', name, contentType, data: bytes, widthPx, heightPx, descr, title });
           }}
         />
       ) : null}
@@ -4188,7 +4216,9 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
         // A VML picture — an old Word's, or a signature line — is drawn but not picked.
         onClick={image.vml ? undefined : (e) => pick(e, i, image)}
         // An embedded document opens in its own app.
-        onDoubleClick={image.object ? (e) => e.currentTarget.dispatchEvent(new CustomEvent('wd-open-object', { bubbles: true, detail: image.object })) : undefined}
+        // A QR Code opens its dialog again, its text, level and colour as they were.
+        onDoubleClick={image.object ? (e) => e.currentTarget.dispatchEvent(new CustomEvent('wd-open-object', { bubbles: true, detail: image.object }))
+          : qrOf(image) ? (e) => e.currentTarget.dispatchEvent(new CustomEvent('wd-edit-qr', { bubbles: true, detail: { block: block.index, image: i, qr: qrOf(image), size: Math.round(image.widthPx || 192) } })) : undefined}
         title={image.signatureLine ? (image.signatureLine.signer ? t('Signature line for {signer} — signed in Word', { signer: image.signatureLine.signer }) : t('Signature line — signed in Word')) : undefined}
         style={style}
       />
