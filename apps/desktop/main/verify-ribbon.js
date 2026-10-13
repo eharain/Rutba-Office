@@ -57,7 +57,11 @@ function picture(file) {
 }
 
 function fixtures(dir, files) {
-  const at = (n) => path.join(dir, n);
+  // A folder of its own: the run's shared folder is opened whole by the
+  // Pictures checks later, which count its tiles and wait on its one clip.
+  const own = path.join(dir, 'ribbon-fixtures');
+  fs.mkdirSync(own, { recursive: true });
+  const at = (n) => path.join(own, n);
   fs.writeFileSync(at('ribbon.docx'), buildDocx({ styles: true, paragraphs: [{ text: 'The ribbon, looked at.' }, { text: 'A second paragraph.' }] }));
   fs.writeFileSync(at('ribbon.xlsx'), buildXlsx({ sheets: [{ name: 'Sheet1', rows: [['Month', 'Sales'], ['January', 120], ['February', 140]] }] }));
   fs.writeFileSync(at('ribbon.pptx'), buildPptx({ title: 'Ribbon', slides: [{ layout: 'title', title: 'The ribbon' }] }));
