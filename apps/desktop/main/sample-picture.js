@@ -58,13 +58,21 @@ function chunk(type, data) {
 
 /** A diagonal two-colour gradient as a real, valid PNG. */
 export function gradientPng(width, height, from, to) {
+  return pixelPng(width, height, (x, y) => {
+    const t = (x / width + y / height) / 2;
+    return [0, 1, 2].map((c) => from[c] + (to[c] - from[c]) * t);
+  });
+}
+
+/** A PNG of any picture: `pixel(x, y)` answers [r, g, b], 0 to 255. */
+export function pixelPng(width, height, pixel) {
   const raw = Buffer.alloc((width * 3 + 1) * height);
   let o = 0;
   for (let y = 0; y < height; y++) {
     raw[o++] = 0; // filter: none
     for (let x = 0; x < width; x++) {
-      const t = (x / width + y / height) / 2;
-      for (let c = 0; c < 3; c++) raw[o++] = Math.round(from[c] + (to[c] - from[c]) * t);
+      const rgb = pixel(x, y);
+      for (let c = 0; c < 3; c++) raw[o++] = Math.max(0, Math.min(255, Math.round(rgb[c])));
     }
   }
   const ihdr = Buffer.alloc(13);

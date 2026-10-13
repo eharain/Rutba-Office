@@ -29,7 +29,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 // The same writer the smoke run draws its pictures with.
-import { gradientPng } from '../main/sample-picture.js';
+import { pixelPng } from '../main/sample-picture.js';
 import electron from 'electron';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 // The document sample gets a chart the way a person adds one: the caret in
@@ -123,6 +123,9 @@ const at = (name) => path.join(docsDir, name);
   // figures — the way a person adds one: the cursor on the table, Insert →
   // Chart. Saved from the view, so both are in the file as Excel writes them.
   book.setColWidth(0, 132);
+  // The year's column holds the bold grand total, a digit wider than the
+  // rest, which the default width cut off.
+  book.setColWidth(5, 104);
   book.select(0, 8);
   book.insertChart({ kind: 'column', title: 'Revenue by region, full year' });
   book.select(0, 0);
@@ -143,7 +146,7 @@ const at = (name) => path.join(docsDir, name);
       styles: true,
       paragraphs: [
         { text: 'Quarterly Review', style: 'Title', bold: true, size: 30 },
-        { text: 'Prepared for the board — figures are illustrative', size: 20 },
+        { text: 'Prepared for the board: figures are illustrative', size: 20 },
         { text: 'Summary', style: 'Heading1', bold: true, size: 26 },
         {
           text:
@@ -257,12 +260,59 @@ const at = (name) => path.join(docsDir, name);
  */
 const picturesDir = path.join(docsDir, 'Sample Pictures');
 fs.mkdirSync(picturesDir, { recursive: true });
+/**
+ * Landscapes drawn here, pixel by pixel: a sky from its zenith to its
+ * horizon, a sun with its glow, ranges of hills paler with distance, and
+ * water that mirrors the sky. Nothing in them is anybody's, which is the
+ * point, and they read as photographs at a thumbnail's size.
+ */
 const SAMPLES = [
-  ['gradient-teal.png', [16, 74, 92], [126, 214, 214]],
-  ['gradient-navy.png', [14, 26, 56], [86, 110, 178]],
-  ['gradient-sand.png', [122, 92, 52], [232, 214, 178]],
-  ['gradient-rose.png', [104, 32, 62], [226, 154, 176]],
+  ['Lakeside at dawn.png', { zenith: [40, 62, 120], horizon: [246, 176, 120], sun: [255, 226, 170], sunAt: [0.68, 0.5], hills: [[112, 94, 128], [72, 66, 100], [38, 40, 64]], water: true, seed: 3 }],
+  ['Hills at noon.png', { zenith: [52, 116, 196], horizon: [186, 216, 236], sun: [255, 252, 236], sunAt: [0.22, 0.18], hills: [[128, 168, 150], [76, 138, 92], [44, 98, 58]], water: false, seed: 7 }],
+  ['Coast at sunset.png', { zenith: [58, 40, 96], horizon: [250, 132, 88], sun: [255, 206, 140], sunAt: [0.42, 0.52], hills: [[150, 84, 96], [96, 52, 80], [46, 30, 56]], water: true, seed: 11 }],
+  ['Valley in mist.png', { zenith: [120, 140, 160], horizon: [222, 226, 228], sun: [250, 248, 240], sunAt: [0.8, 0.3], hills: [[178, 186, 192], [128, 142, 152], [78, 94, 106]], water: false, seed: 5 }],
 ];
+
+function scenePng(width, height, look) {
+  const { zenith, horizon, sun, sunAt, hills, water, seed } = look;
+  const mix = (a, b, t) => [0, 1, 2].map((c) => a[c] + (b[c] - a[c]) * t);
+  const smooth = (e0, e1, x) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+  const line = water ? 0.66 : 1.01;
+  // Each range a sum of slow waves, set lower and darker as it comes nearer.
+  const ridge = (i, x) => {
+    const base = (water ? 0.42 : 0.5) + i * 0.1;
+    let h = 0;
+    for (let k = 1; k <= 4; k++) h += Math.sin(x * (k * 2.1 + i) * 3.1 + seed * (k + 1.7) + i * 2.3) * (0.06 / k);
+    return base + h * (1 - i * 0.15);
+  };
+  const sky = (u, v) => {
+    let c = mix(zenith, horizon, Math.pow(Math.min(1, v / line), 0.8));
+    const d = Math.hypot((u - sunAt[0]) * (width / height), v - sunAt[1]);
+    c = mix(c, sun, Math.exp(-d * 6) * 0.55);
+    if (d < 0.05) c = mix(c, sun, smooth(0.05, 0.046, d));
+    return c;
+  };
+  const land = (u, v) => {
+    let c = null;
+    hills.forEach((colour, i) => {
+      const top = ridge(i, u);
+      if (v >= top - 0.002) {
+        const edge = smooth(top - 0.002, top + 0.002, v);
+        const shaded = mix(colour, [0, 0, 0], (v - top) * 0.6);
+        c = c ? mix(c, shaded, edge) : mix(sky(u, v), shaded, edge);
+      }
+    });
+    return c || sky(u, v);
+  };
+  return pixelPng(width, height, (x, y) => {
+    const u = x / width;
+    const v = y / height;
+    if (v < line) return land(u, v);
+    // The water: the scene above mirrored, darker, with a ripple.
+    const m = 2 * line - v + Math.sin(v * 180 + u * 7) * 0.002;
+    return mix(land(u, Math.max(0, m)), [16, 28, 48], 0.25 + (v - line) * 0.8);
+  });
+}
 /**
  * Real photographs, when there are any to use.
  *
@@ -285,8 +335,8 @@ if (supplied && fs.existsSync(supplied)) {
 }
 
 if (!usedSupplied) {
-  for (const [name, from, to] of SAMPLES) {
-    fs.writeFileSync(path.join(picturesDir, name), gradientPng(1200, 800, from, to));
+  for (const [name, look] of SAMPLES) {
+    fs.writeFileSync(path.join(picturesDir, name), scenePng(1200, 800, look));
   }
 }
 
@@ -341,15 +391,15 @@ fs.writeFileSync(
         rrule: { freq: 'WEEKLY', byDay: ['MO'] },
         location: 'Room 2',
       }),
-      meeting(0, 14, 60, 'Quarterly review — draft walkthrough', { location: 'Room 2' }),
+      meeting(0, 14, 60, 'Quarterly review: draft walkthrough', { location: 'Room 2' }),
       meeting(1, 10, 45, 'Onboarding rewrite: what shipped', { location: 'Room 4' }),
       meeting(1, 16, 30, 'Call with Halton & Rowe', { location: 'Dial in' }),
-      meeting(2, 11, 90, 'Regional sales — Q4 numbers', { location: 'Room 2' }),
+      meeting(2, 11, 90, 'Regional sales: Q4 numbers', { location: 'Room 2' }),
       meeting(3, 9, 60, 'Interview: Aoife Brennan', { location: 'Room 1' }),
       meeting(3, 15, 30, 'Release readiness', { location: 'Room 4' }),
       meeting(4, 12, 60, 'Team lunch', { location: 'The Waterman' }),
       {
-        summary: 'Marta out — annual leave',
+        summary: 'Marta out: annual leave',
         allDay: true,
         start: dateTimeAt(dayAt(3, 0), null, true),
         end: dateTimeAt(dayAt(5, 0), null, true),
@@ -512,7 +562,7 @@ const PLAN = [
   ['contacts', at('address-book.vcf')],
   // NEVER null. Null means the app falls back to the operating system's
   // own folders, which is how somebody's family photographs ended up in a
-  // build artefact. See the note above `gradientPng`.
+  // build artefact. See the note above `SAMPLES`.
   ['pictures', firstPicture()],
   ['image', firstPicture()],
   // Video opens a project of the sample stills (writeVideoProject above):
@@ -548,7 +598,7 @@ const SETTLE = {
   mail: 5000,
   // Both parse a file and lay out a view over it — the calendar expands a
   // recurrence rule across the week before it can draw the grid.
-  calendar: 3500,
+  calendar: 6500,
   contacts: 3000,
 };
 
