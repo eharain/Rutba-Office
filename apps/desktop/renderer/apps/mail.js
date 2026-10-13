@@ -34,8 +34,10 @@ import { RulesDialog } from './mail/rules.js';
 import { attachmentExtension } from '@rutba/mailbox/mime';
 import { withSignature, withSignatureHtml, signatureTextToHtml } from '@rutba/mailbox/signature';
 import { textToHtml } from './mail/richtext.js';
+import { isArchiveId, ArchiveBanner, ExportHoldDialog, SearchHelp, installArchiveStyles } from './mail/archive.js';
 
 installStyles();
+installArchiveStyles();
 
 /** Every account at once. Not an id any account can have. */
 const EVERYTHING = '*';
@@ -76,6 +78,14 @@ export default function Mail({ app, shell }) {
   const [invitation, setInvitation] = useState(null);
   const [scan, setScan] = useState(null);
   const [outbox, setOutbox] = useState([]);
+  // Archives opened where they lie, and the search box's reach: the folder
+  // open, or all mail (every account and every archive). `found` is what the
+  // last search over all mail said: how many, whether counted exactly, and
+  // which archives were still being indexed.
+  const [archives, setArchives] = useState([]);
+  const [scope, setScope] = useState('folder');
+  const [found, setFound] = useState(null);
+  const searchSeq = useRef(0);
 
   // How the list looks. Remembered, because nobody wants to choose twice.
   const [prefs, setPrefs] = useState({
@@ -100,6 +110,9 @@ export default function Mail({ app, shell }) {
 
   const dark = document.documentElement.dataset.theme === 'dark';
   const unified = accountId === EVERYTHING;
+  const archiveId = isArchiveId(accountId) ? accountId : null;
+  const openArchive = archives.find((a) => a.id === archiveId) || null;
+  const allMail = scope === 'all' && query.trim().length > 0;
 
   const appMenu = useAppMenu({
     shell,
@@ -135,6 +148,25 @@ export default function Mail({ app, shell }) {
     loadAccounts().catch(() => {});
   }, [loadAccounts]);
 
+  const loadArchives = useCallback(async () => {
+    const list = await shell.mail.archives();
+    setArchives(list);
+    return list;
+  }, [shell]);
+
+  useEffect(() => {
+    loadArchives().catch(() => {});
+    const offList = shell.on('mail:archives', () => loadArchives().catch(() => {}));
+    // How far an archive's indexing has got, for its strip and the status bar.
+    const offIndex = shell.on('mail:indexing', (p) =>
+      setArchives((list) => list.map((a) => (a.id === p.id ? { ...a, index: { ...a.index, state: p.state, done: p.done, total: p.total } } : a)))
+    );
+    return () => {
+      offList?.();
+      offIndex?.();
+    };
+  }, [shell, loadArchives]);
+
   useEffect(() => {
     if (!accountId || unified) return;
     shell.mail
@@ -159,6 +191,24 @@ export default function Mail({ app, shell }) {
 
   const refreshList = useCallback(async () => {
     if (view !== 'mail') return;
+    if (allMail) {
+      // One search over every account and every archive; an answer that
+      // arrives after a newer one was asked for is dropped.
+      const seq = ++searchSeq.current;
+      setBusy(true);
+      try {
+        const r = await shell.mail.searchAll({ query, limit: 500 });
+        if (seq !== searchSeq.current) return;
+        setList({ rows: r.rows, total: r.total });
+        setFound({ ...r, query });
+      } catch (err) {
+        toast(err.message, { tone: 'bad' });
+      } finally {
+        if (seq === searchSeq.current) setBusy(false);
+      }
+      return;
+    }
+    setFound(null);
     if (unified) {
       setBusy(true);
       try {
@@ -185,7 +235,7 @@ export default function Mail({ app, shell }) {
     } finally {
       setBusy(false);
     }
-  }, [unified, role, accountId, folder, query, view, shell, toast]);
+  }, [allMail, unified, role, accountId, folder, query, view, shell, toast]);
 
   useEffect(() => {
     refreshList();
@@ -209,7 +259,7 @@ export default function Mail({ app, shell }) {
       .then(([m, i]) => {
         setMessage(m);
         setInsight(i);
-        if (m?.unread) {
+        if (m?.unread && !m.readOnly) {
           shell.mail.flag({ accountId: a, folder: f, ids: [id], patch: { unread: false } }).then(() => {
             setList((current) => ({
               ...current,
@@ -320,10 +370,13 @@ export default function Mail({ app, shell }) {
   );
 
   const targets = useCallback(() => {
-    if (checkedRows.length) return checkedRows;
+    // An archive opened in place is read only: nothing in it is moved,
+    // flagged or deleted, whatever is selected.
+    const writable = (rows) => rows.filter((r) => !isArchiveId(r.accountId));
+    if (checkedRows.length) return writable(checkedRows);
     if (!selected) return [];
     const thread = threads.find((t) => allRowsIn(t).some((r) => keyOf(r) === keyOf(selected)));
-    return thread && prefs.threaded ? thread.messages : [selected];
+    return writable(thread && prefs.threaded ? thread.messages : [selected]);
   }, [checkedRows, selected, threads, allRowsIn, prefs.threaded]);
 
   const foldersFor = useCallback(
@@ -417,6 +470,7 @@ export default function Mail({ app, shell }) {
   const star = useCallback(
     async (row, event) => {
       event.stopPropagation();
+      if (isArchiveId(row.accountId)) return;
       await shell.mail.flag({ accountId: row.accountId, folder: row.folder, ids: [row.id], patch: { flagged: !row.flagged } });
       setList((current) => ({
         ...current,
@@ -672,6 +726,79 @@ export default function Mail({ app, shell }) {
     });
     if (paths[0]) importFrom(paths[0]);
   }, [shell, importFrom]);
+
+  /* ── archives opened in place, and refining a search ────────────────── */
+
+  const openArchiveAt = useCallback(
+    async (target) => {
+      setDialog(null);
+      try {
+        const a = await shell.mail.openArchive({ path: target });
+        await loadArchives();
+        setAccountId(a.id);
+        setView('mail');
+        toast(t('{name} is open where it lies, read only. It is being indexed for search.', { name: a.name }), { tone: 'good', ms: 6000 });
+      } catch (err) {
+        toast(err.message, { tone: 'bad', ms: 8000 });
+      }
+    },
+    [shell, loadArchives, toast]
+  );
+
+  const chooseArchive = useCallback(async () => {
+    const paths = await shell.dialog.open({
+      title: t('Open archive'),
+      filters: [
+        { name: t('Mail archives'), extensions: ['pst', 'ost', 'olm', 'mbox', 'mbx'] },
+        { name: t('All files'), extensions: ['*'] },
+      ],
+    });
+    if (paths[0]) openArchiveAt(paths[0]);
+  }, [shell, openArchiveAt]);
+
+  const closeArchive = useCallback(
+    async (id) => {
+      await shell.mail.closeArchive({ id });
+      await loadArchives();
+      setAccountId((current) => (current === id ? accounts[0]?.id || null : current));
+    },
+    [shell, loadArchives, accounts]
+  );
+
+  /** Add an operator to the search box and put the cursor after it, as Outlook's Refine buttons do. */
+  const refine = useCallback((op) => {
+    setQuery((q) => `${q.trim() ? `${q.trim()} ` : ''}${op}`);
+    setTimeout(() => {
+      const input = document.querySelector('.rw-search input');
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }, 0);
+  }, []);
+
+  const dateMenu = (event) => {
+    const year = new Date().getFullYear();
+    menu.open(event, [
+      { label: t('Today'), run: () => refine('received:today') },
+      { label: t('Yesterday'), run: () => refine('received:yesterday') },
+      { label: t('This week'), run: () => refine('newer_than:7d') },
+      { label: t('This month'), run: () => refine('newer_than:1m') },
+      { label: t('This year'), run: () => refine(`received:${year}`) },
+      { label: t('Last year'), run: () => refine(`received:${year - 1}`) },
+      { label: t('Older than a year'), run: () => refine('older_than:1y') },
+      '-',
+      { label: t('After a day…'), run: () => refine('after:') },
+      { label: t('Before a day…'), run: () => refine('before:') },
+    ]);
+  };
+
+  const sizeMenu = (event) =>
+    menu.open(event, [
+      { label: t('Larger than 1 MB'), run: () => refine('size>1mb') },
+      { label: t('Larger than 5 MB'), run: () => refine('size>5mb') },
+      { label: t('Larger than 10 MB'), run: () => refine('size>10mb') },
+      { label: t('Smaller than 100 KB'), run: () => refine('size<100kb') },
+    ]);
 
   // A file of accounts: the picker, the service, and what came of it.
   const importAccountsFrom = useCallback(async () => {
@@ -947,6 +1074,7 @@ export default function Mail({ app, shell }) {
         <Ribbon
           tabs={[
             { id: 'home', label: t('Home') },
+            { id: 'search', label: t('Search') },
             { id: 'send', label: t('Send / Receive') },
             { id: 'folder', label: t('Folder') },
             { id: 'view', label: t('View') },
@@ -969,8 +1097,8 @@ export default function Mail({ app, shell }) {
                 <Button tall icon="new" label={t('Message')} onClick={() => commands['mail.compose'].run()} disabled={!accounts.length} />
               </Group>
               <Group label={t('Delete')}>
-                <Button tall icon="trash" label={t('Delete')} disabled={!selected && !checked.size} onClick={() => act('delete')} />
-                <Button icon="archive" label={t('Archive')} disabled={!selected && !checked.size} onClick={() => act('archive')} />
+                <Button tall icon="trash" label={t('Delete')} disabled={(!selected && !checked.size) || Boolean(archiveId)} onClick={() => act('delete')} />
+                <Button icon="archive" label={t('Archive')} disabled={(!selected && !checked.size) || Boolean(archiveId)} onClick={() => act('archive')} />
                 <Button icon="spam" label={t('Junk')} title={t("Junk — mark, block a sender, or the junk filter's options")} onClick={junkMenu} />
               </Group>
               <Group label={t('Respond')}>
@@ -979,7 +1107,7 @@ export default function Mail({ app, shell }) {
                 <Button tall icon="forward" label={t('Forward')} disabled={!message} onClick={forward} />
               </Group>
               <Group label={t('Move')}>
-                <Button tall icon="folder" label={t('Move to')} disabled={(!selected && !checked.size) || unified} onClick={moveMenu} />
+                <Button tall icon="folder" label={t('Move to')} disabled={(!selected && !checked.size) || unified || Boolean(archiveId)} onClick={moveMenu} />
               </Group>
               <Group label={t('Tags')}>
                 <Button icon="star" label={t('Star')} disabled={!selected && !checked.size} onClick={() => act('flag')} />
@@ -989,9 +1117,37 @@ export default function Mail({ app, shell }) {
               </Group>
               <Group label={t('Find')}>
                 <Button tall icon="find" label={t('Search')} onClick={() => commands['mail.search'].run()} />
-                <Button icon="attach" label={t('Attachments')} pressed={view === 'files'} onClick={() => setView(view === 'files' ? 'mail' : 'files')} disabled={unified} />
-                <Button icon="reply" label={t('People')} pressed={view === 'people'} onClick={() => setView(view === 'people' ? 'mail' : 'people')} disabled={unified} />
+                <Button icon="attach" label={t('Attachments')} pressed={view === 'files'} onClick={() => setView(view === 'files' ? 'mail' : 'files')} disabled={unified || Boolean(archiveId)} />
+                <Button icon="reply" label={t('People')} pressed={view === 'people'} onClick={() => setView(view === 'people' ? 'mail' : 'people')} disabled={unified || Boolean(archiveId)} />
                 <Button icon="filter" label={t('Rules')} onClick={() => setDialog({ kind: 'rules' })} />
+              </Group>
+            </>
+          ) : tab === 'search' ? (
+            <>
+              <Group label={t('Scope')}>
+                <Button tall icon="folder" label={t('This folder')} title={t('This folder: search only the folder that is open')} pressed={scope === 'folder'} onClick={() => setScope('folder')} />
+                <Button tall icon="grid" label={t('All mail')} title={t('All mail: every account and every open archive at once')} pressed={scope === 'all'} onClick={() => setScope('all')} />
+              </Group>
+              <Group label={t('Refine')}>
+                <Button icon="contacts" label={t('From')} title={t('From: who sent it')} onClick={() => refine('from:')} />
+                <Button icon="send" label={t('Sent to')} title={t('Sent to: who it went to')} onClick={() => refine('to:')} />
+                <Button icon="file" label={t('Subject')} title={t('Subject: a word in the subject')} onClick={() => refine('subject:')} />
+                <Button icon="attach" label={t('Has attachments')} onClick={() => refine('has:attachment')} />
+                <Button icon="find" label={t('Attachment name')} title={t('Attachment name: a file called')} onClick={() => refine('filename:')} />
+                <Button icon="eye" label={t('Unread')} onClick={() => refine('is:unread')} />
+                <Button icon="calendar" label={t('Date')} title={t('Date: when it was received')} onClick={dateMenu} />
+                <Button icon="sliders" label={t('Size')} title={t('Size: larger or smaller than')} onClick={sizeMenu} />
+              </Group>
+              <Group label={t('Archives')}>
+                <Button tall icon="folderOpen" label={t('Open archive')} title={t('Open archive: a .pst, .ost, .olm or mbox read where it lies, not imported')} onClick={chooseArchive} />
+                <Button tall icon="close" label={t('Close archive')} disabled={!openArchive} onClick={() => openArchive && closeArchive(openArchive.id)} />
+              </Group>
+              <Group label={t('Export')}>
+                <Button tall icon="export" label={t('Export results')} title={t('Export results: the messages found, for legal hold or handover')} disabled={!allMail || !list.total} onClick={() => setDialog({ kind: 'hold' })} />
+                <Button tall icon="pdf" label={t('Export folders')} title={t('Export folders: to an mbox and PDFs with a manifest of hashes')} disabled={!folder || unified} onClick={() => setDialog({ kind: 'hold' })} />
+              </Group>
+              <Group label={t('Help')}>
+                <Button tall icon="info" label={t('Search syntax')} title={t('Search syntax: every operator the search box knows')} onClick={() => setDialog({ kind: 'search-help' })} />
               </Group>
             </>
           ) : tab === 'send' ? (
@@ -1017,7 +1173,7 @@ export default function Mail({ app, shell }) {
                   tall
                   icon="export"
                   label="Mbox" // words-ok: a file format's name
-                  disabled={!folder || unified}
+                  disabled={!folder || unified || Boolean(archiveId)}
                   onClick={async () => {
                     const target = await shell.dialog.save({ title: t('Export folder'), defaultPath: `${current?.name || t('folder')}.mbox` });
                     if (!target) return;
@@ -1025,6 +1181,10 @@ export default function Mail({ app, shell }) {
                     toast(tn(r.messages, 'Exported {count} message', 'Exported {count} messages'), { tone: 'good' });
                   }}
                 />
+                <Button tall icon="pdf" label={t('For legal hold')} title={t('For legal hold: mbox and PDF with a manifest of hashes')} disabled={!folder || unified} onClick={() => setDialog({ kind: 'hold' })} />
+              </Group>
+              <Group label={t('Archives')}>
+                <Button tall icon="folderOpen" label={t('Open archive')} title={t('Open archive: a .pst, .ost, .olm or mbox read where it lies, not imported')} onClick={chooseArchive} />
               </Group>
             </>
           ) : tab === 'folder' ? (
@@ -1168,7 +1328,16 @@ export default function Mail({ app, shell }) {
       }
       status={
         <>
-          <span>{unified ? tn(accounts.length, '{count} account', '{count} accounts') : account ? account.email : t('No account yet')}</span>
+          <span>{unified ? tn(accounts.length, '{count} account', '{count} accounts') : openArchive ? openArchive.name : account ? account.email : t('No account yet')}</span>
+          {archives
+            .filter((a) => a.index?.state === 'indexing')
+            .slice(0, 1)
+            .map((a) => (
+              <span key={a.id} className="ml-status-indexing">
+                <Spinner />
+                {t('Indexing {name}: {percent}%', { name: a.name, percent: Math.floor((100 * (a.index.done || 0)) / Math.max(1, a.index.total || 1)) })}
+              </span>
+            ))}
           {progress ? (
             <>
               <Spinner />
@@ -1200,12 +1369,13 @@ export default function Mail({ app, shell }) {
         </div>
       ) : null}
 
-      {!accounts.length ? (
+      {!accounts.length && !archives.length ? (
         <Empty icon="mail" title={t('No mail here yet')}>
           {t('Add an account to fetch mail, or import what you already have — an Outlook .pst or .ost, an mbox, or a folder of messages. Rutba Office can find them for you.')}
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
             <Button primary icon="plus" label={t('Add account')} onClick={() => setDialog({ kind: 'account' })} />
             <Button icon="import" label={t('Find my mail')} onClick={() => setDialog({ kind: 'import' })} />
+            <Button icon="folderOpen" label={t('Open archive')} onClick={chooseArchive} />
           </div>
         </Empty>
       ) : (
@@ -1245,6 +1415,24 @@ export default function Mail({ app, shell }) {
               <Item icon="plus" label={t('Add account')} onClick={() => setDialog({ kind: 'account' })} />
             </div>
 
+            <div className="rw-panel-head">{t('Archives')}</div>
+            <div className="ml-accounts ml-archives">
+              {archives.map((a) => (
+                <Item
+                  key={a.id}
+                  icon="archive"
+                  label={a.name}
+                  current={a.id === accountId}
+                  onClick={() => {
+                    setAccountId(a.id);
+                    setView('mail');
+                  }}
+                  title={a.missing ? t('{path} is no longer there', { path: a.path }) : `${a.path}`}
+                />
+              ))}
+              <Item icon="folderOpen" label={t('Open archive…')} onClick={chooseArchive} title={t('Open archive: a .pst, .ost, .olm or mbox read where it lies, not imported')} />
+            </div>
+
             <div className="rw-panel-head">{unified ? t('Across every account') : t('Folders')}</div>
             <List>
               {unified
@@ -1276,7 +1464,7 @@ export default function Mail({ app, shell }) {
                   ))}
             </List>
 
-            {!unified ? (
+            {!unified && !archiveId ? (
               <>
                 <div className="rw-panel-head">{t('Views')}</div>
                 <List>
@@ -1292,7 +1480,7 @@ export default function Mail({ app, shell }) {
                   />
                 </List>
               </>
-            ) : (
+            ) : unified ? (
               <List>
                 <Item
                   icon="clock"
@@ -1303,7 +1491,7 @@ export default function Mail({ app, shell }) {
                   title={t("Every account's scheduled and waiting mail")}
                 />
               </List>
-            )}
+            ) : null}
           </Panel>
 
           {view === 'files' ? (
@@ -1336,8 +1524,9 @@ export default function Mail({ app, shell }) {
                   ...(prefs.layout === 'off' ? { flex: 1 } : {}),
                 }}
               >
+                {openArchive ? <ArchiveBanner archive={openArchive} onClose={() => closeArchive(openArchive.id)} onExport={() => setDialog({ kind: 'hold' })} /> : null}
                 <div className="ml-tools">
-                  <Search value={query} onChange={setQuery} placeholder={unified ? t('Search every account') : t('Search {folder}', { folder: current?.name || t('mail') })} />
+                  <Search value={query} onChange={setQuery} placeholder={scope === 'all' ? t('Search all mail and archives') : unified ? t('Search every account') : t('Search {folder}', { folder: current?.name || t('mail') })} />
                   <div className="ml-filters">
                     {FILTERS.filter((f) => f.id !== 'people').map((f) => (
                       <button key={f.id} type="button" className={`ml-filter${prefs.filter === f.id ? ' on' : ''}`} onClick={() => setPref({ filter: f.id })}>
@@ -1347,6 +1536,30 @@ export default function Mail({ app, shell }) {
                     ))}
                   </div>
                 </div>
+
+                {query.trim() ? (
+                  <div className="ml-scope">
+                    <div className="ml-scope-seg" role="group" aria-label={t('Search in')}>
+                      <button type="button" className={scope === 'folder' ? 'on' : ''} onClick={() => setScope('folder')}>
+                        {unified ? t('These accounts') : t('This folder')}
+                      </button>
+                      <button type="button" className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>
+                        {t('All mail')}
+                      </button>
+                    </div>
+                    {allMail && found ? (
+                      <span className={`ml-scope-found${found.exact ? '' : ' about'}`} data-total={found.total} data-query={found.query} data-sources={new Set(found.rows.map((r) => r.accountId)).size}>
+                        {tn(found.total, '{count} found', '{count} found')}
+                        {found.rows.length ? ` · ${tn(new Set(found.rows.map((r) => r.accountId)).size, 'in {count} mailbox or archive', 'in {count} mailboxes and archives')}` : ''}
+                      </span>
+                    ) : null}
+                    {allMail && found?.indexing?.length ? (
+                      <span className="ml-scope-indexing">
+                        {t('Still indexing {names}; more may be found.', { names: found.indexing.map((a) => a.name).join(', ') })}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {checked.size ? (
                   <div className="ml-bulk">
@@ -1396,6 +1609,7 @@ export default function Mail({ app, shell }) {
                         key={thread.threadKey || keyOf(thread)}
                         thread={thread}
                         unified={unified}
+                        where={allMail}
                         threaded={prefs.threaded}
                         selected={Boolean(selected) && allRowsIn(thread).some((r) => keyOf(r) === keyOf(selected))}
                         checked={allRowsIn(thread).every((r) => checked.has(keyOf(r)))}
@@ -1423,6 +1637,11 @@ export default function Mail({ app, shell }) {
                 ) : (
                   <Empty icon="inbox" title={query ? t('Nothing matches') : prefs.filter !== 'all' ? t('Nothing here under this filter') : t('This folder is empty')}>
                     {query ? t('Try a different search, or search every account.') : null}
+                    {query && scope !== 'all' ? (
+                      <div style={{ marginTop: 10 }}>
+                        <Button icon="grid" label={t('Search all mail')} onClick={() => setScope('all')} />
+                      </div>
+                    ) : null}
                   </Empty>
                 )}
               </Panel>
@@ -1508,8 +1727,30 @@ export default function Mail({ app, shell }) {
 
       {dialog?.kind === 'importing' ? <ImportingDialog path={dialog.path} progress={progress} /> : null}
 
+      {dialog?.kind === 'hold' ? (
+        <ExportHoldDialog
+          shell={shell}
+          query={allMail ? query.trim() : null}
+          resultCount={allMail ? list.total : 0}
+          folderOf={!unified && folder && accountId ? { accountId, folder } : null}
+          folders={unified ? [] : folders}
+          sourceName={openArchive ? openArchive.name : account ? account.name || account.email : ''}
+          onClose={() => setDialog(null)}
+        />
+      ) : null}
+
+      {dialog?.kind === 'search-help' ? (
+        <SearchHelp
+          onClose={() => setDialog(null)}
+          onInsert={(code) => {
+            setDialog(null);
+            refine(code);
+          }}
+        />
+      ) : null}
+
       {dialog?.kind === 'import-preview' ? (
-        <ImportPreview found={dialog.found} onCancel={() => setDialog(null)} onImport={(chosen) => runImport(dialog.path, chosen)} />
+        <ImportPreview found={dialog.found} onCancel={() => setDialog(null)} onImport={(chosen) => runImport(dialog.path, chosen)} onOpenInPlace={['pst', 'ost', 'olm', 'mbox'].includes(dialog.found?.kind) ? () => openArchiveAt(dialog.path) : null} />
       ) : null}
 
       {dialog?.kind === 'defaults' ? <DefaultsDialog shell={shell} onClose={() => setDialog(null)} toast={toast} /> : null}
@@ -1664,7 +1905,7 @@ export default function Mail({ app, shell }) {
  * box otherwise, and the whole point of holding the mail locally is that the
  * list is instant.
  */
-const Row = React.memo(function Row({ thread, unified, threaded, selected, checked, expanded, onOpen, onCheck, onStar, onExpand, onMenu }) {
+const Row = React.memo(function Row({ thread, unified, where, threaded, selected, checked, expanded, onOpen, onCheck, onStar, onExpand, onMenu }) {
   const avatar = avatarFor(thread.from);
   const many = threaded && thread.count > 1;
 
@@ -1720,6 +1961,12 @@ const Row = React.memo(function Row({ thread, unified, threaded, selected, check
             {thread.hasAttachments ? <Icon name="attach" size={12} /> : null}
             {thread.preview}
           </div>
+          {where && thread.sourceName ? (
+            <div className={`ml-where${thread.readOnly ? ' archive' : ''}`} title={thread.sourceFile || thread.sourceName}>
+              <Icon name={thread.readOnly ? 'archive' : 'mail'} size={11} />
+              <span>{`${thread.sourceName} · ${thread.folder}`}</span>
+            </div>
+          ) : null}
         </div>
 
         <div className="ml-row-side">

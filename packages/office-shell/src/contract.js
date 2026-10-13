@@ -183,6 +183,12 @@ export const METHODS = {
     'listRecipient', // ({ accountId, folder, ids } | { accountId, address }) -> the same, with { added }  Never block this group or mailing list
     'notJunk',      // ({ accountId, folder, ids }) -> { moved }  back to the Inbox, learned as good
     'learnJunk',    // ({ accountId }) -> the same, with what was learned now
+    'archives',     // () -> [{ id, path, name, kind, label, bytes, folders, messages, missing, index: { state, done, total } }] archives opened in place
+    'openArchive',  // ({ path }) -> that archive: a .pst, .ost, .olm or mbox read where it lies, never written to; its id begins archive:
+    'closeArchive', // ({ id }) -> { closed }  forgotten and its part of the index dropped; the file is untouched
+    'searchAll',    // ({ query, limit, offset, sources }) -> { rows, total, exact, indexing } one search over every account and archive
+    'exportHold',   // ({ job, query, sources, folders, items, dir, mbox, pdf, attachments, labels, selection }) -> { dir, exported, requested, cancelled, sources, attachments, pdfs, files }
+    'cancelExport', // ({ job }) -> { cancelled }
   ],
   calendar: [
     'calendars',      // () -> [{ id, name, colour, visible, count }]
@@ -303,6 +309,9 @@ export const EVENTS = [
   'app:open-file',    // { path }            OS asked us to open a document
   'app:command',      // { command, args }   menu / accelerator
   'mail:progress',    // { accountId, folder, done, total, phase }
+  'mail:archives',    // { id, closed } an archive opened in place or closed
+  'mail:indexing',    // { id, state, done, total } how far an archive's indexing has got
+  'mail:exportProgress', // { job, done, total, dir } an export for legal hold under way
   'mail:new',         // { accountId, folder, count }
   'present:state',    // { id, index, running, startedAt, blank }
   'mail:oauth',       // { phase, provider, email }

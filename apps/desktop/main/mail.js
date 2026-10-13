@@ -17,6 +17,8 @@ import { parseMessage, attachmentFileName } from '@rutba/mailbox/mime';
 import { scan, read as readArchive, identify } from '@rutba/mailbox/import';
 import { writeMbox } from '@rutba/mailbox/mbox';
 import { insightFor } from './mail-insight.js';
+import { createArchiveDesk, isArchive } from './mail-archive.js';
+import { unicodeFont } from './system-fonts.js';
 import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
 import { planAutoReplies, buildReply } from './mail-ooo.js';
@@ -1215,6 +1217,46 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      */
     pumpOutbox: () => pumpOutbox(),
   };
+
+  // Archives opened in place answer for their own ids (mail-archive.js):
+  // the window reads them as it reads an account, and nothing changes them.
+  const desk = createArchiveDesk({ stores, store, broadcast, holdBlob, insightFor, classify, accounts, unicodeFont: () => unicodeFont() });
+  for (const name of ['folders', 'messages', 'message', 'insight', 'attachment', 'attachmentText']) {
+    const own = service[name];
+    service[name] = (args = {}) => (isArchive(args.accountId) ? desk[name](args) : own(args));
+  }
+  {
+    // Opening a message marks it read; in an archive that is not written.
+    const own = service.flag;
+    service.flag = (args = {}) => (isArchive(args.accountId) ? { total: 0, unread: 0 } : own(args));
+    const sync = service.sync;
+    service.sync = (args = {}) => (isArchive(args.accountId) ? { added: 0, total: 0, local: true } : sync(args));
+    const search = service.search;
+    service.search = (args = {}) => (isArchive(args.accountId) ? store.index.search(args.query, { sources: [args.accountId], limit: args.limit }).rows : search(args));
+    const files = service.files;
+    service.files = (args = {}) => (isArchive(args.accountId) ? [] : files(args));
+    const people = service.people;
+    service.people = (args = {}) => (isArchive(args.accountId) ? { total: 0, rows: [] } : people(args));
+    const remove = service.removeAccount;
+    service.removeAccount = (args = {}) => {
+      store.dropIndex(args.id);
+      return remove(args);
+    };
+  }
+  for (const name of ['move', 'delete', 'markAllRead', 'emptyFolder', 'notJunk', 'runRules', 'export', 'listRecipient']) {
+    const own = service[name];
+    service[name] = (args = {}) => (isArchive(args.accountId) ? desk.readOnly() : own(args));
+  }
+  Object.assign(service, {
+    archives: () => desk.archives(),
+    openArchive: (args) => desk.openArchive(args),
+    closeArchive: (args) => desk.closeArchive(args),
+    searchAll: (args) => desk.searchAll(args),
+    exportHold: (args) => desk.exportHold(args),
+    cancelExport: (args) => desk.cancelExport(args),
+  });
+  // Opened archives are indexed again a moment after start-up, in slices.
+  setTimeout(() => desk.indexAll(), CHECK_RUN ? 0 : 2000).unref?.();
 
   // Anything left over from the last run — including one that fell due while
   // the application was closed — goes out now.

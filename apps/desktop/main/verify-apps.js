@@ -139,6 +139,7 @@ import { verifyDeckPoints } from './verify-deck-points.js';
 import { verifyWordRtl } from './verify-word-rtl.js';
 import { verifyWordTable } from './verify-word-table.js';
 import { verifyMailJunk } from './verify-mail-junk.js';
+import { verifyMailArchive } from './verify-mail-archive.js';
 import { verifyMailRichSignature } from './verify-mail-signature.js';
 import { verifyWordBlocks } from './verify-word-blocks.js';
 import { verifyWordBinary } from './verify-word-binary.js';
@@ -4743,7 +4744,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4878,6 +4879,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordtable')) await verifyWordTable({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('rtl')) await verifyWordRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('junk')) await verifyMailJunk({ open, check, until, wait, errorsIn });
+    if (only.includes('mail-archive')) await verifyMailArchive({ open, check, until, wait, errorsIn });
     if (only.includes('richsignature')) await verifyMailRichSignature({ open, check, until, wait, errorsIn });
     if (only.includes('blocks')) await verifyWordBlocks({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('binary')) await verifyWordBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -6856,6 +6858,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // Last of all: it leaves an Inbox and a Junk folder on the shared account,
   // and a window opens on an Inbox before the seeded folder the others read.
   await verifyMailJunk({ open, check, until, wait, errorsIn });
+  await verifyMailArchive({ open, check, until, wait, errorsIn });
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);

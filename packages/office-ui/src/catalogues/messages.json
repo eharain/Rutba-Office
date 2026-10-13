@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6244,
+  "count": 6360,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -357,6 +357,12 @@
       ]
     },
     {
+      "message": "(This message has no text.)",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "(choose a column)",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -402,6 +408,7 @@
       "message": "(no subject)",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/reader.js",
         "apps/desktop/renderer/apps/mail/rules.js"
@@ -868,6 +875,12 @@
       ]
     },
     {
+      "message": "A file whose name holds this",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "A file with that name already exists.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -968,6 +981,12 @@
       "message": "A macro engine is not built, and VBA in a file is preserved untouched rather than run.",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "A manifest (CSV and JSON) with each message's date, sender, recipients, subject, Message-ID, where it came from and the SHA-256 of what was written, and a summary page, are always written. Nothing in the mailboxes or archives is changed.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -1425,6 +1444,12 @@
       "message": "A week of hours: start, finish and breaks, with the hours and pay worked out",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "A word in the subject",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -2337,6 +2362,12 @@
       ]
     },
     {
+      "message": "After a day…",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "After — the show moves on by itself this many seconds after the slide is shown",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -2677,6 +2708,18 @@
       ]
     },
     {
+      "message": "All mail",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "All mail: every account and every open archive at once",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "All page breaks removed",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -2928,6 +2971,12 @@
       "message": "An invoice to print or send: who it is from and to, the items, the total and how to pay",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "An mbox file of the messages, as mail programs read them",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -3256,6 +3305,12 @@
       ]
     },
     {
+      "message": "Archives",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Are you ready to apply these settings? (You can turn them off later)",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
@@ -3566,9 +3621,22 @@
       ]
     },
     {
+      "message": "Attachment name",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Attachment name: a file called",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Attachments",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/parts.js"
       ]
     },
@@ -4043,6 +4111,7 @@
     {
       "message": "Bcc",
       "where": [
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js"
       ]
     },
@@ -4050,6 +4119,12 @@
       "message": "Before (pt)",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Before a day…",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -4092,6 +4167,12 @@
       "message": "Between",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Between two days",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -4396,6 +4477,12 @@
       ]
     },
     {
+      "message": "Both",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Bottom",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
@@ -4656,6 +4743,7 @@
     {
       "message": "Browse…",
       "where": [
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/word/compare.js",
         "apps/desktop/renderer/object-insert.js"
       ]
@@ -5033,6 +5121,7 @@
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/richtext.js",
         "apps/desktop/renderer/apps/mail/rules.js",
@@ -5085,6 +5174,12 @@
       "message": "Cancel the edit",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Cancelled before the end: only the messages listed in the manifest were exported.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -5183,6 +5278,12 @@
       ]
     },
     {
+      "message": "Carries a file",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Cart",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
@@ -5250,6 +5351,7 @@
     {
       "message": "Cc",
       "where": [
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js"
       ]
     },
@@ -5691,6 +5793,12 @@
       "message": "Choose a file…",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Choose a folder",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -6233,6 +6341,7 @@
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/sheets.js",
@@ -6305,6 +6414,13 @@
       "message": "Close Window",
       "where": [
         "packages/office-shell/src/electron/main.js"
+      ]
+    },
+    {
+      "message": "Close archive",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -8041,6 +8157,8 @@
     {
       "message": "Date",
       "where": [
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/parts.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -8089,8 +8207,15 @@
       ]
     },
     {
+      "message": "Date: when it was received",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Dates",
       "where": [
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
@@ -10003,6 +10128,12 @@
       ]
     },
     {
+      "message": "Either",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Ellipse",
       "where": [
         "apps/desktop/renderer/apps/image.js",
@@ -10658,6 +10789,24 @@
       ]
     },
     {
+      "message": "Export folders",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Export folders: to an mbox and PDFs with a manifest of hashes",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Export for legal hold",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Export picture",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -10670,9 +10819,33 @@
       ]
     },
     {
+      "message": "Export results",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Export results: the messages found, for legal hold or handover",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Export summary",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Export the dictionary",
       "where": [
         "apps/desktop/renderer/review.js"
+      ]
+    },
+    {
+      "message": "Export to",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -10696,6 +10869,13 @@
       ]
     },
     {
+      "message": "Export {count} message",
+      "plural": "Export {count} messages",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Export — save these words as a .dic word list",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -10708,10 +10888,35 @@
       ]
     },
     {
+      "message": "Exported",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Exported by Rutba Office",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Exported {count} message",
       "plural": "Exported {count} messages",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Exported {count} message from {sources} to {dir}:",
+      "plural": "Exported {count} messages from {sources} to {dir}:",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Exported {done} of {total}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -10740,6 +10945,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/mail/archive.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -11013,10 +11219,17 @@
       ]
     },
     {
+      "message": "Filed in a folder",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Files",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/contacts.js"
+        "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -11742,6 +11955,7 @@
       "message": "Folder",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/pictures.js"
       ]
     },
@@ -11755,6 +11969,12 @@
       "message": "Folders",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Folders of {source}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -11909,6 +12129,18 @@
       "message": "For example: a bar chart of orders by month, rising from 120 in January to 310 in June.",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "For legal hold",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "For legal hold: mbox and PDF with a manifest of hashes",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -12264,6 +12496,8 @@
     {
       "message": "From",
       "where": [
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides/setup.js"
@@ -12467,6 +12701,12 @@
       "message": "From:",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "From: who sent it",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -13165,6 +13405,12 @@
       ]
     },
     {
+      "message": "Has attachments",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Header",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -13337,6 +13583,7 @@
     {
       "message": "Help",
       "where": [
+        "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -14173,6 +14420,12 @@
       ]
     },
     {
+      "message": "In a month or a year, or with >, >=, < and <=",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "In and Out",
       "where": [
         "apps/desktop/renderer/apps/video/ribbon.js"
@@ -14195,6 +14448,12 @@
       "message": "In margin",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "In one account or archive",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -14324,6 +14583,12 @@
       "message": "Index updated",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
+      ]
+    },
+    {
+      "message": "Indexing {name}: {percent}%",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -15038,6 +15303,12 @@
       ]
     },
     {
+      "message": "Into a new folder in",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Into files of",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -15646,9 +15917,33 @@
       ]
     },
     {
+      "message": "Larger or smaller than a size",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Larger pointer",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
+      "message": "Larger than 1 MB",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Larger than 10 MB",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Larger than 5 MB",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -15764,6 +16059,12 @@
       "message": "Last saved, {when}",
       "where": [
         "apps/desktop/renderer/apps/slides/changes.js"
+      ]
+    },
+    {
+      "message": "Last year",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -15918,6 +16219,12 @@
       "message": "Leave off this country",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Leave out what follows the minus",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -17410,6 +17717,12 @@
       ]
     },
     {
+      "message": "Mbox archive",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Meadow",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -17687,6 +18000,18 @@
       "message": "Message — {subject}",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js"
+      ]
+    },
+    {
+      "message": "Message-ID",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Messages",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -18367,6 +18692,7 @@
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -19040,6 +19366,12 @@
       "message": "No Outline",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "No PDF",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -20089,6 +20421,12 @@
       ]
     },
     {
+      "message": "Nothing in the mailboxes or archives was changed.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Nothing in the next thirty days",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -20429,6 +20767,18 @@
       ]
     },
     {
+      "message": "Older or newer than so many days (d), weeks (w), months (m) or years (y)",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Older than a year",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Oldest first",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
@@ -20535,6 +20885,18 @@
       "message": "One Line",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "One PDF for each message",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "One PDF of them all, after a summary page",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -20793,6 +21155,24 @@
       ]
     },
     {
+      "message": "Open archive",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Open archive: a .pst, .ost, .olm or mbox read where it lies, not imported",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Open archive…",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Open as a workbook…",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -20838,6 +21218,18 @@
       "message": "Open system settings",
       "where": [
         "apps/desktop/renderer/defaults.js"
+      ]
+    },
+    {
+      "message": "Open where it is",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Open where it is: read it in place, without copying it, and search it with the rest of your mail",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -21212,15 +21604,33 @@
       ]
     },
     {
+      "message": "Outlook data file (.pst)",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Outlook data files, with folders, attachments and read state",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
+      "message": "Outlook for Mac archive (.olm)",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Outlook for Mac archives",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Outlook offline file (.ost)",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -21253,6 +21663,12 @@
       "message": "Overlay",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "PDF",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -23504,6 +23920,24 @@
       ]
     },
     {
+      "message": "Read only, opened where it lies. Indexing for search: {percent}%",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Read only, opened where it lies. Nothing in it is changed.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Read or not, starred or not",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Read the document aloud, from the caret",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -23964,6 +24398,12 @@
       "message": "Refers to cells",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Refine",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -25830,6 +26270,12 @@
       ]
     },
     {
+      "message": "SHA-256",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Safe Lists Only",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -26327,6 +26773,12 @@
       ]
     },
     {
+      "message": "Scope",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Screen",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
@@ -26466,6 +26918,18 @@
       ]
     },
     {
+      "message": "Search all mail",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Search all mail and archives",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Search attachments by name or subject",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -26490,6 +26954,12 @@
       ]
     },
     {
+      "message": "Search in",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Search people",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -26499,6 +26969,19 @@
       "message": "Search recent files",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Search syntax",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Search syntax: every operator the search box knows",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -27222,7 +27705,37 @@
       ]
     },
     {
+      "message": "Sent by someone, by name or address",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Sent on or after a day, or before it",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Sent to",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Sent to someone, copied, or blind copied",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Sent to {to}",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Sent to: who it went to",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
       ]
@@ -28014,6 +28527,12 @@
       ]
     },
     {
+      "message": "Show the folder",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Show the gridlines on screen",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -28322,6 +28841,8 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/tools.js",
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/parts.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -28354,6 +28875,12 @@
       "message": "Size — now {paper}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Size: larger or smaller than",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -28668,6 +29195,12 @@
       ]
     },
     {
+      "message": "Smaller than 100 KB",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Smallest above",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -28965,6 +29498,7 @@
     {
       "message": "Source",
       "where": [
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -28995,6 +29529,7 @@
     {
       "message": "Sources",
       "where": [
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
@@ -29575,6 +30110,12 @@
       ]
     },
     {
+      "message": "Still indexing {names}; more may be found.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Stop",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js",
@@ -29614,6 +30155,12 @@
       "message": "Stop value",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Stopped after {done} of {total}. What was exported is kept, and the manifest says it stopped.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -29787,6 +30334,7 @@
     {
       "message": "Subject",
       "where": [
+        "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/parts.js",
@@ -29797,6 +30345,12 @@
       "message": "Subject line:",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Subject: a word in the subject",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -31258,6 +31812,12 @@
       ]
     },
     {
+      "message": "The file is no longer where it was.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "The fill of the selected shape, in the Format pane",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -31291,6 +31851,12 @@
       "message": "The first {count} rows kept",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "The folder {folder} of {source}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -31728,6 +32294,12 @@
       ]
     },
     {
+      "message": "The search {query}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "The selection already contains merged cells — split them first.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -31839,6 +32411,12 @@
       "message": "The slide's shapes as layers — select, reorder, hide, rename",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "The sources were opened for reading only; nothing in them was changed.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -32015,6 +32593,13 @@
       "message": "The workbook’s structure is protected with a password. Type it to take the protection off.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "The {count} result of the search {query}",
+      "plural": "The {count} results of the search {query}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -32308,6 +32893,12 @@
       ]
     },
     {
+      "message": "These accounts",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "These are imported archives — there is nothing to fetch.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -32329,6 +32920,12 @@
       "message": "These settings came from {source} on this computer; they are checked when the address is complete.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "These words, together and in this order, anywhere in the message",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -32712,6 +33309,18 @@
       ]
     },
     {
+      "message": "This folder: search only the folder that is open",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "This folder: {folder}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "This formula reads other sheets or names only",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -32825,6 +33434,12 @@
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js",
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This month",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -33099,6 +33714,12 @@
       ]
     },
     {
+      "message": "This week",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "This workbook has no comments.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -33126,6 +33747,12 @@
       "message": "This workbook: {name}",
       "where": [
         "apps/desktop/renderer/apps/sheets/design.js"
+      ]
+    },
+    {
+      "message": "This year",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -33406,6 +34033,7 @@
     {
       "message": "To",
       "where": [
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
@@ -33449,7 +34077,8 @@
     {
       "message": "Today",
       "where": [
-        "apps/desktop/renderer/apps/calendar.js"
+        "apps/desktop/renderer/apps/calendar.js",
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -34127,6 +34756,7 @@
     {
       "message": "Type",
       "where": [
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/references-index.js",
@@ -34203,6 +34833,12 @@
       "message": "Type the words or the address the code should hold.",
       "where": [
         "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
+      "message": "Type words to find them anywhere, the body included. Add any of these; click one to add it to the search.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -35409,6 +36045,7 @@
     {
       "message": "What to export",
       "where": [
+        "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/video/export.js"
       ]
     },
@@ -35422,6 +36059,12 @@
       "message": "What was checked",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "What was exported",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -35926,6 +36569,12 @@
       ]
     },
     {
+      "message": "Write",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "Write & Insert Fields",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -35935,6 +36584,12 @@
       "message": "Write a message",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "Write each message's attachments beside it",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -35997,6 +36652,12 @@
       "message": "Yes, Start Enforcing Protection — with an optional password",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "Yesterday",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -36262,6 +36923,13 @@
       ]
     },
     {
+      "message": "a PDF of {count} page",
+      "plural": "a PDF of {count} pages",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "a SubRip (.srt) or WebVTT (.vtt) file, each caption a clip on its own track",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -36296,6 +36964,12 @@
       "message": "a logo, colours, a font and a name and role, in every scene",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "a manifest with every hash, and a summary",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -36384,6 +37058,12 @@
       "plural": "{count} insertions",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "an mbox",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -36791,6 +37471,13 @@
       "message": "in all",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "in {count} mailbox or archive",
+      "plural": "in {count} mailboxes and archives",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -37951,6 +38638,13 @@
       ]
     },
     {
+      "message": "{count} PDF, one a message",
+      "plural": "{count} PDFs, one a message",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "{count} Slide",
       "plural": "{count} Slides",
       "where": [
@@ -37976,6 +38670,13 @@
       "plural": "{count} address books",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "{count} attachment",
+      "plural": "{count} attachments",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -38219,6 +38920,20 @@
       ]
     },
     {
+      "message": "{count} folder of {source}",
+      "plural": "{count} folders of {source}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "{count} found",
+      "plural": "{count} found",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "{count} group added to Safe Recipients",
       "plural": "{count} groups added to Safe Recipients",
       "where": [
@@ -38252,6 +38967,13 @@
       "plural": "{count} left as they were",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{count} mailbox or archive",
+      "plural": "{count} mailboxes and archives",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -38992,6 +39714,12 @@
       ]
     },
     {
+      "message": "{name} is open where it lies, read only. It is being indexed for search.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "{name} is protected with a password, and it stays closed until the password is given.",
       "where": [
         "apps/desktop/renderer/protect.js"
@@ -39259,6 +39987,12 @@
       "message": "{ours} of {total} formats",
       "where": [
         "apps/desktop/renderer/defaults.js"
+      ]
+    },
+    {
+      "message": "{path} is no longer there",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {

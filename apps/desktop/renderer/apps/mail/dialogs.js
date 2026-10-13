@@ -406,7 +406,7 @@ export function ImportDialog({ scan, onClose, onChoose, onImportStore, onUseAcco
   );
 }
 
-export function ImportPreview({ found, onCancel, onImport }) {
+export function ImportPreview({ found, onCancel, onImport, onOpenInPlace = null }) {
   const [chosen, setChosen] = useState(() => new Set((found.folders || []).filter((f) => f.messages > 0).map((f) => f.path || f.name)));
   const all = (found.folders || []).filter((f) => f.messages > 0);
   const total = (found.folders || []).filter((f) => chosen.has(f.path || f.name)).reduce((n, f) => n + f.messages, 0);
@@ -428,6 +428,9 @@ export function ImportPreview({ found, onCancel, onImport }) {
       actions={
         <>
           <Button label={t('Cancel')} onClick={onCancel} />
+          {onOpenInPlace ? (
+            <Button icon="folderOpen" label={t('Open where it is')} title={t('Open where it is: read it in place, without copying it, and search it with the rest of your mail')} onClick={onOpenInPlace} />
+          ) : null}
           <Button primary label={tn(total, 'Import {count} message', 'Import {count} messages')} disabled={!total} onClick={() => onImport([...chosen])} />
         </>
       }
