@@ -17,7 +17,7 @@
 //   core/tesseract-core-simd-lstm.cjs, .wasm  the engine: SIMD, LSTM only (its
 //                                             loader is CommonJS, and the package is ESM)
 //   core/LICENSE                              tesseract.js-core's licence
-//   tessdata/<lang>.traineddata               eng, urd, ara, hin, chi_sim, jpn
+//   tessdata/<model>.traineddata              one for each row of packages/ocr/src/languages.js
 //   tessdata/LICENSE                          tessdata_fast's licence
 // and VERSION files naming the versions and each file's SHA-256.
 
@@ -25,13 +25,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { LANGUAGES as TABLE } from '../packages/ocr/src/languages.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const from = path.resolve(process.argv[2] || '');
 const models = path.resolve(process.argv[3] || '');
 const to = path.resolve(here, '..', 'packages', 'ocr', 'vendor');
 
-const LANGS = ['eng', 'urd', 'ara', 'hin', 'chi_sim', 'jpn'];
+// The models: one a language of the table, which is where a language is added.
+const LANGS = [...new Set(TABLE.map((l) => l.model))];
 const BUILD = 'tesseract-core-simd-lstm';
 
 const pkg = JSON.parse(fs.readFileSync(path.join(from, 'package.json'), 'utf8'));
@@ -58,6 +60,7 @@ fs.writeFileSync(path.join(to, 'core', 'VERSION'), `${lines.join('\n')}\n`);
 const data = ['tessdata_fast (https://github.com/tesseract-ocr/tessdata_fast)', ''];
 for (const lang of LANGS) {
   const name = `${lang}.traineddata`;
+  if (!fs.existsSync(path.join(models, name))) throw new Error(`${name} is not in ${models}: every language in packages/ocr/src/languages.js needs its model`);
   fs.copyFileSync(path.join(models, name), path.join(to, 'tessdata', name));
   data.push(`${sha(path.join(to, 'tessdata', name))}  ${name}`);
 }

@@ -12,6 +12,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { pgm } from './pixels.js';
+import { modelOf } from './languages.js';
 
 const BUILD = 'tesseract-core-simd-lstm';
 
@@ -39,12 +40,12 @@ export async function createEngine({ vendor = vendorDir() } = {}) {
   let current = '';
 
   function use(languages) {
-    const key = languages.join('+');
+    const key = languages.map(modelOf).join('+');
     if (key === current && api) return;
-    for (const lang of languages) {
-      if (written.has(lang)) continue;
-      tess.FS.writeFile(`/${lang}.traineddata`, fs.readFileSync(path.join(vendor, 'tessdata', `${lang}.traineddata`)));
-      written.add(lang);
+    for (const model of languages.map(modelOf)) {
+      if (written.has(model)) continue;
+      tess.FS.writeFile(`/${model}.traineddata`, fs.readFileSync(path.join(vendor, 'tessdata', `${model}.traineddata`)));
+      written.add(model);
     }
     if (api) {
       api.End();
@@ -62,7 +63,8 @@ export async function createEngine({ vendor = vendorDir() } = {}) {
 
   return {
     build: BUILD,
-    get languages() { return current ? current.split('+') : []; },
+    /** The models loaded now, by file name. */
+    get models() { return current ? current.split('+') : []; },
 
     /**
      * Read a grey picture. @returns the engine's JSON (blocks, paragraphs,

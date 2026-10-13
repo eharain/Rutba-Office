@@ -24,6 +24,19 @@ engine is used: 2.9 MB of WebAssembly. The six models are 13.0 MB:
 | urd | 1.4 MB |
 | hin | 1.1 MB |
 
+## Languages
+
+Text recognition follows the languages the suite ships: the first six are
+the suite's English, Urdu, Arabic and Hindi and the Chinese and Japanese it
+is gaining, and each language the suite adds gains recognition too. The
+list is one table, `packages/ocr/src/languages.js`: a row a language with
+the suite's own code for it, its model's file name, its script, its
+direction and whether it is beta. Adding a language is a row and its model
+file; `tools/vendor-ocr.mjs` takes the models it copies from that table,
+the language picker in the windows lists its rows, a window speaking the
+language suggests it first, and the package's tests check every row has its
+model and every model shipped has its row.
+
 ## Where it runs
 
 `@rutba/ocr` (packages/ocr) answers `recognize(image, { languages })` with

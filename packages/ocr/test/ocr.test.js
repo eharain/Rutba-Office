@@ -46,7 +46,15 @@ test('languages: the six shipped, Urdu marked beta, unknown codes refused, a win
   assert.throws(() => checkLanguages(['deu']), OcrLanguageError);
   assert.deepEqual(languagesFor('ur'), ['urd', 'eng']);
   assert.deepEqual(languagesFor('en-GB'), ['eng']);
-  for (const l of LANGUAGES) assert.ok(fs.existsSync(new URL(`../vendor/tessdata/${l.code}.traineddata`, import.meta.url)), `${l.code} model shipped`);
+  for (const l of LANGUAGES) {
+    assert.ok(fs.existsSync(new URL(`../vendor/tessdata/${l.model}.traineddata`, import.meta.url)), `${l.code} model shipped`);
+    assert.ok(l.ui && l.script && ['ltr', 'rtl'].includes(l.direction), `${l.code}: a full row`);
+  }
+  // Every model shipped belongs to a row: the table is the one list.
+  const shipped = fs.readdirSync(new URL('../vendor/tessdata/', import.meta.url)).filter((f) => f.endsWith('.traineddata')).map((f) => f.replace(/\.traineddata$/, ''));
+  assert.deepEqual(shipped.sort(), [...new Set(LANGUAGES.map((l) => l.model))].sort());
+  // Each language the suite's windows speak, other than English, suggests its own model first.
+  for (const l of LANGUAGES.filter((x) => x.code !== 'eng')) assert.deepEqual(languagesFor(l.ui), [l.code, 'eng']);
 });
 
 /** A PNG made here, row filters and all, to read back. */

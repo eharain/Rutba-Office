@@ -10,11 +10,15 @@
 
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Button, Dialog, Spinner, t, tn, language } from '@rutba/office-ui';
-import { languagesFor, CODES } from '@rutba/ocr/languages';
+import { languagesFor, CODES, LANGUAGES } from '@rutba/ocr/languages';
 
 const KEY = 'rutba-ocr-languages';
 
-/** Every language there is a model for, its name in the window's language. */
+/**
+ * Every language there is a model for, its name in the window's language.
+ * A language added to @rutba/ocr's table shows its English name until its
+ * name is added here (and so to the catalogues).
+ */
 export const ocrLanguageNames = () => ({
   eng: t('English'),
   urd: t('Urdu'),
@@ -51,8 +55,8 @@ export function OcrLanguagePicker({ value, onChange }) {
         {CODES.map((code) => (
           <label key={code} className="ocr-lang" data-code={code}>
             <input type="checkbox" checked={value.includes(code)} onChange={() => toggle(code)} />
-            <span>{names[code]}</span>
-            {code === 'urd' ? <span className="ocr-beta" title={t('Urdu text recognition is in beta')}>{t('Beta')}</span> : null}
+            <span>{names[code] || LANGUAGES.find((l) => l.code === code)?.name}</span>
+            {code === 'urd' ? <span className="ocr-beta" title={t('Urdu text recognition is in beta')}>{t('Beta')}</span> : LANGUAGES.find((l) => l.code === code)?.beta ? <span className="ocr-beta">{t('Beta')}</span> : null}
           </label>
         ))}
       </div>
