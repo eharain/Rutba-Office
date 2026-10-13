@@ -23,8 +23,13 @@ const MESSAGES = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/of
 function steady(name, text) {
   if (name === 'docProps/core.xml') return text.replace(/<dcterms:(created|modified)[^>]*>[^<]*</g, '<dcterms:$1>');
   if (/^xl\/worksheets\//.test(name)) return text.replace(/<v>[^<]*<\/v>/g, '');
-  // A slide number's field carries an id of its own, new each time.
-  if (/^ppt\//.test(name)) return text.replace(/<a:fld id="\{[0-9A-F-]+\}"/g, '<a:fld id=""');
+  // A slide number's field carries an id of its own, new each time, and a
+  // notes master's date field the day it was made (PowerPoint shows today's
+  // on opening), so a run past midnight is not a changed template.
+  if (/^ppt\//.test(name)) {
+    return text.replace(/<a:fld id="\{[0-9A-F-]+\}"/g, '<a:fld id=""')
+      .replace(/(type="datetimeFigureOut"><a:rPr[^>]*\/><a:t>)[^<]*</g, '$1<');
+  }
   return text;
 }
 
