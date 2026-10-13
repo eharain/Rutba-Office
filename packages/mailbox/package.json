@@ -19,11 +19,15 @@
     "./schedule": "./src/schedule.js",
     "./search": "./src/search-index.js",
     "./query": "./src/query.js",
-    "./archive": "./src/archive.js"
+    "./archive": "./src/archive.js",
+    "./export": "./src/legal-export.js",
+    "./message-pdf": "./src/message-pdf.js",
+    "./rfc822": "./src/rfc822.js"
   },
   "dependencies": {
     "@rutba/office-formats": "*",
-    "@rutba/ooxml": "*"
+    "@rutba/ooxml": "*",
+    "@rutba/pdf": "*"
   },
   "sideEffects": false
 }

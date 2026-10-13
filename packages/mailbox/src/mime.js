@@ -199,7 +199,9 @@ export function parseParameters(value) {
       const idx = m[2] ? Number(m[2]) : 0;
       continued[base] = continued[base] || { parts: [], extended: false };
       continued[base].parts[idx] = val;
-      if (m[3]) continued[base].extended = true;
+      // name*=charset''value is extended too, not only name*0*=: a filename
+      // another client wrote that way arrived still percent-encoded.
+      if (m[3] || m[2] === undefined) continued[base].extended = true;
       continue;
     }
     params[key] = val;
