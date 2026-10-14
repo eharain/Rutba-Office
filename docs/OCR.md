@@ -144,8 +144,11 @@ than 64 down, and an unevenly lit page is handed over as ink and paper.
 After reading, the engine's lines are put in reading order by geometry
 (columns, then lines top to bottom, right to left for Urdu and Arabic), a
 line the engine split into two blocks is joined again, a word the engine
-boxed as a sliver takes its line's height, and in Urdu and Arabic a Latin
-comma, semicolon or question mark after a letter becomes the Arabic one.
+boxed as a sliver takes its line's height (judged where the engine read it,
+and only when it is thin against the page's usual line too, so small type
+the engine put on one line with a large heading keeps its own height), and
+in Urdu and Arabic a Latin comma, semicolon or question mark after a letter
+becomes the Arabic one.
 
 Two of these were measured and changed: turning a page back by resampling
 it cost more than the 1.2 degree tilt of the simulated scans did (Japanese
@@ -333,6 +336,189 @@ compared with. A model of our own replaces it, behind the same `recognize()`, on
 reads these sets and a set of real printed Nastaliq pages clearly better,
 with its rates published here.
 
+## Bills, invoices and receipts
+
+`recognize(image, { document: true })` reads a page as a document and
+answers `document` beside the text: what kind of page it is (invoice,
+receipt, letter, form or other), its fields with their boxes and
+confidence (who it is from, the number, the date, the due date, the
+subtotal, the tax and its rate, the total and the currency), its lines of
+items, whether its sums agree, and its tick boxes, ticked or not. The rules
+are in `packages/ocr/src/fields.js` and `checkboxes.js`; the engine is the
+same, and nothing is learnt or fetched. No window uses it yet.
+
+How a page is read:
+
+- **Twice, then merged.** The page is read as a page and again as sparse
+  text, and the words of both are merged as the table pass merges them: the
+  page reading keeps the figures of a table that sparse text drops, sparse
+  text keeps a label or a figure standing alone that the page reading
+  drops. Words the sparse reading is unsure of (under 40 of 100) are left
+  out, since it also reads a dashed rule or the grain of the paper as
+  letters.
+- **Rows and segments.** The words are levelled (the median slope of the
+  engine's lines taken out, for a page photographed a little turned) and
+  gathered into rows by the middle band of each row's words, so a large
+  title beside two lines of small type takes neither into its row. Each row
+  is cut into segments where a gap wider than a text height opens.
+- **Labels and values.** A label is the start of a segment matching a
+  phrase of the field's dictionary: six languages, several wordings each, a
+  misread letter allowed in five. Its value is the rest of its segment,
+  else the next segment along the row in the page's direction (leftwards
+  in Urdu and Arabic), else the segment below it, never past another label.
+- **Reading figures again.** Every figure beside a label and every item's
+  amount is cropped and read again as one line, by English's model (which
+  reads Western digits best, also on an Arabic or Hindi page) and by the
+  page's own. Where a label has no value beside it at all, the stretch of
+  its row where the value would lie is read.
+- **Locales.** Amounts are read by their own separators (a comma or a point
+  for the decimals, a space or an apostrophe between thousands, Indian
+  grouping, the Arabic decimal and thousands marks), with Arabic-Indic,
+  Urdu and Devanagari digits and full-width ones, and a figure the engine
+  spaced about its separators joined again. Dates are read year first, day
+  first (month first when the first number cannot be a month, or when asked
+  for), with the month's name in English, Arabic (both sets of names),
+  Urdu or Hindi, and as 年月日.
+- **The sums decide.** The candidates for the subtotal, the tax and the
+  total (each reading of each, a lost decimal point put back, a rupee sign
+  read as a leading 7 or 2 taken off) and each item's readings are tried
+  together; the choice where the items add up to the subtotal, the subtotal
+  and the tax to the total and the tax is the rate of the subtotal wins. A
+  tax the page lost is the total less the subtotal when that is the rate.
+  The sums are said to agree only when the total itself is confirmed, by its
+  parts or, on a page with neither subtotal nor tax, by its items.
+- **Who it is from.** A supplier label's value where there is one, else the
+  largest writing near the top in the page's own script that is not the
+  title, a label, a value, the customer under "Bill to", or writing the
+  reading was unsure of.
+- **The kind of page.** Scores from its words (invoice, receipt and form
+  titles in six languages, a letter's greeting and closing), its labels (a
+  due date, "Bill to", cash and change), a till roll's shape, a time of day,
+  long lines of prose, tick boxes and whether a total was found.
+- **Tick boxes.** A blob of ink with four straight, thin sides of a like
+  length, square corners, paper to its left and right and about the size of
+  the text; ticked when ink fills more than a twentieth of its inside. A
+  box much smaller than the form's others, a bullet, a round or open letter
+  and a Chinese or Japanese character drawn as a square are not boxes; an
+  empty box the engine read as 口 is.
+
+### How it was measured
+
+`tools/docread-corpus.js` draws 90 pages with the suite's renderer at 200
+dots per inch, fifteen in each of the six languages: four invoices laid out
+as the gallery's Word invoice (the heading, the bill to, number and date
+block, the items with the sums under them, the heading row white on the
+accent colour), three as its Worksheets invoice (labels in one column,
+values beside them, a gridded items table), four till rolls, two letters
+and two forms with six tick boxes each. `tools/docread-docs.mjs` chooses
+each page's wording, font, figures, dates, currency and digits from a seed
+and writes what the page holds beside its picture. Fonts: Arial, Times New
+Roman, Calibri, Georgia, Consolas and Courier New for English; Noto Naskh
+Arabic, Tahoma and Arial for Arabic; Noto Naskh Arabic, Tahoma and Noto
+Nastaliq Urdu for Urdu; Noto Sans Devanagari and Nirmala UI for Hindi;
+SimSun and Microsoft YaHei for Chinese; Yu Gothic and MS Gothic for
+Japanese. Six of the 66 pages with figures print them in their own digits
+(two each in Arabic-Indic, Urdu and Devanagari). Each page is clean, a scan (turned about a
+degree, softened, on a grain of paper, a JPEG at quality 55) or a photo
+(turned two and a half degrees, softened more, darkening towards one
+corner, a JPEG at quality 60).
+
+`tools/docread-measure.mjs` reads every page through `@rutba/ocr` with the
+page's language and English, as a window speaking it would, and compares
+each field with the truth: amounts to the cent (the yen for yen), dates to
+the day, the number by its characters, the supplier by its text with
+spaces and punctuation aside, and the items by their count and each line's
+amount. A field is right, wrong or missed; the rates below are the share
+right. 66 pages carry figures (42 invoices, 24 receipts).
+
+### Results
+
+Read as a document (`document: true`), percent right:
+
+| Language | Supplier | Number | Date | Due date | Subtotal | Tax | Total | Items | Kind |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| All | 76 | 88 | 71 | 64 | 73 | 76 | 77 | 47 | 99 |
+| English | 82 | 100 | 91 | 100 | 100 | 100 | 100 | 82 | 100 |
+| Arabic | 55 | 82 | 73 | 57 | 45 | 36 | 45 | 27 | 100 |
+| Urdu | 55 | 64 | 45 | 29 | 27 | 36 | 36 | 9 | 93 |
+| Hindi | 91 | 100 | 73 | 43 | 91 | 82 | 100 | 36 | 100 |
+| Chinese | 91 | 82 | 73 | 57 | 91 | 100 | 91 | 55 | 100 |
+| Japanese | 82 | 100 | 73 | 100 | 82 | 100 | 91 | 73 | 100 |
+
+By how the page was made, all languages:
+
+| Page | Supplier | Number | Date | Due date | Subtotal | Tax | Total | Items |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: |
+| Clean | 83 | 100 | 72 | 67 | 67 | 72 | 72 | 56 |
+| Scan | 83 | 80 | 67 | 56 | 77 | 77 | 73 | 57 |
+| Photo | 56 | 89 | 78 | 75 | 72 | 78 | 89 | 22 |
+| Western digits | 75 | 90 | 75 | 67 | 77 | 80 | 82 | 52 |
+| Arabic-Indic or Urdu digits (4 pages) | | | 0 | 0 | 0 | 0 | 0 | 0 |
+| Western digits, Nastaliq aside (57 pages) | 79 | 93 | 79 | 72 | 81 | 84 | 86 | 54 |
+
+Read once as a page (`recognize` alone, the same rules over its words, no
+second readings), the amounts are much worse outside English and the
+Chinese and Japanese pages:
+
+| Language | Subtotal | Tax | Total | Items |
+| :-- | --: | --: | --: | --: |
+| All | 53 | 56 | 61 | 38 |
+| Arabic | 9 | 0 | 18 | 9 |
+| Urdu | 18 | 27 | 18 | 0 |
+| Hindi | 18 | 18 | 45 | 0 |
+
+- **The sums as a signal.** 34 of the 66 pages had sums that agree, and on
+  every one of them the subtotal, the tax and the total were all right.
+  Of the 32 whose sums did not agree, 17 still had the right total. A
+  window can therefore show an agreeing page's figures as read, and ask for
+  a look at the rest.
+- **What the engine cannot read.** The shipped models do not read
+  Arabic-Indic or Urdu digits: ٧ comes back as V, ٤ as £, ٢ as Y, on clean
+  pages as on scans, by the Arabic model and the English one alike. No rule
+  recovers them, so a page printed in those digits gives no figures and no
+  dates. A small recogniser of our own for the twenty digit shapes, trained
+  on pages the suite draws, is the way to them; it is a new model and is
+  not part of this work. Urdu set in Nastaliq gives nothing reliable either,
+  as the page rates above lead one to expect.
+- **Where it is good.** English pages are read whole; Chinese, Japanese and
+  Hindi pages give their totals nine times in ten or more, and Hindi's
+  model reads Devanagari digits (both such pages right).
+- **Items** are the weakest field: one line misread in five or six spoils a
+  page's items, and on photos the heading row (white on colour, darkened)
+  is often lost.
+- **Kind of page**: 89 of 90 right; the miss is an Urdu Nastaliq invoice read
+  as other.
+- **Tick boxes**: all 72 boxes on the 12 forms found and read as ticked or
+  not (ticks, crosses and filled dots), clean and scanned, no other square
+  taken for a box.
+- **Time.** On the reference laptop with four pages read at once, the median
+  A4 page took 7.2 s as a document against 4.0 s read once; a till roll 7.2 s
+  against 1.9 s. Most of the difference on pages not in English is the
+  engine loading English's model for the second readings and the page's
+  model again after them.
+
+No real receipts were measured: the public-domain scans that could be used
+were not fetched for this round. That is the next measurement, with
+photographs of real till rolls in each language.
+
+### What the results support in the windows
+
+- **Worksheets: an expense row from a receipt.** A receipt or an invoice
+  read into one row (date, supplier, number, subtotal, tax, total,
+  currency), the figures of a page whose sums agree filled as read and the
+  others marked to check, as Data from Picture marks unsure cells. Supported
+  for pages in English, Chinese, Japanese and Hindi, and for Arabic and Urdu
+  pages in Western digits marked to check.
+- **Mail: the fields of an attached invoice.** A note over a PDF or picture
+  attachment that reads as an invoice (kind 99 percent right): who it is
+  from, the total and the due date, each with its box to show where it was
+  read. The due date is the weakest of the three outside English.
+- **PDF: fields on a scanned form or invoice.** After Recognise Text, the
+  document's fields and tick boxes offered as form values; tick boxes are
+  reliable enough to fill, the other fields to propose.
+- Not yet: items as a table into Worksheets (one page in two right), and
+  anything on pages printed in Arabic-Indic or Urdu digits.
+
 ## Measuring again
 
 ```bash
@@ -346,6 +532,16 @@ Lines for training and testing:
 ```bash
 npx electron tools/ocr-lines.js --catalogue ur --fonts <fonts> --language urd --font NotoNastaliqUrdu.ttf --out <lines> --count 4000 --test 0.1 --seed 1
 node tools/ocr-measure.mjs --lines <lines>/test --language urd
+```
+
+Bills, invoices and receipts (the readings are kept beside the pages, so a
+change to the rules is measured again without reading them; `--again` reads
+them anew, `--mode auto` reads each page once, `--misses` lists every field
+not read right):
+
+```bash
+npx electron tools/docread-corpus.js --fonts <folder with the Noto fonts> --out <corpus>
+node tools/docread-measure.mjs --corpus <corpus> --mode document --threads 4 --out results.json
 ```
 
 The Noto fonts (SIL Open Font Licence) are not kept in the repository:
