@@ -104,6 +104,12 @@ export function fromEngine(json, { width, height, languages, angle = 0, map = (b
     return { x, y, width: Math.max(0, Math.min(width, Math.round(b.x + b.width)) - x), height: Math.max(0, Math.min(height, Math.round(b.y + b.height)) - y) };
   };
   const arabicScript = languages.some((l) => l === 'urd' || l === 'ara');
+  // The page's usual line height, as the engine read it: a sliver is thin against it too, not only
+  // against its own line, which the engine can have merged with a larger heading beside it.
+  const lineHeights = [];
+  for (const block of json?.blocks || []) for (const para of block.paragraphs || []) for (const line of para.lines || []) lineHeights.push(boxOf(line.bbox).height);
+  lineHeights.sort((p, q) => p - q);
+  const usual = lineHeights.length ? lineHeights[lineHeights.length >> 1] : 0;
   const found = [];
   for (const block of json?.blocks || []) {
     for (const para of block.paragraphs || []) {
@@ -111,16 +117,22 @@ export function fromEngine(json, { width, height, languages, angle = 0, map = (b
         const own = [];
         for (const word of line.words || []) {
           const text = String(word.text || '').trim();
-          if (text) own.push({ text, box: clamp(map(boxOf(word.bbox))), confidence: Math.round(word.confidence ?? 0) });
+          if (text) own.push({ text, read: boxOf(word.bbox), confidence: Math.round(word.confidence ?? 0) });
         }
         // The models of Arabic script often read its comma, semicolon and question mark as the Latin ones.
         if (arabicScript && own.length && directionOf(joinWords(own.map((w) => w.text))) === 'rtl') {
           for (const w of own) w.text = w.text.replace(/([؀-ۿ])([,;?])$/u, (_, a, p) => a + ARABIC_PUNCTUATION[p]);
         }
-        const lineBox = clamp(map(boxOf(line.bbox)));
-        // A word the engine boxed as a sliver (seen on Arabic words: the baseline only) takes its line's height.
+        const lineRead = boxOf(line.bbox);
+        const lineBox = clamp(map(lineRead));
+        // A word the engine boxed as a sliver (seen on Arabic words: the baseline only) takes its line's height;
+        // small words on a line merged with a large heading are not slivers and keep their own boxes. Compared
+        // where the engine read them: mapped back onto a page turned before reading, every box grows taller.
         for (const w of own) {
-          if (w.box.height < lineBox.height * 0.4) w.box = { x: w.box.x, y: lineBox.y, width: w.box.width, height: lineBox.height };
+          const r = w.read;
+          const sliver = r.height < lineRead.height * 0.4 && r.height < usual * 0.4;
+          w.box = clamp(map(sliver ? { x: r.x, y: lineRead.y, width: r.width, height: lineRead.height } : r));
+          delete w.read;
         }
         const kept = own.filter((w) => w.box.width > 0 && w.box.height > 0);
         if (kept.length) found.push({ box: lineBox, words: kept });

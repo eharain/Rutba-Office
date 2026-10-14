@@ -17,6 +17,7 @@ import { isPng, decodePng } from './png.js';
 import { toGrey } from './pixels.js';
 import { binarise, estimateSkew, rotate, unrotatePoint, scale, textHeight, unevenPaper, rulings, cropPadded, inkIn } from './analyse.js';
 import { tableCells } from './layout.js';
+import { documentFields } from './fields.js';
 import { fromEngine } from './results.js';
 import { PSM } from './engine.js';
 
@@ -37,18 +38,7 @@ function readTable(engine, { grey, prepared, how, langs, dpi, result, map }) {
   // Boxes on the level picture: the rules were found there.
   const toLevel = (b) => (how.turn ? turnBox(b, how.turn, grey.width, grey.height) : b);
   const sparse = fromEngine(engine.read(prepared, { languages: langs, dpi: dpi ? dpi * how.factor : 0, psm: PSM.sparse }).json, { width: grey.width, height: grey.height, languages: langs, map });
-  const words = result.words.map((w) => ({ ...w, box: toLevel(w.box) }));
-  const overlap = (a, b) => {
-    const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
-    const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
-    return w > 0 && h > 0 ? (w * h) / Math.min(a.width * a.height, b.width * b.height) : 0;
-  };
-  for (const s of sparse.words) {
-    const box = toLevel(s.box);
-    const same = words.findIndex((w) => overlap(w.box, box) > 0.4);
-    if (same < 0) words.push({ ...s, box });
-    else if (s.confidence > words[same].confidence + 10 && s.text.length >= words[same].text.length) words[same] = { ...s, box };
-  }
+  const words = mergeWords(result.words.map((w) => ({ ...w, box: toLevel(w.box) })), sparse.words.map((w) => ({ ...w, box: toLevel(w.box) })));
   const grid = tableCells(words, rules, { rtl });
   // An empty cell with ink in it: read alone, as a line.
   const pad = 3;
@@ -67,6 +57,30 @@ function readTable(engine, { grey, prepared, how, langs, dpi, result, map }) {
     });
   });
   return grid;
+}
+
+/**
+ * The words of two readings of one picture as one list: the first reading's
+ * words in their order, each replaced by the second's where that is surer by
+ * more than ten and no shorter, and the second's words that lie over none of
+ * the first's added after them (with no line of their own) when they are
+ * at least `least` sure: a sparse reading also reads a dashed rule or a
+ * grain of paper as letters, unsure ones.
+ */
+export function mergeWords(words, more, { least = 0 } = {}) {
+  const out = words.map((w) => ({ ...w }));
+  const overlap = (a, b) => {
+    const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+    const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+    return w > 0 && h > 0 ? (w * h) / Math.min(a.width * a.height, b.width * b.height) : 0;
+  };
+  const first = out.length;
+  for (const s of more) {
+    const same = out.findIndex((w) => overlap(w.box, s.box) > 0.4);
+    if (same < 0) { if (s.confidence >= least) out.push({ ...s, line: -1 }); }
+    else if (same < first && s.confidence > out[same].confidence + 10 && s.text.length >= out[same].text.length) out[same] = { ...s, line: out[same].line };
+  }
+  return out;
 }
 
 /** A box in the picture as it lies in the picture turned back by `turn`. */
@@ -118,11 +132,18 @@ export function plan(grey, { deskew = true, rescale = true } = {}) {
 
 /**
  * @param engine from createEngine
- * @param {{ image, languages?, dpi?, mode?: 'auto'|'block'|'line'|'sparse', deskew?: boolean, rescale?: boolean, table?: boolean }} job
+ * @param {{ image, languages?, dpi?, mode?: 'auto'|'block'|'line'|'sparse', deskew?: boolean, rescale?: boolean, table?: boolean, document?: boolean }} job
  *   `table`: the picture is a table; the answer carries `table` too, its rows,
  *   columns and cells from its ruling lines or its spacing (layout.js)
+ *   `document`: the picture is a bill, an invoice, a receipt, a letter or a
+ *   form; the page is read twice (as a page, and as sparse text, which keeps
+ *   a label or a figure standing alone that the first drops), the words of
+ *   both merged, the figures beside its labels and its items' amounts read
+ *   again each as one line, and the answer carries `document` too: its
+ *   kind, its fields, its items and whether its sums agree (fields.js), with
+ *   the merged words and the second readings the fields were read from
  */
-export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto', deskew = true, rescale = true, table = false }) {
+export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto', deskew = true, rescale = true, table = false, document = false }) {
   const langs = checkLanguages(languages);
   const started = Date.now();
   const pixels = picture(image);
@@ -143,6 +164,26 @@ export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto'
   const result = fromEngine(json, { width: pixels.width, height: pixels.height, languages: langs, angle: how.angle, map });
   result.prepared = { turned: how.turn, factor: how.factor, binarised: how.uneven, textHeight: how.textHeight };
   if (table) result.table = readTable(engine, { grey, prepared, how, langs, dpi, result, map });
+  if (document) {
+    const sparse = fromEngine(engine.read(prepared, { languages: langs, dpi: dpi ? dpi * how.factor : 0, psm: PSM.sparse }).json, { width: pixels.width, height: pixels.height, languages: langs, map });
+    const words = mergeWords(result.words, sparse.words, { least: 40 });
+    const read = { ...result, words };
+    // The figures beside the labels and the items' amounts, read again each as one line: by English's
+    // model, which reads Western digits best, and by the page's own, which reads its own digits.
+    const collect = [];
+    documentFields(read, { languages: langs, collect });
+    const again = collect.map((box) => ({ box, readings: [] }));
+    const sets = langs.includes('eng') && langs.length > 1 ? [['eng'], langs] : [langs];
+    for (const set of sets) {
+      for (const a of again) {
+        const crop = cropPadded(grey, a.box.x, a.box.y, a.box.width, a.box.height);
+        const r = fromEngine(engine.read(crop, { languages: set, psm: PSM.line }).json, { width: crop.width, height: crop.height, languages: set });
+        const text = r.text.replace(/\s+/g, ' ').trim();
+        if (text) a.readings.push({ text, confidence: r.words.length ? Math.min(...r.words.map((w) => w.confidence)) : 0, languages: set });
+      }
+    }
+    result.document = { ...documentFields(read, { languages: langs, again }), words, again };
+  }
   result.ms = Date.now() - started;
   return result;
 }

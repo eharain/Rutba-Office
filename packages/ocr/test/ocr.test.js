@@ -116,6 +116,25 @@ test('results: words joined with spaces except between Chinese or Japanese chara
   assert.equal(r.lines[0].confidence, 90);
 });
 
+test('results: a sliver takes its line\'s height, a small word on a line merged with a large heading keeps its own box, on a page turned before reading too', () => {
+  const line = (words, box) => ({ bbox: box, words: words.map(([text, b]) => ({ text, confidence: 90, bbox: b })) });
+  const json = { blocks: [{ paragraphs: [{ lines: [
+    // A line of ordinary type, 20 high, with an Arabic word boxed as its baseline alone, 4 high.
+    line([['كلمة', { x0: 10, y0: 26, x1: 60, y1: 30 }], ['أخرى', { x0: 70, y0: 10, x1: 120, y1: 30 }]], { x0: 10, y0: 10, x1: 120, y1: 30 }),
+    // A small address, 16 high, the engine put on one line with a heading 60 high.
+    line([['Leeds', { x0: 10, y0: 60, x1: 70, y1: 76 }], ['INVOICE', { x0: 300, y0: 40, x1: 600, y1: 100 }]], { x0: 10, y0: 40, x1: 600, y1: 100 }),
+    line([['two', { x0: 10, y0: 120, x1: 50, y1: 140 }]], { x0: 10, y0: 120, x1: 50, y1: 140 }),
+  ] }] }] };
+  const r = fromEngine(json, { width: 700, height: 200, languages: ['ara', 'eng'] });
+  const box = (t) => r.words.find((w) => w.text === t).box;
+  assert.deepEqual(box('كلمة'), { x: 10, y: 10, width: 50, height: 20 }, 'the sliver takes its line\'s height');
+  assert.deepEqual(box('Leeds'), { x: 10, y: 60, width: 60, height: 16 }, 'the small word keeps its own');
+  // Mapped onto a page turned by a few degrees, every box grows taller; the words are judged as the engine read them.
+  const grow = (b) => ({ x: b.x, y: b.y - b.width * 0.05, width: b.width, height: b.height + b.width * 0.1 });
+  const t = fromEngine(json, { width: 700, height: 200, languages: ['ara', 'eng'], map: grow });
+  assert.equal(t.words.find((w) => w.text === 'Leeds').box.height, 22, 'not stretched to the heading\'s line');
+});
+
 const PAGES = [
   { file: 'eng-serif', lang: 'eng', most: 0.02 },
   { file: 'urd-naskh', lang: 'urd', most: 0.08 },
