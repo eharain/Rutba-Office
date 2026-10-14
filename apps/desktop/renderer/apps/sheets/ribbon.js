@@ -179,10 +179,6 @@ export function withDecimals(code, delta) {
   return c.slice(0, m.index) + '0' + decimals + c.slice(m.index + m[0].length);
 }
 
-/** A control that is drawn where Excel draws it, and says why it is not live. */
-const Soon = ({ icon, label, tall, why }) => (
-  <Button tall={tall} icon={icon} label={label} disabled title={t('{label}: not built yet. {why}', { label, why })} />
-);
 
 export default function SheetsRibbon({
   tab, setTab, model, dispatch, commands, shell, menu, save, openFile, exportAs, doc, sel, openDialog, act, view = {}, review = null, arrange = { picked: [], pane: false }, ink = null,
@@ -516,7 +512,6 @@ export default function SheetsRibbon({
           </Group>
           <Group label={t('Convert')}>
             <Button tall icon="shape" label={t('Ink to Shape')} pressed={Boolean(ink?.toShape)} title={t('Ink to Shape — a rectangle, oval or triangle drawn becomes that shape')} onClick={() => act('inkToShape')} />
-            <Soon tall icon="formula" label={t('Ink to Math')} why={t('Turning handwriting into an equation needs handwriting recognition, which this suite does not have.')} />
           </Group>
           <Group label={t('Shapes')}>
             <Button dropdown tall icon="shape" label={t('Shapes')} title={t("Shapes: a rectangle, an oval, an arrow, in the theme's colours")} onClick={(e) => menu.open(e, SHAPES.map(([geometry, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', geometry, text: '' }) })))} />
@@ -656,7 +651,6 @@ export default function SheetsRibbon({
               { label: t('Picture From File…'), icon: 'picture', run: () => act('dataFromPicture', 'file') },
               { label: t('Picture From Clipboard'), icon: 'paste', run: () => act('dataFromPicture', 'clipboard') },
             ])} />
-            <Soon tall icon="globe" label={t('From Web')} why={t('Fetching a table from a web page is a network feature this suite does not do on its own.')} />
             <Button icon="table" label={t('From Table/Range')} title={t('From Table/Range — a query on the table or the list round the cell, shaped in the Power Query Editor and loaded on a sheet of its own')} onClick={() => act('queryFromRange')} />
             <Button icon="clock" label={t('Recent Sources')} title={t('Recent Sources — a file a query read lately, in a new query')} onClick={(e) => {
               const list = recentSources();
@@ -720,9 +714,6 @@ export default function SheetsRibbon({
           </Group>
           <Group label={t('Accessibility')}>
             <Button tall icon="shield" label={t('Check Accessibility')} pressed={review?.pane === 'accessibility'} title={t('Check Accessibility — alt text, sheet names, merged cells, table headers, contrast and links, with a fix for each')} onClick={() => review?.openAccessibility()} />
-          </Group>
-          <Group label={t('Language')}>
-            <Soon tall icon="globe" label={t('Translate')} why={t('Translation is an online service this suite does not call.')} />
           </Group>
           <Group label={t('Comments')}>
             <Button tall icon="comment" label={t('New Comment')} title={model?.thread ? t('New Comment: a reply at the end of this cell’s thread (Ctrl+Alt+M)') : t('New Comment: a conversation on this cell: replies, resolve, reopen (Ctrl+Alt+M)')} onClick={() => act('newComment')} />
@@ -796,9 +787,6 @@ export default function SheetsRibbon({
             <Button icon="eye" label={t('Unhide')} title={t('Unhide — a hidden Worksheets window, back on screen')} onClick={(e) => act('unhideMenu', e)} />
             <Button icon="maximize" label={t('Full Screen')} onClick={() => shell.win.fullscreen({})} />
           </Group>
-          <Group label={t('Macros')}>
-            <Soon tall icon="settings" label={t('Macros')} why={t('VBA is preserved in the file and never run: a spreadsheet that runs code it received in an email is how ransomware starts.')} />
-          </Group>
         </>
       ) : null}
 
@@ -809,9 +797,6 @@ export default function SheetsRibbon({
             <Button tall icon="textbox" label={t('New Script')} className="sh-new-script" title={t('New Script — a script in the shape of Office Scripts, function main(workbook), written in the Code Editor and run on this workbook')} onClick={() => act('scripts', 'new')} />
             <Button tall icon="video" label={t('Record Actions')} className="sh-record-actions" pressed={Boolean(view.recordingScript)} title={view.recordingScript ? t('Record Actions — recording what you type and format; press again to stop and see the script') : t('Record Actions — what you type and format becomes a script')} onClick={() => act('scriptRecord')} />
             <Button icon="list" label={t('All Scripts')} className="sh-all-scripts" title={t('All Scripts — the scripts kept on this computer, to run, edit or delete')} onClick={() => act('scripts')} />
-          </Group>
-          <Group label={t('Power Automate')}>
-            <Soon tall icon="refresh" label={t('Automate a Task')} why={t('Power Automate is a Microsoft cloud service.')} />
           </Group>
         </>
       ) : null}

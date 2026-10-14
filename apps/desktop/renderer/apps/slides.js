@@ -24,7 +24,8 @@ import { clickCount, pathPoints } from './slides/animate.js';
 import { motionPath } from '@rutba/presentation/timing';
 import { Markup } from './slides/markup.js';
 import { DesignGallery, CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
-import { CommentsPane, markerSpots, personColour, COMMENTS_CSS } from './slides/comments.js';
+import { CommentsPane, markerSpots, personColour, COMMENTS_CSS, useCommentsRead } from './slides/comments.js';
+import { SlideSizeDialog, SLIDE_SIZE_CSS, needsFitChoice } from './slides/slide-size.js';
 import { useSlidesReview } from './slides/review.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import { SymbolDialog } from './word/dialogs.js';
@@ -199,6 +200,8 @@ export default function Slides({ app, shell, boot }) {
   const [findHit, setFindHit] = useState(null);
   /** Insert → Link on the selected shape. */
   const [linkOpen, setLinkOpen] = useState(false);
+  /** Design → Slide Size: the dialog, with the size it starts from ({ start }), or null. */
+  const [sizeDialog, setSizeDialog] = useState(null);
   /** The chart data dialog: the id of the chart shape it is editing, or null. */
   const [chartDataOpen, setChartDataOpen] = useState(null);
   /** Home → Section → Rename: the section (by index) and the name it has now. */
@@ -1227,6 +1230,19 @@ export default function Slides({ app, shell, boot }) {
     for (const c of model?.comments || []) m.set(c.slide, (m.get(c.slide) || 0) + 1);
     return m;
   }, [model?.comments]);
+  // Review → Mark All as Read: the threads with words not yet read here; a thread opened is read.
+  const commentsRead = useCommentsRead(shell, doc, model?.comments, model?.me);
+  const markThreadsRead = commentsRead.mark;
+  useEffect(() => {
+    if (!commentSel || !commentsRead.unread.has(String(commentSel))) return;
+    markThreadsRead((model?.comments || []).filter((c) => String(c.id) === String(commentSel)));
+  }, [commentSel, commentsRead.unread, markThreadsRead, model?.comments]);
+  // The strip's and the sorter's cards take the slides' own shape: wide, 4:3 or portrait.
+  const slideShape = useMemo(() => {
+    const s = model?.slideSize || model?.size;
+    if (!s?.width || !s?.height) return undefined;
+    return { style: { '--sl-ratio': `${Math.round(s.width)} / ${Math.round(s.height)}` }, portrait: s.height > s.width };
+  }, [model?.slideSize?.width, model?.slideSize?.height, model?.size?.width, model?.size?.height]);
   const selectedShape = selected ? slide?.shapes?.find((s) => s.id === selected) || null : null;
   // Animations: the slide's sequence, and the effect the Animations tab
   // acts on — the one picked in the pane (while its shape stays
@@ -1721,6 +1737,22 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'setupShow': setSetupOpen(true); return;
+      // Review → Mark All as Read: every thread in the deck read, on this computer.
+      case 'markAllRead': {
+        const n = markThreadsRead(model?.comments || []);
+        toast(n ? tn(n, '{count} comment thread marked as read', '{count} comment threads marked as read') : t('Every comment here was already read.'), { ms: 2600 });
+        return;
+      }
+      // Design → Slide Size: Standard or Widescreen at once when the content
+      // still fits, else the dialog asks Maximize or Ensure Fit; null opens it.
+      case 'slideSize': {
+        if (!model?.size) return;
+        if (masterPart) return toast(t('Close Master View first: Slide Size changes the slides and their masters together.'), { ms: 3200 });
+        if (!arg || needsFitChoice(model.size, arg.cx, arg.cy)) { setSizeDialog({ start: arg || null }); return; }
+        if (arg.cx === model.size.cx && arg.cy === model.size.cy) return;
+        await apply({ op: 'setSlideSize', cx: arg.cx, cy: arg.cy, fit: 'ensure' });
+        return;
+      }
       // Insert → Photo Album: a new presentation of pictures, in its own window.
       case 'photoAlbum': setAlbumOpen(true); return;
       // Slide Show → Custom Slide Show: play one of the deck's named shows, or manage them.
@@ -2570,7 +2602,7 @@ export default function Slides({ app, shell, boot }) {
           openFile={openFile}
           exportAs={exportAs}
           act={act}
-          view={deckChanges?.list?.length ? { ...view, changes: deckChanges.list.length } : view}
+          view={{ ...view, ...(deckChanges?.list?.length ? { changes: deckChanges.list.length } : {}), unread: commentsRead.unread.size }}
           index={index}
           selected={selected}
           selectedIds={selectedIds}
@@ -2647,7 +2679,7 @@ export default function Slides({ app, shell, boot }) {
                 ))}
               </div>
             ) : (
-            <div className="sl-sorter">
+            <div className={`sl-sorter${slideShape?.portrait ? ' portrait' : ''}`} style={slideShape?.style}>
               {(model.outline || []).map((o, i) => (
                 <React.Fragment key={o.part || i}>
                   {sectionHeading(model, o, i, (s) => setSectionRename({ section: s.index, name: s.name }), () => setIndex(i))}
@@ -2728,7 +2760,7 @@ export default function Slides({ app, shell, boot }) {
                 />
               ) : null}
               {slide && !masterPart && view.mode === 'sorter' ? (
-                <div className="sl-sortergrid">
+                <div className="sl-sortergrid" style={slideShape?.style}>
                   {(model.outline || []).map((o, i) => (
                     <React.Fragment key={o.part || i}>
                       {sectionHeading(model, o, i, (s) => setSectionRename({ section: s.index, name: s.name }), () => setIndex(i))}
@@ -3062,7 +3094,7 @@ export default function Slides({ app, shell, boot }) {
                           <button
                             key={`cm-${thread.id}`}
                             type="button"
-                            className={`sl-cm-marker${thread.status === 'resolved' ? ' resolved' : ''}${commentSel === thread.id ? ' current' : ''}`}
+                            className={`sl-cm-marker${thread.status === 'resolved' ? ' resolved' : ''}${commentSel === thread.id ? ' current' : ''}${commentsRead.unread.has(String(thread.id)) ? ' unread' : ''}`}
                             data-comment={thread.id}
                             style={{ left: Math.max(0, Math.min(x, model.size.width - size)), top: Math.max(0, y), width: size, height: size, fontSize: 10 / scale, background: personColour(thread.author), borderWidth: 2 / scale }}
                             data-tip={thread.replies.length
@@ -3169,6 +3201,7 @@ export default function Slides({ app, shell, boot }) {
                   selected={commentSel}
                   shapes={slide?.shapes || []}
                   me={model.me || t('You')}
+                  unread={commentsRead.unread}
                   onSelect={(id) => setCommentSel(id)}
                   onNew={() => act('newComment')}
                   onPost={(text) => act('postComment', text)}
@@ -3208,6 +3241,22 @@ export default function Slides({ app, shell, boot }) {
       {review.dialogs}
 
       {shortcutsOpen ? <SlidesShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
+
+      {sizeDialog && model?.size ? (
+        <>
+          <style>{SLIDE_SIZE_CSS}</style>
+          <SlideSizeDialog
+            size={model.size}
+            start={sizeDialog.start}
+            onClose={() => setSizeDialog(null)}
+            onApply={async ({ cx, cy, fit }) => {
+              setSizeDialog(null);
+              if (cx === model.size.cx && cy === model.size.cy) return;
+              await apply({ op: 'setSlideSize', cx, cy, fit });
+            }}
+          />
+        </>
+      ) : null}
 
       {setupOpen && model ? (
         <>
@@ -4145,7 +4194,7 @@ const CSS = `
 .sl-thumb { display: flex; align-items: stretch; gap: 7px; border: 0; background: transparent; padding: 0; text-align: left; }
 .sl-thumb-n { width: 16px; font-size: 11px; color: var(--ink-3); padding-top: 3px; flex: none; text-align: right; }
 .sl-thumb-card {
-  flex: 1; min-width: 0; aspect-ratio: 16 / 9; border: 2px solid var(--line); border-radius: var(--r-2);
+  flex: 1; min-width: 0; aspect-ratio: var(--sl-ratio, 16 / 9); border: 2px solid var(--line); border-radius: var(--r-2);
   background: var(--surface); padding: 7px 8px; overflow: hidden; transition: border-color var(--fast);
 }
 .sl-thumb:hover .sl-thumb-card { border-color: var(--line-strong); }
@@ -4237,7 +4286,9 @@ const CSS = `
 .sl-stage.tone-mono .sl-fit { filter: grayscale(1) contrast(4); }
 /* Slide Sorter and Outline View. */
 .sl-sortergrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; width: 100%; align-self: start; }
-.sl-sortercard { position: relative; border: 2px solid var(--line); border-radius: var(--r-2); background: #fff; padding: 0; overflow: hidden; aspect-ratio: 16 / 9; cursor: pointer; }
+.sl-sortercard { position: relative; border: 2px solid var(--line); border-radius: var(--r-2); background: #fff; padding: 0; overflow: hidden; aspect-ratio: var(--sl-ratio, 16 / 9); cursor: pointer; }
+/* Portrait slides: the strip's cards narrower, so one is not a whole screen tall. */
+.sl-sorter.portrait .sl-thumb-card { flex: 0 1 60%; }
 .sl-sortercard:hover { border-color: var(--line-strong); }
 .sl-sortercard.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .sl-sortern { position: absolute; left: 6px; bottom: 4px; font-size: 11px; color: var(--ink-3); background: rgba(255,255,255,.85); padding: 0 5px; border-radius: 3px; }

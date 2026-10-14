@@ -83,6 +83,7 @@ import { verifyOcrPdf } from './verify-ocr-pdf.js';
 import { verifyOcrPicture } from './verify-ocr-picture.js';
 import { verifyOcrSheet } from './verify-ocr-sheet.js';
 import { verifyRibbon } from './verify-ribbon.js';
+import { verifySoon } from './verify-soon.js';
 import { verifyImageBatch } from './verify-image-batch.js';
 import { verifyPersonalTemplates } from './verify-personal-templates.js';
 import { verifyTemplates, makeTemplateThumbs } from './verify-templates.js';
@@ -4755,7 +4756,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4828,6 +4829,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('ocr-picture')) await verifyOcrPicture({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('ocr-sheet')) await verifyOcrSheet({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('ribbon')) await verifyRibbon({ open, check, until, wait }, { dir, files });
+    if (only.includes('soon')) await verifySoon({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('templates')) await verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('templates')) await verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows });
     if (only.includes('qrcode')) await verifyQrCode({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
@@ -5134,6 +5136,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyOcrPicture({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyOcrSheet({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyRibbon({ open, check, until, wait }, { dir, files }));
+  await block(() => verifySoon({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyImageBatch({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows }));

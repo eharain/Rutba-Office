@@ -4773,6 +4773,65 @@ export class Deck {
     return true;
   }
 
+  /**
+   * Design → Slide Size: the slides made `cx` by `cy` EMU, and everything on
+   * them (every slide, layout and master) scaled to suit, as PowerPoint does.
+   * `fit` 'ensure' scales by the smaller of the two ratios, so all of it
+   * stays on the slide; 'maximize' by the larger, so it fills the slide and
+   * may run off an edge. Either way it is centred, and the words and the
+   * table rows and columns scale with the shapes. Notes pages keep their
+   * own size. @returns {boolean} whether anything changed
+   */
+  setSlideSize(cx, cy, { fit = 'ensure' } = {}) {
+    cx = Math.round(Number(cx));
+    cy = Math.round(Number(cy));
+    // PowerPoint's own limits: 1 inch to 56 inches either way.
+    if (!(cx >= 914400 && cy >= 914400 && cx <= 51206400 && cy <= 51206400)) throw new RangeError('a slide is between 2.54 cm and 142.24 cm on each side');
+    const { cx: cx0, cy: cy0 } = this.size;
+    if (cx === cx0 && cy === cy0) return false;
+    const sx = cx / cx0;
+    const sy = cy / cy0;
+    const s = fit === 'maximize' ? Math.max(sx, sy) : Math.min(sx, sy);
+    const dx = (cx - cx0 * s) / 2;
+    const dy = (cy - cy0 * s) / 2;
+    const at = (v, d) => String(Math.round(Number(v) * s + d));
+    const len = (v) => String(Math.max(0, Math.round(Number(v) * s)));
+    const attr = (tag, name, fn) => tag.replace(new RegExp(`(\\s${name}=")(-?\\d+)(")`), (x, a, v, b) => a + fn(v) + b);
+    const scale = (xml) => {
+      // The shape tree's own transform (all zeros) is no shape's: left as it is.
+      const roots = [];
+      let out = xml.replace(/(<p:spTree>\s*<p:nvGrpSpPr>[\s\S]*?<\/p:nvGrpSpPr>\s*)(<p:grpSpPr\s*\/>|<p:grpSpPr\b[^>]*>[\s\S]*?<\/p:grpSpPr>)/g, (m, head, root) => {
+        roots.push(root);
+        return `${head}\u0000${roots.length - 1}\u0000`;
+      });
+      out = out
+        .replace(/<a:(off|chOff)\b[^>]*>/g, (tag) => attr(attr(tag, 'x', (v) => at(v, dx)), 'y', (v) => at(v, dy)))
+        .replace(/<a:(ext|chExt)\b[^>]*\bcx="[^>]*>/g, (tag) => attr(attr(tag, 'cx', len), 'cy', len))
+        .replace(/<a:gridCol\b[^>]*>/g, (tag) => attr(tag, 'w', len))
+        .replace(/<a:tr\b[^>]*>/g, (tag) => attr(tag, 'h', len));
+      if (s !== 1) {
+        // Point sizes in hundredths, as PowerPoint keeps them: whole points and halves survive.
+        out = out.replace(/<a:(rPr|defRPr|endParaRPr)\b[^>]*>/g, (tag) => attr(tag, 'sz', (v) => String(Math.max(100, Math.round((Number(v) * s) / 50) * 50))))
+          .replace(/<a:spcPts\b[^>]*>/g, (tag) => attr(tag, 'val', (v) => String(Math.round(Number(v) * s))));
+      }
+      return out.replace(/\u0000(\d+)\u0000/g, (m, i) => roots[Number(i)]);
+    };
+    const parts = (this.pkg.partNames() || []).filter((p) => /^ppt\/(slides\/slide|slideLayouts\/slideLayout|slideMasters\/slideMaster)\d+\.xml$/.test(p));
+    for (const part of parts) {
+      const xml = this.pkg.text(part);
+      const next = scale(xml);
+      if (next !== xml) this.pkg.write_(part, Buffer.from(next, 'utf8'));
+    }
+    const main = 'ppt/presentation.xml';
+    const type = cx === 9144000 && cy === 6858000 ? ' type="screen4x3"' : '';
+    const pres = this.pkg.text(main).replace(/<p:sldSz\b[^>]*\/>/, () => `<p:sldSz cx="${cx}" cy="${cy}"${type}/>`);
+    this.pkg.write_(main, Buffer.from(pres, 'utf8'));
+    this.dirty = true;
+    this.#load();
+    this.#designChanged();
+    return true;
+  }
+
   // ---- transitions --------------------------------------------------------
 
   /** The slide's transition, as `readTransition` gives it, or null. */

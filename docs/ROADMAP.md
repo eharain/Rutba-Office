@@ -127,6 +127,18 @@ behind.
 Everything below the line in GAPS.md stays there: macros that run, cloud
 services, anything that would make a request this suite has not declared.
 
+The ribbons no longer draw those as greyed buttons. Translate,
+Dictate, Forms, Presenter Coach, Online Videos, Automate a Task, From Web,
+Keep Slides Updated and live subtitles are gone from Documents, Worksheets
+and Presentations, since each is somebody's online service. So are Macros
+and Ink to Math, for reasons of their own, and their files are kept all the
+same. A `.docm`, `.xlsm` or `.pptm` keeps its VBA project byte for byte
+through a save, and saving it under a name that cannot hold macros is
+refused (tests/document-service.test.js); the macros are never run. Ink to
+Math needs handwriting recognition this suite does not have, but the
+equation Office makes from ink is an ordinary equation in the file, and it
+opens, draws and edits like any other; the ink drawn here stays ink.
+
 ## Languages after Urdu
 
 1.38 and 1.39 put every word the windows show through the message catalogue

@@ -9,7 +9,7 @@
 // entrance, emphasis and exit effects PowerPoint's gallery offers first.
 
 import React from 'react';
-import { Ribbon, Group, Rows, Button, Separator, Select, Icon, t, tn } from '@rutba/office-ui';
+import { Ribbon, Group, Rows, Button, Separator, Select, Icon, t, tn, numberTag } from '@rutba/office-ui';
 import { WARP_PRESETS, WARP_MORE, warpLabel } from '@rutba/drawing/warp';
 import { TRANSITION_GALLERY, TRANSITION_OPTIONS, galleryKeyOf, optionOf, describeTransition } from './motion.js';
 import { ANIMATION_GALLERY, EFFECT_MENU, ANIMATION_OPTIONS } from './animate.js';
@@ -60,10 +60,14 @@ const BACKGROUND_STYLES = [
   [t('Dark blue'), { colour: '1F3864' }],
 ];
 
-/** A control that is drawn where PowerPoint draws it, and says why it is not live. */
-const Soon = ({ icon, label, tall, why }) => (
-  <Button tall={tall} icon={icon} label={label} disabled title={t('{label}: not built yet. {why}', { label, why })} />
-);
+/** EMU as the centimetres Slide Size shows, two places at most, in the language's digits. */
+export const cmOf = (emu) => (Math.round(Number(emu) / 3600) / 100).toLocaleString(numberTag(), { maximumFractionDigits: 2 });
+/** A slide's shape in words: widescreen, standard or another. */
+export function ratioOf(size) {
+  if (!size?.width || !size?.height) return '';
+  const r = size.width / size.height;
+  return Math.abs(r - 16 / 9) < 0.02 ? t('16:9 widescreen') : Math.abs(r - 4 / 3) < 0.02 ? t('4:3 standard') : t('a custom ratio');
+}
 /** Shape Effects: the shadows PowerPoint offers first, and none. */
 const SHADOW_MENU = [['br', t('Shadow: bottom right')], ['b', t('Shadow: below')], ['r', t('Shadow: right')], ['tl', t('Shadow: top left')], ['c', t('Shadow: all round')], ['none', t('No shadow')]];
 /** Shape Effects → Glow: PowerPoint's own gallery radii. */
@@ -72,7 +76,6 @@ const GLOW_MENU = [[5, t('Glow: 5 pt')], [8, t('Glow: 8 pt')], [11, t('Glow: 11 
 const SOFTEDGE_MENU = [[1, t('Soft Edges: 1 pt')], [2.5, t('Soft Edges: 2.5 pt')], [5, t('Soft Edges: 5 pt')], [10, t('Soft Edges: 10 pt')], [null, t('No soft edges')]];
 /** Shape Effects → Reflection: the three gallery presets. */
 const REFLECTION_MENU = [['tight', t('Reflection: tight')], ['half', t('Reflection: half')], ['full', t('Reflection: full')], [null, t('No reflection')]];
-const INK = 'Ink is a drawing part (ink ML) the engine does not write, and the stage has no pen surface yet.';
 /** The gallery's small pictures, one per effect. */
 const TRANSITION_ICONS = { none: 'trNone', cut: 'trCut', fade: 'trFade', push: 'trPush', wipe: 'trWipe', split: 'trSplit', pull: 'trUncover', cover: 'trCover', randomBar: 'trBars', shape: 'trShape', dissolve: 'trDissolve' };
 
@@ -393,9 +396,6 @@ export default function SlidesRibbon({
             <Button tall icon="find" label={t('Find')} title={t('Find — words on every slide, walked one hit at a time (Ctrl+F)')} onClick={() => act('find')} />
             <Button tall icon="replace" label={t('Replace')} title={t('Replace: find and replace words across the deck (Ctrl+H)')} onClick={() => act('replace')} />
           </Group>
-          <Group label={t('Voice')}>
-            <Soon tall icon="volume" label={t('Dictate')} why={t('Dictation is an online speech service this suite does not call.')} />
-          </Group>
           <Group label={t('Designer')}>
             <Button tall icon="wand" label={t('Design Ideas')} pressed={view?.pane === 'ideas'} title={t("Design Ideas — layouts this slide's title, words and pictures suit, worked out on this computer; a click applies one")} onClick={() => act('pane', 'ideas')} />
           </Group>
@@ -495,9 +495,6 @@ export default function SlidesRibbon({
             <Button tall icon="shape" label={t('SmartArt')} title={t('SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes')} onClick={() => act('insertSmartArt')} />
             <Button dropdown tall icon="chart" label={t('Chart')} title={t('Chart: a sample chart, drawn from the writer Documents and Worksheets already use; double-click it to edit its data')} onClick={(e) => menu.open(e, CHART_TYPES.map(([type, label]) => ({ label, icon: 'chart', run: () => act('addChart', { type }) })))} />
           </Group>
-          <Group label={t('Forms')}>
-            <Soon tall icon="check" label={t('Forms')} why={t('Forms is a Microsoft cloud service.')} />
-          </Group>
           <Group label={t('Links')}>
             <Button dropdown tall icon="zoomIn" label={t('Zoom')} title={t('Zoom: a picture of a slide or a section that takes the show there with a click, and back here after')} onClick={(e) => menu.open(e, [{ label: t('Summary Zoom…'), icon: 'grid', run: () => act('insertZoom', 'summary') }, { label: t('Section Zoom…'), icon: 'list', disabled: !(model?.sections || []).length, run: () => act('insertZoom', 'section') }, { label: t('Slide Zoom…'), icon: 'slides', run: () => act('insertZoom', 'slide') }])} />
             <Button tall icon="link" label={t('Link')} disabled={!hasShape} title={needShape || t('Link — a web address on the selected shape’s words (Ctrl+K); Ctrl+click follows it')} onClick={() => act('link')} />
@@ -561,7 +558,6 @@ export default function SlidesRibbon({
           </Group>
           <Group label={t('Convert')}>
             <Button tall icon="shape" label={t('Ink to Shape')} pressed={Boolean(ink?.toShape)} title={t('Ink to Shape — a rectangle, oval or triangle drawn becomes that shape')} onClick={() => act('inkToShape')} />
-            <Soon tall icon="formula" label={t('Ink to Math')} why={t('Turning handwriting into an equation needs handwriting recognition, which this suite does not have.')} />
           </Group>
           <Group label={t('Replay')}>
             <Button tall icon="play" label={t('Ink Replay')} title={t("Ink Replay — the slide's strokes drawn again, in the order they were made")} onClick={() => act('inkReplay')} />
@@ -613,11 +609,18 @@ export default function SlidesRibbon({
             <Button tall icon="grid" label={t('Layouts')} pressed={view.pane === 'designs'} title={t("The deck's layouts in a pane — put this slide on one, or start a new slide from it")} onClick={() => act('pane', 'designs')} />
             <Button dropdown tall icon="slides" label={t('Layout')} title={t('A new slide with this layout, after the current one')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
             <Button
+              dropdown
               tall
               icon="grid"
               label={t('Slide Size')}
-              title={model?.size ? t('Slides are {width} by {height} pixels — {ratio}. Changing it rescales every slide; not built yet.', { width: Math.round(model.size.width), height: Math.round(model.size.height), ratio: Math.abs(model.size.width / model.size.height - 16 / 9) < 0.02 ? t('16:9 widescreen') : Math.abs(model.size.width / model.size.height - 4 / 3) < 0.02 ? t('4:3 standard') : t('a custom ratio') }) : t('The deck decides its own size')}
-              disabled
+              className="sl-slide-size"
+              title={model?.size ? t('Slide Size: the slides are {width} by {height} cm, {ratio}; Standard, Widescreen or a size of your own, with what is on them scaled to fit', { width: cmOf(model.size.cx), height: cmOf(model.size.cy), ratio: ratioOf(model.size) }) : t('Slide Size: Standard, Widescreen or a size of your own')}
+              onClick={(e) => menu.open(e, [
+                { label: t('Standard (4:3)'), icon: ratioOf(model?.size) === t('4:3 standard') ? 'check' : 'slides', run: () => act('slideSize', { cx: 9144000, cy: 6858000 }) },
+                { label: t('Widescreen (16:9)'), icon: ratioOf(model?.size) === t('16:9 widescreen') ? 'check' : 'slides', run: () => act('slideSize', { cx: 12192000, cy: 6858000 }) },
+                '-',
+                { label: t('Custom Slide Size…'), icon: 'settings', run: () => act('slideSize', null) },
+              ])}
             />
           </Group>
           <Group label={t('Edit')}>
@@ -847,9 +850,6 @@ export default function SlidesRibbon({
             <Button tall icon="play" label={t('From Current Slide')} title={t('Start the show at this slide')} onClick={() => act('present', 'here')} />
             <Button tall icon="list" label={t('Custom Slide Show')} title={t("Custom Slide Show — play one of the deck's named shows, or make one: some of its slides, in an order of their own")} onClick={(e) => act('customShowMenu', e)} />
           </Group>
-          <Group label={t('Rehearse')}>
-            <Soon tall icon="volume" label={t('Rehearse with Coach')} why={t('Presenter Coach is a Microsoft cloud service.')} />
-          </Group>
           <Group label={t('Set Up')}>
             <Button tall icon="settings" label={t('Set Up Slide Show')} title={t('Set Up Slide Show — who the show is for, looping, which slides and how it moves on')} onClick={() => act('setupShow')} />
             <Button
@@ -862,7 +862,6 @@ export default function SlidesRibbon({
             />
             <Button tall icon="clock" label={t('Rehearse Timings')} title={t('Rehearse Timings — run the show from the start with a clock, and keep how long each slide was on screen as its timing')} onClick={() => act('rehearse')} />
             <Button dropdown tall icon="video" label={t('Record')} title={t("Record: the show with the microphone on: each slide's narration and how long it was up")} onClick={(e) => menu.open(e, [{ label: t('From Current Slide…'), icon: 'play', run: () => act('recordShow', 'here') }, { label: t('From Beginning…'), icon: 'play', run: () => act('recordShow', 'start') }])} />
-            <Soon icon="check" label={t('Keep Slides Updated')} why={t('Live co-authoring is not built.')} />
             <Button
               icon="check"
               label={t('Play Narrations')}
@@ -888,10 +887,6 @@ export default function SlidesRibbon({
           <Group label={t('Monitors')}>
             <Button icon="grid" label={t('Monitor: {name}', { name: monitorName })} title={t("Monitor — the screen the slide show plays on; Automatic puts it on another screen than Presenter View's")} onClick={(e) => act('monitorMenu', e)} />
             <Button icon="check" label={t('Use Presenter View')} title={t('Opens a second window with your notes, the next slide and a clock — put it on the other screen')} onClick={presentWithNotes} />
-          </Group>
-          <Group label={t('Captions & Subtitles')}>
-            <Soon icon="check" label={t('Always Use Subtitles')} why={t('Live captions are an online speech service this suite does not call.')} />
-            <Soon icon="settings" label={t('Subtitle Settings')} why={t('Comes with captions.')} />
           </Group>
         </>
       ) : null}
@@ -937,11 +932,10 @@ export default function SlidesRibbon({
             <Button icon="textbox" label={t('Alt Text')} disabled={selected == null} title={selected == null ? t('Alt Text — select a picture or shape first, then describe it') : t('Alt Text — describe the selected object for people who cannot see it')} onClick={() => selected != null && review?.openAltText({ slide: index, shape: selected })} />
           </Group>
           <Group label={t('Language')}>
-            <Soon tall icon="globe" label={t('Translate')} why={t('Translation is an online service this suite does not call.')} />
             <Button tall icon="globe" label={t('Language')} title={t("Language — mark the selected text box's words as a language, or as not to be checked, for Spelling here and proofing in PowerPoint")} onClick={() => act('language')} />
           </Group>
           <Group label={t('Activity')}>
-            <Soon icon="check" label={t('Mark All as Read')} why={t('A deck keeps its comments and whether each is resolved, but not who has read them, so there is nothing in the file to mark.')} />
+            <Button icon="check" label={t('Mark All as Read')} className="sl-mark-read" disabled={!view.unread} title={view.unread ? tn(view.unread, 'Mark All as Read: {count} comment thread has words you have not read; mark every comment in the presentation read', 'Mark All as Read: {count} comment threads have words you have not read; mark every comment in the presentation read') : t('Mark All as Read: every comment in this presentation has been read on this computer')} onClick={() => act('markAllRead')} />
             <Button icon="eye" label={t('Show Changes')} className="sl-show-changes" pressed={view.pane === 'changes'} title={view.changes ? tn(view.changes, 'Show Changes — {count} slide different since this deck was last open here', 'Show Changes — {count} slides different since this deck was last open here') : t('Show Changes — what is different about this deck since it was last open on this computer')} onClick={() => act('pane', 'changes')} />
           </Group>
           <Group label={t('Comments')}>
@@ -1008,9 +1002,6 @@ export default function SlidesRibbon({
             <Button icon="minus" label={t('Move Split')} title={t("Move Split — the arrow keys move the slide pane's edge and the top of the notes; Enter or Esc when done")} onClick={() => act('moveSplit')} />
             <Button icon="list" label={t('Switch Windows')} title={t('Switch Windows — the Presentations windows open now')} onClick={(e) => act('switchWindows', e)} />
             <Button icon="maximize" label={t('Full Screen')} onClick={() => shell.win.fullscreen({})} />
-          </Group>
-          <Group label={t('Macros')}>
-            <Soon tall icon="settings" label={t('Macros')} why={t('VBA is preserved in the file and never run: a deck that runs code it received in an email is how ransomware starts.')} />
           </Group>
         </>
       ) : null}

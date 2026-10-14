@@ -2652,6 +2652,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     removeShapeAnimations: (d, a) => d.removeShapeAnimations(a.slide, a.shape),
     // Slide Show → Hide Slide: this slide left out of the show.
     setSlideHidden: (d, a) => d.setSlideHidden(a.slide, Boolean(a.hidden)),
+    // Design → Slide Size: the slides' size, everything on them scaled to Ensure Fit or Maximize.
+    setSlideSize: (d, a) => d.setSlideSize(a.cx, a.cy, { fit: a.fit === 'maximize' ? 'maximize' : 'ensure' }),
     renameShape: (d, a) => d.renameShape(a.slide, a.shape, a.name),
     // The Designs pane: this slide on another of the deck's layouts.
     applyLayout: (d, a) => d.applyLayout(a.slide, a.layout),

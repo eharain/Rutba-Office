@@ -2,8 +2,9 @@
 // for a new one, replies, Resolve and Delete — and the markers on the stage
 // that say where each thread is anchored, as PowerPoint 365 draws them.
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, t, tn } from '@rutba/office-ui';
+import { unreadThreads, markRead } from '@rutba/presentation/changes';
 
 /** A person's colour: the same name, the same colour, every time. */
 export function personColour(name) {
@@ -68,9 +69,10 @@ function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, cla
  * box, Resolve (or Reopen) and Delete. An older-format thread says so and
  * offers Delete only, as PowerPoint 365 does.
  */
-export function CommentsPane({ threads, draft, selected, shapes, me, onSelect, onPost, onCancelDraft, onReply, onResolve, onDelete, onDeleteReply, onNew }) {
+export function CommentsPane({ threads, draft, selected, shapes, me, unread = null, onSelect, onPost, onCancelDraft, onReply, onResolve, onDelete, onDeleteReply, onNew }) {
   const shapeName = (id) => shapes.find((s) => String(s.id) === String(id))?.name || t('a shape');
   const listRef = useRef(null);
+  const fresh = unread ? threads.filter((th) => unread.has(String(th.id))).length : 0;
   useEffect(() => {
     if (!selected || !listRef.current) return;
     listRef.current.querySelector(`[data-comment="${CSS.escape(selected)}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -79,7 +81,7 @@ export function CommentsPane({ threads, draft, selected, shapes, me, onSelect, o
     <div className="sl-cm-pane">
       <div className="sl-cm-tools">
         <Button icon="plus" label={t('New')} title={t('New comment — on the selected shape, or on the slide')} className="sl-cm-new" onClick={onNew} />
-        <span className="sl-cm-count">{threads.length ? tn(threads.length, '{count} on this slide', '{count} on this slide') : ''}</span>
+        <span className="sl-cm-count">{threads.length ? tn(threads.length, '{count} on this slide', '{count} on this slide') : ''}{threads.length && fresh ? ` · ${tn(fresh, '{count} unread', '{count} unread')}` : ''}</span>
       </div>
       <div className="sl-cm-list" ref={listRef}>
         {draft ? (
@@ -101,14 +103,14 @@ export function CommentsPane({ threads, draft, selected, shapes, me, onSelect, o
         {threads.map((th) => (
           <div
             key={th.id}
-            className={`sl-cm-card${selected === th.id ? ' selected' : ''}${th.status === 'resolved' ? ' resolved' : ''}${th.legacy ? ' legacy' : ''}`}
+            className={`sl-cm-card${selected === th.id ? ' selected' : ''}${th.status === 'resolved' ? ' resolved' : ''}${th.legacy ? ' legacy' : ''}${unread?.has(String(th.id)) ? ' unread' : ''}`}
             data-comment={th.id}
             onMouseDown={() => onSelect(th.id)}
           >
             <div className="sl-cm-head">
               <Avatar name={th.author} initials={th.initials} />
               <div className="sl-cm-who">
-                <span className="sl-cm-name">{th.author}</span>
+                <span className="sl-cm-name">{unread?.has(String(th.id)) ? <span className="sl-cm-dot" role="img" aria-label={t('Unread')} data-tip={t('Unread: opened, it is marked read')} /> : null}{th.author}</span>
                 <span className="sl-cm-anchor">{whenOf(th.created)}{th.shapeId != null ? ` · ${t('on {shape}', { shape: shapeName(th.shapeId) })}` : ''}</span>
               </div>
               <div className="sl-cm-actions">
@@ -152,6 +154,63 @@ export function CommentsPane({ threads, draft, selected, shapes, me, onSelect, o
       </div>
     </div>
   );
+}
+
+/**
+ * Review → Mark All as Read: which threads hold words not yet read on this
+ * computer. What was read is kept in the store by the deck's path (the
+ * hundred decks read most lately), so it is still known next time; a deck
+ * never saved keeps it while it is open. Nothing counts as unread until
+ * the list is loaded, so a thread is never marked read over a list not
+ * yet read back.
+ * @returns {{ unread: Set<string>, mark: (threads) => number }} mark returns how many threads it read
+ */
+export function useCommentsRead(shell, doc, comments, me) {
+  const [read, setRead] = useState(null);
+  const at = useRef({ id: null, path: null, read: null });
+  const keep = useCallback(async (path, list) => {
+    if (!path || !shell?.store) return;
+    const all = (await shell.store.get({ key: 'slides.commentsRead', fallback: {} }).catch(() => ({}))) || {};
+    all[String(path).toLowerCase()] = { ids: list, at: Date.now() };
+    const kept = Object.entries(all).sort((a, b) => (b[1]?.at || 0) - (a[1]?.at || 0)).slice(0, 100);
+    await shell.store.set({ key: 'slides.commentsRead', value: Object.fromEntries(kept) }).catch(() => {});
+  }, [shell]);
+  useEffect(() => {
+    const id = doc?.id || null;
+    const path = doc?.path || null;
+    const was = at.current;
+    at.current = { ...was, id, path };
+    // The same deck saved under a new name keeps what was read in it.
+    if (id && was.id === id && was.read) {
+      if (path && path !== was.path) keep(path, was.read);
+      return;
+    }
+    at.current.read = null;
+    setRead(null);
+    if (!id) return;
+    if (!path || !shell?.store) { at.current.read = []; setRead([]); return; }
+    let live = true;
+    shell.store.get({ key: 'slides.commentsRead', fallback: {} }).catch(() => ({})).then((all) => {
+      if (!live) return;
+      const list = Array.isArray(all?.[String(path).toLowerCase()]?.ids) ? all[String(path).toLowerCase()].ids : [];
+      at.current.read = list;
+      setRead(list);
+    });
+    return () => { live = false; };
+  }, [shell, doc?.id, doc?.path, keep]);
+  const unread = useMemo(() => (read ? unreadThreads(comments || [], read, me) : new Set()), [comments, read, me]);
+  const mark = useCallback((threads) => {
+    const cur = at.current.read;
+    if (!cur) return 0;
+    const before = unreadThreads(comments || [], cur, me);
+    const next = markRead(cur, threads, comments || []);
+    const after = unreadThreads(comments || [], next, me);
+    at.current.read = next;
+    setRead(next);
+    keep(at.current.path, next);
+    return before.size - after.size;
+  }, [comments, me, keep]);
+  return { unread, mark };
 }
 
 export function initialsFrom(name) {
@@ -212,6 +271,11 @@ export const COMMENTS_CSS = `
 .sl-cm-marker { position: absolute; z-index: 8; display: grid; place-items: center; padding: 0; border: 2px solid #fff; border-radius: 50% 50% 50% 4px; color: #fff; font-weight: 700; cursor: pointer; box-shadow: 0 2px 6px rgba(15,20,30,.28); line-height: 1; }
 .sl-cm-marker.resolved { opacity: .45; }
 .sl-cm-marker.current { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Unread: a dot on the marker's free corner, and on the card a stripe and a dot before the name. */
+.sl-cm-marker.unread::after { content: ''; position: absolute; left: -.35em; top: -.35em; width: .9em; height: .9em; border-radius: 50%; background: var(--accent); border: .2em solid #fff; }
+.sl-cm-card.unread { box-shadow: inset 3px 0 0 var(--accent); }
+.sl-cm-card.unread.selected { box-shadow: inset 3px 0 0 var(--accent), 0 0 0 2px var(--accent-soft); }
+.sl-cm-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-inline-end: 6px; vertical-align: 1px; }
 .sl-cm-marker .sl-cm-more { position: absolute; right: -6px; top: -6px; min-width: 14px; height: 14px; border-radius: 7px; background: var(--ink); color: #fff; font-size: 9px; display: grid; place-items: center; padding: 0 3px; }
 /* The strip: how many threads a slide has. */
 .sl-thumb-cm { display: grid; place-items: center; color: var(--accent); }

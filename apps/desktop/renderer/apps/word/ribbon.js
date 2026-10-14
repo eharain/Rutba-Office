@@ -134,10 +134,6 @@ const CM = 96 / 2.54;
 const PEN_STYLES = [['single', t('Single')], ['double', t('Double')], ['dotted', t('Dotted')], ['dashed', t('Dashed')], ['thick', t('Thick')]];
 const PEN_WEIGHTS = [[2, t('¼ pt')], [4, t('½ pt')], [6, t('¾ pt')], [8, t('1 pt')], [12, t('1½ pt')], [18, t('2¼ pt')], [24, t('3 pt')], [36, t('4½ pt')], [48, t('6 pt')]];
 
-/** A control that is drawn where Word draws it, and says why it is not live. */
-const Soon = ({ icon, label, tall, why }) => (
-  <Button tall={tall} icon={icon} label={label} disabled title={t('{label}: not built yet. {why}', { label, why })} />
-);
 
 export default function WordRibbon({
   tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null, blocks = null, table = null,
@@ -509,9 +505,6 @@ export default function WordRibbon({
             <Button dropdown tall icon="chart" label={t('Chart')} title={t('A chart drawn from the table the caret is in: put the caret in a table first')} onClick={(e) => menu.open(e, CHARTS.map(([k, l]) => ({ label: l, icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: k }) })))} />
             <Button tall icon="picture" label={t('Screenshot')} title={t('Screenshot — a picture of another open window, or of a whole screen, put in at the caret')} onClick={() => act('screenshot')} />
           </Group>
-          <Group label={t('Media')}>
-            <Soon tall icon="video" label={t('Online Videos')} why={t('Embedding a video is a network request; this suite makes none it has not declared.')} />
-          </Group>
           <Group label={t('Links')}>
             <Button tall icon="link" label={t('Link')} title={t('Link (Ctrl+K)')} pressed={Boolean(format.link)} onClick={() => openDialog('link')} />
             <Button icon="flag" label={t('Bookmark')} title={t('Bookmark — name this place in the document, so Go To and a cross-reference can find it')} onClick={() => openDialog('bookmark')} />
@@ -593,7 +586,6 @@ export default function WordRibbon({
           </Group>
           <Group label={t('Convert')}>
             <Button tall icon="shape" label={t('Ink to Shape')} pressed={Boolean(ink?.toShape)} title={t('Ink to Shape — a rectangle, oval or triangle drawn becomes that shape')} onClick={() => act('inkToShape')} />
-            <Soon tall icon="formula" label={t('Ink to Maths')} why={t('Turning handwriting into an equation needs handwriting recognition, which this suite does not have.')} />
           </Group>
           <Group label={t('Insert')}>
             <Button dropdown tall icon="shape" label={t('Shape')} title={t('The shapes the engine can draw')} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', preset, widthPx: 200, heightPx: 120 }) })))} />
@@ -1065,7 +1057,6 @@ export default function WordRibbon({
             <Button icon="textbox" label={t('Alt Text')} disabled={!picked} title={picked ? t('Alt Text — describe the selected picture for people who cannot see it') : t('Alt Text — click a picture first, then describe it')} onClick={() => picked && review?.openAltText({ block: picked.block, image: picked.image })} />
           </Group>
           <Group label={t('Language')}>
-            <Soon tall icon="globe" label={t('Translate')} why={t('Translation is a network service; this suite makes no requests it has not declared.')} />
             <Button tall icon="globe" label={t('Language')} title={t('Language — mark the selected words as a language, or as not to be checked, for Spelling here and proofing in Office')} onClick={() => act('language')} />
           </Group>
           <Group label={t('Comments')}>
@@ -1185,9 +1176,6 @@ export default function WordRibbon({
             <Button icon="grid" label={t('Arrange All')} title={t('Arrange All — every Documents window, one above another')} onClick={() => act('arrange', 'stack')} />
             <Button icon="minus" label={t('Split')} pressed={Boolean(view.split)} title={view.split ? t('Remove Split — the document in one pane again') : t('Split — the document in two panes, one over the other, each scrolled on its own')} onClick={() => act('toggleSplit')} />
             <Button icon="copy" label={t('Side by Side')} title={t('View Side by Side — this document and the one before it, half the screen each')} onClick={() => act('arrange', 'sideBySide')} />
-          </Group>
-          <Group label={t('Macros')}>
-            <Soon tall icon="settings" label={t('Macros')} why={t('A macro engine is not built, and VBA in a file is preserved untouched rather than run.')} />
           </Group>
           <Group label={t('Properties')}>
             <Button tall icon="info" label={t('Properties')} onClick={() => openDialog('properties')} />

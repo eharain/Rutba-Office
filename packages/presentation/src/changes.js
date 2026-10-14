@@ -114,3 +114,49 @@ export function compareFingerprints(before, now) {
   }
   return out;
 }
+
+// Review → Mark All as Read. A deck keeps its comments and whether each is
+// resolved, but not who has read them: PowerPoint asks its server. Here the
+// comments read on this computer are kept beside the fingerprint, as the
+// ids of each thread and reply, and anything else someone other than you
+// wrote is unread until its thread is opened or Mark All as Read is pressed.
+
+/** Every entry of the threads, as ids to keep: each thread's own and `thread/reply` for each reply. */
+export function commentIds(threads) {
+  const out = [];
+  for (const th of threads || []) {
+    if (!th?.id) continue;
+    out.push(String(th.id));
+    for (const r of th.replies || []) if (r?.id) out.push(`${th.id}/${r.id}`);
+  }
+  return out;
+}
+
+/**
+ * The threads with something in them not yet read here: a thread or a reply
+ * someone else wrote whose id is not in `read`. Your own words are read.
+ * @returns {Set<string>} their ids
+ */
+export function unreadThreads(threads, read, me) {
+  const seen = read instanceof Set ? read : new Set(read || []);
+  const mine = (who) => Boolean(me) && String(who || '') === String(me);
+  const out = new Set();
+  for (const th of threads || []) {
+    if (!th?.id) continue;
+    const fresh = (!mine(th.author) && !seen.has(String(th.id)))
+      || (th.replies || []).some((r) => r?.id && !mine(r.author) && !seen.has(`${th.id}/${r.id}`));
+    if (fresh) out.add(String(th.id));
+  }
+  return out;
+}
+
+/**
+ * `read` with these threads marked read, and only ids the deck still holds
+ * kept, so the list does not grow with comments long deleted.
+ */
+export function markRead(read, threads, all = threads) {
+  const live = new Set(commentIds(all));
+  const out = new Set([...(read || [])].filter((id) => live.has(id)));
+  for (const id of commentIds(threads)) out.add(id);
+  return [...out];
+}

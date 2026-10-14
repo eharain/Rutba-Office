@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6437,
+  "count": 6427,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -587,6 +587,12 @@
       ]
     },
     {
+      "message": "35mm Slides",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
       "message": "3D",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
@@ -827,12 +833,6 @@
       ]
     },
     {
-      "message": "A deck keeps its comments and whether each is resolved, but not who has read them, so there is nothing in the file to mark.",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "A diagram cannot go inside a table cell — move the caret out of the table.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -975,12 +975,6 @@
       "message": "A list of values",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
-      ]
-    },
-    {
-      "message": "A macro engine is not built, and VBA in a file is preserved untouched rather than run.",
-      "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
@@ -1320,6 +1314,12 @@
       ]
     },
     {
+      "message": "A slide is between 2.54 cm and 142.24 cm each way.",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
       "message": "A slide with a timing of its own keeps it when timings are used; the rest stay up for the seconds above. Animations are shown finished.",
       "where": [
         "apps/desktop/renderer/apps/slides/export-video.js"
@@ -1492,6 +1492,12 @@
       "message": "A1:D20, or Data!A1:D20 to copy from another sheet",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "A4 Paper (210 x 297 mm)",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
       ]
     },
     {
@@ -2903,12 +2909,6 @@
       ]
     },
     {
-      "message": "Always Use Subtitles",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "Always block",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -3797,12 +3797,6 @@
       ]
     },
     {
-      "message": "Automate a Task",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
       "message": "Automatic",
       "where": [
         "apps/desktop/renderer/apps/image.js",
@@ -4059,7 +4053,8 @@
     {
       "message": "Banner",
       "where": [
-        "apps/desktop/renderer/apps/image/words.js"
+        "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/slides/slide-size.js"
       ]
     },
     {
@@ -5167,6 +5162,7 @@
         "apps/desktop/renderer/apps/slides/export-video.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/slides/setup.js",
+        "apps/desktop/renderer/apps/slides/slide-size.js",
         "apps/desktop/renderer/apps/slides/zoom.js",
         "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/intro/brand.js",
@@ -5272,12 +5268,6 @@
       "where": [
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Captions & Subtitles",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -6453,6 +6443,12 @@
       ]
     },
     {
+      "message": "Close Master View first: Slide Size changes the slides and their masters together.",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
       "message": "Close Master View — back to the slides",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -6784,12 +6780,6 @@
       "message": "Combined PDF",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
-      ]
-    },
-    {
-      "message": "Comes with captions.",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -7829,6 +7819,7 @@
       "message": "Custom",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js",
+        "apps/desktop/renderer/apps/slides/slide-size.js",
         "apps/desktop/renderer/print.js"
       ]
     },
@@ -7882,6 +7873,12 @@
     },
     {
       "message": "Custom Slide Show — play one of the deck's named shows, or make one: some of its slides, in an order of their own",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Custom Slide Size…",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -9062,18 +9059,6 @@
         "apps/desktop/renderer/apps/slides/motion.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Dictate",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
-      "message": "Dictation is an online speech service this suite does not call.",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -10268,12 +10253,6 @@
       ]
     },
     {
-      "message": "Embedding a video is a network request; this suite makes none it has not declared.",
-      "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
       "message": "Ember",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -10387,6 +10366,18 @@
       "message": "Enhanced: the tones stretched to the full range and the colour cast eased.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Ensure Fit",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
+      "message": "Ensure Fit: the content scales down so all of it stays on the new slide",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
       ]
     },
     {
@@ -10629,6 +10620,12 @@
       "message": "Every button its picture alone; its name shows when the pointer rests on it",
       "where": [
         "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Every comment here was already read.",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -11185,12 +11182,6 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Fetching a table from a web page is a network feature this suite does not do on its own.",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -12412,18 +12403,6 @@
       ]
     },
     {
-      "message": "Forms",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
-      "message": "Forms is a Microsoft cloud service.",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "Formula",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
@@ -12773,12 +12752,6 @@
       "where": [
         "apps/desktop/renderer/apps/slides/animate.js",
         "apps/desktop/renderer/apps/slides/motion.js"
-      ]
-    },
-    {
-      "message": "From Web",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -13680,6 +13653,12 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Height (cm)",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
       ]
     },
     {
@@ -14798,19 +14777,6 @@
       ]
     },
     {
-      "message": "Ink to Math",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
-      "message": "Ink to Maths",
-      "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
       "message": "Ink to Shape",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -15757,12 +15723,6 @@
       ]
     },
     {
-      "message": "Keep Slides Updated",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "Keep Top Rows",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -15977,6 +15937,7 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/slides/slide-size.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/print.js"
@@ -15991,7 +15952,6 @@
     {
       "message": "Language",
       "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shell.js",
@@ -16559,6 +16519,12 @@
       ]
     },
     {
+      "message": "Letter Paper (8.5 x 11 in)",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
       "message": "Letter — 8.5 × 11 in",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -17053,18 +17019,6 @@
       ]
     },
     {
-      "message": "Live captions are an online speech service this suite does not call.",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
-      "message": "Live co-authoring is not built.",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "Loading the templates…",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
@@ -17362,14 +17316,6 @@
       ]
     },
     {
-      "message": "Macros",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
       "message": "Made for",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
@@ -17625,6 +17571,19 @@
     },
     {
       "message": "Mark All as Read",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Mark All as Read: every comment in this presentation has been read on this computer",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Mark All as Read: {count} comment thread has words you have not read; mark every comment in the presentation read",
+      "plural": "Mark All as Read: {count} comment threads have words you have not read; mark every comment in the presentation read",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -17890,6 +17849,18 @@
       ]
     },
     {
+      "message": "Maximize",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
+      "message": "Maximize: the content keeps its size and may run off the edges of the new slide",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
       "message": "Maximum",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -17921,7 +17892,6 @@
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js"
       ]
     },
@@ -20743,6 +20713,12 @@
       ]
     },
     {
+      "message": "Now {width} by {height} cm. Everything on the slides is scaled and centred to suit the new size.",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
       "message": "Now {width} × {height}; after, {newWidth} × {newHeight}.",
       "where": [
         "apps/desktop/renderer/apps/image.js",
@@ -20857,6 +20833,7 @@
         "apps/desktop/renderer/apps/slides/custom-shows.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/slides/setup.js",
+        "apps/desktop/renderer/apps/slides/slide-size.js",
         "apps/desktop/renderer/apps/word/blocks.js",
         "apps/desktop/renderer/apps/word/compare.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -21081,6 +21058,12 @@
       ]
     },
     {
+      "message": "On-screen Show (16:10)",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
       "message": "One",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -21145,12 +21128,6 @@
       "plural": "{count} regions marked for Everyone.",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
-      ]
-    },
-    {
-      "message": "Online Videos",
-      "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
@@ -23138,6 +23115,7 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/slides/slide-size.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/print.js"
       ]
@@ -23171,18 +23149,6 @@
       "message": "Postcode",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
-      ]
-    },
-    {
-      "message": "Power Automate",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
-      "message": "Power Automate is a Microsoft cloud service.",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -23257,12 +23223,6 @@
       "message": "Presented by a speaker (full screen)",
       "where": [
         "apps/desktop/renderer/apps/slides/setup.js"
-      ]
-    },
-    {
-      "message": "Presenter Coach is a Microsoft cloud service.",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -24785,12 +24745,6 @@
       ]
     },
     {
-      "message": "Rehearse",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "Rehearse Timings",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -24798,12 +24752,6 @@
     },
     {
       "message": "Rehearse Timings — run the show from the start with a clock, and keep how long each slide was on screen as its timing",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
-      "message": "Rehearse with Coach",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -29306,6 +29254,19 @@
     {
       "message": "Slide Size",
       "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
+      "message": "Slide Size: Standard, Widescreen or a size of your own",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Slide Size: the slides are {width} by {height} cm, {ratio}; Standard, Widescreen or a size of your own, with what is on them scaled to fit",
+      "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
@@ -29383,7 +29344,8 @@
       "message": "Slides",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/slides/slide-size.js"
       ]
     },
     {
@@ -29399,12 +29361,6 @@
       ]
     },
     {
-      "message": "Slides are {width} by {height} pixels — {ratio}. Changing it rescales every slide; not built yet.",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "Slides in custom show",
       "where": [
         "apps/desktop/renderer/apps/slides/custom-shows.js"
@@ -29414,6 +29370,12 @@
       "message": "Slides in presentation",
       "where": [
         "apps/desktop/renderer/apps/slides/custom-shows.js"
+      ]
+    },
+    {
+      "message": "Slides sized for",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
       ]
     },
     {
@@ -30158,6 +30120,13 @@
       ]
     },
     {
+      "message": "Standard (4:3)",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
       "message": "Standard Number",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -30674,12 +30643,6 @@
       "message": "Subscript and superscript",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
-      ]
-    },
-    {
-      "message": "Subtitle Settings",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -32079,12 +32042,6 @@
       ]
     },
     {
-      "message": "The deck decides its own size",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "The deck's layouts in a pane — put this slide on one, or start a new slide from it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -32450,6 +32407,12 @@
       "message": "The name of the document's author, from its properties",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "The new size is smaller one way. Maximize keeps the content as large as it is, so some may run off the edges; Ensure Fit scales it down so all of it stays on the slide.",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
       ]
     },
     {
@@ -34894,27 +34857,6 @@
       ]
     },
     {
-      "message": "Translate",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Translation is a network service; this suite makes no requests it has not declared.",
-      "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Translation is an online service this suite does not call.",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "Translator",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -35173,14 +35115,6 @@
       "message": "Turned and saved.",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
-      ]
-    },
-    {
-      "message": "Turning handwriting into an equation needs handwriting recognition, which this suite does not have.",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
@@ -35618,7 +35552,14 @@
       "message": "Unread",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
-        "apps/desktop/renderer/apps/mail/parts.js"
+        "apps/desktop/renderer/apps/mail/parts.js",
+        "apps/desktop/renderer/apps/slides/comments.js"
+      ]
+    },
+    {
+      "message": "Unread: opened, it is marked read",
+      "where": [
+        "apps/desktop/renderer/apps/slides/comments.js"
       ]
     },
     {
@@ -36000,18 +35941,6 @@
       ]
     },
     {
-      "message": "VBA is preserved in the file and never run: a deck that runs code it received in an email is how ransomware starts.",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
-      "message": "VBA is preserved in the file and never run: a spreadsheet that runs code it received in an email is how ransomware starts.",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
-      ]
-    },
-    {
       "message": "Validation",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -36296,7 +36225,6 @@
     {
       "message": "Voice",
       "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -36717,6 +36645,18 @@
       ]
     },
     {
+      "message": "Widescreen",
+      "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js"
+      ]
+    },
+    {
+      "message": "Widescreen (16:9)",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
       "message": "Width",
       "where": [
         "apps/desktop/renderer/apps/image.js",
@@ -36736,6 +36676,7 @@
     {
       "message": "Width (cm)",
       "where": [
+        "apps/desktop/renderer/apps/slides/slide-size.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
       ]
     },
@@ -39264,6 +39205,13 @@
       ]
     },
     {
+      "message": "{count} comment thread marked as read",
+      "plural": "{count} comment threads marked as read",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
       "message": "{count} contact",
       "plural": "{count} contacts",
       "where": [
@@ -39855,7 +39803,8 @@
       "message": "{count} unread",
       "plural": "{count} unread",
       "where": [
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/slides/comments.js"
       ]
     },
     {
@@ -40029,14 +39978,6 @@
       "message": "{label}: draw on the slide",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
-      "message": "{label}: not built yet. {why}",
-      "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
