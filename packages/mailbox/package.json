@@ -20,6 +20,7 @@
     "./search": "./src/search-index.js",
     "./query": "./src/query.js",
     "./archive": "./src/archive.js",
+    "./archive-host": "./src/archive-host.js",
     "./export": "./src/legal-export.js",
     "./message-pdf": "./src/message-pdf.js",
     "./rfc822": "./src/rfc822.js"

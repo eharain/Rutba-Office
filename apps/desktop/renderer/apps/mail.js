@@ -34,7 +34,7 @@ import { RulesDialog } from './mail/rules.js';
 import { attachmentExtension } from '@rutba/mailbox/mime';
 import { withSignature, withSignatureHtml, signatureTextToHtml } from '@rutba/mailbox/signature';
 import { textToHtml } from './mail/richtext.js';
-import { isArchiveId, ArchiveBanner, ExportHoldDialog, SearchHelp, installArchiveStyles } from './mail/archive.js';
+import { isArchiveId, ArchiveBanner, ExportHoldDialog, SearchHelp, installArchiveStyles, indexedCount } from './mail/archive.js';
 
 installStyles();
 installArchiveStyles();
@@ -85,6 +85,7 @@ export default function Mail({ app, shell }) {
   const [archives, setArchives] = useState([]);
   const [scope, setScope] = useState('folder');
   const [found, setFound] = useState(null);
+  const quietSearch = useRef(false);
   const searchSeq = useRef(0);
 
   // How the list looks. Remembered, because nobody wants to choose twice.
@@ -195,7 +196,10 @@ export default function Mail({ app, shell }) {
       // One search over every account and every archive; an answer that
       // arrives after a newer one was asked for is dropped.
       const seq = ++searchSeq.current;
-      setBusy(true);
+      // Asked again as an archive's indexing goes on: no spinner over the list.
+      const quiet = quietSearch.current;
+      quietSearch.current = false;
+      if (!quiet) setBusy(true);
       try {
         const r = await shell.mail.searchAll({ query, limit: 500 });
         if (seq !== searchSeq.current) return;
@@ -236,6 +240,30 @@ export default function Mail({ app, shell }) {
       setBusy(false);
     }
   }, [allMail, unified, role, accountId, folder, query, view, shell, toast]);
+
+  // While an archive searched is still being indexed, the search is asked
+  // again every second and a half, so its results and its count grow as the
+  // archive is indexed; and once more when an archive's indexing has changed
+  // since (resumed, stopped or finished), so the answer says where it is now.
+  const searchStale = useMemo(
+    () =>
+      Boolean(
+        allMail &&
+          found?.indexing?.some((a) => {
+            const now = archives.find((x) => x.id === a.id)?.index?.state;
+            return a.state === 'indexing' || now === 'indexing' || (now && now !== a.state);
+          })
+      ),
+    [allMail, found, archives]
+  );
+  useEffect(() => {
+    if (!searchStale) return undefined;
+    const timer = setTimeout(() => {
+      quietSearch.current = true;
+      refreshList();
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [searchStale, found, refreshList]);
 
   useEffect(() => {
     refreshList();
@@ -1525,7 +1553,15 @@ export default function Mail({ app, shell }) {
                   ...(prefs.layout === 'off' ? { flex: 1 } : {}),
                 }}
               >
-                {openArchive ? <ArchiveBanner archive={openArchive} onClose={() => closeArchive(openArchive.id)} onExport={() => setDialog({ kind: 'hold' })} /> : null}
+                {openArchive ? (
+                  <ArchiveBanner
+                    archive={openArchive}
+                    onClose={() => closeArchive(openArchive.id)}
+                    onExport={() => setDialog({ kind: 'hold' })}
+                    onStopIndexing={() => shell.mail.stopIndexing({ id: openArchive.id }).catch(() => {})}
+                    onResumeIndexing={() => shell.mail.resumeIndexing({ id: openArchive.id }).catch(() => {})}
+                  />
+                ) : null}
                 <div className="ml-tools">
                   <Search value={query} onChange={setQuery} placeholder={scope === 'all' ? t('Search all mail and archives') : unified ? t('Search every account') : t('Search {folder}', { folder: current?.name || t('mail') })} />
                   <div className="ml-filters">
@@ -1556,7 +1592,13 @@ export default function Mail({ app, shell }) {
                     ) : null}
                     {allMail && found?.indexing?.length ? (
                       <span className="ml-scope-indexing">
-                        {t('Still indexing {names}; more may be found.', { names: found.indexing.map((a) => a.name).join(', ') })}
+                        {found.indexing
+                          .map((a) =>
+                            a.state === 'paused'
+                              ? t('{name}: {count} indexed, and indexing is stopped; the rest is not searched until it is resumed.', { name: a.name, count: indexedCount(a) })
+                              : t('{name}: {count} indexed so far; more may be found as indexing goes on.', { name: a.name, count: indexedCount(a) })
+                          )
+                          .join(' ')}
                       </span>
                     ) : null}
                   </div>

@@ -791,3 +791,23 @@ export function writePst(filePath, folders, opts = {}) {
   for (const spec of folders) add(spec);
   return w.close();
 }
+
+/**
+ * Write a .pst of the seeded corpus (mail-corpus.js): `count` messages over
+ * its ten folders, a quarter with an attachment of `attachBytes`. 20,000 at
+ * 190,000 bytes is the 1 GB archive of the performance budget.
+ */
+export async function writeCorpusPst(filePath, { count, attachBytes = 190_000, seed } = {}) {
+  const { corpus } = await import('./mail-corpus.js');
+  const writer = new PstWriter(filePath);
+  const folders = new Map();
+  const folderOf = (p) => {
+    if (folders.has(p)) return folders.get(p);
+    const parts = p.split('/');
+    const handle = writer.folder(parts[parts.length - 1], parts.length > 1 ? folderOf(parts.slice(0, -1).join('/')) : undefined);
+    folders.set(p, handle);
+    return handle;
+  };
+  for (const { folder, message } of corpus({ count, attachBytes, ...(seed ? { seed } : {}) })) writer.message(folderOf(folder), message);
+  return writer.close();
+}

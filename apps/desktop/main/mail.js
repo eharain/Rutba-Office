@@ -1231,8 +1231,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     service.flag = (args = {}) => (isArchive(args.accountId) ? { total: 0, unread: 0 } : own(args));
     const sync = service.sync;
     service.sync = (args = {}) => (isArchive(args.accountId) ? { added: 0, total: 0, local: true } : sync(args));
-    const search = service.search;
-    service.search = (args = {}) => (isArchive(args.accountId) ? store.index.search(args.query, { sources: [args.accountId], limit: args.limit }).rows : search(args));
+    // An account's search runs on the accounts' index thread, as the search over all mail does.
+    service.search = (args = {}) => (isArchive(args.accountId) ? desk.search(args) : desk.searchAccount(args));
     const files = service.files;
     service.files = (args = {}) => (isArchive(args.accountId) ? [] : files(args));
     const people = service.people;
@@ -1240,6 +1240,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     const remove = service.removeAccount;
     service.removeAccount = (args = {}) => {
       store.dropIndex(args.id);
+      desk.dropAccount({ id: args.id }).catch(() => {});
       return remove(args);
     };
   }
@@ -1251,6 +1252,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     archives: () => desk.archives(),
     openArchive: (args) => desk.openArchive(args),
     closeArchive: (args) => desk.closeArchive(args),
+    stopIndexing: (args) => desk.stopIndexing(args),
+    resumeIndexing: (args) => desk.resumeIndexing(args),
     searchAll: (args) => desk.searchAll(args),
     exportHold: (args) => desk.exportHold(args),
     cancelExport: (args) => desk.cancelExport(args),

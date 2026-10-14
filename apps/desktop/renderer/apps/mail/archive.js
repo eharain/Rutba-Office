@@ -93,17 +93,24 @@ export function archiveKind(kind) {
   return kind || '';
 }
 
+/** How far an archive's indexing has got, in words: "40,000 of 100,000". */
+export const indexedCount = (index) => t('{done} of {total}', { done: (index?.done || 0).toLocaleString(), total: (index?.total || 0).toLocaleString() });
+
 /**
  * The strip at the top of an archive's message list: what it is, that it is
- * read only (or how far its indexing has got), and Export and Close.
+ * read only (or how far its indexing has got), and Export, Stop or Resume
+ * indexing, and Close.
  */
-export function ArchiveBanner({ archive, onClose, onExport }) {
+export function ArchiveBanner({ archive, onClose, onExport, onStopIndexing, onResumeIndexing }) {
   const indexing = archive.index?.state === 'indexing';
+  const paused = archive.index?.state === 'paused';
   const note = archive.missing
     ? t('The file is no longer where it was.')
     : indexing
-      ? t('Read only, opened where it lies. Indexing for search: {percent}%', { percent: Math.floor((100 * (archive.index.done || 0)) / Math.max(1, archive.index.total || 1)) })
-      : t('Read only, opened where it lies. Nothing in it is changed.');
+      ? t('Read only, opened where it lies. Indexing for search: {count} messages, searchable as they are indexed.', { count: indexedCount(archive.index) })
+      : paused
+        ? t('Read only, opened where it lies. Indexing stopped at {count} messages; what is indexed can be searched.', { count: indexedCount(archive.index) })
+        : t('Read only, opened where it lies. Nothing in it is changed.');
   return (
     <div className="ml-archive-banner" data-archive={archive.id}>
       <Icon name="archive" size={16} />
@@ -118,6 +125,16 @@ export function ArchiveBanner({ archive, onClose, onExport }) {
         <button type="button" onClick={onExport}>
           {t('Export…')}
         </button>
+        {indexing && onStopIndexing ? (
+          <button type="button" className="ml-archive-stop" onClick={onStopIndexing}>
+            {t('Stop indexing')}
+          </button>
+        ) : null}
+        {paused && onResumeIndexing ? (
+          <button type="button" className="ml-archive-resume" onClick={onResumeIndexing}>
+            {t('Resume indexing')}
+          </button>
+        ) : null}
         <button type="button" onClick={onClose}>
           {t('Close archive')}
         </button>

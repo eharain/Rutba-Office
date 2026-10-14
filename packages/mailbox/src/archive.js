@@ -286,11 +286,19 @@ export function openArchive(filePath) {
  * time: each `yield` is one message read, so a caller can run it in slices
  * and keep a window answering. The segments carry `textOf`, which reads a
  * message's body again for a phrase.
+ *
+ * With `part`, a folder is made searchable in parts as it goes rather than
+ * when it is finished: every `part` messages, and whenever the caller calls
+ * `hooks.flush()` between steps (before a search, or when indexing is
+ * paused), what has been read of the folder so far becomes a segment of its
+ * own, keyed by the folder's key and the part's number. A search then
+ * answers from everything indexed so far.
  * @param {object} source from openArchive
  * @param {import('./search-index.js').SearchIndex} index
  * @param {{ id: string, name: string }} info the source as results name it
+ * @param {{ part?: number, hooks?: { flush?: () => void } }} [opts]
  */
-export function* indexSteps(source, index, info) {
+export function* indexSteps(source, index, info, { part = 0, hooks = null } = {}) {
   const folders = source.folders();
   const total = folders.reduce((n, f) => n + (f.total || 0), 0);
   let done = 0;
@@ -300,21 +308,36 @@ export function* indexSteps(source, index, info) {
       done += folder.total || 0;
       continue;
     }
-    const builder = index.builder({
-      key,
-      stamp: 'archive',
-      source: { id: info.id, name: info.name, kind: source.kind },
-      folder: { path: folder.path, name: folder.name },
-      textOf: (doc) => source.text(folder.path, doc.id),
-    });
+    let parts = 0;
+    let held = 0;
+    const builderOf = () =>
+      index.builder({
+        key: parts ? `${key}\u0000${parts}` : key,
+        stamp: 'archive',
+        source: { id: info.id, name: info.name, kind: source.kind },
+        folder: { path: folder.path, name: folder.name },
+        textOf: (doc) => source.text(folder.path, doc.id),
+      });
+    let builder = builderOf();
+    const flush = () => {
+      if (!held) return;
+      builder.finish();
+      parts++;
+      held = 0;
+      builder = builderOf();
+    };
+    if (hooks) hooks.flush = flush;
     for (const { id, message } of source.messages(folder.path)) {
       const doc = docOf({ ...message, preview: message.preview || bodyText(message).slice(0, 200) }, id);
       const { words, sig } = index.analyse(headlineText(doc), bodyText(message));
       builder.add(doc, words, sig);
       done++;
+      held++;
+      if (part && held >= part) flush();
       yield { done, total, folder: folder.path };
     }
-    builder.finish();
+    if (held || !parts) builder.finish();
+    if (hooks) hooks.flush = () => {};
   }
   return { done, total };
 }

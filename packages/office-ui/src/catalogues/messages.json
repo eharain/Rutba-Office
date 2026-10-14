@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6811,
+  "count": 6816,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -25590,7 +25590,13 @@
       ]
     },
     {
-      "message": "Read only, opened where it lies. Indexing for search: {percent}%",
+      "message": "Read only, opened where it lies. Indexing for search: {count} messages, searchable as they are indexed.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Read only, opened where it lies. Indexing stopped at {count} messages; what is indexed can be searched.",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
       ]
@@ -27290,6 +27296,12 @@
       "message": "Resume animation",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Resume indexing",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -32227,12 +32239,6 @@
       ]
     },
     {
-      "message": "Still indexing {names}; more may be found.",
-      "where": [
-        "apps/desktop/renderer/apps/mail.js"
-      ]
-    },
-    {
       "message": "Stop",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js",
@@ -32254,6 +32260,12 @@
       "message": "Stop checking other rules once this one matches",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
+      ]
+    },
+    {
+      "message": "Stop indexing",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
     {
@@ -42284,6 +42296,12 @@
       ]
     },
     {
+      "message": "{done} of {total}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
       "message": "{dpi} dots per inch",
       "where": [
         "apps/desktop/renderer/apps/pdf/export.js"
@@ -42845,6 +42863,18 @@
       "plural": "{name}: {count} copies of the {type} — one section each.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "{name}: {count} indexed so far; more may be found as indexing goes on.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{name}: {count} indexed, and indexing is stopped; the rest is not searched until it is resumed.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {

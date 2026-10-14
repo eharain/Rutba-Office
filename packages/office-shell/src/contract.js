@@ -189,7 +189,9 @@ export const METHODS = {
     'archives',     // () -> [{ id, path, name, kind, label, bytes, folders, messages, missing, index: { state, done, total } }] archives opened in place
     'openArchive',  // ({ path }) -> that archive: a .pst, .ost, .olm or mbox read where it lies, never written to; its id begins archive:
     'closeArchive', // ({ id }) -> { closed }  forgotten and its part of the index dropped; the file is untouched
-    'searchAll',    // ({ query, limit, offset, sources }) -> { rows, total, exact, indexing } one search over every account and archive
+    'stopIndexing', // ({ id }) -> { state, done, total }  an archive's indexing paused; what is indexed stays searchable
+    'resumeIndexing', // ({ id }) -> { state, done, total }  carried on where it was paused
+    'searchAll',    // ({ query, limit, offset, sources }) -> { rows, total, exact, indexing: [{ id, name, state, done, total }] } one search over every account and archive, from what is indexed so far
     'exportHold',   // ({ job, query, sources, folders, items, dir, mbox, pdf, attachments, labels, selection }) -> { dir, exported, requested, cancelled, sources, attachments, pdfs, files }
     'cancelExport', // ({ job }) -> { cancelled }
   ],

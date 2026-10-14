@@ -37,27 +37,27 @@ test('an archive opened in place reads like an account and cannot be changed', a
   try {
     const files = writeArchiveFixtures(path.join(s.dir, 'archives'));
     const before = sha(files.pst);
-    const pst = s.mail.openArchive({ path: files.pst });
+    const pst = await s.mail.openArchive({ path: files.pst });
     assert.match(pst.id, /^archive:/);
     assert.equal(pst.kind, 'pst');
     assert.equal(pst.messages, 6);
-    assert.equal(s.mail.openArchive({ path: files.pst }).id, pst.id, 'the same file twice is one archive');
-    assert.deepEqual(s.mail.folders({ accountId: pst.id }).map((f) => f.path).sort(), ['Inbox', 'Inbox/Projects', 'Sent Items']);
-    const list = s.mail.messages({ accountId: pst.id, folder: 'Inbox', limit: 10 });
+    assert.equal((await s.mail.openArchive({ path: files.pst })).id, pst.id, 'the same file twice is one archive');
+    assert.deepEqual((await s.mail.folders({ accountId: pst.id })).map((f) => f.path).sort(), ['Inbox', 'Inbox/Projects', 'Sent Items']);
+    const list = await s.mail.messages({ accountId: pst.id, folder: 'Inbox', limit: 10 });
     assert.equal(list.total, 4);
     const signed = list.rows.find((r) => r.subject === 'Halvorsen contract: signed copy');
-    const m = s.mail.message({ accountId: pst.id, folder: 'Inbox', id: signed.id });
+    const m = await s.mail.message({ accountId: pst.id, folder: 'Inbox', id: signed.id });
     assert.equal(m.readOnly, true);
     assert.match(m.text, /indemnity clause/);
     assert.equal(m.attachments[0].bytes, undefined, 'the bytes stay in the main process');
-    assert.equal(s.mail.attachment({ accountId: pst.id, folder: 'Inbox', id: signed.id, index: 0 }).size, 48_000);
+    assert.equal((await s.mail.attachment({ accountId: pst.id, folder: 'Inbox', id: signed.id, index: 0 })).size, 48_000);
     // Read, not written: marking read does nothing, a move or delete is refused.
     s.mail.flag({ accountId: pst.id, folder: 'Inbox', ids: [signed.id], patch: { unread: false } });
     assert.throws(() => s.mail.move({ accountId: pst.id, folder: 'Inbox', ids: [signed.id], to: 'Archive' }), /read only/);
     assert.throws(() => s.mail.delete({ accountId: pst.id, folder: 'Inbox', ids: [signed.id] }), /read only/);
     await indexed(s.mail, pst.id);
     assert.equal(sha(files.pst), before);
-    s.mail.closeArchive({ id: pst.id });
+    await s.mail.closeArchive({ id: pst.id });
     assert.equal(s.mail.archives().length, 0);
   } finally {
     s.done();
@@ -69,8 +69,8 @@ test('searchAll finds across the accounts and the archives, and exportHold write
   try {
     const files = writeArchiveFixtures(path.join(s.dir, 'archives'));
     s.mail.addAccount({ account: { email: 'ejaz@example.com', name: 'Ejaz', local: true } });
-    const a = s.mail.openArchive({ path: files.pst });
-    const b = s.mail.openArchive({ path: files.olm });
+    const a = await s.mail.openArchive({ path: files.pst });
+    const b = await s.mail.openArchive({ path: files.olm });
     await indexed(s.mail, a.id);
     await indexed(s.mail, b.id);
     const found = await s.mail.searchAll({ query: 'halvorsen after:2019-01-01 before:2021-01-01' });
