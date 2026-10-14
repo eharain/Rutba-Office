@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6598,
+  "count": 6653,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -243,6 +243,12 @@
       ]
     },
     {
+      "message": "\"{text}\" is not one of the list's items.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "\"{to}\" cannot be a worksheet's name here",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -280,6 +286,12 @@
     },
     {
       "message": "\"{value}\" is not a colour this can draw with.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{value}\" is not one of the list's entries.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
       ]
@@ -822,6 +834,12 @@
     },
     {
       "message": "A custom view needs a name.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A date is written yyyy-mm-dd.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
       ]
@@ -1804,6 +1822,7 @@
         "apps/desktop/renderer/apps/slides/custom-shows.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
+        "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "packages/office-ui/src/proofing.js"
       ]
@@ -2876,6 +2895,12 @@
       "message": "Allow Users to Edit Ranges",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Allow carriage returns (multiple paragraphs)",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -4541,6 +4566,7 @@
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
+        "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/references-index.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -5269,6 +5295,7 @@
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/equations.js",
+        "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/list-dialog.js",
         "apps/desktop/renderer/apps/word/mailings.js",
         "apps/desktop/renderer/apps/word/references-figures.js",
@@ -5783,6 +5810,24 @@
       ]
     },
     {
+      "message": "Check Box Content Control",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Check Box Content Control: ticked or not",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Check Box Form Field",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Check Cell",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -5968,6 +6013,12 @@
       ]
     },
     {
+      "message": "Choose a date",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Choose a file…",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -6056,6 +6107,12 @@
       "message": "Choose an accounts file…",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Choose an item.",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -6432,6 +6489,24 @@
       "message": "Click into a text box first — the symbol goes in where the caret is.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Click or tap here to enter text.",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Click or tap to enter a date.",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Click or tap to insert a picture.",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -6955,6 +7030,24 @@
       ]
     },
     {
+      "message": "Combo Box Content Control",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Combo Box Content Control: one of a list, or words of one's own",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Combo Box Properties",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Comfortable",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -7274,6 +7367,30 @@
       ]
     },
     {
+      "message": "Content Control",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Content Control Properties",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Content control cannot be deleted",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Contents cannot be edited",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Contiguous",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
@@ -7327,6 +7444,12 @@
       "message": "Control what types of changes people can make to this {noun}.",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Controls",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -8443,6 +8566,24 @@
       ]
     },
     {
+      "message": "Date Picker Content Control",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Date Picker Content Control: a date from a calendar",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Date Picker Properties",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Date and Time",
       "where": [
         "apps/desktop/renderer/apps/word/references-figures.js"
@@ -9185,6 +9326,18 @@
       ]
     },
     {
+      "message": "Design Mode",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Design Mode: show each control's tags, and open its Properties with a double-click",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Designer",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -9231,6 +9384,12 @@
       "message": "Devanagari digits (१२३)",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Developer",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
@@ -9352,9 +9511,21 @@
       ]
     },
     {
+      "message": "Display Name",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Display for Review: how tracked changes are shown",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Display the date like this",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -9898,6 +10069,30 @@
       "message": "Drop Cap: the first letter, framed to stand tall beside the words that follow it",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Drop-Down Form Field",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Drop-Down List Content Control",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Drop-Down List Content Control: one of a list",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Drop-Down List Properties",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -12575,6 +12770,18 @@
       "message": "Form",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Form Field Options",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Form Field Shading",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -15586,7 +15793,8 @@
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
-        "apps/desktop/renderer/apps/word.js"
+        "apps/desktop/renderer/apps/word.js",
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -16838,6 +17046,18 @@
       ]
     },
     {
+      "message": "Legacy Forms",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Legacy Tools: the form fields of Word 97 to 2003",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Legal style numbering: every number in this level shown in figures (Section 1.01 under Article I)",
       "where": [
         "apps/desktop/renderer/apps/word/list-dialog.js"
@@ -17470,6 +17690,12 @@
       "message": "Locked cells take no edits while the sheet is protected, except in the ranges Allow Edit Ranges leaves open.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Locking",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -19883,6 +20109,12 @@
       ]
     },
     {
+      "message": "Next month",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Next page",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -21345,6 +21577,7 @@
         "apps/desktop/renderer/apps/word/compare.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
+        "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/list-dialog.js",
         "apps/desktop/renderer/apps/word/mailings.js",
         "apps/desktop/renderer/apps/word/references-figures.js",
@@ -23153,6 +23386,18 @@
       ]
     },
     {
+      "message": "Picture Content Control",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Picture Content Control: a picture chosen from a file",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Picture Format",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -23225,6 +23470,7 @@
         "apps/desktop/renderer/apps/video/intro/brand.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
+        "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/registry-words.js"
       ]
@@ -23439,6 +23685,12 @@
       ]
     },
     {
+      "message": "Placeholder text",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Placeholders",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -23479,6 +23731,24 @@
       "message": "Plain Text (.txt)",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Plain Text Content Control",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Plain Text Content Control: words in one look",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Plain Text Properties",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -23963,6 +24233,12 @@
       ]
     },
     {
+      "message": "Previous month",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Previous page",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -24229,14 +24505,22 @@
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
+        "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Properties: the selected control's title, tag, placeholder, locks and list",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
       "message": "Protect",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -25455,6 +25739,7 @@
         "apps/desktop/renderer/apps/slides/album.js",
         "apps/desktop/renderer/apps/slides/custom-shows.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
+        "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ruler.js",
         "apps/desktop/renderer/dav-accounts.js"
       ]
@@ -26081,6 +26366,12 @@
       ]
     },
     {
+      "message": "Reset Form Fields",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Reset adjustments",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -26266,6 +26557,7 @@
       "message": "Restrict Editing",
       "where": [
         "apps/desktop/renderer/apps/word.js",
+        "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/restrict.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -26280,6 +26572,12 @@
       "message": "Restrict Editing — the document is protected; the pane says what you may do and stops protection",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Restrict Editing: allow only filling in forms, comments or tracked changes",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -26393,6 +26691,18 @@
       "message": "Riblet",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Rich Text Content Control",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Rich Text Content Control: words that can be formatted",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -28104,6 +28414,12 @@
       ]
     },
     {
+      "message": "Select a content control first: click it, or put the caret beside it.",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
       "message": "Select a drawing first — click it, or pick it in the Selection Pane.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
@@ -29539,6 +29855,12 @@
       "message": "Show — the workbook as the picked view kept it",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Shown until the control is filled in.",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -31837,6 +32159,7 @@
       "message": "Tag",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/references.js"
       ]
     },
@@ -32067,6 +32390,12 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Text Form Field",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -34385,6 +34714,13 @@
       ]
     },
     {
+      "message": "This content control cannot be edited: its contents are locked.",
+      "where": [
+        "apps/desktop/renderer/apps/word/forms.js",
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This deck has no layouts of its own.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -34568,6 +34904,12 @@
       "message": "This folder: {folder}",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "This form field is not enabled for filling in.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -35250,6 +35592,7 @@
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/video/timeline.js",
         "apps/desktop/renderer/apps/word.js",
+        "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/mailings.js",
         "apps/desktop/renderer/apps/word/references.js",
         "apps/desktop/renderer/shared-words.js"
@@ -35346,7 +35689,8 @@
       "message": "Today",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {
@@ -36846,7 +37190,8 @@
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
-        "apps/desktop/renderer/apps/sheets/queries.js"
+        "apps/desktop/renderer/apps/sheets/queries.js",
+        "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
     {

@@ -2430,6 +2430,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     replaceEquation: (v, a) => v.replaceEquation({ block: a.block, offset: a.offset, xml: equationXml(a) }),
     // A paste from within the suite that carries equations, as themselves.
     pasteRuns: (v, a) => v.pasteRuns(a.lines),
+    // Developer → Controls and Legacy Tools: a form field at the caret,
+    // filled, given its properties; a picture control's picture.
+    insertControl: (v, a) => v.insertControl({ kind: a.kind, props: a.props || {}, legacy: Boolean(a.legacy) }),
+    setControlValue: (v, a) => v.setControlValue({ block: a.block, offset: a.offset, value: a.value }),
+    setControlProps: (v, a) => v.setControlProps({ block: a.block, offset: a.offset, props: a.props || {} }),
+    setControlPicture: (v, a) => v.setControlPicture({ block: a.block, offset: a.offset, picture: a.picture || {} }),
     // Insert → Quick Parts: the selection as a building block keeps it, and a block put in.
     buildingBlock: (v) => JSON.stringify(v.buildingBlock()),
     insertBuildingBlock: (v, a) => v.insertBuildingBlock(a.block),
@@ -2788,6 +2794,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   const PROTECTION_OPS = new Set(['setProtection', 'stopProtection', 'setPermission']);
   /** Operations that change the words at the selection. */
   const TEXT_OPS = new Set(['insertText', 'deleteBackward', 'deleteForward', 'deleteSelection', 'splitParagraph', 'pasteText', 'pasteRuns', 'insertBuildingBlock', 'tabCell', 'insertEquation', 'replaceEquation', 'insertImage', 'removeImage', 'setImageLayout', 'setImageSize', 'insertPageBreak', 'insertMergeField', 'insertNote', 'setNoteText', 'insertTable', 'insertChart', 'insertShape', 'insertCaption', 'insertCrossReference', 'tableOp', 'setTableColumnWidths', 'setTableRowHeight', 'textToTable', 'updateTableFormulas', 'drawTable']);
+  /** Operations that fill in a form field: all that Filling in forms allows. */
+  const FORM_OPS = new Set(['setControlValue', 'setControlPicture']);
   /** Operations that format the selection directly. */
   const FORMAT_OPS = new Set(['toggleFormat', 'setRunFormat', 'clearFormat', 'setParagraphFormat', 'setLink', 'setDropCap']);
 
@@ -2805,7 +2813,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       ((op.op === 'deleteBackward' && from.block === region.from && from.offset === 0) ||
         (op.op === 'deleteForward' && to.block === region.to && to.offset >= (view.block?.(to.block)?.text?.length ?? Infinity)));
     const inRegion = Boolean(region) && !edgeOut;
-    const editsText = TEXT_OPS.has(op.op);
+    const editsText = TEXT_OPS.has(op.op) || FORM_OPS.has(op.op) || op.op === 'insertControl' || op.op === 'setControlProps';
     const formats = FORMAT_OPS.has(op.op);
     // Formatting limited to styles: a style may be applied, nothing direct.
     const styleOnly = op.op === 'setParagraphFormat' && Object.keys(op.delta || {}).every((k) => k === 'style');
@@ -2824,6 +2832,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         if (inRegion && (editsText || formats)) return;
         throw new Error('This document is protected: only comments can be added here.');
       case 'forms':
+        if (FORM_OPS.has(op.op)) return;
         throw new Error('This document is protected for filling in forms: only its form fields can be changed.');
       default:
         if (inRegion && (editsText || formats || op.op === 'addComment')) return;

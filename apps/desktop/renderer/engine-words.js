@@ -202,6 +202,12 @@ export const ENGINE_WORDS = [
   msg('A merge down a column crosses this row — split the merged cells first.'),
   msg('"{format}" is not a number style Word knows.'),
   msg('There is no paragraph style "{style}" to link a level to.'),
+  // packages/ooxml/src/forms.js
+  msg('This content control cannot be edited: its contents are locked.'),
+  msg('"{text}" is not one of the list\'s items.'),
+  msg('"{value}" is not one of the list\'s entries.'),
+  msg('A date is written yyyy-mm-dd.'),
+  msg('This form field is not enabled for filling in.'),
   // packages/ooxml/src/mailmerge.js
   msg('A bookmark needs a name that starts with a letter'),
   // packages/pdf/src/document.js

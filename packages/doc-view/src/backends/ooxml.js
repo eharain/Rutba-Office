@@ -13,6 +13,7 @@ import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene
 import { ommlToMathml, ommlToLinear, ommlInfo, asciiLinear } from '@rutba/ooxml/math';
 import { mergeToDocument, mergeMessages } from '@rutba/ooxml/mailmerge-run';
 import { DocView } from '../view.js';
+import { readControl, withControlValue, withControlProps, withControlPicture } from '@rutba/ooxml/forms';
 import { portableParagraph, fitParagraph } from '@rutba/ooxml/blocks';
 
 export class OoxmlBackend {
@@ -64,6 +65,30 @@ export class OoxmlBackend {
   drawings() { return this.doc.drawings(); }
   insertTextBox(index, spec) { return this.doc.insertTextBox(index, spec); }
   insertInk(index, strokes) { return this.doc.insertInk(index, strokes); }
+  /** Forms: new fields' XML, a field read for the page, a picture's run, a placeholder kept in the glossary, see document.js. */
+  newControlXml(kind, props) { return this.doc.newControlXml(kind, props); }
+  newLegacyFieldXml(kind, props) { return this.doc.newLegacyFieldXml(kind, props); }
+  controlView(xml) { return this.doc.controlView(xml); }
+  pictureRunXml(spec) { return this.doc.pictureRunXml(spec); }
+  addGlossaryPlaceholder(text) { return this.doc.addGlossaryPlaceholder(text); }
+  /** A field filled: its new XML, an emptied one showing the placeholder its glossary keeps. */
+  controlWithValue(xml, value) { return withControlValue(xml, value, { placeholder: this.doc.controlView(xml).placeholder }); }
+  /** A picture control holding a picture: `{ data, contentType, widthPx, heightPx }`. */
+  controlWithPicture(xml, picture) {
+    const c = readControl(xml);
+    if (c.noEdit) throw new Error('This content control cannot be edited: its contents are locked.');
+    return withControlPicture(xml, this.doc.pictureRunXml({ ...picture, name: c.title || 'Picture' }));
+  }
+  /** Properties: a placeholder of one's own is kept in the glossary, as Word keeps it. */
+  controlWithProps(xml, props = {}) {
+    const c = readControl(xml);
+    const own = { ...props };
+    if (!c.legacy && props.placeholder != null && props.placeholder !== '') {
+      if (props.placeholder !== this.doc.controlView(xml).placeholder) own.docPart = this.doc.addGlossaryPlaceholder(props.placeholder);
+      else delete own.placeholder;
+    }
+    return withControlProps(xml, own);
+  }
   insertFloatingShape(index, spec) { return this.doc.insertFloatingShape(index, spec); }
   insertDiagram(index, spec) { return this.doc.insertDiagram(index, spec); }
   textBoxBlocks(id) { return this.doc.textBoxBlocks(id); }

@@ -14,6 +14,12 @@ import { OoxmlPackage, Document, comparePackages, parseRuns, withToggle, hasTogg
 import { buildComplexDocument, FRAGILE_DOC_PARTS, FRAGILE_DOC_ELEMENTS } from './fixtures/complex-document.js';
 
 const LETTER = buildComplexDocument();
+/** The letter with a paragraph of words moved away under Track Changes, which still locks its paragraph. */
+const withMove = () => {
+  const pkg = OoxmlPackage.read(LETTER);
+  pkg.write_('word/document.xml', pkg.text('word/document.xml').replace(/<w:body>/, () => '<w:body><w:p><w:moveFrom w:id="91" w:author="A" w:date="2026-10-01T10:00:00Z"><w:r><w:t>moved words</w:t></w:r></w:moveFrom></w:p>'));
+  return pkg.write();
+};
 /** A plain document with mixed formatting, for the text-editing cases. */
 const plain = () => {
   const doc = Document.open(buildComplexDocument());
@@ -72,12 +78,16 @@ test('a real letter opens into editable blocks', () => {
 
 test('paragraphs carrying structure are flagged, not silently editable', () => {
   const frame = openDocx(LETTER).render();
-  // A simple field (`w:fldSimple`) no longer makes a paragraph structural —
-  // it is one atomic run among the others, see word-xref.test.js — so the
-  // structural case here is the content control instead.
+  // A content control among the words no longer locks its paragraph either:
+  // since forms arrived it is one character of the text, its XML kept whole
+  // (forms.js), filled from the page, see word-forms.test.js. A tracked
+  // move is the structural case here instead.
   const withControl = frame.blocks.find((b) => b.text.includes('PKR.'));
-  assert.equal(withControl.structural, true);
-  assert.ok(withControl.structuralTags.includes('w:sdt'));
+  assert.equal(withControl.structural, false);
+  assert.ok(withControl.runs.some((r) => r.control?.tag === 'RUTBA_AR_TOTAL'), 'the control is a run of its own');
+  const moved = openDocx(withMove()).render().blocks.find((b) => b.text === 'moved words');
+  assert.equal(moved.structural, true);
+  assert.ok(moved.structuralTags.includes('w:moveFrom'));
 
   const withField = frame.blocks.find((b) => b.text.startsWith('Ref:'));
   assert.equal(withField.structural, false, 'a DOCPROPERTY field keeps the paragraph editable');
@@ -163,10 +173,10 @@ test('a selection spanning paragraphs deletes and joins them', () => {
 });
 
 test('typing into a structural paragraph is refused with a reason', () => {
-  const view = openDocx(LETTER);
-  view.collapseTo({ block: 3, offset: 4 }); // the content-control paragraph
+  const view = openDocx(withMove());
+  view.collapseTo({ block: 0, offset: 4 }); // the moved words
   assert.equal(view.canEdit, false);
-  assert.throws(() => view.insertText('x'), /w:sdt.*content control/s);
+  assert.throws(() => view.insertText('x'), /w:moveFrom.*content control/s);
   assert.throws(() => view.splitParagraph(), /cannot be typed into/);
 });
 

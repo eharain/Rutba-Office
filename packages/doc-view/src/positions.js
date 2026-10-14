@@ -131,7 +131,7 @@ export function trackedRemoveRange(runs, from, to, recording, meta) {
     seen = end;
     if (run.del) { out.push(run); continue; } // already deleted text is inert
     if (end <= from || start >= to) { out.push(run); continue; }
-    if (run.noteRef || run.noteMark || run.field || run.math) {
+    if (run.noteRef || run.noteMark || run.field || run.math || run.control) {
       if (!(from <= start && to >= end)) out.push(run); // partially covered: leave it whole
       continue; // fully covered: removed outright, same as untracked
     }
@@ -203,7 +203,7 @@ export function coalesce(runs) {
     // of its own for the same reason — its one character IS the reference —
     // and a field run the same again: its text is a cached RESULT, not words
     // to fold into whatever sits beside it.
-    const marker = Boolean(run.noteRef || run.noteMark || run.field || run.math || last?.noteRef || last?.noteMark || last?.field || last?.math);
+    const marker = Boolean(run.noteRef || run.noteMark || run.field || run.math || run.control || last?.noteRef || last?.noteMark || last?.field || last?.math || last?.control);
     // Two runs of the SAME pending insertion or deletion merge into one, the
     // way ordinary typing already coalesces into one run — Word does not
     // write a fresh `w:ins` per keystroke either. A tracked run never merges

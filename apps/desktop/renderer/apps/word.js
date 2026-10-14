@@ -41,6 +41,7 @@ import { useMailings, installMailingsStyles } from './word/mailings.js';
 import { useEnvelopesLabels, installEnvelopeStyles } from './word/envelopes.js';
 import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
 import { useWordReview } from './word/review.js';
+import { ControlRun, FormsContext, useWordForms } from './word/forms.js';
 import { LanguageDialog, PromptDialog } from '@rutba/office-ui/proofing';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog } from '../icons-insert.js';
@@ -602,6 +603,8 @@ export default function Word({ app, shell, boot }) {
 
   const handleBeforeInput = useCallback(
     (e) => {
+      // A form field's own words are typed in the field and given to the engine whole (word/forms.js).
+      if (e.target?.closest?.('.wd-cc')) return;
       // Nothing the browser does to the DOM is kept; the engine decides.
       e.preventDefault();
       if (previewRef.current) {
@@ -2356,6 +2359,8 @@ export default function Word({ app, shell, boot }) {
   const mailings = useMailings({ shell, doc, model, apply, toast, extra: envelopes.extra });
   // Review → Check Accessibility and Spelling (word/review.js).
   const review = useWordReview({ shell, doc, model, apply, toast, pageRef, setPicked, view, patchView, menu });
+  // Developer → content controls and legacy form fields (word/forms.js).
+  const forms = useWordForms({ shell, model, apply, toast, pageRef, view, patchView });
   // References → Citations & Bibliography (word/references.js).
   const references = useReferences({ shell, doc, model, apply, toast, layout: blockLayout, patchView });
   // Insert → Quick Parts: the building block galleries, kept by the suite.
@@ -2433,6 +2438,7 @@ export default function Word({ app, shell, boot }) {
   }
 
   return (
+    <FormsContext.Provider value={forms.ctx}>
     <AppFrame
       app={app}
       shell={shell}
@@ -2463,6 +2469,7 @@ export default function Word({ app, shell, boot }) {
           drawing={selectedDrawing}
           mailings={mailings}
           review={review}
+          forms={forms}
           references={references}
           blocks={blocks}
         />
@@ -2572,6 +2579,8 @@ export default function Word({ app, shell, boot }) {
                 syncSelection();
               }}
               onKeyDown={(e) => {
+                // Tab walks the form fields in a document protected for filling them in.
+                if (forms.pageKey(e)) return;
                 // A picked picture goes with Delete or Backspace — its block
                 // with it when the block held nothing else.
                 if ((e.key === 'Delete' || e.key === 'Backspace') && picked) {
@@ -3266,6 +3275,7 @@ export default function Word({ app, shell, boot }) {
       {mailings.node}
       {envelopes.node}
       {review.dialogs}
+      {forms.overlay}
       {references.node}
       {blocks.node ? <><style>{BLOCKS_CSS}</style>{blocks.node}</> : null}
 
@@ -3280,6 +3290,7 @@ export default function Word({ app, shell, boot }) {
         />
       ) : null}
     </AppFrame>
+    </FormsContext.Provider>
   );
 }
 
@@ -3917,6 +3928,8 @@ function withBreaks(text, hyph) {
 function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
   // An equation: its one character in a host the MathML is drawn behind.
   if (run.math) return <MathRun run={run} at={at} />;
+  // A form field: its one character, and the field drawn in its own root (word/forms.js).
+  if (run.control) return <ControlRun run={run} at={at} />;
   // A footnote/endnote reference, or the mark at the head of the note: the
   // number is drawn by CSS from `data-n`, so the span holds no text and the
   // engine's caret offsets stay exactly right.

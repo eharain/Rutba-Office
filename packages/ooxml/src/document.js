@@ -34,6 +34,7 @@ import { parseTable, parseSection, childElements, firstElement, headBefore } fro
 import { readHeadersAndFooters } from './headers.js';
 import { tableStyleXml } from './table-styles.js';
 import { ENVELOPE_SIZES, ENVELOPE_STYLES_XML, envelopeXml, envelopeDocumentXml, labelSheetXml, labelParagraph, nextRecordParagraph, labelProduct, NEXT_FIELD_RUNS } from './labels.js';
+import { readControl, withControlsAsMarks, foldControls, controlXml, legacyFieldXml, placeholderPicturePng, newControlId, PLACEHOLDER_STYLE_XML, DEFAULT_PLACEHOLDERS, W14_NS } from './forms.js';
 import { readParagraphStyles, readCharacterStyles, readNumberingDefs, readThemeFonts, readThemeColours, STANDARD_STYLES_XML } from './docstyles.js';
 import {
   findDrawings, readDrawing, readBodyPr, readShapeLook, DRAWING_NS, Z_BASE, Z_STEP, textBoxRun, fallbackFor, floatingShapeRun,
@@ -4541,6 +4542,190 @@ export class Document {
     return out;
   }
 
+  // ---- forms: content controls and legacy form fields (forms.js) ---------
+
+  /**
+   * A form field's run, read for the page: what it is and holds (forms.js
+   * `readControl`), its placeholder's words from the glossary when the
+   * control names one there, and a picture control's picture.
+   */
+  controlView(xml) {
+    const c = readControl(xml);
+    if (c.docPart && !c.showingPlaceholder) {
+      const words = this.glossaryPlaceholder(c.docPart);
+      if (words) c.placeholder = words;
+    }
+    if (c.kind === 'picture' && c.rId) {
+      const rel = this.pkg.rels(this.mainPart).find((r) => r.Id === c.rId);
+      const part = rel ? OoxmlPackage.resolveTarget(this.mainPart, rel.Target) : null;
+      if (part && this.pkg.has(part)) c.href = toDataUri(this.pkg.read(part), part);
+    }
+    return c;
+  }
+
+  /** The words of a placeholder of one's own, from the glossary entry `name`; Word's defaults by their names; or null. */
+  glossaryPlaceholder(name) {
+    const part = this._glossaryPart();
+    if (part && this.pkg.has(part)) {
+      const xml = this.pkg.text(part);
+      for (const m of xml.matchAll(/<w:docPart>([\s\S]*?)<\/w:docPart>/g)) {
+        const n = /<w:docPartPr\b[\s\S]*?<w:name\b[^>]*w:val="([^"]*)"/.exec(m[1])?.[1];
+        if (n != null && unesc(n) === name) {
+          const body = /<w:docPartBody\b[^>]*>([\s\S]*?)<\/w:docPartBody>/.exec(m[1])?.[1] ?? '';
+          return textOf(body).trim() || null;
+        }
+      }
+    }
+    return DEFAULT_PLACEHOLDERS[name] ?? null;
+  }
+
+  /** The glossary part, by the main part's relationship, or null. */
+  _glossaryPart() {
+    const rel = this.pkg.rels(this.mainPart).find((r) => String(r.Type).endsWith('/glossaryDocument'));
+    return rel ? OoxmlPackage.resolveTarget(this.mainPart, rel.Target) : null;
+  }
+
+  /**
+   * A placeholder of one's own, kept as Word keeps it: a building block in
+   * the document's glossary (`word/glossary/document.xml`, made when there
+   * is none), in the Placeholder gallery, named by a new GUID, which the
+   * control then names. Answers that name.
+   */
+  addGlossaryPlaceholder(text) {
+    const guid = randomBytes(16).toString('hex').toUpperCase();
+    const entry = '<w:docPart><w:docPartPr><w:name w:val="' + guid + '"/><w:category><w:name w:val="General"/><w:gallery w:val="placeholder"/></w:category>'
+      + '<w:types><w:type w:val="bbPlcHdr"/></w:types><w:behaviors><w:behavior w:val="content"/></w:behaviors>'
+      + '<w:guid w:val="{' + guid.slice(0, 8) + '-' + guid.slice(8, 12) + '-' + guid.slice(12, 16) + '-' + guid.slice(16, 20) + '-' + guid.slice(20) + '}"/></w:docPartPr>'
+      + '<w:docPartBody><w:p><w:r><w:rPr><w:rStyle w:val="PlaceholderText"/></w:rPr><w:t xml:space="preserve">' + esc(String(text)) + '</w:t></w:r></w:p></w:docPartBody></w:docPart>';
+    let part = this._glossaryPart();
+    if (part && this.pkg.has(part)) {
+      this.willEditPart(part);
+      const xml = this.pkg.text(part);
+      const next = /<\/w:docParts>/.test(xml) ? xml.replace('</w:docParts>', () => entry + '</w:docParts>') : xml.replace(/<\/w:glossaryDocument>\s*$/, () => '<w:docParts>' + entry + '</w:docParts></w:glossaryDocument>');
+      this.pkg.write_(part, next);
+    } else {
+      part = 'word/glossary/document.xml';
+      this.willEditPart(OoxmlPackage.relsPathFor(this.mainPart));
+      this.pkg.addPart(part, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<w:glossaryDocument xmlns:w="' + WORD_NS + '"><w:docParts>' + entry + '</w:docParts></w:glossaryDocument>',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml');
+      this._addRel('http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument', 'glossary/document.xml');
+    }
+    this.dirty = true;
+    return guid;
+  }
+
+  /**
+   * What a document needs before a content control goes in: the w14
+   * namespace a check box is written in, declared ignorable as Word declares
+   * it, and the Placeholder Text style its placeholder words wear.
+   */
+  ensureControlSupport() {
+    const open = /<w:document\b[^>]*>/.exec(this.xml);
+    if (open) {
+      let tag = open[0];
+      if (!/\sxmlns:w14=/.test(tag)) tag = tag.replace(/^<w:document\b/, () => '<w:document xmlns:w14="' + W14_NS + '"');
+      if (!/\sxmlns:mc=/.test(tag)) tag = tag.replace(/^<w:document\b/, () => '<w:document xmlns:mc="' + DRAWING_NS.mc + '"');
+      const ign = /\smc:Ignorable="([^"]*)"/.exec(tag);
+      if (!ign) tag = tag.replace(/>$/, ' mc:Ignorable="w14">');
+      else if (!ign[1].split(/\s+/).includes('w14')) tag = tag.replace(ign[0], () => ' mc:Ignorable="' + (ign[1] + ' w14').trim() + '"');
+      if (tag !== open[0]) {
+        this.xml = this.xml.slice(0, open.index) + tag + this.xml.slice(open.index + open[0].length);
+        this.dirty = true;
+      }
+    }
+    const styles = 'word/styles.xml';
+    if (this.pkg.has(styles)) {
+      const xml = this.pkg.text(styles);
+      if (!/w:styleId="PlaceholderText"/.test(xml)) {
+        this.willEditPart(styles);
+        this.pkg.write_(styles, xml.replace(/<\/w:styles>\s*$/, () => PLACEHOLDER_STYLE_XML + '</w:styles>'));
+        this._docStyles = undefined;
+      }
+    }
+    return this;
+  }
+
+  /** The ids every content control in the main part carries, so a new one is unique. */
+  _controlIds() {
+    return new Set([...this.xml.matchAll(/<w:sdtPr\b[\s\S]*?<w:id\b[^>]*w:val="(-?\d+)"/g)].map((m) => m[1]));
+  }
+
+  /**
+   * A picture as the run a picture control holds: an inline drawing of it
+   * at its size, its bytes a media part of the document. With no picture,
+   * Word's placeholder picture.
+   */
+  pictureRunXml({ data = null, contentType = 'image/png', widthPx = 120, heightPx = 120, name = 'Picture' } = {}) {
+    const bytes = data == null ? placeholderPicturePng(Math.max(widthPx, heightPx)) : Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data), 'base64');
+    const ext = IMAGE_EXTENSIONS[data == null ? 'image/png' : contentType];
+    if (!ext) throw new Error('unsupported image type: ' + contentType + ' (png, jpeg, gif, bmp or webp)');
+    let n = 1;
+    while (this.pkg.has('word/media/rutba' + n + '.' + ext)) n += 1;
+    this.pkg.addPart('word/media/rutba' + n + '.' + ext, bytes, data == null ? 'image/png' : contentType);
+    this.willEditPart(OoxmlPackage.relsPathFor(this.mainPart));
+    const rId = this._addRel(IMAGE_REL_TYPE, 'media/rutba' + n + '.' + ext);
+    const cx = Math.round(widthPx) * PX_TO_EMU;
+    const cy = Math.round(heightPx) * PX_TO_EMU;
+    const id = this._nextDrawingId();
+    const label = esc(String(name));
+    return '<w:r><w:rPr><w:noProof/></w:rPr><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
+      + '<wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:docPr id="' + id + '" name="' + label + '"/>'
+      + '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+      + '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="' + id + '" name="' + label + '"/><pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></pic:cNvPicPr></pic:nvPicPr>'
+      + '<pic:blipFill><a:blip r:embed="' + rId + '" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+      + '<pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+      + '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+  }
+
+  /**
+   * A new content control's XML (forms.js `controlXml`), the document made
+   * ready for it first; a placeholder of one's own kept in the glossary.
+   */
+  newControlXml(kind, props = {}) {
+    this.ensureControlSupport();
+    const own = props.placeholder && kind !== 'checkBox' && kind !== 'picture' ? { docPart: this.addGlossaryPlaceholder(props.placeholder) } : {};
+    const picture = kind === 'picture' ? this.pictureRunXml(props.picture || {}) : null;
+    return controlXml(kind, { ...props, ...own }, { id: newControlId(this._controlIds()), picture });
+  }
+
+  /** A new legacy form field's XML, named as Word names them, Text1, Check1, Dropdown1, and the next bookmark id. */
+  newLegacyFieldXml(kind, props = {}) {
+    const stem = { formText: 'Text', formCheckBox: 'Check', formDropDown: 'Dropdown' }[kind];
+    const names = new Set([...this.xml.matchAll(/<w:ffData\b[\s\S]*?<w:name\b[^>]*w:val="([^"]*)"/g)].map((m) => m[1]));
+    let n = 1;
+    while (names.has(stem + n)) n += 1;
+    const ids = [...this.xml.matchAll(/<w:bookmarkStart\b[^>]*w:id="(\d+)"/g)].map((m) => Number(m[1]));
+    return legacyFieldXml(kind, { ...props, name: props.name || stem + n, bookmarkId: ids.length ? Math.max(...ids) + 1 : 0 });
+  }
+
+  /**
+   * Every form field in the main part's body, in order: content controls
+   * (run level, or round paragraphs) and legacy form fields, each read.
+   */
+  formFields() {
+    const { body } = this._body();
+    const out = [];
+    const re = /<w:sdt\b[^>]*>/g;
+    let m;
+    while ((m = re.exec(body))) {
+      let depth = 0;
+      const tags = /<w:sdt\b[^>]*>|<\/w:sdt>/g;
+      tags.lastIndex = m.index;
+      let t;
+      let end = -1;
+      while ((t = tags.exec(body))) {
+        depth += t[0].startsWith('</') ? -1 : 1;
+        if (depth === 0) { end = t.index + t[0].length; break; }
+      }
+      if (end < 0) break;
+      const xml = body.slice(m.index, end);
+      out.push({ ...readControl(xml), block: /<w:p\b/.test(xml) });
+    }
+    for (const f of foldControls(body.replace(/<w:sdt\b[\s\S]*?<\/w:sdt>/g, '')).controls) out.push(readControl(f));
+    return out;
+  }
+
   /**
    * Bookmark spans — Word's older anchor mechanism, a NAME on a range rather
    * than a content control's tag on a spot. `from`/`to` are paragraph indexes
@@ -5497,6 +5682,9 @@ export class Document {
     // Its properties are its own too: an anchor with no `w:pPr` must not
     // take the first one inside its box for its own.
     const own = ownXml;
+    // Form fields fold to one character each; a picture control's picture is the field's, not the paragraph's.
+    const hasControls = /<w:sdt\b|FORM(?:TEXT|CHECKBOX|DROPDOWN)/.test(own);
+    const unfielded = hasControls ? foldControls(own).xml : own;
     const pPr = /<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(own);
     // How the paragraph is formatted now: a tracked change's record of before (w:pPrChange) is not it.
     const now = pPr ? pPr[0].replace(/<w:pPrChange\b[\s\S]*?<\/w:pPrChange>/, '') : null;
@@ -5526,7 +5714,8 @@ export class Document {
       xml: p.xml,
       start: p.start,
       end: p.end,
-      text: own === p.xml ? p.text : textOf(own),
+      // A form field is one character of the words, as the runs read it (forms.js).
+      text: hasControls ? textOf(withControlsAsMarks(own)) : own === p.xml ? p.text : textOf(own),
       open: rawOpen.endsWith('/>') ? rawOpen.replace(/\/>$/, '>') : rawOpen,
       pPr: pPr ? pPr[0] : null,
       style: style ? style[1] : null,
@@ -5582,7 +5771,7 @@ export class Document {
         if (!numId) return linked && ilvl ? { ...linked, level: Number(ilvl[1]) || 0 } : linked;
         return { numId: numId[1], level: Number(ilvl?.[1] ?? 0) || 0 };
       })(),
-      images: this._paragraphImages(own),
+      images: this._paragraphImages(unfielded),
       // Charts and shapes, RAW — the xml and the box, no interpretation.
       // This layer is format-only; turning a chart part into something
       // paintable is the doc-view backend's job, with @rutba/drawing.
@@ -5725,7 +5914,8 @@ export class Document {
   _keptFragments(p) {
     if (/^<w:p\b[^>]*\/>$/.test(p.xml)) return '';
     const openRaw = /<w:p\b[^>]*?>/.exec(p.xml)[0];
-    const inner = p.xml.slice(openRaw.length, p.xml.length - '</w:p>'.length);
+    // Form fields are runs the model owns whole (forms.js), bookmarks round them and all.
+    const inner = foldControls(p.xml.slice(openRaw.length, p.xml.length - '</w:p>'.length)).xml;
 
     // Top-level children, depth-aware: a run wraps arbitrary subtrees and a
     // flat regex would mistake grandchildren for siblings.
@@ -5736,7 +5926,7 @@ export class Document {
     let tag = null;
     let m;
     const push = (childTag, chunk) => {
-      if (childTag === 'w:pPr') return;
+      if (childTag === 'w:pPr' || childTag === 'w:rutbaControl') return;
       // A bookmarkStart is pulled out to `_leadFragments` instead, and pinned
       // at the paragraph's own start rather than wherever it happened to
       // sit — see that method.
@@ -5823,7 +6013,7 @@ export class Document {
   _leadFragments(p) {
     if (/^<w:p\b[^>]*\/>$/.test(p.xml)) return '';
     const openRaw = /<w:p\b[^>]*?>/.exec(p.xml)[0];
-    const inner = p.xml.slice(openRaw.length, p.xml.length - '</w:p>'.length);
+    const inner = foldControls(p.xml.slice(openRaw.length, p.xml.length - '</w:p>'.length)).xml;
     const kept = [];
     const re = /<([A-Za-z0-9]+:[A-Za-z0-9]+)\b[^>]*?(\/?)>|<\/([A-Za-z0-9]+:[A-Za-z0-9]+)\s*>/g;
     let depth = 0;

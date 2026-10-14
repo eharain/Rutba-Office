@@ -32,6 +32,8 @@ import {
   sliceRuns, removeRange, trackedRemoveRange, insertAfterDeletions, coalesce, samePosition,
 } from './positions.js';
 import { installReferenceViews } from './references.js';
+/** A form field's one character in its paragraph, as an equation's (the backend's forms.js). */
+const CONTROL_MARK = '\uFFFC';
 
 /** A mail merge record known by its values: a hash, so a ticked-off record is found again after the list moves its rows. */
 const recordKey = (record) => { let h = 0x811c9dc5; const s = JSON.stringify(record ?? null); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); };
@@ -615,9 +617,10 @@ export class DocView {
     // never into the reference — whose rebuild writes an element, not text.
     // An equation is the same: one character, its own element, no words of
     // the paragraph's inside it.
-    if (target.noteRef || target.noteMark || target.math) {
+    // A form field likewise (forms.js): typing beside it never goes into it.
+    if (target.noteRef || target.noteMark || target.math || target.control) {
       const neighbour = runOffset === 0 ? runs[runIndex - 1] : runs[runIndex + 1];
-      let rPr = neighbour && !neighbour.noteRef && !neighbour.noteMark && !neighbour.math ? neighbour.rPr : null;
+      let rPr = neighbour && !neighbour.noteRef && !neighbour.noteMark && !neighbour.math && !neighbour.control ? neighbour.rPr : null;
       if (this.pendingFormat) rPr = this._applyPending(rPr);
       const at = runOffset === 0 ? runIndex : runIndex + 1;
       const newRun = recording ? { rPr, text, ins: this._trackMeta(null) } : { rPr, text };
@@ -639,7 +642,7 @@ export class DocView {
       const runStart = offset - runOffset;
       const insertAt = before ? runStart : runStart + target.text.length;
       const neighbour = before ? runs[runIndex - 1] : runs[runIndex + 1];
-      let rPr = neighbour && !neighbour.field && !neighbour.noteRef && !neighbour.noteMark && !neighbour.math ? neighbour.rPr : null;
+      let rPr = neighbour && !neighbour.field && !neighbour.noteRef && !neighbour.noteMark && !neighbour.math && !neighbour.control ? neighbour.rPr : null;
       if (this.pendingFormat) rPr = this._applyPending(rPr);
       const at = before ? runIndex : runIndex + 1;
       const newRun = recording ? { rPr, text, ins: this._trackMeta(null) } : { rPr, text };
@@ -2674,6 +2677,100 @@ export class DocView {
     });
   }
 
+  // ---- forms: Developer → Controls and Legacy Tools ----------------------
+
+  /**
+   * Developer → a content control at the caret (`kind` one of forms.js's
+   * CONTROL_KINDS), or with `legacy` a legacy form field (formText,
+   * formCheckBox, formDropDown): one character of the paragraph, replacing
+   * any selection; the caret lands after it. Answers the field's place.
+   */
+  insertControl({ kind, props = {}, legacy = false } = {}) {
+    if (typeof this.doc.newControlXml !== 'function') throw new Error('this document backend does not support content controls');
+    return this._edit(legacy ? 'form field' : 'content control', null, () => {
+      if (!this.collapsed) this.deleteSelection();
+      const { block, offset } = this.focus;
+      const b = this._editable(block);
+      const xml = legacy ? this.doc.newLegacyFieldXml(kind, props) : this.doc.newControlXml(kind, props);
+      const run = { rPr: null, text: CONTROL_MARK, bold: false, italic: false, underline: false, strike: false, control: { xml } };
+      this.doc.setParagraphRuns(block, coalesce([...sliceRuns(b.runs, 0, offset), run, ...sliceRuns(b.runs, offset, Infinity)]));
+      this._invalidate();
+      this.pendingFormat = null;
+      this.collapseTo({ block, offset: offset + 1 });
+      return { block, offset };
+    });
+  }
+
+  /** The form field at `block`/`offset`: its run's index in the paragraph, or a refusal. */
+  _controlAt(block, offset) {
+    const b = this.block(block);
+    if (!b) throw new Error('no paragraph at index ' + block);
+    let at = 0;
+    const index = b.runs.findIndex((r) => {
+      const hit = at === offset && Boolean(r.control);
+      at += r.text.length;
+      return hit;
+    });
+    if (index < 0) throw new Error('there is no form field there');
+    return { b, index, xml: b.runs[index].control.xml };
+  }
+
+  /**
+   * One form field's XML replaced, as one step Undo takes back. The new XML
+   * is made first, so a value the field refuses leaves no step behind.
+   */
+  _setControlXml(block, offset, label, make) {
+    if (typeof this.doc.controlWithValue !== 'function') throw new Error('this document backend does not support content controls');
+    const next = make(this._controlAt(block, offset).xml);
+    if (next === this._controlAt(block, offset).xml) return false;
+    return this._edit(label, null, () => {
+      const { b, index } = this._controlAt(block, offset);
+      this.doc.setParagraphRuns(block, b.runs.map((r, i) => (i === index ? { ...r, control: { xml: next } } : r)));
+      this._invalidate();
+      return true;
+    });
+  }
+
+  /**
+   * A form field filled: words, a list's choice or a date (`yyyy-mm-dd`)
+   * for a content control or a legacy text or drop-down field, true or false
+   * for a check box. Empty puts the placeholder back. What Restrict
+   * Editing's Filling in forms allows.
+   */
+  setControlValue({ block, offset, value }) {
+    return this._setControlXml(block, offset, 'fill in', (xml) => this.doc.controlWithValue(xml, value));
+  }
+
+  /** A picture control filled with a picture: `{ data, contentType, widthPx, heightPx }`. */
+  setControlPicture({ block, offset, picture }) {
+    return this._setControlXml(block, offset, 'picture', (xml) => this.doc.controlWithPicture(xml, picture));
+  }
+
+  /**
+   * Developer → Properties: a field's title, tag, locks, placeholder, list
+   * items, date format, multiple paragraphs. A placeholder of one's own is
+   * kept in the document's glossary, as Word keeps it.
+   */
+  setControlProps({ block, offset, props = {} }) {
+    return this._setControlXml(block, offset, 'properties', (xml) => this.doc.controlWithProps(xml, props));
+  }
+
+  /**
+   * The form fields, in the order Tab walks them: `{ block, offset }` for
+   * each one in the editable paragraphs, with what it is.
+   */
+  formFields() {
+    const out = [];
+    this.blocks.forEach((b, block) => {
+      let at = 0;
+      for (const r of b.runs || []) {
+        if (r.control) out.push({ block, offset: at, ...this.doc.controlView(r.control.xml) });
+        at += r.text.length;
+      }
+    });
+    return out;
+  }
+
   _mathRun(xml) {
     const run = {
       rPr: null, text: '￼', bold: false, italic: false, underline: false, strike: false,
@@ -3248,7 +3345,7 @@ export class DocView {
       const b = this._editable(block);
       const { runIndex } = locate(b.runs, offset, 'left');
       const here = b.runs[runIndex];
-      const rPr = here && !here.field && !here.noteRef && !here.noteMark && !here.math && !here.del ? here.rPr : null;
+      const rPr = here && !here.field && !here.noteRef && !here.noteMark && !here.math && !here.control && !here.del ? here.rPr : null;
       const { kind, name } = readInstr(instr);
       const m = this.merge;
       const order = this.mergeOrder();
@@ -3469,6 +3566,8 @@ export class DocView {
     // A field's own code and kind — REF Summary, PAGE, DATE — so the page can
     // shade it and Ctrl+click can follow a REF to its bookmark.
     if (r.field) out.field = r.field;
+    // A form field: what it is and holds, for the page to draw and fill.
+    if (r.control && typeof this.doc.controlView === 'function') out.control = this.doc.controlView(r.control.xml);
     // Preview Results: the record's value where the field's «name» was.
     if (r.field && this._mergeValues?.has(r)) {
       out.text = this._mergeValues.get(r);

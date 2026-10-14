@@ -8,6 +8,7 @@
 import { esc, attrs } from './package.js';
 import { unesc } from './workbook.js';
 import { MERGE_KINDS, readInstr, complexFieldXml } from './mailmerge.js';
+import { foldControls, CONTROL_MARK } from './forms.js';
 
 /**
  * Text of a run/paragraph fragment, honouring w:tab and w:br like Word does.
@@ -400,15 +401,19 @@ export function topComplexFields(xml) {
  * read their XML from.
  */
 export function foldMergeFields(xml) {
-  // A citation first: Word wraps its CITATION field in a run-level content
-  // control, and the control is folded with it, whole — see `foldCitations`.
-  const cited = foldCitations(String(xml));
+  // Form fields first, content controls and legacy form fields, each one
+  // character a run carries whole (forms.js `foldControls`); then a
+  // citation: Word wraps its CITATION field in a run-level content control,
+  // and the control is folded with it, whole, see `foldCitations`.
+  const forms = foldControls(String(xml));
+  const cited = foldCitations(forms.xml);
+  cited.controls = forms.controls;
   const source = cited.xml;
   const fields = topComplexFields(source).filter((f) => {
     const kind = readInstr(f.instr).kind;
     return MERGE_KINDS.has(kind) || REFERENCE_KINDS.has(kind);
   });
-  if (!fields.length) return { xml: source, complex: cited.complex };
+  if (!fields.length) return { xml: source, complex: cited.complex, controls: cited.controls };
   const complex = cited.complex;
   let out = '';
   let at = 0;
@@ -424,7 +429,7 @@ export function foldMergeFields(xml) {
     at = f.end;
   }
   out += source.slice(at);
-  return { xml: out, complex };
+  return { xml: out, complex, controls: cited.controls };
 }
 
 /**
@@ -626,6 +631,7 @@ export function parseRuns(paragraphXml) {
   // is one run carrying `field`, same as a REF's — see `foldComplexFields`.
   const merged = foldMergeFields(String(paragraphXml));
   const complex = merged.complex;
+  const controls = merged.controls || [];
   const xml = foldComplexFields(merged.xml);
   const runs = [];
 
@@ -646,12 +652,14 @@ export function parseRuns(paragraphXml) {
   // An equation is matched at this level too, whole, so a `w:ins` INSIDE
   // one (a tracked edit to an equation) is never taken for a paragraph-level
   // insertion that would cut the equation in two.
-  const re = /<m:oMathPara\b[^>]*>[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>|<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>|<w:ins\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:ins>|<w:del\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:del>/g;
+  const re = /<m:oMathPara\b[^>]*>[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>|<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>|<w:ins\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:ins>|<w:del\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:del>|<w:rutbaControl w:k="(\d+)"\/>/g;
   let cursor = 0;
   let m;
   while ((m = re.exec(xml))) {
     flatRuns(xml.slice(cursor, m.index), runs);
     if (m[0].startsWith('<m:')) runs.push(mathRun(m[0]));
+    // A form field: one character, its XML whole (forms.js).
+    else if (m[9] !== undefined) runs.push({ rPr: null, text: CONTROL_MARK, bold: false, italic: false, underline: false, strike: false, control: { xml: controls[Number(m[9])] } });
     else if (m[1] !== undefined) flatRuns(m[2], runs, m[1]);
     else if (m[3] !== undefined) runs.push(fieldRunFromFldSimple(m[3], m[4], complex));
     else if (m[5] !== undefined) flatInsRuns(m[6], runs, parseTrackAttrs(m[5]));
@@ -750,7 +758,7 @@ export function renderRuns(runs) {
   // place in the file. An equation is kept by its one character like any
   // text: a split at its edge leaves an empty copy on the far side, which
   // must not write the equation a second time.
-  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark || run.field || run.del)) {
+  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark || run.field || run.del || run.control)) {
     const link = r.link ?? null;
     if (link !== openLink) {
       if (openLink !== null) out.push('</w:hyperlink>');
@@ -769,6 +777,8 @@ export function renderRuns(runs) {
     else if (r.field && r.complexXml !== undefined && REFERENCE_KINDS.has(r.field.kind)) out.push(withFieldResult(r.complexXml, r.text, r.rPr));
     else if (r.field && (r.complexXml !== undefined || MERGE_KINDS.has(r.field.kind))) out.push(complexFieldXml(r.field.instr, r.text, r.rPr || ''));
     else if (r.field) out.push('<w:fldSimple w:instr="' + esc(r.field.instr) + '">' + renderRun(r.rPr, r.text) + '</w:fldSimple>');
+    // A form field is written back whole, its XML the one the run holds (forms.js).
+    else if (r.control) out.push(r.control.xml);
     else if (r.del) out.push(renderTrackWrap('del', r.del, '<w:r>' + (r.rPr || '') + '<w:delText xml:space="preserve">' + esc(r.del.text ?? '') + '</w:delText></w:r>'));
     else if (r.ins) out.push(renderTrackWrap('ins', r.ins, renderRun(r.rPr, r.text, r)));
     else out.push(renderRun(r.rPr, r.text, r));

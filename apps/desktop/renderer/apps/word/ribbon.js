@@ -34,6 +34,7 @@ import { ToaGroup } from './references-toa.js';
 import { captionsExtra } from './references-figures.js';
 import { MODEL_VIEWS } from '@rutba/imaging/model3d';
 import { untrackedOk } from './untracked.js';
+import { DeveloperTab } from './forms.js';
 
 /* ── vocabularies ────────────────────────────────────────────────────────── */
 
@@ -140,6 +141,7 @@ const styleName = (s) => String(s.name || s.id).replace(/(^|\s)\p{Ll}/gu, (m) =>
 
 export default function WordRibbon({
   tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null, blocks = null, table = null,
+  forms = null,
 }) {
   // Table Layout: an operation on the caret's table, and whether the selection runs across its cells.
   // A merge or a split while recording is asked about first, as Word asks (see untracked.js).
@@ -315,6 +317,7 @@ export default function WordRibbon({
         { id: 'mailings', label: t('Mailings') },
         { id: 'review', label: t('Review') },
         { id: 'view', label: t('View') },
+        { id: 'developer', label: t('Developer') },
         { id: 'help', label: t('Help') },
         { id: 'pdf', label: 'PDF' }, // words-ok: a file format's name
         // The contextual tab, as Word's: there while a drawing is selected.
@@ -1197,6 +1200,9 @@ export default function WordRibbon({
           </Group>
         </>
       ) : null}
+
+      {/* ── Developer: content controls and legacy form fields (forms.js) ── */}
+      {tab === 'developer' && forms ? <DeveloperTab forms={forms} menu={menu} act={act} view={view} /> : null}
 
       {/* ── Help ─────────────────────────────────────────────────────────── */}
       {tab === 'help' ? (
