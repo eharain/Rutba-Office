@@ -32,6 +32,7 @@
 import dns from 'node:dns';
 import net from 'node:net';
 import tls from 'node:tls';
+import { serverSoftware } from './mail-setup.js';
 
 /**
  * The providers most people use. `oauth` names the browser sign-in that
@@ -452,6 +453,8 @@ export async function discoverMailServers(email, options = {}) {
   result.oauth = provider?.oauth || null;
   result.appPassword = provider?.appPassword || null;
   result.source = result.imap?.source || 'none';
+  // What the incoming server said it was, when it answered (Dovecot, Exchange, Gmail...).
+  result.server = serverSoftware(best('imap')?.banner) || serverSoftware(best('smtp')?.banner) || null;
   result.note = provider?.note || (result.imap ? noteFor(result.imap, result.smtp) : `Nothing at ${domain} said where its mail server is. The advanced settings take the names from your provider.`);
   return result;
 }

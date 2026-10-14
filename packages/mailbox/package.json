@@ -22,6 +22,7 @@
     "./query": "./src/query.js",
     "./archive": "./src/archive.js",
     "./archive-host": "./src/archive-host.js",
+    "./account-rows": "./src/account-rows.js",
     "./smime": "./src/smime/index.js",
     "./export": "./src/legal-export.js",
     "./message-pdf": "./src/message-pdf.js",

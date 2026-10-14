@@ -36,10 +36,12 @@ import { withSignature, withSignatureHtml, signatureTextToHtml } from '@rutba/ma
 import { textToHtml } from './mail/richtext.js';
 import { isArchiveId, ArchiveBanner, ExportHoldDialog, SearchHelp, installArchiveStyles, indexedCount } from './mail/archive.js';
 import { CertificatesDialog, installSmimeStyles } from './mail/smime.js';
+import { BulkAccountsDialog, installBulkStyles } from './mail/accounts-bulk.js';
 
 installStyles();
 installArchiveStyles();
 installSmimeStyles();
+installBulkStyles();
 
 /** Every account at once. Not an id any account can have. */
 const EVERYTHING = '*';
@@ -857,8 +859,8 @@ export default function Mail({ app, shell }) {
     ]);
 
   // A file of accounts: the picker, the service, and what came of it.
-  const importAccountsFrom = useCallback(async () => {
-    const paths = await shell.dialog.open({
+  const importAccountsFrom = useCallback(async (chosen = null) => {
+    const paths = typeof chosen === 'string' ? [chosen] : await shell.dialog.open({
       title: t('Set up accounts from a file'),
       filters: [
         { name: t('Accounts (JSON)'), extensions: ['json'] },
@@ -1787,8 +1789,31 @@ export default function Mail({ app, shell }) {
             setDialog(null);
             loadAccounts();
           }}
-          onImportAccounts={importAccountsFrom}
+          onSeveral={() => setDialog({ kind: 'bulk' })}
           toast={toast}
+        />
+      ) : null}
+
+      {dialog?.kind === 'bulk' ? (
+        <BulkAccountsDialog
+          shell={shell}
+          toast={toast}
+          onClose={(added) => {
+            setDialog(null);
+            if (added) {
+              loadAccounts();
+              toast(tn(added, '{count} account added', '{count} accounts added'), { tone: 'good' });
+            }
+          }}
+          onSignIn={(email) => {
+            loadAccounts();
+            setDialog({ kind: 'account', seed: { email } });
+          }}
+          onByHand={(email) => {
+            loadAccounts();
+            setDialog({ kind: 'account', seed: { email } });
+          }}
+          onImportFile={(file) => importAccountsFrom(file)}
         />
       ) : null}
 

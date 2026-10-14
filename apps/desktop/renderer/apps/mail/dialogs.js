@@ -511,7 +511,7 @@ function ProviderTiles({ providers, onChoose, onOther }) {
 
 /* ── account setup ───────────────────────────────────────────────────────── */
 
-export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts, toast }) {
+export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast }) {
   // An address and a password. Everything else is found: the provider table,
   // the domain's MX and SRV records, autoconfig, Microsoft autodiscover, and a
   // knock on the conventional names (main/mail-discover.js). What was found is
@@ -700,6 +700,18 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
       // and the failure opens the fields it needs.
       const r = await test();
       if (r.error) {
+        // The servers first found did not take it: every other server found
+        // is tried, with the address and with the name before the @, before
+        // the fields are opened for a person to put right.
+        setTesting(true);
+        const tried = await shell.mail.setupAccount({ email: form.email.trim(), password: form.password, name: form.name, user: form.user.trim() }).catch(() => null);
+        setTesting(false);
+        if (tried?.account && (tried.outcome === 'ready' || tried.outcome === 'outgoing')) {
+          await shell.mail.addAccount({ account: { ...tried.account, name: form.name || tried.account.name }, password: form.password });
+          onSaved();
+          return;
+        }
+        if (tried?.outcome === 'app-password') toast(t('{provider} refused the password: it wants an app password, made in the account\'s security settings.', { provider: tried.provider?.label || t('The provider') }), { tone: 'bad', ms: 9000 });
         setAdvanced(true);
         return;
       }
@@ -732,7 +744,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
       actions={
         <>
           <Button label={t('Cancel')} onClick={onClose} />
-          {onImportAccounts ? <Button label={t('From a file…')} title={t('Set up the accounts in a file, all at once')} className="ml-import-accounts" onClick={onImportAccounts} /> : null}
+          {onSeveral ? <Button label={t('Several accounts…')} title={t('Several accounts: rows of addresses and passwords, pasted or from a list or an accounts file, set up at once')} className="ml-several-accounts" onClick={onSeveral} /> : null}
           <Button label={advanced ? t('Simple') : t('Advanced…')} onClick={() => setAdvanced((a) => !a)} />
           <Button label={testing ? t('Testing…') : t('Test')} disabled={testing || adding || !ready || !form.password} onClick={test} />
           <Button primary label={adding ? t('Adding…') : t('Add account')} disabled={adding || testing || !ready || !form.password} onClick={add} />
@@ -801,6 +813,12 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
                 <div className="ml-search-line">
                   <Icon name={found.smtp.verified ? 'check' : 'info'} size={14} />
                   <span>{t('Outgoing')} {server(found.smtp.host, found.smtp.port, security(found.smtp), found.smtp.verified)}</span>
+                </div>
+              ) : null}
+              {found.server ? (
+                <div className="ml-search-line ml-search-server">
+                  <Icon name="info" size={14} />
+                  <span>{t('The server says it is {software}', { software: found.server })}</span>
                 </div>
               ) : null}
               {found.note ? (

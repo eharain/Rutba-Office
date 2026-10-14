@@ -19,6 +19,8 @@ import { writeMbox } from '@rutba/mailbox/mbox';
 import { insightFor } from './mail-insight.js';
 import { createArchiveDesk, isArchive } from './mail-archive.js';
 import { createSmimeDesk } from './mail-smime.js';
+import { setupAccount } from './mail-setup.js';
+import { parseAccountRows } from '@rutba/mailbox/account-rows';
 import { unicodeFont } from './system-fonts.js';
 import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
@@ -524,10 +526,10 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       return true;
     },
 
-    testAccount: async ({ account, password }) => {
+    testAccount: async ({ account, password, only = null }) => {
       const result = { imap: null, smtp: null, error: null };
       let client = null;
-      try {
+      if (only !== 'smtp') try {
         const { ImapFlow } = await import('imapflow');
         client = new ImapFlow({
           host: account.imap.host,
@@ -539,7 +541,10 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         });
         await client.connect();
         const list = await client.list();
-        result.imap = { ok: true, folders: list.length };
+        // What the server said it was: its ID answer and its capabilities (Gmail's own extension, Exchange's).
+        const info = client.serverInfo || {};
+        const banner = [info.name, info.vendor, info.version, ...[...(client.capabilities?.keys?.() || [])]].filter(Boolean).join(' ');
+        result.imap = { ok: true, folders: list.length, banner };
         await client.logout();
       } catch (err) {
         result.imap = { ok: false, message: err.message };
@@ -552,7 +557,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
           /* never opened */
         }
       }
-      try {
+      if (only !== 'imap') try {
         const nodemailer = (await import('nodemailer')).default;
         const transport = nodemailer.createTransport({
           host: account.smtp.host,
@@ -569,6 +574,92 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         result.error = result.error || err.message;
       }
       return result;
+    },
+
+    /**
+     * Set an account up from its address and password, trying hard: every
+     * incoming server discovery found, best first, with the address and with
+     * the name before the @, until one signs in, then the outgoing servers
+     * the same way (mail-setup.js). Nothing is kept; the answer says what was
+     * tried, without the password. A check run asks no network: it takes
+     * the provider table's servers untried.
+     */
+    setupAccount: async ({ email, password = '', name = '', user = '', imap = null, smtp = null }) => {
+      if (CHECK_RUN) {
+        const found = await discoverMailServers(email, { offline: true });
+        const inServer = imap?.host ? { ...imap, secure: imap.port === 993 } : found.imap;
+        const outServer = smtp?.host ? { ...smtp, secure: smtp.port === 465 } : found.smtp || inServer;
+        if (!inServer) return { outcome: 'not-found', provider: found.provider, tried: [] };
+        if (!password) return { outcome: found.oauth ? 'sign-in' : 'password', provider: found.provider, tried: [] };
+        const pick = (s) => ({ host: s.host, port: s.port, secure: s.secure, starttls: !s.secure });
+        return { outcome: 'ready', account: { email, name: name || email, imap: pick(inServer), smtp: pick(outServer), provider: found.provider?.id || null }, provider: found.provider, server: found.provider?.label || null, untried: true, tried: [] };
+      }
+      const r = await setupAccount({
+        email,
+        password,
+        name,
+        user,
+        imap,
+        smtp,
+        discover: (address) => discoverMailServers(address, {}),
+        tryImap: async (server, u, pass) => {
+          const t = await service.testAccount({ account: { email, imap: { ...server, user: u }, smtp: { host: 'localhost', port: 1, secure: false } }, password: pass, only: 'imap' });
+          return { ok: Boolean(t.imap?.ok), message: t.imap?.message, folders: t.imap?.folders, banner: t.imap?.banner };
+        },
+        trySmtp: async (server, u, pass) => {
+          const t = await service.testAccount({ account: { email, imap: null, smtp: { ...server, user: u } }, password: pass, only: 'smtp' });
+          return { ok: Boolean(t.smtp?.ok), message: t.smtp?.message };
+        },
+      });
+      delete r.found;
+      return r;
+    },
+
+    /**
+     * Many accounts at once, from rows of text: an address and a password a
+     * line, separated by a space, tab, comma, semicolon, colon or bar, or a
+     * table with a header naming its columns (@rutba/mailbox/account-rows).
+     * Each row is set up as setupAccount does, three at a time, and kept
+     * when it signs in; a row for a provider that signs in with its own
+     * browser page is said to want that. An address already set up is left
+     * as it is. Progress goes out a row at a time; no answer holds a password.
+     */
+    addAccounts: async ({ text = '', job = crypto.randomUUID() }) => {
+      const { rows } = parseAccountRows(text);
+      const have = new Set(accounts().map((a) => String(a.email).toLowerCase()));
+      const results = rows.map((r) => ({ line: r.line, email: r.email, outcome: r.problem === 'not-an-address' ? 'not-an-address' : r.problem === 'repeated' ? 'repeated' : have.has(r.email.toLowerCase()) ? 'exists' : 'waiting' }));
+      const tell = (i, extra = {}) => broadcast?.('mail:accountsProgress', { job, index: i, ...results[i], ...extra });
+      let next = 0;
+      const work = async () => {
+        while (next < rows.length) {
+          const i = next++;
+          if (results[i].outcome !== 'waiting') {
+            tell(i);
+            continue;
+          }
+          const row = rows[i];
+          results[i].outcome = 'trying';
+          tell(i);
+          try {
+            const r = await service.setupAccount({ email: row.email, password: row.password, name: row.name || '', user: row.user || '', imap: row.imap || null, smtp: row.smtp || null });
+            results[i].provider = r.provider?.label || null;
+            results[i].server = r.server || null;
+            results[i].outcome = r.outcome;
+            if ((r.outcome === 'ready' || r.outcome === 'outgoing') && r.account) {
+              const record = service.addAccount({ account: r.account, password: row.password });
+              have.add(row.email.toLowerCase());
+              results[i].id = record.id;
+              results[i].outcome = r.outcome === 'ready' ? 'added' : 'added-no-outgoing';
+            }
+          } catch (err) {
+            results[i].outcome = 'failed';
+            results[i].message = err.message;
+          }
+          tell(i);
+        }
+      };
+      await Promise.all([work(), work(), work()]);
+      return { job, results };
     },
 
     /**

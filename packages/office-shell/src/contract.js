@@ -150,6 +150,8 @@ export const METHODS = {
     'providers',    // () -> the providers worth a tile in Add account, as plain data
     'provider',     // ({ id }) -> one provider's full table entry, or null
     'importAccounts', // ({ path, only, test }) -> { added, skipped, failed, total } — a file of accounts, set up at once
+    'setupAccount', // ({ email, password, name }) -> { outcome, account, provider, server, tried } the servers found and tried until one signs in; nothing is kept
+    'addAccounts',  // ({ text, job }) -> { job, results: [{ line, email, outcome, provider, server, id }] } rows of addresses and passwords set up at once; progress as mail:accountsProgress
     'attachmentText', // ({ accountId, folder, id, index }) -> { name, type, text }
     'folders',      // ({ accountId }) -> [folder]
     'sync',         // ({ accountId, folder, limit }) -> { added, total }
@@ -344,6 +346,7 @@ export const EVENTS = [
   'mail:archives',    // { id, closed } an archive opened in place or closed
   'mail:indexing',    // { id, state, done, total } how far an archive's indexing has got
   'mail:exportProgress', // { job, done, total, dir } an export for legal hold under way
+  'mail:accountsProgress', // { job, index, line, email, state, outcome, provider, server } one row of addAccounts
   'mail:new',         // { accountId, folder, count }
   'present:state',    // { id, index, running, startedAt, blank }
   'mail:oauth',       // { phase, provider, email }

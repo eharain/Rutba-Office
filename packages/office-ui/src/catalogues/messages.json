@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6870,
+  "count": 6903,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -396,6 +396,12 @@
       "message": "(default)",
       "where": [
         "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "(empty line)",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -1790,7 +1796,14 @@
     {
       "message": "Accounts (JSON)",
       "where": [
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "Accounts from a file",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -2168,6 +2181,12 @@
       ]
     },
     {
+      "message": "Add several accounts",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "Add space after paragraph",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -2241,6 +2260,13 @@
       ]
     },
     {
+      "message": "Add {count} account",
+      "plural": "Add {count} accounts",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "Add {count} clip",
       "plural": "Add {count} clips",
       "where": [
@@ -2262,6 +2288,7 @@
     {
       "message": "Added",
       "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/slides/changes.js"
       ]
     },
@@ -2281,6 +2308,25 @@
       "message": "Added to your calendar; the reply is ready to send.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Added {count} account.",
+      "plural": "Added {count} accounts.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "Added: {provider}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "Added; the outgoing server did not take the password, so sending needs its settings checked",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -2305,6 +2351,7 @@
     {
       "message": "Adding…",
       "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/dav-accounts.js"
       ]
@@ -2833,6 +2880,7 @@
       "message": "All files",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/mail/smime.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -2976,6 +3024,18 @@
       "message": "Allow the signer to add comments in the Sign dialog",
       "where": [
         "apps/desktop/renderer/apps/word/signature.js"
+      ]
+    },
+    {
+      "message": "Already in the list above",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "Already set up",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -5344,6 +5404,7 @@
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/richtext.js",
@@ -7961,6 +8022,12 @@
       ]
     },
     {
+      "message": "Could not be set up",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "Could not send: {why}. The message is back in Drafts.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -9933,7 +10000,8 @@
       "message": "Done",
       "where": [
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/image/tools.js"
+        "apps/desktop/renderer/apps/image/tools.js",
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -10494,6 +10562,12 @@
       "message": "Each cell its own paragraph",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Each is set up as Add account does: its servers found, and tried until one signs in. Passwords go to this computer's keystore.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -12500,6 +12574,12 @@
       ]
     },
     {
+      "message": "Finding its servers and signing in…",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "Finding suggestions…",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -13602,12 +13682,6 @@
       "where": [
         "apps/desktop/renderer/apps/slides/animate.js",
         "apps/desktop/renderer/apps/slides/motion.js"
-      ]
-    },
-    {
-      "message": "From a file…",
-      "where": [
-        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -18234,6 +18308,18 @@
       ]
     },
     {
+      "message": "Lists of accounts (.csv, .tsv, .txt)",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "Load from a file…",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "Loading the templates…",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
@@ -21289,6 +21375,12 @@
       ]
     },
     {
+      "message": "No mail server found for {domain}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "No matches",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -21406,6 +21498,12 @@
       "message": "No password is stored for {email}.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "No password: it will be offered its provider's own sign-in",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -21831,6 +21929,12 @@
       "message": "Not an address and not a place this workbook knows.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Not an email address",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -22549,6 +22653,12 @@
       "message": "One Page",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "One account a line: the address, then its password, separated by a space, a tab, a comma, a semicolon, a colon or a bar. A first line naming the columns (email, password, name, IMAP server...) is read as a table, as a spreadsheet saves one. A line starting # is left out.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -25888,6 +25998,12 @@
       "message": "Reading…",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Ready",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -30122,15 +30238,21 @@
       ]
     },
     {
-      "message": "Set up the accounts in a file, all at once",
+      "message": "Set up by hand",
       "where": [
-        "apps/desktop/renderer/apps/mail/dialogs.js"
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
       "message": "Set up this account here — {protocol} {host}",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Setting up the accounts, three at a time…",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -30155,6 +30277,18 @@
       "message": "Seventh Edition",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Several accounts: rows of addresses and passwords, pasted or from a list or an accounts file, set up at once",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Several accounts…",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -30912,6 +31046,12 @@
       ]
     },
     {
+      "message": "Sign in",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "Sign in with {provider}",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -31026,6 +31166,12 @@
       "message": "Signs and symbols",
       "where": [
         "apps/desktop/renderer/icons-insert.js"
+      ]
+    },
+    {
+      "message": "Signs in with {provider}'s own page",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -34467,9 +34613,21 @@
       ]
     },
     {
+      "message": "The mail server did not answer",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "The mail server is found from the address. If it is not, Advanced takes the names from your provider.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "The mail server's certificate is not valid",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -34696,6 +34854,12 @@
       ]
     },
     {
+      "message": "The password was refused",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "The picture",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -34786,6 +34950,13 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "The provider",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -34946,6 +35117,12 @@
       "message": "The server refused to remove {href}: {status}",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The server says it is {software}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -38662,6 +38839,12 @@
       ]
     },
     {
+      "message": "Waiting",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "Waiting ({count})",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -40499,6 +40682,12 @@
       ]
     },
     {
+      "message": "its provider",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "its takes stay on the disk",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -41663,6 +41852,13 @@
     {
       "message": "{count} account",
       "plural": "{count} accounts",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{count} account added",
+      "plural": "{count} accounts added",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
       ]
@@ -43271,6 +43467,18 @@
       "message": "{provider} no longer accepts an ordinary password for mail programs. An app password below still works if you have one.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "{provider} refused the password: it wants an app password, made in the account's security settings.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "{provider} wants an app password rather than the account's own",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
