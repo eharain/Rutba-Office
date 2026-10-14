@@ -299,3 +299,25 @@ test('recognize with document: a receipt the suite drew comes back as its fields
     await host.stop();
   }
 });
+
+test('documentFields: a rupee sign read as a leading 7 is taken off when the sums want it, and a lost tax is the total less the subtotal when that is the rate', () => {
+  const rupees = invoiceRows.map(([y, p]) => [y, p.map(([t, x]) => [t.replace('£', '₹'), x])]);
+  const signRead = rupees.map(([y, p]) => [y, p.map(([t, x]) => [t === '₹65.00' ? '765.00' : t, x])]);
+  const r = documentFields(page(signRead));
+  assert.equal(value(r, 'subtotal'), 65);
+  assert.equal(r.fields.subtotal.repaired, true);
+  assert.equal(r.currency, 'INR');
+  assert.equal(r.checks.consistent, true);
+  const noTax = rupees.map(([y, p]) => [y, p.filter(([t]) => t !== '₹13.00')]);
+  const d = documentFields(page(noTax));
+  assert.equal(value(d, 'tax'), 13);
+  assert.equal(d.fields.tax.derived, true);
+  assert.equal(d.checks.consistent, true);
+});
+
+test('documentFields: sums agree only when the total itself is confirmed, not when the items alone match a subtotal', () => {
+  const partial = invoiceRows.filter(([y]) => y !== 700 && y !== 740);
+  const r = documentFields(page(partial));
+  assert.equal(r.checks.itemsAddUp, true);
+  assert.equal(r.checks.consistent, false);
+});

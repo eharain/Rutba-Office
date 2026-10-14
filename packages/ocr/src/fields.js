@@ -618,6 +618,15 @@ export function documentFields(read, options = {}) {
 
   // Items: rows under the heading, or above the first sum on a till roll, ending in an amount.
   const firstSumRow = Math.min(...hits.filter((x) => ['subtotal', 'tax', 'total', 'taxRate'].includes(x.field) && x.seg.row > headingRow).map((x) => x.seg.row), rows.length);
+  // Whether the page writes a currency sign before its figures: then a figure read without one may have had
+  // the sign read as its first digit.
+  const signed = segs.filter((sg) => /\d/.test(westernDigits(sg.text)) && parseAmount(sg.text)?.currency).length;
+  const withoutSign = (parsed) => {
+    if (signed < 3 || parsed.currency) return null;
+    const digits = String(Math.trunc(parsed.value));
+    if (digits.length < 2 || !/^[27]/.test(digits)) return null;
+    return Number(String(parsed.value).slice(1));
+  };
   const items = [];
   const CURRENCY_WORDS = /rs|sar|aed|inr|pkr|usd|gbp|eur|ررس|ر\.س|د\.إ|روپے|रु|円|元/giu;
   const itemOf = (row) => {
@@ -637,6 +646,8 @@ export function documentFields(read, options = {}) {
       }
     }
     if (!amount) return null;
+    const shorn = withoutSign(amount);
+    if (shorn !== null && !alternatives.includes(shorn)) alternatives.push(shorn);
     const nums = row.segments.slice(1).map((sg) => parseAmount(sg.text)).filter(Boolean).map((a) => a.value);
     const ws = row.segments.flatMap((sg) => sg.words);
     return {
@@ -691,6 +702,9 @@ export function documentFields(read, options = {}) {
       add(c.parsed.value);
       // A decimal point the reading lost: 12345 for 123.45.
       if (!c.parsed.decimals && decimalPage) add(c.parsed.value / 100, { repaired: true });
+      // A currency sign read as a digit (the rupee sign as a 7 or a 2): 7841.88 for 841.88.
+      const shorn = withoutSign(c.parsed);
+      if (shorn !== null) add(shorn, { repaired: true });
     }));
     return out;
   };
@@ -759,8 +773,21 @@ export function documentFields(read, options = {}) {
     };
   };
   const ch = best.checks;
+  // A tax the page lost, from its rate: the total less the subtotal, when that is the rate of the subtotal.
+  if (best.tx.value === null && best.st.value !== null && best.tot.value !== null && rate !== null) {
+    const diff = Math.round((best.tot.value - best.st.value) * 100) / 100;
+    const exact = best.st.value * rate / 100;
+    if (diff > 0 && (Math.abs(exact - diff) <= 0.0051 || Math.floor(exact) === diff)) {
+      best.tx = { value: diff, text: null, words: [], derived: true };
+      ch.totalAddsUp = true;
+      ch.taxRateHolds = true;
+    }
+  }
   const anyCheck = Object.values(ch).some((v) => v !== null);
-  const consistent = anyCheck && !Object.values(ch).includes(false);
+  // The sums agree when none disagrees and the total itself is confirmed: by its parts, or by the items when
+  // the page has no subtotal or tax.
+  const totalConfirmed = ch.totalAddsUp === true || (ch.itemsAddUp === true && best.st.value === null && best.tx.value === null && best.tot.value !== null);
+  const consistent = anyCheck && !Object.values(ch).includes(false) && totalConfirmed;
   if (best.st.value !== null) put('subtotal', best.st, ch.itemsAddUp ?? ch.totalAddsUp ?? ch.taxRateHolds);
   if (best.tx.value !== null) put('tax', best.tx, ch.totalAddsUp ?? ch.taxRateHolds);
   if (best.tot.value !== null) put('total', best.tot, ch.totalAddsUp ?? (best.st.value === null && best.tx.value === null ? ch.itemsAddUp : null));
