@@ -475,18 +475,17 @@ export default function WordRibbon({
             </Gallery>
           </Group>
 
+          {/* One above another, as Word stacks them: a column as wide as Replace, so the group keeps its names when the window narrows. */}
           <Group label={t('Editing')}>
             <Rows>
-              <>
-                <Button icon="find" label={t('Find')} title={t('Find (Ctrl+F)')} onClick={() => openDialog('find')} />
-                <Button icon="replace" label={t('Replace')} title={t('Replace (Ctrl+H)')} onClick={() => openDialog('find')} />
-              </>
+              <Button icon="find" label={t('Find')} title={t('Find (Ctrl+F)')} onClick={() => openDialog('find')} />
+              <Button icon="replace" label={t('Replace')} title={t('Replace (Ctrl+H)')} onClick={() => openDialog('find')} />
               <Button icon="pointer" label={t('Select')} title={t('Select all (Ctrl+A)')} onClick={() => dispatch({ op: 'selectAll' })} />
             </Rows>
           </Group>
 
           <Group label={t('Voice')}>
-            <Button tall icon="volume" label={t('Read aloud')} pressed={Boolean(view.reading)} title={t('Read the document aloud, from the caret')} onClick={() => act('readAloud')} />
+            <Button tall twoLine icon="volume" label={t('Read aloud')} pressed={Boolean(view.reading)} title={t('Read the document aloud, from the caret')} onClick={() => act('readAloud')} />
           </Group>
         </>
       ) : null}

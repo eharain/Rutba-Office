@@ -597,6 +597,11 @@ textarea,
 }
 .rw-groups .rw-btn.tall svg.rw-caret { display: inline-block; vertical-align: middle; width: 9px; height: 9px; margin: -1px 0 0 2px; }
 .rw-btn-last { white-space: nowrap; }
+/* A large button whose name Office draws on two lines whatever the room (Read Aloud): a line each, as the button splits it. */
+.rw-groups .rw-btn.tall.two-line > span { max-width: none; }
+.rw-btn.two-line .rw-line { display: block; white-space: nowrap; }
+/* Made small beside rows, its name goes back to one line beside its picture. */
+:is(.rw-group.compact, .rw-group.small) .rw-btn.two-line .rw-line { display: inline; }
 
 /* A select or a field in the ribbon is a quiet box, not a form control. */
 .rw-groups .rw-select,

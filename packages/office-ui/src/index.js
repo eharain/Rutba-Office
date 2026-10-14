@@ -749,6 +749,22 @@ function namesCanGo(g) {
 }
 
 /**
+ * A name in two lines, split at the space nearest its middle (Read / aloud,
+ * in any language), each line kept whole; its text reads the same.
+ */
+function inTwo(label) {
+  if (typeof label !== 'string') return label;
+  const words = label.split(' ');
+  if (words.length < 2) return label;
+  let at = 1;
+  for (let i = 2; i < words.length; i++) {
+    const gap = (n) => Math.abs(words.slice(0, n).join(' ').length - words.slice(n).join(' ').length);
+    if (gap(i) < gap(at)) at = i;
+  }
+  return <><span className="rw-line">{words.slice(0, at).join(' ')}</span> <span className="rw-line">{words.slice(at).join(' ')}</span></>;
+}
+
+/**
  * A large button's name with its menu's arrow: the last word and the arrow
  * kept on one line, so the arrow never drops to a line of its own under a
  * two-line name (Paragraph Spacing), where the name's two lines cut it off.
@@ -785,6 +801,7 @@ export function Button({
   disabled,
   busy,
   dropdown,
+  twoLine,
   title,
   onClick,
   children,
@@ -795,7 +812,9 @@ export function Button({
   // pressed again, and a small spinner says so in place of its icon.
   // `dropdown`: it opens a menu, and a small chevron says so: after its name
   // on a large button, as Office draws it, and after its picture on a small one.
-  const classes = ['rw-btn', tall ? 'tall' : '', primary ? 'primary' : '', ghost ? 'ghost' : '', !label && !children ? 'icon' : '', busy ? 'busy' : '', className]
+  // `twoLine`: a large button's name on two lines whatever the room, as
+  // Office draws Read Aloud, so its group is no wider than its picture.
+  const classes = ['rw-btn', tall ? 'tall' : '', tall && twoLine ? 'two-line' : '', primary ? 'primary' : '', ghost ? 'ghost' : '', !label && !children ? 'icon' : '', busy ? 'busy' : '', className]
     .filter(Boolean)
     .join(' ');
   const caret = dropdown ? <Icon name="chevronDown" size={9} strokeWidth={2.2} className="rw-caret" /> : null;
@@ -813,7 +832,7 @@ export function Button({
       {...rest}
     >
       {busy ? <Spinner /> : icon ? <Icon name={icon} size={tall ? 24 : 16} strokeWidth={tall ? 1.5 : 1.7} /> : null}
-      {label ? <span>{tall && caret ? withCaret(label, caret) : label}{tall && caret && typeof label !== 'string' ? caret : null}</span> : null}
+      {label ? <span>{tall && caret ? withCaret(label, caret) : tall && twoLine ? inTwo(label) : label}{tall && caret && typeof label !== 'string' ? caret : null}</span> : null}
       {children}
       {tall && label ? null : caret}
     </button>

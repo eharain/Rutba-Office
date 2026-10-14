@@ -6,7 +6,9 @@
 // found by eye stay put right: Mail's empty reading pane names its keys
 // with a space after each comma, and Calendar's week and day views keep
 // their day columns one width, the headings over the hours, with a busy
-// day and a long all-day title. Its files, and its Mail account, are its
+// day and a long all-day title; and Word's Editing and Voice keep their
+// buttons' names, Find, Replace and Select stacked and Read aloud on two
+// lines, rather than a picture alone. Its files, and its Mail account, are its
 // own and go when it is done. Run alone with RUTBA_VERIFY_ONLY=polish.
 
 import fs from 'node:fs';
@@ -141,13 +143,34 @@ export async function verifyPolishPass({ open, check, until, wait }, { dir }) {
     ['video', fx.png, `document.querySelectorAll('.vd-clip').length > 0`],
     ['home', undefined, `Boolean(document.querySelector('.home-recent, .home-apps, .home'))`],
   ];
+  // Word's Home tab keeps the names of Editing's and Voice's buttons at both
+  // sizes, as Word does: Find, Replace and Select one above another, and Read
+  // aloud on two lines under its picture, never a speaker alone.
+  const NAMES = `(() => {
+    const group = (name) => [...document.querySelectorAll('.rw-groups > .rw-group')].find((g) => g.querySelector('.rw-group-label')?.textContent.trim() === name);
+    const shown = (b) => { const s = b?.querySelector(':scope > span'); const r = s?.getBoundingClientRect(); return Boolean(r && r.width > 4 && r.height > 4 && getComputedStyle(s).position !== 'absolute'); };
+    const editing = group('Editing');
+    const voice = group('Voice');
+    const read = voice?.querySelector('.rw-btn');
+    const lines = [...(read?.querySelectorAll('.rw-line') || [])].map((l) => l.getBoundingClientRect());
+    return {
+      editing: editing ? (editing.classList.contains('folded') ? 'folded' : [...editing.querySelectorAll('.rw-group-items .rw-btn')].filter(shown).map((b) => b.textContent.trim()).join('/')) : 'none',
+      voice: voice ? (voice.classList.contains('folded') ? 'folded' : shown(read) ? read.textContent.trim() : 'no name') : 'none',
+      twoLines: lines.length === 2 && lines[1].top >= lines[0].bottom - 1 && lines.every((r) => r.height > 4),
+    };
+  })()`;
+  const wordNames = [];
   for (const [app, file, ready] of apps.filter(([app]) => wanted(app))) {
     try {
       const win = await open(app, file);
       const js = (code) => win.webContents.executeJavaScript(code);
       await until(() => js(ready), `the ${app} window`, 15000).catch(() => {});
       await wait(400);
-      await pass(app, win, js);
+      await pass(app, win, js, app === 'word' ? async (w, h, theme) => { if (theme === 'light') wordNames.push({ at: `${w}x${h}`, ...(await js(NAMES)) }); } : null);
+      if (app === 'word') {
+        check('polish: Word\'s Editing keeps Find, Replace and Select by name and Voice keeps Read aloud on two lines, at 1300x700 and 1680x1050',
+          wordNames.length === 2 && wordNames.every((n) => n.editing === 'Find/Replace/Select' && n.voice === 'Read aloud' && n.twoLines), JSON.stringify(wordNames));
+      }
     } catch (err) {
       check(`polish: the ${app} pass ran`, false, err.stack || err.message);
     }
