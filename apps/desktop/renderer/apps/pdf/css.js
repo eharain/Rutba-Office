@@ -173,6 +173,16 @@ body.pdf-dragging, body.pdf-dragging * { cursor: grabbing !important; }
 .pdf-sign-clear { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
 .pdf-sign-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-2); padding: 8px 10px; border-radius: var(--r-2); background: color-mix(in srgb, var(--warn) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 25%, var(--line)); }
 
+/* Export as Pictures and Reduce File Size. */
+.pdf-export-form { display: flex; flex-direction: column; gap: 12px; min-width: 400px; font-size: 13px; }
+.pdf-export-scope { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
+.pdf-export-scope legend { font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 4px; }
+.pdf-export-scope label { display: flex; align-items: center; gap: 8px; }
+.pdf-export-row { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 8px; }
+.pdf-export-row label { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.pdf-export-note { font-size: 12px; color: var(--ink-3); }
+.pdf-export-lead { margin: 0; line-height: 1.5; color: var(--ink); }
+
 /* Redaction: the Apply dialog. */
 .pdf-redact-form { display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--ink); max-width: 460px; }
 .pdf-redact-form p { margin: 0; }

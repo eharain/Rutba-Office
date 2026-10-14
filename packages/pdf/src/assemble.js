@@ -52,7 +52,9 @@ const PAGE_DROP = new Set(['Parent', 'B']);
  *   and entries of the page replaced (a value of the reader's own, whose
  *   references are to the same file and whose streams become new objects)
  *   or taken away (null), as redaction replaces a page's contents
- * @param {{ title?: string, producer?: string, date?: Date }} [options]
+ * @param {{ title?: string, producer?: string, date?: Date, replace?: Map }} [options]
+ *   `replace`: Map of file -> Map of object number -> a value written in
+ *   that object's place (a picture made smaller), the old one left behind
  * @returns {Buffer}
  */
 function assemble(items, options = {}) {
@@ -167,9 +169,10 @@ function assemble(items, options = {}) {
     objects[pageNums[i]] = dict;
   });
 
+  const source = (file, ref) => options.replace?.get(file)?.get(ref.num) || file.getObject(ref);
   while (queue.length) {
     const { file, ref, n } = queue.shift();
-    objects[n] = copy(file, file.getObject(ref));
+    objects[n] = copy(file, source(file, ref));
   }
 
   // The catalog: the page tree, and the few document-wide things a page's
@@ -186,13 +189,13 @@ function assemble(items, options = {}) {
   }
   while (queue.length) {
     const { file, ref, n } = queue.shift();
-    objects[n] = copy(file, file.getObject(ref));
+    objects[n] = copy(file, source(file, ref));
   }
   const files = [...copiers.keys()];
   const drain = () => {
     while (queue.length) {
       const { file, ref, n } = queue.shift();
-      objects[n] = copy(file, file.getObject(ref));
+      objects[n] = copy(file, source(file, ref));
     }
   };
 

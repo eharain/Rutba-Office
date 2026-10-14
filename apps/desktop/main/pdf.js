@@ -38,6 +38,7 @@ import pdfAnnotations from '@rutba/pdf/annotations';
 import pdfForms from '@rutba/pdf/forms';
 import pdfRedact from '@rutba/pdf/redact';
 import pdfNavigation from '@rutba/pdf/navigation';
+import pdfCompress from '@rutba/pdf/compress';
 
 const { openPdf, PdfReadError } = pdfRead;
 const { assemble } = pdfAssemble;
@@ -46,6 +47,7 @@ const { readAnnotations, annotate } = pdfAnnotations;
 const { readFields, fillFields } = pdfForms;
 const { applyRedactions, redactionPlan } = pdfRedact;
 const { outlinePages, readLinks, pageLabels, labelText } = pdfNavigation;
+const { compressPlan, compressPdf } = pdfCompress;
 
 /** Who a comment is signed by: the account at the keyboard, as the other apps sign theirs. */
 function userName() {
@@ -95,6 +97,8 @@ export function createPdfService() {
     for (const [id, entry] of open) if (entry.owner === owner) open.delete(id);
   };
   const watched = new Set();
+  // Reduce File Size's files between its two steps.
+  const compressing = new Map();
   const watch = (win) => {
     if (!win || watched.has(win.id)) return;
     const id = win.id;
@@ -241,6 +245,31 @@ export function createPdfService() {
       await fsp.mkdir(path.dirname(target), { recursive: true });
       await writeWhole(target, bytes);
       return { path: target, size: bytes.length, removed };
+    },
+
+    /**
+     * Reduce File Size, first step: the window's pages as one file, and its
+     * pictures shown at more than `dpi`, each with its bytes (a JPEG's own,
+     * or its samples) and the size it needs, for the window to encode.
+     */
+    compressPlan: ({ pages, dpi }) => {
+      const items = (pages || []).map((p) => ({ file: get(p.source).file, page: Number(p.page), rotate: p.rotate }));
+      const whole = wholeSource(items) ? items[0].file.buf : assemble(items);
+      const token = `c${next++}`;
+      compressing.set(token, whole);
+      return { token, size: whole.length, plan: compressPlan(whole, { dpi }).map((p) => ({ ...p, data: new Uint8Array(p.data) })) };
+    },
+
+    /** Reduce File Size, second step: the pictures handed back, the file written whole to `path`. */
+    compress: async ({ token, dpi, images = {}, path: target }) => {
+      const whole = compressing.get(token);
+      if (!whole) throw new Error('That PDF is no longer open.');
+      compressing.delete(token);
+      const given = Object.fromEntries(Object.entries(images).map(([k, v]) => [k, { ...v, data: Buffer.from(v.data) }]));
+      const { bytes, replaced, before } = compressPdf(whole, { dpi, images: given });
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await writeWhole(target, bytes);
+      return { path: target, before, after: bytes.length, replaced };
     },
 
     /** An open PDF's bookmarks (each with its page), its pages' labels, and its links. */

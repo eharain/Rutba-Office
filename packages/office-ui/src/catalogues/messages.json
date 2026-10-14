@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6551,
+  "count": 6577,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2776,6 +2776,12 @@
       ]
     },
     {
+      "message": "All pages",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
+      ]
+    },
+    {
       "message": "All references",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -5227,6 +5233,7 @@
         "apps/desktop/renderer/apps/mail/richtext.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/export.js",
         "apps/desktop/renderer/apps/pdf/fields.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pdf/ocr.js",
@@ -5962,6 +5969,12 @@
     },
     {
       "message": "Choose a folder for the files",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Choose a folder for the pictures",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
       ]
@@ -10020,6 +10033,12 @@
       ]
     },
     {
+      "message": "Each page is written as a picture into a folder you choose: {count} in all. This document is not changed.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
+      ]
+    },
+    {
       "message": "Each sender hears from this once while it stays on — a second message from the same person is not answered again until it is turned off and on. A mailing list, a no-reply address and a message that already says it is automatic are never answered.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -11070,6 +11089,7 @@
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/export.js",
@@ -11093,6 +11113,19 @@
       "where": [
         "apps/desktop/renderer/apps/word.js",
         "packages/office-shell/src/electron/main.js"
+      ]
+    },
+    {
+      "message": "Export as Pictures",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js",
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Export as Pictures: pages written as PNG or JPEG pictures, at the resolution you choose",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -11261,12 +11294,19 @@
       ]
     },
     {
+      "message": "Exporting…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Export…",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/archive.js",
+        "apps/desktop/renderer/apps/pdf/export.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -12530,6 +12570,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/pdf/export.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -14178,6 +14219,12 @@
       "message": "High (30%)",
       "where": [
         "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
+      "message": "High quality (225 dots per inch)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
       ]
     },
     {
@@ -15892,6 +15939,12 @@
       "message": "JPEG Image (.jpg)",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "JPEG: smaller, for photographs",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
       ]
     },
     {
@@ -17766,6 +17819,12 @@
       "message": "Make this paragraph a heading, so it appears in the table of contents",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Making the file smaller…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -22316,6 +22375,12 @@
       ]
     },
     {
+      "message": "PNG: sharp, for text and drawings",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
+      ]
+    },
+    {
       "message": "Page",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -22560,6 +22625,7 @@
     {
       "message": "Pages",
       "where": [
+        "apps/desktop/renderer/apps/pdf/export.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pdf/ocr.js",
         "apps/desktop/renderer/apps/pdf/view.js",
@@ -23129,6 +23195,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/pdf/export.js",
         "apps/desktop/renderer/apps/pdf/fields.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/pictures/library.js",
@@ -23154,6 +23221,12 @@
       "message": "Pictures in album",
       "where": [
         "apps/desktop/renderer/apps/slides/album.js"
+      ]
+    },
+    {
+      "message": "Pictures shown at more detail than the page needs are drawn again at the resolution chosen. Words, drawings and pictures already small enough are left as they are.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
       ]
     },
     {
@@ -25103,6 +25176,25 @@
       ]
     },
     {
+      "message": "Reduce File Size",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js",
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Reduce File Size: large pictures drawn again at the detail the page needs, saved as a new file",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Reduce and Save As…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
+      ]
+    },
+    {
       "message": "Reels, Shorts and TikTok, 9:16",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
@@ -26064,6 +26156,12 @@
       "message": "Resize: by pixels or by percent, the shape kept",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Resolution",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
       ]
     },
     {
@@ -27342,6 +27440,12 @@
       ]
     },
     {
+      "message": "Save the smaller PDF as",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Save the workbook first, so a second window can open the same file.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -27407,6 +27511,12 @@
       "message": "Saved {name} — it opens straight into the show",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Saved {name}: {before} down to {after}.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -30032,6 +30142,12 @@
       ]
     },
     {
+      "message": "Smallest (96 dots per inch)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
+      ]
+    },
+    {
       "message": "Smallest above",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -30683,6 +30799,12 @@
       "message": "Standard",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
+      "message": "Standard (150 dots per inch)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
       ]
     },
     {
@@ -32769,6 +32891,12 @@
       ]
     },
     {
+      "message": "The file could not be made smaller: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "The file holds no cards.",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
@@ -33119,6 +33247,12 @@
       ]
     },
     {
+      "message": "The pages could not be exported: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "The pages could not be extracted: {reason}",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -33178,6 +33312,12 @@
       "message": "The picture to read has no pixels.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The pictures were already small enough. The copy is saved as {name}.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -33313,6 +33453,7 @@
     {
       "message": "The selected pages",
       "where": [
+        "apps/desktop/renderer/apps/pdf/export.js",
         "apps/desktop/renderer/apps/pdf/ocr.js"
       ]
     },
@@ -33428,6 +33569,12 @@
       "message": "The slide's shapes as layers — select, reorder, hide, rename",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "The smaller PDF is saved as a new file; this one is not changed. It is now {size}.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
       ]
     },
     {
@@ -34531,6 +34678,12 @@
       "message": "This opens {host} in your browser, where the sender handles it.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "This page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
       ]
     },
     {
@@ -40304,6 +40457,13 @@
       ]
     },
     {
+      "message": "{count} page exported as a picture to {folder}",
+      "plural": "{count} pages exported as pictures to {folder}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "{count} page extracted to {name}",
       "plural": "{count} pages extracted to {name}",
       "where": [
@@ -40639,6 +40799,12 @@
       "message": "{description}. Kept as the file has it.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "{dpi} dots per inch",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/export.js"
       ]
     },
     {

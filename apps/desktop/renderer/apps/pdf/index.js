@@ -39,7 +39,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ribbon, Group, Rows, Button, Spacer, Chip, Empty, Spinner, Dialog, Input, ZoomSlider, useToast, useCommands, useMenu, useWheelZoom,
-  basename, dirname, t, tn,
+  basename, dirname, formatBytes, t, tn,
 } from '@rutba/office-ui';
 import { findAll } from '@rutba/editing/find';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
@@ -58,6 +58,7 @@ import {
 import { FieldLayer, SignatureDialog, savedSignature, signatureStamp } from './fields.js';
 import { searchQuads, decodePlan, ApplyRedactionsDialog } from './redact.js';
 import { BookmarksPane, labelOf } from './nav.js';
+import { ExportPicturesDialog, CompressDialog, pageBytes, encodePlan } from './export.js';
 
 const AUTOSAVE_FIRST_MS = 1500;
 const AUTOSAVE_EVERY_MS = 30000;
@@ -162,6 +163,9 @@ export default function PdfApp({ app, shell, boot }) {
   const [signature, setSignature] = useState(null);
   // Redaction: the Apply dialog.
   const [applying, setApplying] = useState(false);
+  // Export as Pictures and Reduce File Size: their dialogs.
+  const [exporting, setExporting] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const openFindRef = useRef(null);
   const viewports = useRef(new Map()).current;
   const viewRef = useRef(null);
@@ -852,6 +856,58 @@ export default function PdfApp({ app, shell, boot }) {
     }
   }, [path, name, shell, writeTo, toast]);
 
+  /** Export as Pictures: each page chosen written as a PNG or a JPEG into a folder. */
+  const exportPictures = useCallback(async ({ scope, format, dpi }) => {
+    setExporting(false);
+    const list = pagesRef.current;
+    const keys = new Set(scope === 'picked' ? selectedRef.current : scope === 'current' ? [currentRef.current] : list.map((p) => p.key));
+    const chosen = list.map((p, i) => ({ p, n: i + 1 })).filter(({ p }) => keys.has(p.key));
+    if (!chosen.length) return;
+    const [folder] = await shell.dialog.open({ title: t('Choose a folder for the pictures'), directory: true, defaultPath: path ? dirname(path) : undefined }) || [];
+    if (!folder) return;
+    const stem = stemOf(path || name || '') || t('Untitled');
+    const ext = format === 'jpeg' ? 'jpg' : 'png';
+    setBusy(t('Exporting…'));
+    let written = 0;
+    try {
+      for (const { p, n } of chosen) {
+        const { bytes } = await pageBytes(sourcesRef.current[p.source].doc, p.page, { rotate: p.rotate, dpi, type: format });
+        let target = joinPath(folder, `${stem}_Page_${n}.${ext}`);
+        for (let k = 2; await shell.fs.exists({ path: target }); k++) target = joinPath(folder, `${stem}_Page_${n} (${k}).${ext}`);
+        await shell.fs.write({ path: target, bytes });
+        written += 1;
+      }
+      toast(tn(written, '{count} page exported as a picture to {folder}', '{count} pages exported as pictures to {folder}', { folder: basename(folder) || folder }), { tone: 'good', ms: 5000 });
+    } catch (err) {
+      toast(t('The pages could not be exported: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+    } finally {
+      setBusy(null);
+    }
+  }, [path, name, shell, toast]);
+
+  /** Reduce File Size: the pictures drawn smaller, written whole as a new file. */
+  const compressFile = useCallback(async (quality) => {
+    setCompressing(false);
+    if (guardLocked()) return;
+    const folder = path ? dirname(path) : (await shell.app.paths().catch(() => ({}))).documents || '';
+    const stem = stemOf(path || name || '') || t('Untitled');
+    const target = await shell.dialog.save({ title: t('Save the smaller PDF as'), defaultPath: joinPath(folder, `${stem}_Reduced.pdf`), filters: PDF_FILTER() });
+    if (!target) return;
+    const out = /\.pdf$/i.test(target) ? target : `${target}.pdf`;
+    setBusy(t('Making the file smaller…'));
+    try {
+      const { token, plan } = await shell.pdf.compressPlan({ pages: entriesOf(pagesRef.current), dpi: quality.dpi });
+      const images = await encodePlan(plan);
+      const { before, after, replaced } = await shell.pdf.compress({ token, dpi: quality.dpi, images, path: out });
+      if (!replaced) toast(t('The pictures were already small enough. The copy is saved as {name}.', { name: basename(out) }), { ms: 6000 });
+      else toast(t('Saved {name}: {before} down to {after}.', { name: basename(out), before: formatBytes(before), after: formatBytes(after) }), { tone: 'good', ms: 7000 });
+    } catch (err) {
+      toast(t('The file could not be made smaller: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+    } finally {
+      setBusy(null);
+    }
+  }, [guardLocked, path, name, shell, toast]);
+
   /** Print: every page drawn at print resolution, handed to the system's print dialog. */
   const print = useCallback(async () => {
     const list = pagesRef.current;
@@ -1264,6 +1320,10 @@ export default function PdfApp({ app, shell, boot }) {
           <Group label={t('Insert')}>
             <Button tall icon="import" label={t('Insert from File')} title={t('Insert from File: the pages of other PDFs, after the selected page')} disabled={!canEdit} onClick={insertFromFile} data-role="insert-file" />
           </Group>
+          <Group label={t('Export')}>
+            <Button tall icon="picture" label={t('Export as Pictures')} title={t('Export as Pictures: pages written as PNG or JPEG pictures, at the resolution you choose')} disabled={!hasDoc} onClick={() => setExporting(true)} data-role="export-pictures" />
+            <Button tall icon="export" label={t('Reduce File Size')} title={t('Reduce File Size: large pictures drawn again at the detail the page needs, saved as a new file')} disabled={!canEdit} onClick={() => setCompressing(true)} data-role="compress" />
+          </Group>
           <Group label={t('Split and Merge')}>
             <Button tall icon="scissors" label={t('Split')} title={t('Split: this PDF into several files, by a number of pages or at the selected pages')} disabled={!canEdit || pages.length < 2} onClick={() => setSplitOpen(true)} data-role="split" />
             <Button tall icon="pdf" label={t('Merge Files')} title={t('Merge Files: other PDFs added at the end, or combined into a new one')} disabled={protectedFile} onClick={() => mergeFiles()} data-role="merge" />
@@ -1527,6 +1587,8 @@ export default function PdfApp({ app, shell, boot }) {
         </div>
       )}
       {noteDraft ? <NoteEditor draft={noteDraft} onPost={postNote} onCancel={() => setNoteDraft(null)} /> : null}
+      {exporting ? <ExportPicturesDialog count={pages.length} picked={selected.length} onExport={exportPictures} onClose={() => setExporting(false)} /> : null}
+      {compressing ? <CompressDialog size={formatBytes(Object.values(sources).filter((s) => pages.some((p) => p.source === s.id)).reduce((n, s) => n + (s.info.size || 0), 0))} onCompress={compressFile} onClose={() => setCompressing(false)} /> : null}
       {applying ? (
         <ApplyRedactionsDialog {...redactionMarks()} onApply={applyRedactions} onClose={() => setApplying(false)} />
       ) : null}

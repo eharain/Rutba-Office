@@ -26,7 +26,8 @@
     "./annotations": "./src/annotations.js",
     "./forms": "./src/forms.js",
     "./redact": "./src/redact.js",
-    "./navigation": "./src/navigation.js"
+    "./navigation": "./src/navigation.js",
+    "./compress": "./src/compress.js"
   },
   "files": [
     "src",

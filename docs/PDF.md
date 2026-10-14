@@ -75,6 +75,70 @@ stay the start of the file and no page is redrawn. Undo takes it away, and a
 Save of the recognised file as it is writes the original with the layer
 after it. docs/OCR.md has the details and the error rates.
 
+**Comments and markup** (the Comment tab, `annots.js`; engine
+`packages/pdf/src/annotations.js`). Highlight, Underline and Strikethrough
+over the words selected (or select words with the tool in hand), Sticky Note,
+Text Box, Draw (freehand), Rectangle, Ellipse, Line and Arrow, in six colours.
+Each is written as Acrobat writes it (Text Markup annotations with
+QuadPoints, Text, FreeText, Ink, Square, Circle, Line with its line endings)
+with an appearance stream drawn by the engine, so every reader shows it as
+this window does: pdf.js draws it from that appearance. Each change is an
+incremental update (`update.js`): the original bytes stay the start of the
+file, the file with the update is a new source, and Undo takes it away. The
+Comments pane lists every comment by page with its author and time; a
+comment is answered (a reply in reply to it, /IRT), marked resolved (a hidden
+review state, Completed, as Acrobat's Set Status writes), its words changed,
+or deleted with its replies (their objects freed in the update). Comments
+other writers made are read and listed; one saved without an appearance is
+drawn by the window from its kind and geometry; all of them are kept by
+every save. Changes are written one after another, each to the newest
+version of its file, so quick work in a row is never lost.
+
+**Forms and Fill & Sign** (the Fill & Sign tab, `fields.js`; engine
+`forms.js`). An AcroForm's text fields (multi-line, aligned, combed, sized to
+fit), check boxes, radio groups, drop-downs and lists get a control laid
+over the page; a value is written when committed, as an incremental update
+with appearance streams in the form's own font, so any reader shows it.
+Words Windows-1252 cannot spell are written as the value and the form marked
+/NeedAppearances, so the reader draws them in a font it has. Read-only
+fields cannot be changed. Fill & Sign places a signature or initials,
+typed, drawn on a pad or taken from a picture of one signed on paper (its
+paper made see-through), as a stamp; Add Text, Date (today's) and Checkmark
+put words and ticks where the form has no field. The tab and the signature
+dialog say plainly that these are pictures, not digital signatures.
+
+**Redaction** (the Redact tab, `redact.js`; engine `packages/pdf/src/redact.js`).
+Mark Text, Mark Area and Mark Matches (every match of the words in Find, on
+every page) write Redact annotations, reviewed in the Comments pane. Apply
+Redactions says what it does and writes a new file whole, never as an
+update (an update keeps the old bytes): each marked page's content is read
+with its text state, and every glyph whose box lies under a mark is taken
+out of its string, the space it took kept by a TJ number so the words beside
+it stay put; invisible text (a recognised scan's layer) goes the same way;
+pictures under a mark are painted out (decoded here, or a JPEG decoded by
+the window and handed back), and a picture that cannot be decoded is left
+off the page; a form XObject is redacted as a new object, so other pages
+drawing it keep it; /ActualText over removed glyphs goes; comments, links and
+widgets over a mark go; each mark is filled black with its overlay text. The
+engine's tests prove the removal three ways: this reader, pdf.js, and a
+search of every byte and inflated stream.
+
+**Bookmarks, page labels and links** (`nav.js`; engine `navigation.js`,
+`assemble.js`). The side pane shows Pages or Bookmarks; a bookmark goes to
+its page where the page now stands (one whose page was deleted is greyed);
+thumbnails and the status bar show each page's label; links on a page go to
+their page or open their web address. Save, Extract, Split and Merge carry
+bookmarks (a bookmark to a page left out gives way to its own), page labels
+(as the fewest ranges), links and named destinations (made explicit), and a
+form's fields whose widgets are on kept pages (a merge's second field of a
+name renamed).
+
+**Export as Pictures and Reduce File Size** (Pages tab, `export.js`; engine
+`compress.js`). Pages are written as PNG or JPEG at 72 to 600 dots an inch.
+Reduce File Size draws pictures shown at more detail than the page needs at
+225, 150 or 96 dots an inch (JPEG from the window's canvas, or resampled and
+deflated by the engine) and writes the file whole as a new one.
+
 **Wiring.** The launcher's card (its New opens the window asking for files to
 combine), the app menu and the Apps menu, `.pdf` owned by the PDF app (Pictures
 still shows a PDF met among pictures, with Open in PDF on its navigator and
@@ -121,33 +185,39 @@ of (file, page, turn), and the engine writes it.
   file, links to kept and deleted pages, strings and names that must survive).
 - `apps/desktop/main/verify-pdf-app.js`, key `pdf-app`: the window, pressed
   and read back from the files it writes.
+- `packages/pdf/test/annotations.test.js`, `forms.test.js`, `redact.test.js`,
+  `navigation.test.js`, `compress.test.js`, with pdf.js loaded in Node
+  (`test/pdfjs.js`) as a second reader; window checks `pdf-annot`,
+  `pdf-forms`, `pdf-redact`, `pdf-outline` and `pdf-export`
+  (`main/verify-pdf-*.js`); `tools/fuzz-pdf.js` runs every new reader and a
+  redaction over damaged files.
 
 ## Part 2
 
-In the order they matter to a person:
+Built (2026-10-14): comments and markup, forms and Fill & Sign, redaction,
+bookmarks, page labels and links through every page operation, Export as
+Pictures and Reduce File Size (above). Still to come, in the order they
+matter to a person:
 
-1. **Forms**: fill and save AcroForm fields, keep fields when pages are
-   reordered (the form's field tree is not copied yet: a page keeps its
-   widgets' appearance, not their being fields).
-2. **Bookmarks and named destinations** carried through a reorder, a merge
-   and a split (outlines are dropped today), and page labels.
-3. **Annotation**: highlight, underline, strike-out, notes, ink and shapes,
-   written as annotations an incremental update appends.
-4. **Signatures**: see and verify a signed PDF; sign, as an incremental
-   update that leaves the signed bytes alone (`incremental.js` is the start).
-5. **Redaction** that removes the words, not a black box over them.
-6. **Text in place**: change a line of words where it stands.
-7. **Password-protected PDFs**: open with the password (RC4 and AES), and
+1. **Digital signatures**: see and verify a signed PDF; sign with a
+   certificate, as an incremental update that leaves the signed bytes alone
+   (`update.js` is the start). Fill & Sign's signatures are pictures.
+2. **Text in place**: change a line of words where it stands.
+3. **Password-protected PDFs**: open with the password (RC4 and AES), and
    change and save their pages; protect a PDF on save.
-8. **Export to Word**: a page's words and pictures into a `.docx` through the
+4. **Export to Word**: a page's words and pictures into a `.docx` through the
    Documents engine.
-9. **Compress**: images resampled and object streams written, for a smaller
-   file.
-10. **OCR**: built (Recognise Text, docs/OCR.md). Still to come: pages
-    that mix text with a scanned picture, sideways scans, and a choice to
-    recognise only the pictures on a page.
+5. **OCR**: built (Recognise Text, docs/OCR.md). Still to come: pages
+   that mix text with a scanned picture, sideways scans, and a choice to
+   recognise only the pictures on a page.
+6. **Comments**: a text box's words in Urdu, Arabic or Hindi are kept in the
+   file but drawn by its appearance only in Windows-1252's letters (an
+   embedded font for the box is next); polygons and pop-ups are read and
+   kept, not drawn or made; Acrobat's "Sanitize" (document properties,
+   metadata, attachments) beside redaction.
 
 Also: the CJK character maps; insert a blank page or a page from a picture;
 duplicate pages; print through the system's own PDF printing rather than as
 pictures; the engine's assembly on the document thread for very large files
-(it runs on the main process today, which is quick for ordinary files).
+(it runs on the main process today, which is quick for ordinary files);
+object streams written when a file is made smaller.
