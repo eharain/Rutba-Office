@@ -51,6 +51,8 @@ export async function verifyVideoPane({ open, check, until, wait }, { dir }) {
     await wait(400);
   };
 
+  // A window held open while the block closes and opens its own: the app ends when its last window closes.
+  await open('home').catch(() => null);
   let shareAfterDrag = null;
   try {
     const win = await open('video', still);
