@@ -60,6 +60,10 @@ export const CSS = `
 .vd-row.pic .vd-row-head { box-shadow: inset 3px 0 0 #5b8def; }
 .vd-row.snd .vd-row-head { box-shadow: inset 3px 0 0 #2fbf8a; }
 .vd-row-name { font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; flex: 1; }
+/* The grips: the track names' column wider at the ruler's corner, each kind of track taller at the foot of its name. */
+.vd-head-grip { position: absolute; top: 0; bottom: 0; right: -3px; width: 6px; cursor: col-resize; z-index: 8; }
+.vd-lane-grip { position: absolute; left: 0; right: 0; bottom: -3px; height: 6px; cursor: row-resize; z-index: 5; }
+.vd-head-grip:hover, .vd-lane-grip:hover { background: color-mix(in srgb, var(--accent) 60%, transparent); }
 .vd-row-btn { width: 24px; height: 22px; border: 0; border-radius: 5px; background: transparent; color: #8b919c; display: grid; place-items: center; position: relative; cursor: pointer; }
 .vd-row-btn:hover { background: rgba(255,255,255,0.08); color: #e6e9ef; }
 .vd-row-btn.on { color: #ffd54a; }

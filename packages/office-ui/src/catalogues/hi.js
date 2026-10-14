@@ -6446,4 +6446,13 @@ export default {
   'variants': 'वैरिएंट',
   'Preview and timeline': 'पूर्वावलोकन और टाइमलाइन',
   'Preview and timeline: drag to share the height between them, or press the arrow keys; double-click puts it back': 'पूर्वावलोकन और टाइमलाइन: ऊँचाई इनके बीच बाँटने के लिए खींचें, या तीर कुंजियाँ दबाएँ; डबल-क्लिक इसे वापस रख देता है',
+  'Drag to make the panel wider or narrower, or press the arrow keys; double-click puts it back': 'पैनल को चौड़ा या संकरा करने के लिए खींचें, या तीर कुंजियाँ दबाएँ; डबल-क्लिक इसे वापस रख देता है',
+  'Drag to make the track names wider or narrower; double-click puts them back': 'ट्रैक के नामों को चौड़ा या संकरा करने के लिए खींचें; डबल-क्लिक उन्हें वापस रख देता है',
+  'Drag to make tracks like this one taller or shorter; double-click puts them back': 'इस जैसे ट्रैक को ऊँचा या नीचा करने के लिए खींचें; डबल-क्लिक उन्हें वापस रख देता है',
+  'Height of the picture tracks': 'चित्र ट्रैक की ऊँचाई',
+  'Height of the sound tracks': 'ध्वनि ट्रैक की ऊँचाई',
+  'Height of the title tracks': 'शीर्षक ट्रैक की ऊँचाई',
+  'Width of the panel': 'पैनल की चौड़ाई',
+  'Width of the track names': 'ट्रैक के नामों की चौड़ाई',
+  'Width of {name}': '{name} की चौड़ाई',
 };

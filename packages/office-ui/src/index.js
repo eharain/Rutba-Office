@@ -927,30 +927,88 @@ export const Body = ({ children, style }) => (
   </div>
 );
 
-export function Panel({ title, width, right, actions, children, style, resizable, onResize }) {
+/** Where a panel keeps the width it was given: by the window's app and the panel's name. */
+const panelKey = (name, right) => `rutba.panel.${(typeof document !== 'undefined' && document.documentElement.dataset.app) || 'app'}.${name || (right ? 'right' : 'side')}`;
+const keptWidth = (key) => { try { const v = Number(localStorage.getItem(key)); return Number.isFinite(v) && v > 0 ? v : null; } catch { return null; } };
+const keepWidth = (key, w) => { try { if (w == null) localStorage.removeItem(key); else localStorage.setItem(key, String(Math.round(w))); } catch { /* kept for this window alone */ } };
+
+/**
+ * A panel beside the window's work: a list of folders, a properties pane.
+ * `resizable`, it has a grip on its inner edge that shows when the pointer
+ * or the keyboard is on it: dragged, or moved with the arrow keys, it gives
+ * the panel more or less room, between `min` and `max` (and never more
+ * than half the window); a double-click puts it back. The width is kept on
+ * this computer for the window's app and the panel's `name` (its title when
+ * it has no name), so it comes back the next time.
+ */
+export function Panel({ title, width, right, actions, children, style, resizable, onResize, name, min = 160, max = 640 }) {
   const ref = useRef(null);
-  const drag = useRef(null);
+  const base = width ?? 240;
+  const key = resizable ? panelKey(name || (typeof title === 'string' ? title : ''), right) : null;
+  const [own, setOwn] = useState(() => (key ? keptWidth(key) : null));
+  // Another panel's name (a pane that changes what it shows) brings its own width.
+  const lastKey = useRef(key);
+  useEffect(() => {
+    if (lastKey.current === key) return;
+    lastKey.current = key;
+    setOwn(key ? keptWidth(key) : null);
+  }, [key]);
+  // A width the window sets itself (Move Split's arrow keys) is the width from then on.
+  const lastBase = useRef(base);
+  useEffect(() => {
+    if (lastBase.current === base) return;
+    lastBase.current = base;
+    if (key) { setOwn(null); keepWidth(key, null); }
+  }, [base, key]);
+  const most = () => Math.max(min, Math.min(max, Math.round((typeof window !== 'undefined' ? window.innerWidth : 1600) * 0.5)));
+  const limit = (w) => Math.round(Math.max(min, Math.min(most(), w)));
+  const shown = resizable && own ? limit(own) : base;
+  const set = (w) => {
+    const next = limit(w);
+    setOwn(next);
+    if (key) keepWidth(key, next);
+    onResize?.(next);
+  };
+  const towards = () => (right ? -1 : 1) * (ref.current && getComputedStyle(ref.current).direction === 'rtl' ? -1 : 1);
 
   const start = (e) => {
-    drag.current = { x: e.clientX, w: ref.current?.offsetWidth || width || 240 };
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const x0 = e.clientX;
+    const w0 = ref.current?.offsetWidth || shown;
+    const sign = towards();
+    let next = w0;
+    ref.current?.classList.add('resizing');
     const move = (ev) => {
-      const next = Math.max(160, Math.min(640, drag.current.w + (right ? -1 : 1) * (ev.clientX - drag.current.x)));
+      next = limit(w0 + sign * (ev.clientX - x0));
       if (ref.current) ref.current.style.width = `${next}px`;
       onResize?.(next);
     };
     const stop = () => {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', stop);
+      ref.current?.classList.remove('resizing');
+      set(next);
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', stop);
   };
+  const key2 = (e) => {
+    const step = e.shiftKey ? 64 : 16;
+    const by = e.key === 'ArrowRight' ? step : e.key === 'ArrowLeft' ? -step : 0;
+    if (e.key === 'Home') { e.preventDefault(); setOwn(null); if (key) keepWidth(key, null); onResize?.(base); return; }
+    if (!by) return;
+    e.preventDefault();
+    set((ref.current?.offsetWidth || shown) + by * towards());
+  };
+  const reset = () => { setOwn(null); if (key) keepWidth(key, null); onResize?.(base); };
 
   return (
     <div
       ref={ref}
       className={`rw-panel${right ? ' right' : ''}`}
-      style={{ width: width ?? 240, flex: 'none', position: 'relative', ...style }}
+      data-panel={key ? key.split('.').pop() || undefined : undefined}
+      style={{ width: shown, flex: 'none', position: 'relative', ...style }}
     >
       {title ? (
         <div className="rw-panel-head">
@@ -961,16 +1019,18 @@ export function Panel({ title, width, right, actions, children, style, resizable
       <div className="rw-panel-body">{children}</div>
       {resizable ? (
         <div
+          className="rw-panel-grip"
+          role="separator"
+          aria-orientation="vertical"
+          aria-valuenow={Math.round(shown)}
+          aria-valuemin={min}
+          aria-valuemax={most()}
+          aria-label={typeof title === 'string' && title ? t('Width of {name}', { name: title }) : t('Width of the panel')}
+          data-tip={t('Drag to make the panel wider or narrower, or press the arrow keys; double-click puts it back')}
+          tabIndex={0}
           onMouseDown={start}
-          style={{
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            [right ? 'left' : 'right']: -3,
-            width: 6,
-            cursor: 'col-resize',
-            zIndex: 5,
-          }}
+          onDoubleClick={reset}
+          onKeyDown={key2}
         />
       ) : null}
     </div>

@@ -6444,4 +6444,13 @@ export default {
   'variants': 'ویریئنٹس',
   'Preview and timeline': 'پیش منظر اور ٹائم لائن',
   'Preview and timeline: drag to share the height between them, or press the arrow keys; double-click puts it back': 'پیش منظر اور ٹائم لائن: اونچائی ان میں بانٹنے کے لیے گھسیٹیں، یا تیر والی کلیدیں دبائیں؛ ڈبل کلک اسے واپس رکھ دیتا ہے',
+  'Drag to make the panel wider or narrower, or press the arrow keys; double-click puts it back': 'پینل کو چوڑا یا تنگ کرنے کے لیے گھسیٹیں، یا تیر والی کلیدیں دبائیں؛ ڈبل کلک اسے واپس رکھ دیتا ہے',
+  'Drag to make the track names wider or narrower; double-click puts them back': 'ٹریکس کے ناموں کو چوڑا یا تنگ کرنے کے لیے گھسیٹیں؛ ڈبل کلک انہیں واپس رکھ دیتا ہے',
+  'Drag to make tracks like this one taller or shorter; double-click puts them back': 'اس جیسے ٹریکس کو اونچا یا نیچا کرنے کے لیے گھسیٹیں؛ ڈبل کلک انہیں واپس رکھ دیتا ہے',
+  'Height of the picture tracks': 'تصویری ٹریکس کی اونچائی',
+  'Height of the sound tracks': 'آواز کے ٹریکس کی اونچائی',
+  'Height of the title tracks': 'عنوان کے ٹریکس کی اونچائی',
+  'Width of the panel': 'پینل کی چوڑائی',
+  'Width of the track names': 'ٹریکس کے ناموں کی چوڑائی',
+  'Width of {name}': '{name} کی چوڑائی',
 };

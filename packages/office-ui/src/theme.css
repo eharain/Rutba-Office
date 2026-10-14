@@ -760,6 +760,13 @@ textarea,
   overflow: hidden;
 }
 .rw-panel.right { border-inline-end: 0; border-inline-start: 1px solid var(--line); }
+/* A resizable panel's grip, on its inner edge: a line in the accent where the pointer or the keyboard is on it, and while it is dragged. */
+.rw-panel-grip { position: absolute; top: 0; bottom: 0; inset-inline-end: 0; width: 6px; cursor: col-resize; z-index: 5; outline: none; }
+.rw-panel.right > .rw-panel-grip { inset-inline-end: auto; inset-inline-start: 0; }
+.rw-panel-grip::after { content: ''; position: absolute; top: 0; bottom: 0; inset-inline-end: 0; width: 2px; background: transparent; transition: background var(--fast); }
+.rw-panel.right > .rw-panel-grip::after { inset-inline-end: auto; inset-inline-start: 0; }
+.rw-panel-grip:hover::after, .rw-panel-grip:focus-visible::after, .rw-panel.resizing > .rw-panel-grip::after { background: var(--accent); }
+.rw-panel.resizing { user-select: none; }
 .rw-panel-head {
   padding: 10px 12px 8px;
   font-size: 11px;

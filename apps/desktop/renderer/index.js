@@ -44,6 +44,8 @@ const APP_COMPONENTS = {
 function Root() {
   const start = boot();
   const key = APP_COMPONENTS[start.app] ? start.app : 'home';
+  // Which app this window is, for what its panels keep (their widths) apart from another app's.
+  document.documentElement.dataset.app = key;
   const App = APP_COMPONENTS[key];
   const app = key === 'home' ? { key: 'home', name: 'Rutba Office', short: 'Rutba Office', icon: 'home' } : APPS[key];
 

@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6436,
+  "count": 6445,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -9528,6 +9528,24 @@
       ]
     },
     {
+      "message": "Drag to make the panel wider or narrower, or press the arrow keys; double-click puts it back",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Drag to make the track names wider or narrower; double-click puts them back",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Drag to make tracks like this one taller or shorter; double-click puts them back",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
       "message": "Drag to move this point — right-click to delete it",
       "where": [
         "apps/desktop/renderer/apps/slides/points.js"
@@ -13665,6 +13683,24 @@
       "message": "Height (px)",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Height of the picture tracks",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Height of the sound tracks",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Height of the title tracks",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
       ]
     },
     {
@@ -36714,6 +36750,24 @@
       "message": "Width (px)",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Width of the panel",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Width of the track names",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Width of {name}",
+      "where": [
+        "packages/office-ui/src/index.js"
       ]
     },
     {

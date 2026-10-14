@@ -6446,4 +6446,13 @@ export default {
   'variants': 'المتغيرات',
   'Preview and timeline': 'المعاينة والمخطط الزمني',
   'Preview and timeline: drag to share the height between them, or press the arrow keys; double-click puts it back': 'المعاينة والمخطط الزمني: اسحب لتقسيم الارتفاع بينهما، أو اضغط مفاتيح الأسهم؛ النقر المزدوج يعيده كما كان',
+  'Drag to make the panel wider or narrower, or press the arrow keys; double-click puts it back': 'اسحب لتوسيع اللوحة أو تضييقها، أو اضغط مفاتيح الأسهم؛ النقر المزدوج يعيدها كما كانت',
+  'Drag to make the track names wider or narrower; double-click puts them back': 'اسحب لتوسيع أسماء المسارات أو تضييقها؛ النقر المزدوج يعيدها كما كانت',
+  'Drag to make tracks like this one taller or shorter; double-click puts them back': 'اسحب لجعل المسارات المماثلة لهذا أطول أو أقصر؛ النقر المزدوج يعيدها كما كانت',
+  'Height of the picture tracks': 'ارتفاع مسارات الصور',
+  'Height of the sound tracks': 'ارتفاع مسارات الصوت',
+  'Height of the title tracks': 'ارتفاع مسارات العناوين',
+  'Width of the panel': 'عرض اللوحة',
+  'Width of the track names': 'عرض أسماء المسارات',
+  'Width of {name}': 'عرض {name}',
 };

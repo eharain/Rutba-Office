@@ -1001,7 +1001,7 @@ export default function VideoEditor({ app, shell, boot }) {
         <div className="vd-editor" ref={editorRef} data-duration={duration} data-clips={doc.patches.filter((p) => p.timing).length} data-dirty={dirty ? '1' : '0'} data-copy={copyKey.current} data-starts={playStarts.current}>
           <div className="vd-top">
             {intro ? (
-              <Panel title={t('Scenes')} width={272}>
+              <Panel title={t('Scenes')} width={272} resizable min={200} max={420}>
                 <ScenesPanel
                   doc={doc}
                   current={currentScene?.id || null}

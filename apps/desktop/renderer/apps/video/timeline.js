@@ -25,15 +25,36 @@ export const RULER_H = 28;
 // A track of pictures is tall enough for its frames; one of titles, or an
 // empty one, is lower, so more tracks fit before the timeline scrolls.
 const LANE_H = { v: 60, words: 40, a: 48 };
+/** How far each can be made shorter or taller by its grip, and the names' column narrower or wider. */
+const LANE_LIMITS = { v: [32, 160], words: [24, 120], a: [28, 140] };
+const HEAD_LIMITS = [84, 240];
+const LAYOUT_KEY = 'rutba.video.timeline';
+
+/** The timeline's own sizes as kept on this computer: the names' column and each kind of lane. */
+function keptLayout() {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null');
+    const clamp = (x, [lo, hi], d) => (Number.isFinite(x) ? Math.max(lo, Math.min(hi, Math.round(x))) : d);
+    return {
+      head: clamp(v?.head, HEAD_LIMITS, HEADER_W),
+      lanes: { v: clamp(v?.lanes?.v, LANE_LIMITS.v, LANE_H.v), words: clamp(v?.lanes?.words, LANE_LIMITS.words, LANE_H.words), a: clamp(v?.lanes?.a, LANE_LIMITS.a, LANE_H.a) },
+    };
+  } catch {
+    return { head: HEADER_W, lanes: { ...LANE_H } };
+  }
+}
 const SNAP_PX = 8;
 
 /** The rows, top to bottom: the picture lanes from the highest down, then the sound lanes. */
-export function rowsOf(doc) {
+export function rowsOf(doc, heights = LANE_H) {
   const n = laneCount(doc);
   const rows = [];
   const pictures = new Set(clipsOf(doc).filter((p) => p.type === 'video' || p.type === 'image').map((p) => laneOf(p)));
-  for (let l = n.v; l >= 0; l--) rows.push({ section: 'v', lane: l, h: l === 0 || pictures.has(l) ? LANE_H.v : LANE_H.words });
-  for (let l = 0; l <= n.a; l++) rows.push({ section: 'a', lane: l, h: LANE_H.a });
+  for (let l = n.v; l >= 0; l--) {
+    const kind = l === 0 || pictures.has(l) ? 'v' : 'words';
+    rows.push({ section: 'v', lane: l, kind, h: heights[kind] });
+  }
+  for (let l = 0; l <= n.a; l++) rows.push({ section: 'a', lane: l, kind: 'a', h: heights.a });
   return rows;
 }
 
@@ -51,9 +72,20 @@ export default function Timeline({
   const drag = useRef(null);
   const [width, setWidth] = useState(800);
   const [snapAt, setSnapAt] = useState(null);
-  const rows = useMemo(() => rowsOf(doc), [doc]);
+  // The names' column and the lanes' heights, dragged by their grips and kept here.
+  const [layout, setLayout] = useState(keptLayout);
+  const headW = layout.head;
+  const headRef = useRef(headW);
+  headRef.current = headW;
+  // `change` is the new layout, or a function of the one there is now.
+  const keepLayout = (change) => setLayout((now) => {
+    const next = typeof change === 'function' ? change(now) : change;
+    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(next)); } catch { /* kept for this window alone */ }
+    return next;
+  });
+  const rows = useMemo(() => rowsOf(doc, layout.lanes), [doc, layout.lanes]);
   const duration = useMemo(() => clipsOf(doc).reduce((m, p) => Math.max(m, p.timing.end), 0), [doc]);
-  const span = Math.max(duration + 8, (width - HEADER_W) / pps);
+  const span = Math.max(duration + 8, (width - headW) / pps);
   const trackW = Math.ceil(span * pps);
 
   useLayoutEffect(() => {
@@ -71,7 +103,7 @@ export default function Timeline({
     const el = scrollRef.current;
     if (!el || !follow || !playing) return;
     const x = time * pps;
-    const view = el.clientWidth - HEADER_W;
+    const view = el.clientWidth - headRef.current;
     if (x < el.scrollLeft || x > el.scrollLeft + view - 40) el.scrollLeft = Math.max(0, x - view * 0.2);
   }, [time, pps, playing, follow]);
 
@@ -83,12 +115,12 @@ export default function Timeline({
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const r = el.getBoundingClientRect();
-      const px = e.clientX - r.left - HEADER_W + el.scrollLeft;
+      const px = e.clientX - r.left - headRef.current + el.scrollLeft;
       const at = px / pps;
       const next = Math.max(4, Math.min(600, pps * (e.deltaY < 0 ? 1.2 : 1 / 1.2)));
       setPps(next);
       requestAnimationFrame(() => {
-        el.scrollLeft = Math.max(0, at * next - (e.clientX - r.left - HEADER_W));
+        el.scrollLeft = Math.max(0, at * next - (e.clientX - r.left - headRef.current));
       });
     };
     el.addEventListener('wheel', wheel, { passive: false });
@@ -114,7 +146,7 @@ export default function Timeline({
   const timeAt = useCallback((clientX) => {
     const el = scrollRef.current;
     const r = el.getBoundingClientRect();
-    return Math.max(0, (clientX - r.left - HEADER_W + el.scrollLeft) / pps);
+    return Math.max(0, (clientX - r.left - headRef.current + el.scrollLeft) / pps);
   }, [pps]);
 
   /* ── dragging clips: move, trim either end, change lanes ───────────── */
@@ -200,12 +232,39 @@ export default function Timeline({
   const totalH = rows.reduce((n, r) => n + r.h, 0);
   const range = doc.range;
 
+  /** A grip dragged: the names' column wider or a kind of lane taller, kept when let go; a double-click puts it back. */
+  const grip = (what) => (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const from = layout;
+    let next = from;
+    const move = (ev) => {
+      next = what === 'head'
+        ? { ...from, head: Math.max(HEAD_LIMITS[0], Math.min(HEAD_LIMITS[1], Math.round(from.head + ev.clientX - x0))) }
+        : { ...from, lanes: { ...from.lanes, [what]: Math.max(LANE_LIMITS[what][0], Math.min(LANE_LIMITS[what][1], Math.round(from.lanes[what] + ev.clientY - y0))) } };
+      setLayout(next);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      keepLayout(next);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const resetGrip = (what) => () => keepLayout((now) => (what === 'head' ? { ...now, head: HEADER_W } : { ...now, lanes: { ...now.lanes, [what]: LANE_H[what] } }));
+  const LANE_WORDS = { v: t('Height of the picture tracks'), words: t('Height of the title tracks'), a: t('Height of the sound tracks') };
+
   return (
     <div className="vd-tl-scroll" ref={scrollRef}>
-      <div className="vd-tl-inner" style={{ width: HEADER_W + trackW, height: RULER_H + totalH }}>
-        <div className="vd-ruler" style={{ width: HEADER_W + trackW }}>
-          <div className="vd-ruler-corner">
+      <div className="vd-tl-inner" style={{ width: headW + trackW, height: RULER_H + totalH }}>
+        <div className="vd-ruler" style={{ width: headW + trackW }}>
+          <div className="vd-ruler-corner" style={{ width: headW }}>
             <span className="vd-ruler-time">{timecode(time)}</span>
+            <div className="vd-head-grip" role="separator" aria-orientation="vertical" aria-label={t('Width of the track names')} data-tip={t('Drag to make the track names wider or narrower; double-click puts them back')} onPointerDown={grip('head')} onDoubleClick={resetGrip('head')} />
           </div>
           <div className="vd-ruler-track" style={{ width: trackW }} onPointerDown={scrub}>
             {range ? <div className="vd-range" style={{ left: range.in * pps, width: (range.out - range.in) * pps }} /> : null}
@@ -238,7 +297,8 @@ export default function Timeline({
           const label = row.section === 'v' ? `V${row.lane + 1}` : `A${row.lane + 1}`;
           return (
             <div key={`${row.section}${row.lane}`} data-track={label} className={`vd-row ${row.section === 'v' ? 'pic' : 'snd'}${clips.length ? '' : ' empty'}${row.section === 'a' && row.lane === 0 ? ' first-sound' : ''}`} style={{ height: row.h }}>
-              <div className="vd-row-head" style={{ width: HEADER_W }}>
+              <div className="vd-row-head" style={{ width: headW }}>
+                <div className="vd-lane-grip" role="separator" aria-orientation="horizontal" aria-label={LANE_WORDS[row.kind]} data-tip={t('Drag to make tracks like this one taller or shorter; double-click puts them back')} onPointerDown={grip(row.kind)} onDoubleClick={resetGrip(row.kind)} />
                 <span className="vd-row-name">{label}</span>
                 {row.section === 'v' ? (
                   <button type="button" className={`vd-row-btn${state.hidden ? ' on' : ''}`} data-tip={state.hidden ? t('Show this track') : t('Hide this track')} onClick={() => onLane(row.section, row.lane, { hidden: !state.hidden })}>
@@ -275,8 +335,8 @@ export default function Timeline({
           );
         })}
 
-        <div className="vd-playhead" style={{ left: HEADER_W + time * pps, height: RULER_H + totalH }} />
-        {snapAt !== null ? <div className="vd-snapline" style={{ left: HEADER_W + snapAt * pps, height: RULER_H + totalH }} /> : null}
+        <div className="vd-playhead" style={{ left: headW + time * pps, height: RULER_H + totalH }} />
+        {snapAt !== null ? <div className="vd-snapline" style={{ left: headW + snapAt * pps, height: RULER_H + totalH }} /> : null}
       </div>
     </div>
   );

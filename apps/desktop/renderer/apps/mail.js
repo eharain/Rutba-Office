@@ -1380,7 +1380,7 @@ export default function Mail({ app, shell }) {
         </Empty>
       ) : (
         <>
-          <Panel width={222} resizable>
+          <Panel width={222} resizable name="folders">
             <div className="ml-compose-cta">
               <button type="button" onClick={() => commands['mail.compose'].run()}>
                 <Icon name="new" size={15} />
@@ -1516,6 +1516,7 @@ export default function Mail({ app, shell }) {
           ) : (
             <>
               <Panel
+                name="messages"
                 width={prefs.layout === 'bottom' ? undefined : 380}
                 resizable={prefs.layout !== 'bottom'}
                 style={{
