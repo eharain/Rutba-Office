@@ -16,7 +16,8 @@ import { sniff } from '@rutba/office-formats/sniff';
 import { PstFile } from './pst/index.js';
 import { OlmArchive } from './olm.js';
 import { OutlookMessage } from './msg.js';
-import { Mbox } from './mbox.js';
+import { openMbox } from './mbox.js';
+import { looksLikeZip } from './zip-file.js';
 import { parseMessage, summarize } from './mime.js';
 
 /**
@@ -86,7 +87,10 @@ export function identify(target) {
   const sniffed = sniff(bytes, path.basename(target));
   const ext = path.extname(target).toLowerCase();
   if (sniffed.kind === 'pst' || sniffed.kind === 'ost') return { kind: 'pst', path: target };
-  if (ext === '.olm' || OlmArchive.is(fs.readFileSync(target))) return { kind: 'olm', path: target };
+  // A zip is asked whether it is an .olm from its directory, read from the
+  // end of the file: never by reading it whole, which an archive of more
+  // than 2 GB cannot be.
+  if (ext === '.olm' || (looksLikeZip(bytes) && OlmArchive.isFile(target))) return { kind: 'olm', path: target };
   if (sniffed.kind === 'msg' || (CompoundFile.is(bytes) && ext === '.msg')) return { kind: 'msg', path: target };
   if (sniffed.kind === 'mbox' || ext === '.mbox' || ext === '.mbx') return { kind: 'mbox', path: target };
   if (sniffed.kind === 'eml' || ext === '.eml' || ext === '.emlx') return { kind: 'eml', path: target };
@@ -119,21 +123,29 @@ export function scan(target) {
       }
     }
     case 'olm': {
-      const olm = new OlmArchive(fs.readFileSync(target));
-      const summary = olm.summary();
-      return { kind: 'olm', path: target, label: 'Outlook for Mac archive', readable: true, ...summary, bytes: fs.statSync(target).size };
+      const olm = OlmArchive.open(target);
+      try {
+        const summary = olm.summary();
+        return { kind: 'olm', path: target, label: 'Outlook for Mac archive', readable: true, ...summary, bytes: fs.statSync(target).size };
+      } finally {
+        olm.close();
+      }
     }
     case 'mbox': {
-      const mbox = new Mbox(fs.readFileSync(target));
-      return {
-        kind: 'mbox',
-        path: target,
-        label: 'Mbox archive',
-        readable: true,
-        folders: [{ name: path.basename(target, path.extname(target)), path: '', depth: 0, messages: mbox.length }],
-        messages: mbox.length,
-        bytes: fs.statSync(target).size,
-      };
+      const mbox = openMbox(target);
+      try {
+        return {
+          kind: 'mbox',
+          path: target,
+          label: 'Mbox archive',
+          readable: true,
+          folders: [{ name: path.basename(target, path.extname(target)), path: '', depth: 0, messages: mbox.length }],
+          messages: mbox.length,
+          bytes: mbox.bytes,
+        };
+      } finally {
+        mbox.close();
+      }
     }
     case 'msg':
     case 'eml': {
@@ -220,20 +232,28 @@ export function* read(target, opts = {}) {
   }
 
   if (found.kind === 'olm') {
-    const olm = new OlmArchive(fs.readFileSync(target));
-    for (const message of olm.messages()) {
-      if (wanted && !wanted.has(message.folder)) continue;
-      yield emit(message.folder, message);
+    const olm = OlmArchive.open(target);
+    try {
+      for (const message of olm.messages()) {
+        if (wanted && !wanted.has(message.folder)) continue;
+        yield emit(message.folder, message);
+      }
+    } finally {
+      olm.close();
     }
     return;
   }
 
   if (found.kind === 'mbox') {
-    const mbox = new Mbox(fs.readFileSync(target));
+    const mbox = openMbox(target);
     const folder = path.basename(target, path.extname(target));
-    for (let i = 0; i < mbox.length; i++) {
-      const message = mbox.message(i);
-      if (message) yield emit(folder, message);
+    try {
+      for (let i = 0; i < mbox.length; i++) {
+        const message = mbox.message(i);
+        if (message) yield emit(folder, message);
+      }
+    } finally {
+      mbox.close();
     }
     return;
   }
@@ -257,10 +277,14 @@ export function* read(target, opts = {}) {
       try {
         if (ext === '.msg') yield emit(folder, OutlookMessage.open(fs.readFileSync(file)).toMessage());
         else if (ext === '.mbox' || ext === '.mbx') {
-          const mbox = new Mbox(fs.readFileSync(file));
-          for (let i = 0; i < mbox.length; i++) {
-            const m = mbox.message(i);
-            if (m) yield emit(folder, m);
+          const mbox = openMbox(file);
+          try {
+            for (let i = 0; i < mbox.length; i++) {
+              const m = mbox.message(i);
+              if (m) yield emit(folder, m);
+            }
+          } finally {
+            mbox.close();
           }
         } else yield emit(folder, parseMessage(fs.readFileSync(file)));
       } catch {

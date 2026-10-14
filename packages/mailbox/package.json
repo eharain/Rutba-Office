@@ -12,6 +12,7 @@
     "./pst": "./src/pst/index.js",
     "./msg": "./src/msg.js",
     "./olm": "./src/olm.js",
+    "./zip-file": "./src/zip-file.js",
     "./import": "./src/import.js",
     "./store": "./src/store.js",
     "./props": "./src/props.js",

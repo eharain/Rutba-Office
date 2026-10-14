@@ -209,7 +209,8 @@ export function createArchiveDesk({ stores, store, broadcast, holdBlob, insightF
 
     messages: async ({ accountId, folder, offset = 0, limit = 100, query = '', unreadOnly = false }) => {
       const page = await ask(accountId, 'list', { folder, offset, limit, query, unreadOnly });
-      return { total: page.total, rows: page.rows.map((r) => ({ ...r, accountId, folder })) };
+      // `indexed` when the list is of what has been indexed so far (a search, or a large .olm's folder).
+      return { total: page.total, rows: page.rows.map((r) => ({ ...r, accountId, folder })), ...(page.indexed ? { indexed: page.indexed } : {}) };
     },
 
     message: async ({ accountId, folder, id }) => {

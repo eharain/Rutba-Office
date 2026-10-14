@@ -8,6 +8,13 @@
 // exported - from the file itself, opened for reading only. Nothing here
 // writes to it, or beside it.
 //
+// Nothing is read whole either. A .pst is paged from disk; an mbox is read
+// once in blocks to find where its messages begin, and an .olm's zip
+// directory is read from the end of the file; after that a message is read
+// from the file when it is asked for. So an archive of any size opens - an
+// mbox or .olm past 2 GB, more than a Node buffer holds, as well as a small
+// one - and what it costs in memory is its index, not its size.
+//
 // One shape for every kind: an Outlook data file (.pst or .ost), an Outlook
 // for Mac archive (.olm) or an mbox. Folders are named by their path as a
 // person sees it ("Inbox/Projects"), and messages by an id that is stable for
@@ -17,7 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PstFile, HIDDEN_FOLDERS } from './pst/index.js';
 import { OlmArchive, messageFrom, folderOf } from './olm.js';
-import { Mbox } from './mbox.js';
+import { openMbox } from './mbox.js';
 import { parse, all } from '@rutba/office-formats/xml';
 import { fileReader, identify } from './import.js';
 import { stripHtml } from './mime.js';
@@ -27,6 +34,13 @@ import { docOf, headlineText } from './search-index.js';
 export function bodyText(m) {
   return m?.text || (m?.html ? stripHtml(m.html) : '') || '';
 }
+
+/**
+ * Past this size an mbox or .olm is listed without reading every message
+ * whole first: an mbox from its messages' headers alone, an .olm from what
+ * has been indexed of it so far (`listsCheaply` false). Under it, as before.
+ */
+export const LARGE_ARCHIVE = 256 * 1048576;
 
 const LABELS = {
   pst: 'Outlook data file (.pst)',
@@ -48,6 +62,7 @@ class PstSource {
     this.kind = this.pst.info.kind;
     this.label = LABELS[this.kind];
     this.bytes = this.pst.info.bytes;
+    this.listsCheaply = true;
     this.storeName = null;
     this.#lists = new Map();
   }
@@ -137,7 +152,8 @@ class OlmSource {
     this.kind = 'olm';
     this.label = LABELS.olm;
     this.bytes = fs.statSync(filePath).size;
-    this.olm = new OlmArchive(fs.readFileSync(filePath));
+    this.olm = OlmArchive.open(filePath);
+    this.listsCheaply = this.bytes <= LARGE_ARCHIVE;
     this.#decoder = new TextDecoder('utf-8', { fatal: false });
   }
 
@@ -146,20 +162,37 @@ class OlmSource {
   #lists = new Map();
 
   /** The messages of one entry, parsed. */
-  #entry(index) {
+  /**
+   * The messages of one entry, parsed. `light` leaves the attachments' base64
+   * out before the XML is parsed - their names and sizes are attributes - so
+   * a list or the index never holds a megabyte of text for a picture.
+   */
+  #entry(index, light = false) {
     const entry = this.olm.entries[index];
-    return all(parse(this.#decoder.decode(entry.data)), 'email');
+    // Read into the archive's reused buffer when it is decoded at once and let go.
+    let xml = this.#decoder.decode(light && this.olm.zip ? this.olm.zip.data(entry.entry, { reuse: true }) : entry.data);
+    if (light) xml = xml.replace(/(<messageAttachment\b[^>]*>)[^<]*(<\/messageAttachment>)/g, '$1$2');
+    return all(parse(xml), 'email');
   }
 
   folders() {
     if (this.#folders) return this.#folders;
     const out = new Map();
+    // A large archive is counted from its directory, an entry a message, as
+    // Outlook for Mac writes them; reading every entry to count them would
+    // read the whole file before its folders could be shown. Its unread
+    // count waits for the index.
+    const counted = !this.listsCheaply;
     this.olm.entries.forEach((entry) => {
       const folder = folderOf(entry.name);
-      const xml = this.#decoder.decode(entry.data);
-      const n = (xml.match(/<email\b/g) || []).length;
+      let n = 1;
+      let unread = 0;
+      if (!counted) {
+        const xml = this.#decoder.decode(entry.data);
+        n = (xml.match(/<email\b/g) || []).length;
+        unread = (xml.match(/OPFMessageIsRead="0"/g) || []).length;
+      }
       if (!n) return;
-      const unread = (xml.match(/OPFMessageIsRead="0"/g) || []).length;
       const f = out.get(folder) || { path: folder, name: folder.split('/').pop(), depth: folder.split('/').length - 1, total: 0, unread: 0 };
       f.total += n;
       f.unread += unread;
@@ -169,11 +202,21 @@ class OlmSource {
     return this.#folders;
   }
 
+  /** A folder's message ids from the directory alone, an entry a message: for an export of a large archive before it is indexed. */
+  ids(folder) {
+    const out = [];
+    this.olm.entries.forEach((entry, e) => {
+      if (folderOf(entry.name) === folder) out.push(`${e}.0`);
+    });
+    return out;
+  }
+
   *messages(folder) {
     for (let e = 0; e < this.olm.entries.length; e++) {
       if (folderOf(this.olm.entries[e].name) !== folder) continue;
-      const emails = this.#entry(e);
-      for (let k = 0; k < emails.length; k++) yield { id: `${e}.${k}`, message: messageFrom(emails[k]) };
+      const emails = this.#entry(e, true);
+      // The attachments' names and sizes, not their bytes: a list and the index want no more.
+      for (let k = 0; k < emails.length; k++) yield { id: `${e}.${k}`, message: messageFrom(emails[k], { withBytes: false }) };
     }
   }
 
@@ -207,7 +250,9 @@ class OlmSource {
     return null;
   }
 
-  close() {}
+  close() {
+    this.olm.close();
+  }
 }
 
 class MboxSource {
@@ -215,8 +260,9 @@ class MboxSource {
     this.path = filePath;
     this.kind = 'mbox';
     this.label = LABELS.mbox;
-    this.bytes = fs.statSync(filePath).size;
-    this.mbox = new Mbox(fs.readFileSync(filePath));
+    this.mbox = openMbox(filePath);
+    this.bytes = this.mbox.bytes;
+    this.listsCheaply = true;
     this.folder = path.basename(filePath, path.extname(filePath)) || 'Mbox';
     this.#rows = null;
   }
@@ -229,12 +275,22 @@ class MboxSource {
 
   *messages() {
     for (let i = 0; i < this.mbox.length; i++) {
-      const m = this.mbox.message(i);
-      if (m) yield { id: String(i), message: { ...m, size: this.mbox.ranges[i].end - this.mbox.ranges[i].start } };
+      // Attachments listed, not decoded: what the index and a list want.
+      const m = this.mbox.message(i, { light: true });
+      if (m) yield { id: String(i), message: { ...m, size: this.mbox.size(i) } };
     }
   }
 
   list(folder, opts) {
+    if (!this.#rows && this.bytes > LARGE_ARCHIVE) {
+      // A large mbox is listed from its messages' headers, read a few
+      // kilobytes each, not from the messages whole; the index gives the rest.
+      this.#rows = [];
+      for (let i = 0; i < this.mbox.length; i++) {
+        const m = this.mbox.headers(i, { most: 16384 });
+        if (m) this.#rows.push({ id: String(i), subject: m.subject, from: m.from[0] || null, to: m.to, cc: m.cc, date: m.date, size: this.mbox.size(i), unread: false, hasAttachments: m.hasAttachments, attachmentCount: m.hasAttachments ? 1 : 0, preview: '', messageId: m.messageId, inReplyTo: m.inReplyTo, references: m.references });
+      }
+    }
     if (!this.#rows) {
       this.#rows = [];
       for (const { id, message: m } of this.messages()) {
@@ -264,7 +320,9 @@ class MboxSource {
     return this.mbox.raw(Number(id));
   }
 
-  close() {}
+  close() {
+    this.mbox.close();
+  }
 }
 
 /**

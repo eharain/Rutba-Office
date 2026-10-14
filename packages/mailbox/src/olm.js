@@ -12,6 +12,7 @@
 import { readZip } from '@rutba/ooxml/zip';
 import { parse, first, all, textOf } from '@rutba/office-formats/xml';
 import { decodeBase64, stripHtml } from './mime.js';
+import { ZipFile } from './zip-file.js';
 
 const dec = new TextDecoder('utf-8', { fatal: false });
 
@@ -39,11 +40,16 @@ function when(value) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-export function messageFrom(el) {
+/**
+ * A message from its XML. `withBytes: false` leaves the attachments' bytes
+ * undecoded (their names, types and sizes are still read): what a list or the
+ * index wants, and most of the work of reading a message with attachments.
+ */
+export function messageFrom(el, { withBytes = true } = {}) {
   const html = text(el, 'OPFMessageCopyHTMLBody');
   const body = text(el, 'OPFMessageCopyBody');
   const attachments = all(el, 'messageAttachment').map((a, i) => {
-    const b64 = textOf(a).trim();
+    const b64 = withBytes ? textOf(a).trim() : '';
     const bytes = b64 ? decodeBase64(b64) : null;
     return {
       filename: a.attrs.OPFAttachmentName || `attachment-${i + 1}`,
@@ -81,10 +87,44 @@ export function folderOf(entryName) {
 }
 
 export class OlmArchive {
-  constructor(bytes) {
-    const buf = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  /**
+   * @param {Uint8Array | ZipFile} input the archive's bytes, or the archive
+   *   read from its file (`OlmArchive.open`), whose entries are read from
+   *   the file each time they are asked for and never kept
+   */
+  constructor(input) {
+    if (input instanceof ZipFile) {
+      this.zip = input;
+      this.entries = input.entries
+        .filter((e) => e.name.toLowerCase().endsWith('.xml') && !e.name.endsWith('/'))
+        .map((e) => ({ name: e.name, size: e.size, entry: e, get data() { return input.data(e); } }));
+      return;
+    }
+    const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
     const { entries } = readZip(buf);
     this.entries = entries.filter((e) => e.name.toLowerCase().endsWith('.xml') && !e.name.endsWith('/'));
+  }
+
+  /** An archive opened from its file, read a message at a time, of any size. */
+  static open(filePath) {
+    return new OlmArchive(new ZipFile(filePath));
+  }
+
+  /** Does the zip read from this file hold Outlook for Mac's messages. */
+  static isFile(filePath) {
+    let zip = null;
+    try {
+      zip = new ZipFile(filePath);
+      return zip.entries.some((e) => /^Local\//i.test(e.name) && e.name.endsWith('.xml'));
+    } catch {
+      return false;
+    } finally {
+      zip?.close();
+    }
+  }
+
+  close() {
+    this.zip?.close();
   }
 
   static is(bytes) {

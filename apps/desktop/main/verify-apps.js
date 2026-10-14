@@ -160,6 +160,7 @@ import { verifyWordTable } from './verify-word-table.js';
 import { verifyMailJunk } from './verify-mail-junk.js';
 import { verifyMailArchive } from './verify-mail-archive.js';
 import { verifyMailIndexWorker } from './verify-mail-index-worker.js';
+import { verifyMailBigMbox } from './verify-mail-big-mbox.js';
 import { verifyMailRichSignature } from './verify-mail-signature.js';
 import { verifyWordBlocks } from './verify-word-blocks.js';
 import { verifyWordBinary } from './verify-word-binary.js';
@@ -4928,6 +4929,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('junk')) await verifyMailJunk({ open, check, until, wait, errorsIn });
     if (only.includes('mail-archive')) await verifyMailArchive({ open, check, until, wait, errorsIn });
     if (only.includes('mail-index-worker')) await verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo });
+    if (only.includes('mail-big-mbox')) await verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo });
     if (only.includes('richsignature')) await verifyMailRichSignature({ open, check, until, wait, errorsIn });
     if (only.includes('blocks')) await verifyWordBlocks({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('binary')) await verifyWordBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -6927,6 +6929,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await verifyMailJunk({ open, check, until, wait, errorsIn });
   await verifyMailArchive({ open, check, until, wait, errorsIn });
   await block(() => verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo }));
+  await block(() => verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo }));
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);

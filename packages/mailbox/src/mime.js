@@ -296,7 +296,7 @@ function splitMultipart(bytes, boundary) {
 
 let partSeq = 0;
 
-function parsePart(bytes, depth = 0) {
+function parsePart(bytes, depth = 0, light = false) {
   const { head, body } = splitMessage(bytes);
   const headers = parseHeaders(head);
   const ctRaw = headers.get('content-type') || 'text/plain';
@@ -323,7 +323,7 @@ function parsePart(bytes, depth = 0) {
   if (type.startsWith('multipart/') && depth < 24) {
     const boundary = params.boundary;
     if (boundary) {
-      node.children = splitMultipart(body, boundary).map((p) => parsePart(p, depth + 1));
+      node.children = splitMultipart(body, boundary).map((p) => parsePart(p, depth + 1, light));
       return node;
     }
     // A multipart with no boundary: treat what is there as one text part rather
@@ -332,10 +332,17 @@ function parsePart(bytes, depth = 0) {
   }
 
   if (type === 'message/rfc822' && depth < 24) {
-    node.children = [parsePart(decodeBody(body, encoding), depth + 1)];
+    node.children = [parsePart(decodeBody(body, encoding), depth + 1, light)];
     return node;
   }
 
+  // Light: a part that is not text keeps its size, not its bytes (base64 is
+  // four characters for every three bytes) - what an index or a list wants.
+  if (light && !node.type.startsWith('text/')) {
+    node.bytes = null;
+    node.light = /base64/i.test(encoding) ? Math.floor((body.length * 3) / 4) : body.length;
+    return node;
+  }
   node.bytes = decodeBody(body, encoding);
   if (node.type.startsWith('text/')) node.text = decodeCharset(node.bytes, node.charset || 'utf-8');
   return node;
@@ -353,12 +360,12 @@ function collectAttachments(node, out = []) {
     node.disposition === 'attachment' ||
     (node.filename && !node.type.startsWith('multipart/')) ||
     (node.contentId && !node.type.startsWith('text/') && !node.type.startsWith('multipart/'));
-  if (isAttachment && node.bytes) {
+  if (isAttachment && (node.bytes || node.light != null)) {
     out.push({
       id: node.id,
       filename: node.filename || `attachment-${out.length + 1}${extensionFor(node.type)}`,
       type: node.type,
-      size: node.bytes.length,
+      size: node.bytes ? node.bytes.length : node.light,
       contentId: node.contentId,
       inline: node.disposition === 'inline' || (!!node.contentId && node.disposition !== 'attachment'),
       bytes: node.bytes,
@@ -376,10 +383,12 @@ function extensionFor(type) {
 /**
  * Parse a whole message.
  * @param {Uint8Array|string|Buffer} input raw RFC 5322 bytes
+ * @param {{ light?: boolean }} [opts] `light`: attachments listed with their
+ *   names and sizes but their bytes not decoded (for an index or a list)
  * @returns {object} a message the client can render without further work
  */
-export function parseMessage(input) {
-  const root = parsePart(toBytes(input));
+export function parseMessage(input, { light = false } = {}) {
+  const root = parsePart(toBytes(input), 0, light);
   const h = root.headers;
   const texts = collectText(root, { plain: [], html: [] });
   const attachments = collectAttachments(root);

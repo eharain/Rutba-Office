@@ -176,6 +176,20 @@ const OPS = {
     // A folder the archive does not have (the window still on the folder of
     // the mailbox it was showing a moment ago) is an empty list, not an error.
     if (!source.folders().some((f) => f.path === folder)) return { total: 0, rows: [] };
+    // A large .olm, which cannot be listed without reading every message,
+    // is listed from what has been indexed of the folder so far; the window
+    // asks again as indexing goes on.
+    if (!source.listsCheaply) {
+      if (slim && source.ids) {
+        const ids = source.ids(folder);
+        return { total: ids.length, rows: ids.slice(offset, offset + limit).map((id) => ({ id, folder, t: 0, date: null })) };
+      }
+      hooks.flush?.();
+      let docs = [];
+      for (const key of keysOf(folder)) docs = docs.concat(index.segments.get(key).docs);
+      docs.sort((a, b) => b.t - a.t);
+      return { total: docs.length, rows: docs.slice(offset, offset + limit).map((d) => ({ ...d, date: d.t ? new Date(d.t).toISOString() : null, folder })), indexed: indexed() };
+    }
     const page = source.list(folder, { offset, limit });
     return { total: page.total, rows: page.rows.map((r) => ({ ...r, folder })) };
   },

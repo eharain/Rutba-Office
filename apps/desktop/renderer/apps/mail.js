@@ -192,13 +192,13 @@ export default function Mail({ app, shell }) {
 
   const refreshList = useCallback(async () => {
     if (view !== 'mail') return;
+    // Asked again as an archive's indexing goes on: no spinner over the list.
+    const quiet = quietSearch.current;
+    quietSearch.current = false;
     if (allMail) {
       // One search over every account and every archive; an answer that
       // arrives after a newer one was asked for is dropped.
       const seq = ++searchSeq.current;
-      // Asked again as an archive's indexing goes on: no spinner over the list.
-      const quiet = quietSearch.current;
-      quietSearch.current = false;
       if (!quiet) setBusy(true);
       try {
         const r = await shell.mail.searchAll({ query, limit: 500 });
@@ -228,7 +228,7 @@ export default function Mail({ app, shell }) {
       setList({ rows: [], total: 0 });
       return;
     }
-    setBusy(true);
+    if (!quiet) setBusy(true);
     try {
       const next = await shell.mail.messages({ accountId, folder, query, limit: 500 });
       // Rows from a single folder do not carry where they came from; every
@@ -256,6 +256,18 @@ export default function Mail({ app, shell }) {
       ),
     [allMail, found, archives]
   );
+  // A folder listed from what has been indexed of it so far (a search in an
+  // archive, a large .olm) is asked for again as indexing goes on.
+  const listGrows = !allMail && list?.indexed?.state === 'indexing';
+  useEffect(() => {
+    if (!listGrows) return undefined;
+    const timer = setTimeout(() => {
+      quietSearch.current = true;
+      refreshList();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [listGrows, list, refreshList]);
+
   useEffect(() => {
     if (!searchStale) return undefined;
     const timer = setTimeout(() => {
