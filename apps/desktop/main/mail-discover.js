@@ -317,7 +317,7 @@ async function lookupAutoconfig(domain, email, api) {
       if (servers.length) {
         return {
           detail: `${labels[i]} names ${servers.map((s) => s.host).filter((v, j, a) => a.indexOf(v) === j).join(' and ')}`,
-          candidates: servers.map((s) => candidate(s.kind, s.host, s.port, s.secure, 'autoconfig', 3, { user: s.user, starttls: s.starttls })),
+          candidates: servers.map((s) => candidate(s.kind, s.host, s.port, s.secure, 'autoconfig', 3, { user: s.user, starttls: s.starttls, auth: s.auth })),
         };
       }
       tried.push(`${labels[i]}: nothing for this domain`);
@@ -479,7 +479,23 @@ export async function discoverMailServers(email, options = {}) {
         ? `${domain} is not in the built-in list of providers. Add looks up its own records: its DNS (SRV and MX), autoconfig.${domain} and autodiscover.${domain}, and then the servers they name.`
         : `Nothing at ${domain} said where its mail server is. The advanced settings take the names from your provider.`);
   result.offline = Boolean(options.offline);
+  result.auth = authOf(provider, best('imap'));
   return result;
+}
+
+/**
+ * How the account signs in, as far as can be told before it does: a provider
+ * that wants its own page in a browser (OAuth 2.0), one that wants an app
+ * password, or the account's password - with the ways the server itself
+ * says it takes (its greeting's AUTH= list, or the domain's autoconfig).
+ */
+export function authOf(provider, imap) {
+  const mechanisms = [...String(imap?.banner || '').matchAll(/AUTH=([A-Z0-9_-]+)/gi)].map((m) => m[1].toUpperCase());
+  const label = provider?.label || null;
+  if (provider?.oauth) return { kind: 'oauth', provider: label, mechanisms };
+  if (provider?.appPassword) return { kind: 'app-password', provider: label, mechanisms };
+  const oauthOffered = /oauth2/i.test(imap?.auth || '') || mechanisms.includes('XOAUTH2') || mechanisms.includes('OAUTHBEARER');
+  return { kind: 'password', provider: label, mechanisms, oauthOffered };
 }
 
 function dedupe(list) {

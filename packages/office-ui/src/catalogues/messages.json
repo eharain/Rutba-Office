@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6905,
+  "count": 6913,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -22980,6 +22980,12 @@
       ]
     },
     {
+      "message": "Open the sign-in in",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "Open where it is",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -31178,9 +31184,27 @@
       ]
     },
     {
+      "message": "Signs in with the account's password.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Signs in with the account's password. The server also offers OAuth 2.0, which works once the provider has registered this application.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "Signs in with {provider}'s own page",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "Signs in with {provider}'s own page (OAuth 2.0), in the browser you choose; no password is kept here.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -34372,6 +34396,12 @@
       "message": "The deck's layouts — put this slide on one, or start a new slide from it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "The default browser",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -41378,6 +41408,12 @@
       ]
     },
     {
+      "message": "the provider",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "the scene picked, laid out this way; a recorded one keeps its take",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -41776,6 +41812,12 @@
       "plural": "{author}: {text} ({count} replies)",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "{browser} (the default)",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -43488,6 +43530,12 @@
     },
     {
       "message": "{provider} refused the password: it wants an app password, made in the account's security settings.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "{provider} takes an app password, made in the account's security settings, rather than the account's own.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
       ]

@@ -163,6 +163,7 @@ import { verifyMailIndexWorker } from './verify-mail-index-worker.js';
 import { verifyMailBigMbox } from './verify-mail-big-mbox.js';
 import { verifySmime } from './verify-smime.js';
 import { verifyMailAccounts } from './verify-mail-accounts.js';
+import { verifyMailSignIn } from './verify-mail-signin.js';
 import { verifyMailRichSignature } from './verify-mail-signature.js';
 import { verifyWordBlocks } from './verify-word-blocks.js';
 import { verifyWordBinary } from './verify-word-binary.js';
@@ -4934,6 +4935,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('mail-big-mbox')) await verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo });
     if (only.includes('smime')) await verifySmime({ open, check, until, wait, errorsIn, capture: shotTo });
     if (only.includes('mail-accounts')) await verifyMailAccounts({ open, check, until, wait, errorsIn, capture: shotTo });
+    if (only.includes('mail-signin')) await verifyMailSignIn({ open, check, until, wait, errorsIn, capture: shotTo });
     if (only.includes('richsignature')) await verifyMailRichSignature({ open, check, until, wait, errorsIn });
     if (only.includes('blocks')) await verifyWordBlocks({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('binary')) await verifyWordBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -6936,6 +6938,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo }));
   await block(() => verifySmime({ open, check, until, wait, errorsIn, capture: shotTo }));
   await block(() => verifyMailAccounts({ open, check, until, wait, errorsIn, capture: shotTo }));
+  await block(() => verifyMailSignIn({ open, check, until, wait, errorsIn, capture: shotTo }));
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);

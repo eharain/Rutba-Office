@@ -408,6 +408,8 @@ select.rw-input { appearance: auto; }
 
 /* found on this computer ------------------------------------------------- */
 .ml-found { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.ml-browser { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-2); }
+.ml-browser .rw-select { width: auto; min-width: 200px; }
 .ml-found-item {
   display: flex; align-items: center; gap: 11px; padding: 10px 12px; text-align: left;
   border: 1px solid var(--line); border-radius: var(--r-2); background: var(--chrome);

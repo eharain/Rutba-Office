@@ -30,12 +30,13 @@
 
 import crypto from 'node:crypto';
 import http from 'node:http';
+import { listBrowsers, openIn } from './browsers.js';
 
 // Loaded when it is needed rather than at import time: everything above the
 // sign-in itself — the provider table, the address matching, the PKCE pair —
 // is plain Node, and being able to test it without an Electron process is
 // worth one dynamic import.
-const openInBrowser = async (url) => (await import('electron')).shell.openExternal(url);
+const openDefault = async (url) => (await import('electron')).shell.openExternal(url);
 
 /**
  * The two providers worth building in.
@@ -144,11 +145,15 @@ export function createOAuthService({ stores, broadcast }) {
     clientIds: () =>
       Object.fromEntries(Object.keys(PROVIDERS).map((id) => [id, clientIdFor(id) ? 'set' : ''])),
 
+    /** The browsers on this computer to sign in with, the default first. */
+    browsers: async () => (await listBrowsers()).map(({ id, name, isDefault }) => ({ id, name, isDefault })),
+
     /**
-     * Sign in, in the person's own browser.
+     * Sign in, in the person's own browser: the one chosen (`browser`, an id
+     * from browsers()), or the system's default.
      * @returns {{ email, provider, imap, smtp }} enough to add the account
      */
-    signIn: async ({ email, provider: providerId }) => {
+    signIn: async ({ email, provider: providerId, browser = null }) => {
       const provider = PROVIDERS[providerId] || providerFor(email);
       if (!provider) throw new Error('That address is not one this can sign in to.');
 
@@ -178,7 +183,7 @@ export function createOAuthService({ stores, broadcast }) {
       for (const [k, v] of Object.entries(provider.extra)) url.searchParams.set(k, v);
 
       broadcast?.('mail:oauth', { phase: 'browser', provider: provider.id });
-      await openInBrowser(url.href);
+      await openIn(url.href, browser, { openDefault });
 
       const code = await wait;
       const tokens = await exchange(provider, {

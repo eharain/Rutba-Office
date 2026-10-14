@@ -8,7 +8,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Button, Dialog, Field, Input, Icon, Chip, Empty, Spinner, Search, Progress, Separator,
+  Button, Dialog, Field, Input, Icon, Chip, Empty, Spinner, Search, Progress, Separator, Select,
   formatBytes, formatWhen, t, tn,
 } from '@rutba/office-ui';
 import { avatarFor, displayName } from './parts.js';
@@ -673,10 +673,30 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
     };
   };
 
+  // The browser a sign-in opens in: the person's choice, remembered.
+  const [browsers, setBrowsers] = useState([]);
+  const [browser, setBrowser] = useState('');
+  useEffect(() => {
+    if (!provider) return undefined;
+    let live = true;
+    Promise.all([shell.oauth.browsers().catch(() => []), shell.store.get({ key: 'mail.signInBrowser', fallback: '' }).catch(() => '')]).then(([list, saved]) => {
+      if (!live) return;
+      setBrowsers(list || []);
+      setBrowser(list?.some((b) => b.id === saved) ? saved : '');
+    });
+    return () => {
+      live = false;
+    };
+  }, [provider, shell]);
+  const chooseBrowser = (id) => {
+    setBrowser(id);
+    shell.store.set({ key: 'mail.signInBrowser', value: id }).catch(() => {});
+  };
+
   const signIn = useCallback(async () => {
     setSigningIn(true);
     try {
-      const signed = await shell.oauth.signIn({ email: form.email.trim(), provider: provider.id });
+      const signed = await shell.oauth.signIn({ email: form.email.trim(), provider: provider.id, browser: browser || null });
       await shell.mail.addAccount({
         account: { email: signed.email, name: signed.name || form.name || signed.email, imap: signed.imap, smtp: signed.smtp, auth: 'oauth', provider: signed.provider },
       });
@@ -686,7 +706,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
     } finally {
       setSigningIn(false);
     }
-  }, [shell, form, provider, onSaved, toast]);
+  }, [shell, form, provider, browser, onSaved, toast]);
 
   const test = useCallback(async () => {
     setTesting(true);
@@ -819,6 +839,19 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
               </span>
               {provider.configured ? <Chip>{t('Recommended')}</Chip> : null}
             </button>
+            {browsers.length ? (
+              <label className="ml-browser">
+                <span>{t('Open the sign-in in')}</span>
+                <Select value={browser} onChange={(e) => chooseBrowser(e.target.value)}>
+                  <option value="">{t('The default browser')}</option>
+                  {browsers.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.isDefault ? t('{browser} (the default)', { browser: b.name }) : b.name}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            ) : null}
             <p className="rw-hint" style={{ margin: 0 }}>
               {t('{provider} no longer accepts an ordinary password for mail programs. An app password below still works if you have one.', { provider: provider.label })}
             </p>
@@ -846,6 +879,20 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
                 <div className="ml-search-line">
                   <Icon name={found.smtp.verified ? 'check' : 'info'} size={14} />
                   <span>{t('Outgoing')} {server(found.smtp.host, found.smtp.port, security(found.smtp), found.smtp.verified)}</span>
+                </div>
+              ) : null}
+              {found.auth && (found.imap || found.provider) ? (
+                <div className="ml-search-line ml-auth-kind" data-kind={found.auth.kind}>
+                  <Icon name={found.auth.kind === 'oauth' ? 'lock' : 'info'} size={14} />
+                  <span>
+                    {found.auth.kind === 'oauth'
+                      ? t('Signs in with {provider}\'s own page (OAuth 2.0), in the browser you choose; no password is kept here.', { provider: found.auth.provider || t('the provider') })
+                      : found.auth.kind === 'app-password'
+                        ? t('{provider} takes an app password, made in the account\'s security settings, rather than the account\'s own.', { provider: found.auth.provider || t('The provider') })
+                        : found.auth.oauthOffered
+                          ? t('Signs in with the account\'s password. The server also offers OAuth 2.0, which works once the provider has registered this application.')
+                          : t('Signs in with the account\'s password.')}
+                  </span>
                 </div>
               ) : null}
               {found.server ? (

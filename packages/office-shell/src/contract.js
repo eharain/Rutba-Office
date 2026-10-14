@@ -264,6 +264,7 @@ export const METHODS = {
   ],
   // Signing in to Gmail and Outlook.com, which no longer accept a password.
   oauth: [
+    'browsers',     // () -> [{ id, name, isDefault }] the browsers on this computer a sign-in can open in
     'provider',     // ({ email }) -> { id, label, configured, imap, smtp } | null
     'signIn',       // ({ email, provider }) -> { email, provider, imap, smtp }
     'signOut',      // ({ email, provider }) -> { removed, note }
