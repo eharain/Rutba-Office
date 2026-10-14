@@ -20,6 +20,12 @@
 //      directory, which is also the only honest way to photograph a mail
 //      client — nobody's actual inbox belongs in a marketing asset.
 //
+//   3. **Features, not only apps.** Each app's first picture shows it as it
+//      opens; a feature needs the window put into a state first (All Markup,
+//      a PivotTable's field list, the Slide Master). main/screen-features.js
+//      lists about thirty, each opened on a sample from feature-samples.js
+//      and driven there, into `<outDir>/features/<name>.png`.
+//
 // The content is invented and says so where it can. The numbers are made up,
 // the correspondents are fictional, and the one thing that is real is the
 // software drawing them.
@@ -42,6 +48,11 @@ import { writeVCards } from '@rutba/contacts/vcard';
 import { Sheet, INK } from '@rutba/pdf';
 import { emptyProject, addMedia, setTransition, addTitle, addMarker } from '@rutba/studio/project';
 import { writeRvid } from '@rutba/studio/rvid';
+// The second kind of capture: a feature, opened on a sample and put into the
+// state that shows it. The list and its setups live where they run, in the
+// application's main process; this reads the names and boot settings.
+import { FEATURES } from '../main/screen-features.js';
+import { writeFeatureSamples } from './feature-samples.js';
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.resolve(process.argv[2] || path.join(appDir, 'build', 'screens'));
@@ -544,6 +555,7 @@ function writeVideoProject(file) {
   fs.writeFileSync(file, writeRvid(doc, { projectPath: file }));
 }
 writeVideoProject(at('Our year.rvid'));
+writeFeatureSamples(docsDir);
 
 /** app -> the file it should open, or null for its empty state. */
 const PLAN = [
@@ -654,9 +666,13 @@ function capture(app, file, profile) {
 }
 
 const results = [];
-// `RUTBA_SCREENS_ONLY=pdf,video` captures just those, to look at one again.
+// `RUTBA_SCREENS_ONLY=pdf,video` captures just those, to look at one again;
+// a feature's name works the same way (`RUTBA_SCREENS_ONLY=slides-master`).
+// `RUTBA_SCREENS_KIND=apps` or `features` takes one kind only.
 const only = (process.env.RUTBA_SCREENS_ONLY || '').split(',').filter(Boolean);
-for (const [app, file] of PLAN.filter(([name]) => !only.length || only.includes(name))) {
+const kind = process.env.RUTBA_SCREENS_KIND || 'all';
+const appsWanted = kind === 'features' ? [] : PLAN.filter(([name]) => (!only.length && kind !== 'features') || only.includes(name));
+for (const [app, file] of appsWanted) {
   // A profile per app, not per run: the mail seeder is idempotent-ish but the
   // recent-files list is not, and a "recently opened" panel full of temp paths
   // is exactly the detail that makes a screenshot look like a test artefact.
@@ -669,6 +685,69 @@ for (const [app, file] of PLAN.filter(([name]) => !only.length || only.includes(
   process.stdout.write(
     `${ok && size > 5000 ? 'ok  ' : 'FAIL'} ${app.padEnd(9)} ${String(Math.round(size / 1024)).padStart(5)} KB\n`,
   );
+}
+
+/**
+ * The feature captures, into `<outDir>/features/<name>.png`. One run of the
+ * application per set of boot settings (the dark theme and the Urdu
+ * interface are read as a window starts) and window size, each with a
+ * profile of its own, so a feature's setup never meets another run's
+ * accounts or settings.
+ */
+const featuresWanted = kind === 'apps' ? [] : FEATURES.filter((f) => (!only.length && kind !== 'apps') || only.includes(f.name));
+const featureOut = path.join(outDir, 'features');
+const groups = new Map();
+for (const f of featuresWanted) {
+  const key = JSON.stringify({ boot: f.boot || {}, size: f.size || SIZE[f.app] || '1440x900', mail: f.app === 'mail' });
+  if (!groups.has(key)) groups.set(key, []);
+  groups.get(key).push(f);
+}
+let group = 0;
+for (const [key, list] of groups) {
+  const { boot, size, mail } = JSON.parse(key);
+  const profile = path.join(work, `profile-features-${group++}`);
+  fs.mkdirSync(profile, { recursive: true });
+  fs.mkdirSync(featureOut, { recursive: true });
+  for (const f of list) fs.rmSync(path.join(featureOut, `${f.name}.png`), { force: true });
+  const env = {
+    ...process.env,
+    RUTBA_OFFICE_SMOKE: '1',
+    RUTBA_SCREENS_FEATURES: list.map((f) => f.name).join(','),
+    RUTBA_SCREENS_SAMPLES: docsDir,
+    RUTBA_SMOKE_OUT: featureOut,
+    ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
+    RUTBA_WINDOW_SIZE: process.env.RUTBA_WINDOW_SIZE || size,
+    RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY || 'above',
+    RUTBA_SCREEN_SCALE: process.env.RUTBA_SCREEN_SCALE || '1.5',
+    RUTBA_FAKE_MEDIA: '1',
+    // Comments, changes and signatures are signed by an invented person,
+    // never by the account the build happens to run under.
+    RUTBA_SCREENS_AUTHOR: 'Imogen Hartley',
+  };
+  if (boot.theme) env.RUTBA_SMOKE_THEME = boot.theme;
+  else delete env.RUTBA_SMOKE_THEME;
+  if (boot.language) env.RUTBA_LANGUAGE = boot.language;
+  else delete env.RUTBA_LANGUAGE;
+  if (mail) {
+    env.RUTBA_SMOKE_SEED = '1';
+    env.RUTBA_SMOKE_SEED_NAME = 'Archive';
+  } else {
+    delete env.RUTBA_SMOKE_SEED;
+    delete env.RUTBA_SMOKE_SEED_NAME;
+  }
+  await new Promise((resolve) => {
+    const child = spawn(electron, [appDir, `--user-data-dir=${profile}`], { stdio: 'ignore', env });
+    child.on('exit', resolve);
+  });
+  for (const f of list) {
+    const png = path.join(featureOut, `${f.name}.png`);
+    const size = fs.existsSync(png) ? fs.statSync(png).size : 0;
+    results.push({ app: f.name, ok: size > 5000, size });
+    process.stdout.write(`${size > 5000 ? 'ok  ' : 'FAIL'} ${f.name.padEnd(26)} ${String(Math.round(size / 1024)).padStart(5)} KB\n`);
+  }
+}
+if (featuresWanted.length && fs.existsSync(path.join(featureOut, 'report.txt'))) {
+  console.log(`\nthe feature run's own report is ${path.join(featureOut, 'report.txt')}`);
 }
 
 fs.rmSync(work, { recursive: true, force: true });

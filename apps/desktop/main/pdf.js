@@ -52,6 +52,8 @@ const { compressPlan, compressPdf } = pdfCompress;
 /** Who a comment is signed by: the account at the keyboard, as the other apps sign theirs. */
 function userName() {
   try {
+    // The screens build signs as an invented person (see documents.js).
+    if (process.env.RUTBA_SCREENS_AUTHOR) return process.env.RUTBA_SCREENS_AUTHOR;
     return os.userInfo().username || 'Rutba Office user';
   } catch {
     return 'Rutba Office user';

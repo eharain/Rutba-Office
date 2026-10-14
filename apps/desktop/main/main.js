@@ -355,6 +355,21 @@ createShell({
     }
     if (process.env.RUTBA_OFFICE_SMOKE) {
       return finish(async () => {
+        // `RUTBA_SCREENS_FEATURES`: the screens build's feature captures,
+        // each a window driven into the state that shows one feature.
+        if (process.env.RUTBA_SCREENS_FEATURES) {
+          const { runFeatureScreens } = await import('./screen-run.js');
+          if (process.env.RUTBA_SMOKE_THEME) stores.settings.set('theme', process.env.RUTBA_SMOKE_THEME);
+          return runFeatureScreens({
+            windows,
+            outDir: process.env.RUTBA_SMOKE_OUT || path.join(app, 'build', 'screens', 'features'),
+            samples: process.env.RUTBA_SCREENS_SAMPLES,
+            doc: directDoc(),
+            stores,
+            mail: services?.mail,
+            broadcast,
+          });
+        }
         const { runSmoke } = await import('./smoke.js');
         return runSmoke({
           windows,

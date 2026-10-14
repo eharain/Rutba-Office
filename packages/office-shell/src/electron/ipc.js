@@ -450,7 +450,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   const KEYS = { stop: 'CommandOrControl+Shift+F10', pause: 'CommandOrControl+Shift+F9' };
   const SHOWN_KEYS = { stop: isMac ? 'Cmd+Shift+F10' : 'Ctrl+Shift+F10', pause: isMac ? 'Cmd+Shift+F9' : 'Ctrl+Shift+F9' };
   let held = null; // { win, tray, minimised, release }
-  const CHECK = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT);
+  const CHECK = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_SCREENS_FEATURES);
   const releaseControls = () => {
     const h = held;
     held = null;
@@ -663,7 +663,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
  * path }`, `'open'` with a list of paths, `'message'` with `{ response }`.
  * A dialog with no answer waiting opens as it always does.
  */
-const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT);
+const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_SCREENS_FEATURES);
 if (CHECK_RUN) globalThis.__rutbaCheckDialogAnswers = globalThis.__rutbaCheckDialogAnswers || [];
 function plannedAnswer(kind) {
   const queue = CHECK_RUN ? globalThis.__rutbaCheckDialogAnswers : null;

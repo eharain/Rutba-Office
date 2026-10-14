@@ -22,6 +22,9 @@ import { buildXlsx, buildDocx } from '@rutba/ooxml/build';
 /** The account's name, or nothing: a machine that refuses to say is not an error. */
 function safeUserName() {
   try {
+    // The screens build signs comments and changes as an invented person:
+    // a published picture never carries the name of whoever ran it.
+    if (process.env.RUTBA_SCREENS_AUTHOR) return process.env.RUTBA_SCREENS_AUTHOR;
     return os.userInfo().username || '';
   } catch {
     return '';
