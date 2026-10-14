@@ -310,6 +310,7 @@ export const METHODS = {
     'annotate',     // ({ id, changes: { add, reply, resolve, edit, remove }, author }) -> { id, ...open's answer, added, annotations, fields, bytes }: comments changed as an incremental update, a new source
     'fields',       // ({ id }) -> [{ id, name, type, value, options, multiline, readOnly, widgets: [{ id, page, rect, onState, state }], ... }]: the form's fields
     'fill',         // ({ id, values: { [fieldId]: value } }) -> { id, ...open's answer, changed, annotations, fields, bytes }: form values with appearances, as an incremental update, a new source
+    'addCheckboxes', // ({ id, boxes: [{ page, rect, name, checked }] }) -> { id, ...open's answer, added, annotations, fields, bytes }: check box fields where a scanned form's tick boxes are, as an incremental update, a new source
     'navigation',   // ({ id }) -> { outline: [{ title, page, url, bold, italic, open, kids }], labels: [string] | null, links: [{ page, rect, target, url }] }
     'compressPlan', // ({ pages, dpi }) -> { token, size, plan: [{ ref, width, height, toWidth, toHeight, filter, comps, data }] }: pictures shown at more than dpi
     'compress',     // ({ token, dpi, images: { [ref]: { data, width, height, filter, comps } }, path }) -> { path, before, after, replaced }: written whole as a new file

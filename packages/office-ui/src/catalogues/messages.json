@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6959,
+  "count": 6975,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -6977,6 +6977,12 @@
       ]
     },
     {
+      "message": "Close the Fields pane",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/found.js"
+      ]
+    },
+    {
       "message": "Close the Restrict Editing pane",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
@@ -7812,6 +7818,12 @@
       ]
     },
     {
+      "message": "Copied as a row: paste it into a sheet.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Copied selection {number}",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
@@ -7896,6 +7908,18 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Copy as a Row",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/found.js"
+      ]
+    },
+    {
+      "message": "Copy as a Row: the date, supplier, number, subtotal, tax, total and currency, to paste into a sheet as one row",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/found.js"
       ]
     },
     {
@@ -8350,6 +8374,7 @@
     {
       "message": "Currency",
       "where": [
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -8840,6 +8865,7 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/parts.js",
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -10476,7 +10502,8 @@
     {
       "message": "Due",
       "where": [
-        "apps/desktop/renderer/apps/mail/docnote.js"
+        "apps/desktop/renderer/apps/mail/docnote.js",
+        "apps/desktop/renderer/apps/pdf/found.js"
       ]
     },
     {
@@ -12156,6 +12183,8 @@
     {
       "message": "Fields",
       "where": [
+        "apps/desktop/renderer/apps/pdf/found.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -12163,6 +12192,12 @@
       "message": "Fields in braces are resolved when the page is drawn and when it is printed.",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Fields: the details of an invoice or a receipt and the tick boxes of a form that Recognise Text found, in a pane",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -12564,6 +12599,12 @@
       "message": "Find and replace…",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Find fields: an invoice's or a receipt's details and a form's tick boxes, offered in the Fields pane",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/ocr.js"
       ]
     },
     {
@@ -13215,6 +13256,7 @@
     {
       "message": "Form",
       "where": [
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
@@ -16778,6 +16820,7 @@
       "message": "Invoice",
       "where": [
         "apps/desktop/renderer/apps/mail/docnote.js",
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/registry-words.js",
         "apps/desktop/renderer/template-gallery.js"
       ]
@@ -16905,6 +16948,18 @@
       "message": "Its sums agree, so its figures go in as read.",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
+      "message": "Its sums agree.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/found.js"
+      ]
+    },
+    {
+      "message": "Its sums do not agree, or were not all found: check the figures against the page.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/found.js"
       ]
     },
     {
@@ -17869,6 +17924,7 @@
     {
       "message": "Letter",
       "where": [
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/registry-words.js",
         "apps/desktop/renderer/template-gallery.js"
       ]
@@ -18842,6 +18898,18 @@
       "message": "Main entry",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js"
+      ]
+    },
+    {
+      "message": "Make Check Box Fields",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/found.js"
+      ]
+    },
+    {
+      "message": "Make Check Box Fields: the tick boxes become check boxes of the form, ticked as they were read, to fill and save",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/found.js"
       ]
     },
     {
@@ -21357,6 +21425,12 @@
       ]
     },
     {
+      "message": "No fields were found. Recognise Text with Find fields ticked reads an invoice's or a receipt's fields and a form's tick boxes.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/found.js"
+      ]
+    },
+    {
       "message": "No file chosen",
       "where": [
         "apps/desktop/renderer/object-insert.js"
@@ -22412,6 +22486,7 @@
       "where": [
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/mail/docnote.js",
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -23601,6 +23676,7 @@
     {
       "message": "Page",
       "where": [
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
       ]
     },
@@ -23819,6 +23895,7 @@
       "message": "Page {page}",
       "where": [
         "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/pdf/view.js"
       ]
     },
@@ -26162,7 +26239,8 @@
     {
       "message": "Receipt",
       "where": [
-        "apps/desktop/renderer/apps/mail/docnote.js"
+        "apps/desktop/renderer/apps/mail/docnote.js",
+        "apps/desktop/renderer/apps/pdf/found.js"
       ]
     },
     {
@@ -33107,6 +33185,7 @@
     {
       "message": "Subtotal",
       "where": [
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -33270,6 +33349,7 @@
     {
       "message": "Supplier",
       "where": [
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
@@ -33644,6 +33724,7 @@
     {
       "message": "Tax",
       "where": [
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
@@ -33969,6 +34050,13 @@
     {
       "message": "Text recognised on {count} page. Find, select and copy now work on it.",
       "plural": "Text recognised on {count} pages. Find, select and copy now work on them.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Text recognised, and fields found on {count} page: they are in the Fields pane.",
+      "plural": "Text recognised, and fields found on {count} pages: they are in the Fields pane.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
       ]
@@ -34510,6 +34598,12 @@
       "message": "The changing cell must hold a plain value, not a formula",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The check boxes could not be made: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -36038,6 +36132,12 @@
       ]
     },
     {
+      "message": "These tick boxes are check box fields of the form.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/found.js"
+      ]
+    },
+    {
       "message": "These words, together and in this order, anywhere in the message",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
@@ -37458,6 +37558,7 @@
       "message": "Total",
       "where": [
         "apps/desktop/renderer/apps/mail/docnote.js",
+        "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -42257,6 +42358,13 @@
       ]
     },
     {
+      "message": "{count} check box field made. Tick or clear it on the page, then save.",
+      "plural": "{count} check box fields made. Tick or clear them on the page, then save.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "{count} citation marked.",
       "plural": "{count} citations marked.",
       "where": [
@@ -43079,6 +43187,13 @@
       ]
     },
     {
+      "message": "{count} tick box, {ticked} ticked",
+      "plural": "{count} tick boxes, {ticked} ticked",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/found.js"
+      ]
+    },
+    {
       "message": "{count} tracked change was found.",
       "plural": "{count} tracked changes were found.",
       "where": [
@@ -43192,7 +43307,8 @@
     {
       "message": "{field}: show where it was read",
       "where": [
-        "apps/desktop/renderer/apps/mail/docnote.js"
+        "apps/desktop/renderer/apps/mail/docnote.js",
+        "apps/desktop/renderer/apps/pdf/found.js"
       ]
     },
     {

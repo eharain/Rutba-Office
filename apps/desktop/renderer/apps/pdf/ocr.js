@@ -8,10 +8,24 @@
 // the same viewport that drew it, so a rotated or cropped page comes out
 // right. The main process then appends the layer to the file as an
 // incremental update (main/pdf.js addText): nothing of a page is redrawn.
+//
+// With Find fields chosen, each scanned page is read as a document as well
+// (one reading gives both): an invoice's or a receipt's fields and a form's
+// tick boxes come back for the Fields pane (found.js).
 
 import React, { useState } from 'react';
 import { Button, Dialog, Progress, t, tn } from '@rutba/office-ui';
-import { OcrLanguagePicker, chosenOcrLanguages, rememberOcrLanguages, recognisePixels } from '../../ocr-ui.js';
+import { OcrLanguagePicker, chosenOcrLanguages, rememberOcrLanguages, recognisePixels, readDocument } from '../../ocr-ui.js';
+import { foundOnPage } from './found.js';
+
+const FIELDS_KEY = 'rutba-ocr-find-fields';
+/** Whether Recognise Text also finds the fields, as last chosen (yes the first time). */
+export function chosenFindFields() {
+  try { return localStorage.getItem(FIELDS_KEY) !== 'no'; } catch { return true; }
+}
+function rememberFindFields(on) {
+  try { localStorage.setItem(FIELDS_KEY, on ? 'yes' : 'no'); } catch { /* asked again next time */ }
+}
 import { getPage, pageText } from './pdfjs.js';
 
 const MAX_DPI = 300;
@@ -70,9 +84,11 @@ export function wordOnPage(word, viewport) {
 /**
  * Recognise the scanned pages among `targets` ([{ source, page }], each
  * once). `onProgress({ done, total, page })` after each; `cancelled()`
- * stops between pages. Returns, per source, the pages to write and counts.
+ * stops between pages. Returns, per source, the pages to write and counts,
+ * and with `fields`, what each page offered as a document
+ * (found: [{ source, page, found }]).
  */
-export async function recognisePages({ shell, sources, targets, languages, onProgress, cancelled, job }) {
+export async function recognisePages({ shell, sources, targets, languages, onProgress, cancelled, job, fields = false }) {
   const scanned = [];
   let skipped = 0;
   for (const target of targets) {
@@ -84,13 +100,16 @@ export async function recognisePages({ shell, sources, targets, languages, onPro
   const bySource = new Map();
   let words = 0;
   let done = 0;
+  const found = [];
   onProgress?.({ done, total: scanned.length });
   for (const target of scanned) {
     if (cancelled?.()) break;
     const source = sources[target.source];
     const { pixels, viewport, dpi } = await pagePixels(source.doc, target.page);
     if (cancelled?.()) break;
-    const result = await recognisePixels(shell, pixels, { languages, dpi, job });
+    const result = fields ? await readDocument(shell, pixels, { languages, dpi, job }) : await recognisePixels(shell, pixels, { languages, dpi, job });
+    const offered = fields ? foundOnPage(result.document, viewport, { languages }) : null;
+    if (offered) found.push({ source: target.source, page: target.page, found: offered });
     const lines = result.lines.map((line) => ({
       words: result.words.slice(line.words[0], line.words[1]).map((w) => wordOnPage(w, viewport)),
     }));
@@ -100,13 +119,14 @@ export async function recognisePages({ shell, sources, targets, languages, onPro
     done += 1;
     onProgress?.({ done, total: scanned.length, page: target.page });
   }
-  return { bySource, scanned: scanned.length, skipped, done, words };
+  return { bySource, scanned: scanned.length, skipped, done, words, found };
 }
 
 /** The Recognise Text dialog: which pages, which languages; then its progress, with Cancel. */
 export function RecogniseDialog({ count, picked, current, progress, onStart, onCancel, onClose }) {
   const [scope, setScope] = useState(picked > 1 ? 'picked' : 'all');
   const [languages, setLanguages] = useState(chosenOcrLanguages);
+  const [fields, setFields] = useState(chosenFindFields);
   if (progress) {
     const { done = 0, total = 0 } = progress;
     return (
@@ -132,7 +152,7 @@ export function RecogniseDialog({ count, picked, current, progress, onStart, onC
       actions={(
         <>
           <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Recognise')} data-role="ocr-go" onClick={() => { rememberOcrLanguages(languages); onStart({ scope, languages }); }} />
+          <Button primary label={t('Recognise')} data-role="ocr-go" onClick={() => { rememberOcrLanguages(languages); rememberFindFields(fields); onStart({ scope, languages, fields }); }} />
         </>
       )}
     >
@@ -156,6 +176,10 @@ export function RecogniseDialog({ count, picked, current, progress, onStart, onC
           <div className="ocr-form-label">{t('Languages in the pages')}</div>
           <OcrLanguagePicker value={languages} onChange={setLanguages} />
         </div>
+        <label className="ocr-choice">
+          <input type="checkbox" checked={fields} onChange={(e) => setFields(e.target.checked)} data-role="ocr-find-fields" />
+          <span>{t("Find fields: an invoice's or a receipt's details and a form's tick boxes, offered in the Fields pane")}</span>
+        </label>
         <div className="ocr-foot">{t('Pages that already have text are left as they are. The words are added as an invisible layer, so the pages look exactly as they did, and can then be searched, selected and copied. Nothing leaves this computer.')}</div>
       </div>
     </Dialog>

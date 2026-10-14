@@ -248,3 +248,26 @@ test('on the pool: an invoice the suite drew gives its row with sums that agree,
     await host.stop();
   }
 });
+
+test('checkboxLabels: marks read over the next box (its sides as brackets) end a name and are no part of it', () => {
+  const box = (x) => ({ box: { x, y: 100, width: 24, height: 24 }, checked: false });
+  const words = [
+    { text: 'Phone’', box: { x: 140, y: 100, width: 66, height: 22 } },
+    { text: '’', box: { x: 300, y: 100, width: 6, height: 22 } },
+    { text: '[{', box: { x: 310, y: 100, width: 14, height: 22 } },
+    { text: 'Post', box: { x: 340, y: 100, width: 44, height: 22 } },
+    { text: '|', box: { x: 500, y: 100, width: 4, height: 22 } },
+    { text: 'Fax', box: { x: 540, y: 100, width: 40, height: 22 } },
+  ];
+  assert.deepEqual(checkboxLabels([box(100), box(298), box(498)], words), ['Phone', 'Post', 'Fax']);
+});
+
+test('invoiceNote: a letter that only names an invoice, with no total, number or due date, gives no note', () => {
+  const letter = page([
+    [60, [['Rutba Office reads the words in a picture on this computer', 100]]],
+    [140, [['Keep the invoice and the record together.', 100]]],
+  ]);
+  const read = documentFields(letter);
+  assert.equal(read.kind, 'invoice', 'the word alone makes it look like one');
+  assert.equal(invoiceNote(read), null);
+});

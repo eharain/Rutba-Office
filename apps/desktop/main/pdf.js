@@ -44,7 +44,7 @@ const { openPdf, PdfReadError } = pdfRead;
 const { assemble } = pdfAssemble;
 const { addTextLayer } = pdfTextLayer;
 const { readAnnotations, annotate } = pdfAnnotations;
-const { readFields, fillFields } = pdfForms;
+const { readFields, fillFields, addCheckboxes } = pdfForms;
 const { redactPages, scrubber, redactionPlan } = pdfRedact;
 const { outlinePages, readLinks, pageLabels, labelText } = pdfNavigation;
 const { compressPlan, compressPdf } = pdfCompress;
@@ -325,6 +325,22 @@ export function createPdfService() {
       const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true };
       open.set(newId, added);
       return { ...describe(newId, added), changed, annotations: readAnnotations(file), fields: readFields(file), bytes: new Uint8Array(bytes) };
+    },
+
+    /**
+     * Check box fields made where a scanned form's tick boxes are (Find
+     * Fields): [{ page, rect, name, checked }], as an incremental update. A
+     * new source, the old one kept for Undo.
+     */
+    addCheckboxes: ({ id, boxes }, win) => {
+      const entry = get(id);
+      const { bytes, added: made } = addCheckboxes(entry.file.buf, boxes || []);
+      const file = openPdf(bytes);
+      file.pages();
+      const newId = `p${next++}`;
+      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true };
+      open.set(newId, added);
+      return { ...describe(newId, added), added: made, annotations: readAnnotations(file), fields: readFields(file), bytes: new Uint8Array(bytes) };
     },
 
     /** The words on one page of an open PDF, as its content draws them. */

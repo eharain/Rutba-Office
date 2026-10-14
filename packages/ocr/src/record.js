@@ -120,7 +120,8 @@ export function invoiceNote(doc) {
   const note = { kind: doc.kind, from: part('supplier'), total: part('total'), dueDate: part('dueDate'), number: part('number'), currency: doc.currency || null, consistent: Boolean(doc.checks?.consistent) };
   // A figure is sure only when the sums agree.
   if (note.total) note.total.sure = note.consistent;
-  if (!note.from && !note.total && !note.dueDate && !note.number) return null;
+  // Who it is from alone is a guess (the largest writing near the top): a letter that names an invoice is not one.
+  if (!note.total && !note.dueDate && !note.number) return null;
   return note;
 }
 
@@ -150,12 +151,15 @@ export function checkboxLabels(checkboxes, words = [], { rtl = false } = {}) {
     for (const w of onRow) {
       const gap = rtl ? edge - (w.box.x + w.box.width) : w.box.x - edge;
       if (gap > Math.max(b.width, w.box.height) * (taken.length ? 1.6 : 3)) break;
-      // Another box between: its words are its own.
-      if (others.some((o) => Math.abs(o.y + o.height / 2 - mid) < b.height && (rtl ? o.x < edge && o.x + o.width > w.box.x + w.box.width : o.x > edge && o.x < w.box.x))) break;
+      // Another box between, or under the word (a box read as marks): its words are its own.
+      if (others.some((o) => Math.abs(o.y + o.height / 2 - mid) < b.height && (rtl ? o.x < edge && o.x + o.width > w.box.x : o.x > edge - 1 && o.x < w.box.x + w.box.width))) break;
+      // Marks with no letter or digit (a box's sides read as brackets) are not words of a name.
+      if (!/[\p{L}\p{N}]/u.test(w.text)) continue;
       taken.push(w.text);
       edge = rtl ? w.box.x : w.box.x + w.box.width;
     }
-    let name = taken.join(' ').replace(/[\s.:：]+$/u, '').trim() || `Check Box ${i + 1}`;
+    // A box's side read with the word beside it (Phone’) is no part of the name: marks at either end go.
+    let name = taken.join(' ').replace(/^[^\p{L}\p{N}(]+|[^\p{L}\p{N})]+$/gu, '').trim() || `Check Box ${i + 1}`;
     const n = (used.get(name) || 0) + 1;
     used.set(name, n);
     if (n > 1) name = `${name} ${n}`;

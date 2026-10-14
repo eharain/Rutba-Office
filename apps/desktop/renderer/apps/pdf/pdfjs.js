@@ -146,14 +146,26 @@ export function drawPage(doc, index, canvas, { scale, rotate = 0, priority = 1 }
  * layer): positioned by the same viewport the canvas was drawn with.
  */
 export async function drawText(doc, index, container, { scale, rotate = 0 }) {
+  // Drawn again before the last draw ended (the zoom changed as a pane opened): the last one is
+  // stopped, or both would add their words to the one layer and every word would be there twice.
+  const token = (container.rutbaTextDraw = (container.rutbaTextDraw || 0) + 1);
   const lib = await pdfjs();
   const page = await getPage(doc, index);
+  if (container.rutbaTextDraw !== token) return null;
+  container.rutbaTextLayer?.cancel?.();
   const viewport = page.getViewport({ scale, rotation: rotate });
   container.replaceChildren();
   container.style.setProperty('--total-scale-factor', String(scale));
   container.style.setProperty('--scale-factor', String(scale));
   const layer = new lib.TextLayer({ textContentSource: page.streamTextContent(), container, viewport });
-  await layer.render();
+  container.rutbaTextLayer = layer;
+  try {
+    await layer.render();
+  } catch (err) {
+    if (container.rutbaTextDraw !== token) return null;
+    throw err;
+  }
+  if (container.rutbaTextDraw !== token) return null;
   const end = document.createElement('div');
   end.className = 'endOfContent';
   container.append(end);

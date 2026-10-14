@@ -51,6 +51,8 @@ import { ThumbStrip, PageView, PX_PER_PT } from './view.js';
 import { CSS } from './css.js';
 import { RecogniseDialog, recognisePages } from './ocr.js';
 import { OCR_CSS } from '../../ocr-ui.js';
+import { FieldsPane, FoundMark, FOUND_CSS } from './found.js';
+import { RECORD_FIELDS } from '@rutba/ocr/record';
 import {
   AnnotLayer, CommentsPane, NoteEditor, commentItems, selectionQuads, swatch, cssColour,
   MARKUP_TOOLS, TOOL_TYPES, SWATCHES, DEFAULT_TOOL_COLOURS,
@@ -149,6 +151,10 @@ export default function PdfApp({ app, shell, boot }) {
   const [ocr, setOcr] = useState(null);
   const ocrStop = useRef(false);
   const ocrJob = useRef(null);
+  // Find Fields: what Recognise Text found on each page (by the page's key), the pane, and the field marked on its page.
+  const [found, setFound] = useState({});
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [foundMark, setFoundMark] = useState(null);
   // Comments: the tool in hand, each tool's colour, the comment picked, the pane, and a note being typed.
   const [tool, setTool] = useState(null);
   const toolRef = useRef(tool);
@@ -384,7 +390,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   /* ── recognising text ──────────────────────────────────────────────── */
 
-  const recognise = useCallback(async ({ scope, languages }) => {
+  const recognise = useCallback(async ({ scope, languages, fields = false }) => {
     if (guardLocked()) return;
     const list = pagesRef.current;
     const keys = new Set(scope === 'picked' ? selectedRef.current : scope === 'current' ? [currentRef.current] : list.map((p) => p.key));
@@ -408,6 +414,7 @@ export default function PdfApp({ app, shell, boot }) {
         job: ocrJob.current,
         cancelled: () => ocrStop.current,
         onProgress: (progress) => setOcr({ progress }),
+        fields,
       });
       if (ocrStop.current) {
         toast(t('Recognise Text was cancelled. Nothing was changed.'), { ms: 4000 });
@@ -416,6 +423,11 @@ export default function PdfApp({ app, shell, boot }) {
       if (!out.scanned) {
         toast(t('Every page chosen already has text, so there was nothing to recognise.'), { ms: 5000 });
         return;
+      }
+      // What each page offered, by the keys of the pages showing it (a page's key outlives its source).
+      const offered = {};
+      for (const f of out.found || []) {
+        for (const p of pagesRef.current) if (p.source === f.source && p.page === f.page) offered[p.key] = f.found;
       }
       const swap = {};
       for (const [id, written] of out.bySource) {
@@ -428,7 +440,15 @@ export default function PdfApp({ app, shell, boot }) {
         swap[id] = info.id;
       }
       if (Object.keys(swap).length) edit(pagesRef.current.map((p) => (swap[p.source] ? { ...p, source: swap[p.source] } : p)));
-      if (out.words) toast(tn(out.done, 'Text recognised on {count} page. Find, select and copy now work on it.', 'Text recognised on {count} pages. Find, select and copy now work on them.'), { tone: 'good', ms: 5000 });
+      const offeredCount = Object.keys(offered).length;
+      if (offeredCount) {
+        setFound((all) => ({ ...all, ...offered }));
+        setFoundMark(null);
+        setCommentsOpen(false);
+        setFieldsOpen(true);
+      }
+      if (offeredCount) toast(tn(offeredCount, 'Text recognised, and fields found on {count} page: they are in the Fields pane.', 'Text recognised, and fields found on {count} pages: they are in the Fields pane.'), { tone: 'good', ms: 6000 });
+      else if (out.words) toast(tn(out.done, 'Text recognised on {count} page. Find, select and copy now work on it.', 'Text recognised on {count} pages. Find, select and copy now work on them.'), { tone: 'good', ms: 5000 });
       else toast(t('No words were found on the scanned pages.'), { ms: 5000 });
     } catch (err) {
       if (err?.code === 'OCR_CANCELLED' || ocrStop.current) toast(t('Recognise Text was cancelled. Nothing was changed.'), { ms: 4000 });
@@ -473,13 +493,15 @@ export default function PdfApp({ app, shell, boot }) {
     const swap = {};
     let first = null;
     try {
-      for (const { source: asked, changes, values } of list) {
+      for (const { source: asked, changes, values, checkboxes } of list) {
         // The version the pages show now: what this change was asked of, unless a change before it replaced it.
         let id = asked;
         while (!pagesRef.current.some((p) => p.source === id) && newer.current.has(id)) id = newer.current.get(id);
-        const { bytes, added, annotations, fields, ...info } = values
-          ? await shell.pdf.fill({ id, values })
-          : await shell.pdf.annotate({ id, changes });
+        const { bytes, added, annotations, fields, ...info } = checkboxes
+          ? await shell.pdf.addCheckboxes({ id, boxes: checkboxes })
+          : values
+            ? await shell.pdf.fill({ id, values })
+            : await shell.pdf.annotate({ id, changes });
         const doc = await openDocument(bytes);
         const old = sourcesRef.current[id];
         const source = { id: info.id, name: info.name, path: old?.path || null, info, doc, annots: annotations, fields, nav: old?.nav || null };
@@ -490,7 +512,7 @@ export default function PdfApp({ app, shell, boot }) {
         if (!first && added?.length) first = added[0];
       }
     } catch (err) {
-      toast(list.some((x) => x.values) ? t('The form could not be filled: {reason}', { reason: err.message }) : t('The comment could not be written: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      toast(list.some((x) => x.checkboxes) ? t('The check boxes could not be made: {reason}', { reason: err.message }) : list.some((x) => x.values) ? t('The form could not be filled: {reason}', { reason: err.message }) : t('The comment could not be written: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
       return null;
     }
     if (Object.keys(swap).length) edit(pagesRef.current.map((p) => (swap[p.source] ? { ...p, source: swap[p.source] } : p)));
@@ -498,6 +520,37 @@ export default function PdfApp({ app, shell, boot }) {
     return first;
   };
   writeRef.current = writeChanges;
+
+  /* ── fields found ───────────────────────────────────────────────────── */
+
+  const toggleFields = useCallback(() => {
+    setCommentsOpen(false);
+    setFieldsOpen((v) => !v);
+    setFoundMark(null);
+  }, []);
+
+  /** A field or a tick box pressed in the pane: marked on its page, the page brought into view. */
+  const markFound = useCallback((mark) => {
+    setFoundMark(mark);
+    goToRef.current?.(mark.key);
+  }, []);
+
+  /** An invoice's details as one row a sheet takes cell by cell. */
+  const copyFoundRow = useCallback(async (item) => {
+    const byField = Object.fromEntries(item.found.fields.map((x) => [x.field, x.text]));
+    const cells = RECORD_FIELDS.map((name) => byField[name] ?? '');
+    const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    await shell.clipboard.write({ text: cells.join('\t'), html: `<table><tr>${cells.map((v) => `<td>${esc(v)}</td>`).join('')}</tr></table>` });
+    toast(t('Copied as a row: paste it into a sheet.'), { tone: 'good' });
+  }, [shell, toast]);
+
+  /** A form's tick boxes made check box fields, ticked as they were read: one step Undo takes back. */
+  const makeCheckboxes = useCallback(async (item, boxes) => {
+    const entry = pagesRef.current.find((p) => p.key === item.key);
+    if (!entry || !boxes.length) return;
+    const first = await changeComments([{ source: entry.source, checkboxes: boxes.map((c) => ({ page: entry.page, rect: c.rect, name: c.label, checked: c.checked })) }]);
+    if (first) toast(tn(boxes.length, '{count} check box field made. Tick or clear it on the page, then save.', '{count} check box fields made. Tick or clear them on the page, then save.'), { tone: 'good', ms: 5000 });
+  }, [changeComments, toast]);
 
   const colourOf = useCallback((which) => swatch(toolColours[which] || DEFAULT_TOOL_COLOURS[which]).rgb, [toolColours]);
 
@@ -746,6 +799,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   const overlay = useCallback((entry, { source, scale }) => (
     <>
+      <FoundMark entry={entry} source={source} scale={scale} mark={foundMark} />
       <FieldLayer entry={entry} source={source} scale={scale} fields={source?.fields} highlight={tintFields} onFill={fillField} />
       <AnnotLayer
       entry={entry}
@@ -761,7 +815,7 @@ export default function PdfApp({ app, shell, boot }) {
       onLink={followLink}
       />
     </>
-  ), [tool, colourOf, picked, pickComment, onCreate, viewports, tintFields, fillField, followLink]);
+  ), [tool, colourOf, picked, pickComment, onCreate, viewports, tintFields, fillField, followLink, foundMark]);
 
   /* ── writing ────────────────────────────────────────────────────────── */
 
@@ -1312,6 +1366,7 @@ export default function PdfApp({ app, shell, boot }) {
           </Group>
           <Group label={t('Scans')}>
             <Button tall icon="scanText" label={t('Recognise Text')} title={t('Recognise Text: the words in scanned pages found, so they can be searched, selected and copied; the pages look as they did')} disabled={!canEdit || Boolean(ocr)} onClick={askRecognise} data-role="recognise-text" />
+            <Button tall icon="scanReceipt" label={t('Fields')} title={t('Fields: the details of an invoice or a receipt and the tick boxes of a form that Recognise Text found, in a pane')} pressed={fieldsOpen} disabled={!hasDoc} onClick={toggleFields} data-role="fields-toggle" />
           </Group>
           <Group label={t('Pages')}>
             <Rows>
@@ -1333,6 +1388,7 @@ export default function PdfApp({ app, shell, boot }) {
           </Group>
           <Group label={t('Scans')}>
             <Button tall icon="scanText" label={t('Recognise Text')} title={t('Recognise Text: the words in scanned pages found, so they can be searched, selected and copied; the pages look as they did')} disabled={!canEdit || Boolean(ocr)} onClick={askRecognise} />
+            <Button tall icon="scanReceipt" label={t('Fields')} title={t('Fields: the details of an invoice or a receipt and the tick boxes of a form that Recognise Text found, in a pane')} pressed={fieldsOpen} disabled={!hasDoc} onClick={toggleFields} />
           </Group>
           <Group label={t('Insert')}>
             <Button tall icon="import" label={t('Insert from File')} title={t('Insert from File: the pages of other PDFs, after the selected page')} disabled={!canEdit} onClick={insertFromFile} data-role="insert-file" />
@@ -1394,7 +1450,7 @@ export default function PdfApp({ app, shell, boot }) {
             </div>
           </Group>
           <Group label={t('Show')}>
-            <Button tall icon="comment" label={t('Comments')} title={t('Comments: the pane listing every comment, to reply, resolve or delete')} pressed={commentsOpen} disabled={!hasDoc} onClick={() => setCommentsOpen((v) => !v)} data-role="comments-toggle" />
+            <Button tall icon="comment" label={t('Comments')} title={t('Comments: the pane listing every comment, to reply, resolve or delete')} pressed={commentsOpen} disabled={!hasDoc} onClick={() => { setFieldsOpen(false); setCommentsOpen((v) => !v); }} data-role="comments-toggle" />
           </Group>
         </>
       ) : null}
@@ -1475,7 +1531,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   return (
     <AppFrame app={app} shell={shell} title={name || app.name} dirty={hasDoc && dirty} menu={appMenu} ribbon={ribbon} status={status}>
-      <style>{CSS + OCR_CSS}</style>
+      <style>{CSS + OCR_CSS + FOUND_CSS}</style>
       {!hasDoc ? (
         failed ? (
           <Empty icon={locked ? 'lock' : 'pdf'} title={locked ? t('This PDF is protected') : t('This file could not be opened')} action={<div className="pdf-empty-actions"><Button primary icon="open" label={t('Open another')} onClick={openFile} /></div>}>
@@ -1589,6 +1645,17 @@ export default function PdfApp({ app, shell, boot }) {
             />
             {busy ? <div className="pdf-busy"><Spinner /></div> : null}
           </div>
+          {fieldsOpen ? (
+            <FieldsPane
+              items={pages.map((p, i) => (found[p.key] ? { key: p.key, number: i + 1, source: p.source, page: p.page, found: found[p.key] } : null)).filter(Boolean)}
+              sources={sources}
+              mark={foundMark}
+              onMark={markFound}
+              onCopyRow={copyFoundRow}
+              onMake={makeCheckboxes}
+              onClose={() => { setFieldsOpen(false); setFoundMark(null); }}
+            />
+          ) : null}
           {commentsOpen ? (
             <CommentsPane
               items={commentItems(pages, sources)}

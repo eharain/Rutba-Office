@@ -33,7 +33,7 @@ export function usePageViewport(source, entry, scale) {
 }
 
 /** A rectangle in the page's coordinates as a box on the screen page. */
-function boxOf(vp, r) {
+export function boxOf(vp, r) {
   const a = vp.convertToViewportPoint(r[0], r[1]);
   const b = vp.convertToViewportPoint(r[2], r[3]);
   return { left: Math.min(a[0], b[0]), top: Math.min(a[1], b[1]), width: Math.abs(b[0] - a[0]), height: Math.abs(b[1] - a[1]) };

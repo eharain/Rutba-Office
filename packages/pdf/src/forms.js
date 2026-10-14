@@ -354,4 +354,107 @@ function fillFields(bytes, values = {}) {
   return { bytes: up.toBuffer(), changed };
 }
 
-module.exports = { readFields, fillFields, textAppearance, parseDA, FF };
+/**
+ * A check box's two appearances, drawn in its own box: a thin square always,
+ * and a tick of strokes in the "on" one (no font: every reader draws a path
+ * the same).
+ */
+function checkboxLooks(width, height) {
+  const lw = Math.max(0.6, Math.min(width, height) * 0.06);
+  const frame = `0 0 0 RG ${n(lw)} w ${n(lw / 2)} ${n(lw / 2)} ${n(width - lw)} ${n(height - lw)} re S`;
+  const tick = `0 0 0 RG ${n(Math.max(1, Math.min(width, height) * 0.12))} w 1 J 1 j ${n(width * 0.22)} ${n(height * 0.52)} m ${n(width * 0.42)} ${n(height * 0.28)} l ${n(width * 0.8)} ${n(height * 0.76)} l S`;
+  const look = (content) => flateStream([['Type', new Name('XObject')], ['Subtype', new Name('Form')], ['BBox', [0, 0, Math.round(width * 1000) / 1000, Math.round(height * 1000) / 1000]], ['Resources', new Dict()]], content);
+  return { on: look(`${frame}\n${tick}`), off: look(frame) };
+}
+
+/**
+ * Check box fields put where a form's printed tick boxes are, as one
+ * incremental update: each a field and its widget in one (a /Btn with /T,
+ * /V and /AS, its appearances for Yes and Off), listed on its page and in the
+ * form's /Fields; a file with no form is given one. Ticked boxes come in
+ * ticked. Names already in the form are made unique with a number.
+ *
+ * @param {Buffer|Uint8Array} bytes the whole file
+ * @param {{ page: number, rect: number[], name?: string, checked?: boolean }[]} boxes
+ *   rect: [x0, y0, x1, y1] in the page's default user space
+ * @returns {{ bytes: Buffer, added: string[] }} the file with the update, and the new fields' ids
+ */
+function addCheckboxes(bytes, boxes = []) {
+  const up = new PdfUpdate(bytes, { what: 'A form field' });
+  const { file } = up;
+  const pages = file.pages();
+  const catalog = file.catalog();
+  const formRef = catalog.get('AcroForm');
+  const form = file.resolve(formRef);
+  const taken = new Set((form instanceof Dict ? readFields(file) : []).map((f) => f.name));
+  const fieldsRaw = form instanceof Dict ? form.get('Fields') : null;
+  const fieldList = form instanceof Dict && Array.isArray(file.resolve(fieldsRaw)) ? [...file.resolve(fieldsRaw)] : [];
+  const lists = new Map();
+  const added = [];
+  boxes.forEach((box, i) => {
+    const p = Number(box.page);
+    const page = pages[p];
+    if (!page?.ref) throw new UpdateError(`There is no page ${p + 1} in this PDF.`, 'page');
+    const r = (box.rect || []).map(Number);
+    if (r.length < 4 || !r.every(Number.isFinite)) throw new UpdateError('A check box needs a box on its page.', 'rect');
+    const rect = [Math.min(r[0], r[2]), Math.min(r[1], r[3]), Math.max(r[0], r[2]), Math.max(r[1], r[3])];
+    let base = String(box.name || '').replace(/[.\s]+/g, ' ').trim() || `Check Box ${i + 1}`;
+    let name = base;
+    for (let k = 2; taken.has(name); k++) name = `${base} ${k}`;
+    taken.add(name);
+    base = name;
+    const looks = checkboxLooks(rect[2] - rect[0], rect[3] - rect[1]);
+    const state = box.checked ? 'Yes' : 'Off';
+    const dict = new Dict([
+      ['Type', new Name('Annot')], ['Subtype', new Name('Widget')], ['FT', new Name('Btn')], ['T', textString(base)],
+      ['V', new Name(state)], ['AS', new Name(state)], ['Rect', rect.map((v) => Math.round(v * 1000) / 1000)], ['P', page.ref], ['F', 4],
+      ['DA', textString('/ZaDb 0 Tf 0 g')], ['MK', new Dict([['BC', [0, 0, 0]], ['BG', [1, 1, 1]], ['CA', textString('4')]])],
+      ['AP', new Dict([['N', new Dict([['Yes', up.add(looks.on)], ['Off', up.add(looks.off)]])]])],
+    ]);
+    const ref = up.add(dict);
+    fieldList.push(ref);
+    if (!lists.has(p)) {
+      const raw = page.dict.get('Annots');
+      const arr = file.resolve(raw);
+      lists.set(p, { raw, items: Array.isArray(arr) ? [...arr] : [] });
+    }
+    lists.get(p).items.push(ref);
+    added.push(String(ref.num));
+  });
+  if (!added.length) return { bytes: Buffer.from(bytes), added };
+  for (const [p, list] of lists) {
+    const page = pages[p];
+    if (list.raw instanceof Ref && Array.isArray(file.resolve(list.raw))) up.set(list.raw, list.items);
+    else {
+      const dict = copyDict(page.dict);
+      dict.set('Annots', list.items);
+      up.set(page.ref, dict);
+    }
+  }
+  // The form's list of fields, where it lives; and the font its check boxes name.
+  const zadb = new Dict([['Type', new Name('Font')], ['Subtype', new Name('Type1')], ['BaseFont', new Name('ZapfDingbats')]]);
+  if (form instanceof Dict) {
+    const next = copyDict(form);
+    if (fieldsRaw instanceof Ref && Array.isArray(file.resolve(fieldsRaw))) up.set(fieldsRaw, fieldList);
+    else next.set('Fields', fieldList);
+    const dr = file.resolve(next.get('DR'));
+    const fonts = dr instanceof Dict ? file.resolve(dr.get('Font')) : null;
+    if (!(fonts instanceof Dict && fonts.get('ZaDb'))) {
+      const nextDr = dr instanceof Dict ? copyDict(dr) : new Dict();
+      const nextFonts = fonts instanceof Dict ? copyDict(fonts) : new Dict();
+      nextFonts.set('ZaDb', up.add(zadb));
+      nextDr.set('Font', nextFonts);
+      next.set('DR', nextDr);
+    }
+    if (formRef instanceof Ref) up.set(formRef, next);
+    else { const cat = copyDict(catalog); cat.set('AcroForm', next); up.set(file.trailer.get('Root'), cat); }
+  } else {
+    const made = new Dict([['Fields', fieldList], ['DR', new Dict([['Font', new Dict([['ZaDb', up.add(zadb)]])]])], ['DA', textString('/Helv 0 Tf 0 g')]]);
+    const cat = copyDict(catalog);
+    cat.set('AcroForm', up.add(made));
+    up.set(file.trailer.get('Root'), cat);
+  }
+  return { bytes: up.toBuffer(), added };
+}
+
+module.exports = { readFields, fillFields, addCheckboxes, textAppearance, parseDA, FF };
