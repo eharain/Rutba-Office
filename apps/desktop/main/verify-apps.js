@@ -80,6 +80,10 @@ import { verifyImageLayers, verifyEditInImage } from './verify-image-layers.js';
 import { verifyImageTools } from './verify-image-tools.js';
 import { verifyPdfApp } from './verify-pdf-app.js';
 import { verifyOcrPdf } from './verify-ocr-pdf.js';
+import { verifyPdfAnnot } from './verify-pdf-annot.js';
+import { verifyPdfForms } from './verify-pdf-forms.js';
+import { verifyPdfRedact } from './verify-pdf-redact.js';
+import { verifyPdfOutline } from './verify-pdf-outline.js';
 import { verifyOcrPicture } from './verify-ocr-picture.js';
 import { verifyOcrSheet } from './verify-ocr-sheet.js';
 import { verifyRibbon } from './verify-ribbon.js';
@@ -4760,7 +4764,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,polish: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4830,6 +4834,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('image-tools')) await verifyImageTools({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('pdf-app')) await verifyPdfApp({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('ocr-pdf')) await verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('pdf-annot')) await verifyPdfAnnot({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('pdf-forms')) await verifyPdfForms({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('pdf-redact')) await verifyPdfRedact({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('pdf-outline')) await verifyPdfOutline({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('ocr-picture')) await verifyOcrPicture({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('ocr-sheet')) await verifyOcrSheet({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('ribbon')) await verifyRibbon({ open, check, until, wait }, { dir, files });
@@ -5142,6 +5150,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyImageTools({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyPdfApp({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir }));
+  await block(() => verifyPdfAnnot({ open, check, until, wait, errorsIn }, { dir }));
+  await block(() => verifyPdfForms({ open, check, until, wait, errorsIn }, { dir }));
+  await block(() => verifyPdfRedact({ open, check, until, wait, errorsIn }, { dir }));
+  await block(() => verifyPdfOutline({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyOcrPicture({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyOcrSheet({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyRibbon({ open, check, until, wait }, { dir, files }));

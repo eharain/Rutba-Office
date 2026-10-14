@@ -319,7 +319,7 @@ test('a link to a kept page follows it to its new place; one to a deleted page l
   const toThree = annots[0].get('Dest')[0];
   assert.ok(toThree instanceof Ref);
   assert.equal(toThree.num, out.pages()[0].ref.num, 'the link to page three now names the new first page');
-  assert.equal(annots[1].get('Dest')[0], null, 'page two was left out, so its link goes nowhere');
+  assert.equal(annots[1].get('Dest'), undefined, 'page two was left out, so its link goes nowhere');
   assert.equal(annots[0].get('P').num, out.pages()[1].ref.num, 'an annotation names its own page');
 });
 

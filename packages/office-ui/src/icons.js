@@ -152,6 +152,12 @@ const PATHS = {
   mkRect: [P('M4 6h16v12H4z')],
   mkEllipse: [P('M12 18.5c4.7 0 8.5-2.9 8.5-6.5S16.7 5.5 12 5.5 3.5 8.4 3.5 12s3.8 6.5 8.5 6.5z')],
   mkArrow: [P('M5 19 18 6'), P('M10 6h8v8')],
+  mkLine: [P('M5 19 19 5')],
+  // A signature written over its line, and a mark for redaction: a bar over a line of words.
+  signature: [P('M3 20h18'), P('M4 15c2-4 3.5-8 5-8 1.6 0-.8 8 1 8 1.4 0 2-3 3.2-3 1 0 .8 2 2 2 .8 0 1.6-.8 2.8-1.6')],
+  redact: [P('M4 9h16v6H4z', { fill: 'currentColor' }), P('M4 5h7M15 5h5M4 19h9M17 19h3')],
+  formField: [P('M3 8h18v8H3z'), P('M7 10.5v3')],
+
   mkText: [P('M5 6V4h14v2'), P('M12 4v16'), P('M9 20h6')],
   mkResize: [P('M4 9V4h5'), P('M20 15v5h-5'), P('m4 4 6 6'), P('m20 20-6-6'), P('M14 4h6v6M10 20H4v-6', { strokeDasharray: '2 2.2' })],
   mkLevels: [P('M3 19h18'), P('M5 19v-3M8 19v-7M11 19v-10M14 19v-6M17 19v-9M20 19v-4')],

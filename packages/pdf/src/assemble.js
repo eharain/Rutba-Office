@@ -18,6 +18,16 @@
  * page that IS kept is pointed at that page in the new file, so a link from
  * page 3 to page 1 still goes to page 1 after the two swap places.
  *
+ * What helps a person find their way goes with the pages (navigation.js):
+ * bookmarks whose pages are kept, pointing at those pages where they now
+ * stand (a bookmark to a page left out goes, its own bookmarks moving up a
+ * level); links and bookmarks to named destinations turned into explicit
+ * ones, so they work in any file the page lands in; each page's label as it
+ * was ("iv", "A-3"), written as the fewest ranges that say it; and a form's
+ * fields whose widgets are on kept pages, a merge's second field of a name
+ * renamed so the two stay two fields. A merge's bookmarks follow one
+ * another, in the order their files' pages first come.
+ *
  * The file is written plainly: every object on its own, one classic
  * cross-reference table. Object streams in the source are unpacked on the
  * way; nothing is recompressed.
@@ -27,6 +37,7 @@ const crypto = require('crypto');
 const {
   PdfFile, PdfReadError, Name, Ref, PdfString, Dict, Stream, INHERITABLE, normaliseRotation,
 } = require('./reader');
+const { resolveDest, isNamed, readOutline, pageLabels } = require('./navigation');
 
 // Page keys left behind with the page tree: the parent, and the beads of
 // article threads the new file does not carry.
@@ -35,9 +46,12 @@ const PAGE_DROP = new Set(['Parent', 'B']);
 /**
  * Build a PDF from pages of one or more files.
  *
- * @param {Array<{ file: PdfFile, page: number, rotate?: number }>} items
+ * @param {Array<{ file: PdfFile, page: number, rotate?: number, override?: object }>} items
  *   the new file's pages in order: which file, which page (0-based), and
  *   optionally the page's rotation in degrees (absolute, a multiple of 90)
+ *   and entries of the page replaced (a value of the reader's own, whose
+ *   references are to the same file and whose streams become new objects)
+ *   or taken away (null), as redaction replaces a page's contents
  * @param {{ title?: string, producer?: string, date?: Date }} [options]
  * @returns {Buffer}
  */
@@ -97,13 +111,32 @@ function assemble(items, options = {}) {
     if (depth > 512) throw new PdfReadError('the objects are nested too deeply to copy', 'damaged');
     if (value instanceof Ref) return refFor(file, value);
     if (Array.isArray(value)) return value.map((v) => copy(file, v, depth + 1));
-    if (value instanceof Stream) return new Stream(copyDict(file, value.dict, depth), value.data);
+    if (value instanceof Stream) {
+      const stream = new Stream(copyDict(file, value.dict, depth), value.data);
+      if (depth === 0) return stream;
+      // A stream given inside a value (a page's new contents, say) is an object of its own.
+      const n = next++;
+      objects[n] = stream;
+      return new Ref(n, 0);
+    }
     if (value instanceof Dict) return copyDict(file, value, depth);
     return value;
   };
   const copyDict = (file, dict, depth) => {
     const out = new Dict();
     for (const [k, v] of dict.entries()) out.set(k, copy(file, v, depth + 1));
+    // A destination: named ones made explicit, and one to a page left out taken away.
+    const s = dict.get('S');
+    for (const key of [dict.has('Dest') ? 'Dest' : null, s instanceof Name && s.name === 'GoTo' ? 'D' : null]) {
+      if (!key) continue;
+      let dest = out.get(key);
+      if (isNamed(file, dict.get(key))) {
+        const explicit = resolveDest(file, dict.get(key));
+        dest = explicit ? copy(file, explicit, depth + 1) : null;
+      }
+      if (Array.isArray(dest) && dest[0] !== null && dest[0] !== undefined) out.set(key, dest);
+      else if (Array.isArray(dest) || dest === null) out.delete(key);
+    }
     return out;
   };
 
@@ -112,12 +145,18 @@ function assemble(items, options = {}) {
     const dict = new Dict();
     dict.set('Type', new Name('Page'));
     dict.set('Parent', new Ref(pagesNum, 0));
+    const replaced = item.override || {};
     for (const [k, v] of page.dict.entries()) {
-      if (PAGE_DROP.has(k) || k === 'Type') continue;
+      // What the page's override replaces is never copied: the old objects would be written all the same.
+      if (PAGE_DROP.has(k) || k === 'Type' || k in replaced) continue;
       dict.set(k, copy(item.file, v));
     }
     for (const key of INHERITABLE) {
-      if (!dict.has(key) && page.inherited[key] !== undefined) dict.set(key, copy(item.file, page.inherited[key]));
+      if (!dict.has(key) && !(key in replaced) && page.inherited[key] !== undefined) dict.set(key, copy(item.file, page.inherited[key]));
+    }
+    for (const [k, v] of Object.entries(item.override || {})) {
+      if (v === null || v === undefined) dict.delete(k);
+      else dict.set(k, copy(item.file, v, 1));
     }
     if (!dict.has('MediaBox')) dict.set('MediaBox', [0, 0, 612, 792]);
     if (!dict.has('Resources')) dict.set('Resources', new Dict());
@@ -148,6 +187,131 @@ function assemble(items, options = {}) {
   while (queue.length) {
     const { file, ref, n } = queue.shift();
     objects[n] = copy(file, file.getObject(ref));
+  }
+  const files = [...copiers.keys()];
+  const drain = () => {
+    while (queue.length) {
+      const { file, ref, n } = queue.shift();
+      objects[n] = copy(file, file.getObject(ref));
+    }
+  };
+
+  // Bookmarks: each file's, its kept pages' only, in the order the files first come.
+  const built = [];
+  const build = (file, nodes) => {
+    const out = [];
+    for (const node of nodes) {
+      const kids = build(file, node.kids);
+      let dest = null;
+      if (node.dest) {
+        dest = copy(file, node.dest, 1);
+        if (!Array.isArray(dest) || dest[0] === null || dest[0] === undefined) { out.push(...kids); continue; }
+      }
+      const action = node.action ? copy(file, node.action, 1) : null;
+      if (!dest && !action && !kids.length) continue;
+      out.push({ ...node, dest, action, kids });
+    }
+    return out;
+  };
+  for (const file of files) built.push(...build(file, readOutline(file)));
+  drain();
+  if (built.length) {
+    const visible = (node) => (node.open ? node.kids.reduce((sum, k) => sum + 1 + visible(k), 0) : 0);
+    const place = (nodes, parent) => {
+      const nums = nodes.map(() => next++);
+      nodes.forEach((node, i) => {
+        const d = new Dict([['Title', textString(node.title)], ['Parent', new Ref(parent, 0)]]);
+        if (i > 0) d.set('Prev', new Ref(nums[i - 1], 0));
+        if (i < nodes.length - 1) d.set('Next', new Ref(nums[i + 1], 0));
+        if (node.dest) d.set('Dest', node.dest);
+        else if (node.action) d.set('A', node.action);
+        if (node.color) d.set('C', node.color);
+        const flags = (node.italic ? 1 : 0) | (node.bold ? 2 : 0);
+        if (flags) d.set('F', flags);
+        if (node.kids.length) {
+          const kidNums = place(node.kids, nums[i]);
+          d.set('First', new Ref(kidNums[0], 0));
+          d.set('Last', new Ref(kidNums[kidNums.length - 1], 0));
+          const all = node.kids.reduce((sum, k) => sum + 1 + visible(k), 0);
+          d.set('Count', node.open ? all : -all);
+        }
+        objects[nums[i]] = d;
+      });
+      return nums;
+    };
+    const rootNum = next++;
+    const top = place(built, rootNum);
+    objects[rootNum] = new Dict([
+      ['Type', new Name('Outlines')], ['First', new Ref(top[0], 0)], ['Last', new Ref(top[top.length - 1], 0)],
+      ['Count', built.reduce((sum, k) => sum + 1 + visible(k), 0)],
+    ]);
+    catalog.set('Outlines', new Ref(rootNum, 0));
+    if (sourceCatalog.get('PageMode') instanceof Name) catalog.set('PageMode', sourceCatalog.get('PageMode'));
+  }
+
+  // Page labels: each page called what it was, as the fewest ranges.
+  const labelled = new Map(files.map((f) => [f, pageLabels(f)]));
+  if ([...labelled.values()].some(Boolean)) {
+    const nums = [];
+    let prev = null;
+    items.forEach((item, i) => {
+      const label = labelled.get(item.file)?.[item.page] || { style: 'D', prefix: '', number: item.page + 1 };
+      const continues = prev && prev.style === label.style && prev.prefix === label.prefix && label.number === prev.number + 1;
+      if (!continues) {
+        const d = new Dict();
+        if (label.style) d.set('S', new Name(label.style));
+        if (label.prefix) d.set('P', textString(label.prefix));
+        if (label.number !== 1) d.set('St', label.number);
+        nums.push(i, d);
+      }
+      prev = label;
+    });
+    catalog.set('PageLabels', new Dict([['Nums', nums]]));
+  }
+
+  // The form: the fields whose widgets came with the pages.
+  const fieldRoots = [];
+  let form = null;
+  const names = new Set();
+  for (const file of files) {
+    const own = file.resolve(file.catalog().get('AcroForm'));
+    if (!(own instanceof Dict)) continue;
+    const roots = file.resolve(own.get('Fields'));
+    const c = copiers.get(file);
+    const kept = (Array.isArray(roots) ? roots : []).filter((r) => r instanceof Ref && c.map.has(r.key) && c.map.get(r.key) !== null);
+    if (!kept.length) continue;
+    if (!form) {
+      form = new Dict();
+      for (const key of ['DA', 'Q', 'NeedAppearances', 'DR']) if (own.has(key)) form.set(key, copy(file, own.get(key), 1));
+    } else if (own.get('DR')) {
+      // Fonts the other form's fields draw with, beside the first's.
+      const theirs = file.resolve(file.resolve(own.get('DR'))?.get('Font'));
+      const dr = form.get('DR') instanceof Dict ? form.get('DR') : new Dict();
+      const fonts = dr.get('Font') instanceof Dict ? dr.get('Font') : new Dict();
+      if (theirs instanceof Dict) for (const [k, v] of theirs.entries()) if (!fonts.has(k)) fonts.set(k, copy(file, v, 1));
+      dr.set('Font', fonts);
+      form.set('DR', dr);
+    }
+    for (const r of kept) {
+      const num = c.map.get(r.key);
+      const field = objects[num];
+      if (field instanceof Dict && field.get('T') instanceof PdfString) {
+        let name = field.get('T').text();
+        if (names.has(name)) {
+          let k = 2;
+          while (names.has(`${name}_${k}`)) k++;
+          name = `${name}_${k}`;
+          field.set('T', textString(name));
+        }
+        names.add(name);
+      }
+      fieldRoots.push(new Ref(num, 0));
+    }
+  }
+  drain();
+  if (form) {
+    form.set('Fields', fieldRoots);
+    catalog.set('AcroForm', form);
   }
   objects[catalogNum] = catalog;
   objects[pagesNum] = new Dict([

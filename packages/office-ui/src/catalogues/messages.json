@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6445,
+  "count": 6551,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1122,6 +1122,12 @@
       ]
     },
     {
+      "message": "A photo or scan of your signature on white paper",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
+      ]
+    },
+    {
       "message": "A picture cannot go inside a table cell yet — move the caret out of the table.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -1287,6 +1293,12 @@
       "message": "A sidebar stands beside the story with the words that go with it: a summary, a list of points, a note for the reader.",
       "where": [
         "apps/desktop/renderer/apps/word/drawings.js"
+      ]
+    },
+    {
+      "message": "A signature field: Fill & Sign places a picture of a signature anywhere on the page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
       ]
     },
     {
@@ -1815,6 +1827,12 @@
       ]
     },
     {
+      "message": "Add Initials",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
+      ]
+    },
+    {
       "message": "Add Marker",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -1871,9 +1889,22 @@
       ]
     },
     {
+      "message": "Add Signature",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
+      ]
+    },
+    {
       "message": "Add Text",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Add Text: words written anywhere on the page, where the form has no field for them",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -1946,6 +1977,12 @@
       "message": "Add a mask",
       "where": [
         "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
+      "message": "Add a note…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
       ]
     },
     {
@@ -2629,6 +2666,7 @@
       "where": [
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/mail/parts.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides/setup.js",
@@ -3198,9 +3236,23 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Apply Redactions",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
+      "message": "Apply Redactions: what the marks cover removed from the pages, saved as a new file",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -3219,6 +3271,12 @@
       "message": "Apply To All — this slide's transition, timing and advance settings on every slide",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Apply and Save As…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
       ]
     },
     {
@@ -3255,6 +3313,12 @@
       "message": "Apply: the mask made part of the layer's pixels",
       "where": [
         "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
+      "message": "Applying removes the words and pictures under the marks from the pages for good, and fills each mark black. Comments and links over a mark go too.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
       ]
     },
     {
@@ -3407,7 +3471,9 @@
       "message": "Arrow",
       "where": [
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/image/words.js"
+        "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -3454,6 +3520,12 @@
       "message": "Arrow: drag from the tail to the point",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Arrow: drag one out on the page, pointing where you let go",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -4235,6 +4307,7 @@
       "message": "Black",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -4347,6 +4420,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -4475,6 +4549,13 @@
       "message": "Bookmark:",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Bookmarks",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/pdf/nav.js"
       ]
     },
     {
@@ -5145,8 +5226,11 @@
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/richtext.js",
         "apps/desktop/renderer/apps/mail/rules.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/fields.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pdf/ocr.js",
+        "apps/desktop/renderer/apps/pdf/redact.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
@@ -5503,6 +5587,18 @@
       ]
     },
     {
+      "message": "Change Signature",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Change Signature: type, draw or choose a picture of your signature again",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Change case",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -5776,6 +5872,19 @@
       ]
     },
     {
+      "message": "Checkmark",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Checkmark: a tick where you click, for a box the form did not make a field",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Chevron",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
@@ -5809,9 +5918,21 @@
       ]
     },
     {
+      "message": "Choose Another…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
+      ]
+    },
+    {
       "message": "Choose PDFs",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Choose a Picture…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
       ]
     },
     {
@@ -5879,6 +6000,12 @@
       "message": "Choose a picture",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Choose a picture of your signature",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
       ]
     },
     {
@@ -6030,6 +6157,7 @@
     {
       "message": "Clear",
       "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -6294,6 +6422,12 @@
       ]
     },
     {
+      "message": "Click the page where your {kind} goes, or drag out the box it fills. Press Esc to put it down.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Click to add data",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -6474,6 +6608,12 @@
       ]
     },
     {
+      "message": "Close the Comments pane",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
       "message": "Close the Restrict Editing pane",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
@@ -6560,6 +6700,12 @@
       ]
     },
     {
+      "message": "Collapse",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/nav.js"
+      ]
+    },
+    {
       "message": "Collapse the ribbon",
       "where": [
         "packages/office-ui/src/index.js"
@@ -6584,6 +6730,7 @@
         "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
@@ -6828,6 +6975,7 @@
     {
       "message": "Comment",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -6862,6 +7010,8 @@
     {
       "message": "Comments",
       "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -6876,6 +7026,12 @@
       "message": "Comments are on slides — Close Master View first.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Comments: the pane listing every comment, to reply, resolve or delete",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -8239,6 +8395,7 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/parts.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -8284,6 +8441,12 @@
       "message": "Date unit",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Date: today's date written where you click",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -8704,6 +8867,12 @@
       ]
     },
     {
+      "message": "Delete the comment",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Delete the comment from {author}",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -8744,6 +8913,12 @@
       "message": "Delete the source from this list",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
+      ]
+    },
+    {
+      "message": "Delete this comment and its replies",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
       ]
     },
     {
@@ -9402,6 +9577,7 @@
     {
       "message": "Double-click to change the words",
       "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/word.js"
       ]
     },
@@ -9585,6 +9761,7 @@
       "message": "Draw",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -9647,8 +9824,16 @@
       ]
     },
     {
+      "message": "Draw: freehand lines on the page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Drawing",
       "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
@@ -9670,6 +9855,12 @@
       "message": "Drawing this slide…",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Drawn",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
       ]
     },
     {
@@ -10224,6 +10415,8 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -10243,6 +10436,12 @@
       "message": "Ellipse: drag an oval; Shift keeps it round",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Ellipse: drag one out on the page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -10841,6 +11040,12 @@
       ]
     },
     {
+      "message": "Expand",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/nav.js"
+      ]
+    },
+    {
       "message": "Expand the ribbon",
       "where": [
         "packages/office-ui/src/index.js"
@@ -11367,6 +11572,12 @@
       ]
     },
     {
+      "message": "Fill & Sign",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Fill (G): click to fill an area of one colour",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
@@ -11715,6 +11926,12 @@
       "message": "Finding the scanned pages…",
       "where": [
         "apps/desktop/renderer/apps/pdf/ocr.js"
+      ]
+    },
+    {
+      "message": "Finding…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -12300,6 +12517,12 @@
       "message": "Foreground",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Form",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -13069,6 +13292,12 @@
       ]
     },
     {
+      "message": "Go to page {page}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
       "message": "Go to record",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -13167,6 +13396,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -13959,6 +14189,8 @@
     {
       "message": "Highlight",
       "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
@@ -13966,6 +14198,18 @@
       "message": "Highlight\nMerge Fields",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Highlight Fields",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Highlight Fields: the form's fields tinted, so they are easy to find",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -13978,6 +14222,12 @@
       "message": "Highlight the regions I can edit",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "Highlight: the words selected, or select words with it in hand",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -14773,6 +15023,19 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Initials",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Initials: your initials, typed, drawn or from a picture, placed where you click",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -16789,6 +17052,8 @@
       "message": "Line",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -16875,6 +17140,12 @@
       ]
     },
     {
+      "message": "Line: drag one out on the page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Line: {style}",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -16891,6 +17162,12 @@
       "message": "Linear fraction",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
+      ]
+    },
+    {
+      "message": "Lines and shapes drawn under a mark are covered, not cut away. The document's properties, its bookmarks and attached files are not changed: check them before you share the file.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
       ]
     },
     {
@@ -17480,6 +17757,12 @@
       ]
     },
     {
+      "message": "Make the paper see-through",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
+      ]
+    },
+    {
       "message": "Make this paragraph a heading, so it appears in the table of contents",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -17582,6 +17865,7 @@
       "message": "Mark",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/word/references-index.js",
         "apps/desktop/renderer/apps/word/references-toa.js"
       ]
@@ -17637,6 +17921,18 @@
       ]
     },
     {
+      "message": "Mark Area",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Mark Area: drag out an area of the page, words and pictures, to redact",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Mark Citation",
       "where": [
         "apps/desktop/renderer/apps/word.js",
@@ -17680,9 +17976,33 @@
       ]
     },
     {
+      "message": "Mark Matches",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Mark Matches: every match of the words in Find, on every page, marked for redaction",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Mark Out",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Mark Text",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Mark Text: the words selected, or select words with it in hand, marked for redaction",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -17740,6 +18060,12 @@
       ]
     },
     {
+      "message": "Marked for redaction",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
       "message": "Marked. Select another citation, or press Next Citation.",
       "where": [
         "apps/desktop/renderer/apps/word/references-toa.js"
@@ -17780,7 +18106,26 @@
       "message": "Marks",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Marks show what will be removed; nothing is removed until you apply them. Applying saves a new file and leaves the original as it is.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Marks: the Comments pane, where each mark can be found and deleted",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Markup",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -19746,6 +20091,12 @@
       ]
     },
     {
+      "message": "No comments here.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
       "message": "No comments in this view.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -19755,6 +20106,12 @@
       "message": "No comments on this slide.",
       "where": [
         "apps/desktop/renderer/apps/slides/comments.js"
+      ]
+    },
+    {
+      "message": "No comments yet. Highlight words, or add a sticky note, a text box or a drawing from the Comment tab.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
       ]
     },
     {
@@ -19905,6 +20262,12 @@
       ]
     },
     {
+      "message": "No ink was found in that picture.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
+      ]
+    },
+    {
       "message": "No language matches.",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -19937,6 +20300,12 @@
     },
     {
       "message": "No matches",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "No matches to mark.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
       ]
@@ -20529,6 +20898,7 @@
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -20670,6 +21040,12 @@
       "message": "Nothing is frozen.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Nothing is marked for redaction yet. Mark words, an area or the matches of a search first.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -21318,6 +21694,7 @@
       "where": [
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -22144,9 +22521,22 @@
       ]
     },
     {
+      "message": "Page {label} ({page} of {count})",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Page {n}",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Page {page}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/view.js"
       ]
     },
     {
@@ -22670,6 +23060,7 @@
         "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/pdf/fields.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -22738,6 +23129,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/pdf/fields.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/sheets.js",
@@ -22839,6 +23231,7 @@
     {
       "message": "Pink",
       "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -22940,6 +23333,12 @@
       "message": "Place and time",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "Place on the Page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
       ]
     },
     {
@@ -23183,8 +23582,15 @@
     {
       "message": "Post",
       "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides/comments.js"
+      ]
+    },
+    {
+      "message": "Post (Ctrl+Enter)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
       ]
     },
     {
@@ -23952,6 +24358,12 @@
       ]
     },
     {
+      "message": "Put the tool down",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Put {code} in the footer",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -24576,6 +24988,8 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
@@ -24608,10 +25022,17 @@
       ]
     },
     {
+      "message": "Rectangle: drag one out on the page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Red",
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -24634,6 +25055,25 @@
       "message": "Red text on light red",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Redact",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Redacted {count} page.",
+      "plural": "Redacted {count} pages.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Redacting…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -25269,6 +25709,12 @@
       ]
     },
     {
+      "message": "Reopen: mark this comment as not resolved",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
       "message": "Reorder Animation",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -25456,8 +25902,15 @@
       "where": [
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/reader.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides/comments.js"
+      ]
+    },
+    {
+      "message": "Reply (Enter)",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
       ]
     },
     {
@@ -25626,8 +26079,15 @@
       ]
     },
     {
+      "message": "Resolve: mark this comment as done",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
       "message": "Resolved",
       "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides/comments.js"
       ]
@@ -25783,6 +26243,7 @@
     {
       "message": "Review",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -26651,6 +27112,7 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/rules.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -26868,6 +27330,18 @@
       ]
     },
     {
+      "message": "Save the redacted PDF as",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Save the redacted PDF under a new name: the original is kept as it is.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Save the workbook first, so a second window can open the same file.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -26883,6 +27357,12 @@
       "message": "Save: the picture with its layers, as a project (.rimg) to edit again (Ctrl+S)",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Saved as {name}.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -29043,6 +29523,12 @@
       ]
     },
     {
+      "message": "Sign",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Sign in with {provider}",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -29052,7 +29538,9 @@
       "message": "Signature",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
-        "apps/desktop/renderer/apps/mail/dialogs.js"
+        "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -29089,6 +29577,12 @@
       "message": "Signature saved",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Signature: your signature, typed, drawn or from a picture, placed where you click; not a digital signature",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -30168,9 +30662,21 @@
       ]
     },
     {
+      "message": "Squiggly underline",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
       "message": "Stacked fraction",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
+      ]
+    },
+    {
+      "message": "Stamp",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
       ]
     },
     {
@@ -30455,6 +30961,24 @@
       ]
     },
     {
+      "message": "Sticky Note",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Sticky Note: a note where you click on the page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Sticky note",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
       "message": "Still indexing {names}; more may be found.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -30591,9 +31115,17 @@
       "message": "Strikethrough",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Strikethrough: a line through the words selected",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -31323,6 +31855,7 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -31352,6 +31885,7 @@
     {
       "message": "Text Box",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -31361,6 +31895,12 @@
       "message": "Text Box: a box of words that floats on the page, the text wrapping round it",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Text Box: words written on the page, in a box you drag out or click to place",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -31435,6 +31975,7 @@
     {
       "message": "Text box",
       "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/review.js"
       ]
@@ -31694,6 +32235,12 @@
       "message": "That event is no longer there.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That file could not be read as a picture.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
       ]
     },
     {
@@ -32054,6 +32601,12 @@
       ]
     },
     {
+      "message": "The comment could not be written: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "The compared document is the revised one, with what changed marked as revisions to accept or reject. Paragraphs and their words are compared; tables come from the revised document as they are.",
       "where": [
         "apps/desktop/renderer/apps/word/compare.js"
@@ -32285,6 +32838,12 @@
       "message": "The forecast end must come after the last point of the timeline.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The form could not be filled: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -32548,6 +33107,18 @@
       ]
     },
     {
+      "message": "The page this bookmark goes to is not in the document now",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/nav.js"
+      ]
+    },
+    {
+      "message": "The page this link goes to is not in the document now.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "The pages could not be extracted: {reason}",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -32682,6 +33253,18 @@
       "plural": "The recording is on the timeline: {count} takes.",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "The redacted PDF is saved as a new file and opens here; the original is left as it is. It is written whole, not as an update of the original, because an update keeps the original's bytes, and the redacted words with them.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
+      "message": "The redactions could not be applied: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -33457,6 +34040,12 @@
       ]
     },
     {
+      "message": "This PDF has no bookmarks.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/nav.js"
+      ]
+    },
+    {
       "message": "This PDF is damaged: no part of it says where its pages begin.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -33978,6 +34567,12 @@
       "message": "This picture is kept in a form Image cannot edit (such as a drawing of lines). Change it to a PNG or a JPEG first.",
       "where": [
         "apps/desktop/renderer/apps/edit-in-image.js"
+      ]
+    },
+    {
+      "message": "This places a picture of your signature on the page. It is not a digital signature: it does not prove who signed the PDF, or that the PDF has not been changed since.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
       ]
     },
     {
@@ -35231,6 +35826,12 @@
       ]
     },
     {
+      "message": "Type a comment",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
       "message": "Type a tag name for the placeholder. Fill it in later from Manage Sources — every citation of it follows.",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -35252,6 +35853,12 @@
       "message": "Type here",
       "where": [
         "apps/desktop/renderer/apps/image/marks.js"
+      ]
+    },
+    {
+      "message": "Type into the form's fields, tick its boxes and choose from its lists. A signature placed here is a picture of your signature, not a digital signature: it does not prove who signed, or that the PDF has not changed since.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -35291,9 +35898,21 @@
       ]
     },
     {
+      "message": "Type the words for the page",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
       "message": "Type the words or the address the code should hold.",
       "where": [
         "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
+      "message": "Type the words to find, then press Mark Matches again to mark every match.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -35318,6 +35937,12 @@
       "message": "Type your words here. Drag the box by its edge to put it anywhere on the page.",
       "where": [
         "apps/desktop/renderer/apps/word/drawings.js"
+      ]
+    },
+    {
+      "message": "Typed",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
       ]
     },
     {
@@ -35363,6 +35988,8 @@
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/word.js"
       ]
     },
@@ -35372,6 +35999,12 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Underline: the words selected, or select words with it in hand",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -35499,6 +36132,12 @@
       ]
     },
     {
+      "message": "Unknown author",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
       "message": "Unlock",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -35544,6 +36183,12 @@
       "message": "Unmute this track",
       "where": [
         "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Unpick the comment",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -35664,6 +36309,7 @@
       "message": "Untitled",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/pdf/nav.js",
         "apps/desktop/renderer/shell.js"
       ]
     },
@@ -37127,6 +37773,7 @@
     {
       "message": "Yellow",
       "where": [
+        "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -37209,9 +37856,16 @@
       ]
     },
     {
+      "message": "Your initials",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
+      ]
+    },
+    {
       "message": "Your name",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/pdf/fields.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/intro/brand.js",
@@ -37228,6 +37882,12 @@
       "message": "Your permissions",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "Your signature",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/fields.js"
       ]
     },
     {
@@ -37991,6 +38651,12 @@
       ]
     },
     {
+      "message": "initials",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "into",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -38546,6 +39212,12 @@
       "message": "shown beside yours and not yet kept.",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "signature",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -39148,6 +39820,12 @@
       ]
     },
     {
+      "message": "{colour}: the colour of the tool in hand",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "{columns} filled down",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -39519,10 +40197,24 @@
       ]
     },
     {
+      "message": "{count} mark on {pages} pages is applied.",
+      "plural": "{count} marks on {pages} pages are applied.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
       "message": "{count} marked read",
       "plural": "{count} marked read",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{count} match marked for redaction. Apply Redactions removes it.",
+      "plural": "{count} matches marked for redaction. Apply Redactions removes them.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -39679,6 +40371,13 @@
       "plural": "{count} pictures of this project are missing from it. Their layers show nothing.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "{count} picture under a mark could not be painted out and was left off its page.",
+      "plural": "{count} pictures under marks could not be painted out and were left off their pages.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {

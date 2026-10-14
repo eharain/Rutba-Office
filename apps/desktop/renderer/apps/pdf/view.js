@@ -158,6 +158,8 @@ export function ThumbStrip({ pages, sources, selected, current, onPick, onMove, 
 
 function Thumb({ entry, index, source, scale, size, root, selected, current, onDown, onMenu }) {
   const ref = useRef(null);
+  // The page's own label, when its file names its pages ("iv", "A-3"); it goes where the page goes.
+  const label = source?.nav?.labels?.[entry.page] ?? null;
   const near = useNear(ref, root, '300px');
   return (
     <div
@@ -176,13 +178,13 @@ function Thumb({ entry, index, source, scale, size, root, selected, current, onD
       <div className="pdf-thumb-paper" style={{ width: Math.round(size.width * scale), height: Math.round(size.height * scale) }}>
         {near && source?.doc ? <PageCanvas doc={source.doc} page={entry.page} rotate={entry.rotate} scale={scale} priority={2} className="pdf-thumb-canvas" /> : null}
       </div>
-      <span className="pdf-thumb-label">{index + 1}</span>
+      <span className="pdf-thumb-label" data-label={label ?? ''} title={label && label !== String(index + 1) ? t('Page {page}', { page: index + 1 }) : undefined}>{label ?? index + 1}</span>
     </div>
   );
 }
 
-/** One page of the page view: the drawing, and its words over it. */
-function PageBox({ entry, index, source, zoom, root, onText }) {
+/** One page of the page view: the drawing, its words over it, and over those its comments and fields. */
+function PageBox({ entry, index, source, zoom, root, onText, overlay }) {
   const ref = useRef(null);
   const textRef = useRef(null);
   const near = useNear(ref, root);
@@ -211,6 +213,7 @@ function PageBox({ entry, index, source, zoom, root, onText }) {
     <div ref={ref} className="pdf-page" data-key={entry.key} data-index={index} data-rotate={entry.rotate} style={{ width: w, height: h }}>
       {near && source?.doc ? <PageCanvas doc={source.doc} page={entry.page} rotate={entry.rotate} scale={scale} priority={0} className="pdf-page-canvas" /> : null}
       <div ref={textRef} className="textLayer pdf-text" data-ready={textReady ? 'yes' : undefined} />
+      {near && overlay ? overlay(entry, { source, scale }) : null}
     </div>
   );
 }
@@ -220,7 +223,7 @@ function PageBox({ entry, index, source, zoom, root, onText }) {
  * alone, 'two' pairs them side by side, 'continuous' runs them down in one
  * column. Scrolling tells the window which page is in view.
  */
-export function PageView({ pages, sources, zoom, layout, current, onCurrent, onText, scrollerRef, onFocusText }) {
+export function PageView({ pages, sources, zoom, layout, current, onCurrent, onText, scrollerRef, onFocusText, overlay, onMouseUp }) {
   const shown = layout === 'single' ? pages.filter((p) => p.key === current).slice(0, 1) : pages;
   const rows = [];
   if (layout === 'two') {
@@ -252,7 +255,7 @@ export function PageView({ pages, sources, zoom, layout, current, onCurrent, onT
   useLayoutEffect(() => { onScroll(); }, [zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className={`pdf-view layout-${layout}`} ref={scrollerRef} onScroll={onScroll} dir="ltr" onMouseDown={onFocusText}>
+    <div className={`pdf-view layout-${layout}`} ref={scrollerRef} onScroll={onScroll} dir="ltr" onMouseDown={onFocusText} onMouseUp={onMouseUp}>
       <div className="pdf-view-inner">
         {rows.map((row) => (
           <div className="pdf-row" key={row.map((p) => p.key).join('-')}>
@@ -265,6 +268,7 @@ export function PageView({ pages, sources, zoom, layout, current, onCurrent, onT
                 zoom={zoom}
                 root={scrollerRef}
                 onText={onText}
+                overlay={overlay}
               />
             ))}
           </div>

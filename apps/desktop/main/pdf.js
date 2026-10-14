@@ -16,17 +16,45 @@
 // update after them become a new source, the old one kept for Undo. A Save
 // of a source's own pages, all of them, in order and unturned, writes those
 // bytes as they are, so the original stays the exact start of the file.
+//
+// Comments are written the same way (@rutba/pdf/annotations): each change
+// an incremental update, the file with it a new source, the old one kept
+// for Undo. So are a form's values (@rutba/pdf/forms) and signatures placed
+// as stamps.
+//
+// Redaction is the one change written whole (@rutba/pdf/redact): an update
+// would keep the old bytes, the words under the marks among them. Applying
+// writes a new file of the window's pages with what the marks covered taken
+// out of each page's content, and the window opens it.
 
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import pdfRead from '@rutba/pdf/reader';
 import pdfAssemble from '@rutba/pdf/assemble';
 import pdfTextLayer from '@rutba/pdf/textlayer';
+import pdfAnnotations from '@rutba/pdf/annotations';
+import pdfForms from '@rutba/pdf/forms';
+import pdfRedact from '@rutba/pdf/redact';
+import pdfNavigation from '@rutba/pdf/navigation';
 
 const { openPdf, PdfReadError } = pdfRead;
 const { assemble } = pdfAssemble;
 const { addTextLayer } = pdfTextLayer;
+const { readAnnotations, annotate } = pdfAnnotations;
+const { readFields, fillFields } = pdfForms;
+const { applyRedactions, redactionPlan } = pdfRedact;
+const { outlinePages, readLinks, pageLabels, labelText } = pdfNavigation;
+
+/** Who a comment is signed by: the account at the keyboard, as the other apps sign theirs. */
+function userName() {
+  try {
+    return os.userInfo().username || 'Rutba Office user';
+  } catch {
+    return 'Rutba Office user';
+  }
+}
 
 /** Whether the pages named are one source's own, every one, in order, each as the file turns it. */
 function wholeSource(items) {
@@ -129,7 +157,7 @@ export function createPdfService() {
     assemble: async ({ pages, path: target = null, title }) => {
       const items = (pages || []).map((p) => ({ file: get(p.source).file, page: Number(p.page), rotate: p.rotate }));
       // A recognised file saved as it is: its bytes, the text layer appended to the original.
-      const own = (pages || []).length && open.get(pages[0].source)?.recognised && wholeSource(items)
+      const own = (pages || []).length && open.get(pages[0].source)?.updated && wholeSource(items)
         && (title === undefined || title === null || title === items[0].file.info().title);
       const bytes = own ? items[0].file.buf : assemble(items, { title });
       if (!target) return { bytes: new Uint8Array(bytes), size: bytes.length };
@@ -151,9 +179,94 @@ export function createPdfService() {
       const file = openPdf(bytes);
       file.pages();
       const newId = `p${next++}`;
-      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, recognised: true };
+      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true };
       open.set(newId, added);
       return { ...describe(newId, added), written, bytes: new Uint8Array(bytes) };
+    },
+
+    /** The comments on every page of an open PDF, whoever wrote them. */
+    annotations: ({ id }) => readAnnotations(get(id).file),
+
+    /**
+     * Comments added, answered, resolved, changed or deleted, written as an
+     * incremental update signed by the account at the keyboard (or the
+     * author given). A new source, the old one kept for Undo; its comments
+     * come back with it.
+     */
+    annotate: ({ id, changes, author }, win) => {
+      const entry = get(id);
+      const { bytes, added: made } = annotate(entry.file.buf, changes || {}, { author: author || userName() });
+      const file = openPdf(bytes);
+      file.pages();
+      const newId = `p${next++}`;
+      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true };
+      open.set(newId, added);
+      return { ...describe(newId, added), added: made, annotations: readAnnotations(file), fields: readFields(file), bytes: new Uint8Array(bytes) };
+    },
+
+    /**
+     * The pictures under the redaction marks of the sources named that only
+     * the window can decode (JPEG): each with its bytes and the pixels the
+     * marks cover, for the window to hand back decoded.
+     */
+    redactPlan: ({ sources }) => (sources || []).flatMap((id) => {
+      const entry = get(id);
+      return redactionPlan(entry.file.buf).map((p) => ({ ...p, source: id, data: new Uint8Array(p.data) }));
+    }),
+
+    /**
+     * Apply the redaction marks: each source's marked pages rewritten with
+     * what the marks covered removed, and the window's pages written whole
+     * to `path` as a new file. `images`: { [source]: { [key]: { width, height, data } } }.
+     */
+    redact: async ({ pages, path: target, images = {}, title }) => {
+      const removed = { glyphs: 0, pictures: 0, images: 0, annotations: 0, pages: 0 };
+      const redacted = new Map();
+      for (const id of new Set((pages || []).map((p) => p.source))) {
+        const entry = get(id);
+        try {
+          const out = applyRedactions(entry.file.buf, { images: images[id] || null });
+          const file = openPdf(out.bytes);
+          file.pages();
+          redacted.set(id, file);
+          for (const k of Object.keys(removed)) removed[k] += out.removed[k] || 0;
+        } catch (err) {
+          if (err?.code !== 'nothing') throw err;
+          redacted.set(id, entry.file);
+        }
+      }
+      if (!removed.pages) throw new Error('Nothing is marked for redaction.');
+      const items = pages.map((p) => ({ file: redacted.get(p.source), page: Number(p.page), rotate: p.rotate }));
+      const bytes = assemble(items, { title });
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await writeWhole(target, bytes);
+      return { path: target, size: bytes.length, removed };
+    },
+
+    /** An open PDF's bookmarks (each with its page), its pages' labels, and its links. */
+    navigation: ({ id }) => {
+      const { file } = get(id);
+      const labels = pageLabels(file);
+      return { outline: outlinePages(file), labels: labels ? labels.map(labelText) : null, links: readLinks(file) };
+    },
+
+    /** The fields of an open PDF's form, with their values and where their widgets are. */
+    fields: ({ id }) => readFields(get(id).file),
+
+    /**
+     * Form values written, as an incremental update with the appearances
+     * other readers show: { [fieldId or name]: value }. A new source, the old
+     * one kept for Undo.
+     */
+    fill: ({ id, values }, win) => {
+      const entry = get(id);
+      const { bytes, changed } = fillFields(entry.file.buf, values || {});
+      const file = openPdf(bytes);
+      file.pages();
+      const newId = `p${next++}`;
+      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true };
+      open.set(newId, added);
+      return { ...describe(newId, added), changed, annotations: readAnnotations(file), fields: readFields(file), bytes: new Uint8Array(bytes) };
     },
 
     /** The words on one page of an open PDF, as its content draws them. */

@@ -21,7 +21,12 @@
     "./bidi": "./src/bidi.js",
     "./reader": "./src/reader.js",
     "./assemble": "./src/assemble.js",
-    "./textlayer": "./src/textlayer.js"
+    "./textlayer": "./src/textlayer.js",
+    "./update": "./src/update.js",
+    "./annotations": "./src/annotations.js",
+    "./forms": "./src/forms.js",
+    "./redact": "./src/redact.js",
+    "./navigation": "./src/navigation.js"
   },
   "files": [
     "src",

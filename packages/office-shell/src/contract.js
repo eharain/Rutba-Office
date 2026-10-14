@@ -282,6 +282,13 @@ export const METHODS = {
     'text',         // ({ id, page }) -> string: the words a page's content draws
     'addText',      // ({ id, pages: [{ page, lines: [{ words: [{ text, x, y, width, size, angle }] }] }] }) -> { id, ...open's answer, written, bytes }: an invisible text layer as an incremental update, a new source
     'inspect',      // ({ path }) -> { pages: [{ width, height, rotate, text }], encrypted, title }: a file read and let go, for the checks
+    'annotations',  // ({ id }) -> [{ id, page, type, rect, contents, author, modified, color, quads, ink, line, arrow, replyTo, status, ... }]: the comments on every page
+    'annotate',     // ({ id, changes: { add, reply, resolve, edit, remove }, author }) -> { id, ...open's answer, added, annotations, fields, bytes }: comments changed as an incremental update, a new source
+    'fields',       // ({ id }) -> [{ id, name, type, value, options, multiline, readOnly, widgets: [{ id, page, rect, onState, state }], ... }]: the form's fields
+    'fill',         // ({ id, values: { [fieldId]: value } }) -> { id, ...open's answer, changed, annotations, fields, bytes }: form values with appearances, as an incremental update, a new source
+    'navigation',   // ({ id }) -> { outline: [{ title, page, url, bold, italic, open, kids }], labels: [string] | null, links: [{ page, rect, target, url }] }
+    'redactPlan',   // ({ sources }) -> [{ source, page, key, width, height, filter, rects, data }]: pictures under redaction marks only the window can decode
+    'redact',       // ({ pages: [{ source, page, rotate }], path, images, title }) -> { path, size, removed: { glyphs, pictures, images, annotations, pages } }: the marks applied, written whole as a new file
   ],
   // Text recognition (apps/desktop/main/ocr.js, @rutba/ocr): read on a pool of
   // threads, never this process's or the window's; nothing leaves the computer.

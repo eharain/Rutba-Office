@@ -5,12 +5,15 @@
 // that makes the reader throw a fault, loop or run out of memory is a window
 // that hangs. Each damaged file is opened in a worker of its own with a
 // two-second limit, its pages listed, each page's text read, and its pages
-// assembled into a new file; anything but a result or a refusal in a
-// sentence is a fault.
+// assembled into a new file; its comments, form fields, bookmarks, page
+// labels and links read, a comment added as an update and an area of its
+// first page redacted; anything but a result or a refusal in a sentence is
+// a fault. Among the sources are a file with comments, a form and a book
+// with bookmarks, labels and links, so their readers meet damage too.
 
 import fs from 'node:fs';
 import { Worker, isMainThread, parentPort } from 'node:worker_threads';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 // fuzz-open.js's judgement, copied rather than imported: importing that file
@@ -30,12 +33,25 @@ function judge(err) {
 if (!isMainThread) {
   const { openPdf } = await import('@rutba/pdf/reader');
   const { assemble } = await import('@rutba/pdf/assemble');
+  const { readAnnotations, annotate } = await import('@rutba/pdf/annotations');
+  const { readFields } = await import('@rutba/pdf/forms');
+  const { outlinePages, readLinks, pageLabels } = await import('@rutba/pdf/navigation');
+  const { applyRedactions } = await import('@rutba/pdf/redact');
+  // A refusal in a sentence from one step does not stop the others being tried.
+  const step = (fn) => { try { fn(); } catch (err) { const j = judge(err); if (j.outcome === 'FAULT') throw err; } };
   parentPort.on('message', ({ bytes }) => {
     try {
       const pdf = openPdf(Buffer.from(bytes));
       const pages = pdf.pages();
       for (let i = 0; i < Math.min(pages.length, 20); i++) pdf.pageText(i);
       if (pages.length) assemble(pages.slice(0, 20).map((_, i) => ({ file: pdf, page: i, rotate: 90 })), { title: 'fuzz' });
+      step(() => readAnnotations(pdf));
+      step(() => readFields(pdf));
+      step(() => { outlinePages(pdf); readLinks(pdf); pageLabels(pdf); });
+      if (pages.length) {
+        step(() => annotate(Buffer.from(bytes), { add: [{ page: 0, type: 'Text', rect: [10, 10, 30, 30], contents: 'fuzz' }] }));
+        step(() => applyRedactions(Buffer.from(bytes), { areas: [{ page: 0, rects: [[0, 300, 400, 800]] }] }));
+      }
       parentPort.postMessage({ outcome: 'opened' });
     } catch (err) {
       parentPort.postMessage(judge(err));
@@ -59,6 +75,19 @@ if (!isMainThread) {
     return doc.toBuffer();
   };
   const SOURCES = { 'three pages': written(3, true), 'one page': written(1, false), 'twelve pages': written(12, true) };
+  // A file with comments, a form, and a book with bookmarks, labels and links.
+  const { annotate } = await import('@rutba/pdf/annotations');
+  const tests = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'packages', 'pdf', 'test');
+  const { formPdf } = (await import(pathToFileURL(path.join(tests, 'form-fixture.js')).href)).default;
+  const { book } = (await import(pathToFileURL(path.join(tests, 'nav-fixture.js')).href)).default;
+  const commented = annotate(written(2, true), { add: [
+    { page: 0, type: 'Highlight', quads: [[72, 700, 200, 700, 72, 686, 200, 686]], contents: 'fuzz' },
+    { page: 0, type: 'FreeText', rect: [72, 400, 300, 450], contents: 'A box' },
+    { page: 1, type: 'Ink', ink: [[100, 100, 120, 130, 150, 120]] },
+  ] }).bytes;
+  SOURCES['with comments'] = commented;
+  SOURCES['a form'] = formPdf();
+  SOURCES['a book'] = book('Page');
   const fixtures = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tests', 'fixtures');
   for (const name of fs.readdirSync(fixtures).filter((n) => n.toLowerCase().endsWith('.pdf'))) SOURCES[name] = fs.readFileSync(path.join(fixtures, name));
 

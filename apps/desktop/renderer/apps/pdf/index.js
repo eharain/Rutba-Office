@@ -13,6 +13,24 @@
 // file with its layer is a new source, and the pages are pointed at it as
 // one more list in the history, so Undo takes the layer away again.
 //
+// Comments (annots.js) are written into the file as they are made: each
+// highlight, note, drawing, reply, resolution or deletion is an incremental
+// update the main process appends (@rutba/pdf/annotations), the file with
+// it a new source the pages are pointed at, so Undo takes it away as it
+// takes a recognised text layer away, and pdf.js draws the comment from the
+// appearance written, as any other reader will.
+//
+// A form's fields are filled the same way (fields.js): the controls over
+// the page commit each value as an update with the appearances other
+// readers show, and Fill & Sign places a typed or drawn signature as a
+// stamp, which the window says plainly is a picture, not a digital
+// signature.
+//
+// Redaction (redact.js) marks words, areas or every match of a search with
+// Redact annotations, written like comments, then applies them: the main
+// process removes what the marks cover from each page's content and writes
+// the window's pages whole as a new file, which the window opens.
+//
 // Saving is careful, as a page tool's must be: Save asks before it replaces
 // the file the pages came from (once a window), and offers to save a copy.
 // While there is unsaved work, a copy is kept in the recovery folder for
@@ -33,6 +51,13 @@ import { ThumbStrip, PageView, PX_PER_PT } from './view.js';
 import { CSS } from './css.js';
 import { RecogniseDialog, recognisePages } from './ocr.js';
 import { OCR_CSS } from '../../ocr-ui.js';
+import {
+  AnnotLayer, CommentsPane, NoteEditor, commentItems, selectionQuads, swatch, cssColour,
+  MARKUP_TOOLS, TOOL_TYPES, SWATCHES, DEFAULT_TOOL_COLOURS,
+} from './annots.js';
+import { FieldLayer, SignatureDialog, savedSignature, signatureStamp } from './fields.js';
+import { searchQuads, decodePlan, ApplyRedactionsDialog } from './redact.js';
+import { BookmarksPane, labelOf } from './nav.js';
 
 const AUTOSAVE_FIRST_MS = 1500;
 const AUTOSAVE_EVERY_MS = 30000;
@@ -107,6 +132,8 @@ export default function PdfApp({ app, shell, boot }) {
   const [fit, setFit] = useState('auto');
   const [layout, setLayout] = useState('continuous');
   const [strip, setStrip] = useState(true);
+  // What the side pane shows: the pages, or the bookmarks.
+  const [side, setSide] = useState('pages');
   const [stripWidth, setStripWidth] = useState(168);
   const [busy, setBusy] = useState(null);
   const [failed, setFailed] = useState(null);
@@ -121,6 +148,22 @@ export default function PdfApp({ app, shell, boot }) {
   const [ocr, setOcr] = useState(null);
   const ocrStop = useRef(false);
   const ocrJob = useRef(null);
+  // Comments: the tool in hand, each tool's colour, the comment picked, the pane, and a note being typed.
+  const [tool, setTool] = useState(null);
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
+  const [toolColours, setToolColours] = useState(DEFAULT_TOOL_COLOURS);
+  const [picked, setPicked] = useState(null);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(null);
+  // Fill & Sign: fields tinted, the signature dialog, and a signature made, in hand to place.
+  const [tintFields, setTintFields] = useState(true);
+  const [signing, setSigning] = useState(null);
+  const [signature, setSignature] = useState(null);
+  // Redaction: the Apply dialog.
+  const [applying, setApplying] = useState(false);
+  const openFindRef = useRef(null);
+  const viewports = useRef(new Map()).current;
   const viewRef = useRef(null);
   const findRef = useRef(null);
   const stripRef = useRef(null);
@@ -149,7 +192,12 @@ export default function PdfApp({ app, shell, boot }) {
       }
       throw new Error(t('{name} could not be drawn: {reason}', { name: info.name, reason: err.message }));
     }
-    const source = { id: info.id, name: info.name, path: file || null, info, doc };
+    const [annots, fields, nav] = await Promise.all([
+      shell.pdf.annotations({ id: info.id }).catch(() => []),
+      shell.pdf.fields({ id: info.id }).catch(() => []),
+      shell.pdf.navigation({ id: info.id }).catch(() => null),
+    ]);
+    const source = { id: info.id, name: info.name, path: file || null, info, doc, annots, fields, nav };
     setSources((s) => ({ ...s, [info.id]: source }));
     sourcesRef.current = { ...sourcesRef.current, [info.id]: source };
     return source;
@@ -370,7 +418,7 @@ export default function PdfApp({ app, shell, boot }) {
         if (!written.length) continue;
         const { bytes, written: pagesWritten, ...info } = await shell.pdf.addText({ id, pages: written });
         const doc = await openDocument(bytes);
-        const source = { id: info.id, name: info.name, path: sourcesRef.current[id]?.path || null, info, doc };
+        const source = { id: info.id, name: info.name, path: sourcesRef.current[id]?.path || null, info, doc, annots: sourcesRef.current[id]?.annots || [], fields: sourcesRef.current[id]?.fields || [], nav: sourcesRef.current[id]?.nav || null };
         sourcesRef.current = { ...sourcesRef.current, [info.id]: source };
         setSources((s) => ({ ...s, [info.id]: source }));
         swap[id] = info.id;
@@ -395,6 +443,304 @@ export default function PdfApp({ app, shell, boot }) {
     if (guardLocked() || !pagesRef.current.length) return;
     setOcr({});
   }, [guardLocked]);
+
+  /* ── comments ───────────────────────────────────────────────────────── */
+
+  /**
+   * Comments changed in one or more sources, as one step of the history:
+   * [{ source, changes }] for comments, [{ source, values }] for a form's
+   * values. Each source's file gets an incremental update and becomes a new
+   * source; the pages that came from it point at the new one.
+   */
+  // Changes are written one after another, each to the newest version of its
+  // file: a field left while the one before it is still being written (Tab,
+  // Tab, Tab) would otherwise be written to the file as it was, and lost.
+  const writing = useRef(Promise.resolve());
+  const newer = useRef(new Map());
+  const writeRef = useRef(null);
+  const changeComments = useCallback((list, opts) => {
+    const run = () => writeRef.current(list, opts);
+    const next = writing.current.then(run, run);
+    writing.current = next.catch(() => null);
+    return next;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const writeChanges = async (list, { pick = false } = {}) => {
+    if (guardLocked()) return null;
+    const swap = {};
+    let first = null;
+    try {
+      for (const { source: asked, changes, values } of list) {
+        // The version the pages show now: what this change was asked of, unless a change before it replaced it.
+        let id = asked;
+        while (!pagesRef.current.some((p) => p.source === id) && newer.current.has(id)) id = newer.current.get(id);
+        const { bytes, added, annotations, fields, ...info } = values
+          ? await shell.pdf.fill({ id, values })
+          : await shell.pdf.annotate({ id, changes });
+        const doc = await openDocument(bytes);
+        const old = sourcesRef.current[id];
+        const source = { id: info.id, name: info.name, path: old?.path || null, info, doc, annots: annotations, fields, nav: old?.nav || null };
+        sourcesRef.current = { ...sourcesRef.current, [info.id]: source };
+        setSources((s) => ({ ...s, [info.id]: source }));
+        swap[id] = info.id;
+        newer.current.set(id, info.id);
+        if (!first && added?.length) first = added[0];
+      }
+    } catch (err) {
+      toast(list.some((x) => x.values) ? t('The form could not be filled: {reason}', { reason: err.message }) : t('The comment could not be written: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+      return null;
+    }
+    if (Object.keys(swap).length) edit(pagesRef.current.map((p) => (swap[p.source] ? { ...p, source: swap[p.source] } : p)));
+    if (pick && first) setPicked(first);
+    return first;
+  };
+  writeRef.current = writeChanges;
+
+  const colourOf = useCallback((which) => swatch(toolColours[which] || DEFAULT_TOOL_COLOURS[which]).rgb, [toolColours]);
+
+  /** The words selected marked with a highlight, an underline, a strikethrough or for redaction. Answers whether there were any. */
+  const markSelection = useCallback((which) => {
+    const quads = selectionQuads(viewRef.current, viewports);
+    const bySource = new Map();
+    for (const [key, list] of Object.entries(quads)) {
+      const entry = pagesRef.current.find((p) => p.key === key);
+      if (!entry || !list.length) continue;
+      if (!bySource.has(entry.source)) bySource.set(entry.source, []);
+      const spec = which === 'redact-text'
+        ? { page: entry.page, type: 'Redact', quads: list }
+        : { page: entry.page, type: TOOL_TYPES[which], quads: list, color: colourOf(which) };
+      bySource.get(entry.source).push(spec);
+    }
+    if (!bySource.size) return false;
+    window.getSelection()?.removeAllRanges();
+    changeComments([...bySource].map(([source, add]) => ({ source, changes: { add } })), { pick: which !== 'redact-text' });
+    return true;
+  }, [viewports, changeComments, colourOf]);
+
+  /** A markup button: the words already selected are marked at once; otherwise the tool stays in hand for the next selection. */
+  const pressTool = useCallback((which) => {
+    if (guardLocked()) return;
+    if (MARKUP_TOOLS.has(which) && markSelection(which)) return;
+    setTool((now) => (now === which ? null : which));
+    setPicked(null);
+  }, [guardLocked, markSelection]);
+
+  // With a markup tool in hand, letting go of a selection marks it.
+  const onViewMouseUp = useCallback(() => {
+    const now = toolRef.current;
+    if (!now || !MARKUP_TOOLS.has(now)) return;
+    setTimeout(() => markSelection(now), 0);
+  }, [markSelection]);
+
+  /** A shape drawn, or a place chosen for a note, on a page. */
+  const onCreate = useCallback((d) => {
+    if (guardLocked()) return;
+    if (d.tool === 'note' || d.tool === 'text') { setNoteDraft({ ...d, colour: colourOf(d.tool) }); return; }
+    if (d.tool === 'stamp') {
+      if (!signature) return;
+      setTool(null);
+      signatureStamp(signature, d).then((spec) => {
+        if (spec) changeComments([{ source: d.source, changes: { add: [{ ...spec, page: d.page }] } }], { pick: true });
+      });
+      return;
+    }
+    if (d.tool === 'date') {
+      // Today, as the words of a text box where the page was clicked, top left at the click.
+      const words = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date());
+      const ctx2d = document.createElement('canvas').getContext('2d');
+      ctx2d.font = '11px Helvetica, Arial, sans-serif';
+      const wide = Math.ceil(ctx2d.measureText(words).width) + 10;
+      changeComments([{ source: d.source, changes: { add: [{ page: d.page, type: 'FreeText', rect: [d.point[0], d.point[1] - 18, d.point[0] + wide, d.point[1]], contents: words, fontSize: 11, color: [0.06, 0.14, 0.36], subject: 'Date' }] } }], { pick: true });
+      return;
+    }
+    if (d.tool === 'check') {
+      // A tick, 14 points square, centred on the click.
+      const [cx, cy] = d.point;
+      const tick = [[cx - 5, cy, cx - 1.5, cy - 4, cx + 5.5, cy + 4.5]];
+      changeComments([{ source: d.source, changes: { add: [{ page: d.page, type: 'Stamp', rect: [cx - 7, cy - 7, cx + 7, cy + 7], paths: tick, width: 1.8, icon: 'Check', subject: 'Checkmark', color: [0.06, 0.14, 0.36] }] } }], { pick: true });
+      return;
+    }
+    if (d.tool === 'redact-area') {
+      changeComments([{ source: d.source, changes: { add: [{ page: d.page, type: 'Redact', rect: d.rect }] } }]);
+      return;
+    }
+    const spec = { page: d.page, type: TOOL_TYPES[d.tool], color: colourOf(d.tool) };
+    if (d.ink) spec.ink = d.ink;
+    if (d.line) spec.line = d.line;
+    if (d.rect) spec.rect = d.rect;
+    changeComments([{ source: d.source, changes: { add: [spec] } }], { pick: true });
+  }, [guardLocked, colourOf, changeComments, signature]);
+
+  const fillField = useCallback((sourceId, field, value) => {
+    if (guardLocked()) return;
+    changeComments([{ source: sourceId, values: { [field.id]: value } }]);
+  }, [guardLocked, changeComments]);
+
+  /* ── redaction ──────────────────────────────────────────────────────── */
+
+  /** The redaction marks on the window's pages, and how many pages carry them. */
+  const redactionMarks = useCallback(() => {
+    let marks = 0;
+    const on = new Set();
+    for (const p of pagesRef.current) {
+      const list = (sourcesRef.current[p.source]?.annots || []).filter((a) => a.type === 'Redact' && a.page === p.page);
+      marks += list.length;
+      if (list.length) on.add(p.key);
+    }
+    return { marks, pages: on.size };
+  }, []);
+
+  /** Every match of the words in Find, on every page, marked for redaction. */
+  const markSearchResults = useCallback(async () => {
+    if (guardLocked()) return;
+    const q = query.trim();
+    if (!findOpen || !q) {
+      openFindRef.current?.();
+      toast(t('Type the words to find, then press Mark Matches again to mark every match.'), { ms: 5000 });
+      return;
+    }
+    setBusy(t('Finding…'));
+    const bySource = new Map();
+    let count = 0;
+    try {
+      const seen = new Set();
+      for (const p of pagesRef.current) {
+        const id = `${p.source}:${p.page}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const quads = await searchQuads(sourcesRef.current[p.source].doc, p.page, q);
+        if (!quads.length) continue;
+        count += quads.length;
+        if (!bySource.has(p.source)) bySource.set(p.source, []);
+        bySource.get(p.source).push({ page: p.page, type: 'Redact', quads });
+      }
+    } finally {
+      setBusy(null);
+    }
+    if (!bySource.size) { toast(t('No matches to mark.'), { ms: 4000 }); return; }
+    await changeComments([...bySource].map(([source, add]) => ({ source, changes: { add } })));
+    toast(tn(count, '{count} match marked for redaction. Apply Redactions removes it.', '{count} matches marked for redaction. Apply Redactions removes them.'), { ms: 5000 });
+  }, [guardLocked, query, findOpen, toast, changeComments]);
+
+  const askApply = useCallback(() => {
+    if (guardLocked()) return;
+    if (!redactionMarks().marks) {
+      toast(t('Nothing is marked for redaction yet. Mark words, an area or the matches of a search first.'), { ms: 5000 });
+      return;
+    }
+    setApplying(true);
+  }, [guardLocked, redactionMarks, toast]);
+
+  /** The marks applied: the pages written whole as a new file, which then opens here. */
+  const applyRedactions = useCallback(async () => {
+    setApplying(false);
+    const list = pagesRef.current;
+    const folder = path ? dirname(path) : (await shell.app.paths().catch(() => ({}))).documents || '';
+    const stem = stemOf(path || name || '') || t('Untitled');
+    const target = await shell.dialog.save({ title: t('Save the redacted PDF as'), defaultPath: joinPath(folder, `${stem}_Redacted.pdf`), filters: PDF_FILTER() });
+    if (!target) return;
+    const out = /\.pdf$/i.test(target) ? target : `${target}.pdf`;
+    if (path && out.toLowerCase() === path.toLowerCase()) {
+      toast(t('Save the redacted PDF under a new name: the original is kept as it is.'), { tone: 'bad', ms: 6000 });
+      return;
+    }
+    setBusy(t('Redacting…'));
+    try {
+      const sources = [...new Set(list.map((p) => p.source))];
+      const plan = await shell.pdf.redactPlan({ sources });
+      const images = await decodePlan(plan);
+      const { removed } = await shell.pdf.redact({ pages: entriesOf(list), path: out, images });
+      setBusy(null);
+      await openPdf(out);
+      const parts = [tn(removed.pages, 'Redacted {count} page.', 'Redacted {count} pages.')];
+      if (removed.images) parts.push(tn(removed.images, '{count} picture under a mark could not be painted out and was left off its page.', '{count} pictures under marks could not be painted out and were left off their pages.'));
+      parts.push(t('Saved as {name}.', { name: basename(out) }));
+      toast(parts.join(' '), { tone: 'good', ms: 7000 });
+    } catch (err) {
+      toast(t('The redactions could not be applied: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+    } finally {
+      setBusy(null);
+    }
+  }, [path, name, shell, toast, openPdf]);
+
+  /** Fill & Sign: the signature or initials kept from last time, or the dialog to make them. */
+  const sign = useCallback((kind, { fresh = false } = {}) => {
+    if (guardLocked()) return;
+    const kept = fresh ? null : savedSignature(kind);
+    if (kept) { setSignature(kept); setTool('stamp'); setPicked(null); return; }
+    setSigning(kind);
+  }, [guardLocked]);
+
+  const postNote = useCallback((text) => {
+    const d = noteDraft;
+    setNoteDraft(null);
+    if (!d) return;
+    const spec = d.tool === 'note'
+      ? { page: d.page, type: 'Text', rect: [d.point[0], d.point[1] - 20, d.point[0] + 20, d.point[1]], contents: text, color: d.colour }
+      : { page: d.page, type: 'FreeText', rect: d.rect, contents: text, fontSize: 12, color: d.colour };
+    changeComments([{ source: d.source, changes: { add: [spec] } }], { pick: true });
+  }, [noteDraft, changeComments]);
+
+  const replyTo = useCallback((item, text) => changeComments([{ source: item.source, changes: { reply: [{ to: item.annot.id, contents: text }] } }]), [changeComments]);
+  const resolveComment = useCallback((item, resolved) => changeComments([{ source: item.source, changes: { resolve: [{ id: item.annot.id, resolved }] } }]), [changeComments]);
+  const editComment = useCallback((item, text) => changeComments([{ source: item.source, changes: { edit: [{ id: item.annot.id, contents: text }] } }]), [changeComments]);
+  const deleteComment = useCallback((item) => {
+    setPicked(null);
+    changeComments([{ source: item.source, changes: { remove: [item.annot.id] } }]);
+  }, [changeComments]);
+  const deletePicked = useCallback(() => {
+    if (!picked) return;
+    const item = commentItems(pagesRef.current, sourcesRef.current).find((it) => it.annot.id === picked);
+    if (item) deleteComment(item);
+  }, [picked, deleteComment]);
+
+  const pickComment = useCallback((id, pageKey) => {
+    setPicked(id);
+    setTool(null);
+    if (pageKey && pageKey !== currentRef.current) {
+      setCurrent(pageKey);
+      requestAnimationFrame(() => scrollToRef.current?.(pageKey));
+    }
+    // The comment on its page brought into view.
+    requestAnimationFrame(() => {
+      const el = viewRef.current?.querySelector(`.pdf-page[data-key="${pageKey}"] .pdf-annot[data-id="${id}"]`);
+      const view = viewRef.current;
+      if (!el || !view) return;
+      const r = el.getBoundingClientRect();
+      const box = view.getBoundingClientRect();
+      if (r.top < box.top + 20 || r.bottom > box.bottom - 20) view.scrollTop += r.top - box.top - box.height / 3;
+    });
+  }, []);
+
+  /** A link on a page: to a page of this file, where that page now stands, or out to a web address. */
+  const followLink = useCallback((link, entry) => {
+    if (link.url) {
+      shell.shell.openExternal({ url: link.url }).catch(() => {});
+      return;
+    }
+    const to = pagesRef.current.find((p) => p.source === entry.source && p.page === link.target);
+    if (to) goToRef.current?.(to.key);
+    else toast(t('The page this link goes to is not in the document now.'), { ms: 4000 });
+  }, [shell, toast]);
+  const goToRef = useRef(null);
+
+  const overlay = useCallback((entry, { source, scale }) => (
+    <>
+      <FieldLayer entry={entry} source={source} scale={scale} fields={source?.fields} highlight={tintFields} onFill={fillField} />
+      <AnnotLayer
+      entry={entry}
+      source={source}
+      scale={scale}
+      annots={source?.annots}
+      tool={tool}
+      colour={tool ? colourOf(tool) : null}
+      picked={picked}
+      onPick={pickComment}
+      onCreate={onCreate}
+      viewports={viewports}
+      onLink={followLink}
+      />
+    </>
+  ), [tool, colourOf, picked, pickComment, onCreate, viewports, tintFields, fillField, followLink]);
 
   /* ── writing ────────────────────────────────────────────────────────── */
 
@@ -549,6 +895,7 @@ export default function PdfApp({ app, shell, boot }) {
     setCurrent(key);
     if (scroll) requestAnimationFrame(() => scrollToPage(key));
   }, [scrollToPage]);
+  goToRef.current = goTo;
 
   const onPick = useCallback((key, { ctrl, shift, press, release }) => {
     const sel = selectedRef.current;
@@ -728,6 +1075,7 @@ export default function PdfApp({ app, shell, boot }) {
     setFindOpen(true);
     requestAnimationFrame(() => { findRef.current?.focus(); findRef.current?.select(); });
   }, []);
+  openFindRef.current = openFind;
 
   /* ── start-up, drops, the close guard, recovery ──────────────────────── */
 
@@ -807,9 +1155,12 @@ export default function PdfApp({ app, shell, boot }) {
     'page.extract': { label: t('Extract Pages…'), icon: 'export', when: () => canEdit, run: extract },
     'page.insert': { label: t('Insert from File…'), icon: 'import', when: () => canEdit, run: insertFromFile },
     'page.recognise': { label: t('Recognise Text…'), icon: 'scanText', when: () => canEdit && !ocr, run: askRecognise },
+    'comment.cancel': { label: t('Put the tool down'), key: 'Escape', global: true, when: () => Boolean(tool) && !findOpen && !noteDraft, run: () => setTool(null) },
+    'comment.unpick': { label: t('Unpick the comment'), key: 'Escape', when: () => Boolean(picked) && !tool && !findOpen, run: () => setPicked(null) },
+    'comment.delete': { label: t('Delete the comment'), key: 'Delete', when: () => Boolean(picked) && canEdit, run: deletePicked },
     'page.next': { label: t('Next page'), key: 'PageDown', when: () => hasDoc && layout === 'single', run: () => stepPage(1) },
     'page.previous': { label: t('Previous page'), key: 'PageUp', when: () => hasDoc && layout === 'single', run: () => stepPage(-1) },
-  }), [shell, openFile, save, saveAs, print, undo, redo, openFind, findOpen, nextHit, rotate, removePages, extract, insertFromFile, stepPage, hasDoc, canEdit, layout, ocr, askRecognise]);
+  }), [shell, openFile, save, saveAs, print, undo, redo, openFind, findOpen, nextHit, rotate, removePages, extract, insertFromFile, stepPage, hasDoc, canEdit, layout, ocr, askRecognise, tool, picked, noteDraft, deletePicked]);
   useCommands(commands, [commands]);
 
   const appMenu = useAppMenu({
@@ -841,16 +1192,20 @@ export default function PdfApp({ app, shell, boot }) {
   const pickedLabel = pickedCount ? tn(pickedCount, '{count} page selected', '{count} pages selected') : null;
   const currentIndex = pages.findIndex((p) => p.key === current);
   const currentSize = currentIndex >= 0 ? sizeOf(pages[currentIndex]) : null;
+  const currentLabel = currentIndex >= 0 ? labelOf(sources, pages[currentIndex]) : null;
 
   const ribbon = (
     <Ribbon
       tabs={[
         { id: 'home', label: t('Home') },
         { id: 'pages', label: t('Pages') },
+        { id: 'comment', label: t('Comment') },
+        { id: 'fill', label: t('Fill & Sign') },
+        { id: 'redact', label: t('Redact') },
         { id: 'view', label: t('View') },
       ]}
       active={tab}
-      onTab={setTab}
+      onTab={(id) => { setTab(id); if (id === 'comment' && hasDoc) setCommentsOpen(true); if (!['comment', 'fill', 'redact'].includes(id)) setTool(null); }}
       quick={(
         <>
           <Button icon="save" title={t('Save (Ctrl+S)')} disabled={!canEdit} onClick={save} />
@@ -915,6 +1270,93 @@ export default function PdfApp({ app, shell, boot }) {
           </Group>
         </>
       ) : null}
+      {tab === 'comment' ? (
+        <>
+          <Group label={t('Markup')}>
+            <Button tall icon="highlighter" label={t('Highlight')} title={t('Highlight: the words selected, or select words with it in hand')} pressed={tool === 'highlight'} disabled={!canEdit} onClick={() => pressTool('highlight')} data-role="tool-highlight" />
+            <Rows>
+              <Button icon="underline" label={t('Underline')} title={t('Underline: the words selected, or select words with it in hand')} pressed={tool === 'underline'} disabled={!canEdit} onClick={() => pressTool('underline')} data-role="tool-underline" />
+              <Button icon="strike" label={t('Strikethrough')} title={t('Strikethrough: a line through the words selected')} pressed={tool === 'strike'} disabled={!canEdit} onClick={() => pressTool('strike')} data-role="tool-strike" />
+            </Rows>
+          </Group>
+          <Group label={t('Notes')}>
+            <Button tall icon="note" label={t('Sticky Note')} title={t('Sticky Note: a note where you click on the page')} pressed={tool === 'note'} disabled={!canEdit} onClick={() => pressTool('note')} data-role="tool-note" />
+            <Button tall icon="textbox" label={t('Text Box')} title={t('Text Box: words written on the page, in a box you drag out or click to place')} pressed={tool === 'text'} disabled={!canEdit} onClick={() => pressTool('text')} data-role="tool-text" />
+          </Group>
+          <Group label={t('Drawing')}>
+            <Button tall icon="pen" label={t('Draw')} title={t('Draw: freehand lines on the page')} pressed={tool === 'ink'} disabled={!canEdit} onClick={() => pressTool('ink')} data-role="tool-ink" />
+            <Rows>
+              <Button icon="mkRect" label={t('Rectangle')} title={t('Rectangle: drag one out on the page')} pressed={tool === 'rect'} disabled={!canEdit} onClick={() => pressTool('rect')} data-role="tool-rect" />
+              <Button icon="mkEllipse" label={t('Ellipse')} title={t('Ellipse: drag one out on the page')} pressed={tool === 'ellipse'} disabled={!canEdit} onClick={() => pressTool('ellipse')} data-role="tool-ellipse" />
+            </Rows>
+            <Rows>
+              <Button icon="mkLine" label={t('Line')} title={t('Line: drag one out on the page')} pressed={tool === 'line'} disabled={!canEdit} onClick={() => pressTool('line')} data-role="tool-line" />
+              <Button icon="mkArrow" label={t('Arrow')} title={t('Arrow: drag one out on the page, pointing where you let go')} pressed={tool === 'arrow'} disabled={!canEdit} onClick={() => pressTool('arrow')} data-role="tool-arrow" />
+            </Rows>
+          </Group>
+          <Group label={t('Colour')}>
+            <div className="pdf-swatches" role="radiogroup" aria-label={t('Colour')}>
+              {SWATCHES.map((s) => {
+                const which = tool && DEFAULT_TOOL_COLOURS[tool] ? tool : 'highlight';
+                const on = (toolColours[which] || DEFAULT_TOOL_COLOURS[which]) === s.key;
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    className={`pdf-swatch${on ? ' on' : ''}`}
+                    data-swatch={s.key}
+                    data-tip={t('{colour}: the colour of the tool in hand', { colour: s.label() })}
+                    aria-label={s.label()}
+                    style={{ '--swatch': cssColour(s.rgb) }}
+                    onClick={() => setToolColours((c) => ({ ...c, [which]: s.key }))}
+                  />
+                );
+              })}
+            </div>
+          </Group>
+          <Group label={t('Show')}>
+            <Button tall icon="comment" label={t('Comments')} title={t('Comments: the pane listing every comment, to reply, resolve or delete')} pressed={commentsOpen} disabled={!hasDoc} onClick={() => setCommentsOpen((v) => !v)} data-role="comments-toggle" />
+          </Group>
+        </>
+      ) : null}
+      {tab === 'fill' ? (
+        <>
+          <Group label={t('Form')}>
+            <Button tall icon="formField" label={t('Highlight Fields')} title={t('Highlight Fields: the form\'s fields tinted, so they are easy to find')} pressed={tintFields} disabled={!hasDoc} onClick={() => setTintFields((v) => !v)} data-role="tint-fields" />
+          </Group>
+          <Group label={t('Sign')}>
+            <Button tall icon="signature" label={t('Signature')} title={t('Signature: your signature, typed, drawn or from a picture, placed where you click; not a digital signature')} pressed={tool === 'stamp' && signature?.kind === 'signature'} disabled={!canEdit} onClick={() => sign('signature')} data-role="sign-signature" />
+            <Rows>
+              <Button icon="signature" label={t('Initials')} title={t('Initials: your initials, typed, drawn or from a picture, placed where you click')} pressed={tool === 'stamp' && signature?.kind === 'initials'} disabled={!canEdit} onClick={() => sign('initials')} data-role="sign-initials" />
+              <Button icon="pen" label={t('Change Signature')} title={t('Change Signature: type, draw or choose a picture of your signature again')} disabled={!canEdit} onClick={() => sign('signature', { fresh: true })} data-role="sign-change" />
+            </Rows>
+          </Group>
+          <Group label={t('Text')}>
+            <Button tall icon="textbox" label={t('Add Text')} title={t('Add Text: words written anywhere on the page, where the form has no field for them')} pressed={tool === 'text'} disabled={!canEdit} onClick={() => pressTool('text')} data-role="fill-text" />
+            <Rows>
+              <Button icon="calendar" label={t('Date')} title={t('Date: today\'s date written where you click')} pressed={tool === 'date'} disabled={!canEdit} onClick={() => pressTool('date')} data-role="fill-date" />
+              <Button icon="check" label={t('Checkmark')} title={t('Checkmark: a tick where you click, for a box the form did not make a field')} pressed={tool === 'check'} disabled={!canEdit} onClick={() => pressTool('check')} data-role="fill-check" />
+            </Rows>
+          </Group>
+        </>
+      ) : null}
+      {tab === 'redact' ? (
+        <>
+          <Group label={t('Mark')}>
+            <Button tall icon="redact" label={t('Mark Text')} title={t('Mark Text: the words selected, or select words with it in hand, marked for redaction')} pressed={tool === 'redact-text'} disabled={!canEdit} onClick={() => pressTool('redact-text')} data-role="redact-text" />
+            <Button tall icon="marquee" label={t('Mark Area')} title={t('Mark Area: drag out an area of the page, words and pictures, to redact')} pressed={tool === 'redact-area'} disabled={!canEdit} onClick={() => pressTool('redact-area')} data-role="redact-area" />
+            <Button tall icon="find" label={t('Mark Matches')} title={t('Mark Matches: every match of the words in Find, on every page, marked for redaction')} disabled={!canEdit} onClick={markSearchResults} data-role="redact-search" />
+          </Group>
+          <Group label={t('Apply')}>
+            <Button tall icon="check" label={t('Apply Redactions')} title={t('Apply Redactions: what the marks cover removed from the pages, saved as a new file')} disabled={!canEdit} onClick={askApply} data-role="redact-apply" />
+          </Group>
+          <Group label={t('Review')}>
+            <Button tall icon="comment" label={t('Marks')} title={t('Marks: the Comments pane, where each mark can be found and deleted')} pressed={commentsOpen} disabled={!hasDoc} onClick={() => setCommentsOpen((v) => !v)} data-role="redact-marks" />
+          </Group>
+        </>
+      ) : null}
       {tab === 'view' ? (
         <>
           <Group label={t('Page Display')}>
@@ -939,7 +1381,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   const status = (
     <>
-      <span>{hasDoc && currentIndex >= 0 ? t('Page {page} of {count}', { page: currentIndex + 1, count: pages.length }) : path || name || t('No PDF open')}</span>
+      <span data-role="page-status">{hasDoc && currentIndex >= 0 ? (currentLabel && currentLabel !== String(currentIndex + 1) ? t('Page {label} ({page} of {count})', { label: currentLabel, page: currentIndex + 1, count: pages.length }) : t('Page {page} of {count}', { page: currentIndex + 1, count: pages.length })) : path || name || t('No PDF open')}</span>
       {hasDoc ? (
         <>
           <Button ghost icon="chevronUp" title={t('Previous page')} disabled={currentIndex <= 0} onClick={() => stepPage(-1)} />
@@ -983,10 +1425,16 @@ export default function PdfApp({ app, shell, boot }) {
           {strip ? (
             <div className="pdf-side" style={{ width: stripWidth }}>
               <div className="pdf-side-head">
-                <span>{t('Pages')}</span>
+                <div className="pdf-side-tabs" role="tablist">
+                  <button type="button" role="tab" aria-selected={side === 'pages'} className={side === 'pages' ? 'on' : ''} data-role="side-pages" onClick={() => setSide('pages')}>{t('Pages')}</button>
+                  <button type="button" role="tab" aria-selected={side === 'bookmarks'} className={side === 'bookmarks' ? 'on' : ''} data-role="side-bookmarks" onClick={() => setSide('bookmarks')}>{t('Bookmarks')}</button>
+                </div>
                 <span className="spacer" />
-                <span className="pdf-side-count">{pages.length}</span>
+                {side === 'pages' ? <span className="pdf-side-count">{pages.length}</span> : null}
               </div>
+              {side === 'bookmarks' ? (
+                <BookmarksPane pages={pages} sources={sources} current={current} onGo={(key) => goTo(key)} onLink={(url) => shell.shell.openExternal({ url }).catch(() => {})} />
+              ) : (
               <ThumbStrip
                 pages={pages}
                 sources={sources}
@@ -998,6 +1446,7 @@ export default function PdfApp({ app, shell, boot }) {
                 onMenu={thumbMenu}
                 onKey={onStripKey}
               />
+              )}
             </div>
           ) : null}
           {strip ? (
@@ -1017,6 +1466,16 @@ export default function PdfApp({ app, shell, boot }) {
           ) : null}
           <div className="pdf-main">
             {protectedFile ? <div className="pdf-notice">{t('This PDF is protected, so its pages can be read but not changed or saved yet.')}</div> : null}
+            {tab === 'redact' && !protectedFile ? (
+              <div className="pdf-notice info" data-role="redact-notice">
+                {t('Marks show what will be removed; nothing is removed until you apply them. Applying saves a new file and leaves the original as it is.')}
+              </div>
+            ) : null}
+            {tab === 'fill' && !protectedFile ? (
+              <div className="pdf-notice info" data-role="sign-notice">
+                {tool === 'stamp' ? t('Click the page where your {kind} goes, or drag out the box it fills. Press Esc to put it down.', { kind: signature?.kind === 'initials' ? t('initials') : t('signature') }) : t('Type into the form\'s fields, tick its boxes and choose from its lists. A signature placed here is a picture of your signature, not a digital signature: it does not prove who signed, or that the PDF has not changed since.')}
+              </div>
+            ) : null}
             {findOpen ? (
               <div className="pdf-find" role="search">
                 <Input
@@ -1048,11 +1507,37 @@ export default function PdfApp({ app, shell, boot }) {
               onCurrent={onCurrent}
               onText={onText}
               scrollerRef={viewRef}
+              overlay={overlay}
+              onMouseUp={onViewMouseUp}
             />
             {busy ? <div className="pdf-busy"><Spinner /></div> : null}
           </div>
+          {commentsOpen ? (
+            <CommentsPane
+              items={commentItems(pages, sources)}
+              picked={picked}
+              onPick={pickComment}
+              onReply={replyTo}
+              onResolve={resolveComment}
+              onDelete={deleteComment}
+              onEdit={editComment}
+              onClose={() => setCommentsOpen(false)}
+            />
+          ) : null}
         </div>
       )}
+      {noteDraft ? <NoteEditor draft={noteDraft} onPost={postNote} onCancel={() => setNoteDraft(null)} /> : null}
+      {applying ? (
+        <ApplyRedactionsDialog {...redactionMarks()} onApply={applyRedactions} onClose={() => setApplying(false)} />
+      ) : null}
+      {signing ? (
+        <SignatureDialog
+          kind={signing}
+          shell={shell}
+          onClose={() => setSigning(null)}
+          onDone={(made) => { setSigning(null); setSignature(made); setTool('stamp'); setPicked(null); }}
+        />
+      ) : null}
       {splitOpen ? <SplitDialog count={pages.length} picked={selected.filter((k) => pages.findIndex((p) => p.key === k) > 0).length} onSplit={split} onClose={() => setSplitOpen(false)} /> : null}
       {ocr ? (
         <RecogniseDialog
