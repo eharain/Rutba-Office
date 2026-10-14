@@ -12,8 +12,18 @@
 // browser sign-in, or a server that never answered. What was tried is kept,
 // without the password, for the window to show.
 //
+// Nothing is looked up for text that is not an address, nor before there is
+// a password (the provider table alone says whether it signs in with a
+// browser page instead). A server discovery marked foreign - not under the
+// address's domain, not in the table - is not sent the password until the
+// person has agreed to it by name: the answer is then 'confirm', with the
+// servers to show. And no server is tried without encryption: TLS, or a
+// STARTTLS upgrade that must happen before the password is sent.
+//
 // The tries and the discovery are handed in, so the tests run it with no
 // network and a check run never reaches one.
+
+import { isAddress } from '@rutba/mailbox/account-rows';
 
 /** What a failed try's message means. */
 export function failureOf(message) {
@@ -64,20 +74,30 @@ function userNames(email, given) {
   return [...new Set([given, email, local].filter(Boolean))];
 }
 
-/** The candidates of one kind, best first, the one discovery chose first of all. */
-function ranked(found, kind) {
+/**
+ * The candidates of one kind, best first, the one discovery chose first of
+ * all; a foreign one only when the person agreed to its host. Each is TLS or
+ * an upgrade the connection insists on, never plain.
+ */
+function ranked(found, kind, agreed) {
   const chosen = found?.[kind] ? [found[kind]] : [];
   const rest = (found?.candidates || []).filter((c) => c.kind === kind).sort((a, b) => Number(Boolean(b.verified)) - Number(Boolean(a.verified)) || (b.confidence || 0) - (a.confidence || 0));
   const seen = new Set();
   const out = [];
   for (const c of [...chosen, ...rest]) {
     const key = `${c.host}|${c.port}|${c.secure}`;
-    if (seen.has(key)) continue;
+    if (seen.has(key) || (c.foreign && !agreed.has(String(c.host).toLowerCase()))) continue;
     seen.add(key);
-    out.push({ host: c.host, port: c.port, secure: c.secure, starttls: c.starttls ?? !c.secure, banner: c.banner || null, user: c.user || null });
+    out.push({ host: c.host, port: c.port, secure: Boolean(c.secure), starttls: !c.secure, banner: c.banner || null, user: c.user || null });
   }
   return out;
 }
+
+/** A server the person typed (a row's own columns): TLS on its usual port, otherwise an upgrade, never plain. */
+const given = (s, tlsPort) => {
+  const secure = s.secure ?? s.port === tlsPort;
+  return { ...s, secure, starttls: !secure };
+};
 
 const WORST = ['password', 'app-password', 'certificate', 'unreachable', 'no-server', 'other'];
 
@@ -86,18 +106,30 @@ const WORST = ['password', 'app-password', 'certificate', 'unreachable', 'no-ser
  * @param {{ email: string, password: string, name?: string, user?: string, imap?: object, smtp?: object,
  *   discover: (email) => Promise<object>, tryImap: (server, user, password) => Promise<{ ok, message?, folders?, banner? }>,
  *   trySmtp: (server, user, password) => Promise<{ ok, message?, banner? }>, most?: number }} o
- *   `imap`/`smtp` given (from a row's own columns) are tried before anything found
- * @returns {Promise<{ outcome: 'ready'|'sign-in'|'app-password'|'password'|'not-found'|'unreachable'|'certificate'|'outgoing', account?: object, provider?: object, server?: string, tried: object[], found?: object }>}
+ *   `imap`/`smtp` given (from a row's own columns) are tried before anything found;
+ *   `confirmed` the foreign hosts the person has agreed to send the password to
+ * @returns {Promise<{ outcome: 'ready'|'sign-in'|'app-password'|'password'|'not-found'|'unreachable'|'certificate'|'outgoing'|'confirm'|'not-an-address', account?: object, provider?: object, server?: string, foreign?: object[], tried: object[], found?: object }>}
+ *   'confirm': `foreign` lists the servers ({ kind, host, port }) to show and agree to; nothing was tried
  */
-export async function setupAccount({ email, password, name, user, imap = null, smtp = null, discover, tryImap, trySmtp, most = 6 }) {
+export async function setupAccount({ email, password, name, user, imap = null, smtp = null, confirmed = [], discover, tryImap, trySmtp, most = 6 }) {
   const address = String(email || '').trim();
+  const tried = [];
+  if (!isAddress(address)) return { outcome: 'not-an-address', provider: null, tried };
+  // No password: the table alone says whether the provider signs in with its own page. Nothing is looked up.
+  if (!password) {
+    const known = await discover(address, { offline: true });
+    return { outcome: known?.oauth ? 'sign-in' : 'password', provider: known?.provider || null, found: known, tried };
+  }
   const found = await discover(address);
   const provider = found?.provider || null;
-  const tried = [];
-  // A provider that signs in in its own browser page, and no password given: nothing to try.
-  if (!password) return { outcome: found?.oauth ? 'sign-in' : 'password', provider, found, tried };
-  const incoming = [...(imap?.host ? [{ ...imap, secure: imap.secure ?? imap.port === 993, starttls: imap.starttls ?? imap.port !== 993 }] : []), ...ranked(found, 'imap')].slice(0, most);
-  const outgoing = [...(smtp?.host ? [{ ...smtp, secure: smtp.secure ?? smtp.port === 465, starttls: smtp.starttls ?? smtp.port !== 465 }] : []), ...ranked(found, 'smtp')].slice(0, most);
+  const agreed = new Set(confirmed.map((h) => String(h).toLowerCase()));
+  const ask = [found?.imap, found?.smtp].filter((c) => c?.foreign && !agreed.has(String(c.host).toLowerCase()));
+  if (ask.length) {
+    const kinds = [['imap', found.imap], ['smtp', found.smtp]].filter(([, c]) => ask.includes(c));
+    return { outcome: 'confirm', provider, found, foreign: kinds.map(([kind, c]) => ({ kind, host: c.host, port: c.port })), tried };
+  }
+  const incoming = [...(imap?.host ? [given(imap, 993)] : []), ...ranked(found, 'imap', agreed)].slice(0, most);
+  const outgoing = [...(smtp?.host ? [given(smtp, 465)] : []), ...ranked(found, 'smtp', agreed)].slice(0, most);
   if (!incoming.length) return { outcome: 'not-found', provider, found, tried };
 
   let inServer = null;

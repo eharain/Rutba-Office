@@ -521,7 +521,8 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
   // shown, what was checked can be opened, and the advanced fields — always one
   // click away, never the only way in — are filled with the answer so that a
   // wrong guess is a correction, not a form from scratch.
-  const security = (server) => (!server ? 'tls' : server.secure ? 'tls' : server.starttls === false ? 'none' : 'starttls');
+  // TLS from the first byte, or an upgrade the connection insists on: there is no unencrypted choice.
+  const security = (server) => (!server ? 'tls' : server.secure ? 'tls' : 'starttls');
   const [form, setForm] = useState(() => ({
     email: seed?.email && seed.email.includes('@') ? seed.email : '',
     name: seed?.name || '',
@@ -543,6 +544,8 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
   const [adding, setAdding] = useState(false);
   // The domain being looked up on the network, while Add does so.
   const [lookingUp, setLookingUp] = useState(null);
+  // Servers the domain's records named outside it, waiting for the person to agree before the password goes there.
+  const [agree, setAgree] = useState(null);
   const [result, setResult] = useState(null);
   const [signingIn, setSigningIn] = useState(false);
   const [providers, setProviders] = useState([]);
@@ -725,11 +728,20 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
    * looked up and every server they name tried until one takes the password
    * (main/mail-setup.js). True when the account was added.
    */
-  const lookUpAndAdd = async () => {
+  const lookUpAndAdd = async (confirmed = []) => {
     const email = form.email.trim();
     setLookingUp(email.split('@')[1] || '');
+    setAgree(null);
     try {
-      const tried = await shell.mail.setupAccount({ email, password: form.password, name: form.name, user: form.user.trim() });
+      const tried = await shell.mail.setupAccount({ email, password: form.password, name: form.name, user: form.user.trim(), confirmed });
+      if (tried?.outcome === 'confirm') {
+        setAgree({ domain: email.split('@')[1] || '', foreign: tried.foreign || [] });
+        return false;
+      }
+      if (tried?.outcome === 'not-an-address') {
+        toast(t('Not an email address'), { tone: 'bad', ms: 7000 });
+        return false;
+      }
       if (tried?.account && (tried.outcome === 'ready' || tried.outcome === 'outgoing')) {
         await shell.mail.addAccount({ account: { ...tried.account, name: form.name || tried.account.name }, password: form.password });
         onSaved();
@@ -779,7 +791,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
   const testable = ready && form.imapHost && form.smtpHost;
   const showTiles = tilesOverride ? tilesOverride === 'open' : !form.email.trim() || !found?.provider;
   const addressPlaceholder = found?.provider?.domain ? `you@${found.provider.domain}` : 'you@example.com';
-  const label = (s) => ({ tls: 'TLS', starttls: 'STARTTLS', none: t('None') }[s] || s);
+  const label = (s) => ({ tls: 'TLS', starttls: 'STARTTLS' }[s] || s);
   const server = (host, port, sec, verified) => (
     <>
       <b>{host}</b> · {port} · {label(sec)}
@@ -861,6 +873,26 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
         <Field label={t('Password')} hint={t("Kept in this computer's keystore, never in a file you can read.")}>
           <Input type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter' && ready && form.password && !adding) add(); }} />
         </Field>
+
+        {agree ? (
+          <div className="ml-agree" role="alert">
+            <div className="ml-agree-text">
+              <Icon name="info" size={15} />
+              <span>{t('{domain} says its mail is on servers somewhere else. Your password goes to them only if you agree. Check with whoever runs your mail if these names are new to you.', { domain: agree.domain })}</span>
+            </div>
+            <ul className="ml-agree-list" dir="ltr">
+              {agree.foreign.map((x) => (
+                <li key={`${x.kind}-${x.host}`}>
+                  {x.kind === 'imap' ? t('Incoming') : t('Outgoing')} <b>{x.host}</b> · {x.port}
+                </li>
+              ))}
+            </ul>
+            <div className="ml-agree-actions">
+              <Button className="ml-agree-no" label={t('Do not use them')} onClick={() => { setAgree(null); setAdvanced(true); }} />
+              <Button primary className="ml-agree-yes" label={t('Use these servers')} disabled={adding} onClick={async () => { const hosts = agree.foreign.map((x) => x.host); setAdding(true); try { await lookUpAndAdd(hosts); } finally { setAdding(false); } }} />
+            </div>
+          </div>
+        ) : null}
 
         <div className="ml-search" data-state={looking ? 'looking' : found ? (found.imap ? 'found' : 'nothing') : 'idle'}>
           {lookingUp ? (
@@ -958,7 +990,6 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
                 <select className="rw-input" value={form.imapSecurity} onChange={(e) => set({ imapSecurity: e.target.value, imapPort: e.target.value === 'tls' ? 993 : 143 })}>
                   <option value="tls">TLS</option>{/* words-ok: protocol names */}
                   <option value="starttls">STARTTLS</option>
-                  <option value="none">{t('None')}</option>
                 </select>
               </Field>
               <Field label={t('Outgoing server (SMTP)')}>
@@ -971,7 +1002,6 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
                 <select className="rw-input" value={form.smtpSecurity} onChange={(e) => set({ smtpSecurity: e.target.value, smtpPort: e.target.value === 'tls' ? 465 : 587 })}>
                   <option value="tls">TLS</option>{/* words-ok: protocol names */}
                   <option value="starttls">STARTTLS</option>
-                  <option value="none">{t('None')}</option>
                 </select>
               </Field>
             </div>

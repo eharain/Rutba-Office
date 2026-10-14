@@ -35,7 +35,8 @@ test('rows of addresses and passwords read whatever separates them, the password
     ['fa@northwind.example', 'barred'],
     ['gu@northwind.example', 'quoted, with a comma'],
   ]);
-  assert.equal(by['10'].problem, 'not-an-address');
+  assert.equal(by['10'].problem, 'unreadable', 'a line that does not start with an address');
+  assert.equal(by['10'].email, '', 'and its text is not kept to be shown back');
   assert.equal(by['11'].problem, 'repeated');
   assert.equal(by['12'].problem, 'no-password');
   assert.equal(rows.length, 10, 'the comment and the blank line are not rows');

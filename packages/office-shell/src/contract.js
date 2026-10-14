@@ -150,8 +150,11 @@ export const METHODS = {
     'providers',    // () -> the providers worth a tile in Add account, as plain data
     'provider',     // ({ id }) -> one provider's full table entry, or null
     'importAccounts', // ({ path, only, test }) -> { added, skipped, failed, total } — a file of accounts, set up at once
-    'setupAccount', // ({ email, password, name }) -> { outcome, account, provider, server, tried } the servers found and tried until one signs in; nothing is kept
-    'addAccounts',  // ({ text, job }) -> { job, results: [{ line, email, outcome, provider, server, id }] } rows of addresses and passwords set up at once; progress as mail:accountsProgress
+    'setupAccount', // ({ email, password, name, confirmed }) -> { outcome, account, provider, server, foreign, tried } the servers found and tried until one signs in; 'confirm' names servers outside the domain to agree to first; nothing is kept
+    'addAccounts',  // ({ text, job }) -> { job, results: [{ line, email, outcome, provider, server, id, foreign }] } rows of addresses and passwords set up at once; progress as mail:accountsProgress
+    'confirmAccounts', // ({ job, index, hosts }) -> result: a row whose domain named servers elsewhere, set up once the person agreed to those hosts
+    'forgetAccountsJob', // ({ job }) -> { forgotten } rows still waiting for agreement forgotten, passwords and all
+    'discoveryForTest', // ({ domain, found }) -> { staged } a domain whose records name servers elsewhere, for a check run; refused otherwise
     'attachmentText', // ({ accountId, folder, id, index }) -> { name, type, text }
     'folders',      // ({ accountId }) -> [folder]
     'sync',         // ({ accountId, folder, limit }) -> { added, total }

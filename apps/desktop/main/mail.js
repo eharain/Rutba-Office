@@ -20,7 +20,7 @@ import { insightFor } from './mail-insight.js';
 import { createArchiveDesk, isArchive } from './mail-archive.js';
 import { createSmimeDesk } from './mail-smime.js';
 import { setupAccount } from './mail-setup.js';
-import { parseAccountRows, checkRows } from '@rutba/mailbox/account-rows';
+import { parseAccountRows, checkRows, isAddress } from '@rutba/mailbox/account-rows';
 import { unicodeFont } from './system-fonts.js';
 import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
@@ -70,7 +70,7 @@ function accountFromEntry(e) {
     email,
     name: String(e.name || e.displayName || e.fullName || '').trim() || email,
     imap: { host: imapHost, port: imapPort, secure: imapSecure, starttls: !imapSecure, user },
-    smtp: { host: smtpHost, port: smtpPort, secure: smtpSecure, starttls: !smtpSecure && (smtpIn.starttls ?? e.smtpStarttls) !== false, user: String(smtpIn.user || e.smtpUser || '').trim() || user },
+    smtp: { host: smtpHost, port: smtpPort, secure: smtpSecure, starttls: !smtpSecure, user: String(smtpIn.user || e.smtpUser || '').trim() || user },
     colour: e.colour || e.color || null,
     signature: typeof e.signature === 'string' ? e.signature : '',
   };
@@ -99,7 +99,8 @@ function defaultTransport() {
         host: account.smtp.host,
         port: account.smtp.port,
         secure: account.smtp.secure,
-        requireTLS: !account.smtp.secure && account.smtp.starttls !== false,
+        // Never in the clear: a plain port is upgraded before anything is sent, or not used.
+        requireTLS: !account.smtp.secure,
         auth: credentials.accessToken
           ? { type: 'OAuth2', user: account.smtp.user || account.email, accessToken: credentials.accessToken }
           : { user: account.smtp.user || account.email, pass: credentials.pass },
@@ -204,9 +205,53 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
    * or not used, as the outgoing side already insists. Left to itself the
    * client upgraded only when the server offered to, and anybody between the
    * two can take the offer out of the greeting: the password then went over
-   * the wire as it was typed.
+   * the wire as it was typed. There is no setting to turn this off: an
+   * account kept from before with no encryption is upgraded now, or fails
+   * saying why.
    */
-  const imapUpgrade = (imap) => (imap.secure ? {} : { doSTARTTLS: imap.starttls !== false });
+  const imapUpgrade = (imap) => (imap.secure ? {} : { doSTARTTLS: true });
+
+  /**
+   * Rows of Add several waiting for the person to agree to servers their
+   * domain named elsewhere, by `${job}|${index}`, with the password, in
+   * memory only: until they agree, the dialog closes, or ten minutes pass.
+   */
+  const awaitingAgreement = new Map();
+  /** A check run's staged discoveries, by domain (discoveryForTest). */
+  const discoveryForTest = new Map();
+
+  /** Set up one row of Add several, saying how it went; a row whose servers need agreeing to is held. */
+  async function setUpRow({ job, index, row, result, tell, have, confirmed = [] }) {
+    result.outcome = 'trying';
+    // What is about to be asked, and where: the window says so.
+    const known = knownProvider(row.email.split('@')[1] || '');
+    result.known = Boolean(known);
+    if (known) result.provider = known.label;
+    tell();
+    try {
+      const r = await service.setupAccount({ email: row.email, password: row.password, name: row.name || '', user: row.user || '', imap: row.imap || null, smtp: row.smtp || null, confirmed });
+      result.provider = r.provider?.label || null;
+      result.server = r.server || null;
+      result.outcome = r.outcome;
+      if (r.outcome === 'confirm') {
+        result.foreign = r.foreign;
+        const key = `${job}|${index}`;
+        const timer = setTimeout(() => awaitingAgreement.delete(key), 10 * 60_000);
+        timer.unref?.();
+        awaitingAgreement.set(key, { row, result, timer });
+      }
+      if ((r.outcome === 'ready' || r.outcome === 'outgoing') && r.account) {
+        const record = service.addAccount({ account: r.account, password: row.password });
+        have.add(row.email.toLowerCase());
+        result.id = record.id;
+        result.outcome = r.outcome === 'ready' ? 'added' : 'added-no-outgoing';
+      }
+    } catch (err) {
+      result.outcome = 'failed';
+      result.message = err.message;
+    }
+    tell();
+  }
 
   /** ImapFlow is loaded when an account is actually used, not at start-up. */
   async function imapFor(account) {
@@ -564,7 +609,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
           port: account.smtp.port,
           secure: account.smtp.secure,
           // A plain port is upgraded with STARTTLS before a password is sent, or not used.
-          requireTLS: !account.smtp.secure && account.smtp.starttls !== false,
+          requireTLS: !account.smtp.secure,
           auth: { user: account.smtp.user || account.email, pass: password },
         });
         await transport.verify();
@@ -582,10 +627,21 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      * the name before the @, until one signs in, then the outgoing servers
      * the same way (mail-setup.js). Nothing is kept; the answer says what was
      * tried, without the password. A check run asks no network: it takes
-     * the provider table's servers untried.
+     * the provider table's servers untried. Servers the domain's records
+     * name outside it come back as 'confirm', to be agreed to by name and
+     * passed as `confirmed`.
      */
-    setupAccount: async ({ email, password = '', name = '', user = '', imap = null, smtp = null }) => {
+    setupAccount: async ({ email, password = '', name = '', user = '', imap = null, smtp = null, confirmed = [] }) => {
+      // A check run's stand-in for a domain whose records name servers elsewhere: the flow, never the network.
+      const staged = CHECK_RUN ? discoveryForTest.get(String(email).split('@')[1]?.toLowerCase()) : null;
+      if (staged) {
+        const ok = async () => ({ ok: true, folders: 3, banner: 'Dovecot ready' });
+        const r = await setupAccount({ email, password, name, user, imap, smtp, confirmed, discover: async (_, o = {}) => (o.offline ? { provider: null, oauth: null } : staged), tryImap: ok, trySmtp: ok });
+        delete r.found;
+        return { ...r, untried: true };
+      }
       if (CHECK_RUN) {
+        if (!isAddress(email)) return { outcome: 'not-an-address', provider: null, tried: [] };
         const found = await discoverMailServers(email, { offline: true });
         const inServer = imap?.host ? { ...imap, secure: imap.port === 993 } : found.imap;
         const outServer = smtp?.host ? { ...smtp, secure: smtp.port === 465 } : found.smtp || inServer;
@@ -601,7 +657,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         user,
         imap,
         smtp,
-        discover: (address) => discoverMailServers(address, {}),
+        confirmed,
+        discover: (address, options = {}) => discoverMailServers(address, { offline: Boolean(options.offline) }),
         tryImap: async (server, u, pass) => {
           const t = await service.testAccount({ account: { email, imap: { ...server, user: u }, smtp: { host: 'localhost', port: 1, secure: false } }, password: pass, only: 'imap' });
           return { ok: Boolean(t.imap?.ok), message: t.imap?.message, folders: t.imap?.folders, banner: t.imap?.banner };
@@ -626,9 +683,9 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      */
     addAccounts: async ({ text = '', rows: given = null, job = crypto.randomUUID() }) => {
       // Rows read by the window (its box cleared once read), or text to read here.
-      const rows = given ? checkRows(given.map((r) => ({ line: r.line, email: String(r.email || '').trim(), password: String(r.password || ''), name: r.name, user: r.user, imap: r.imap, smtp: r.smtp }))) : parseAccountRows(text).rows;
+      const rows = given ? checkRows(given.map((r) => ({ line: r.line, email: String(r.email || '').trim(), password: String(r.password || ''), name: r.name, user: r.user, imap: r.imap, smtp: r.smtp, unreadable: Boolean(r.unreadable) }))) : parseAccountRows(text).rows;
       const have = new Set(accounts().map((a) => String(a.email).toLowerCase()));
-      const results = rows.map((r) => ({ line: r.line, email: r.email, outcome: r.problem === 'not-an-address' ? 'not-an-address' : r.problem === 'repeated' ? 'repeated' : have.has(r.email.toLowerCase()) ? 'exists' : 'waiting' }));
+      const results = rows.map((r) => ({ line: r.line, email: r.email, outcome: ['not-an-address', 'repeated', 'unreadable'].includes(r.problem) ? r.problem : have.has(r.email.toLowerCase()) ? 'exists' : 'waiting' }));
       const tell = (i, extra = {}) => broadcast?.('mail:accountsProgress', { job, index: i, ...results[i], ...extra });
       let next = 0;
       const work = async () => {
@@ -638,33 +695,48 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
             tell(i);
             continue;
           }
-          const row = rows[i];
-          results[i].outcome = 'trying';
-          // What is about to be asked, and where: the window says so.
-          const known = knownProvider(row.email.split('@')[1] || '');
-          results[i].known = Boolean(known);
-          if (known) results[i].provider = known.label;
-          tell(i);
-          try {
-            const r = await service.setupAccount({ email: row.email, password: row.password, name: row.name || '', user: row.user || '', imap: row.imap || null, smtp: row.smtp || null });
-            results[i].provider = r.provider?.label || null;
-            results[i].server = r.server || null;
-            results[i].outcome = r.outcome;
-            if ((r.outcome === 'ready' || r.outcome === 'outgoing') && r.account) {
-              const record = service.addAccount({ account: r.account, password: row.password });
-              have.add(row.email.toLowerCase());
-              results[i].id = record.id;
-              results[i].outcome = r.outcome === 'ready' ? 'added' : 'added-no-outgoing';
-            }
-          } catch (err) {
-            results[i].outcome = 'failed';
-            results[i].message = err.message;
-          }
-          tell(i);
+          await setUpRow({ job, index: i, row: rows[i], result: results[i], tell: () => tell(i), have });
         }
       };
       await Promise.all([work(), work(), work()]);
       return { job, results };
+    },
+
+    /**
+     * The person agreed, by name, to the servers a row's domain named
+     * elsewhere: that row (held in memory since) is set up with them now.
+     * `hosts` must be the ones shown; a server named since that is not
+     * among them is still not sent the password.
+     */
+    confirmAccounts: async ({ job, index, hosts = [] }) => {
+      const key = `${job}|${index}`;
+      const held = awaitingAgreement.get(key);
+      if (!held) throw new Error('That row is no longer waiting: add it again.');
+      awaitingAgreement.delete(key);
+      clearTimeout(held.timer);
+      const tell = () => broadcast?.('mail:accountsProgress', { job, index, ...held.result });
+      await setUpRow({ job, index, row: held.row, result: held.result, tell, have: new Set(accounts().map((a) => String(a.email).toLowerCase())), confirmed: hosts });
+      return { ...held.result };
+    },
+
+    /** Forget the rows of a job still waiting for agreement, with their passwords (the dialog closed). */
+    forgetAccountsJob: ({ job }) => {
+      let forgotten = 0;
+      for (const [key, held] of awaitingAgreement) {
+        if (!key.startsWith(`${job}|`)) continue;
+        clearTimeout(held.timer);
+        awaitingAgreement.delete(key);
+        forgotten++;
+      }
+      return { forgotten };
+    },
+
+    /** For a check run only: a domain whose records name servers elsewhere, to show the agreement asked for. */
+    discoveryForTest: ({ domain, found = null }) => {
+      if (!CHECK_RUN) throw new Error('Discovery is staged only during verification.');
+      if (found) discoveryForTest.set(String(domain).toLowerCase(), found);
+      else discoveryForTest.delete(String(domain).toLowerCase());
+      return { staged: discoveryForTest.size };
     },
 
     /**

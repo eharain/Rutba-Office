@@ -383,6 +383,12 @@ export const CSS = `
 .ml-search-line { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
 .ml-search-line.quiet { color: var(--ink-3); }
 .ml-search-line b { color: var(--ink); font-weight: 600; }
+.ml-agree { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--warn, #b26a00) 45%, var(--line)); border-radius: var(--r-2); background: color-mix(in srgb, var(--warn, #b26a00) 7%, var(--surface)); font-size: 12.5px; }
+.ml-agree-text { display: flex; gap: 8px; align-items: flex-start; color: var(--ink); line-height: 1.45; }
+.ml-agree-text > svg { flex: none; margin-top: 2px; color: var(--warn, #b26a00); }
+.ml-agree-list { margin: 0; padding: 0 0 0 23px; color: var(--ink-2); }
+.ml-agree-list b { color: var(--ink); font-weight: 600; }
+.ml-agree-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .ml-steps-toggle { align-self: flex-start; border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; }
 .ml-steps { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
 .ml-step { display: grid; grid-template-columns: 16px 150px 1fr; gap: 6px; align-items: baseline; color: var(--ink-2); }

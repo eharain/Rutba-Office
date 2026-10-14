@@ -14,12 +14,36 @@
 //     that line's separator, a quoted field keeping its separators, as a
 //     spreadsheet writes CSV.
 // A line starting # is a comment. Each row says what is wrong with it, if
-// anything, and a password is never put in a message.
+// anything, and a password is never put in a message. A line that does not
+// start with an address is not shown back at all, only its number: it may be
+// a password on a line of its own.
 
-const EMAIL = /^[^\s@,;:|"'<>()]+@[^\s@,;:|"'<>()]+\.[^\s@,;:|"'<>()]+$/;
+// The part before the @: anything but spaces, separators, double quotes,
+// brackets and slashes (an apostrophe is fine: o'brien@). The domain: a host name - labels of letters (any script),
+// digits and inner hyphens, dots between them, ending in a name of letters
+// (or an xn-- one) - so nothing in it can make a lookup's address another one.
+const LOCAL = /^[^\s@,;:|"<>()[\]\\/]{1,64}$/u;
+const LABEL = /^[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?$/u;
+const TOP = /^(?:\p{L}{2,63}|xn--[a-z0-9-]{1,59})$/iu;
+
+/** Is this a host name a mail domain can be: two labels or more, each a valid one, the last a top-level name. */
+export function isDomain(domain) {
+  const d = String(domain || '');
+  if (d.length > 253) return false;
+  const labels = d.split('.');
+  return labels.length >= 2 && labels.every((l) => LABEL.test(l)) && TOP.test(labels[labels.length - 1]);
+}
 
 /** Is this text an email address. */
-export const isAddress = (s) => EMAIL.test(String(s || '').trim());
+export function isAddress(s) {
+  const text = String(s || '').trim();
+  const at = text.lastIndexOf('@');
+  if (at < 1 || text.length > 254) return false;
+  return LOCAL.test(text.slice(0, at)) && isDomain(text.slice(at + 1));
+}
+
+/** Text that stands where an address goes (no spaces, an @ in it), so it may be shown back. Anything else is not. */
+const addressLike = (s) => /^[^\s@]+@\S+$/.test(String(s || '').trim());
 
 const HEADERS = {
   email: /^(e-?mail|e-?mail address|address|account|login|user ?name|username|user)$/i,
@@ -71,21 +95,31 @@ function columnOf(cell) {
   return null;
 }
 
+/** A row's problem, given the addresses above it; and the address noted as seen. */
+function problemOf(row, seen) {
+  const key = String(row.email || '').toLowerCase();
+  let problem = null;
+  if (row.unreadable) problem = 'unreadable';
+  else if (!isAddress(row.email)) problem = 'not-an-address';
+  else if (seen.has(key)) problem = 'repeated';
+  else if (!row.password) problem = 'no-password';
+  if (!row.unreadable && isAddress(row.email)) seen.add(key);
+  return problem;
+}
+
 /**
  * Say what is wrong with each of rows read at different times (the box read
- * more than once): an address that is not one, one already above, no password.
- * @param {Array<{ email: string, password: string }>} rows
+ * more than once): a line that could not be read, an address that is not
+ * one, one already above, no password.
+ * @param {Array<{ email: string, password: string, unreadable?: boolean }>} rows
  */
 export function checkRows(rows) {
   const seen = new Set();
   return rows.map((row) => {
     const out = { ...row };
     delete out.problem;
-    const key = String(row.email || '').toLowerCase();
-    if (!isAddress(row.email)) out.problem = 'not-an-address';
-    else if (seen.has(key)) out.problem = 'repeated';
-    else if (!row.password) out.problem = 'no-password';
-    if (isAddress(row.email)) seen.add(key);
+    const problem = problemOf(row, seen);
+    if (problem) out.problem = problem;
     return out;
   });
 }
@@ -123,29 +157,33 @@ export function parseAccountRows(text) {
         const at = header.indexOf(key);
         return at >= 0 ? cells[at] || '' : '';
       };
-      row = { line: i + 1, email: get('email').trim(), password: get('password') };
-      if (get('name')) row.name = get('name');
-      if (get('user')) row.user = get('user');
-      if (get('imapHost')) row.imap = { host: get('imapHost'), port: Number(get('imapPort')) || 993 };
-      if (get('smtpHost')) row.smtp = { host: get('smtpHost'), port: Number(get('smtpPort')) || 465 };
+      const email = get('email').trim();
+      // A cell that is not address-like (columns out of step, a password where the address goes) is not shown back.
+      if (!addressLike(email)) row = { line: i + 1, email: '', password: '', unreadable: true };
+      else {
+        row = { line: i + 1, email, password: get('password') };
+        if (get('name')) row.name = get('name');
+        if (get('user')) row.user = get('user');
+        if (get('imapHost')) row.imap = { host: get('imapHost'), port: Number(get('imapPort')) || 993 };
+        if (get('smtpHost')) row.smtp = { host: get('smtpHost'), port: Number(get('smtpPort')) || 465 };
+      }
     } else {
       // An address, its separator, and the rest of the line as the password.
       const trimmed = line.trim();
       const quoted = /^"([^"]*)"\s*([\t,;:| ])\s*(.*)$/.exec(trimmed);
       const m = quoted || /^([^\s,;:|\t]+@[^\s,;:|\t]+?)(?:\s*([\t,;:|])\s*|\s+)(.*)$/.exec(trimmed);
-      if (m) {
+      if (m && addressLike(m[1])) {
         let password = m[3];
         // A password a spreadsheet quoted ("p,w") is the text inside its quotes.
         const q = /^"((?:[^"]|"")*)"$/.exec(password);
         if (q) password = q[1].replace(/""/g, '"');
         row = { line: i + 1, email: m[1].trim(), password };
-      } else row = { line: i + 1, email: trimmed, password: '' };
+      } else if (addressLike(trimmed)) row = { line: i + 1, email: trimmed, password: '' };
+      // Not an address and a password: its text is never shown back, only that line N could not be read.
+      else row = { line: i + 1, email: '', password: '', unreadable: true };
     }
-    const key = row.email.toLowerCase();
-    if (!isAddress(row.email)) row.problem = 'not-an-address';
-    else if (seen.has(key)) row.problem = 'repeated';
-    else if (!row.password) row.problem = 'no-password';
-    if (isAddress(row.email)) seen.add(key);
+    const problem = problemOf(row, seen);
+    if (problem) row.problem = problem;
     rows.push(row);
   });
   return { rows, header: header ? header.filter(Boolean) : null, separator: sep };

@@ -10,7 +10,11 @@
 // never shown back. Add sends the rows to addAccounts, which sets each up as
 // the single Add account does - the built-in table, or the domain's own
 // records looked up only now, then its servers tried until one signs in -
-// three at a time, and says how each went as it goes.
+// three at a time, and says how each went as it goes. A row whose domain
+// names servers somewhere else waits for the person to agree to them by name
+// before its password goes there; the main process holds that row (in
+// memory only) until they do, or the dialog closes. A line that does not
+// start with an address is shown by its number only, never its text.
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Dialog, Icon, Spinner, t, tn } from '@rutba/office-ui';
@@ -26,6 +30,10 @@ function sentence(r) {
       return t('Ready');
     case 'not-an-address':
       return t('Not an email address');
+    case 'unreadable':
+      return t('Line {line} could not be read: it does not start with an email address.', { line: r.line });
+    case 'confirm':
+      return t('Its mail servers are not at {domain}: {hosts}. The password goes to them only if you agree.', { domain: domainOf(r.email), hosts: (r.foreign || []).map((x) => x.host).join(', ') });
     case 'repeated':
       return t('Already in the list above');
     case 'no-password':
@@ -91,7 +99,7 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
   const preview = parsed.map((r) => ({
     line: r.line,
     email: r.email,
-    outcome: r.problem === 'not-an-address' || r.problem === 'repeated' ? r.problem : have.includes(r.email.toLowerCase()) ? 'exists' : r.problem === 'no-password' ? 'no-password' : 'ready-to-add',
+    outcome: r.problem === 'not-an-address' || r.problem === 'repeated' || r.problem === 'unreadable' ? r.problem : have.includes(r.email.toLowerCase()) ? 'exists' : r.problem === 'no-password' ? 'no-password' : 'ready-to-add',
   }));
   const toAdd = preview.filter((r) => r.outcome === 'ready-to-add' || r.outcome === 'no-password').length;
   const remove = (i) => setHeld((h) => h.filter((_, n) => n !== i));
@@ -117,8 +125,9 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
     if (!paths?.[0]) return;
     if (/\.json$/i.test(paths[0]) && onImportFile) return onImportFile(paths[0]);
     try {
+      // Read into the list at once, as a paste is: the passwords never sit in the box.
       const { text: read } = await shell.fs.readText({ path: paths[0], encoding: 'utf8' });
-      setText(read);
+      take(read);
     } catch (err) {
       toast?.(err.message, { tone: 'bad' });
     }
@@ -141,19 +150,35 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
     }
   };
 
+  /** The person agreed to a row's servers by name: the main process tries them now with the password it holds. */
+  const agree = async (i) => {
+    const r = run.results[i];
+    setRun((cur) => ({ ...cur, results: cur.results.map((x, n) => (n === i ? { ...x, outcome: 'trying', known: false } : x)) }));
+    try {
+      await shell.mail.confirmAccounts({ job: run.job, index: i, hosts: (r.foreign || []).map((x) => x.host) });
+    } catch (err) {
+      toast?.(err.message, { tone: 'bad' });
+    }
+  };
+  /** Closing forgets every row still held for agreement, with its password. */
+  const close = (n) => {
+    if (run) shell.mail.forgetAccountsJob({ job: run.job }).catch(() => {});
+    onClose(n);
+  };
+
   const added = run ? run.results.filter((r) => r.outcome === 'added' || r.outcome === 'added-no-outgoing').length : 0;
   const done = run && !busy;
   return (
     <Dialog
       title={t('Add several accounts')}
       width={680}
-      onClose={() => onClose(added)}
+      onClose={() => close(added)}
       actions={
         done ? (
-          <Button primary className="ml-bulk-done" label={t('Done')} onClick={() => onClose(added)} />
+          <Button primary className="ml-bulk-done" label={t('Done')} onClick={() => close(added)} />
         ) : (
           <>
-            <Button label={t('Cancel')} disabled={busy} onClick={() => onClose(added)} />
+            <Button label={t('Cancel')} disabled={busy} onClick={() => close(added)} />
             <Button primary className="ml-bulk-add" label={busy ? t('Adding…') : tn(toAdd, 'Add {count} account', 'Add {count} accounts')} disabled={busy || !toAdd} onClick={start} />
           </>
         )
@@ -178,6 +203,13 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
                 e.preventDefault();
                 take(`${text}${text && !text.endsWith('\n') ? '\n' : ''}${pasted}`);
               }}
+              onKeyDown={(e) => {
+                // A typed line goes into the list when Enter ends it, rather than sitting in the box.
+                if (e.key === 'Enter' && !e.shiftKey && text.trim()) {
+                  e.preventDefault();
+                  take();
+                }
+              }}
               onBlur={() => text.trim() && take()}
               placeholder={'ali@example.com  password\nbo@example.com,password\ncy@example.com:password'}
             />
@@ -194,9 +226,9 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
         {rows.length ? (
           <ul className="ml-bulk-rows">
             {rows.map((r, i) => (
-              <li key={`${r.line}-${i}`} className={`ml-bulk-row ${GOOD.has(r.outcome) ? 'good' : BUSY.has(r.outcome) ? 'busy' : r.outcome === 'no-password' || r.outcome === 'sign-in' ? 'plain' : 'bad'}`} data-outcome={r.outcome} data-email={r.email}>
+              <li key={`${r.line}-${i}`} className={`ml-bulk-row ${GOOD.has(r.outcome) ? 'good' : BUSY.has(r.outcome) ? 'busy' : r.outcome === 'no-password' || r.outcome === 'sign-in' || r.outcome === 'confirm' ? 'plain' : 'bad'}`} data-outcome={r.outcome} data-email={r.email}>
                 <span className="ml-bulk-mark">{r.outcome === 'trying' ? <Spinner /> : <Icon name={GOOD.has(r.outcome) ? 'check' : BUSY.has(r.outcome) ? 'clock' : r.outcome === 'sign-in' || r.outcome === 'no-password' ? 'lock' : 'info'} size={14} />}</span>
-                <span className="ml-bulk-email" dir="ltr">{r.email || t('(empty line)')}</span>
+                <span className="ml-bulk-email" dir="ltr">{r.email || t('Line {line}', { line: r.line })}</span>
                 <span className="ml-bulk-state">{sentence(r)}</span>
                 {!run && i < held.length ? (
                   <button type="button" className="ml-bulk-remove" aria-label={t('Remove')} data-tip={t('Remove')} onClick={() => remove(i)}>
@@ -206,6 +238,11 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
                 {done && r.outcome === 'sign-in' ? (
                   <button type="button" className="ml-bulk-signin" onClick={() => onSignIn(r.email)}>
                     {t('Sign in')}
+                  </button>
+                ) : null}
+                {r.outcome === 'confirm' ? (
+                  <button type="button" className="ml-bulk-agree" onClick={() => agree(i)}>
+                    {t('Use these servers')}
                   </button>
                 ) : null}
                 {done && ['not-found', 'unreachable', 'password', 'app-password', 'certificate', 'failed'].includes(r.outcome) ? (

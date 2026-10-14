@@ -246,7 +246,7 @@ to the servers you add, which is what they are for.)
 |---|---|---|---|
 | Update check | 25 seconds after launch, then every 6 hours | Nothing about you | About → Check for updates automatically |
 | [Announcement](docs/ANNOUNCEMENT.md) | Once a day at most, from the launcher | The version and the operating system. **No identifier of any kind** | About → Show announcements |
-| Mail server lookup | Only when you press Add (or Add for several accounts), for an address whose provider is not in the built-in list | The address's domain, asked of that domain's own DNS records (SRV, MX) and its own autoconfig and autodiscover addresses (autoconfig.domain, domain/.well-known, autodiscover.domain), then a knock on the servers they name. No lookup service of anyone else's | Fill the servers in yourself under Add account → Advanced |
+| Mail server lookup | Only when you press Add (or Add for several accounts), for an address whose provider is not in the built-in list | The address's domain, asked of that domain's own DNS records (SRV, MX) and its own autoconfig and autodiscover addresses (autoconfig.domain, domain/.well-known, autodiscover.domain), then a knock on the servers they name, over https only (a redirect to plain http is refused). No lookup service of anyone else's. A server they name outside the address's own domain, and not in the built-in list, is shown by name and gets the password only if you agree; no server is ever sent it unencrypted | Fill the servers in yourself under Add account → Advanced |
 
 The announcement is also how we know anyone is using this. The server counts
 requests, and a request carries nothing that identifies the copy making it — so

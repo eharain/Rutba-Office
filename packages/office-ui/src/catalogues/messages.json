@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6924,
+  "count": 6929,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -396,12 +396,6 @@
       "message": "(default)",
       "where": [
         "apps/desktop/renderer/print.js"
-      ]
-    },
-    {
-      "message": "(empty line)",
-      "where": [
-        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -9917,6 +9911,12 @@
       ]
     },
     {
+      "message": "Do not use them",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "Document",
       "where": [
         "apps/desktop/renderer/inspect.js"
@@ -16858,6 +16858,12 @@
       ]
     },
     {
+      "message": "Its mail servers are not at {domain}: {hosts}. The password goes to them only if you agree.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "Its password",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
@@ -18142,6 +18148,18 @@
       "message": "Line sparklines",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Line {line}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "Line {line} could not be read: it does not start with an email address.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -21869,7 +21887,6 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/words.js",
-        "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -21972,7 +21989,8 @@
     {
       "message": "Not an email address",
       "where": [
-        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -38626,6 +38644,13 @@
       ]
     },
     {
+      "message": "Use these servers",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "User name",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
@@ -42948,6 +42973,12 @@
       "message": "{description}. Kept as the file has it.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "{domain} says its mail is on servers somewhere else. Your password goes to them only if you agree. Check with whoever runs your mail if these names are new to you.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {

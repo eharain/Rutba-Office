@@ -30,6 +30,15 @@
 // show, so that when it is wrong the person can see what was tried and put
 // the right thing in the advanced fields.
 //
+// What a domain's records name is believed only so far. A server under the
+// address's own domain, or one the table knows, is taken; any other (a
+// domain's records can name anybody's host, and DNS answers can be forged)
+// is marked `foreign`, and the password is not sent to it until the person
+// has seen its name and said yes (RFC 6186, section 6). A server that would
+// take a password unencrypted is never offered: TLS from the first byte or a
+// STARTTLS upgrade the connection insists on. And the web lookups follow a
+// redirect only to another https address.
+//
 // Nothing here is called during a check run: `offline` restricts the search
 // to the table, and the tests inject every lookup.
 
@@ -37,6 +46,7 @@ import dns from 'node:dns';
 import net from 'node:net';
 import tls from 'node:tls';
 import { serverSoftware } from './mail-setup.js';
+import { isAddress } from '@rutba/mailbox/account-rows';
 
 /**
  * The providers most people use. `oauth` names the browser sign-in that
@@ -187,11 +197,30 @@ const defaultDns = {
   resolveCname: (name) => dns.promises.resolveCname(name),
 };
 
-async function defaultFetchText(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(STEP_TIMEOUT), redirect: 'follow', headers: { 'user-agent': 'Rutba Office' } });
-  if (!res.ok) throw new Error(`${res.status} from ${new URL(url).host}`);
-  return res.text();
+/**
+ * A page's text, over https only: a redirect is followed (at most three)
+ * only to another https address, never down to plain http, where anyone on
+ * the way could answer instead.
+ */
+export async function fetchTextHttps(url, { fetchImpl = fetch, most = 3 } = {}) {
+  let at = new URL(url);
+  for (let hop = 0; ; hop++) {
+    if (at.protocol !== 'https:') throw new Error(`${at.host} is not https`);
+    const res = await fetchImpl(at.href, { signal: AbortSignal.timeout(STEP_TIMEOUT), redirect: 'manual', headers: { 'user-agent': 'Rutba Office' } });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('location');
+      if (!location || hop >= most) throw new Error(`${res.status} from ${at.host}`);
+      const next = new URL(location, at);
+      if (next.protocol !== 'https:') throw new Error(`${at.host} redirects to ${next.protocol.replace(':', '')}, not https`);
+      at = next;
+      continue;
+    }
+    if (!res.ok) throw new Error(`${res.status} from ${at.host}`);
+    return res.text();
+  }
 }
+
+const defaultFetchText = (url) => fetchTextHttps(url);
 
 /**
  * Knock on a port. Connects (with TLS when `secure`), reads the greeting,
@@ -237,6 +266,20 @@ function defaultProbe(host, port, kind, secure) {
 const candidate = (kind, host, port, secure, source, confidence, extra = {}) => ({
   kind, host: String(host).toLowerCase().replace(/\.$/, ''), port: Number(port), secure: Boolean(secure), starttls: !secure, source, confidence, ...extra,
 });
+
+/** Every server host the table names. */
+const KNOWN_HOSTS = new Set(KNOWN.flatMap((k) => [k.imap.host, k.smtp.host]));
+
+/**
+ * Is a server one to ask the person about before their password goes to it:
+ * not under the address's own domain, not in the table, and not from their
+ * own mail program on this computer.
+ */
+export function isForeign(c, domain) {
+  if (c.source === 'known' || c.source === 'import') return false;
+  const host = String(c.host || '').toLowerCase();
+  return !(host === domain || host.endsWith(`.${domain}`) || KNOWN_HOSTS.has(host));
+}
 
 function fromKnown(entry, source, confidence) {
   return [
@@ -298,9 +341,10 @@ export function parseAutoconfig(xml, email) {
     if (!kind) continue;
     const socket = (pick('socketType') || '').toUpperCase();
     const username = (pick('username') || '').replace('%EMAILADDRESS%', () => email).replace('%EMAILLOCALPART%', () => email.split('@')[0]).replace('%EMAILDOMAIN%', () => email.split('@')[1] || '');
-    servers.push({ kind, host: pick('hostname'), port: Number(pick('port')), secure: socket === 'SSL', starttls: socket === 'STARTTLS', user: username || null, auth: pick('authentication') || null });
+    servers.push({ kind, host: pick('hostname'), port: Number(pick('port')), secure: socket === 'SSL' || socket === 'TLS', starttls: socket === 'STARTTLS', user: username || null, auth: pick('authentication') || null });
   }
-  return servers.filter((s) => s.host && s.port);
+  // A server named with no encryption at all ("plain") is not offered: the password would cross the network as typed.
+  return servers.filter((s) => s.host && s.port && (s.secure || s.starttls));
 }
 
 async function lookupAutoconfig(domain, email, api) {
@@ -390,7 +434,8 @@ export async function discoverMailServers(email, options = {}) {
   const steps = [];
   const step = (name, status, detail) => steps.push({ name, status, detail: detail || '' });
   const result = { email: address, domain, imap: null, smtp: null, oauth: null, provider: null, appPassword: null, note: null, source: 'none', steps, candidates: [] };
-  if (!domain) {
+  // Nothing is looked up for text that is not an address: its domain goes into DNS names and web addresses.
+  if (!isAddress(address)) {
     step('address', 'failed', 'not an email address');
     return result;
   }
@@ -458,6 +503,7 @@ export async function discoverMailServers(email, options = {}) {
     step('network', 'none', 'not asked — offline');
   }
 
+  for (const c of candidates) c.foreign = isForeign(c, domain);
   const ranked = dedupe(candidates).sort((a, b) => b.confidence - a.confidence || Number(Boolean(b.verified)) - Number(Boolean(a.verified)) || Number(b.secure) - Number(a.secure));
   // A verified server beats an unverified one whatever its source; among the
   // unverified, the source decides.
@@ -478,6 +524,8 @@ export async function discoverMailServers(email, options = {}) {
       : options.offline
         ? `${domain} is not in the built-in list of providers. Add looks up its own records: its DNS (SRV and MX), autoconfig.${domain} and autodiscover.${domain}, and then the servers they name.`
         : `Nothing at ${domain} said where its mail server is. The advanced settings take the names from your provider.`);
+  // Servers to show the person, and have them agree to, before a password goes to them.
+  result.foreign = [result.imap, result.smtp].filter((c) => c?.foreign).map((c) => c.host).filter((h, i, a) => a.indexOf(h) === i);
   result.offline = Boolean(options.offline);
   result.auth = authOf(provider, best('imap'));
   return result;
@@ -503,14 +551,16 @@ function dedupe(list) {
   for (const c of list) {
     const key = `${c.kind}|${c.host}|${c.port}|${c.secure}`;
     const had = seen.get(key);
-    if (!had || c.confidence > had.confidence) seen.set(key, had ? { ...had, ...c, confidence: Math.max(had.confidence, c.confidence) } : c);
+    // Foreign only if no source vouches for it (the table, or the person's own mail program).
+    if (!had || c.confidence > had.confidence) seen.set(key, had ? { ...had, ...c, confidence: Math.max(had.confidence, c.confidence), foreign: Boolean(had.foreign && c.foreign) } : c);
+    else if (had && !c.foreign) had.foreign = false;
   }
   return [...seen.values()];
 }
 
 function pick(c) {
   if (!c) return null;
-  return { host: c.host, port: c.port, secure: c.secure, starttls: !c.secure, user: c.user || null, source: c.source, verified: Boolean(c.verified) };
+  return { host: c.host, port: c.port, secure: c.secure, starttls: !c.secure, user: c.user || null, source: c.source, verified: Boolean(c.verified), foreign: Boolean(c.foreign) };
 }
 
 function noteFor(imap, smtp) {
@@ -519,4 +569,4 @@ function noteFor(imap, smtp) {
   return `Found ${how[imap.source] || imap.source}${verified}${smtp && !smtp.verified && imap.verified ? '; the outgoing server has not answered yet' : ''}.`;
 }
 
-export default { discoverMailServers, parseAutoconfig, knownProvider, providerTiles, KNOWN };
+export default { discoverMailServers, parseAutoconfig, knownProvider, providerTiles, isForeign, fetchTextHttps, KNOWN };
