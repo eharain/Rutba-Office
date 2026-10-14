@@ -190,6 +190,10 @@ body.pdf-dragging, body.pdf-dragging * { cursor: grabbing !important; }
 .pdf-redact-icon { flex: none; width: 36px; height: 36px; border-radius: var(--r-2); display: grid; place-items: center; background: #1b1d22; color: #fff; }
 .pdf-redact-warn { padding: 8px 10px; border-radius: var(--r-2); background: color-mix(in srgb, var(--warn) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 28%, var(--line)); }
 .pdf-redact-small { font-size: 12px; color: var(--ink-2); }
+.pdf-redact-words { font-size: 12.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+.pdf-redact-also { padding: 8px 10px; border-radius: var(--r-2); background: var(--surface-2); border: 1px solid var(--line); }
+.pdf-redact-pictures { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: var(--r-2); background: color-mix(in srgb, var(--bad) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--bad) 28%, var(--line)); }
+.pdf-redact-pictures svg { flex: none; margin-top: 2px; color: var(--bad); }
 
 .pdf-print-root { display: none; }
 @media print {

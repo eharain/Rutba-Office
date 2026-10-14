@@ -119,9 +119,23 @@ pictures under a mark are painted out (decoded here, or a JPEG decoded by
 the window and handed back), and a picture that cannot be decoded is left
 off the page; a form XObject is redacted as a new object, so other pages
 drawing it keep it; /ActualText over removed glyphs goes; comments, links and
-widgets over a mark go; each mark is filled black with its overlay text. The
-engine's tests prove the removal three ways: this reader, pdf.js, and a
-search of every byte and inflated stream.
+widgets over a mark go; each mark is filled black with its overlay text.
+The words the marks covered (learnt from the glyphs removed, through each
+font's /ToUnicode, and from the words a mark records: the selection, or the
+words searched for) are then taken out of every other place in the file:
+the document's title, subject, keywords, author and creator, XMP metadata
+(the document's, a page's, a picture's), bookmarks, comments and their
+replies, links, attached files, form values (blanked, with the appearance
+that showed them), field tooltips and names, and page labels. A comment, a
+bookmark or a link with a word in it goes whole. Before anything is saved
+the dialog lists the words, what else it found by kind ("1 bookmark, 1
+comment and the title"), and, by page, any picture under a mark it cannot
+paint out and will leave off the page. Lines and shapes under a mark are
+covered, not cut away, and a marked word left unmarked elsewhere on a page
+stays there (Mark Matches marks every one). The engine's tests prove the
+removal three ways, on a file that carries the word in every one of those
+places: this reader, pdf.js, and a search of every byte and inflated
+stream.
 
 **Bookmarks, page labels and links** (`nav.js`; engine `navigation.js`,
 `assemble.js`). The side pane shows Pages or Bookmarks; a bookmark goes to
@@ -213,8 +227,8 @@ matter to a person:
 6. **Comments**: a text box's words in Urdu, Arabic or Hindi are kept in the
    file but drawn by its appearance only in Windows-1252's letters (an
    embedded font for the box is next); polygons and pop-ups are read and
-   kept, not drawn or made; Acrobat's "Sanitize" (document properties,
-   metadata, attachments) beside redaction.
+   kept, not drawn or made; a whole-document "Sanitize" that strips
+   metadata, attachments and scripts without marks.
 
 Also: the CJK character maps; insert a blank page or a page from a picture;
 duplicate pages; print through the system's own PDF printing rather than as

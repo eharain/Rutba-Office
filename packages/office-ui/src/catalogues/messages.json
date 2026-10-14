@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6577,
+  "count": 6598,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1131,6 +1131,12 @@
       "message": "A picture cannot go inside a table cell yet — move the caret out of the table.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A picture under a mark that cannot be painted out is left off its page whole:",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
       ]
     },
     {
@@ -5866,6 +5872,12 @@
       "message": "Checking this folder…",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
+      ]
+    },
+    {
+      "message": "Checking what the marks cover…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -12732,6 +12744,12 @@
       ]
     },
     {
+      "message": "Found elsewhere in the file and removed with them: {list}.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
       "message": "Found the next match.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -17218,7 +17236,7 @@
       ]
     },
     {
-      "message": "Lines and shapes drawn under a mark are covered, not cut away. The document's properties, its bookmarks and attached files are not changed: check them before you share the file.",
+      "message": "Lines and shapes drawn under a mark are covered, not cut away. The marked words left unmarked elsewhere on a page stay there: mark every match to take them all.",
       "where": [
         "apps/desktop/renderer/apps/pdf/redact.js"
       ]
@@ -33060,6 +33078,12 @@
       ]
     },
     {
+      "message": "The marked words were found nowhere else in the file.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
       "message": "The message",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
@@ -33746,6 +33770,12 @@
       "message": "The words change; the number and its reference stay where they are.",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "The words marked: {words}",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
       ]
     },
     {
@@ -39157,6 +39187,13 @@
       ]
     },
     {
+      "message": "page {page}, {count} picture",
+      "plural": "page {page}, {count} pictures",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
       "message": "pages each",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -39468,6 +39505,12 @@
       ]
     },
     {
+      "message": "the author",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
       "message": "the camera and the screen next to each other",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
@@ -39511,15 +39554,33 @@
       ]
     },
     {
+      "message": "the document's metadata",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
       "message": "the empty stretch at the playhead closes",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
+      "message": "the keywords",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
       "message": "the last slide slides away to show this one",
       "where": [
         "apps/desktop/renderer/apps/slides/motion.js"
+      ]
+    },
+    {
+      "message": "the name of the program that made it",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
       ]
     },
     {
@@ -39682,6 +39743,18 @@
       "message": "the sound rises over a second",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "the subject",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
+      "message": "the title",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
       ]
     },
     {
@@ -40032,10 +40105,24 @@
       ]
     },
     {
+      "message": "{count} attached file",
+      "plural": "{count} attached files",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
       "message": "{count} attachment",
       "plural": "{count} attachments",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "{count} bookmark",
+      "plural": "{count} bookmarks",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
       ]
     },
     {
@@ -40139,6 +40226,7 @@
       "message": "{count} comment",
       "plural": "{count} comments",
       "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js"
       ]
@@ -40235,6 +40323,20 @@
       ]
     },
     {
+      "message": "{count} field name",
+      "plural": "{count} field names",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
+      "message": "{count} field tooltip",
+      "plural": "{count} field tooltips",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
       "message": "{count} field updated",
       "plural": "{count} fields updated",
       "where": [
@@ -40293,6 +40395,20 @@
       ]
     },
     {
+      "message": "{count} form field",
+      "plural": "{count} form fields",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
+      "message": "{count} form value",
+      "plural": "{count} form values",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
       "message": "{count} found",
       "plural": "{count} found",
       "where": [
@@ -40340,6 +40456,13 @@
       "plural": "{count} lines of text. Select words to copy them.",
       "where": [
         "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
+      "message": "{count} link",
+      "plural": "{count} links",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
       ]
     },
     {
@@ -40478,6 +40601,13 @@
       ]
     },
     {
+      "message": "{count} page label",
+      "plural": "{count} page labels",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
       "message": "{count} page selected",
       "plural": "{count} pages selected",
       "where": [
@@ -40545,6 +40675,13 @@
       "plural": "{count} pictures written",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js"
+      ]
+    },
+    {
+      "message": "{count} piece of metadata",
+      "plural": "{count} pieces of metadata",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
       ]
     },
     {

@@ -1,9 +1,13 @@
 // PDF: redaction that removes, pressed in the window and proved from the
 // file it writes. A two-page letter made here carries an account code on
-// both pages, a phone number and a photograph. The Redact tab says that
+// both pages, a phone number and a photograph, and the code again in its
+// title, a bookmark and a comment, with a scan on its second page in a
+// format the window cannot decode. The Redact tab says that
 // marks remove nothing until they are applied; the phone number is marked
 // by selecting it, every match of the account code by Mark Matches,
-// and the photograph by dragging out an area; Apply Redactions warns that
+// and the photograph and the scan by dragging out areas; Apply Redactions
+// lists what else it found and removes (the title, the bookmark, the
+// comment) and says by page that the scan will be left off; it warns that
 // the file is written whole as a new file and why, and writes it; the window
 // opens the redacted file, where Find no longer finds the code. Read back,
 // the redacted words are found neither by this package's reader nor by a
@@ -17,13 +21,21 @@ import path from 'node:path';
 import pdfWriter from '@rutba/pdf';
 import pdfReader from '@rutba/pdf/reader';
 import pdfRedact from '@rutba/pdf/redact';
+import pdfUpdate from '@rutba/pdf/update';
+import pdfAssemble from '@rutba/pdf/assemble';
+import pdfNavigation from '@rutba/pdf/navigation';
+import pdfAnnotations from '@rutba/pdf/annotations';
 
 const { PdfDocument } = pdfWriter;
-const { openPdf, Stream } = pdfReader;
+const { openPdf, Stream, Dict, Name, Ref } = pdfReader;
+const { PdfUpdate, flateStream } = pdfUpdate;
+const { textString } = pdfAssemble;
+const { readOutline } = pdfNavigation;
+const { readAnnotations } = pdfAnnotations;
 const { bytesContain } = pdfRedact;
 
 function makeLetter(file) {
-  const doc = new PdfDocument({ title: 'Client letter', created: '2026-10-14T09:00:00Z' });
+  const doc = new PdfDocument({ title: 'Client letter on SECRET-4417', created: '2026-10-14T09:00:00Z' });
   // A photograph: a soft gradient, 120 by 80, drawn 240 by 160 points.
   const w = 120;
   const h = 80;
@@ -39,7 +51,32 @@ function makeLetter(file) {
   const two = doc.addPage();
   two.text('Second page', 72, 100, { font: 'Helvetica-Bold', size: 26 });
   two.text('Again SECRET-4417 is named here.', 72, 150, { font: 'Helvetica', size: 14 });
-  fs.writeFileSync(file, doc.toBuffer());
+  // A bookmark and a comment carrying the code, and a scan in JPEG 2000, which the window cannot decode.
+  const up = new PdfUpdate(doc.toBuffer());
+  const [p1, p2] = up.file.pages();
+  const root = up.alloc();
+  const bad = up.alloc();
+  const good = up.alloc();
+  up.set(bad, new Dict([['Title', textString('SECRET-4417 account')], ['Parent', new Ref(root, 0)], ['Next', new Ref(good, 0)], ['Dest', [p2.ref, new Name('Fit')]]]));
+  up.set(good, new Dict([['Title', textString('The letter')], ['Parent', new Ref(root, 0)], ['Prev', new Ref(bad, 0)], ['Dest', [p1.ref, new Name('Fit')]]]));
+  up.set(root, new Dict([['Type', new Name('Outlines')], ['First', new Ref(bad, 0)], ['Last', new Ref(good, 0)], ['Count', 2]]));
+  const note = up.add(new Dict([['Type', new Name('Annot')], ['Subtype', new Name('Text')], ['Rect', [500, 760, 520, 780]], ['Contents', textString('Check SECRET-4417 with the bank')], ['T', textString('Ayesha')], ['P', p2.ref], ['F', 4]]));
+  const scan = up.add(new Stream(new Dict([
+    ['Type', new Name('XObject')], ['Subtype', new Name('Image')], ['Width', 64], ['Height', 32], ['ColorSpace', new Name('DeviceRGB')],
+    ['BitsPerComponent', 8], ['Filter', new Name('JPXDecode')],
+  ]), Buffer.from('a scan in a format the window cannot decode')));
+  const draw = up.add(flateStream([], 'q 256 0 0 128 72 300 cm /Scan Do Q'));
+  const d2 = new Dict(p2.dict.entries());
+  const res = new Dict(up.file.resolve(p2.dict.get('Resources')).entries());
+  res.set('XObject', new Dict([['Scan', scan]]));
+  d2.set('Resources', res);
+  d2.set('Contents', [p2.dict.get('Contents'), draw]);
+  d2.set('Annots', [note]);
+  up.set(p2.ref, d2);
+  const catalog = new Dict(up.file.catalog().entries());
+  catalog.set('Outlines', new Ref(root, 0));
+  up.set(up.file.trailer.get('Root'), catalog);
+  fs.writeFileSync(file, up.toBuffer());
 }
 
 function driver(win, { until, wait }) {
@@ -147,9 +184,14 @@ export async function verifyPdfRedact(h, { dir }) {
   await d.role('redact-area');
   await d.dragOn(0, [[0.2, 0.33], [0.3, 0.38], [0.4, 0.42]]);
   const area = await until(async () => (await total()) === 4, 'the area mark', 10000).then(() => true).catch(() => false);
+  // The scan on page 2, by another area: the page's middle third, where the scan is drawn.
+  await d.js(`(() => { const v = document.querySelector('.pdf-view'); const p = document.querySelector('.pdf-page[data-index="1"]'); v.scrollTop += p.getBoundingClientRect().top - v.getBoundingClientRect().top - 10; return 1; })()`);
+  await until(() => d.js(`Boolean(document.querySelector('.pdf-page[data-index="1"] .pdf-annots[data-ready]'))`), 'the second page’s layer', 8000).catch(() => {});
+  await d.dragOn(1, [[0.15, 0.48], [0.3, 0.52], [0.5, 0.6]]);
+  const scanArea = await until(async () => (await total()) === 5, 'the scan’s mark', 10000).then(() => true).catch(() => false);
   await d.js(`(document.querySelector('[data-role="redact-area"]').click(), 1)`);
   await d.capture('pdf-redact-01-marked.png');
-  check('pdf-redact: an area of the page, over the photograph, is marked with Mark Area', area, JSON.stringify(await d.marks()));
+  check('pdf-redact: areas of the pages, over the photograph and over the scan, are marked with Mark Area', area && scanArea, JSON.stringify(await d.marks()));
 
   // Apply: the warning, then a new file, opened here.
   const target = path.join(root, 'client-letter_Redacted.pdf');
@@ -157,9 +199,13 @@ export async function verifyPdfRedact(h, { dir }) {
   await until(() => d.js(`Boolean(document.querySelector('[data-role="redact-dialog"]'))`), 'the Apply dialog', 5000).catch(() => {});
   const warning = await d.js(`document.querySelector('[data-role="redact-warning"]')?.textContent || ''`);
   const lead = await d.js(`document.querySelector('.pdf-redact-lead')?.textContent || ''`);
+  const also = await d.js(`document.querySelector('[data-role="redact-also"]')?.textContent || ''`);
+  const pictures = await d.js(`document.querySelector('[data-role="redact-pictures"]')?.textContent || ''`);
   await d.capture('pdf-redact-02-dialog.png');
-  check('pdf-redact: Apply Redactions says how many marks it applies, and warns that the file is written whole as a new one because an update keeps the old bytes', /4 marks on 2 pages/.test(lead) && /new file/.test(warning) && /written whole/.test(warning) && /keeps the original's bytes/.test(warning),
+  check('pdf-redact: Apply Redactions says how many marks it applies, and warns that the file is written whole as a new one because an update keeps the old bytes', /5 marks on 2 pages/.test(lead) && /new file/.test(warning) && /written whole/.test(warning) && /keeps the original's bytes/.test(warning),
     JSON.stringify({ lead, warning }));
+  check('pdf-redact: before saving, the dialog lists what else it found and removes (the bookmark, the comment, the title) and says by page that the scan will be left off', /1 bookmark/.test(also) && /1 comment/.test(also) && /the title/.test(also) && /page 2, 1 picture/.test(pictures),
+    JSON.stringify({ also, pictures }));
   answer('save', target);
   await d.role('redact-go');
   const wrote = await until(() => fs.existsSync(target), 'the redacted file', 15000).then(() => true).catch(() => false);
@@ -199,10 +245,16 @@ export async function verifyPdfRedact(h, { dir }) {
       black,
       originalKept: fs.readFileSync(file).equals(original) && bytesContain(original, 'SECRET-4417'),
       marksGone: !/\/Redact/.test(bytes.toString('latin1')),
+      scanGone: !bytes.includes(Buffer.from('a scan in a format')),
+      title: pdf.info().title || '',
+      bookmarks: readOutline(pdf).map((b) => b.title).join('|'),
+      comments: readAnnotations(pdf).length,
     };
   }
   check('pdf-redact: read back, the redacted words are found neither by the reader nor in any byte or stream, the photograph is painted out under its mark, the marks are gone and the original is as it was',
     wrote && back.readerClean && back.kept && back.bytesClean && back.whole && back.pictures === 1 && back.black > 50 && back.black < 120 * 80 && back.originalKept && back.marksGone, JSON.stringify(back));
+  check('pdf-redact: read back, the code is gone from the title, the bookmark and the comment, the other bookmark kept, and the scan left off its page', wrote && !/SECRET/.test(back.title) && back.bookmarks === 'The letter' && back.comments === 0 && back.scanGone,
+    JSON.stringify(back));
   const errors = await errorsIn(win);
   check('pdf-redact: no error was shown', !errors.length, errors.join(' | '));
 }

@@ -64,7 +64,9 @@ async function readWithPdfjs(bytes) {
     const fields = await doc.getFieldObjects();
     const outline = await doc.getOutline();
     const labels = await doc.getPageLabels();
-    return { pages, fields, outline, labels, numPages: doc.numPages };
+    const meta = await doc.getMetadata();
+    const metadata = meta.metadata ? JSON.stringify(meta.metadata.getAll ? meta.metadata.getAll() : meta.metadata) : '';
+    return { pages, fields, outline, labels, info: meta.info, metadata, numPages: doc.numPages };
   } finally {
     await task.destroy();
   }

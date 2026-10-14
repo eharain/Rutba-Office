@@ -28,6 +28,11 @@
  * renamed so the two stay two fields. A merge's bookmarks follow one
  * another, in the order their files' pages first come.
  *
+ * A redaction's rewrite passes `scrub` (redact.js's scrubber): every place
+ * one of its words appears, outside the pages' content, is left out whole
+ * or blanked as the file is copied, and counted by kind (see scrubAnnots and
+ * the field, metadata, bookmark, label and information steps below).
+ *
  * The file is written plainly: every object on its own, one classic
  * cross-reference table. Object streams in the source are unpacked on the
  * way; nothing is recompressed.
@@ -52,7 +57,7 @@ const PAGE_DROP = new Set(['Parent', 'B']);
  *   and entries of the page replaced (a value of the reader's own, whose
  *   references are to the same file and whose streams become new objects)
  *   or taken away (null), as redaction replaces a page's contents
- * @param {{ title?: string, producer?: string, date?: Date, replace?: Map }} [options]
+ * @param {{ title?: string, producer?: string, date?: Date, replace?: Map, scrub?: object }} [options]
  *   `replace`: Map of file -> Map of object number -> a value written in
  *   that object's place (a picture made smaller), the old one left behind
  * @returns {Buffer}
@@ -124,9 +129,21 @@ function assemble(items, options = {}) {
     if (value instanceof Dict) return copyDict(file, value, depth);
     return value;
   };
+  const scrub = options.scrub || null;
+  let renamed = 0;
   const copyDict = (file, dict, depth) => {
     const out = new Dict();
-    for (const [k, v] of dict.entries()) out.set(k, copy(file, v, depth + 1));
+    const clean = scrub ? scrubbed(file, dict, scrub) : null;
+    for (const [k, v] of dict.entries()) {
+      if (clean && clean.has(k)) {
+        // Taken out, or replaced by a blank, before anything it names is copied.
+        const value = clean.get(k);
+        if (value === 'rename') out.set(k, textString(`Field ${++renamed}`));
+        else if (value !== undefined) out.set(k, value);
+        continue;
+      }
+      out.set(k, copy(file, v, depth + 1));
+    }
     // A destination: named ones made explicit, and one to a page left out taken away.
     const s = dict.get('S');
     for (const key of [dict.has('Dest') ? 'Dest' : null, s instanceof Name && s.name === 'GoTo' ? 'D' : null]) {
@@ -148,15 +165,22 @@ function assemble(items, options = {}) {
     dict.set('Type', new Name('Page'));
     dict.set('Parent', new Ref(pagesNum, 0));
     const replaced = item.override || {};
+    // A redaction's rewrite leaves out the annotations its words are in, with their replies and pop-ups.
+    const annots = 'Annots' in replaced ? replaced.Annots : page.dict.get('Annots');
+    const keptAnnots = scrub && annots ? scrubAnnots(item.file, annots, scrub) : annots;
+    // The page's own metadata, like any other's, goes when a word is in it.
+    const pageClean = scrub ? scrubbed(item.file, page.dict, scrub) : null;
     for (const [k, v] of page.dict.entries()) {
       // What the page's override replaces is never copied: the old objects would be written all the same.
-      if (PAGE_DROP.has(k) || k === 'Type' || k in replaced) continue;
+      if (PAGE_DROP.has(k) || k === 'Type' || k in replaced || (scrub && k === 'Annots') || (pageClean && pageClean.has(k))) continue;
       dict.set(k, copy(item.file, v));
     }
+    if (scrub && keptAnnots && (!Array.isArray(keptAnnots) || keptAnnots.length)) dict.set('Annots', copy(item.file, keptAnnots, 1));
     for (const key of INHERITABLE) {
       if (!dict.has(key) && !(key in replaced) && page.inherited[key] !== undefined) dict.set(key, copy(item.file, page.inherited[key]));
     }
     for (const [k, v] of Object.entries(item.override || {})) {
+      if (scrub && k === 'Annots') continue;
       if (v === null || v === undefined) dict.delete(k);
       else dict.set(k, copy(item.file, v, 1));
     }
@@ -205,6 +229,12 @@ function assemble(items, options = {}) {
     const out = [];
     for (const node of nodes) {
       const kids = build(file, node.kids);
+      const uri = node.action ? file.resolve(node.action.get('URI')) : null;
+      if (scrub && (scrub.text(node.title) || (uri instanceof PdfString && scrub.text(uri.text())))) {
+        scrub.note('bookmark');
+        out.push(...kids);
+        continue;
+      }
       let dest = null;
       if (node.dest) {
         dest = copy(file, node.dest, 1);
@@ -258,7 +288,11 @@ function assemble(items, options = {}) {
     const nums = [];
     let prev = null;
     items.forEach((item, i) => {
-      const label = labelled.get(item.file)?.[item.page] || { style: 'D', prefix: '', number: item.page + 1 };
+      let label = labelled.get(item.file)?.[item.page] || { style: 'D', prefix: '', number: item.page + 1 };
+      if (scrub && label.prefix && scrub.text(label.prefix)) {
+        scrub.note('page label');
+        label = { ...label, prefix: '' };
+      }
       const continues = prev && prev.style === label.style && prev.prefix === label.prefix && label.number === prev.number + 1;
       if (!continues) {
         const d = new Dict();
@@ -324,8 +358,34 @@ function assemble(items, options = {}) {
   ]);
 
   const words = first.info();
+  if (scrub) {
+    // The information goes entry by entry; what the rewrite never carries (the
+    // catalog's XMP, its attached files) is counted when a word was in it.
+    for (const key of ['title', 'author', 'subject', 'keywords', 'creator']) {
+      if (words[key] && scrub.text(words[key])) { scrub.note(key); delete words[key]; }
+    }
+    for (const file of files) {
+      const cat = file.catalogOrNull();
+      const meta = cat ? file.resolve(cat.get('Metadata')) : null;
+      if (meta instanceof Stream) {
+        let text = '';
+        try { text = file.decode(meta).toString('utf8'); } catch { /* unreadable */ }
+        if (scrub.text(text)) scrub.note('document metadata');
+      }
+      const names = cat ? file.resolve(cat.get('Names')) : null;
+      const embedded = names instanceof Dict ? names.get('EmbeddedFiles') : null;
+      if (embedded) {
+        const { treeEntries } = require('./navigation');
+        for (const [name, spec] of treeEntries(file, embedded)) {
+          const fs = file.resolve(spec);
+          const texts = [name, ...(fs instanceof Dict ? ['F', 'UF', 'Desc'].map((k) => file.resolve(fs.get(k))).filter((x) => x instanceof PdfString).map((x) => x.text()) : [])];
+          if (texts.some((x) => x && scrub.text(x))) scrub.note('attached file');
+        }
+      }
+    }
+  }
   const info = new Dict();
-  const title = options.title !== undefined ? options.title : words.title;
+  const title = options.title !== undefined && !(scrub && options.title && scrub.text(options.title)) ? options.title : words.title;
   if (title) info.set('Title', textString(title));
   if (words.author) info.set('Author', textString(words.author));
   if (words.subject) info.set('Subject', textString(words.subject));
@@ -339,6 +399,112 @@ function assemble(items, options = {}) {
   const versions = [...copiers.keys()].map((f) => f.version).sort();
   const version = versions[versions.length - 1] > '1.4' ? versions[versions.length - 1] : '1.4';
   return write(objects, next, { root: catalogNum, info: infoNum, version });
+}
+
+// ── a redaction's scrub ───────────────────────────────────────────────────
+
+const textOf = (file, v) => {
+  const s = file.resolve(v);
+  return s instanceof PdfString ? s.text() : '';
+};
+const nameOf = (v) => (v instanceof Name ? v.name : '');
+
+/** A field's value, its own or inherited from the fields above it. */
+function fieldValue(file, dict) {
+  let node = dict;
+  for (let i = 0; i < 32 && node instanceof Dict; i++) {
+    if (node.has('V')) return file.resolve(node.get('V'));
+    node = file.resolve(node.get('Parent'));
+  }
+  return undefined;
+}
+
+const hasWord = (file, v, scrub) => {
+  const x = file.resolve(v);
+  if (x instanceof PdfString) return scrub.text(x.text());
+  if (Array.isArray(x)) return x.some((e) => hasWord(file, e, scrub));
+  return false;
+};
+
+/**
+ * What of a dictionary a redaction's rewrite changes: Map of key -> new value
+ * (undefined to leave the key out, 'rename' for a field's new name). A
+ * metadata stream with a word in it goes; a form field's value with one is
+ * blanked, its tooltip goes and its name is replaced; a widget showing such a
+ * value loses the appearance that shows it, for the reader to draw the blank.
+ */
+function scrubbed(file, dict, scrub) {
+  const out = new Map();
+  const meta = file.resolve(dict.get('Metadata'));
+  if (meta instanceof Stream) {
+    let text = '';
+    try { text = file.decode(meta).toString('utf8'); } catch { /* unreadable */ }
+    if (scrub.text(text)) { out.set('Metadata', undefined); scrub.note('metadata'); }
+  }
+  const sub = nameOf(dict.get('Subtype'));
+  const isField = (!sub || sub === 'Widget') && (dict.has('FT') || (dict.has('T') && (dict.has('Kids') || dict.has('V') || dict.has('Parent'))));
+  if (isField) {
+    if (dict.has('V') && hasWord(file, dict.get('V'), scrub)) {
+      out.set('V', textString(''));
+      out.set('DV', undefined);
+      out.set('RV', undefined);
+      scrub.note('form value');
+    } else {
+      for (const key of ['DV', 'RV']) if (dict.has(key) && hasWord(file, dict.get(key), scrub)) out.set(key, undefined);
+    }
+    if (dict.has('TU') && hasWord(file, dict.get('TU'), scrub)) { out.set('TU', undefined); scrub.note('tooltip'); }
+    if (dict.has('TM') && hasWord(file, dict.get('TM'), scrub)) out.set('TM', undefined);
+    if (dict.has('T') && hasWord(file, dict.get('T'), scrub)) { out.set('T', 'rename'); scrub.note('field name'); }
+    const opt = file.resolve(dict.get('Opt'));
+    if (Array.isArray(opt) && opt.some((o) => hasWord(file, o, scrub))) out.set('Opt', opt.filter((o) => !hasWord(file, o, scrub)));
+  }
+  if (sub === 'Widget' && dict.has('AP')) {
+    const v = fieldValue(file, dict);
+    if (v !== undefined && hasWord(file, v, scrub)) out.set('AP', undefined);
+  }
+  return out;
+}
+
+/**
+ * A page's annotations with those a redaction's word is in left out whole:
+ * comments (their words, author, subject or rich text), links to a web
+ * address with one, attached files whose name or description has one; then
+ * every reply to an annotation left out, and every pop-up of one.
+ */
+function scrubAnnots(file, list, scrub) {
+  const arr = file.resolve(list);
+  if (!Array.isArray(arr)) return list;
+  const entries = arr.map((item) => ({ item, dict: file.resolve(item) }));
+  const gone = new Set();
+  const id = (e) => (e.item instanceof Ref ? e.item.num : e.dict);
+  for (const e of entries) {
+    const d = e.dict;
+    if (!(d instanceof Dict)) continue;
+    const sub = nameOf(d.get('Subtype'));
+    if (sub === 'Widget' || sub === 'Popup') continue;
+    let kind = null;
+    if (['Contents', 'T', 'Subj', 'RC'].some((k) => d.has(k) && scrub.text(textOf(file, d.get(k))))) kind = sub === 'Link' ? 'link' : sub === 'FileAttachment' ? 'attached file' : 'comment';
+    const action = file.resolve(d.get('A'));
+    if (!kind && action instanceof Dict && scrub.text(textOf(file, action.get('URI')))) kind = 'link';
+    const spec = file.resolve(d.get('FS'));
+    if (!kind && spec instanceof Dict && ['F', 'UF', 'Desc'].some((k) => scrub.text(textOf(file, spec.get(k))))) kind = 'attached file';
+    if (kind) { gone.add(id(e)); scrub.note(kind); }
+  }
+  // Replies to what went, and replies to those, then the pop-ups of everything gone.
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const e of entries) {
+      if (!(e.dict instanceof Dict) || gone.has(id(e))) continue;
+      const irt = e.dict.get('IRT');
+      if (irt instanceof Ref && gone.has(irt.num)) { gone.add(id(e)); changed = true; if (!e.dict.get('StateModel')) scrub.note('comment'); }
+    }
+  }
+  for (const e of entries) {
+    if (!(e.dict instanceof Dict) || gone.has(id(e))) continue;
+    const parent = e.dict.get('Parent');
+    if (nameOf(e.dict.get('Subtype')) === 'Popup' && parent instanceof Ref && gone.has(parent.num)) gone.add(id(e));
+  }
+  return entries.filter((e) => !gone.has(id(e))).map((e) => e.item);
 }
 
 /** A text string as PDF writes one: Latin-1 when it fits, UTF-16 with its mark when not. */

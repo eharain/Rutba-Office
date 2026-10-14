@@ -290,7 +290,8 @@ export const METHODS = {
     'compressPlan', // ({ pages, dpi }) -> { token, size, plan: [{ ref, width, height, toWidth, toHeight, filter, comps, data }] }: pictures shown at more than dpi
     'compress',     // ({ token, dpi, images: { [ref]: { data, width, height, filter, comps } }, path }) -> { path, before, after, replaced }: written whole as a new file
     'redactPlan',   // ({ sources }) -> [{ source, page, key, width, height, filter, rects, data }]: pictures under redaction marks only the window can decode
-    'redact',       // ({ pages: [{ source, page, rotate }], path, images, title }) -> { path, size, removed: { glyphs, pictures, images, annotations, pages } }: the marks applied, written whole as a new file
+    'redact',       // ({ pages: [{ source, page, rotate }], path, images, title }) -> { path, size, removed: { glyphs, pictures, images, annotations, pages }, elsewhere: { [kind]: count }, words, unpainted: [{ page, count }] }: the marks applied, the marked words taken out of everything else, written whole as a new file
+    'redactPreview', // ({ pages, images, title }) -> { removed, elsewhere, words, unpainted, size }: what applying would do, nothing written
   ],
   // Text recognition (apps/desktop/main/ocr.js, @rutba/ocr): read on a pool of
   // threads, never this process's or the window's; nothing leaves the computer.

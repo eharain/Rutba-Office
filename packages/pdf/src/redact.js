@@ -35,9 +35,20 @@
  * which copies only what the pages still reach, so the old content streams,
  * pictures and annotations are not in the new file at all.
  *
+ * The words a mark covered are learnt as the glyphs go (each font's
+ * /ToUnicode, or its single-byte encoding), with the words the mark itself
+ * records (its /Contents: the words selected, or the words searched for),
+ * and the rewrite takes them out of every other place a person could find
+ * them (assemble.js's `scrub`, from `scrubber` here): the document's title,
+ * subject, keywords, author and creator; XMP metadata; bookmarks; comments
+ * and their replies; links; attached files; form values, tooltips and field
+ * names; page labels. Each such thing goes whole (a comment, a bookmark, a
+ * link) or is blanked (a form value, a label's prefix), and is counted by
+ * kind for the window to list before anything is saved.
+ *
  * What is not removed: vector line art under an area (it is covered by the
- * fill, not cut away); the document's information and metadata, bookmarks'
- * titles and attached files, which are not on a page.
+ * fill, not cut away), and the words where they stand unmarked in a page's
+ * content (mark every match to take them all).
  */
 
 const zlib = require('zlib');
@@ -104,11 +115,54 @@ function glyphHit(box, areas) {
 // ── fonts ─────────────────────────────────────────────────────────────────
 
 /** Widths and code lengths of a font, enough to place its glyphs. */
+/** A /ToUnicode CMap's codes and their text: bfchar and bfrange, both forms. */
+function parseToUnicode(data) {
+  const map = new Map();
+  const text = data.toString('latin1');
+  const utf16 = (h) => {
+    let s = '';
+    for (let i = 0; i + 3 < h.length; i += 4) s += String.fromCharCode(parseInt(h.slice(i, i + 4), 16));
+    return s;
+  };
+  for (const block of text.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
+    for (const m of block[1].matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]*)>/g)) map.set(parseInt(m[1], 16), utf16(m[2]));
+  }
+  for (const block of text.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
+    for (const m of block[1].matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*(?:<([0-9a-fA-F]+)>|\[([^\]]*)\])/g)) {
+      const a = parseInt(m[1], 16);
+      const b = parseInt(m[2], 16);
+      if (!(b >= a) || b - a > 65535) continue;
+      if (m[3] !== undefined) {
+        const head = m[3].slice(0, -4);
+        const last = parseInt(m[3].slice(-4) || '0', 16);
+        for (let c = a; c <= b; c++) map.set(c, utf16(head + (last + c - a).toString(16).padStart(4, '0')));
+      } else {
+        const items = [...m[4].matchAll(/<([0-9a-fA-F]*)>/g)].map((x) => utf16(x[1]));
+        for (let c = a; c <= b && c - a < items.length; c++) map.set(c, items[c - a]);
+      }
+    }
+  }
+  return map;
+}
+
+// Windows-1252's 0x80 to 0x9F, as the reader reads them.
+const HIGH = '\u20ac\u0081\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u008d\u017d\u008f\u0090\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u009d\u017e\u0178';
+
 function fontInfo(file, fontDict) {
   const font = file.resolve(fontDict);
-  const info = { twoByte: false, width: () => 0.5, scale: 0.001, type3: false };
+  const info = { twoByte: false, width: () => 0.5, scale: 0.001, type3: false, unicode: (code) => (code >= 0x80 && code <= 0x9f ? HIGH[code - 0x80] : String.fromCharCode(code)) };
   if (!(font instanceof Dict)) return info;
   const subtype = font.get('Subtype') instanceof Name ? font.get('Subtype').name : '';
+  const cmap = file.resolve(font.get('ToUnicode'));
+  if (cmap instanceof Stream) {
+    try {
+      const map = parseToUnicode(file.decode(cmap));
+      const fallback = info.unicode;
+      if (map.size) info.unicode = (code) => (map.has(code) ? map.get(code) : subtype === 'Type0' ? '' : fallback(code));
+    } catch { /* the encoding's own letters */ }
+  } else if (subtype === 'Type0') {
+    info.unicode = () => '';
+  }
   if (subtype === 'Type0') {
     info.twoByte = true;
     const desc = file.resolve((file.resolve(font.get('DescendantFonts')) || [])[0]);
@@ -348,9 +402,11 @@ function redactContent(ctx, data, resources, base, depth = 0) {
           if (pending === 0) flush();
           pending += size && gs.th ? (adv / (size * gs.th)) * 1000 : 0;
           removed.glyphs += 1;
+          ctx.run += font.unicode(g.code);
           cut = true;
         } else {
           if (pending) { flush(); result.push(-Math.round(pending * 1000) / 1000); pending = 0; }
+          if (ctx.run) { ctx.phrases.push(ctx.run); ctx.run = ''; }
           kept.push(g.bytes);
         }
         tm = mul([1, 0, 0, 1, adv, 0], tm);
@@ -374,7 +430,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
       case 'Tz': gs.th = num(a[0], 100) / 100; out.push(o); break;
       case 'TL': gs.tl = num(a[0]); out.push(o); break;
       case 'Ts': gs.rise = num(a[0]); out.push(o); break;
-      case 'Td': tlm = mul([1, 0, 0, 1, num(a[0]), num(a[1])], tlm); tm = tlm.slice(); out.push(o); break;
+      case 'Td': if (ctx.run) ctx.run += ' '; tlm = mul([1, 0, 0, 1, num(a[0]), num(a[1])], tlm); tm = tlm.slice(); out.push(o); break;
       case 'TD': gs.tl = -num(a[1]); tlm = mul([1, 0, 0, 1, num(a[0]), num(a[1])], tlm); tm = tlm.slice(); out.push(o); break;
       case 'Tm': tlm = a.slice(0, 6).map((x) => num(x)); tm = tlm.slice(); out.push(o); break;
       case 'T*': tlm = mul([1, 0, 0, 1, 0, -gs.tl], tlm); tm = tlm.slice(); out.push(o); break;
@@ -511,7 +567,7 @@ function marksOf(file) {
       const ys = [q[1], q[3], q[5], q[7]];
       return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
     }) : a.rect ? [a.rect] : [];
-    out.get(a.page).push({ id: a.id, rects, fill: a.interior || [0, 0, 0], overlay: a.overlay || '' });
+    out.get(a.page).push({ id: a.id, rects, fill: a.interior || [0, 0, 0], overlay: a.overlay || '', words: a.contents || '' });
   }
   return out;
 }
@@ -534,6 +590,9 @@ function run(file, { areas: given = null, plan = null, images = null }) {
   const marks = marksOf(file);
   const removed = { glyphs: 0, images: 0, pictures: 0, annotations: 0, pages: 0 };
   const items = [];
+  const phrases = [];
+  const under = {}; // kind -> count, of the annotations lying under a mark
+  const unpainted = []; // { page, count }: pictures left off a page
   pages.forEach((page, p) => {
     const mine = marks.get(p) || [];
     const extra = given ? given.filter((g) => g.page === p).flatMap((g) => g.rects.map((r) => ({ rects: [r], fill: g.fill || [0, 0, 0], overlay: g.overlay || '' }))) : [];
@@ -542,9 +601,13 @@ function run(file, { areas: given = null, plan = null, images = null }) {
     if (!rects.length) { items.push({ file, page: p }); return; }
     removed.pages += 1;
     const resources = page.dict.has('Resources') ? page.dict.get('Resources') : page.inherited.Resources;
-    const ctx = { file, areas: rects, removed, plan: plan ? [] : null, images, counter: 1, fill: [0, 0, 0] };
+    const ctx = { file, areas: rects, removed, plan: plan ? [] : null, images, counter: 1, fill: [0, 0, 0], run: '', phrases };
     const content = file.pageContent(p);
+    const imagesBefore = removed.images;
     const redacted = redactContent(ctx, content, resources, [1, 0, 0, 1, 0, 0]);
+    if (ctx.run) phrases.push(ctx.run);
+    for (const m of all) if (m.words) phrases.push(m.words);
+    if (removed.images > imagesBefore) unpainted.push({ page: p, count: removed.images - imagesBefore });
     if (plan) for (const x of ctx.plan) plan.push({ page: p, ...x });
     // The fill over each area, and its overlay words.
     // Every save the page's content left open is closed, and the one around it, so the fills are drawn on the page as it stands.
@@ -580,7 +643,14 @@ function run(file, { areas: given = null, plan = null, images = null }) {
         const sub = d.get('Subtype') instanceof Name ? d.get('Subtype').name : '';
         const r = file.resolve(d.get('Rect'));
         const box = Array.isArray(r) && r.length >= 4 ? (() => { const v = r.map((x) => num(file.resolve(x))); return [Math.min(v[0], v[2]), Math.min(v[1], v[3]), Math.max(v[0], v[2]), Math.max(v[1], v[3])]; })() : null;
-        if (sub === 'Redact' || (box && rects.some((a) => intersects(box, a)))) { removed.annotations += sub === 'Redact' ? 0 : 1; continue; }
+        if (sub === 'Redact' || (box && rects.some((a) => intersects(box, a)))) {
+          if (sub !== 'Redact' && sub !== 'Popup') {
+            removed.annotations += 1;
+            const kind = sub === 'Link' ? 'link' : sub === 'FileAttachment' ? 'attached file' : sub === 'Widget' ? 'form field' : 'comment';
+            under[kind] = (under[kind] || 0) + 1;
+          }
+          continue;
+        }
         if (sub === 'Popup') {
           const parent = file.resolve(d.get('Parent'));
           const pr = parent instanceof Dict ? file.resolve(parent.get('Rect')) : null;
@@ -602,7 +672,52 @@ function run(file, { areas: given = null, plan = null, images = null }) {
       },
     });
   });
-  return { items, removed };
+  return { items, removed, phrases, under, unpainted };
+}
+
+/**
+ * What a redaction's rewrite takes out besides the pages' content: every
+ * place a marked word appears, found case and spacing aside. The words are
+ * the marked phrases and, for a phrase of several words, each word of four
+ * letters or more in it. `counts` says, by kind, what was taken.
+ */
+function scrubber(words) {
+  const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const needles = new Set();
+  // The phrases as they were written, once each, for a window to show.
+  const shown = new Map();
+  for (const w of words || []) {
+    const phrase = norm(w);
+    const plain = String(w || '').replace(/s+/g, ' ').trim();
+    if (plain && !shown.has(phrase)) shown.set(phrase, plain);
+    if (phrase.replace(/[^\p{L}\p{N}]/gu, '').length >= 2) needles.add(phrase);
+    for (const tok of phrase.split(' ')) {
+      const word = tok.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+      if (word.length >= 4) needles.add(word);
+    }
+  }
+  const counts = {};
+  return {
+    needles: [...needles],
+    shown: [...shown.values()],
+    counts,
+    text(s) {
+      if (!needles.size || !s) return false;
+      const t = norm(s);
+      for (const n of needles) if (t.includes(n)) return true;
+      return false;
+    },
+    note(kind, by = 1) { counts[kind] = (counts[kind] || 0) + by; },
+  };
+}
+
+/**
+ * The redaction of one file's pages, without writing: each page's item for
+ * assemble.js (with its new content), the words the marks covered, what lay
+ * under the marks, and the pictures left off each page.
+ */
+function redactPages(file, { areas = null, images = null } = {}) {
+  return run(file, { areas, images });
 }
 
 /**
@@ -611,15 +726,18 @@ function run(file, { areas: given = null, plan = null, images = null }) {
  * file whole. `images` hands back pictures the plan named, decoded by the
  * caller: { [key]: { width, height, data } } (RGB or grey samples).
  *
- * @returns {{ bytes: Buffer, removed: { glyphs, pictures, images, annotations, pages } }}
- *   `pictures` painted out, `images` left out whole (could not be painted out)
+ * @returns {{ bytes: Buffer, removed: { glyphs, pictures, images, annotations, pages }, elsewhere: Object<string, number>, words: string[], unpainted: { page, count }[] }}
+ *   `pictures` painted out, `images` left out whole (could not be painted out),
+ *   `elsewhere` what else was taken out, by kind ('title', 'bookmark', 'comment', ...)
  */
-function applyRedactions(bytes, { areas = null, images = null, title } = {}) {
+function applyRedactions(bytes, { areas = null, images = null, title, words = [] } = {}) {
   const file = require('./reader').openPdf(bytes);
-  const { items, removed } = run(file, { areas, images });
+  const { items, removed, phrases, under, unpainted } = run(file, { areas, images });
   if (!removed.pages) throw new RedactError('Nothing is marked for redaction.', 'nothing');
-  const out = assemble(items, { title });
-  return { bytes: out, removed };
+  const scrub = scrubber([...phrases, ...words]);
+  for (const [kind, n] of Object.entries(under)) scrub.note(kind, n);
+  const out = assemble(items, { title, scrub });
+  return { bytes: out, removed, elsewhere: scrub.counts, words: scrub.shown, unpainted };
 }
 
 /**
@@ -651,5 +769,5 @@ function bytesContain(bytes, word) {
 }
 
 module.exports = {
-  applyRedactions, redactionPlan, bytesContain, RedactError, parseContent, writeContent, fontInfo, textString, PdfReadError,
+  applyRedactions, redactPages, scrubber, redactionPlan, bytesContain, RedactError, parseToUnicode, parseContent, writeContent, fontInfo, textString, PdfReadError,
 };

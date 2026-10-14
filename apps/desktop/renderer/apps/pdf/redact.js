@@ -9,7 +9,7 @@
 // original as it was.
 
 import React from 'react';
-import { Button, Dialog, Icon, t, tn } from '@rutba/office-ui';
+import { Button, Dialog, Icon, language, t, tn } from '@rutba/office-ui';
 import { findAll } from '@rutba/editing/find';
 import { drawText, getPage } from './pdfjs.js';
 import { joinLines } from './annots.js';
@@ -91,8 +91,35 @@ export async function decodePlan(plan) {
   return out;
 }
 
-/** Apply Redactions: what applying does, said before it is done. */
-export function ApplyRedactionsDialog({ marks, pages, onApply, onClose }) {
+/** What applying takes out besides the pages' words, by kind, in a sentence's list: "2 bookmarks, 1 comment and the title". */
+const KINDS = [
+  ['title', () => t('the title')],
+  ['subject', () => t('the subject')],
+  ['keywords', () => t('the keywords')],
+  ['author', () => t('the author')],
+  ['creator', () => t('the name of the program that made it')],
+  ['document metadata', () => t('the document\'s metadata')],
+  ['metadata', (n) => tn(n, '{count} piece of metadata', '{count} pieces of metadata')],
+  ['bookmark', (n) => tn(n, '{count} bookmark', '{count} bookmarks')],
+  ['comment', (n) => tn(n, '{count} comment', '{count} comments')],
+  ['link', (n) => tn(n, '{count} link', '{count} links')],
+  ['attached file', (n) => tn(n, '{count} attached file', '{count} attached files')],
+  ['form field', (n) => tn(n, '{count} form field', '{count} form fields')],
+  ['form value', (n) => tn(n, '{count} form value', '{count} form values')],
+  ['tooltip', (n) => tn(n, '{count} field tooltip', '{count} field tooltips')],
+  ['field name', (n) => tn(n, '{count} field name', '{count} field names')],
+  ['page label', (n) => tn(n, '{count} page label', '{count} page labels')],
+];
+export function elsewhereList(counts) {
+  const parts = KINDS.filter(([k]) => counts?.[k]).map(([k, say]) => say(counts[k]));
+  if (!parts.length) return '';
+  try { return new Intl.ListFormat(language(), { type: 'conjunction' }).format(parts); } catch { return parts.join(', '); }
+}
+
+/** Apply Redactions: what applying does, and what it found besides the marks, said before it is done. */
+export function ApplyRedactionsDialog({ marks, pages, preview, onApply, onClose }) {
+  const also = elsewhereList(preview?.elsewhere);
+  const unpainted = preview?.unpainted || [];
   return (
     <Dialog
       title={t('Apply Redactions')}
@@ -111,10 +138,28 @@ export function ApplyRedactionsDialog({ marks, pages, onApply, onClose }) {
           <span>{tn(marks, '{count} mark on {pages} pages is applied.', '{count} marks on {pages} pages are applied.', { pages })}</span>
         </div>
         <p>{t('Applying removes the words and pictures under the marks from the pages for good, and fills each mark black. Comments and links over a mark go too.')}</p>
+        {preview?.words?.length ? (
+          <p className="pdf-redact-words" data-role="redact-words">{t('The words marked: {words}', { words: preview.words.map((w) => `"${w}"`).join(', ') })}</p>
+        ) : null}
+        {also ? (
+          <p className="pdf-redact-also" data-role="redact-also">{t('Found elsewhere in the file and removed with them: {list}.', { list: also })}</p>
+        ) : (
+          <p className="pdf-redact-also" data-role="redact-also">{t('The marked words were found nowhere else in the file.')}</p>
+        )}
+        {unpainted.length ? (
+          <div className="pdf-redact-pictures" data-role="redact-pictures">
+            <Icon name="info" size={16} />
+            <span>
+              {t('A picture under a mark that cannot be painted out is left off its page whole:')}
+              {' '}
+              {unpainted.map((u) => tn(u.count, 'page {page}, {count} picture', 'page {page}, {count} pictures', { page: u.page })).join('; ')}
+            </span>
+          </div>
+        ) : null}
         <p className="pdf-redact-warn" data-role="redact-warning">
           {t('The redacted PDF is saved as a new file and opens here; the original is left as it is. It is written whole, not as an update of the original, because an update keeps the original\'s bytes, and the redacted words with them.')}
         </p>
-        <p className="pdf-redact-small">{t('Lines and shapes drawn under a mark are covered, not cut away. The document\'s properties, its bookmarks and attached files are not changed: check them before you share the file.')}</p>
+        <p className="pdf-redact-small">{t('Lines and shapes drawn under a mark are covered, not cut away. The marked words left unmarked elsewhere on a page stay there: mark every match to take them all.')}</p>
       </div>
     </Dialog>
   );

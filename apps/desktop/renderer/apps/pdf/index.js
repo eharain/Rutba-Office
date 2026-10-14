@@ -504,13 +504,15 @@ export default function PdfApp({ app, shell, boot }) {
   /** The words selected marked with a highlight, an underline, a strikethrough or for redaction. Answers whether there were any. */
   const markSelection = useCallback((which) => {
     const quads = selectionQuads(viewRef.current, viewports);
+    // A redaction mark records the words it covers, so applying it takes them out of the rest of the file too.
+    const words = which === 'redact-text' ? (window.getSelection()?.toString() || '').replace(/\s+/g, ' ').trim() : '';
     const bySource = new Map();
     for (const [key, list] of Object.entries(quads)) {
       const entry = pagesRef.current.find((p) => p.key === key);
       if (!entry || !list.length) continue;
       if (!bySource.has(entry.source)) bySource.set(entry.source, []);
       const spec = which === 'redact-text'
-        ? { page: entry.page, type: 'Redact', quads: list }
+        ? { page: entry.page, type: 'Redact', quads: list, contents: words }
         : { page: entry.page, type: TOOL_TYPES[which], quads: list, color: colourOf(which) };
       bySource.get(entry.source).push(spec);
     }
@@ -615,7 +617,7 @@ export default function PdfApp({ app, shell, boot }) {
         if (!quads.length) continue;
         count += quads.length;
         if (!bySource.has(p.source)) bySource.set(p.source, []);
-        bySource.get(p.source).push({ page: p.page, type: 'Redact', quads });
+        bySource.get(p.source).push({ page: p.page, type: 'Redact', quads, contents: q });
       }
     } finally {
       setBusy(null);
@@ -625,17 +627,35 @@ export default function PdfApp({ app, shell, boot }) {
     toast(tn(count, '{count} match marked for redaction. Apply Redactions removes it.', '{count} matches marked for redaction. Apply Redactions removes them.'), { ms: 5000 });
   }, [guardLocked, query, findOpen, toast, changeComments]);
 
-  const askApply = useCallback(() => {
+  /**
+   * Apply Redactions, first step: the pictures under the marks decoded here,
+   * and what applying would take out (besides the pages' words) and leave
+   * off which pages, worked out before the dialog asks.
+   */
+  const askApply = useCallback(async () => {
     if (guardLocked()) return;
     if (!redactionMarks().marks) {
       toast(t('Nothing is marked for redaction yet. Mark words, an area or the matches of a search first.'), { ms: 5000 });
       return;
     }
-    setApplying(true);
-  }, [guardLocked, redactionMarks, toast]);
+    setBusy(t('Checking what the marks cover…'));
+    try {
+      const list = pagesRef.current;
+      const sources = [...new Set(list.map((p) => p.source))];
+      const plan = await shell.pdf.redactPlan({ sources });
+      const images = await decodePlan(plan);
+      const preview = await shell.pdf.redactPreview({ pages: entriesOf(list), images });
+      setApplying({ images, preview });
+    } catch (err) {
+      toast(t('The redactions could not be applied: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+    } finally {
+      setBusy(null);
+    }
+  }, [guardLocked, redactionMarks, toast, shell]);
 
   /** The marks applied: the pages written whole as a new file, which then opens here. */
   const applyRedactions = useCallback(async () => {
+    const images = applying?.images || {};
     setApplying(false);
     const list = pagesRef.current;
     const folder = path ? dirname(path) : (await shell.app.paths().catch(() => ({}))).documents || '';
@@ -649,9 +669,6 @@ export default function PdfApp({ app, shell, boot }) {
     }
     setBusy(t('Redacting…'));
     try {
-      const sources = [...new Set(list.map((p) => p.source))];
-      const plan = await shell.pdf.redactPlan({ sources });
-      const images = await decodePlan(plan);
       const { removed } = await shell.pdf.redact({ pages: entriesOf(list), path: out, images });
       setBusy(null);
       await openPdf(out);
@@ -664,7 +681,7 @@ export default function PdfApp({ app, shell, boot }) {
     } finally {
       setBusy(null);
     }
-  }, [path, name, shell, toast, openPdf]);
+  }, [path, name, shell, toast, openPdf, applying]);
 
   /** Fill & Sign: the signature or initials kept from last time, or the dialog to make them. */
   const sign = useCallback((kind, { fresh = false } = {}) => {
@@ -1590,7 +1607,7 @@ export default function PdfApp({ app, shell, boot }) {
       {exporting ? <ExportPicturesDialog count={pages.length} picked={selected.length} onExport={exportPictures} onClose={() => setExporting(false)} /> : null}
       {compressing ? <CompressDialog size={formatBytes(Object.values(sources).filter((s) => pages.some((p) => p.source === s.id)).reduce((n, s) => n + (s.info.size || 0), 0))} onCompress={compressFile} onClose={() => setCompressing(false)} /> : null}
       {applying ? (
-        <ApplyRedactionsDialog {...redactionMarks()} onApply={applyRedactions} onClose={() => setApplying(false)} />
+        <ApplyRedactionsDialog {...redactionMarks()} preview={applying.preview} onApply={applyRedactions} onClose={() => setApplying(false)} />
       ) : null}
       {signing ? (
         <SignatureDialog

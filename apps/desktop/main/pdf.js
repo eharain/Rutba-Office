@@ -45,7 +45,7 @@ const { assemble } = pdfAssemble;
 const { addTextLayer } = pdfTextLayer;
 const { readAnnotations, annotate } = pdfAnnotations;
 const { readFields, fillFields } = pdfForms;
-const { applyRedactions, redactionPlan } = pdfRedact;
+const { redactPages, scrubber, redactionPlan } = pdfRedact;
 const { outlinePages, readLinks, pageLabels, labelText } = pdfNavigation;
 const { compressPlan, compressPdf } = pdfCompress;
 
@@ -88,6 +88,40 @@ async function writeWhole(target, data) {
   }
 }
 
+/**
+ * The window's pages with every source's redaction marks applied, written
+ * whole: one pass over each source's marked pages, then one rewrite of the
+ * window's list that takes the marked words out of everything else too.
+ */
+function redactWindowWith(get, pages, images = {}, title) {
+  const removed = { glyphs: 0, pictures: 0, images: 0, annotations: 0, pages: 0 };
+  const bySource = new Map();
+  const words = [];
+  const under = {};
+  const unpaintedBySource = new Map();
+  for (const id of new Set((pages || []).map((p) => p.source))) {
+    const { file } = get(id);
+    const out = redactPages(file, { images: images[id] || null });
+    bySource.set(id, out.items);
+    words.push(...out.phrases);
+    for (const [k, n] of Object.entries(out.under)) under[k] = (under[k] || 0) + n;
+    for (const k of Object.keys(removed)) removed[k] += out.removed[k] || 0;
+    unpaintedBySource.set(id, out.unpainted);
+  }
+  if (!removed.pages) throw new Error('Nothing is marked for redaction.');
+  const scrub = scrubber(words);
+  for (const [k, n] of Object.entries(under)) scrub.note(k, n);
+  const items = pages.map((p) => ({ ...bySource.get(p.source)[Number(p.page)], rotate: p.rotate }));
+  const bytes = assemble(items, { title, scrub });
+  // Pictures left off, by the window's page numbers.
+  const unpainted = [];
+  pages.forEach((p, i) => {
+    const hit = (unpaintedBySource.get(p.source) || []).find((u) => u.page === Number(p.page));
+    if (hit) unpainted.push({ page: i + 1, count: hit.count });
+  });
+  return { bytes, removed, elsewhere: scrub.counts, words: scrub.shown, unpainted };
+}
+
 export function createPdfService() {
   let next = 1;
   /** id -> { file, path, name, owner } */
@@ -111,6 +145,7 @@ export function createPdfService() {
     if (!entry) throw new Error('That PDF is no longer open.');
     return entry;
   };
+  const redactWindow = (pages, images, title) => redactWindowWith(get, pages, images, title);
 
   const describe = (id, entry) => {
     const { file } = entry;
@@ -224,27 +259,21 @@ export function createPdfService() {
      * to `path` as a new file. `images`: { [source]: { [key]: { width, height, data } } }.
      */
     redact: async ({ pages, path: target, images = {}, title }) => {
-      const removed = { glyphs: 0, pictures: 0, images: 0, annotations: 0, pages: 0 };
-      const redacted = new Map();
-      for (const id of new Set((pages || []).map((p) => p.source))) {
-        const entry = get(id);
-        try {
-          const out = applyRedactions(entry.file.buf, { images: images[id] || null });
-          const file = openPdf(out.bytes);
-          file.pages();
-          redacted.set(id, file);
-          for (const k of Object.keys(removed)) removed[k] += out.removed[k] || 0;
-        } catch (err) {
-          if (err?.code !== 'nothing') throw err;
-          redacted.set(id, entry.file);
-        }
-      }
-      if (!removed.pages) throw new Error('Nothing is marked for redaction.');
-      const items = pages.map((p) => ({ file: redacted.get(p.source), page: Number(p.page), rotate: p.rotate }));
-      const bytes = assemble(items, { title });
+      const { bytes, ...summary } = redactWindow(pages, images, title);
       await fsp.mkdir(path.dirname(target), { recursive: true });
       await writeWhole(target, bytes);
-      return { path: target, size: bytes.length, removed };
+      return { path: target, size: bytes.length, ...summary };
+    },
+
+    /**
+     * What applying would do, before anything is saved: the counts by kind of
+     * what goes besides the pages' content (bookmarks, comments, the title),
+     * the words searched for, and the pictures that would be left off each
+     * page of the window because they cannot be painted out.
+     */
+    redactPreview: ({ pages, images = {}, title }) => {
+      const { bytes, ...summary } = redactWindow(pages, images, title);
+      return { ...summary, size: bytes.length };
     },
 
     /**
