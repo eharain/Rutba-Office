@@ -719,6 +719,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   };
   const block = async (run) => {
     const mark = opened.length;
+    // A dialog answer one block queued and never used is not the next
+    // block's: Redact once saved its copy as the Video editor's leftover
+    // project name.
+    if (Array.isArray(globalThis.__rutbaCheckDialogAnswers)) globalThis.__rutbaCheckDialogAnswers.length = 0;
     try {
       await run();
     } finally {
