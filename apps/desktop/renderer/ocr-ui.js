@@ -11,6 +11,7 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Button, Dialog, Spinner, t, tn, language } from '@rutba/office-ui';
 import { languagesFor, CODES, LANGUAGES } from '@rutba/ocr/languages';
+import { ocrLimits } from '@rutba/ocr/record';
 
 const KEY = 'rutba-ocr-languages';
 
@@ -60,9 +61,95 @@ export function OcrLanguagePicker({ value, onChange }) {
           </label>
         ))}
       </div>
-      {value.includes('urd') ? (
+      <OcrLimits languages={value} />
+    </div>
+  );
+}
+
+/**
+ * What cannot be read yet in the languages chosen, said where it applies:
+ * Arabic-Indic and Urdu digits (no figures or dates from a page printed in
+ * them) when Arabic or Urdu is read, and Nastaliq as beta when Urdu is.
+ */
+export function OcrLimits({ languages = [], compact = false }) {
+  const limits = ocrLimits(languages);
+  if (!limits.length) return null;
+  return (
+    <div className={`ocr-limits${compact ? ' compact' : ''}`} data-role="ocr-limits" data-limits={limits.join(' ')}>
+      {limits.includes('nastaliq') ? (
         <div className="ocr-note" data-role="ocr-urdu-note">{t('Urdu text recognition is in beta: it reads Naskh type well, but not yet Nastaliq print reliably.')}</div>
       ) : null}
+      {limits.includes('digits') ? (
+        <div className="ocr-note" data-role="ocr-digits-note">{t('Arabic-Indic and Urdu digits are not read yet: figures and dates printed in them are left out or come out wrong. Western digits on the same page are read.')}</div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Read a picture as a document (an invoice, a receipt, a letter or a form) on the main process's pool. */
+export async function readDocument(shell, pixels, { languages, job, dpi } = {}) {
+  const { width, height, data } = pixels;
+  return shell.ocr.recognize({ image: { width, height, data }, languages, job, dpi, document: true });
+}
+
+/**
+ * The part of a picture round one box, enlarged to the loupe's width with
+ * the box marked: where a value was read, large enough to check it by.
+ * `width` and `height` are the size of the pixels the box is measured in.
+ */
+export function BoxLoupe({ url, width, height, box, className = '' }) {
+  const ref = useRef(null);
+  const [cw, setCw] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    setCw(el.clientWidth);
+    const ro = new ResizeObserver(() => setCw(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  if (!url || !box || !width || !height) return null;
+  // The box with room round it: three times as wide, or fourteen letters' height, whichever is more.
+  const rw = Math.min(width, Math.max(box.width * 3, box.height * 14));
+  const rh = Math.min(height, Math.max(box.height * 3.2, rw * 0.3));
+  const rx = Math.max(0, Math.min(width - rw, box.x + box.width / 2 - rw / 2));
+  const ry = Math.max(0, Math.min(height - rh, box.y + box.height / 2 - rh / 2));
+  const k = cw ? cw / rw : 0;
+  const pad = 3;
+  return (
+    <div ref={ref} className={`ocr-loupe ${className}`.trim()} data-role="ocr-loupe" style={{ height: k ? Math.round(rh * k) : 0 }}>
+      {k ? (
+        <>
+          <img src={url} alt="" draggable={false} style={{ width: width * k, height: height * k, left: -rx * k, top: -ry * k }} />
+          <span className="ocr-loupe-mark" style={{ left: (box.x - rx - pad) * k, top: (box.y - ry - pad) * k, width: (box.width + pad * 2) * k, height: (box.height + pad * 2) * k }} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A picture with one box on it marked, the rest dimmed a little: where a
+ * value was read. `width` and `height` are the size of the pixels the box is
+ * measured in (what was read), so the mark keeps its place at any size.
+ */
+export function BoxPreview({ url, width, height, box, label = '', className = '' }) {
+  const mark = useRef(null);
+  useLayoutEffect(() => {
+    if (box) mark.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [box, url]);
+  if (!url) return null;
+  const pad = 4;
+  const at = box && width && height ? {
+    left: `${((box.x - pad) / width) * 100}%`,
+    top: `${((box.y - pad) / height) * 100}%`,
+    width: `${((box.width + pad * 2) / width) * 100}%`,
+    height: `${((box.height + pad * 2) / height) * 100}%`,
+  } : null;
+  return (
+    <div className={`ocr-boxview ${className}`.trim()} data-role="ocr-boxview" data-marked={at ? 'yes' : 'no'}>
+      <img src={url} alt="" draggable={false} />
+      {at ? <span ref={mark} className="ocr-boxmark" style={at} data-role="ocr-boxmark" title={label || undefined} /> : null}
     </div>
   );
 }
@@ -74,6 +161,14 @@ export const OCR_CSS = `
 .ocr-lang input { margin: 0; }
 .ocr-beta { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
 .ocr-note { font-size: 12px; line-height: 1.45; color: var(--ink-2); padding: 7px 10px; border-radius: var(--r-2); background: color-mix(in srgb, var(--warn) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 28%, var(--line)); max-width: 420px; }
+.ocr-limits { display: flex; flex-direction: column; gap: 6px; }
+.ocr-limits.compact .ocr-note { font-size: 11.5px; padding: 5px 8px; max-width: none; }
+.ocr-boxview { position: relative; display: block; overflow: hidden; line-height: 0; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.08); }
+.ocr-boxview img { display: block; width: 100%; height: auto; }
+.ocr-boxmark { position: absolute; border: 2px solid var(--accent); border-radius: 3px; background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: 0 0 0 9999px rgba(20, 24, 31, 0.08); pointer-events: none; }
+.ocr-loupe { position: relative; overflow: hidden; border-radius: var(--r-2); background: #fff; box-shadow: 0 0 0 1px var(--line), var(--shadow-1); flex: none; }
+.ocr-loupe img { position: absolute; max-width: none; display: block; image-rendering: auto; }
+.ocr-loupe-mark { position: absolute; border: 2px solid var(--accent); border-radius: 4px; background: color-mix(in srgb, var(--accent) 10%, transparent); pointer-events: none; }
 .ocr-form { display: flex; flex-direction: column; gap: 14px; min-width: 400px; }
 .ocr-form-label { font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 2px; }
 .ocr-choice { display: flex; align-items: center; gap: 8px; font-size: 13px; min-height: 24px; }
@@ -110,6 +205,20 @@ export function pixelsOf(source, { max = 5000 } = {}) {
   ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
   const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
   return { width: canvas.width, height: canvas.height, data: data.data, scale: k };
+}
+
+/** Pixels as a picture to show (its long side at most `max`), as an object URL the caller revokes. */
+export function pixelsUrl({ width, height, data }, { max = 1600 } = {}) {
+  const full = document.createElement('canvas');
+  full.width = width;
+  full.height = height;
+  full.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(data.buffer, data.byteOffset, data.length), width, height), 0, 0);
+  const k = Math.min(1, max / Math.max(width, height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(width * k));
+  canvas.height = Math.max(1, Math.round(height * k));
+  canvas.getContext('2d').drawImage(full, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob ? URL.createObjectURL(blob) : null), 'image/png'));
 }
 
 /** A picture by its URL (rutba://file reads with CORS, so its pixels can be read back). */

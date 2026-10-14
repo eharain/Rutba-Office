@@ -647,9 +647,11 @@ export default function SheetsRibbon({
               { label: t('Into this workbook, as a query…'), icon: 'table', run: () => act('queryFromCsv') },
               { label: t('Open as a workbook…'), icon: 'open', run: openFile },
             ])} />
-            <Button dropdown tall icon="scanTable" label={t('From Picture')} title={t('From Picture: a table in a picture read into cells on this computer, checked in a preview before it goes in')} data-role="data-from-picture" onClick={(e) => menu.open(e, [
+            <Button dropdown tall icon="scanTable" label={t('From Picture')} title={t('From Picture: a table in a picture read into cells, or a receipt or an invoice into a row, on this computer and checked in a preview before it goes in')} data-role="data-from-picture" onClick={(e) => menu.open(e, [
               { label: t('Picture From File…'), icon: 'picture', run: () => act('dataFromPicture', 'file') },
               { label: t('Picture From Clipboard'), icon: 'paste', run: () => act('dataFromPicture', 'clipboard') },
+              '-',
+              { label: t('Receipt or Invoice…'), icon: 'scanReceipt', title: t('Receipt or Invoice: the date, supplier, number, subtotal, tax, total and currency of each picture or PDF page read into a row'), run: () => act('receiptRow') },
             ])} />
             <Button icon="table" label={t('From Table/Range')} title={t('From Table/Range — a query on the table or the list round the cell, shaped in the Power Query Editor and loaded on a sheet of its own')} onClick={() => act('queryFromRange')} />
             <Button icon="clock" label={t('Recent Sources')} title={t('Recent Sources — a file a query read lately, in a new query')} onClick={(e) => {

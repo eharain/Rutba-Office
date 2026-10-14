@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6929,
+  "count": 6953,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -3501,6 +3501,12 @@
       ]
     },
     {
+      "message": "Arabic-Indic and Urdu digits are not read yet: figures and dates printed in them are left out or come out wrong. Western digits on the same page are read.",
+      "where": [
+        "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
       "message": "Arabic-Indic digits (١٢٣)",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -5420,6 +5426,7 @@
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/sheets/picture-data.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
+        "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/words.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/action.js",
@@ -5915,6 +5922,7 @@
       "where": [
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/sheets/picture-data.js",
+        "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
@@ -8342,6 +8350,7 @@
       "message": "Currency",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
       ]
@@ -8833,6 +8842,7 @@
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
+        "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
       ]
@@ -13621,7 +13631,7 @@
       ]
     },
     {
-      "message": "From Picture: a table in a picture read into cells on this computer, checked in a preview before it goes in",
+      "message": "From Picture: a table in a picture read into cells, or a receipt or an invoice into a row, on this computer and checked in a preview before it goes in",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -16097,6 +16107,12 @@
       ]
     },
     {
+      "message": "Insert Row",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
       "message": "Insert Section Zoom",
       "where": [
         "apps/desktop/renderer/apps/slides/zoom.js"
@@ -16378,6 +16394,13 @@
       "message": "Insert this text:",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Insert {count} Row",
+      "plural": "Insert {count} Rows",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
     {
@@ -16870,6 +16893,18 @@
       ]
     },
     {
+      "message": "Its sums agree, so its figures go in as read.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
+      "message": "Its sums do not agree, or were not all found: check the marked figures against the picture.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
       "message": "JPEG Image (.jpg)",
       "where": [
         "apps/desktop/renderer/registry-words.js"
@@ -17298,7 +17333,8 @@
     {
       "message": "Languages: {list}",
       "where": [
-        "apps/desktop/renderer/apps/sheets/picture-data.js"
+        "apps/desktop/renderer/apps/sheets/picture-data.js",
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
     {
@@ -22312,6 +22348,12 @@
       ]
     },
     {
+      "message": "Nothing was read on this page. Type its details, or remove its row.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
       "message": "Nothing was read — only the file names and the settings those clients keep in plain text. Your password is never among them, so you will be asked for it once.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -22355,6 +22397,7 @@
       "where": [
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -24411,6 +24454,7 @@
     {
       "message": "Pictures and PDFs",
       "where": [
+        "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/registry-words.js"
       ]
     },
@@ -25658,6 +25702,12 @@
       ]
     },
     {
+      "message": "Put a row of headings above them",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
       "message": "Put the caret in a paragraph that starts with a letter",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -25908,7 +25958,8 @@
     {
       "message": "Read Again",
       "where": [
-        "apps/desktop/renderer/apps/sheets/picture-data.js"
+        "apps/desktop/renderer/apps/sheets/picture-data.js",
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
     {
@@ -25927,6 +25978,18 @@
       "message": "Read aloud",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Read as a receipt.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
+      "message": "Read as an invoice.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
     {
@@ -26057,6 +26120,12 @@
       ]
     },
     {
+      "message": "Reading {name}…",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
       "message": "Reading…",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -26072,6 +26141,25 @@
       "message": "Real formulas, real recalculation",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Receipt or Invoice",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
+      "message": "Receipt or Invoice: the date, supplier, number, subtotal, tax, total and currency of each picture or PDF page read into a row",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Receipt or Invoice…",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -26774,6 +26862,7 @@
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/mail/smime.js",
+        "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/album.js",
         "apps/desktop/renderer/apps/slides/custom-shows.js",
@@ -26973,6 +27062,12 @@
       "message": "Remove this mark",
       "where": [
         "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Remove this row",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
     {
@@ -28166,6 +28261,7 @@
     {
       "message": "Row",
       "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/word/envelopes.js"
       ]
     },
@@ -32990,6 +33086,7 @@
       "message": "Subtotal",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -33146,6 +33243,12 @@
       "where": [
         "apps/desktop/renderer/apps/word/equations.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Supplier",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
     {
@@ -33514,6 +33617,12 @@
       "message": "Tangent",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
+      ]
+    },
+    {
+      "message": "Tax",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
     {
@@ -34573,6 +34682,12 @@
       ]
     },
     {
+      "message": "The file could not be read: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
       "message": "The file holds no cards.",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
@@ -35150,6 +35265,12 @@
       "message": "The rows copied would land on the list or the criteria — choose a place beside or below them",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The rows go in from the selected cell, {cell}, a date as a date and the amounts as numbers.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
     {
@@ -36517,6 +36638,12 @@
       ]
     },
     {
+      "message": "This page could not be read: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
       "message": "This photo keeps its turn where it cannot be changed without redrawing it. Edit opens it in Image, which can.",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -37307,6 +37434,7 @@
     {
       "message": "Total",
       "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -42715,6 +42843,13 @@
       ]
     },
     {
+      "message": "{count} receipt or invoice put in as a row",
+      "plural": "{count} receipts and invoices put in as rows",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "{count} received",
       "plural": "{count} received",
       "where": [
@@ -42949,6 +43084,13 @@
       ]
     },
     {
+      "message": "{count} value is marked to check.",
+      "plural": "{count} values are marked to check.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
       "message": "{count} word",
       "plural": "{count} words",
       "where": [
@@ -43000,9 +43142,21 @@
       ]
     },
     {
+      "message": "{field} of row {row}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
       "message": "{field} {operator} \"{value}\"",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
+      ]
+    },
+    {
+      "message": "{field}, where it was read",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
     {
@@ -43512,6 +43666,12 @@
       "message": "{name} — {width} × {height}, primary",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "{name}, page {page} of {count}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/receipt-row.js"
       ]
     },
     {

@@ -99,6 +99,8 @@ const PATHS = {
   wand: [P('m5 19 9-9'), P('M14 5V3M17.5 6.5 19 5M19 10h2M6 5 4.5 3.5M9 3v2'), P('m13 11 3-3 5 5-3 3z')],
   // text recognition: a page's words, and a table, in a scanner's frame
   scanText: [P('M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3'), P('M8 9h8M8 12h8M8 15h5')],
+  // a till roll with its torn foot, in the same frame
+  scanReceipt: [P('M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3'), P('M8.5 7h7v10l-1.2-1-1.1 1-1.2-1-1.2 1-1.1-1-1.2 1z'), P('M10.5 10h3M10.5 12.5h3')],
   scanTable: [P('M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3'), P('M8 8h8v8H8zM8 12h8M12 8v8')],
   contrast: [P('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z'), P('M12 3v18a9 9 0 0 0 0-18z', { fill: 'currentColor', stroke: 'none' })],
 

@@ -1,5 +1,6 @@
-// Text recognition for the windows: the PDF app's Recognise Text, Copy Text
-// from Picture in Pictures and Image, Data from Picture in Worksheets.
+// Text recognition for the windows: the PDF app's Recognise Text and its
+// fields, Copy Text from Picture in Pictures and Image, Data from Picture and
+// Receipt or Invoice in Worksheets, an attached invoice's details in Mail.
 //
 // A window hands over a picture's pixels and gets back the text, its lines
 // and its words with their boxes. The reading is done by @rutba/ocr's pool
@@ -28,10 +29,12 @@ export function createOcrService({ host = ocrHost() } = {}) {
     languages: () => LANGUAGES.map((l) => ({ ...l })),
 
     /**
-     * ({ image: { width, height, data } | PNG bytes, languages, dpi, mode, table, job })
-     * -> { text, lines, words, width, height, languages, angle, ms, table? }
+     * ({ image: { width, height, data } | PNG bytes, languages, dpi, mode, table, document, job })
+     * -> { text, lines, words, width, height, languages, angle, ms, table?, document? }
+     * `document`: the picture read as a bill, an invoice, a receipt, a letter
+     * or a form; its kind, fields, items, sums and tick boxes come back too.
      */
-    async recognize({ image, languages, dpi, mode, table, job } = {}, win) {
+    async recognize({ image, languages, dpi, mode, table, document, job } = {}, win) {
       const controller = new AbortController();
       const name = job ? `${win?.id ?? 0}:${job}` : null;
       if (name) {
@@ -40,7 +43,10 @@ export function createOcrService({ host = ocrHost() } = {}) {
       }
       watch(win);
       try {
-        return await host.recognize(image, { languages, dpi, mode, table: Boolean(table), signal: controller.signal });
+        const result = await host.recognize(image, { languages, dpi, mode, table: Boolean(table), document: Boolean(document), signal: controller.signal });
+        // The second readings the fields were made from stay here: the window has no use for them.
+        if (result.document) delete result.document.again;
+        return result;
       } finally {
         if (name && jobs.get(name)?.controller === controller) jobs.delete(name);
       }

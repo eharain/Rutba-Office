@@ -1,0 +1,82 @@
+{
+  "name": "form-eng",
+  "kind": "form",
+  "lang": "eng",
+  "layout": "form",
+  "font": "Arial",
+  "digits": "latin",
+  "fields": {},
+  "items": [],
+  "checkboxes": [
+    {
+      "group": "Type of request",
+      "label": "New",
+      "checked": false,
+      "box": {
+        "x": 315,
+        "y": 520,
+        "width": 21,
+        "height": 21
+      }
+    },
+    {
+      "group": "Type of request",
+      "label": "Renewal",
+      "checked": true,
+      "box": {
+        "x": 427,
+        "y": 520,
+        "width": 21,
+        "height": 21
+      }
+    },
+    {
+      "group": "Type of request",
+      "label": "Change",
+      "checked": false,
+      "box": {
+        "x": 581,
+        "y": 520,
+        "width": 21,
+        "height": 21
+      }
+    },
+    {
+      "group": "Contact by",
+      "label": "Email",
+      "checked": true,
+      "box": {
+        "x": 266,
+        "y": 575,
+        "width": 21,
+        "height": 21
+      }
+    },
+    {
+      "group": "Contact by",
+      "label": "Phone",
+      "checked": false,
+      "box": {
+        "x": 390,
+        "y": 575,
+        "width": 21,
+        "height": 21
+      }
+    },
+    {
+      "group": "Contact by",
+      "label": "Post",
+      "checked": false,
+      "box": {
+        "x": 522,
+        "y": 575,
+        "width": 21,
+        "height": 21
+      }
+    }
+  ],
+  "seed": 7104,
+  "dpi": 150,
+  "width": 1241,
+  "height": 1754
+}

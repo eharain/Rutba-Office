@@ -33,6 +33,7 @@ import { SlicerPanel, InsertSlicersDialog, ObjectHandles, RotateHandle, Selectio
 import { IconsDialog } from '../icons-insert.js';
 import { QrDialog, qrOf } from '../qrcode.js';
 import { DataFromPictureDialog, PICTURE_DATA_CSS } from './sheets/picture-data.js';
+import { ReceiptDialog, RECEIPT_ROW_CSS } from './sheets/receipt-row.js';
 import { OCR_CSS } from '../ocr-ui.js';
 import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise } from './slides/ink.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
@@ -2981,6 +2982,12 @@ export default function Sheets({ app, shell, boot }) {
         if (file) setDialog({ kind: 'pictureData', source: { path: file } });
         return;
       }
+      // Data from Picture, Receipt or Invoice: each picture, and each page of a PDF, read into one row.
+      case 'receiptRow': {
+        const chosen = await shell.dialog.open({ title: t('Receipt or Invoice'), multiple: true, filters: [{ name: t('Pictures and PDFs'), extensions: ['png', 'jpg', 'jpeg', 'bmp', 'webp', 'gif', 'pdf'] }] });
+        if (chosen?.length) setDialog({ kind: 'receipts', files: chosen });
+        return;
+      }
       // Insert → Equation: typed in its linear form, set as math over the selection.
       case 'equation': setDialog({ kind: 'equation', id: null, initial: '' }); return;
       // Insert → WordArt: the words asked for, in the chosen style.
@@ -3321,7 +3328,7 @@ export default function Sheets({ app, shell, boot }) {
         </div>
       ) : (
         <div className={`sh${model.rtl ? ' rtl' : ''}${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
-          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + OCR_CSS + PICTURE_DATA_CSS}</style>
+          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + OCR_CSS + PICTURE_DATA_CSS + RECEIPT_ROW_CSS}</style>
 
           <div className="sh-formula" hidden={view.formulaBar === false}>
             <div className="sh-namebox">{sel?.ref}</div>
@@ -3768,6 +3775,18 @@ export default function Sheets({ app, shell, boot }) {
             const text = rows.map((r) => r.map((v) => String(v ?? '').replace(/[\t\n\r]+/g, ' ')).join('\t')).join('\n');
             await dispatch({ op: 'paste', text, html: null });
             toast(tn(rows.length, '{count} row of data from the picture inserted', '{count} rows of data from the picture inserted'), { tone: 'good' });
+          }}
+        />
+      ) : null}
+      {dialog?.kind === 'receipts' ? (
+        <ReceiptDialog
+          shell={shell}
+          files={dialog.files}
+          at={model?.selection?.active ? refText(model.selection.active.row, model.selection.active.col) : 'A1'}
+          onClose={() => setDialog(null)}
+          onInsert={async (rows, count) => {
+            await dispatch({ op: 'putRecords', rows });
+            toast(tn(count, '{count} receipt or invoice put in as a row', '{count} receipts and invoices put in as rows'), { tone: 'good' });
           }}
         />
       ) : null}

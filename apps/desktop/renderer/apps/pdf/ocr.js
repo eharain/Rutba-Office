@@ -26,11 +26,14 @@ export async function hasText(doc, index) {
   }
 }
 
-/** A page drawn to pixels for reading, and the viewport that drew it. */
-async function pagePixels(doc, index) {
+/**
+ * A page drawn to pixels for reading, and the viewport that drew it; at up to
+ * `maxDpi` (a bill is read as well at 200 dots per inch, and sooner).
+ */
+export async function pagePixels(doc, index, { maxDpi = MAX_DPI } = {}) {
   const page = await getPage(doc, index);
   const unit = page.getViewport({ scale: 1 });
-  const dpi = Math.min(MAX_DPI, (MAX_SIDE / Math.max(unit.width, unit.height)) * 72);
+  const dpi = Math.min(maxDpi, (MAX_SIDE / Math.max(unit.width, unit.height)) * 72);
   const viewport = page.getViewport({ scale: dpi / 72 });
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.floor(viewport.width));

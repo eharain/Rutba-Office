@@ -1,0 +1,50 @@
+{
+  "name": "invoice-eng-wrong",
+  "kind": "invoice",
+  "lang": "eng",
+  "layout": "word",
+  "font": "Georgia",
+  "digits": "latin",
+  "fields": {
+    "supplier": "Northgate Supplies Ltd",
+    "number": "INV-2675",
+    "date": "2026-08-03",
+    "subtotal": 1334.27,
+    "tax": 266.85,
+    "taxRate": 20,
+    "total": 1611.12,
+    "currency": "GBP",
+    "dueDate": "2026-09-02"
+  },
+  "items": [
+    {
+      "description": "Website pages",
+      "quantity": 1,
+      "unitPrice": 108.34,
+      "amount": 108.34
+    },
+    {
+      "description": "Ink cartridge, black",
+      "quantity": 1,
+      "unitPrice": 206.9,
+      "amount": 206.9
+    },
+    {
+      "description": "Design consultation (hours)",
+      "quantity": 6,
+      "unitPrice": 113.5,
+      "amount": 681
+    },
+    {
+      "description": "Folders, pack of 10",
+      "quantity": 1,
+      "unitPrice": 338.03,
+      "amount": 338.03
+    }
+  ],
+  "checkboxes": [],
+  "seed": 7002,
+  "dpi": 150,
+  "width": 1241,
+  "height": 1754
+}

@@ -87,6 +87,7 @@ import { verifyPdfOutline } from './verify-pdf-outline.js';
 import { verifyPdfExport } from './verify-pdf-export.js';
 import { verifyOcrPicture } from './verify-ocr-picture.js';
 import { verifyOcrSheet } from './verify-ocr-sheet.js';
+import { verifyReceiptRow } from './verify-receipt-row.js';
 import { verifyRibbon } from './verify-ribbon.js';
 import { verifySoon } from './verify-soon.js';
 import { verifyGalleryFold } from './verify-gallery-fold.js';
@@ -4857,6 +4858,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('pdf-export')) await verifyPdfExport({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('ocr-picture')) await verifyOcrPicture({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('ocr-sheet')) await verifyOcrSheet({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('receipt-row')) await verifyReceiptRow({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('ribbon')) await verifyRibbon({ open, check, until, wait }, { dir, files });
     if (only.includes('soon')) await verifySoon({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('gallery-fold')) await verifyGalleryFold({ open, check, until, wait }, { dir });
@@ -5185,6 +5187,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyPdfExport({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyOcrPicture({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyOcrSheet({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await block(() => verifyReceiptRow({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyRibbon({ open, check, until, wait }, { dir, files }));
   await block(() => verifySoon({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyGalleryFold({ open, check, until, wait }, { dir }));

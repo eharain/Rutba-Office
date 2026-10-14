@@ -2122,6 +2122,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     autoSum: (v, a) => v.autoSum(a.fn || 'SUM'),
     sort: (v, a) => v.sortSelection({ ascending: a.ascending !== false, keys: Array.isArray(a.keys) ? a.keys : null }),
     paste: (v, a) => v.pasteText(a.text, a.html),
+    // Data → From Picture → Receipt or Invoice: rows of typed values with their number formats, one step.
+    putRecords: (v, a) => v.putRecords(a.rows),
     // Copy and Cut answer what goes on the system clipboard, the words and a table.
     copy: (v) => { v.markClipboard(); return JSON.stringify({ text: v.copyText(), html: v.copyHtml() }); },
     cut: (v) => { v.markClipboard({ cut: true }); return JSON.stringify({ text: v.copyText(), html: v.copyHtml() }); },

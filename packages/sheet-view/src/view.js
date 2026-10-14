@@ -7490,6 +7490,63 @@ export class SheetView {
     }, { styles: true });
   }
 
+  /**
+   * Rows of typed values put in at the active cell as ONE step, each cell's
+   * number format with it: Data → From Picture → Receipt or Invoice puts a
+   * receipt's date in as a date and its amounts as numbers this way. A cell
+   * is `{ value, text?, format? }`: `text` keeps a value as the text it is
+   * (an invoice number's leading zeros), `format` is a number format code.
+   * A column too narrow for its new values is widened to them. The
+   * selection ends on the cells put in.
+   */
+  putRecords(rows = []) {
+    const list = rows.filter((r) => Array.isArray(r) && r.length);
+    if (!list.length) return this;
+    const { row, col } = this.selection.active;
+    const cells = [];
+    list.forEach((r, i) => r.forEach((_, j) => cells.push({ row: row + i, col: col + j })));
+    const formatted = list.some((r) => r.some((c) => c?.format));
+    if (formatted) this._ensureStylesPart();
+    return this._edit('records', null, cells, () => {
+      let xml = formatted ? this.pkg.text('xl/styles.xml') : null;
+      let touched = false;
+      list.forEach((r, i) => r.forEach((c, j) => {
+        const at = { row: row + i, col: col + j };
+        const v = c?.value;
+        const input = v === null || v === undefined ? '' : typeof v === 'number' ? String(v) : c.text && String(v) !== '' && coerceInput(String(v)) !== String(v) ? `'${v}` : String(v);
+        this._setCell(at.row, at.col, input);
+        if (c?.format) {
+          const base = this._styleIndexAt(this.activeSheet, at.row, at.col);
+          const out = applyFormat(xml, base, { numberFormat: c.format });
+          xml = out.xml;
+          if (out.index !== base) { this._setStyleIndex(this.activeSheet, at.row, at.col, out.index); touched = true; }
+        }
+      }));
+      if (touched) {
+        this.pkg.write_('xl/styles.xml', xml);
+        this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
+        this._stylesDirty = true;
+      }
+      // A column too narrow for what came in is widened to it (never narrowed), as AutoFit
+      // would: a date cut short reads as another date. The part travels with the step, so
+      // Undo puts the widths back with the cells.
+      const across = Math.max(...list.map((r) => r.length));
+      for (let j = 0; j < across; j++) {
+        let chars = 0;
+        for (let i = 0; i < list.length; i++) chars = Math.max(chars, String(this.displayValue(row + i, col + j)?.text ?? '').length);
+        const px = Math.min(400, Math.round(chars * 7.2 + 14));
+        if (chars && px > this.geo.colWidth(col + j)) {
+          this.workbook.setColWidthChars(this.activeSheet, col + j, pixelsToCharWidth(px));
+          this.geo.colWidths.set(col + j, px);
+          this._structuralDirty = true;
+        }
+      }
+      this.selection.collapseTo(row, col);
+      this.selection.extendTo(row + list.length - 1, col + across - 1);
+      return this;
+    }, { styles: formatted, parts: [this.workbook.partNameFor(this.activeSheet)] });
+  }
+
   save({ recalc = true } = {}) {
     // Excel recalculates a workbook in manual mode before saving it, so the
     // file never keeps an answer the sheet had not caught up with.
