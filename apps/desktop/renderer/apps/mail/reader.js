@@ -10,6 +10,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Chip, formatWhen, formatBytes, t, tn } from '@rutba/office-ui';
 import { bodyDocument, avatarFor, displayName } from './parts.js';
+import { SmimeStrip } from './smime.js';
 
 export default function Reader({
   message,
@@ -31,6 +32,8 @@ export default function Reader({
   onKeepSender,
   inJunk = false,
   onNotJunk,
+  onSmimeImport,
+  onCertificates,
 }) {
   const frameRef = useRef(null);
   const [height, setHeight] = useState(600);
@@ -221,6 +224,8 @@ export default function Reader({
           </div>
         ) : null}
       </header>
+
+      {message.smime ? <SmimeStrip smime={message.smime} from={from?.address || ''} onImport={onSmimeImport} onCertificates={onCertificates} /> : null}
 
       <div className="ml-body">
         {/*

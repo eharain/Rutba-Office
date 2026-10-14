@@ -380,6 +380,9 @@ function extensionFor(type) {
   return map[type] || '';
 }
 
+/** The parts of S/MIME that carry the signature or the encrypted message. */
+const SMIME_PARTS = /^application\/(x-)?pkcs7-(signature|mime)$/i;
+
 /**
  * Parse a whole message.
  * @param {Uint8Array|string|Buffer} input raw RFC 5322 bytes
@@ -388,8 +391,13 @@ function extensionFor(type) {
  * @returns {object} a message the client can render without further work
  */
 export function parseMessage(input, { light = false } = {}) {
-  const root = parsePart(toBytes(input), 0, light);
+  const bytes = toBytes(input);
+  const root = parsePart(bytes, 0, light);
   const h = root.headers;
+  // A signed or encrypted message (S/MIME) keeps the bytes it arrived as:
+  // its signature is over them, and the parts parsed here are not them.
+  const { params: ctParams } = parseParameters(h.get('content-type') || '');
+  const smime = !light && ((root.type === 'multipart/signed' && /pkcs7-signature/i.test(ctParams.protocol || '')) || root.type === 'application/pkcs7-mime' || root.type === 'application/x-pkcs7-mime');
   const texts = collectText(root, { plain: [], html: [] });
   const attachments = collectAttachments(root);
   const date = h.get('date');
@@ -410,7 +418,9 @@ export function parseMessage(input, { light = false } = {}) {
     priority: h.get('x-priority') || h.get('importance') || null,
     text: texts.plain.join('\n').trim() || null,
     html: texts.html.join('\n').trim() || null,
-    attachments: attachments.filter((a) => !a.inline || a.filename),
+    // A signed or encrypted message's signature, or its encrypted body, is
+    // the message itself rather than something attached to it.
+    attachments: attachments.filter((a) => (!a.inline || a.filename) && !(smime && SMIME_PARTS.test(a.type))),
     inlineImages: attachments.filter((a) => a.inline && a.contentId),
     headers: h.list,
     // The character sets it is written in — its text parts' and its
@@ -418,7 +428,8 @@ export function parseMessage(input, { light = false } = {}) {
     // Encodings, since the parse tree itself is not kept.
     charsets: charsetsIn(root, h),
     structure: root,
-    hasAttachments: attachments.some((a) => !a.inline),
+    hasAttachments: attachments.some((a) => !a.inline && !(smime && SMIME_PARTS.test(a.type))),
+    ...(smime ? { smimeRaw: bytes } : {}),
   };
 }
 

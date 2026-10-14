@@ -39,7 +39,7 @@ const newestFirst = (a, b) => (b.t || 0) - (a.t || 0) || (a.id < b.id ? -1 : a.i
 /**
  * @param {{ stores, store, broadcast, holdBlob, insightFor, classify, accounts: () => object[], unicodeFont?: () => any, host?: object }} deps
  */
-export function createArchiveDesk({ stores, store, broadcast, holdBlob, insightFor, classify, accounts, unicodeFont = () => null, host = null }) {
+export function createArchiveDesk({ stores, store, broadcast, holdBlob, insightFor, classify, accounts, smime = null, unicodeFont = () => null, host = null }) {
   const listed = () => stores.settings.get('mail.archives', []);
   const setListed = (list) => stores.settings.set('mail.archives', list);
   const status = new Map(); // id -> { state, done, total, error }
@@ -142,6 +142,13 @@ export function createArchiveDesk({ stores, store, broadcast, holdBlob, insightF
     };
   }
 
+  /** A message as read, or the one inside it when it is signed or encrypted (for its attachments). */
+  const innerOf = async (accountId, folder, id) => {
+    const message = await ask(accountId, 'message', { folder, id });
+    const view = message && smime ? smime.read(smime.rawOf(message)) : null;
+    return view ? view.message : message;
+  };
+
   const desk = {
     /** Opened archives, with how far their indexing has got. */
     archives: () => listed().map(describe),
@@ -214,8 +221,12 @@ export function createArchiveDesk({ stores, store, broadcast, holdBlob, insightF
     },
 
     message: async ({ accountId, folder, id }) => {
-      const message = await ask(accountId, 'message', { folder, id });
+      let message = await ask(accountId, 'message', { folder, id });
       if (!message) return null;
+      // A signed or encrypted message: the one inside, with what was found about it.
+      const view = smime ? smime.read(smime.rawOf(message)) : null;
+      if (view) message = { ...message, text: view.message.text, html: view.message.html, attachments: view.message.attachments || [], hasAttachments: Boolean(view.message.hasAttachments), smime: view.smime };
+      delete message.smimeRaw;
       const inline = {};
       for (const a of message.attachments || []) {
         if (!a.inline || !a.bytes || !a.contentId) continue;
@@ -241,7 +252,7 @@ export function createArchiveDesk({ stores, store, broadcast, holdBlob, insightF
     },
 
     attachment: async ({ accountId, folder, id, index: at }) => {
-      const message = await ask(accountId, 'message', { folder, id });
+      const message = await innerOf(accountId, folder, id);
       const a = message?.attachments?.[at];
       if (!a?.bytes) return null;
       const bytes = Buffer.from(a.bytes);
@@ -250,7 +261,7 @@ export function createArchiveDesk({ stores, store, broadcast, holdBlob, insightF
     },
 
     attachmentText: async ({ accountId, folder, id, index: at }) => {
-      const message = await ask(accountId, 'message', { folder, id });
+      const message = await innerOf(accountId, folder, id);
       const a = message?.attachments?.[at];
       if (!a?.bytes) return null;
       return { name: a.filename, type: a.type, text: Buffer.from(a.bytes).toString('utf8') };

@@ -35,9 +35,11 @@ import { attachmentExtension } from '@rutba/mailbox/mime';
 import { withSignature, withSignatureHtml, signatureTextToHtml } from '@rutba/mailbox/signature';
 import { textToHtml } from './mail/richtext.js';
 import { isArchiveId, ArchiveBanner, ExportHoldDialog, SearchHelp, installArchiveStyles, indexedCount } from './mail/archive.js';
+import { CertificatesDialog, installSmimeStyles } from './mail/smime.js';
 
 installStyles();
 installArchiveStyles();
+installSmimeStyles();
 
 /** Every account at once. Not an id any account can have. */
 const EVERYTHING = '*';
@@ -62,6 +64,10 @@ export default function Mail({ app, shell }) {
   const [checked, setChecked] = useState(() => new Set());
   const [selected, setSelected] = useState(null); // the row object, so unified lists know where it lives
   const [message, setMessage] = useState(null);
+  // One's own certificates for signed and encrypted mail, and a count that
+  // reopens the message read when one is imported (it may open now).
+  const [identities, setIdentities] = useState([]);
+  const [smimeTick, setSmimeTick] = useState(0);
   const [insight, setInsight] = useState(null);
   const [expanded, setExpanded] = useState(() => new Set());
   const lastClicked = useRef(null);
@@ -122,6 +128,7 @@ export default function Mail({ app, shell }) {
       { label: t('Import mail…'), icon: 'import', run: () => setDialog({ kind: 'import' }) },
       { label: t('Add account…'), icon: 'plus', run: () => setDialog({ kind: 'account' }) },
       { label: t('Open files with Rutba Office…'), icon: 'settings', run: () => setDialog({ kind: 'defaults' }) },
+      { label: t('Certificates for signed and encrypted mail…'), icon: 'shield', run: () => setDialog({ kind: 'certificates' }) },
     ],
   });
 
@@ -311,7 +318,11 @@ export default function Mail({ app, shell }) {
       })
       .catch((err) => toast(err.message, { tone: 'bad' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected]);
+  }, [selected, smimeTick]);
+
+  useEffect(() => {
+    shell.mail.smimeIdentities().then(setIdentities).catch(() => {});
+  }, [shell, smimeTick]);
 
   useEffect(() => {
     const offProgress = shell.on('mail:progress', (p) => setProgress(p));
@@ -613,6 +624,11 @@ export default function Mail({ app, shell }) {
     async (draft, at) => {
       const from = draft.accountId || accountId;
       if (!from || from === EVERYTHING) return toast(t('Choose which account to send from.'), { tone: 'bad' });
+      if (draft.smime?.encrypt) {
+        const addresses = [draft.to, draft.cc, draft.bcc].join(',').split(',').map((s) => (/<([^>]+)>/.exec(s)?.[1] || s).trim()).filter(Boolean);
+        const can = await shell.mail.canEncryptFor({ addresses });
+        if (!can.ok) return toast(t('This cannot be encrypted for {names}: there is no certificate for them here. Ask them for a signed message, or import their certificate.', { names: can.missing.join(', ') }), { tone: 'bad' });
+      }
       try {
         // Attachments forwarded from another message are held by the backend;
         // they are written to a temporary file so SMTP can stream them.
@@ -1341,6 +1357,9 @@ export default function Mail({ app, shell }) {
               <Group label={t('Mail')}>
                 <Button tall icon="filter" label={t('Rules')} onClick={() => setDialog({ kind: 'rules' })} />
               </Group>
+              <Group label={t('Security')}>
+                <Button tall icon="shield" label={t('Certificates')} title={t('Certificates: yours, to sign and to read encrypted mail, and other people\'s, to encrypt to them')} onClick={() => setDialog({ kind: 'certificates' })} />
+              </Group>
               <Group label={t('Sending')}>
                 <Button
                   tall
@@ -1724,6 +1743,8 @@ export default function Mail({ app, shell }) {
                       onSender={(from) => from?.address && setQuery(from.address)}
                       inJunk={inJunk}
                       onNotJunk={() => act('notJunk')}
+                      onSmimeImport={() => setDialog({ kind: 'certificates', start: 'import' })}
+                      onCertificates={() => setDialog({ kind: 'certificates' })}
                     />
                   ) : (
                     <Empty icon="mail" title={t('No message selected')}>
@@ -1783,6 +1804,18 @@ export default function Mail({ app, shell }) {
       ) : null}
 
       {dialog?.kind === 'importing' ? <ImportingDialog path={dialog.path} progress={progress} /> : null}
+
+      {dialog?.kind === 'certificates' ? (
+        <CertificatesDialog
+          shell={shell}
+          toast={toast}
+          start={dialog.start || null}
+          onClose={() => {
+            setDialog(null);
+            setSmimeTick((n) => n + 1);
+          }}
+        />
+      ) : null}
 
       {dialog?.kind === 'hold' ? (
         <ExportHoldDialog
@@ -1949,6 +1982,8 @@ export default function Mail({ app, shell }) {
           }}
           shell={shell}
           toast={toast}
+          identities={identities}
+          onCertificates={() => setDialog({ kind: 'certificates', start: 'import' })}
         />
       ) : null}
     </AppFrame>

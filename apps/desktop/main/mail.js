@@ -18,6 +18,7 @@ import { scan, read as readArchive, identify } from '@rutba/mailbox/import';
 import { writeMbox } from '@rutba/mailbox/mbox';
 import { insightFor } from './mail-insight.js';
 import { createArchiveDesk, isArchive } from './mail-archive.js';
+import { createSmimeDesk } from './mail-smime.js';
 import { unicodeFont } from './system-fonts.js';
 import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
@@ -101,6 +102,8 @@ function defaultTransport() {
           ? { type: 'OAuth2', user: account.smtp.user || account.email, accessToken: credentials.accessToken }
           : { user: account.smtp.user || account.email, pass: credentials.pass },
       });
+      // A message made and protected already (signed or encrypted) goes as it is.
+      if (draft.raw) return transport.sendMail({ envelope: draft.envelope, raw: draft.raw });
       return transport.sendMail({
         from: { name: account.name, address: account.email },
         to: draft.to,
@@ -120,6 +123,30 @@ function defaultTransport() {
       });
     },
   };
+}
+
+/**
+ * A message as nodemailer would send it, made but not sent: what is signed or
+ * encrypted before it goes. The same fields as the transport's sendMail.
+ */
+async function composeRaw({ account, draft }) {
+  const { default: MailComposer } = await import('nodemailer/lib/mail-composer/index.js');
+  return new MailComposer({
+    from: { name: account.name, address: account.email },
+    to: draft.to,
+    cc: draft.cc || undefined,
+    bcc: undefined,
+    subject: draft.subject || '',
+    text: draft.text || '',
+    html: draft.html || undefined,
+    attachDataUrls: true,
+    inReplyTo: draft.inReplyTo ? `<${draft.inReplyTo}>` : undefined,
+    references: draft.references?.length ? draft.references.map((r) => `<${r}>`) : undefined,
+    headers: draft.headers || undefined,
+    attachments: (draft.attachments || []).map((a) => ({ filename: a.filename, path: a.path })),
+  })
+    .compile()
+    .build();
 }
 
 /** A check run's own transport: nothing leaves the process, and every send succeeds at once. */
@@ -1070,7 +1097,24 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       // sends through is a local, imported account (seed-mail's mbox), the
       // one kind of account that never has one to store.
       const credentials = CHECK_RUN ? { user: account.imap?.user || account.email } : await credentialsFor(account);
+      // Signed and/or encrypted: the message is made here, protected, and sent as it is.
+      let protectedRaw = null;
+      if (draft.smime?.sign || draft.smime?.encrypt) {
+        const list = (v) => String(v || '').split(',').map((s) => (/<([^>]+)>/.exec(s)?.[1] || s).trim()).filter(Boolean);
+        const recipients = [...list(draft.to), ...list(draft.cc), ...list(draft.bcc)];
+        const raw = await composeRaw({ account, draft });
+        protectedRaw = smime.protectOutgoing(raw, { sign: Boolean(draft.smime.sign), encrypt: Boolean(draft.smime.encrypt), from: account.email, recipients });
+        draft = { ...draft, raw: protectedRaw, envelope: { from: account.email, to: recipients } };
+      }
       const info = await transport.send({ account, credentials, draft });
+      if (protectedRaw) {
+        // The Sent copy is the message as it went, so it is read as its recipients read it.
+        const stored = parseMessage(protectedRaw);
+        stored.unread = false;
+        store.put(accountId, 'Sent', stored);
+        store.upsertFolder(accountId, { path: 'Sent', name: 'Sent', role: 'sent' });
+        return { messageId: info.messageId };
+      }
       // A sent message belongs in Sent whether or not the server puts it there.
       const extra = [];
       if (draft.inReplyTo) extra.push(`In-Reply-To: <${draft.inReplyTo}>`);
@@ -1218,9 +1262,70 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     pumpOutbox: () => pumpOutbox(),
   };
 
+  // Signed and encrypted mail (mail-smime.js): one's own certificates, other
+  // people's, and each S/MIME message read through them as it is opened.
+  const smime = createSmimeDesk({ stores, checkRun: CHECK_RUN });
+  {
+    const own = { message: service.message, attachment: service.attachment, attachmentText: service.attachmentText };
+    // The message inside a signed or encrypted one, read from the bytes it arrived as.
+    const viewOf = ({ accountId, folder, id }) => {
+      const original = store.original(accountId, folder, id);
+      return original ? smime.read(original) : null;
+    };
+    service.message = (args = {}) => {
+      const message = own.message(args);
+      if (!message?.smime?.original) return message;
+      const view = viewOf(args);
+      if (!view) return message;
+      const { accountId, folder, id } = args;
+      const inline = {};
+      for (const a of view.message.attachments || []) {
+        if (!a.inline || !a.bytes || !a.contentId) continue;
+        inline[String(a.contentId).replace(/^<|>$/g, '')] = holdBlob(Buffer.from(a.bytes), a.type, a.filename, { group: 'mail-message', generation: `${accountId}|${folder}|${id}` }).url;
+      }
+      return {
+        ...message,
+        text: view.message.text,
+        html: view.message.html,
+        attachments: (view.message.attachments || []).map((a) => ({ filename: a.filename, type: a.type, size: a.size, contentId: a.contentId, inline: a.inline, stored: a.bytes ? 'smime' : false })),
+        hasAttachments: Boolean(view.message.hasAttachments),
+        inlineUrls: { ...(message.inlineUrls || {}), ...inline },
+        smime: view.smime,
+      };
+    };
+    const innerAttachment = (args) => {
+      const record = store.get(args.accountId, args.folder, args.id);
+      if (!record?.smime?.original) return null;
+      return viewOf(args)?.message?.attachments?.[args.index] || false;
+    };
+    service.attachment = (args = {}) => {
+      const a = innerAttachment(args);
+      if (a === null) return own.attachment(args);
+      if (!a?.bytes) return null;
+      const name = attachmentFileName(a.filename);
+      const bytes = Buffer.from(a.bytes);
+      return { ...holdBlob(bytes, a.type, name, { group: 'mail-attachment', generation: `${args.accountId}|${args.folder}|${args.id}|${args.index}` }), name, type: a.type, size: bytes.length };
+    };
+    service.attachmentText = (args = {}) => {
+      const a = innerAttachment(args);
+      if (a === null) return own.attachmentText(args);
+      return a?.bytes ? { name: a.filename, type: a.type, text: Buffer.from(a.bytes).toString('utf8') } : null;
+    };
+    Object.assign(service, {
+      smimeIdentities: () => smime.desk.identities(),
+      importIdentity: (args) => smime.desk.importIdentity(args),
+      removeIdentity: (args) => smime.desk.removeIdentity(args),
+      importCertificate: (args) => smime.desk.importCertificate(args),
+      smimeCertificates: () => smime.desk.certificates(),
+      forgetCertificates: (args) => smime.desk.forgetCertificates(args),
+      canEncryptFor: (args) => smime.desk.canEncryptFor(args),
+      trustForTest: (args) => smime.desk.trustForTest(args),
+    });
+  }
+
   // Archives opened in place answer for their own ids (mail-archive.js):
   // the window reads them as it reads an account, and nothing changes them.
-  const desk = createArchiveDesk({ stores, store, broadcast, holdBlob, insightFor, classify, accounts, unicodeFont: () => unicodeFont() });
+  const desk = createArchiveDesk({ stores, store, broadcast, holdBlob, insightFor, classify, accounts, smime, unicodeFont: () => unicodeFont() });
   for (const name of ['folders', 'messages', 'message', 'insight', 'attachment', 'attachmentText']) {
     const own = service[name];
     service[name] = (args = {}) => (isArchive(args.accountId) ? desk[name](args) : own(args));

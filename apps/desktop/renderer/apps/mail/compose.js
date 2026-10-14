@@ -18,6 +18,7 @@ import { textToHtml, htmlToText, LinkRow, selectionIn } from './richtext.js';
 import { swapSignature, signatureBlockHtml, signatureTextToHtml, SIGNATURE_ATTR } from '@rutba/mailbox/signature';
 import { pathOf } from '@rutba/office-shell/client';
 import { scheduleChoices, parseCustomSchedule } from '@rutba/mailbox/schedule';
+import { SecurityRow } from './smime.js';
 
 const exec = (command, value) => {
   try {
@@ -92,7 +93,7 @@ function AddressInput({ value, onChange, shell, placeholder, autoFocus }) {
   );
 }
 
-export default function Compose({ draft, accounts, accountId, onAccount, onChange, onClose, onSend, onSaveDraft, shell, toast }) {
+export default function Compose({ draft, accounts, accountId, onAccount, onChange, onClose, onSend, onSaveDraft, shell, toast, identities = [], onCertificates }) {
   const bodyRef = useRef(null);
   const [rich, setRich] = useState(draft.rich !== false);
   const [showCc, setShowCc] = useState(Boolean(draft.cc || draft.bcc));
@@ -260,6 +261,15 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
 
         <Field label={t('Subject')}>
           <Input value={draft.subject || ''} onChange={(e) => onChange({ ...draft, subject: e.target.value })} />
+        </Field>
+
+        <Field label={t('Security')}>
+          <SecurityRow
+            value={draft.smime || {}}
+            identity={identities.find((i) => (i.emails || [i.email]).includes(String(account?.email || '').toLowerCase())) || null}
+            onChange={(smime) => onChange({ ...draft, smime })}
+            onCertificates={onCertificates}
+          />
         </Field>
 
         {rich ? (

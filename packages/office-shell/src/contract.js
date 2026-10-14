@@ -194,6 +194,14 @@ export const METHODS = {
     'searchAll',    // ({ query, limit, offset, sources }) -> { rows, total, exact, indexing: [{ id, name, state, done, total }] } one search over every account and archive, from what is indexed so far
     'exportHold',   // ({ job, query, sources, folders, items, dir, mbox, pdf, attachments, labels, selection }) -> { dir, exported, requested, cancelled, sources, attachments, pdfs, files }
     'cancelExport', // ({ job }) -> { cancelled }
+    'smimeIdentities',  // () -> [{ name, email, emails, issuer, validFrom, validTo, thumbprint, signs, encrypts }] one's own certificates (their keys kept in the system's secret store)
+    'importIdentity',   // ({ path, password }) -> that identity: a .p12/.pfx opened with its password
+    'removeIdentity',   // ({ thumbprint }) -> { removed }
+    'importCertificate', // ({ path }) -> [certificate] someone else's, from a .cer/.crt/.pem
+    'smimeCertificates', // () -> { [email]: [certificate] } other people's, kept from their signed mail or imported
+    'forgetCertificates', // ({ emails }) -> { forgotten }
+    'canEncryptFor',    // ({ addresses }) -> { ok, missing } is there a certificate for each
+    'trustForTest',     // ({ pem }) -> { anchors } a test authority trusted for a check run; refused otherwise
   ],
   calendar: [
     'calendars',      // () -> [{ id, name, colour, visible, count }]

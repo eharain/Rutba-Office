@@ -22,6 +22,7 @@
     "./query": "./src/query.js",
     "./archive": "./src/archive.js",
     "./archive-host": "./src/archive-host.js",
+    "./smime": "./src/smime/index.js",
     "./export": "./src/legal-export.js",
     "./message-pdf": "./src/message-pdf.js",
     "./rfc822": "./src/rfc822.js"
