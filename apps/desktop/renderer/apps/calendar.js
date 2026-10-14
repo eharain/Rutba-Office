@@ -8,7 +8,7 @@
 // beside the person's own calendars with an offer to keep it, and an
 // invitation gets Accept, Tentative and Decline, which answer through mail.
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Panel, Content, Field, Input, Select, Dialog,
   useToast, useCommands, useMenu, menuItems, t, tn, language, numberTag,
@@ -39,6 +39,7 @@ const weekIndex = (d) => (d.getDay() - WEEK_START + 7) % 7;
 const named = (options, count, at) => Array.from({ length: count }, (_, i) => at(i).toLocaleDateString(language(), options));
 const DAYS = named({ weekday: 'short' }, 7, (i) => new Date(2024, 0, 7 + WEEK_START + i));
 const DAY_LETTERS = named({ weekday: 'narrow' }, 7, (i) => new Date(2024, 0, 7 + WEEK_START + i));
+const DAYS_LONG = named({ weekday: 'long' }, 7, (i) => new Date(2024, 0, 7 + WEEK_START + i));
 const MONTHS = named({ month: 'long' }, 12, (i) => new Date(2024, i, 1));
 const MONTHS_SHORT = named({ month: 'short' }, 12, (i) => new Date(2024, i, 1));
 
@@ -380,22 +381,77 @@ export default function Calendar({ app, shell, boot }) {
   );
   // Home → Sync: every account now, and what moved said.
   const [accountsOpen, setAccountsOpen] = useState(false);
-  // Month: how tall a week's row is, so each day shows the events that fit
-  // and "+ more" for the rest, as Outlook does, instead of the month
-  // running off the bottom of a short window.
-  const [monthRowH, setMonthRowH] = useState(0);
-  const monthWatch = useRef(null);
-  const monthGridRef = useCallback((el) => {
-    monthWatch.current?.disconnect();
-    monthWatch.current = null;
-    if (!el) return;
-    const measure = () => setMonthRowH(el.clientHeight / 6);
-    measure();
-    if (typeof ResizeObserver === 'function') {
-      monthWatch.current = new ResizeObserver(measure);
-      monthWatch.current.observe(el);
-    }
+  // Month: each day shows as many of its events as its box has room for and
+  // "+N more" at its foot for the rest, as Outlook's month does. The room is
+  // measured as the window draws it (a day's box, its date's line, an event
+  // and "+N more", from a probe kept out of sight in the grid) and measured
+  // again whenever the month changes size: `all` events fit when none is
+  // left out, `withMore` when "+N more" takes the last line.
+  const [monthFit, setMonthFit] = useState(null);
+  const monthRef = useRef(null);
+  const measureMonth = useCallback(() => {
+    const host = monthRef.current;
+    const probe = host?.querySelector('.cal-month-probe');
+    const cells = host ? [...host.querySelectorAll('.cal-month-grid > .cal-day')] : [];
+    if (!probe || !cells.length) return;
+    const cs = getComputedStyle(cells[0]);
+    const px = (v) => parseFloat(v) || 0;
+    // The shortest of the six weeks (they differ by a fraction of a pixel), less its borders and padding.
+    const box = Math.min(...cells.filter((_, i) => i % 7 === 0).map((c) => c.getBoundingClientRect().height))
+      - px(cs.borderTopWidth) - px(cs.borderBottomWidth) - px(cs.paddingTop) - px(cs.paddingBottom);
+    const gap = px(cs.rowGap);
+    const tall = (sel) => probe.querySelector(sel)?.getBoundingClientRect().height || 0;
+    const room = box - tall('.cal-probe-top');
+    const step = tall('.cal-probe-chip') + gap;
+    if (step <= gap) return;
+    const next = {
+      all: Math.max(0, Math.floor((room + 0.01) / step)),
+      withMore: Math.max(0, Math.floor((room - gap - tall('.cal-probe-more') + 0.01) / step)),
+    };
+    setMonthFit((was) => (was && was.all === next.all && was.withMore === next.withMore ? was : next));
   }, []);
+  useLayoutEffect(() => {
+    if (view !== 'month') return undefined;
+    measureMonth();
+    const grid = monthRef.current?.querySelector('.cal-month-grid');
+    const watch = grid && typeof ResizeObserver === 'function' ? new ResizeObserver(() => measureMonth()) : null;
+    watch?.observe(grid);
+    window.addEventListener('resize', measureMonth);
+    return () => {
+      watch?.disconnect();
+      window.removeEventListener('resize', measureMonth);
+    };
+  }, [view, hijri, measureMonth]);
+  // "+N more" opens the day's events in a small list over the month, as
+  // Outlook's does: the day's name opens the day, an event opens the event,
+  // and Escape, a click elsewhere or a change of size puts it away.
+  const [peek, setPeek] = useState(null);
+  const peekRef = useRef(null);
+  useEffect(() => setPeek(null), [view, cursor]);
+  useEffect(() => {
+    if (!peek) return undefined;
+    const off = () => setPeek(null);
+    const key = (e) => { if (e.key === 'Escape') setPeek(null); };
+    window.addEventListener('mousedown', off);
+    window.addEventListener('blur', off);
+    window.addEventListener('resize', off);
+    window.addEventListener('keydown', key);
+    peekRef.current?.focus({ preventScroll: true });
+    return () => {
+      window.removeEventListener('mousedown', off);
+      window.removeEventListener('blur', off);
+      window.removeEventListener('resize', off);
+      window.removeEventListener('keydown', key);
+    };
+  }, [peek]);
+  // Kept inside the month: a list taller than the room left under its day moves up.
+  useLayoutEffect(() => {
+    const el = peekRef.current;
+    const host = monthRef.current;
+    if (!el || !host) return;
+    const over = el.offsetTop + el.offsetHeight - host.clientHeight;
+    if (over > 0) el.style.top = `${Math.max(0, el.offsetTop - over)}px`;
+  }, [peek]);
   const syncAll = useCallback(async () => {
     const results = (await shell.dav.sync({})) || [];
     if (!results.length) { setAccountsOpen(true); return; }
@@ -458,35 +514,85 @@ export default function Calendar({ app, shell, boot }) {
         byDay.get(k).push(s);
       }
     }
+    const dayList = (d) => (byDay.get(isoDate(d)) || []).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start);
+    // Until the first measure, a guess; the measure comes before the first paint.
+    const fit = monthFit || { all: 3, withMore: 2 };
+    const peekDay = peek ? days.find((d) => isoDate(d) === peek.day) : null;
     return (
-      <div className="cal-month">
+      <div className="cal-month" ref={monthRef}>
         <div className="cal-month-head">{DAYS.map((d) => <div key={d}>{d}</div>)}</div>
-        <div className="cal-month-grid" ref={monthGridRef}>
+        <div className="cal-month-grid" data-fit={monthFit ? `${monthFit.all}/${monthFit.withMore}` : ''}>
           {days.map((d) => {
-            const list = (byDay.get(isoDate(d)) || []).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start);
-            // As many as the row has room for: a line for the date, then about 21 px an
-            // event. "+ more" goes on the date's line, so it costs no event its place
-            // (under the events when the Hijri date has that line).
-            const fits = monthRowH ? Math.max(1, Math.floor((monthRowH - 30) / 21)) : 4;
-            const shown = list.length > fits ? list.slice(0, hijri ? Math.max(0, fits - 1) : fits) : list;
-            const more = list.length > shown.length ? <button type="button" className="cal-more" onClick={(e) => { e.stopPropagation(); setCursor(d); setView('day'); }}>{t('+{count} more', { count: list.length - shown.length })}</button> : null; // words-ok: code, not words
+            const list = dayList(d);
+            const shown = list.length > fit.all ? list.slice(0, fit.withMore) : list;
+            const more = list.length > shown.length ? (
+              <button
+                type="button"
+                className="cal-more"
+                onMouseDown={(e) => { if (peek?.day === isoDate(d)) e.stopPropagation(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (peek?.day === isoDate(d)) { setPeek(null); return; }
+                  const box = e.currentTarget.closest('.cal-day').getBoundingClientRect();
+                  const host = monthRef.current.getBoundingClientRect();
+                  setPeek({ day: isoDate(d), left: box.left - host.left, top: box.top - host.top, width: box.width });
+                }}
+              >
+                {t('+{count} more', { count: list.length - shown.length })}{/* words-ok: code, not words */}
+              </button>
+            ) : null;
             return (
               <div
                 key={isoDate(d)}
+                data-date={isoDate(d)}
                 className={`cal-day${d.getMonth() !== cursor.getMonth() ? ' other' : ''}${sameDay(d, today) ? ' today' : ''}`}
                 onClick={() => newEvent(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9), false)}
                 onDoubleClick={(e) => e.stopPropagation()}
               >
                 <div className="cal-day-top">
-                  {hijri ? <span className="cal-day-h">{hijriLabel(d)}</span> : more || <span />}
+                  {hijri ? <span className="cal-day-h">{hijriLabel(d)}</span> : <span />}
                   <div className="cal-day-n">{d.getDate() === 1 ? `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}` : d.getDate()}</div>
                 </div>
                 {shown.map((s, i) => chip(s, `${s.id}-${s.original}-${i}`))}
-                {hijri ? more : null}
+                {more}
               </div>
             );
           })}
+          {/* Its own class names, drawn by the same rules, so nothing that looks for a day's events finds it. */}
+          <div className="cal-month-probe" aria-hidden="true">
+            <div className="cal-probe-top">
+              {hijri ? <span className="cal-probe-h">{hijriLabel(days[0])}</span> : <span />}
+              <div className="cal-probe-n">30</div>
+            </div>
+            <span className="cal-probe-chip"><span className="t">10:00</span><span className="s">Ag</span></span>
+            <span className="cal-probe-more">+9</span>
+          </div>
         </div>
+        {peekDay ? (
+          <div
+            ref={peekRef}
+            className={`cal-peek${sameDay(peekDay, today) ? ' today' : ''}`}
+            role="dialog"
+            tabIndex={-1}
+            aria-label={`${DAYS_LONG[weekIndex(peekDay)]} ${peekDay.getDate()} ${MONTHS[peekDay.getMonth()]}`}
+            style={{ left: Math.max(0, Math.min(peek.left - 10, (monthRef.current?.clientWidth || 0) - Math.max(peek.width + 20, 240))), top: Math.max(0, peek.top - 6), width: Math.max(peek.width + 20, 240) }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClickCapture={(e) => { if (e.target.closest('.cal-chip')) setPeek(null); }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="cal-peek-top">
+              <button type="button" className="cal-peek-head" onClick={() => { setCursor(peekDay); setView('day'); setPeek(null); }}>
+                <span className="dd">{peekDay.getDate()}</span>
+                <span className="dw">
+                  <span className="dn">{DAYS_LONG[weekIndex(peekDay)]}</span>
+                  <span className="dm">{MONTHS[peekDay.getMonth()]} {peekDay.getFullYear()}</span>
+                </span>
+              </button>
+              <button type="button" className="cal-peek-x" aria-label={t('Close')} onClick={() => setPeek(null)}><Icon name="close" size={14} /></button>
+            </div>
+            <div className="cal-peek-list">{dayList(peekDay).map((s, i) => chip(s, `${s.id}-${s.original}-${i}`))}</div>
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -858,23 +964,41 @@ const CSS = `
 .cal-view { border: 0; background: none; padding: 5px 12px; font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
 .cal-view.on { background: var(--selected); color: var(--ink); font-weight: 600; }
 .cal-body { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 14px; display: flex; flex-direction: column; }
-.cal-month { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.cal-month { display: flex; flex-direction: column; flex: 1; min-height: 0; position: relative; }
 .cal-month-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); font-size: 11px; font-weight: 600; color: var(--ink-3); padding: 4px 0; }
 .cal-month-head div { padding-left: 6px; }
-.cal-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(6, minmax(0, 1fr)); flex: 1; min-height: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
-.cal-day { min-width: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 2px; cursor: cell; }
+.cal-month-grid { position: relative; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(6, minmax(0, 1fr)); flex: 1; min-height: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+/* What a day's lines measure, out of sight: the month counts the events that fit from it. */
+.cal-month-probe { position: absolute; top: 0; left: 0; width: 120px; visibility: hidden; pointer-events: none; display: flex; flex-direction: column; }
+.cal-day { min-width: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 2px 4px 1px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 2px; cursor: cell; }
 .cal-day.other { background: var(--sunken); color: var(--ink-3); }
 .cal-day.today .cal-day-n { background: var(--accent); color: white; }
-.cal-day-n { align-self: flex-end; font-size: 12px; font-weight: 600; padding: 1px 6px; border-radius: 10px; }
-.cal-day-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
-.cal-day-h, .cal-col-head .dh { font-size: 10.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-day-n, .cal-probe-n { align-self: flex-end; font-size: 12px; line-height: 14px; font-weight: 600; padding: 1px 6px; border-radius: 10px; }
+.cal-day-top, .cal-probe-top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.cal-day-h, .cal-probe-h, .cal-col-head .dh { font-size: 10.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cal-col-head .dh { margin-inline-start: 6px; }
-.cal-chip { display: flex; align-items: center; gap: 4px; border: 0; border-left: 3px solid var(--c); border-radius: 3px; background: color-mix(in srgb, var(--c) 14%, var(--surface)); color: var(--ink); font: inherit; font-size: 11.5px; padding: 1px 5px; text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; }
+.cal-chip, .cal-probe-chip { flex: none; display: flex; align-items: center; gap: 4px; border: 0; border-left: 3px solid var(--c); border-radius: 3px; background: color-mix(in srgb, var(--c) 14%, var(--surface)); color: var(--ink); font: inherit; font-size: 11.5px; line-height: 15px; padding: 1px 5px; text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; }
 .cal-chip.allday { background: var(--c); color: white; border-left-color: var(--c); }
 .cal-chip .t { color: var(--ink-3); flex: none; }
 .cal-chip.allday .t { color: white; }
 .cal-chip .s { overflow: hidden; text-overflow: ellipsis; }
-.cal-more { border: 0; background: none; font: inherit; font-size: 11px; color: var(--accent); text-align: left; padding: 0 5px; cursor: pointer; }
+/* At the foot of the day, under the events it did not have room for. */
+.cal-more, .cal-probe-more { flex: none; margin-top: auto; align-self: flex-start; border: 0; border-radius: 3px; background: none; font: inherit; font-size: 11px; line-height: 14px; font-weight: 600; color: var(--accent); text-align: left; padding: 0 5px; cursor: pointer; }
+.cal-more:hover { background: var(--hover); }
+.cal-peek { outline: none; position: absolute; z-index: 5; display: flex; flex-direction: column; max-height: 100%; box-sizing: border-box; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-3); padding: 8px 8px 10px; animation: rw-pop 120ms var(--ease); }
+.cal-peek-top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.cal-peek-head { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+.cal-peek-head:hover { background: var(--hover); }
+.cal-peek-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cal-peek-head .dd { font-size: 24px; font-weight: 700; line-height: 1; }
+.cal-peek-head .dw { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.cal-peek-head .dn { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-peek-head .dm { font-size: 11px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-peek.today .cal-peek-head .dd { color: var(--accent); }
+.cal-peek-x { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 6px; background: none; color: var(--ink-2); cursor: pointer; }
+.cal-peek-x:hover { background: var(--hover); color: var(--ink); }
+.cal-peek-list { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; min-height: 0; }
+.cal-peek-list .cal-chip { padding: 3px 6px; font-size: 12px; line-height: 16px; }
 .cal-time { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .cal-time-head, .cal-allday, .cal-hours { display: grid; grid-template-columns: 56px repeat(auto-fit, minmax(0, 1fr)); }
 /* The hours scroll and the rows over them do not: each keeps room for the scroll bar, so the days line up from the headings down. */
