@@ -19,7 +19,9 @@
     "./patterns": "./src/patterns.js",
     "./shape3d": "./src/shape3d.js",
     "./points": "./src/points.js",
-    "./changes": "./src/changes.js"
+    "./changes": "./src/changes.js",
+    "./compare": "./src/compare.js",
+    "./compare": "./src/compare.js"
   },
   "dependencies": {
     "@rutba/ooxml": "*",

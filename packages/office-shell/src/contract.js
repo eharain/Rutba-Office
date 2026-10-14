@@ -136,6 +136,7 @@ export const METHODS = {
     'objectFile',   // ({ id, part }) -> { path } — Insert → Object, double-clicked: the embedded document written to a file for its app to open
     'redact',       // ({ id, action: 'scan' | 'apply', marks, pictures, path }) -> { total, parts, words } | { path, total, parts, checked }, Redact: what the marks find, or the redacted copy saved and read back
     'inspect',      // ({ id, action: 'check' | 'remove', ids }) -> { kind, items, removed? }, File → Info → Check for Issues → Inspect
+    'deckReview',   // ({ id, action: 'compare' | 'accept' | 'reject' | 'end', path, ids }) -> { reviewer, name, changes } | null, Presentations: Review → Compare and its changes
     'mailMerge',    // ({ id, action, ... }) -> Mailings: records, attach, sheets, attachContacts, createList, errors, finish, messages
     'proof',        // ({ id, action, ... }) -> Review: accessibility, spellStart, spellNext, spellCheckWord, ignoreAll, addWord, dictionary, options
   ],

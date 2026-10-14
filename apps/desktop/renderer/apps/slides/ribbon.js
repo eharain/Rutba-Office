@@ -951,6 +951,25 @@ export default function SlidesRibbon({
             </Rows>
             <Button tall icon="eye" label={t('Show Comments')} pressed={view.pane === 'comments'} title={t('Show Comments — the Comments pane beside the slide')} onClick={() => act('pane', 'comments')} />
           </Group>
+          <Group label={t('Compare')}>
+            <Button tall icon="swap" label={t('Compare')} title={t('Compare: merge a reviewed copy of this presentation, its changes shown to accept or reject')} onClick={() => act('compare')} />
+            <Button tall dropdown icon="check" label={t('Accept')} disabled={!model?.review} title={model?.review ? t('Accept: this change, this slide\'s or every change') : t('Accept: compare with a reviewed copy first')} onClick={(e) => menu.open(e, [
+              { label: t('Accept Change'), icon: 'check', run: () => act('reviewDecide', { scope: 'change', accept: true }) },
+              { label: t('Accept All Changes to This Slide'), run: () => act('reviewDecide', { scope: 'slide', accept: true }) },
+              { label: t('Accept All Changes to the Presentation'), run: () => act('reviewDecide', { scope: 'all', accept: true }) },
+            ])} />
+            <Button tall dropdown icon="close" label={t('Reject')} disabled={!model?.review} title={model?.review ? t('Reject: this change, this slide\'s or every change, put back as it was') : t('Reject: compare with a reviewed copy first')} onClick={(e) => menu.open(e, [
+              { label: t('Reject Change'), icon: 'close', run: () => act('reviewDecide', { scope: 'change', accept: false }) },
+              { label: t('Reject All Changes to This Slide'), run: () => act('reviewDecide', { scope: 'slide', accept: false }) },
+              { label: t('Reject All Changes to the Presentation'), run: () => act('reviewDecide', { scope: 'all', accept: false }) },
+            ])} />
+            <Rows>
+              <Button icon="chevronLeft" label={t('Previous Change')} disabled={!model?.review} title={t('Previous Change: the slide with changes before this one')} onClick={() => act('reviewStep', -1)} />
+              <Button icon="chevronRight" label={t('Next Change')} disabled={!model?.review} title={t('Next Change: the slide with changes after this one')} onClick={() => act('reviewStep', 1)} />
+              <Button icon="list" label={t('Reviewing Pane')} pressed={view.pane === 'revisions'} title={t('Reviewing Pane: the Revisions pane, the changes on this slide and in the presentation')} onClick={() => act('pane', 'revisions')} />
+            </Rows>
+            <Button tall icon="stop" label={t('End Review')} disabled={!model?.review} title={t('End Review: close the review; the changes not accepted are left out')} onClick={() => act('reviewEnd')} />
+          </Group>
           <Group label={t('Notes')}>
             <Button tall icon="word" label={t('Speaker Notes')} title={t("Speaker Notes — this slide's, shown in Presenter View")} onClick={() => setNotesOpen(true)} />
           </Group>

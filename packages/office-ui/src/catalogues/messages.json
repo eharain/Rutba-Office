@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6760,
+  "count": 6811,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1681,6 +1681,7 @@
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/reader.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -1691,15 +1692,45 @@
       ]
     },
     {
+      "message": "Accept All Changes to This Slide",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Accept All Changes to the Presentation",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Accept Change",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
       "message": "Accept This Change",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
+      "message": "Accept: compare with a reviewed copy first",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
       "message": "Accept: keep this change",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Accept: this change, this slide's or every change",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -2772,6 +2803,12 @@
       "message": "All cards as a .vcf",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "All changes to {name}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {
@@ -5725,6 +5762,7 @@
       "message": "Changed",
       "where": [
         "apps/desktop/renderer/apps/slides/changes.js",
+        "apps/desktop/renderer/apps/slides/revisions.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
       ]
     },
@@ -5743,9 +5781,21 @@
       ]
     },
     {
+      "message": "Changes by {person}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
       "message": "Changes cannot be accepted or rejected while the document is protected for tracked changes.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Changes from {file}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {
@@ -6060,6 +6110,12 @@
       ]
     },
     {
+      "message": "Choose File to Merge with Current Presentation",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
       "message": "Choose PDFs",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -6221,6 +6277,12 @@
       "message": "Choose the layer to clear the selection from.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Choose the reviewed presentation to compare with.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -7274,6 +7336,7 @@
     {
       "message": "Compare",
       "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -7290,9 +7353,21 @@
       ]
     },
     {
+      "message": "Compare works on a presentation.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Compare — two versions of a document side by side, as a new document with what changed marked as revisions",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Compare: merge a reviewed copy of this presentation, its changes shown to accept or reject",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -9321,6 +9396,18 @@
       ]
     },
     {
+      "message": "Deleted {name}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
+      "message": "Deleted {words}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
       "message": "Delimiter",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -10907,6 +10994,19 @@
       "message": "End Card",
       "where": [
         "apps/desktop/renderer/apps/video/ribbon.js"
+      ]
+    },
+    {
+      "message": "End Review",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "End Review: close the review; the changes not accepted are left out",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -13040,6 +13140,12 @@
       ]
     },
     {
+      "message": "Formatting changed",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
       "message": "Formatting copied — select the words to paint it onto.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
@@ -13721,6 +13827,12 @@
       "message": "Go to record",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Go to slide {number}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {
@@ -16066,6 +16178,24 @@
       "message": "Inserted by {author} · {when}",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Inserted {name}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
+      "message": "Inserted {name}: {words}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
+      "message": "Inserted {words}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {
@@ -19826,7 +19956,8 @@
     {
       "message": "Moved",
       "where": [
-        "apps/desktop/renderer/apps/slides/changes.js"
+        "apps/desktop/renderer/apps/slides/changes.js",
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {
@@ -20406,6 +20537,18 @@
       ]
     },
     {
+      "message": "Next Change",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Next Change: the slide with changes after this one",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
       "message": "Next Citation",
       "where": [
         "apps/desktop/renderer/apps/word/references-toa.js"
@@ -20736,6 +20879,18 @@
       "message": "No changes (Read only)",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "No changes on this slide.",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
+      "message": "No changes to the slides' contents.",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {
@@ -21188,6 +21343,12 @@
       ]
     },
     {
+      "message": "No review is open. Review → Compare merges a reviewed copy of this presentation.",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
       "message": "No rows repeat",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -21228,6 +21389,12 @@
       "message": "No sheet is hidden",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "No slides were added, deleted or moved.",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {
@@ -23837,6 +24004,12 @@
       ]
     },
     {
+      "message": "Picture changed",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
       "message": "Picture in picture",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
@@ -24438,6 +24611,12 @@
       ]
     },
     {
+      "message": "Presentation Changes",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
       "message": "Presentation Notes",
       "where": [
         "apps/desktop/renderer/inspect.js"
@@ -24452,6 +24631,7 @@
     {
       "message": "Presentations",
       "where": [
+        "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/registry-words.js",
         "apps/desktop/renderer/template-gallery.js"
       ]
@@ -24615,6 +24795,18 @@
       "message": "Previous / next slide while editing",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Previous Change",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Previous Change: the slide with changes before this one",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -26115,6 +26307,7 @@
     {
       "message": "Reject",
       "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -26125,9 +26318,39 @@
       ]
     },
     {
+      "message": "Reject All Changes to This Slide",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Reject All Changes to the Presentation",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Reject Change",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
       "message": "Reject This Change",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Reject: compare with a reviewed copy first",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Reject: this change, this slide's or every change, put back as it was",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -26931,6 +27154,12 @@
       ]
     },
     {
+      "message": "Resized",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
       "message": "Resolution",
       "where": [
         "apps/desktop/renderer/apps/pdf/export.js"
@@ -27141,7 +27370,14 @@
     {
       "message": "Reviewing Pane",
       "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Reviewing Pane: the Revisions pane, the changes on this slide and in the presentation",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -27153,6 +27389,7 @@
     {
       "message": "Revisions",
       "where": [
+        "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/inspect.js"
       ]
     },
@@ -29801,6 +30038,7 @@
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/motion.js",
+        "apps/desktop/renderer/apps/slides/revisions.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -30718,6 +30956,12 @@
       ]
     },
     {
+      "message": "Slide Changes",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
       "message": "Slide Image",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -30789,6 +31033,36 @@
       "message": "Slide Zoom…",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Slide deleted",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
+      "message": "Slide deleted: {title}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
+      "message": "Slide inserted",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
+      "message": "Slide inserted: {title}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
+      "message": "Slide moved from {from} to {to}",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {
@@ -30898,6 +31172,12 @@
       "message": "Slides to a page",
       "where": [
         "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Slides with changes:",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {
@@ -32561,6 +32841,12 @@
       ]
     },
     {
+      "message": "Table changed",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
       "message": "Table column — drag to resize",
       "where": [
         "apps/desktop/renderer/apps/word/ruler.js"
@@ -32968,6 +33254,12 @@
       ]
     },
     {
+      "message": "Text changed",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
       "message": "Text contains",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -33003,6 +33295,12 @@
       "message": "Text effects: an outline, a shadow or a glow on the selected words",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Text formatting changed",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {
@@ -34911,6 +35209,12 @@
       "message": "There is no recording in a cameo on this slide",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "There is no review open: compare with a reviewed copy first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -39252,7 +39556,8 @@
     {
       "message": "a shape",
       "where": [
-        "apps/desktop/renderer/apps/slides/comments.js"
+        "apps/desktop/renderer/apps/slides/comments.js",
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {
@@ -40707,6 +41012,12 @@
       ]
     },
     {
+      "message": "this shape",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
       "message": "this slide ·",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
@@ -40997,6 +41308,13 @@
       ]
     },
     {
+      "message": "{count} accepted",
+      "plural": "{count} accepted",
+      "where": [
+        "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
       "message": "{count} account",
       "plural": "{count} accounts",
       "where": [
@@ -41083,7 +41401,8 @@
       "message": "{count} change",
       "plural": "{count} changes",
       "where": [
-        "apps/desktop/renderer/apps/sheets/scripts.js"
+        "apps/desktop/renderer/apps/sheets/scripts.js",
+        "apps/desktop/renderer/apps/slides/revisions.js"
       ]
     },
     {

@@ -1259,6 +1259,32 @@ export class Deck {
     return { start, end: end + closeTag.length, tag };
   }
 
+  /** A slide's XML replaced from outside the deck's own verbs, Review → Compare's accept and reject (compare.js). */
+  replaceSlideXml(part, xml) {
+    if (!/^ppt\/slides\/slide\d+\.xml$/.test(String(part)) || !this.pkg.has(part)) throw new Error('not a slide of this deck: ' + part);
+    this.#writeSlide(part, xml);
+  }
+
+  /** The slide list read again after presentation.xml was changed from outside (compare.js puts a slide back). */
+  reloadSlides() {
+    this.dirty = true;
+    this.#load();
+    this.#syncSections();
+  }
+
+  /** A slide's XML replaced from outside the deck's own verbs, Review → Compare's accept and reject (compare.js). */
+  replaceSlideXml(part, xml) {
+    if (!/^ppt\/slides\/slide\d+\.xml$/.test(String(part)) || !this.pkg.has(part)) throw new Error('not a slide of this deck: ' + part);
+    this.#writeSlide(part, xml);
+  }
+
+  /** The slide list read again after presentation.xml was changed from outside (compare.js puts a slide back). */
+  reloadSlides() {
+    this.dirty = true;
+    this.#load();
+    this.#syncSections();
+  }
+
   #writeSlide(part, xml) {
     this.pkg.write_(part, Buffer.from(xml, 'utf8'));
     this.dirty = true;

@@ -216,6 +216,9 @@ export const ENGINE_WORDS = [
   msg('That picture is no longer in the file.'),
   msg('The redacted copy still holds marked words in {parts}; it was not finished.'),
   msg('Inspect works on a document, a workbook or a presentation.'),
+  msg('Compare works on a presentation.'),
+  msg('Choose the reviewed presentation to compare with.'),
+  msg('There is no review open: compare with a reviewed copy first.'),
   // packages/ooxml/src/mailmerge.js
   msg('A bookmark needs a name that starts with a letter'),
   // packages/pdf/src/document.js

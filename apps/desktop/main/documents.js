@@ -85,7 +85,8 @@ import { collectPasswordHashes, rememberPasswordHash, offerPasswordSalt, newPass
 import { passwordHost } from './password-host.js';
 import { randomBytes } from 'node:crypto';
 import { readZip } from '@rutba/ooxml/zip';
-import { redactAction, inspectAction } from './review-tools.js';
+import { redactAction, inspectAction, deckReviewAction, reviewSummary } from './review-tools.js';
+import * as deckCompare from '@rutba/presentation/compare';
 import { createProofing } from './proofing.js';
 import { TEMPLATES as GALLERY, CATEGORIES as GALLERY_CATEGORIES, templateById, templateForLegacy, readTemplate, thumbPath } from '@rutba/templates';
 
@@ -1981,6 +1982,9 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       layouts: (session.layoutsAt === deck.designStamp && session.layouts) || ((session.layoutsAt = deck.designStamp), (session.layouts = safely(() => deck.layoutList()) || [])),
       // Review → every comment thread in the deck, and the name a new one is signed with.
       comments: safely(() => deck.comments()) || [],
+      // Review → Compare: the slide on the stage by its own id, and the reviewer's changes as the deck now has them.
+      slideId: count ? String(deck.slideParts[index]?.id ?? '') : null,
+      review: session.review ? safely(() => reviewSummary(session, deckCompare)) : null,
       // Set Up Slide Show: who the show is for, looping, the range, the pen.
       showSettings: safely(() => deck.showSettings()),
       // Slide Show → Custom Slide Show: the named shows, each its slides in order.
@@ -3316,6 +3320,9 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
 
 
     meta: ({ id }) => get(id).meta(),
+
+    /** Presentations: Review → Compare, a reviewed copy merged in as changes, each accepted or rejected (review-tools.js). */
+    deckReview: (args) => deckReviewAction(get(args.id), args, { Deck, compare: deckCompare }),
 
     /** Redact: what the marks find across the file, or the redacted copy written and read back (review-tools.js). */
     redact: (args) => redactAction(get(args.id), args, { writeWhole: (target, bytes) => writing(target, () => writeWhole(target, bytes)) }),

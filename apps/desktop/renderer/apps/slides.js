@@ -58,6 +58,7 @@ import { PointsOverlay, POINTS_CSS } from './slides/points.js';
 import { presetCommands, parsePath, fit as fitPath } from '@rutba/presentation/points';
 import { CameoLayer, CameraRecorder, CAMEO_CSS } from './slides/cameo.js';
 import { ChangesPane, CHANGES_CSS } from './slides/changes.js';
+import { RevisionsPane, ReviewMarkers, REVISIONS_CSS } from './slides/revisions.js';
 import { compareFingerprints } from '@rutba/presentation/changes';
 import { loadModelFile, modelDrawer, pngOf, urlOf, MODEL_PICTURE, DEFAULT_MODEL_VIEW } from '../model3d.js';
 
@@ -1929,6 +1930,54 @@ export default function Slides({ app, shell, boot }) {
       case 'inkToShape': setInk((v) => ({ ...v, toShape: !v.toShape })); return;
       case 'inkTouch': setInk((v) => ({ ...v, touch: !v.touch })); return;
       case 'hideInk': setInk((v) => ({ ...v, hide: !v.hide })); return;
+      // Review → Compare (slides/revisions.js): a reviewed copy merged in as changes, accepted and rejected.
+      case 'compare': {
+        if (!doc) return;
+        const [file] = await shell.dialog.open({ title: t('Choose File to Merge with Current Presentation'), filters: [{ name: t('Presentations'), extensions: ['pptx', 'pptm', 'potx', 'ppsx'] }] });
+        if (!file) return;
+        try {
+          await shell.doc.deckReview({ id: doc.id, action: 'compare', path: file });
+        } catch (err) {
+          toast(err.message, { tone: 'bad' });
+          return;
+        }
+        await load(index);
+        patchView({ pane: 'revisions' });
+        return;
+      }
+      case 'reviewDecide': {
+        const list = model?.review?.changes || [];
+        const accept = arg.accept !== false;
+        const ids = arg.ids
+          || (arg.scope === 'all' ? list.map((c) => c.id)
+            : arg.scope === 'slide' ? list.filter((c) => c.scope === 'shape' && c.slide === index).map((c) => c.id)
+              : [(list.find((c) => c.slide === index && Boolean(c.accepted) !== accept) || list.find((c) => Boolean(c.accepted) !== accept))?.id].filter(Boolean));
+        if (!ids.length || !doc) return;
+        try {
+          await shell.doc.deckReview({ id: doc.id, action: accept ? 'accept' : 'reject', ids });
+        } catch (err) {
+          toast(err.message, { tone: 'bad' });
+          return;
+        }
+        setDoc(await shell.doc.meta({ id: doc.id }));
+        await load(index);
+        return;
+      }
+      case 'reviewStep': {
+        const slides = [...new Set((model?.review?.changes || []).map((c) => c.slide).filter((i) => i >= 0))].sort((a, b) => a - b);
+        if (!slides.length) return;
+        const next = arg > 0 ? slides.find((i) => i > index) ?? slides[0] : [...slides].reverse().find((i) => i < index) ?? slides[slides.length - 1];
+        setIndex(next);
+        patchView({ pane: 'revisions' });
+        return;
+      }
+      case 'reviewEnd': {
+        if (!doc) return;
+        await shell.doc.deckReview({ id: doc.id, action: 'end' });
+        await load(index);
+        patchView((v) => ({ pane: v.pane === 'revisions' ? null : v.pane }));
+        return;
+      }
       // A finished stroke: a shape when Ink to Shape knows it, ink otherwise.
       case 'inkStroke': {
         const pen = ink.pens.find((p) => p.id === ink.penId) || ink.pens[0];
@@ -2820,6 +2869,8 @@ export default function Slides({ app, shell, boot }) {
                   {model.masterView?.kind === 'handout' ? <HandoutSlots size={model.size} slide={model.slideSize || null} per={view.handoutPer || 6} /> : null}
                   {view.gridlines ? <div className="sl-gridlines" /> : null}
                   {view.guides ? <div className="sl-guides" /> : null}
+                  {/* Review → Compare: a marker by each shape the reviewer changed. */}
+                  {model.review && !model.masterView ? <><style>{REVISIONS_CSS}</style><ReviewMarkers review={model.review} slideId={model.slideId} shapes={slide.shapes} scale={view.zoom ?? fit} onDecide={(ids, accept) => act('reviewDecide', { ids, accept })} /></> : null}
                   {/*
                     Every top-level shape gets a hit area over the drawing —
                     a shape inside a group does not get one of its own, so a
@@ -3191,7 +3242,7 @@ export default function Slides({ app, shell, boot }) {
               right
               width={252}
               resizable
-              title={view.pane === 'layers' ? t('Layers') : view.pane === 'designs' ? t('Designs') : view.pane === 'ideas' ? t('Design Ideas') : view.pane === 'animations' ? t('Animation Pane') : view.pane === 'comments' ? t('Comments') : view.pane === 'changes' ? t('Changes') : t('Format')}
+              title={view.pane === 'layers' ? t('Layers') : view.pane === 'designs' ? t('Designs') : view.pane === 'ideas' ? t('Design Ideas') : view.pane === 'animations' ? t('Animation Pane') : view.pane === 'comments' ? t('Comments') : view.pane === 'changes' ? t('Changes') : view.pane === 'revisions' ? t('Revisions') : t('Format')}
               actions={<Button icon="close" title={t('Close the pane')} onClick={() => act('pane', view.pane)} />}
             >
               {view.pane === 'comments' ? (
@@ -3217,6 +3268,13 @@ export default function Slides({ app, shell, boot }) {
                 <AnimationPane slide={slide} current={currentAnim} act={act} playing={preview?.kind === 'animation'} />
               ) : view.pane === 'designs' ? (
                 <DesignsPane layouts={model.layouts} current={slide?.layout || null} size={model.size} act={act} />
+              ) : view.pane === 'revisions' ? (
+                model.review ? (
+                  <>
+                    <style>{REVISIONS_CSS}</style>
+                    <RevisionsPane review={model.review} slideIndex={index} slideId={model.slideId} onDecide={(ids, accept) => act('reviewDecide', { ids, accept })} onGo={(i) => setIndex(i)} onEnd={() => act('reviewEnd')} />
+                  </>
+                ) : <div className="sl-pane-empty">{t('No review is open. Review → Compare merges a reviewed copy of this presentation.')}</div>
               ) : view.pane === 'changes' ? (
                 <>
                   <style>{CHANGES_CSS}</style>

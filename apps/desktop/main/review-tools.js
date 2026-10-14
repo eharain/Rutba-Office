@@ -99,3 +99,41 @@ function deleteHiddenRowsColumns(view) {
   if (was) view.selectSheet(was);
 }
 
+
+/**
+ * Review → Compare in Presentations: `compare` merges the reviewed deck at
+ * `path` into the open one as changes; `accept` and `reject` decide the
+ * changes named; `end` ends the review. The review lives with the open
+ * deck; what is saved is the deck as the changes accepted have made it.
+ */
+export function deckReviewAction(session, { action = 'state', path: file = null, ids = [] }, { Deck, compare }) {
+  if (session.kind !== 'deck') throw new Error('Compare works on a presentation.');
+  const deck = session.engine;
+  if (action === 'compare') {
+    if (!file) throw new Error('Choose the reviewed presentation to compare with.');
+    const reviewed = Deck.open(fs.readFileSync(file));
+    const core = reviewed.pkg.has('docProps/core.xml') ? reviewed.pkg.text('docProps/core.xml') : '';
+    const by = /<cp:lastModifiedBy>([^<]*)<\/cp:lastModifiedBy>/.exec(core)?.[1] || /<dc:creator>([^<]*)<\/dc:creator>/.exec(core)?.[1] || null;
+    session.review = compare.beginReview(deck, reviewed, { DeckClass: Deck, reviewer: by, name: String(file).split(/[\/]/).pop() });
+    return reviewSummary(session, compare);
+  }
+  if (!session.review) throw new Error('There is no review open: compare with a reviewed copy first.');
+  if (action === 'accept' || action === 'reject') {
+    compare.decideChanges(deck, session.review, ids, action === 'accept');
+    session.dirty = true;
+    session.version++;
+    return reviewSummary(session, compare);
+  }
+  if (action === 'end') {
+    session.review = null;
+    return null;
+  }
+  return reviewSummary(session, compare);
+}
+
+/** What the window shows of a review: who, from which file, and each change as the deck finds it. */
+export function reviewSummary(session, compare) {
+  const r = session.review;
+  if (!r) return null;
+  return { reviewer: r.reviewer, name: r.name, changes: compare.reviewState(session.engine, r) };
+}
