@@ -238,13 +238,15 @@ Running from source never checks: updates apply to an installed copy.
 
 ## Privacy
 
-Two requests, and here they both are. If a network monitor ever shows a third,
-that is a bug and we want to hear about it.
+Three requests, and here they all are. If a network monitor ever shows a fourth,
+that is a bug and we want to hear about it. (Mail, calendars and contacts talk
+to the servers you add, which is what they are for.)
 
 | What | When | What it carries | Off |
 |---|---|---|---|
 | Update check | 25 seconds after launch, then every 6 hours | Nothing about you | About → Check for updates automatically |
 | [Announcement](docs/ANNOUNCEMENT.md) | Once a day at most, from the launcher | The version and the operating system. **No identifier of any kind** | About → Show announcements |
+| Mail server lookup | Only when you press Add (or Add for several accounts), for an address whose provider is not in the built-in list | The address's domain, asked of that domain's own DNS records (SRV, MX) and its own autoconfig and autodiscover addresses (autoconfig.domain, domain/.well-known, autodiscover.domain), then a knock on the servers they name. No lookup service of anyone else's | Fill the servers in yourself under Add account → Advanced |
 
 The announcement is also how we know anyone is using this. The server counts
 requests, and a request carries nothing that identifies the copy making it — so

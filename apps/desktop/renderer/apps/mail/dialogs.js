@@ -512,9 +512,12 @@ function ProviderTiles({ providers, onChoose, onOther }) {
 /* ── account setup ───────────────────────────────────────────────────────── */
 
 export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast }) {
-  // An address and a password. Everything else is found: the provider table,
-  // the domain's MX and SRV records, autoconfig, Microsoft autodiscover, and a
-  // knock on the conventional names (main/mail-discover.js). What was found is
+  // An address and a password. Everything else is found: while the address
+  // is typed, from the built-in table of providers alone, offline; when Add
+  // is pressed, for a domain the table does not know, from the domain's own
+  // records - its DNS (SRV and MX), its own autoconfig and autodiscover
+  // addresses - and a knock on its conventional names (main/mail-discover.js),
+  // the window saying what it is looking up and where. What was found is
   // shown, what was checked can be opened, and the advanced fields — always one
   // click away, never the only way in — are filled with the answer so that a
   // wrong guess is a correction, not a form from scratch.
@@ -538,6 +541,8 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
   const [provider, setProvider] = useState(null);
   const [testing, setTesting] = useState(false);
   const [adding, setAdding] = useState(false);
+  // The domain being looked up on the network, while Add does so.
+  const [lookingUp, setLookingUp] = useState(null);
   const [result, setResult] = useState(null);
   const [signingIn, setSigningIn] = useState(false);
   const [providers, setProviders] = useState([]);
@@ -568,8 +573,10 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
       setResult(null);
       setTilesOverride(null); // a fresh search decides for itself whether the tiles are still wanted
       try {
+        // Offline: nothing leaves the computer until Add is pressed.
         const r = await shell.mail.autodiscover({
           email,
+          offline: true,
           seed: seed?.incoming?.host ? { imap: seed.incoming, smtp: seed.outgoing } : null,
         });
         if (lookedUp.current !== domain) return; // the address changed while this ran
@@ -693,9 +700,40 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shell, form]);
 
+  /**
+   * The network, at last, because Add was pressed: the domain's own records
+   * looked up and every server they name tried until one takes the password
+   * (main/mail-setup.js). True when the account was added.
+   */
+  const lookUpAndAdd = async () => {
+    const email = form.email.trim();
+    setLookingUp(email.split('@')[1] || '');
+    try {
+      const tried = await shell.mail.setupAccount({ email, password: form.password, name: form.name, user: form.user.trim() });
+      if (tried?.account && (tried.outcome === 'ready' || tried.outcome === 'outgoing')) {
+        await shell.mail.addAccount({ account: { ...tried.account, name: form.name || tried.account.name }, password: form.password });
+        onSaved();
+        return true;
+      }
+      if (tried?.outcome === 'app-password') toast(t('{provider} refused the password: it wants an app password, made in the account\'s security settings.', { provider: tried.provider?.label || t('The provider') }), { tone: 'bad', ms: 9000 });
+      else if (tried?.outcome === 'not-found') toast(t('No mail server found for {domain}', { domain: email.split('@')[1] || '' }), { tone: 'bad', ms: 7000 });
+      else if (tried?.outcome === 'password') toast(t('The password was refused'), { tone: 'bad', ms: 7000 });
+      else if (tried?.outcome === 'unreachable') toast(t('The mail server did not answer'), { tone: 'bad', ms: 7000 });
+      setAdvanced(true);
+      return false;
+    } finally {
+      setLookingUp(null);
+    }
+  };
+
   const add = useCallback(async () => {
     setAdding(true);
     try {
+      // Servers not known yet (a domain the table does not know): looked up now.
+      if (!form.imapHost || !form.smtpHost) {
+        await lookUpAndAdd();
+        return;
+      }
       // Tried before it is kept: an account that cannot sign in is not added,
       // and the failure opens the fields it needs.
       const r = await test();
@@ -703,16 +741,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
         // The servers first found did not take it: every other server found
         // is tried, with the address and with the name before the @, before
         // the fields are opened for a person to put right.
-        setTesting(true);
-        const tried = await shell.mail.setupAccount({ email: form.email.trim(), password: form.password, name: form.name, user: form.user.trim() }).catch(() => null);
-        setTesting(false);
-        if (tried?.account && (tried.outcome === 'ready' || tried.outcome === 'outgoing')) {
-          await shell.mail.addAccount({ account: { ...tried.account, name: form.name || tried.account.name }, password: form.password });
-          onSaved();
-          return;
-        }
-        if (tried?.outcome === 'app-password') toast(t('{provider} refused the password: it wants an app password, made in the account\'s security settings.', { provider: tried.provider?.label || t('The provider') }), { tone: 'bad', ms: 9000 });
-        setAdvanced(true);
+        await lookUpAndAdd();
         return;
       }
       await shell.mail.addAccount({ account: account(), password: form.password });
@@ -725,7 +754,9 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shell, form, test, onSaved, toast]);
 
-  const ready = form.email.includes('@') && form.imapHost && form.smtpHost;
+  // Add looks up what it does not know, so an address is enough; Test tries the servers as they stand.
+  const ready = form.email.includes('@') && form.email.split('@')[1]?.includes('.');
+  const testable = ready && form.imapHost && form.smtpHost;
   const showTiles = tilesOverride ? tilesOverride === 'open' : !form.email.trim() || !found?.provider;
   const addressPlaceholder = found?.provider?.domain ? `you@${found.provider.domain}` : 'you@example.com';
   const label = (s) => ({ tls: 'TLS', starttls: 'STARTTLS', none: t('None') }[s] || s);
@@ -746,7 +777,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
           <Button label={t('Cancel')} onClick={onClose} />
           {onSeveral ? <Button label={t('Several accounts…')} title={t('Several accounts: rows of addresses and passwords, pasted or from a list or an accounts file, set up at once')} className="ml-several-accounts" onClick={onSeveral} /> : null}
           <Button label={advanced ? t('Simple') : t('Advanced…')} onClick={() => setAdvanced((a) => !a)} />
-          <Button label={testing ? t('Testing…') : t('Test')} disabled={testing || adding || !ready || !form.password} onClick={test} />
+          <Button label={testing ? t('Testing…') : t('Test')} disabled={testing || adding || !testable || !form.password} onClick={test} />
           <Button primary label={adding ? t('Adding…') : t('Add account')} disabled={adding || testing || !ready || !form.password} onClick={add} />
         </>
       }
@@ -799,7 +830,9 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
         </Field>
 
         <div className="ml-search" data-state={looking ? 'looking' : found ? (found.imap ? 'found' : 'nothing') : 'idle'}>
-          {looking ? (
+          {lookingUp ? (
+            <div className="ml-search-line ml-looking-up"><Spinner /> {t('Looking up {domain}: its DNS records (SRV and MX), autoconfig.{domain} and autodiscover.{domain}, then trying the servers they name…', { domain: lookingUp })}</div>
+          ) : looking ? (
             <div className="ml-search-line"><Spinner /> {t('Looking up where {domain} keeps its mail…', { domain: form.email.split('@')[1] })}</div>
           ) : found ? (
             <>

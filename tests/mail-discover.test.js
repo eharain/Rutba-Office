@@ -1,6 +1,6 @@
 // Finding a mail server from an address, with every lookup injected.
 //
-// The search asks DNS, autoconfig, Microsoft autodiscover and the servers
+// The search asks the domain's DNS, its own autoconfig and autodiscover and the servers
 // themselves. None of that happens here: each source is a fake, so the test
 // says exactly what the search does with what it is told.
 
@@ -53,12 +53,15 @@ test('an MX at Google means Google, whatever the domain', async () => {
   assert.match(r.steps.find((s) => s.name === 'MX records').detail, /hosted at Google/);
 });
 
-test('Microsoft autodiscover answers for a mailbox on Microsoft 365', async () => {
+test('the domain\'s own autodiscover answers for a mailbox on Microsoft 365, and nothing of anyone else\'s is asked', async () => {
+  const asked = [];
   const fetchText = async (url) => {
-    if (/autodiscover\.json/.test(url)) return JSON.stringify({ Protocol: 'IMAP', Url: 'outlook.office365.com:993' });
+    asked.push(new URL(url).host);
+    if (/autodiscover\.firm\.example$/.test(new URL(url).host) && /autodiscover\.json/.test(url)) return JSON.stringify({ Protocol: 'IMAP', Url: 'outlook.office365.com:993' });
     throw new Error('404');
   };
   const r = await discoverMailServers('a@firm.example', { dns: nothing, fetchText, probe: silence });
+  assert.ok(asked.length && asked.every((h) => h === 'firm.example' || h.endsWith('.firm.example')), `only the domain's own hosts: ${asked}`);
   assert.equal(r.imap.host, 'outlook.office365.com');
   assert.equal(r.smtp.host, 'smtp.office365.com');
   assert.equal(r.smtp.port, 587);
@@ -79,7 +82,7 @@ test('autoconfig XML is read, with the address filled into the username', async 
   let asked = [];
   const fetchText = async (url) => {
     asked.push(url);
-    if (/autoconfig\.thunderbird\.net/.test(url)) return xml;
+    if (/^https:\/\/example\.net\/\.well-known\//.test(url)) return xml;
     throw new Error('404');
   };
   const r = await discoverMailServers('kim@example.net', { dns: nothing, fetchText, probe: silence });
@@ -87,7 +90,23 @@ test('autoconfig XML is read, with the address filled into the username', async 
   assert.equal(r.imap.user, 'kim@example.net');
   assert.equal(r.imap.source, 'autoconfig');
   assert.ok(asked[0].startsWith('https://autoconfig.example.net/'), 'the domain\'s own autoconfig is asked first');
-  assert.match(r.steps.find((s) => s.name === 'autoconfig').detail, /Mozilla/);
+  assert.match(r.steps.find((s) => s.name === 'autoconfig').detail, /example\.net\/\.well-known names imap\.example\.net/);
+  assert.ok(asked.every((u) => /^https:\/\/([a-z.]+\.)?example\.net\//.test(u)), `no lookup service of anyone else's: ${asked}`);
+});
+
+test('a provider the built-in table knows is looked up nowhere, network or not', async () => {
+  const touched = [];
+  const r = await discoverMailServers('someone@gmail.com', {
+    dns: { resolveMx: async () => touched.push('mx'), resolveSrv: async () => touched.push('srv'), resolveCname: async () => touched.push('cname') },
+    fetchText: async (url) => touched.push(url),
+    probe: async () => touched.push('probe'),
+  });
+  assert.deepEqual(touched, []);
+  assert.equal(r.imap.host, 'imap.gmail.com');
+  assert.match(r.steps.find((s) => s.name === 'network').detail, /built-in list/);
+  // An unknown domain, offline (while an address is typed), says what Add will look up.
+  const later = await discoverMailServers('a@nowhere.example', { offline: true });
+  assert.match(later.note, /Add looks up its own records/);
 });
 
 test('with nothing published, the conventional names are knocked on and the one that answers is taken', async () => {

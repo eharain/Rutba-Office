@@ -20,7 +20,7 @@ import { insightFor } from './mail-insight.js';
 import { createArchiveDesk, isArchive } from './mail-archive.js';
 import { createSmimeDesk } from './mail-smime.js';
 import { setupAccount } from './mail-setup.js';
-import { parseAccountRows } from '@rutba/mailbox/account-rows';
+import { parseAccountRows, checkRows } from '@rutba/mailbox/account-rows';
 import { unicodeFont } from './system-fonts.js';
 import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
@@ -624,8 +624,9 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      * browser page is said to want that. An address already set up is left
      * as it is. Progress goes out a row at a time; no answer holds a password.
      */
-    addAccounts: async ({ text = '', job = crypto.randomUUID() }) => {
-      const { rows } = parseAccountRows(text);
+    addAccounts: async ({ text = '', rows: given = null, job = crypto.randomUUID() }) => {
+      // Rows read by the window (its box cleared once read), or text to read here.
+      const rows = given ? checkRows(given.map((r) => ({ line: r.line, email: String(r.email || '').trim(), password: String(r.password || ''), name: r.name, user: r.user, imap: r.imap, smtp: r.smtp }))) : parseAccountRows(text).rows;
       const have = new Set(accounts().map((a) => String(a.email).toLowerCase()));
       const results = rows.map((r) => ({ line: r.line, email: r.email, outcome: r.problem === 'not-an-address' ? 'not-an-address' : r.problem === 'repeated' ? 'repeated' : have.has(r.email.toLowerCase()) ? 'exists' : 'waiting' }));
       const tell = (i, extra = {}) => broadcast?.('mail:accountsProgress', { job, index: i, ...results[i], ...extra });
@@ -639,6 +640,10 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
           }
           const row = rows[i];
           results[i].outcome = 'trying';
+          // What is about to be asked, and where: the window says so.
+          const known = knownProvider(row.email.split('@')[1] || '');
+          results[i].known = Boolean(known);
+          if (known) results[i].provider = known.label;
           tell(i);
           try {
             const r = await service.setupAccount({ email: row.email, password: row.password, name: row.name || '', user: row.user || '', imap: row.imap || null, smtp: row.smtp || null });

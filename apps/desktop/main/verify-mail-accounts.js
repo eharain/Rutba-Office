@@ -6,7 +6,9 @@
 // separated by a comma with commas in its password, an Outlook.com address
 // with no password, a Fastmail one separated by a colon, a line that is not
 // an address, the Gmail address again, and an address at a domain nothing
-// knows. Each row says at once what it is; Add sets them up together (in a
+// knows. The box is read the moment the rows are pasted and cleared, so no
+// password stays on screen (nor in a capture). Each row says at once what it
+// is; Add sets them up together (in a
 // check run from the provider table alone, never the network): three added
 // as their providers, the Outlook.com row offered Microsoft's own sign-in,
 // the unknown domain offered setting up by hand, and the bad and repeated
@@ -51,7 +53,8 @@ export async function verifyMailAccounts(h) {
       return got || null;
     };
     language = await js(`window.rutbaOffice.store.get({ key: 'language', fallback: null })`);
-    const setText = (selector, value, w = win) => w.webContents.executeJavaScript(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+    // Pasted as a person pastes: a paste event carrying the text.
+    const paste = (value, w = win) => w.webContents.executeJavaScript(`(() => { const el = document.querySelector('.ml-bulk-text'); if (!el) return false; el.focus(); const dt = new DataTransfer(); dt.setData('text/plain', ${JSON.stringify(value)}); el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); return true; })()`);
     const openBulk = async (w) => {
       const run = (code) => w.webContents.executeJavaScript(code);
       await until(() => run(`Boolean([...document.querySelectorAll('button')].find((b) => /Add account|اکاؤنٹ شامل کریں/.test(b.textContent)))`), 'an Add account button', 10000);
@@ -62,9 +65,9 @@ export async function verifyMailAccounts(h) {
     };
 
     const opened = await openBulk(win);
-    await setText('.ml-bulk-text', ROWS);
+    await paste(ROWS);
     const preview = await waitFor(async () => {
-      const s = await js(`(() => ({ rows: [...document.querySelectorAll('.ml-bulk-row')].map((r) => [r.dataset.email, r.dataset.outcome]), add: document.querySelector('.ml-bulk-add')?.textContent.trim() || '', shown: document.querySelector('.ml-bulk-rows')?.textContent || '' }))()`);
+      const s = await js(`(() => ({ rows: [...document.querySelectorAll('.ml-bulk-row')].map((r) => [r.dataset.email, r.dataset.outcome]), add: document.querySelector('.ml-bulk-add')?.textContent.trim() || '', shown: document.querySelector('.rw-dialog')?.textContent || '', box: document.querySelector('.ml-bulk-text')?.value ?? null }))()`);
       return s.rows.length === 7 ? s : false;
     }, 'the rows read', 6000);
     const want = [
@@ -76,8 +79,8 @@ export async function verifyMailAccounts(h) {
       ['ali.bulk@gmail.com', 'repeated'],
       ['ed.bulk@nowhere.example', 'ready-to-add'],
     ];
-    check('mail accounts: Several accounts reads rows of addresses and passwords as they are typed, whatever separates them, says what each is, and never shows a password',
-      opened && Boolean(preview) && JSON.stringify(preview.rows) === JSON.stringify(want) && preview.add === 'Add 5 accounts' && !/app pass word|commas|colon:pass/.test(preview.shown),
+    check('mail accounts: Several accounts reads pasted rows of addresses and passwords at once, whatever separates them, clears the box, says what each row is, and shows no password anywhere',
+      opened && Boolean(preview) && JSON.stringify(preview.rows) === JSON.stringify(want) && preview.add === 'Add 5 accounts' && preview.box === '' && !/app pass word|secret,with|colon:pass/.test(preview.shown),
       JSON.stringify(preview));
     await shot(win, 'mail-accounts-1-rows.png');
 
@@ -120,7 +123,7 @@ export async function verifyMailAccounts(h) {
     await js(`window.rutbaOffice.store.set({ key: 'language', value: 'ur' }).then(() => 1)`);
     const w = await open('mail');
     const urOpened = await openBulk(w);
-    await setText('.ml-bulk-text', 'ali.bulk@gmail.com  pw\nnot an address', w);
+    await paste('ali.bulk@gmail.com  pw\nnot an address', w);
     const ur = await waitFor(async () => {
       const s = await w.webContents.executeJavaScript(`(() => ({ dir: document.documentElement.dir, lead: document.querySelector('.ml-bulk-lead')?.textContent || '', textDir: document.querySelector('.ml-bulk-text')?.getAttribute('dir'), states: [...document.querySelectorAll('.ml-bulk-state')].map((n) => n.textContent), add: document.querySelector('.ml-bulk-add')?.textContent || '' }))()`);
       return s.states.length === 2 ? s : false;

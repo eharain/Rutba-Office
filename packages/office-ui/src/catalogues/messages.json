@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6903,
+  "count": 6905,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -10565,7 +10565,7 @@
       ]
     },
     {
-      "message": "Each is set up as Add account does: its servers found, and tried until one signs in. Passwords go to this computer's keystore.",
+      "message": "Each is set up as Add account does: a provider in the built-in list straight away; for any other domain, its own records are looked up when you press Add (its DNS, autoconfig and autodiscover addresses), and nothing else is asked.",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
@@ -12571,12 +12571,6 @@
       "message": "Find: words on every page (Ctrl+F)",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
-      ]
-    },
-    {
-      "message": "Finding its servers and signing in…",
-      "where": [
-        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -18519,6 +18513,13 @@
       ]
     },
     {
+      "message": "Looking up {domain}: its DNS records (SRV and MX), autoconfig.{domain} and autodiscover.{domain}, then trying the servers they name…",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "Looking up…",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -21377,7 +21378,8 @@
     {
       "message": "No mail server found for {domain}",
       "where": [
-        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -26708,6 +26710,7 @@
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/mail/smime.js",
@@ -31163,6 +31166,12 @@
       ]
     },
     {
+      "message": "Signing in to {provider}'s servers…",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
       "message": "Signs and symbols",
       "where": [
         "apps/desktop/renderer/icons-insert.js"
@@ -34615,7 +34624,8 @@
     {
       "message": "The mail server did not answer",
       "where": [
-        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -34856,7 +34866,8 @@
     {
       "message": "The password was refused",
       "where": [
-        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -39038,6 +39049,12 @@
       "message": "What is in Junk is learned as junk, the Inbox as good",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "What is pasted is read into the list below at once and the box is cleared; the passwords go only to this computer's protected store.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {

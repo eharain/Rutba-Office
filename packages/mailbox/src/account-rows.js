@@ -72,6 +72,25 @@ function columnOf(cell) {
 }
 
 /**
+ * Say what is wrong with each of rows read at different times (the box read
+ * more than once): an address that is not one, one already above, no password.
+ * @param {Array<{ email: string, password: string }>} rows
+ */
+export function checkRows(rows) {
+  const seen = new Set();
+  return rows.map((row) => {
+    const out = { ...row };
+    delete out.problem;
+    const key = String(row.email || '').toLowerCase();
+    if (!isAddress(row.email)) out.problem = 'not-an-address';
+    else if (seen.has(key)) out.problem = 'repeated';
+    else if (!row.password) out.problem = 'no-password';
+    if (isAddress(row.email)) seen.add(key);
+    return out;
+  });
+}
+
+/**
  * Read rows of accounts.
  * @param {string} text
  * @returns {{ rows: Array<{ line: number, email: string, password: string, name?: string, user?: string, imap?: object, smtp?: object, problem?: string }>, header: string[]|null, separator: string|null }}

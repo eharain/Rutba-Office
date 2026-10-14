@@ -1,16 +1,20 @@
 // Add several accounts at once: rows of addresses and passwords, pasted or
 // loaded from a file, read as they are typed and set up together.
 //
-// The rows are read here as they are typed (@rutba/mailbox/account-rows), so
-// each line shows at once whether it is an address with a password, and the
-// passwords are never shown back. Adding sends the text to the main
-// process's addAccounts, which sets each up as the single Add account does -
-// finding the servers, trying them until one signs in - three at a time, and
-// says how each went as it goes.
+// The rows are read here (@rutba/mailbox/account-rows) the moment they are
+// pasted, or when the box is left or Add is pressed, and the box is cleared:
+// the passwords are held only in this window's memory until Add hands them
+// to the main process, which keeps them where Mail keeps every password (the
+// system's protected store) and never writes them anywhere else. Each line
+// shows at once whether it is an address with a password, and a password is
+// never shown back. Add sends the rows to addAccounts, which sets each up as
+// the single Add account does - the built-in table, or the domain's own
+// records looked up only now, then its servers tried until one signs in -
+// three at a time, and says how each went as it goes.
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Dialog, Icon, Spinner, t, tn } from '@rutba/office-ui';
-import { parseAccountRows } from '@rutba/mailbox/account-rows';
+import { parseAccountRows, checkRows } from '@rutba/mailbox/account-rows';
 
 const domainOf = (email) => String(email || '').split('@')[1] || '';
 
@@ -31,7 +35,9 @@ function sentence(r) {
     case 'waiting':
       return t('Waiting');
     case 'trying':
-      return t('Finding its servers and signing in…');
+      return r.known
+        ? t('Signing in to {provider}\'s servers…', { provider: r.provider || domainOf(r.email) })
+        : t('Looking up {domain}: its DNS records (SRV and MX), autoconfig.{domain} and autodiscover.{domain}, then trying the servers they name…', { domain: domainOf(r.email) });
     case 'added':
       return who ? t('Added: {provider}', { provider: who }) : t('Added');
     case 'added-no-outgoing':
@@ -61,6 +67,8 @@ const BUSY = new Set(['trying', 'waiting']);
  */
 export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImportFile, toast }) {
   const [text, setText] = useState('');
+  // Rows read from the box, which is then cleared.
+  const [held, setHeld] = useState([]);
   const [have, setHave] = useState([]);
   const [run, setRun] = useState(null); // { job, results: [...] } once started
   const [busy, setBusy] = useState(false);
@@ -72,13 +80,21 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
       .catch(() => {});
   }, [shell]);
 
-  const parsed = useMemo(() => parseAccountRows(text), [text]);
-  const preview = parsed.rows.map((r) => ({
+  const parsed = useMemo(() => checkRows([...held, ...parseAccountRows(text).rows]), [held, text]);
+  /** Read the box, or what was pasted into it, into the rows, and clear it. */
+  const take = (more = text) => {
+    const read = parseAccountRows(more).rows;
+    if (read.length) setHeld((h) => [...h, ...read]);
+    setText('');
+    return read;
+  };
+  const preview = parsed.map((r) => ({
     line: r.line,
     email: r.email,
     outcome: r.problem === 'not-an-address' || r.problem === 'repeated' ? r.problem : have.includes(r.email.toLowerCase()) ? 'exists' : r.problem === 'no-password' ? 'no-password' : 'ready-to-add',
   }));
   const toAdd = preview.filter((r) => r.outcome === 'ready-to-add' || r.outcome === 'no-password').length;
+  const remove = (i) => setHeld((h) => h.filter((_, n) => n !== i));
   const rows = run ? run.results : preview;
 
   useEffect(() => {
@@ -110,10 +126,13 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
 
   const start = async () => {
     const job = `bulk-${Date.now()}`;
+    const rows = checkRows([...held, ...parseAccountRows(text).rows]);
+    setText('');
+    setHeld([]);
     setRun({ job, results: preview.map((r) => ({ ...r, outcome: r.outcome === 'ready-to-add' || r.outcome === 'no-password' ? 'waiting' : r.outcome })) });
     setBusy(true);
     try {
-      const r = await shell.mail.addAccounts({ text, job });
+      const r = await shell.mail.addAccounts({ rows: rows.map(({ problem, ...row }) => row), job });
       setRun({ job, results: r.results });
     } catch (err) {
       toast?.(err.message, { tone: 'bad' });
@@ -144,7 +163,8 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
         {!run ? (
           <>
             <p className="ml-bulk-lead">
-              {t('One account a line: the address, then its password, separated by a space, a tab, a comma, a semicolon, a colon or a bar. A first line naming the columns (email, password, name, IMAP server...) is read as a table, as a spreadsheet saves one. A line starting # is left out.')}
+              {t('One account a line: the address, then its password, separated by a space, a tab, a comma, a semicolon, a colon or a bar. A first line naming the columns (email, password, name, IMAP server...) is read as a table, as a spreadsheet saves one. A line starting # is left out.')}{' '}
+              {t('What is pasted is read into the list below at once and the box is cleared; the passwords go only to this computer\'s protected store.')}
             </p>
             <textarea
               className="ml-bulk-text"
@@ -152,11 +172,18 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
               dir="ltr"
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onPaste={(e) => {
+                const pasted = e.clipboardData?.getData('text') || '';
+                if (!pasted) return;
+                e.preventDefault();
+                take(`${text}${text && !text.endsWith('\n') ? '\n' : ''}${pasted}`);
+              }}
+              onBlur={() => text.trim() && take()}
               placeholder={'ali@example.com  password\nbo@example.com,password\ncy@example.com:password'}
             />
             <div className="ml-bulk-tools">
               <Button icon="open" label={t('Load from a file…')} onClick={load} />
-              <span className="ml-bulk-note">{t('Each is set up as Add account does: its servers found, and tried until one signs in. Passwords go to this computer\'s keystore.')}</span>
+              <span className="ml-bulk-note">{t('Each is set up as Add account does: a provider in the built-in list straight away; for any other domain, its own records are looked up when you press Add (its DNS, autoconfig and autodiscover addresses), and nothing else is asked.')}</span>
             </div>
           </>
         ) : (
@@ -171,6 +198,11 @@ export function BulkAccountsDialog({ shell, onClose, onSignIn, onByHand, onImpor
                 <span className="ml-bulk-mark">{r.outcome === 'trying' ? <Spinner /> : <Icon name={GOOD.has(r.outcome) ? 'check' : BUSY.has(r.outcome) ? 'clock' : r.outcome === 'sign-in' || r.outcome === 'no-password' ? 'lock' : 'info'} size={14} />}</span>
                 <span className="ml-bulk-email" dir="ltr">{r.email || t('(empty line)')}</span>
                 <span className="ml-bulk-state">{sentence(r)}</span>
+                {!run && i < held.length ? (
+                  <button type="button" className="ml-bulk-remove" aria-label={t('Remove')} data-tip={t('Remove')} onClick={() => remove(i)}>
+                    <Icon name="close" size={12} />
+                  </button>
+                ) : null}
                 {done && r.outcome === 'sign-in' ? (
                   <button type="button" className="ml-bulk-signin" onClick={() => onSignIn(r.email)}>
                     {t('Sign in')}

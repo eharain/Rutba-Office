@@ -1,24 +1,28 @@
 // Finding somebody's mail server from their address.
 //
-// "Add account" should be an address and a password. Everything else — the
+// "Add account" should be an address and a password. Everything else (the
 // IMAP host, the SMTP host, the ports, whether the connection is encrypted
 // from the first byte or upgraded, whether the provider wants a browser
-// sign-in instead of a password — is knowable, and every mail program that
-// people find easy knows it. This module asks in every way there is:
+// sign-in instead of a password) is knowable, and every mail program that
+// people find easy knows it. This module asks, in this order:
 //
-//   1. A table of the providers most people use, by domain.
-//   2. The domain's MX records: mail hosted at Google, Microsoft, Yahoo, Zoho,
-//      Fastmail or iCloud under a company's own domain is named by them.
-//   3. SRV records, the standard way a domain publishes its own servers
-//      (RFC 6186 / 8314): _imaps._tcp, _imap._tcp, _submissions._tcp,
-//      _submission._tcp.
-//   4. Autoconfig, the format Thunderbird made common: the domain's own
-//      autoconfig host, its .well-known path, then Mozilla's public database.
-//   5. Microsoft's autodiscover: the JSON endpoint answers for any mailbox
-//      hosted on Microsoft 365, whatever the domain.
-//   6. The conventional names — imap., mail., smtp., the bare domain — and a
-//      knock on each port that matters: does something answer, and does it
-//      say IMAP or SMTP? A name that answers outranks a name that is guessed.
+//   1. A table of the providers most people use, by domain. A provider the
+//      table knows is looked up nowhere else: nothing leaves the computer.
+//   2. The domain's own records, and only the domain's: SRV records, the
+//      standard way a domain publishes its servers (RFC 6186 / 8314:
+//      _imaps._tcp, _imap._tcp, _submissions._tcp, _submission._tcp); its
+//      MX records for a hint (mail hosted at Google or Microsoft under a
+//      company's own domain is named by them); its own autoconfig
+//      (autoconfig.<domain>, <domain>/.well-known) and its own autodiscover
+//      addresses (autodiscover.<domain>, <domain>/autodiscover).
+//   3. The domain's conventional names (imap., mail., smtp., the bare
+//      domain) and a knock on each port that matters: does something answer,
+//      and does it say IMAP or SMTP? A name that answers outranks one guessed.
+//
+// No lookup service of anyone else's is asked: not Mozilla's database of
+// providers, not Microsoft's central autodiscover. And the window asks for
+// any of this only when the person presses Add (or Add all); while an
+// address is typed, the table alone is consulted, offline.
 //
 // The steps run at once, each with its own short timeout, and the whole
 // search is over in a few seconds. What is returned is a settings pair, the
@@ -303,9 +307,8 @@ async function lookupAutoconfig(domain, email, api) {
   const urls = [
     `https://autoconfig.${domain}/mail/config-v1.1.xml?emailaddress=${encodeURIComponent(email)}`,
     `https://${domain}/.well-known/autoconfig/mail/config-v1.1.xml`,
-    `https://autoconfig.thunderbird.net/v1.1/${encodeURIComponent(domain)}`,
   ];
-  const labels = ['the domain\'s own autoconfig', 'its .well-known path', 'Mozilla\'s database'];
+  const labels = [`autoconfig.${domain}`, `${domain}/.well-known`];
   const tried = [];
   for (let i = 0; i < urls.length; i++) {
     try {
@@ -325,20 +328,30 @@ async function lookupAutoconfig(domain, email, api) {
   return { detail: tried.join('; '), candidates: [] };
 }
 
-/** Microsoft's JSON autodiscover: answers for any mailbox on Microsoft 365. */
+/**
+ * The domain's own autodiscover addresses (Exchange's JSON form): a domain
+ * whose mail is on Microsoft 365 answers, or points there, from its own name.
+ */
 async function lookupAutodiscover(email, api) {
-  const url = `https://outlook.office365.com/autodiscover/autodiscover.json?Email=${encodeURIComponent(email)}&Protocol=IMAP`;
-  try {
-    const text = await withTimeout(api.fetchText(url), STEP_TIMEOUT, 'Microsoft autodiscover');
-    const json = JSON.parse(text);
-    if (json && json.Url && /office365|outlook/i.test(json.Url)) {
-      const entry = KNOWN.find((k) => k.id === 'microsoft365');
-      return { detail: `Microsoft 365 hosts this mailbox (${json.Url})`, candidates: fromKnown(entry, 'autodiscover', 3), provider: entry };
+  const domain = (email.split('@')[1] || '').toLowerCase();
+  const query = `autodiscover/autodiscover.json?Email=${encodeURIComponent(email)}&Protocol=IMAP`;
+  const urls = [`https://autodiscover.${domain}/${query}`, `https://${domain}/${query}`];
+  const tried = [];
+  for (const url of urls) {
+    const where = new URL(url).host;
+    try {
+      const text = await withTimeout(api.fetchText(url), STEP_TIMEOUT, `autodiscover at ${where}`);
+      const json = JSON.parse(text);
+      if (json && json.Url && /office365|outlook/i.test(json.Url)) {
+        const entry = KNOWN.find((k) => k.id === 'microsoft365');
+        return { detail: `${where} says Microsoft 365 hosts this mailbox (${json.Url})`, candidates: fromKnown(entry, 'autodiscover', 3), provider: entry };
+      }
+      tried.push(`${where}: not a Microsoft 365 mailbox`);
+    } catch (err) {
+      tried.push(`${where}: ${String(err.message).slice(0, 60)}`);
     }
-    return { detail: json?.ErrorCode ? `not a Microsoft 365 mailbox (${json.ErrorCode})` : 'not a Microsoft 365 mailbox', candidates: [] };
-  } catch (err) {
-    return { detail: `no answer (${String(err.message).slice(0, 60)})`, candidates: [] };
   }
+  return { detail: tried.join('; '), candidates: [] };
 }
 
 function guesses(domain, mxHosts = []) {
@@ -393,7 +406,10 @@ export async function discoverMailServers(email, options = {}) {
   if (options.seed?.imap?.host) candidates.push(candidate('imap', options.seed.imap.host, options.seed.imap.port || 993, options.seed.imap.secure !== false, 'import', 3));
   if (options.seed?.smtp?.host) candidates.push(candidate('smtp', options.seed.smtp.host, options.seed.smtp.port || 465, options.seed.smtp.secure !== false, 'import', 3));
 
-  if (!options.offline) {
+  if (provider && !options.offline) {
+    // The table knows it: nothing is looked up anywhere.
+    step('network', 'none', `not needed: ${domain} is ${provider.label}, in the built-in list`);
+  } else if (!options.offline) {
     const started = Date.now();
     const remaining = () => Math.max(500, TOTAL_TIMEOUT - (Date.now() - started));
     const safe = (name, p) =>
@@ -405,12 +421,12 @@ export async function discoverMailServers(email, options = {}) {
       safe('MX', lookupMx(domain, api)),
       safe('SRV', lookupSrv(domain, api)),
       safe('autoconfig', lookupAutoconfig(domain, address, api)),
-      provider?.oauth === 'google' ? Promise.resolve({ ok: true, detail: 'not needed', candidates: [] }) : safe('autodiscover', lookupAutodiscover(address, api)),
+      safe('autodiscover', lookupAutodiscover(address, api)),
     ]);
     step('MX records', mx.ok ? (mx.candidates.length ? 'ok' : 'none') : 'failed', mx.detail);
     step('SRV records', srv.candidates.length ? 'ok' : srv.ok ? 'none' : 'failed', srv.detail);
     step('autoconfig', autoconfig.candidates.length ? 'ok' : autoconfig.ok ? 'none' : 'failed', autoconfig.detail);
-    step('Microsoft autodiscover', autodiscover.candidates.length ? 'ok' : autodiscover.ok ? 'none' : 'failed', autodiscover.detail);
+    step('autodiscover', autodiscover.candidates.length ? 'ok' : autodiscover.ok ? 'none' : 'failed', autodiscover.detail);
     for (const r of [mx, srv, autoconfig, autodiscover]) candidates.push(...(r.candidates || []));
     provider = provider || autodiscover.provider || mx.provider || null;
 
@@ -455,7 +471,14 @@ export async function discoverMailServers(email, options = {}) {
   result.source = result.imap?.source || 'none';
   // What the incoming server said it was, when it answered (Dovecot, Exchange, Gmail...).
   result.server = serverSoftware(best('imap')?.banner) || serverSoftware(best('smtp')?.banner) || null;
-  result.note = provider?.note || (result.imap ? noteFor(result.imap, result.smtp) : `Nothing at ${domain} said where its mail server is. The advanced settings take the names from your provider.`);
+  result.note =
+    provider?.note ||
+    (result.imap
+      ? noteFor(result.imap, result.smtp)
+      : options.offline
+        ? `${domain} is not in the built-in list of providers. Add looks up its own records: its DNS (SRV and MX), autoconfig.${domain} and autodiscover.${domain}, and then the servers they name.`
+        : `Nothing at ${domain} said where its mail server is. The advanced settings take the names from your provider.`);
+  result.offline = Boolean(options.offline);
   return result;
 }
 
@@ -475,7 +498,7 @@ function pick(c) {
 }
 
 function noteFor(imap, smtp) {
-  const how = { known: 'from the provider table', mx: 'from the domain\'s MX record', srv: 'from the SRV records the domain publishes', autoconfig: 'from the domain\'s autoconfig', autodiscover: 'from Microsoft autodiscover', import: 'from the client on this computer', guess: 'by convention' };
+  const how = { known: 'from the provider table', mx: 'from the domain\'s MX record', srv: 'from the SRV records the domain publishes', autoconfig: 'from the domain\'s autoconfig', autodiscover: 'from the domain\'s autodiscover', import: 'from the client on this computer', guess: 'by convention' };
   const verified = imap.verified ? ' and it answered' : '';
   return `Found ${how[imap.source] || imap.source}${verified}${smtp && !smtp.verified && imap.verified ? '; the outgoing server has not answered yet' : ''}.`;
 }
