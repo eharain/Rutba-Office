@@ -18,6 +18,7 @@ import { toGrey } from './pixels.js';
 import { binarise, estimateSkew, rotate, unrotatePoint, scale, textHeight, unevenPaper, rulings, cropPadded, inkIn } from './analyse.js';
 import { tableCells } from './layout.js';
 import { documentFields } from './fields.js';
+import { findCheckboxes } from './checkboxes.js';
 import { fromEngine } from './results.js';
 import { PSM } from './engine.js';
 
@@ -140,7 +141,8 @@ export function plan(grey, { deskew = true, rescale = true } = {}) {
  *   a label or a figure standing alone that the first drops), the words of
  *   both merged, the figures beside its labels and its items' amounts read
  *   again each as one line, and the answer carries `document` too: its
- *   kind, its fields, its items and whether its sums agree (fields.js), with
+ *   kind, its fields, its items, whether its sums agree (fields.js) and its
+ *   tick boxes, ticked or not (checkboxes.js), with
  *   the merged words and the second readings the fields were read from
  */
 export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto', deskew = true, rescale = true, table = false, document = false }) {
@@ -171,7 +173,9 @@ export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto'
     // The figures beside the labels and the items' amounts, read again each as one line: by English's
     // model, which reads Western digits best, and by the page's own, which reads its own digits.
     const collect = [];
-    documentFields(read, { languages: langs, collect });
+    // The tick boxes, a sign of a form and part of what it says.
+    const checkboxes = findCheckboxes(grey, { words, textHeight: how.textHeight });
+    documentFields(read, { languages: langs, collect, checkboxes });
     const again = collect.map((box) => ({ box, readings: [] }));
     const sets = langs.includes('eng') && langs.length > 1 ? [['eng'], langs] : [langs];
     for (const set of sets) {
@@ -182,7 +186,7 @@ export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto'
         if (text) a.readings.push({ text, confidence: r.words.length ? Math.min(...r.words.map((w) => w.confidence)) : 0, languages: set });
       }
     }
-    result.document = { ...documentFields(read, { languages: langs, again }), words, again };
+    result.document = { ...documentFields(read, { languages: langs, again, checkboxes }), checkboxes, words, again };
   }
   result.ms = Date.now() - started;
   return result;

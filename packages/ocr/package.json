@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.js",
     "./analyse": "./src/analyse.js",
+    "./checkboxes": "./src/checkboxes.js",
     "./fields": "./src/fields.js",
     "./host": "./src/host.js",
     "./layout": "./src/layout.js",

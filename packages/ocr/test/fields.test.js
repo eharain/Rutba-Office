@@ -290,6 +290,7 @@ test('recognize with document: a receipt the suite drew comes back as its fields
     assert.equal(d.currency, 'USD');
     assert.deepEqual(d.items.map((i) => i.amount), [80.31, 32.27, 38.87, 5.02, 13.18, 11.43]);
     assert.equal(d.checks.consistent, true);
+    assert.deepEqual(d.checkboxes, [], 'a receipt has no tick boxes');
     assert.ok(d.words.length >= r.words.length, 'the words of both readings');
     assert.ok(d.again.length >= 3 && d.again.every((a) => a.readings.length), 'the figures were read again');
     const box = d.fields.total.box;
