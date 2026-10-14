@@ -27,6 +27,11 @@ export const CSS = `
 
 .vd-split { height: 6px; flex: none; cursor: row-resize; background: #0e1013; border-top: 1px solid #23262d; border-bottom: 1px solid #23262d; }
 .vd-split:hover { background: #1c1f26; }
+/* Its grip, so it reads as something to take hold of. */
+.vd-split { display: grid; place-items: center; outline: none; }
+.vd-split::after { content: ''; width: 36px; height: 2px; border-radius: 1px; background: #3a3f49; }
+.vd-split:hover::after, .vd-split:focus-visible::after { background: var(--accent); }
+.vd-split:focus-visible { background: #1c1f26; }
 /* Time runs left to right in every language, as it does in every editor; the words in it follow the window. */
 .vd-timeline { flex: none; display: flex; min-height: 0; background: #17191e; direction: ltr; }
 .vd-transport { direction: ltr; }

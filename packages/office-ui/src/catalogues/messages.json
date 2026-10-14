@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6434,
+  "count": 6436,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -23319,6 +23319,18 @@
       "message": "Preview Results — see each record's words in place of the «fields»",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Preview and timeline",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Preview and timeline: drag to share the height between them, or press the arrow keys; double-click puts it back",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {

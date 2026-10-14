@@ -6444,4 +6444,6 @@ export default {
   'styles': 'الأنماط',
   'themes': 'النُسق',
   'variants': 'المتغيرات',
+  'Preview and timeline': 'المعاينة والمخطط الزمني',
+  'Preview and timeline: drag to share the height between them, or press the arrow keys; double-click puts it back': 'المعاينة والمخطط الزمني: اسحب لتقسيم الارتفاع بينهما، أو اضغط مفاتيح الأسهم؛ النقر المزدوج يعيده كما كان',
 };

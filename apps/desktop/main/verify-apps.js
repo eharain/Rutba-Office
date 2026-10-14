@@ -85,6 +85,7 @@ import { verifyOcrSheet } from './verify-ocr-sheet.js';
 import { verifyRibbon } from './verify-ribbon.js';
 import { verifySoon } from './verify-soon.js';
 import { verifyGalleryFold } from './verify-gallery-fold.js';
+import { verifyVideoPane } from './verify-video-pane.js';
 import { verifyImageBatch } from './verify-image-batch.js';
 import { verifyPersonalTemplates } from './verify-personal-templates.js';
 import { verifyTemplates, makeTemplateThumbs } from './verify-templates.js';
@@ -4757,7 +4758,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4832,6 +4833,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('ribbon')) await verifyRibbon({ open, check, until, wait }, { dir, files });
     if (only.includes('soon')) await verifySoon({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('gallery-fold')) await verifyGalleryFold({ open, check, until, wait }, { dir });
+    if (only.includes('video-split')) await verifyVideoPane({ open, check, until, wait }, { dir });
     if (only.includes('templates')) await verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('templates')) await verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows });
     if (only.includes('qrcode')) await verifyQrCode({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
@@ -5140,6 +5142,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyRibbon({ open, check, until, wait }, { dir, files }));
   await block(() => verifySoon({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyGalleryFold({ open, check, until, wait }, { dir }));
+  await block(() => verifyVideoPane({ open, check, until, wait }, { dir }));
   await block(() => verifyImageBatch({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows }));

@@ -6444,4 +6444,6 @@ export default {
   'styles': 'शैलियाँ',
   'themes': 'थीम',
   'variants': 'वैरिएंट',
+  'Preview and timeline': 'पूर्वावलोकन और टाइमलाइन',
+  'Preview and timeline: drag to share the height between them, or press the arrow keys; double-click puts it back': 'पूर्वावलोकन और टाइमलाइन: ऊँचाई इनके बीच बाँटने के लिए खींचें, या तीर कुंजियाँ दबाएँ; डबल-क्लिक इसे वापस रख देता है',
 };

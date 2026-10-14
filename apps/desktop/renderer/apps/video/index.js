@@ -44,6 +44,23 @@ import Inspector from './inspector.js';
 import { ExportDialog, ExportProgress, renderProject, PRESET_TAGS } from './export.js';
 import { CSS } from './css.js';
 
+/** The timeline's share of the editor's height when nothing else is chosen: the preview has the larger part. */
+export const TIMELINE_SHARE = 0.36;
+/** The fewest pixels the timeline keeps (its ruler and a lane) and the preview keeps (the stage and its transport bar). */
+const TIMELINE_MIN = 120;
+const PREVIEW_MIN = 200;
+
+/**
+ * The timeline's height in an editor `editorH` tall at `share` of it,
+ * kept between its own least and what leaves the preview its least; on an
+ * editor too short for both, the preview's least gives way first.
+ */
+export function splitHeight(editorH, share) {
+  if (!(editorH > 0)) return 260;
+  const most = Math.max(TIMELINE_MIN, editorH - PREVIEW_MIN);
+  return Math.round(Math.max(TIMELINE_MIN, Math.min(most, editorH * share)));
+}
+
 const FPS = 30;
 const AUTOSAVE_FIRST_MS = 1500;
 const AUTOSAVE_EVERY_MS = 30000;
@@ -82,7 +99,25 @@ export default function VideoEditor({ app, shell, boot }) {
   // How a project's own layout is made again for another shape (an introduction's scenes).
   const relayoutRef = useRef(null);
   const [transitionSeconds, setTransitionSeconds] = useState(1);
-  const [timelineH, setTimelineH] = useState(300);
+  // The timeline's share of the editor's height, the preview having the rest:
+  // kept on this computer, and the same share whatever the window's size.
+  const [timelineShare, setTimelineShare] = useState(TIMELINE_SHARE);
+  const [editorH, setEditorH] = useState(0);
+  useEffect(() => { shell.store.get({ key: 'video.timelineShare', fallback: null }).then((v) => { if (Number.isFinite(v) && v > 0 && v < 1) setTimelineShare(v); }).catch(() => {}); }, [shell]);
+  // The editor measured whenever it is drawn or resized, however late it first appears.
+  const editorWatch = useRef(null);
+  const editorRef = useCallback((el) => {
+    editorWatch.current?.disconnect();
+    editorWatch.current = null;
+    if (!el) return;
+    const measure = () => setEditorH(el.clientHeight);
+    measure();
+    if (typeof ResizeObserver === 'function') {
+      editorWatch.current = new ResizeObserver(measure);
+      editorWatch.current.observe(el);
+    }
+  }, []);
+  const timelineH = splitHeight(editorH, timelineShare);
   const clipboard = useRef(null);
   const canvasRef = useRef(null);
   const copyKey = useRef(newCopyKey());
@@ -911,16 +946,35 @@ export default function VideoEditor({ app, shell, boot }) {
   const reason = useMemo(() => unsupportedReason(), []);
   const name = path ? basename(path) : t('Untitled video');
 
-  // A divider between the stage and the timeline, dragged to give either more room.
+  // A divider between the stage and the timeline, dragged (or moved with the
+  // arrow keys) to give either more room; the share is kept for next time,
+  // and a double-click puts it back as it starts.
+  const keepShare = (share) => shell.store.set({ key: 'video.timelineShare', value: Math.round(share * 1000) / 1000 }).catch(() => {});
+  const shareFor = (height) => (editorH > 0 ? splitHeight(editorH, height / editorH) / editorH : TIMELINE_SHARE);
   const startSplit = (e) => {
+    if (e.button !== 0) return;
     e.preventDefault();
     const y0 = e.clientY;
     const h0 = timelineH;
-    const move = (ev) => setTimelineH(Math.max(150, Math.min(window.innerHeight - 260, h0 - (ev.clientY - y0))));
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    let share = timelineShare;
+    const move = (ev) => { share = shareFor(h0 - (ev.clientY - y0)); setTimelineShare(share); };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      keepShare(share);
+    };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
+  const splitKey = (e) => {
+    const by = e.key === 'ArrowUp' ? 24 : e.key === 'ArrowDown' ? -24 : e.key === 'PageUp' ? 96 : e.key === 'PageDown' ? -96 : 0;
+    if (!by && e.key !== 'Home') return;
+    e.preventDefault();
+    const share = e.key === 'Home' ? TIMELINE_SHARE : shareFor(timelineH + by);
+    setTimelineShare(share);
+    keepShare(share);
+  };
+  const resetSplit = () => { setTimelineShare(TIMELINE_SHARE); keepShare(TIMELINE_SHARE); };
 
   return (
     <AppFrame
@@ -944,7 +998,7 @@ export default function VideoEditor({ app, shell, boot }) {
       }
     >
       <Content>
-        <div className="vd-editor" data-duration={duration} data-clips={doc.patches.filter((p) => p.timing).length} data-dirty={dirty ? '1' : '0'} data-copy={copyKey.current} data-starts={playStarts.current}>
+        <div className="vd-editor" ref={editorRef} data-duration={duration} data-clips={doc.patches.filter((p) => p.timing).length} data-dirty={dirty ? '1' : '0'} data-copy={copyKey.current} data-starts={playStarts.current}>
           <div className="vd-top">
             {intro ? (
               <Panel title={t('Scenes')} width={272}>
@@ -1015,7 +1069,20 @@ export default function VideoEditor({ app, shell, boot }) {
               <Inspector doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName} />
             </Panel>
           </div>
-          <div className="vd-split" onPointerDown={startSplit} />
+          <div
+            className="vd-split"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label={t('Preview and timeline')}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(timelineShare * 100)}
+            tabIndex={0}
+            data-tip={t('Preview and timeline: drag to share the height between them, or press the arrow keys; double-click puts it back')}
+            onPointerDown={startSplit}
+            onDoubleClick={resetSplit}
+            onKeyDown={splitKey}
+          />
           <div className="vd-timeline" style={{ height: timelineH }}>
             <Timeline
               doc={doc}

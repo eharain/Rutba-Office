@@ -6442,4 +6442,6 @@ export default {
   'styles': 'اسٹائلز',
   'themes': 'تھیمز',
   'variants': 'ویریئنٹس',
+  'Preview and timeline': 'پیش منظر اور ٹائم لائن',
+  'Preview and timeline: drag to share the height between them, or press the arrow keys; double-click puts it back': 'پیش منظر اور ٹائم لائن: اونچائی ان میں بانٹنے کے لیے گھسیٹیں، یا تیر والی کلیدیں دبائیں؛ ڈبل کلک اسے واپس رکھ دیتا ہے',
 };
