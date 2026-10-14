@@ -145,6 +145,8 @@
 [data-app='home'] { --accent: #2b5fd9; }
 [data-app='calendar'] { --accent: #1a9f7a; }
 [data-app='contacts'] { --accent: #5d6d7e; }
+/* Contacts' slate is too dark to read as a link on the dark theme: a lighter slate there. */
+:root[data-theme='dark'] [data-app='contacts'] { --accent: #9fb0c4; }
 
 * { box-sizing: border-box; }
 
@@ -594,6 +596,7 @@ textarea,
   overflow: hidden;
 }
 .rw-groups .rw-btn.tall svg.rw-caret { display: inline-block; vertical-align: middle; width: 9px; height: 9px; margin: -1px 0 0 2px; }
+.rw-btn-last { white-space: nowrap; }
 
 /* A select or a field in the ribbon is a quiet box, not a form control. */
 .rw-groups .rw-select,
@@ -638,6 +641,8 @@ textarea,
   row-gap: 1px;
 }
 :is(.rw-group.compact, .rw-group.small) .rw-group-items > :not(.rw-btn) { grid-row: 1 / -1; }
+/* Beside rows of two (Layout, Reset / Duplicate, Delete), a shrunk button takes the same two rows, so its picture lines up with theirs. */
+:is(.rw-group.compact, .rw-group.small) .rw-group-items:has(> .rw-rows > .rw-row:nth-child(2):last-child) { grid-template-rows: repeat(2, var(--rw-row-h)); }
 :is(.rw-group.compact, .rw-group.small) .rw-group-items > :is(.rw-btn.tall, .rw-btn:has(> span):has(> svg:not(.rw-caret))) {
   grid-row: auto;
   flex-direction: row;
@@ -654,7 +659,7 @@ textarea,
 :is(.rw-group.small, .rw-ribbon.icons-only .rw-group:not(.folded)) .rw-btn:has(> svg:not(.rw-caret)) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 :is(.rw-group.small, .rw-ribbon.icons-only .rw-group:not(.folded)) .rw-btn:has(> svg:not(.rw-caret)) { min-width: 28px; justify-content: center; position: relative; }
 /* A group of one button (Voice), made small, keeps it in the middle row rather than alone at the top. */
-:is(.rw-group.compact, .rw-group.small) .rw-group-items > .rw-btn:only-child { grid-row: 2; }
+:is(.rw-group.compact, .rw-group.small) .rw-group-items > :is(.rw-btn.tall, .rw-btn:has(> span):has(> svg:not(.rw-caret))):only-child { grid-row: 2; }
 /* Icons only, a large button stays large: its picture in the middle of the full height, its name in its tip. */
 .rw-ribbon.icons-only .rw-group:not(.folded):not(.compact):not(.small) .rw-group-items > :is(.rw-btn.tall, .rw-btn:has(> span):has(> svg:not(.rw-caret))) { justify-content: center; padding: 0 7px; min-width: 40px; }
 
@@ -750,6 +755,9 @@ textarea,
 /* ── body, panels, lists ──────────────────────────────────────────────── */
 
 .rw-body { min-height: 0; display: flex; overflow: hidden; background: var(--window); }
+/* Their own rows, ribbon or none: a window with no ribbon (the launcher) once put its body in the ribbon's row, sized to its content, and stretched the status bar down the rest of a tall window. */
+.rw > .rw-body { grid-row: 3; }
+.rw > .rw-status { grid-row: 4; }
 
 .rw-panel {
   background: var(--chrome);

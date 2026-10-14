@@ -380,6 +380,22 @@ export default function Calendar({ app, shell, boot }) {
   );
   // Home → Sync: every account now, and what moved said.
   const [accountsOpen, setAccountsOpen] = useState(false);
+  // Month: how tall a week's row is, so each day shows the events that fit
+  // and "+ more" for the rest, as Outlook does, instead of the month
+  // running off the bottom of a short window.
+  const [monthRowH, setMonthRowH] = useState(0);
+  const monthWatch = useRef(null);
+  const monthGridRef = useCallback((el) => {
+    monthWatch.current?.disconnect();
+    monthWatch.current = null;
+    if (!el) return;
+    const measure = () => setMonthRowH(el.clientHeight / 6);
+    measure();
+    if (typeof ResizeObserver === 'function') {
+      monthWatch.current = new ResizeObserver(measure);
+      monthWatch.current.observe(el);
+    }
+  }, []);
   const syncAll = useCallback(async () => {
     const results = (await shell.dav.sync({})) || [];
     if (!results.length) { setAccountsOpen(true); return; }
@@ -445,10 +461,15 @@ export default function Calendar({ app, shell, boot }) {
     return (
       <div className="cal-month">
         <div className="cal-month-head">{DAYS.map((d) => <div key={d}>{d}</div>)}</div>
-        <div className="cal-month-grid">
+        <div className="cal-month-grid" ref={monthGridRef}>
           {days.map((d) => {
             const list = (byDay.get(isoDate(d)) || []).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start);
-            const shown = list.slice(0, 4);
+            // As many as the row has room for: a line for the date, then about 21 px an
+            // event. "+ more" goes on the date's line, so it costs no event its place
+            // (under the events when the Hijri date has that line).
+            const fits = monthRowH ? Math.max(1, Math.floor((monthRowH - 30) / 21)) : 4;
+            const shown = list.length > fits ? list.slice(0, hijri ? Math.max(0, fits - 1) : fits) : list;
+            const more = list.length > shown.length ? <button type="button" className="cal-more" onClick={(e) => { e.stopPropagation(); setCursor(d); setView('day'); }}>{t('+{count} more', { count: list.length - shown.length })}</button> : null; // words-ok: code, not words
             return (
               <div
                 key={isoDate(d)}
@@ -457,11 +478,11 @@ export default function Calendar({ app, shell, boot }) {
                 onDoubleClick={(e) => e.stopPropagation()}
               >
                 <div className="cal-day-top">
-                  {hijri ? <span className="cal-day-h">{hijriLabel(d)}</span> : <span />}
+                  {hijri ? <span className="cal-day-h">{hijriLabel(d)}</span> : more || <span />}
                   <div className="cal-day-n">{d.getDate() === 1 ? `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}` : d.getDate()}</div>
                 </div>
                 {shown.map((s, i) => chip(s, `${s.id}-${s.original}-${i}`))}
-                {list.length > shown.length ? <button type="button" className="cal-more" onClick={(e) => { e.stopPropagation(); setCursor(d); setView('day'); }}>{t('+{count} more', { count: list.length - shown.length })}</button> : null}{/* words-ok: code, not words */}
+                {hijri ? more : null}
               </div>
             );
           })}
@@ -492,7 +513,18 @@ export default function Calendar({ app, shell, boot }) {
             </div>
           ))}
         </div>
-        <div className="cal-hours">
+        <div
+          className="cal-hours"
+          ref={(el) => {
+            // Opened on 8:00, as Outlook opens on the working day, or an hour before the first event shown if that is earlier.
+            const key = `${view}:${isoDate(days[0])}`;
+            if (!el || el.dataset.opened === key) return;
+            el.dataset.opened = key;
+            const firsts = timed.filter((s) => days.some((d) => s.start < d.getTime() + DAY && s.end > d.getTime())).map((s) => new Date(s.start).getHours());
+            // Less a little, so the hour's label, drawn over its line, is not cut off at the top.
+            el.scrollTop = Math.max(0, Math.max(0, Math.min(8, ...firsts.map((h) => h - 1))) * HOUR_PX - 10);
+          }}
+        >
           <div className="cal-gutter">
             {Array.from({ length: 24 }, (_, h) => <div key={h} className="cal-hour" style={{ height: HOUR_PX }}>{h ? `${h}:00` : ''}</div>)}
           </div>
@@ -522,7 +554,7 @@ export default function Calendar({ app, shell, boot }) {
                     <button
                       type="button"
                       key={`${s.id}-${s.original}-${i}`}
-                      className="cal-block"
+                      className={`cal-block${bottom - top < 36 ? ' short' : ''}`}
                       style={{ '--c': s.colour, top, height: Math.max(18, bottom - top), left: `${(lane / lanes) * 100}%`, width: `${100 / lanes}%` }}
                       title={s.summary}
                       onClick={(e) => { e.stopPropagation(); openSlot(s); }}
@@ -826,11 +858,11 @@ const CSS = `
 .cal-view { border: 0; background: none; padding: 5px 12px; font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
 .cal-view.on { background: var(--selected); color: var(--ink); font-weight: 600; }
 .cal-body { flex: 1; min-height: 0; overflow: auto; padding: 0 14px 14px; display: flex; flex-direction: column; }
-.cal-month { display: flex; flex-direction: column; flex: 1; min-height: 540px; }
+.cal-month { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .cal-month-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); font-size: 11px; font-weight: 600; color: var(--ink-3); padding: 4px 0; }
 .cal-month-head div { padding-left: 6px; }
-.cal-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: 1fr; flex: 1; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
-.cal-day { min-width: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px; min-height: 84px; display: flex; flex-direction: column; gap: 2px; cursor: cell; }
+.cal-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(6, minmax(0, 1fr)); flex: 1; min-height: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.cal-day { min-width: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 2px; cursor: cell; }
 .cal-day.other { background: var(--sunken); color: var(--ink-3); }
 .cal-day.today .cal-day-n { background: var(--accent); color: white; }
 .cal-day-n { align-self: flex-end; font-size: 12px; font-weight: 600; padding: 1px 6px; border-radius: 10px; }
@@ -845,13 +877,17 @@ const CSS = `
 .cal-more { border: 0; background: none; font: inherit; font-size: 11px; color: var(--accent); text-align: left; padding: 0 5px; cursor: pointer; }
 .cal-time { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .cal-time-head, .cal-allday, .cal-hours { display: grid; grid-template-columns: 56px repeat(auto-fit, minmax(0, 1fr)); }
+/* The hours scroll and the rows over them do not: each keeps room for the scroll bar, so the days line up from the headings down. */
+.cal-time-head, .cal-allday { overflow: hidden; scrollbar-gutter: stable; }
+.cal-hours { scrollbar-gutter: stable; }
 .cal-gutter { font-size: 10.5px; color: var(--ink-3); text-align: right; padding-right: 6px; }
 .cal-col-head { padding: 4px 6px; font-size: 12px; color: var(--ink-2); border-bottom: 1px solid var(--line); }
 .cal-col-head.today .dd { background: var(--accent); color: white; border-radius: 10px; padding: 0 6px; }
 .cal-col-head .dd { font-weight: 700; }
 .cal-allday { min-height: 28px; border-bottom: 1px solid var(--line); }
 .cal-allday .cal-gutter { padding-top: 6px; }
-.cal-allday-cell { display: flex; flex-direction: column; gap: 2px; padding: 3px; border-left: 1px solid var(--line); cursor: cell; }
+.cal-allday-cell { display: flex; flex-direction: column; gap: 2px; padding: 3px; border-left: 1px solid var(--line); cursor: cell; min-width: 0; overflow: hidden; }
+.cal-allday-cell .cal-chip { max-width: 100%; }
 .cal-hours { flex: 1; overflow: auto; position: relative; }
 .cal-hour { transform: translateY(-7px); }
 .cal-col { position: relative; border-left: 1px solid var(--line); cursor: cell; }
@@ -859,7 +895,12 @@ const CSS = `
 .cal-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
 .cal-now { position: absolute; left: 0; right: 0; border-top: 2px solid var(--bad); z-index: 2; }
 .cal-block { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; gap: 1px; border: 0; border-left: 3px solid var(--c); border-radius: 4px; background: color-mix(in srgb, var(--c) 18%, var(--surface)); color: var(--ink); font: inherit; font-size: 11.5px; padding: 3px 6px; text-align: left; overflow: hidden; cursor: pointer; z-index: 1; }
-.cal-block .s { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-block .s { flex: none; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A short event (half an hour): its title and its time on one line, the title first. */
+.cal-block.short { flex-direction: row; align-items: baseline; gap: 6px; padding-top: 2px; padding-bottom: 0; }
+.cal-block.short .s { flex: none; max-width: 100%; }
+/* Narrow (two at once), the time gives way before the title. */
+.cal-block.short .t { flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; }
 .cal-block .t { color: var(--ink-3); font-size: 10.5px; }
 .cal-agenda { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
 .cal-agenda-day { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }

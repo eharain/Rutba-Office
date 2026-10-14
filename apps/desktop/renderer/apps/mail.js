@@ -1673,8 +1673,10 @@ export default function Mail({ app, shell }) {
                     />
                   ) : (
                     <Empty icon="mail" title={t('No message selected')}>
-                      {t('Choose a message to read it here.')} <kbd>j</kbd> {t('and')} <kbd>k</kbd> {t('move,')} <kbd>r</kbd> {t('replies,')}
-                      <kbd>s</kbd> {t('stars.')}
+                      <span className="ml-keys-hint">
+                        {t('Choose a message to read it here.')}{' '}
+                        <kbd>j</kbd> {t('and')} <kbd>k</kbd> {t('move,')} <kbd>r</kbd> {t('replies,')} <kbd>s</kbd> {t('stars.')}
+                      </span>
                     </Empty>
                   )}
                 </Content>

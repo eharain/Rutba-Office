@@ -259,19 +259,19 @@ export default function Contacts({ app, shell, boot }) {
       <dl className="ct-fields">
         {(selected.emails || []).map((e, i) => (
           <React.Fragment key={`e${i}`}>
-            <dt>{e.label || TYPE_NAMES[e.type] || e.type || t('email')}</dt>
+            <dt>{e.label || (e.type && e.type !== 'other' ? TYPE_NAMES[e.type] || e.type : t('email'))}</dt>
             <dd><button type="button" className="ct-link" onClick={() => writeTo(e.value)} title={t('Write a message')}>{e.value}</button></dd>
           </React.Fragment>
         ))}
         {(selected.phones || []).map((p, i) => (
           <React.Fragment key={`p${i}`}>
-            <dt>{p.label || TYPE_NAMES[p.type] || p.type || t('phone')}</dt>
+            <dt>{p.label || (p.type && p.type !== 'other' ? TYPE_NAMES[p.type] || p.type : t('phone'))}</dt>
             <dd>{p.value}</dd>
           </React.Fragment>
         ))}
         {(selected.addresses || []).map((a, i) => (
           <React.Fragment key={`a${i}`}>
-            <dt>{a.label || TYPE_NAMES[a.type] || a.type || t('address')}</dt>
+            <dt>{a.label || (a.type && a.type !== 'other' ? TYPE_NAMES[a.type] || a.type : t('address'))}</dt>
             <dd className="ct-addr">{[a.street, a.city, a.region, a.postcode, a.country].filter(Boolean).join('\n')}</dd>
           </React.Fragment>
         ))}

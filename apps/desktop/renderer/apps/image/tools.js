@@ -282,6 +282,12 @@ export const TOOLS_CSS = `
 .im-tool:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .im-tools-gap { flex: none; width: 22px; height: 1px; background: var(--line-soft); margin: 4px 0; }
 .im-tools-fill { flex: 1; min-height: 8px; }
+/* A short window: the tools a little shorter, so the whole rail and its colours fit without a scroll bar. */
+@media (max-height: 820px) {
+  .im-tools { gap: 1px; padding: 6px 0 8px; }
+  .im-tool { height: 26px; }
+  .im-tools-gap { margin: 2px 0; }
+}
 .im-colours { position: relative; width: 36px; height: 36px; flex: none; }
 .im-colour { position: absolute; width: 22px; height: 22px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.35); box-shadow: 0 0 0 1.5px var(--surface); cursor: pointer; overflow: hidden; }
 .im-colour span { position: absolute; inset: 0; }

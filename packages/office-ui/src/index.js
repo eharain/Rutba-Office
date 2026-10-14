@@ -749,6 +749,20 @@ function namesCanGo(g) {
 }
 
 /**
+ * A large button's name with its menu's arrow: the last word and the arrow
+ * kept on one line, so the arrow never drops to a line of its own under a
+ * two-line name (Paragraph Spacing), where the name's two lines cut it off.
+ */
+function withCaret(label, caret) {
+  if (typeof label !== 'string') return label;
+  const at = label.lastIndexOf(' ');
+  // One word: its arrow on the line under it, as Office draws Colours and Fonts.
+  return at < 0
+    ? <>{label}{caret}</>
+    : <>{label.slice(0, at + 1)}<span className="rw-btn-last">{label.slice(at + 1)}{caret}</span></>;
+}
+
+/**
  * Small buttons stacked in rows beside the tall ones, the way Office lays a
  * group out: each child is one row. A Home ribbon of single-row groups was
  * 2,372 px wide; in rows it fits a normal window.
@@ -799,7 +813,7 @@ export function Button({
       {...rest}
     >
       {busy ? <Spinner /> : icon ? <Icon name={icon} size={tall ? 24 : 16} strokeWidth={tall ? 1.5 : 1.7} /> : null}
-      {label ? <span>{label}{tall ? caret : null}</span> : null}
+      {label ? <span>{tall && caret ? withCaret(label, caret) : label}{tall && caret && typeof label !== 'string' ? caret : null}</span> : null}
       {children}
       {tall && label ? null : caret}
     </button>
@@ -928,7 +942,7 @@ export const Body = ({ children, style }) => (
 );
 
 /** Where a panel keeps the width it was given: by the window's app and the panel's name. */
-const panelKey = (name, right) => `rutba.panel.${(typeof document !== 'undefined' && document.documentElement.dataset.app) || 'app'}.${name || (right ? 'right' : 'side')}`;
+const panelKey = (name, right) => `rutba.panel.${(typeof document !== 'undefined' && document.querySelector('.rw[data-app]')?.dataset.app) || 'app'}.${name || (right ? 'right' : 'side')}`;
 const keptWidth = (key) => { try { const v = Number(localStorage.getItem(key)); return Number.isFinite(v) && v > 0 ? v : null; } catch { return null; } };
 const keepWidth = (key, w) => { try { if (w == null) localStorage.removeItem(key); else localStorage.setItem(key, String(Math.round(w))); } catch { /* kept for this window alone */ } };
 

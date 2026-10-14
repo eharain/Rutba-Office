@@ -150,6 +150,11 @@ export async function verifyGalleryFold({ open, check, until, wait }, { dir }) {
     const normal = await until(async () => (await style()) === 'Normal', 'Normal again', 4000).catch(() => false);
     check('gallery-fold: a style pressed in the Styles gallery is applied to the paragraph and marked there, though scrolled out of sight, and Normal puts it back',
       h1 === 'clicked' && applied === true && marked === true && normal === true, JSON.stringify({ h1, applied, marked, normal }));
+    // Saved, so the window closes clean and leaves no unsaved copy for the launcher to offer back.
+    await js(`(() => { document.querySelector('.wd-page')?.focus(); return 1; })()`);
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'S', modifiers: ['control'] });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'S', modifiers: ['control'] });
+    await until(() => js(`!document.querySelector('.rw-doctitle .dirty')`), 'the document saved', 4000).catch(() => {});
 
     await sweep(win, js, 'Word', 'Home', ['Styles']);
     await pick(js, 'Design');

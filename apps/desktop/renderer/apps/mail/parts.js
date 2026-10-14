@@ -313,6 +313,9 @@ export const CSS = `
 
 /* reader ----------------------------------------------------------------- */
 .ml-reader { flex: 1; display: flex; flex-direction: column; min-height: 0; background: var(--surface); }
+/* The keys under an empty reading pane, each in a small key cap. */
+.ml-keys-hint { line-height: 1.9; }
+.ml-keys-hint kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--surface); color: var(--ink); font: 600 11.5px/18px var(--font); text-align: center; }
 .ml-head { padding: 16px 22px 10px; border-bottom: 1px solid var(--line); }
 .ml-head h2 { margin: 0 0 12px; font-family: var(--font-display); font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 9px; }
 .ml-meta { display: flex; align-items: center; gap: 11px; }

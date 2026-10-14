@@ -136,8 +136,8 @@ export const CSS = `
 .vd-prop-value .rw-select, .vd-prop-value select { flex: 1; min-width: 0; }
 .vd-prop-note { color: var(--ink-3); font-size: 12px; }
 .vd-num { width: 76px; }
-.vd-slider { display: flex; align-items: center; gap: 6px; flex: 1; }
-.vd-slider input { flex: 1; accent-color: var(--accent); min-width: 0; }
+.vd-slider { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.vd-slider input { flex: 1; width: 0; accent-color: var(--accent); min-width: 0; }
 .vd-slider-value { width: 38px; text-align: end; font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 11.5px; }
 .vd-text { width: 100%; resize: vertical; margin-bottom: 6px; font: inherit; box-sizing: border-box; }
 .vd-swatches { display: flex; gap: 4px; flex-wrap: wrap; }
