@@ -40,7 +40,8 @@
     "./forms": "./src/forms.js",
     "./redact": "./src/redact.js",
     "./redact-match": "./src/redact-match.js",
-    "./inspect": "./src/inspect.js"
+    "./inspect": "./src/inspect.js",
+    "./inkml": "./src/inkml.js"
   },
   "dependencies": {
     "@rutba/formula": "*"

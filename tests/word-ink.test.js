@@ -1,7 +1,7 @@
 // Draw in a document — the engine's half.
 //
 // A stroke floats in front of the words where it was drawn on its page:
-// Word's wps freeform in mc:AlternateContent, positioned from the page's
+// Word's ink (an InkML content part, a wps freeform its fallback), positioned from the page's
 // corner, no wrap, named "Ink N", boxed to hold its width, anchored in a
 // paragraph on that page; the page draws it; Ink to Shape's shape floats
 // the same way; a stroke is removed like any drawing.
@@ -19,7 +19,8 @@ test('a stroke floats where it was drawn, as Word writes a freeform in front of 
     { points: [[100, 500], [500, 500]], color: '#FFFF00', width: 8, alpha: 0.5, cap: 'sq' },
   ] });
   const xml = view.doc.doc.xml;
-  assert.match(xml, /<mc:AlternateContent><mc:Choice Requires="wps"><w:drawing><wp:anchor\b[^>]*behindDoc="0"/);
+  assert.match(xml, /<mc:AlternateContent><mc:Choice Requires="wpi"><w:drawing><wp:anchor\b[^>]*behindDoc="0"/);
+  assert.match(xml, /<mc:Fallback><w:drawing><wp:anchor\b/);
   assert.match(xml, /<wp:positionH relativeFrom="page"><wp:posOffset>\d+<\/wp:posOffset><\/wp:positionH><wp:positionV relativeFrom="page">/);
   assert.match(xml, /<wp:wrapNone\/><wp:docPr id="\d+" name="Ink 1"\/>/);
   assert.match(xml, /<wps:wsp><wps:cNvSpPr\/><wps:spPr>[\s\S]*?<a:custGeom>[\s\S]*?<a:quadBezTo>/);

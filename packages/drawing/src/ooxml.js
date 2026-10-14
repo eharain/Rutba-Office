@@ -298,7 +298,8 @@ function readColour(xml) {
   if (!xml) return null;
   if (firstElement(xml, 'noFill')) return { type: 'none' };
   const srgb = firstElement(xml, 'srgbClr');
-  if (srgb) return { type: 'srgb', value: attrs(srgb).val ?? '000000' };
+  // The opening tag only here too: a see-through colour carries <a:alpha val="50000"/>, and a highlighter's yellow read as 50000 drew nothing.
+  if (srgb) return { type: 'srgb', value: attrs(srgb.slice(0, srgb.indexOf('>') + 1)).val ?? '000000' };
   const scheme = firstElement(xml, 'schemeClr');
   // The opening tag only: a scheme colour carries its modifiers as children
   // (<a:shade val="50000"/>), and the last val in the element is theirs.

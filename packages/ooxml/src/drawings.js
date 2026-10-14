@@ -129,6 +129,7 @@ export function readDrawing(xml) {
     : /\/picture$/.test(uri) ? 'picture'
       : /wordprocessingShape/.test(uri) ? (/<wps:txbx\b/.test(xml) ? 'textbox' : 'shape')
         : /chart/.test(uri) ? 'chart'
+          : /wordprocessingInk/.test(uri) ? 'ink'
           : /wordprocessingCanvas/.test(uri) ? 'canvas' : 'other';
   const xf = topXfrm(xml);
   const rot = xf?.attrs.rot ? Number(xf.attrs.rot) / 60000 : 0;
@@ -499,7 +500,7 @@ export function textBoxRun(spec) {
  * `line` (`{ colour, widthPx, alpha, cap }`), not filled. Word's `wps`
  * shape inside `mc:AlternateContent`, as Word writes one.
  */
-export function floatingShapeRun({ id, name, widthPx, heightPx, h, v, relativeHeight = Z_BASE, path = null, preset = 'rect', line }) {
+export function floatingShapeRun({ id, name, widthPx, heightPx, h, v, relativeHeight = Z_BASE, path = null, preset = 'rect', line, ink = null }) {
   const cx = Math.max(1, toEmu(widthPx));
   const cy = Math.max(1, toEmu(heightPx));
   const geom = path
@@ -519,7 +520,44 @@ export function floatingShapeRun({ id, name, widthPx, heightPx, h, v, relativeHe
     frame: '<wp:cNvGraphicFramePr/>',
     graphic,
   }, { wrap: 'none', behind: false, relativeHeight, h, v, dist: { t: 0, b: 0, l: 0, r: 0 } });
+  // Ink, as Word writes it: the stroke a content part of InkML (`ink.rId`)
+  // that Word 2010 and later draw, the freeform the fallback for the rest.
+  if (ink) {
+    const part = anchorXml({
+      open: '<w:drawing>',
+      extent: '<wp:extent cx="' + cx + '" cy="' + cy + '"/>',
+      effectExtent: '<wp:effectExtent l="0" t="0" r="0" b="0"/>',
+      docPr: '<wp:docPr id="' + id + '" name="' + esc(name) + '"/>',
+      frame: '<wp:cNvGraphicFramePr/>',
+      graphic: '<a:graphic xmlns:a="' + DRAWING_NS.a + '"><a:graphicData uri="' + INK_GRAPHIC + '"><w14:contentPart bwMode="auto" r:id="' + esc(ink.rId) + '">'
+        + '<w14:nvContentPartPr><w14:cNvContentPartPr/></w14:nvContentPartPr><w14:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></w14:xfrm></w14:contentPart></a:graphicData></a:graphic>',
+    }, { wrap: 'none', behind: false, relativeHeight, h, v, dist: { t: 0, b: 0, l: 0, r: 0 } });
+    return '<w:r><mc:AlternateContent><mc:Choice Requires="wpi">' + part + '</mc:Choice><mc:Fallback>' + drawing + '</mc:Fallback></mc:AlternateContent></w:r>';
+  }
   return '<w:r><mc:AlternateContent><mc:Choice Requires="wps">' + drawing + '</mc:Choice><mc:Fallback/></mc:AlternateContent></w:r>';
+}
+
+/** A drawing's graphic that is Word's ink: a content part of InkML. */
+export const INK_GRAPHIC = 'http://schemas.microsoft.com/office/word/2010/wordprocessingInk';
+
+/**
+ * Ink's strokes (inkml.js `inkPaths`) as a freeform the shape painter
+ * draws: their paths in a box `cx` by `cy` EMU, in the first stroke's pen.
+ */
+export function inkShapeXml(strokes, cx, cy) {
+  const s = strokes[0];
+  const alpha = s.alpha != null && s.alpha < 1 ? '<a:alpha val="' + Math.round(s.alpha * 100000) + '"/>' : '';
+  return '<wps:wsp><wps:cNvSpPr/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>'
+    + '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst>' + strokes.map((p) => p.path).join('') + '</a:pathLst></a:custGeom>'
+    + '<a:noFill/><a:ln w="' + Math.max(1, Math.round(s.widthPt * 12700)) + '" cap="' + s.cap + '"><a:solidFill><a:srgbClr val="' + s.color + '">' + alpha + '</a:srgbClr></a:solidFill><a:round/></a:ln></wps:spPr><wps:bodyPr/></wps:wsp>';
+}
+
+/** Is the drawing at `at` in a paragraph the fallback of Word's ink, which the content part beside it is drawn for instead? */
+export function inkFallback(xml, at) {
+  const fb = xml.lastIndexOf('<mc:Fallback', at);
+  if (fb < 0 || xml.lastIndexOf('</mc:Fallback>', at) > fb) return false;
+  const ac = xml.lastIndexOf('<mc:AlternateContent', fb);
+  return ac >= 0 && xml.slice(ac, fb).includes(INK_GRAPHIC);
 }
 
 /**

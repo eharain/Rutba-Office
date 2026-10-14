@@ -34,11 +34,12 @@ import { parseTable, parseSection, childElements, firstElement, headBefore } fro
 import { readHeadersAndFooters } from './headers.js';
 import { tableStyleXml } from './table-styles.js';
 import { ENVELOPE_SIZES, ENVELOPE_STYLES_XML, envelopeXml, envelopeDocumentXml, labelSheetXml, labelParagraph, nextRecordParagraph, labelProduct, NEXT_FIELD_RUNS } from './labels.js';
+import { inkmlXml, inkPaths, INK_CT, INK_REL, WPI_NS } from './inkml.js';
 import { readControl, withControlsAsMarks, foldControls, controlXml, legacyFieldXml, placeholderPicturePng, newControlId, PLACEHOLDER_STYLE_XML, DEFAULT_PLACEHOLDERS, W14_NS } from './forms.js';
 import { readParagraphStyles, readCharacterStyles, readNumberingDefs, readThemeFonts, readThemeColours, STANDARD_STYLES_XML } from './docstyles.js';
 import {
   findDrawings, readDrawing, readBodyPr, readShapeLook, DRAWING_NS, Z_BASE, Z_STEP, textBoxRun, fallbackFor, floatingShapeRun,
-  withAnchorAttrs, withDocPr, withPosition, withWrap, withExtent, withTransform, withShapeFill, withShapeLine, withBodyPr,
+  inkShapeXml, inkFallback, withAnchorAttrs, withDocPr, withPosition, withWrap, withExtent, withTransform, withShapeFill, withShapeLine, withBodyPr,
   toAnchor, toInline, memberXml, groupMembers, groupGraphic, memberToDrawing, anchorXml, EMU_PER_PX, diagramMemberXml,
 } from './drawings.js';
 
@@ -2985,6 +2986,18 @@ export class Document {
         }
         continue;
       }
+      // Ink, as Word keeps it: its InkML read and drawn as the freeform it is.
+      const inkRef = /<w14:contentPart\b[^>]*\br:id="([^"]+)"/.exec(inner);
+      if (inkRef) {
+        const target = rels.get(inkRef[1]);
+        const part = target ? OoxmlPackage.resolveTarget(this.mainPart, target) : null;
+        const box = /<wp:extent\b[^>]*cx="(\d+)"[^>]*cy="(\d+)"/.exec(inner);
+        const strokes = part && this.pkg.has(part) && box ? inkPaths(this.pkg.text(part), Number(box[1]), Number(box[2])) : [];
+        if (strokes.length) out.push({ ...place, kind: 'shape', ink: true, name, widthPx, heightPx, shapeXml: inkShapeXml(strokes, Number(box[1]), Number(box[2])) });
+        continue;
+      }
+      // The fallback a Word without ink is given: the content part above is drawn instead.
+      if (inkFallback(paragraphXml, m.index)) continue;
       const wsp = /<wps:wsp\b[\s\S]*?<\/wps:wsp>/.exec(inner);
       // A shape with a text box is a TEXT box — `_paragraphTextBoxes` draws
       // it with its words; painting the frame here too would double it.
@@ -3310,7 +3323,8 @@ export class Document {
     const open = /<w:document\b[^>]*>/.exec(this.xml);
     if (!open) return false;
     let tag = open[0];
-    for (const [prefix, uri] of Object.entries(DRAWING_NS)) {
+    // Ink's content part is Word 2010's (w14), named in a choice that requires wpi.
+    for (const [prefix, uri] of Object.entries({ ...DRAWING_NS, w14: W14_NS, wpi: WPI_NS })) {
       if (!new RegExp('\\sxmlns:' + prefix + '=').test(tag)) tag = tag.replace(/^<w:document\b/, () => '<w:document xmlns:' + prefix + '="' + uri + '"');
     }
     if (tag === open[0]) return false;
@@ -3651,7 +3665,14 @@ export class Document {
       while (taken.has(n)) n += 1;
       taken.add(n);
       z += Z_STEP;
+      // The stroke as Word keeps ink: an InkML part, its points where they are on the page.
+      let k = 1;
+      while (this.pkg.has('word/ink/ink' + k + '.xml')) k += 1;
+      this.pkg.addPart('word/ink/ink' + k + '.xml', inkmlXml([{ ...s, points: pts, highlighter: s.cap === 'sq' }]), INK_CT);
+      this.willEditPart(OoxmlPackage.relsPathFor(this.mainPart));
+      const inkRel = this._addRel(INK_REL, 'ink/ink' + k + '.xml');
       runs += floatingShapeRun({
+        ink: { rId: inkRel },
         id, name: 'Ink ' + n, widthPx: box.w, heightPx: box.h,
         h: { rel: 'page', offsetPx: box.x }, v: { rel: 'page', offsetPx: box.y },
         relativeHeight: z, path,
