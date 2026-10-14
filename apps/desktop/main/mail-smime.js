@@ -138,7 +138,21 @@ export function createSmimeDesk({ stores, checkRun = false, host = null }) {
     const head = Buffer.from(raw.subarray(0, headEnd(raw).head)).toString('latin1');
     const m = /^from:[ \t]*(.*(?:\r?\n[ \t].*)*)/im.exec(head);
     const v = m ? m[1].replace(/\r?\n[ \t]+/g, ' ') : '';
-    return (/<([^<>@\s]+@[^<>\s]+)>/.exec(v)?.[1] || /([^\s<>",;]+@[^\s<>",;]+)/.exec(v)?.[1] || '').toLowerCase();
+    // Found by scanning, not by a pattern that backtracks: a From line far past
+    // the standard's length, one long word with no spaces, held the main
+    // process for minutes under the pattern this replaces.
+    const lt = v.indexOf('<');
+    const gt = lt < 0 ? -1 : v.indexOf('>', lt + 1);
+    if (gt > lt + 1) {
+      const inner = v.slice(lt + 1, gt);
+      const at = inner.indexOf('@');
+      if (at > 0 && at < inner.length - 1 && !/[\s<>]/.test(inner) && inner.indexOf('@', at + 1) < 0) return inner.toLowerCase();
+    }
+    for (const word of v.split(/[\s<>",;]+/)) {
+      const at = word.indexOf('@');
+      if (at > 0 && at < word.length - 1) return word.toLowerCase();
+    }
+    return '';
   };
 
   const desk = {

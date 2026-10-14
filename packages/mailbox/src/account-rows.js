@@ -42,9 +42,6 @@ export function isAddress(s) {
   return LOCAL.test(text.slice(0, at)) && isDomain(text.slice(at + 1));
 }
 
-/** Text that stands where an address goes (no spaces, an @ in it), so it may be shown back. Anything else is not. */
-const addressLike = (s) => /^[^\s@]+@\S+$/.test(String(s || '').trim());
-
 const HEADERS = {
   email: /^(e-?mail|e-?mail address|address|account|login|user ?name|username|user)$/i,
   password: /^(pass(word)?|pwd|app password|secret)$/i,
@@ -159,7 +156,7 @@ export function parseAccountRows(text) {
       };
       const email = get('email').trim();
       // A cell that is not address-like (columns out of step, a password where the address goes) is not shown back.
-      if (!addressLike(email)) row = { line: i + 1, email: '', password: '', unreadable: true };
+      if (!isAddress(email)) row = { line: i + 1, email: '', password: '', unreadable: true };
       else {
         row = { line: i + 1, email, password: get('password') };
         if (get('name')) row.name = get('name');
@@ -172,13 +169,13 @@ export function parseAccountRows(text) {
       const trimmed = line.trim();
       const quoted = /^"([^"]*)"\s*([\t,;:| ])\s*(.*)$/.exec(trimmed);
       const m = quoted || /^([^\s,;:|\t]+@[^\s,;:|\t]+?)(?:\s*([\t,;:|])\s*|\s+)(.*)$/.exec(trimmed);
-      if (m && addressLike(m[1])) {
+      if (m && isAddress(m[1])) {
         let password = m[3];
         // A password a spreadsheet quoted ("p,w") is the text inside its quotes.
         const q = /^"((?:[^"]|"")*)"$/.exec(password);
         if (q) password = q[1].replace(/""/g, '"');
         row = { line: i + 1, email: m[1].trim(), password };
-      } else if (addressLike(trimmed)) row = { line: i + 1, email: trimmed, password: '' };
+      } else if (isAddress(trimmed)) row = { line: i + 1, email: trimmed, password: '' };
       // Not an address and a password: its text is never shown back, only that line N could not be read.
       else row = { line: i + 1, email: '', password: '', unreadable: true };
     }

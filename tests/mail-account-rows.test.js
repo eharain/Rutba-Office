@@ -127,3 +127,12 @@ test('a failure is read from what the server said, and the server named from its
   assert.equal(serverSoftware('220 mx.example ESMTP Postfix'), 'Postfix');
   assert.equal(serverSoftware('* OK hello'), null);
 });
+
+test('a line whose address and password run together is never shown back, password and all', () => {
+  const { rows } = parseAccountRows(['ali@example.com=Secret123', 'bo@example.com', 'x@y=z;Pass word'].join('\n'));
+  assert.equal(rows[0].unreadable, true, 'address=password reads as unreadable, not as an address');
+  assert.equal(rows[0].email, '');
+  assert.ok(!JSON.stringify(rows).includes('Secret123'), 'the password is nowhere in what the dialog shows');
+  assert.equal(rows[1].email, 'bo@example.com', 'a plain address is still read');
+  assert.ok(!JSON.stringify(rows[2]).includes('x@y=z'), 'a malformed address before a separator is not shown either');
+});
