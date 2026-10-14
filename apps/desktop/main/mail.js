@@ -1535,6 +1535,32 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     exportHold: (args) => desk.exportHold(args),
     cancelExport: (args) => desk.cancelExport(args),
   });
+  // What the window read from an attachment when its message was opened (an
+  // invoice's details, read on the text recognition threads), kept with the
+  // message so opening it again reads nothing. An archive opened in place is
+  // never written to, and a signed or encrypted message's attachments are
+  // read from inside it each time: theirs are kept for this run only.
+  const readingsHeld = new Map();
+  const readingKey = ({ accountId, folder, id, index }) => `${accountId}\u0001${folder}\u0001${id}\u0001${index}`;
+  Object.assign(service, {
+    /** ({ accountId, folder, id, index }) -> the reading kept for that attachment, or null */
+    attachmentReading: (args = {}) => {
+      const held = readingsHeld.get(readingKey(args));
+      if (held) return held;
+      if (isArchive(args.accountId)) return null;
+      return store.get(args.accountId, args.folder, args.id)?.attachments?.[Number(args.index)]?.reading ?? null;
+    },
+    /** ({ accountId, folder, id, index, reading }) -> { kept: 'message' | 'run' } */
+    keepReading: (args = {}) => {
+      const reading = args.reading ?? null;
+      if (reading !== null && JSON.stringify(reading).length > 64 * 1024) throw new Error('That reading is too large to keep.');
+      const message = isArchive(args.accountId) ? null : store.get(args.accountId, args.folder, args.id);
+      if (message && !message.smime?.original && store.setAttachmentReading(args.accountId, args.folder, args.id, Number(args.index), reading)) return { kept: 'message' };
+      readingsHeld.set(readingKey(args), reading);
+      return { kept: 'run' };
+    },
+  });
+
   // Opened archives are indexed again a moment after start-up, in slices.
   setTimeout(() => desk.indexAll(), CHECK_RUN ? 0 : 2000).unref?.();
 

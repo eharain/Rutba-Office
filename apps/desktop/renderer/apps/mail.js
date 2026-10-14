@@ -27,6 +27,7 @@ import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
 import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags } from './mail/parts.js';
+import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import Reader from './mail/reader.js';
 import Compose from './mail/compose.js';
 import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog, JunkDialog } from './mail/dialogs.js';
@@ -321,6 +322,9 @@ export default function Mail({ app, shell }) {
       .catch((err) => toast(err.message, { tone: 'bad' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, smimeTick]);
+
+  // A PDF or picture attached to the message open, read as an invoice or a receipt now it is opened.
+  const attachmentNotes = useAttachmentNotes({ shell, where: selected, message });
 
   useEffect(() => {
     shell.mail.smimeIdentities().then(setIdentities).catch(() => {});
@@ -1750,6 +1754,7 @@ export default function Mail({ app, shell }) {
                       onNotJunk={() => act('notJunk')}
                       onSmimeImport={() => setDialog({ kind: 'certificates', start: 'import' })}
                       onCertificates={() => setDialog({ kind: 'certificates' })}
+                      notes={<AttachmentNotes shell={shell} where={selected} notes={attachmentNotes} />}
                     />
                   ) : (
                     <Empty icon="mail" title={t('No message selected')}>

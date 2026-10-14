@@ -6961,4 +6961,10 @@ export default {
   '{field} of row {row}': 'قطار {row} کا {field}',
   '{field}, where it was read': '{field}، جہاں سے پڑھا گیا',
   '{name}, page {page} of {count}': '{name}، صفحہ {page} از {count}',
+  'Due': 'واجب الادا',
+  'Looking for an invoice or a receipt in {name}…': '{name} میں انوائس یا رسید تلاش کی جا رہی ہے…',
+  'Receipt': 'رسید',
+  '{field}, where it was read in {name}': '{field}، جہاں سے {name} میں پڑھا گیا',
+  '{field}: show where it was read': '{field}: دکھائیں کہ کہاں سے پڑھا گیا',
+  '{field}: show where it was read. Check it against the attachment: the reading was not sure of it.': '{field}: دکھائیں کہ کہاں سے پڑھا گیا۔ اسے منسلکہ سے ملا کر دیکھیں: پڑھائی کو اس پر یقین نہیں تھا۔',
 };

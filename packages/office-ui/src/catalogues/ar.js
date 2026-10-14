@@ -6963,4 +6963,10 @@ export default {
   '{field} of row {row}': '{field} في الصف {row}',
   '{field}, where it was read': '{field}، حيث قُرئ',
   '{name}, page {page} of {count}': '{name}، الصفحة {page} من {count}',
+  'Due': 'الاستحقاق',
+  'Looking for an invoice or a receipt in {name}…': 'جارٍ البحث عن فاتورة أو إيصال في {name}…',
+  'Receipt': 'إيصال',
+  '{field}, where it was read in {name}': '{field}، حيث قُرئ في {name}',
+  '{field}: show where it was read': '{field}: إظهار مكان قراءته',
+  '{field}: show where it was read. Check it against the attachment: the reading was not sure of it.': '{field}: إظهار مكان قراءته. قارنه بالمرفق: لم تكن القراءة متأكدة منه.',
 };

@@ -156,6 +156,8 @@ export const METHODS = {
     'forgetAccountsJob', // ({ job }) -> { forgotten } rows still waiting for agreement forgotten, passwords and all
     'discoveryForTest', // ({ domain, found }) -> { staged } a domain whose records name servers elsewhere, for a check run; refused otherwise
     'attachmentText', // ({ accountId, folder, id, index }) -> { name, type, text }
+    'attachmentReading', // ({ accountId, folder, id, index }) -> reading | null: what was read from an attachment (an invoice's details) when its message was opened
+    'keepReading', // ({ accountId, folder, id, index, reading }) -> { kept: 'message' | 'run' }: kept with the message, so it is not read again
     'folders',      // ({ accountId }) -> [folder]
     'sync',         // ({ accountId, folder, limit }) -> { added, total }
     'messages',     // ({ accountId, folder, offset, limit, query }) -> { rows, total }

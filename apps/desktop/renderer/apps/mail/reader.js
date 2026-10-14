@@ -34,6 +34,7 @@ export default function Reader({
   onNotJunk,
   onSmimeImport,
   onCertificates,
+  notes = null,
 }) {
   const frameRef = useRef(null);
   const [height, setHeight] = useState(600);
@@ -154,6 +155,8 @@ export default function Reader({
             ) : null}
           </div>
         ) : null}
+        {/* An attached invoice's or receipt's details, read when the message is opened (docnote.js). */}
+        {notes}
 
         {/*
           One strip, three facts: whether anyone is watching, whether the sender

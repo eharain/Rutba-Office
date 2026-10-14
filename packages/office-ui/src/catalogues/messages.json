@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6953,
+  "count": 6959,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -6875,6 +6875,7 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/mail/smime.js",
         "apps/desktop/renderer/apps/sheets.js",
@@ -10473,6 +10474,12 @@
       ]
     },
     {
+      "message": "Due",
+      "where": [
+        "apps/desktop/renderer/apps/mail/docnote.js"
+      ]
+    },
+    {
       "message": "Duplicate",
       "where": [
         "apps/desktop/renderer/apps/image.js",
@@ -13538,6 +13545,7 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js",
+        "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides/setup.js"
       ]
@@ -16769,6 +16777,7 @@
     {
       "message": "Invoice",
       "where": [
+        "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/registry-words.js",
         "apps/desktop/renderer/template-gallery.js"
       ]
@@ -18582,6 +18591,12 @@
       "message": "Looking for a newer release…",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Looking for an invoice or a receipt in {name}…",
+      "where": [
+        "apps/desktop/renderer/apps/mail/docnote.js"
       ]
     },
     {
@@ -22396,6 +22411,7 @@
       "message": "Number",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -26141,6 +26157,12 @@
       "message": "Real formulas, real recalculation",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Receipt",
+      "where": [
+        "apps/desktop/renderer/apps/mail/docnote.js"
       ]
     },
     {
@@ -34075,7 +34097,8 @@
     {
       "message": "That attachment is not stored.",
       "where": [
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/docnote.js"
       ]
     },
     {
@@ -37434,6 +37457,7 @@
     {
       "message": "Total",
       "where": [
+        "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -43157,6 +43181,24 @@
       "message": "{field}, where it was read",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
+      "message": "{field}, where it was read in {name}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/docnote.js"
+      ]
+    },
+    {
+      "message": "{field}: show where it was read",
+      "where": [
+        "apps/desktop/renderer/apps/mail/docnote.js"
+      ]
+    },
+    {
+      "message": "{field}: show where it was read. Check it against the attachment: the reading was not sure of it.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/docnote.js"
       ]
     },
     {

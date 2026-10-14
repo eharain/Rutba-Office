@@ -6963,4 +6963,10 @@ export default {
   '{field} of row {row}': 'पंक्ति {row} का {field}',
   '{field}, where it was read': '{field}, जहाँ से पढ़ा गया',
   '{name}, page {page} of {count}': '{name}, पृष्ठ {page} / {count}',
+  'Due': 'देय',
+  'Looking for an invoice or a receipt in {name}…': '{name} में बीजक या रसीद खोजी जा रही है…',
+  'Receipt': 'रसीद',
+  '{field}, where it was read in {name}': '{field}, जहाँ से {name} में पढ़ा गया',
+  '{field}: show where it was read': '{field}: दिखाएँ कि कहाँ से पढ़ा गया',
+  '{field}: show where it was read. Check it against the attachment: the reading was not sure of it.': '{field}: दिखाएँ कि कहाँ से पढ़ा गया। इसे अनुलग्नक से मिलाकर देखें: पढ़ाई को इस पर भरोसा नहीं था।',
 };
