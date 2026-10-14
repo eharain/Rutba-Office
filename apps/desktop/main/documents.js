@@ -85,6 +85,7 @@ import { collectPasswordHashes, rememberPasswordHash, offerPasswordSalt, newPass
 import { passwordHost } from './password-host.js';
 import { randomBytes } from 'node:crypto';
 import { readZip } from '@rutba/ooxml/zip';
+import { redactAction, inspectAction } from './review-tools.js';
 import { createProofing } from './proofing.js';
 import { TEMPLATES as GALLERY, CATEGORIES as GALLERY_CATEGORIES, templateById, templateForLegacy, readTemplate, thumbPath } from '@rutba/templates';
 
@@ -3315,6 +3316,23 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
 
 
     meta: ({ id }) => get(id).meta(),
+
+    /** Redact: what the marks find across the file, or the redacted copy written and read back (review-tools.js). */
+    redact: (args) => redactAction(get(args.id), args, { writeWhole: (target, bytes) => writing(target, () => writeWhole(target, bytes)) }),
+
+    /**
+     * Inspect: what the file holds, kind by kind; or kinds removed from the
+     * open document, which is then reopened from its package as it now is
+     * (as in Office, not a step Undo takes back).
+     */
+    inspect: (args) => inspectAction(get(args.id), args, {
+      reload: (session, bytes) => {
+        session.engine = engineFor(session.kind, bytes);
+        session.dirty = true;
+        session.version++;
+        session.lastBlocks = null;
+      },
+    }),
 
     /**
      * File → Info → Protect → Encrypt with Password: from the next save on,

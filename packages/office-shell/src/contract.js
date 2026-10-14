@@ -134,6 +134,8 @@ export const METHODS = {
     'photoAlbum',   // ({ files, perSlide, captions, title, subtitle }) -> { id, name, slides } — Insert → Photo Album, a new deck for a window to adopt
     'compare',      // ({ original, revised, author }) -> { id, name, changes } — Review → Compare, a new document with the changes marked, for a window to adopt
     'objectFile',   // ({ id, part }) -> { path } — Insert → Object, double-clicked: the embedded document written to a file for its app to open
+    'redact',       // ({ id, action: 'scan' | 'apply', marks, pictures, path }) -> { total, parts, words } | { path, total, parts, checked }, Redact: what the marks find, or the redacted copy saved and read back
+    'inspect',      // ({ id, action: 'check' | 'remove', ids }) -> { kind, items, removed? }, File → Info → Check for Issues → Inspect
     'mailMerge',    // ({ id, action, ... }) -> Mailings: records, attach, sheets, attachContacts, createList, errors, finish, messages
     'proof',        // ({ id, action, ... }) -> Review: accessibility, spellStart, spellNext, spellCheckWord, ignoreAll, addWord, dictionary, options
   ],

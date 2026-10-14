@@ -135,6 +135,8 @@ import { verifyDeckRtl } from './verify-deck-rtl.js';
 import { verifyDeckZoom } from './verify-deck-zoom.js';
 import { verifyWordCompare } from './verify-word-compare.js';
 import { verifyWordForms } from './verify-word-forms.js';
+import { verifyWordRedact } from './verify-word-redact.js';
+import { verifyInspect } from './verify-inspect.js';
 import { verifyDeckObject } from './verify-deck-object.js';
 import { verifyWordObject } from './verify-word-object.js';
 import { verifyWordSplit } from './verify-word-split.js';
@@ -4898,6 +4900,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('deckzoom')) await verifyDeckZoom({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('wordcompare')) await verifyWordCompare({ open, check, until, wait, doc }, { dir });
     if (only.includes('word-forms')) await verifyWordForms({ open, check, until, wait, capture: shotTo, doc }, { dir });
+    if (only.includes('word-redact')) await verifyWordRedact({ open, check, until, wait, capture: shotTo, doc }, { dir });
+    if (only.includes('inspect')) await verifyInspect({ open, check, until, wait, capture: shotTo, doc }, { dir });
     if (only.includes('deckobject')) await verifyDeckObject({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('wordobject')) await verifyWordObject({ open, check, until, wait, doc }, { dir });
     if (only.includes('wordsplit')) await verifyWordSplit({ open, check, until, wait, doc, sessionFor }, { dir });
@@ -5208,6 +5212,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckZoom({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyWordCompare({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyWordForms({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await block(() => verifyWordRedact({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await block(() => verifyInspect({ open, check, until, wait, capture: shotTo, doc }, { dir }));
   await block(() => verifyDeckObject({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyWordObject({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyWordSplit({ open, check, until, wait, doc, sessionFor }, { dir }));

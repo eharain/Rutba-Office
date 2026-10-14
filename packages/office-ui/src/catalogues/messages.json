@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6653,
+  "count": 6760,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -231,9 +231,21 @@
       ]
     },
     {
+      "message": "\"{pattern}\" is not a pattern Redact knows.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "\"{ref}\" is not a reference, such as Sheet1!$A$1:$C$5.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "\"{regex}\" is not a pattern that can be searched for.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -1134,6 +1146,12 @@
       ]
     },
     {
+      "message": "A pattern of your own, such as INV-\\d{4}",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "A percentage",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js"
@@ -1824,6 +1842,7 @@
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/redact.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -2783,6 +2802,12 @@
       ]
     },
     {
+      "message": "All items were removed.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "All mail",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -3283,7 +3308,8 @@
       "message": "Apply Redactions",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js",
-        "apps/desktop/renderer/apps/pdf/redact.js"
+        "apps/desktop/renderer/apps/pdf/redact.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -3356,6 +3382,12 @@
       "message": "Applying removes the words and pictures under the marks from the pages for good, and fills each mark black. Comments and links over a mark go too.",
       "where": [
         "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
+      "message": "Applying…",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -3448,6 +3480,12 @@
       "message": "Area of Circle",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Area of {picture}",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -4251,6 +4289,12 @@
       ]
     },
     {
+      "message": "Before sharing this file, check it for content you may not want others to see: comments, changes, hidden words and personal information.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
       "message": "Behind text",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -4479,7 +4523,8 @@
     {
       "message": "Body",
       "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -5414,6 +5459,12 @@
       ]
     },
     {
+      "message": "Card numbers",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "Career",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
@@ -5554,7 +5605,8 @@
     {
       "message": "Cells",
       "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -5762,7 +5814,8 @@
     {
       "message": "Charts",
       "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -5788,6 +5841,7 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -5858,6 +5912,12 @@
       ]
     },
     {
+      "message": "Check for Issues",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
       "message": "Check for Updates",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -5898,6 +5958,18 @@
       "plural": "Check the data before it goes in: {count} cells the reading was unsure of are marked.",
       "where": [
         "apps/desktop/renderer/apps/sheets/picture-data.js"
+      ]
+    },
+    {
+      "message": "Check the document for content that people with disabilities might find difficult to read.",
+      "where": [
+        "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Check the document for hidden properties or personal information.",
+      "where": [
+        "apps/desktop/renderer/apps/word.js"
       ]
     },
     {
@@ -6635,6 +6707,7 @@
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/dav-accounts.js",
         "apps/desktop/renderer/defaults.js",
+        "apps/desktop/renderer/inspect.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/whatsnew.js",
         "packages/office-ui/src/index.js"
@@ -7137,6 +7210,8 @@
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/restrict.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/inspect.js",
+        "apps/desktop/renderer/redact.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -8216,6 +8291,18 @@
       "message": "Custom Views — {why}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Custom XML",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Custom XML Data",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -9611,6 +9698,12 @@
       ]
     },
     {
+      "message": "Document",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "Document Formatting",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -9620,6 +9713,30 @@
       "message": "Document Information",
       "where": [
         "apps/desktop/renderer/apps/word/references-figures.js"
+      ]
+    },
+    {
+      "message": "Document Inspector",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Document Inspector: Presentation",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Document Inspector: Workbook",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Document Properties",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -9677,6 +9794,12 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Done Marking Areas",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -9879,6 +10002,12 @@
       "message": "Drag on the sheet to move; the handles resize and turn.",
       "where": [
         "apps/desktop/renderer/apps/sheets/objects.js"
+      ]
+    },
+    {
+      "message": "Drag over a picture to mark the part to black out. Escape when done.",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -10195,6 +10324,12 @@
       "message": "E-mail Messages",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "E-mail addresses",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -10693,6 +10828,18 @@
       "message": "Email, a small MP4",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "Embedded Documents",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Embedded files",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -12146,6 +12293,12 @@
       ]
     },
     {
+      "message": "Find words to mark",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "Find — words on every slide, walked one hit at a time (Ctrl+F)",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -12672,7 +12825,8 @@
     {
       "message": "Footers",
       "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -14087,6 +14241,18 @@
       ]
     },
     {
+      "message": "Headers",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Headers, Footers, and Watermarks",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "Heading",
       "where": [
         "apps/desktop/renderer/apps/slides/design.js"
@@ -14245,6 +14411,30 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Hidden Names",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Hidden Rows and Columns",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Hidden Text",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Hidden Worksheets",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -15314,7 +15504,8 @@
       "message": "Ink",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -15914,9 +16105,136 @@
       ]
     },
     {
+      "message": "Inspect",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspect Document",
+      "where": [
+        "apps/desktop/renderer/apps/word.js",
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Inspect Presentation",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Inspect Workbook",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Inspect works on a document, a workbook or a presentation.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Inspecting…",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "Inspection Results",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Inspects for comments and notes.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for custom XML data stored with the file.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for defined names that are hidden.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for documents embedded in the file, which may hold information that is not shown.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for hidden rows and columns, which may hold data.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for information in headers, footers and watermarks.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for ink drawn on the file.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for objects formatted as invisible.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for objects off the edge of the slide.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for text formatted as hidden.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for the author, the last person to save, the company and the names of reviewers and commenters.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for the title, subject, keywords and properties of the file's own.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for tracked changes. Removing them accepts them.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for words in the speaker notes.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "Inspects for worksheets that are hidden.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -16063,6 +16381,12 @@
       "message": "Invert: the colours turned to their opposites",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Invisible Content",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -17534,7 +17858,8 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -18170,7 +18495,8 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/word/references-index.js",
-        "apps/desktop/renderer/apps/word/references-toa.js"
+        "apps/desktop/renderer/apps/word/references-toa.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -18189,7 +18515,8 @@
       "message": "Mark All",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js",
-        "apps/desktop/renderer/apps/word/references-toa.js"
+        "apps/desktop/renderer/apps/word/references-toa.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -18297,6 +18624,12 @@
       ]
     },
     {
+      "message": "Mark Selection",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "Mark Text",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -18312,6 +18645,24 @@
       "message": "Mark all read",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Mark an area of a picture on the page",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Mark an area of a picture on the sheet",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Mark an area of a picture on the slide",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -18354,6 +18705,12 @@
       "message": "Mark unread",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Mark what must not be read. The marks show as you go; Apply saves a copy with them taken out of every part of the file, black bars in their place.",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -18462,6 +18819,12 @@
       ]
     },
     {
+      "message": "Masters and layouts",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "Match \"{column}\" with a column of {source}",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -18489,7 +18852,8 @@
       "message": "Match case",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
-        "apps/desktop/renderer/apps/word/dialogs.js"
+        "apps/desktop/renderer/apps/word/dialogs.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -20577,6 +20941,12 @@
       ]
     },
     {
+      "message": "No items were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "No language matches.",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -21209,7 +21579,8 @@
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -21355,6 +21726,12 @@
       "message": "Nothing is marked for redaction yet. Mark words, an area or the matches of a search first.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Nothing is marked yet.",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -21674,6 +22051,12 @@
       "message": "Off Axis 1: Right",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Off-Slide Content",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -22144,6 +22527,12 @@
       ]
     },
     {
+      "message": "Open the Copy",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "Open where it is",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -22440,6 +22829,12 @@
       "message": "Other Sound…",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Other parts",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -23105,6 +23500,18 @@
       ]
     },
     {
+      "message": "Pattern: {pattern}",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Patterns",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "Pause",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
@@ -23259,6 +23666,12 @@
       "message": "Personal",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "Personal Information",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -23472,6 +23885,7 @@
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/redact.js",
         "apps/desktop/renderer/registry-words.js"
       ]
     },
@@ -23693,7 +24107,8 @@
     {
       "message": "Placeholders",
       "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -24012,13 +24427,20 @@
       "message": "Presentation",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
-        "apps/desktop/renderer/apps/slides/export-video.js"
+        "apps/desktop/renderer/apps/slides/export-video.js",
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
       "message": "Presentation (.pptx)",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Presentation Notes",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -24507,7 +24929,8 @@
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/protect.js"
+        "apps/desktop/renderer/protect.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -24966,6 +25389,12 @@
       "message": "Read aloud",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Read back: none of the marked words is left in any part of the copy.",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -25435,7 +25864,28 @@
     {
       "message": "Redact",
       "where": [
-        "apps/desktop/renderer/apps/pdf/index.js"
+        "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/word.js",
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Redact: mark words and areas of pictures to take out of a copy of the file",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Redacted copy",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Redacted copy saved: {count} item taken away.",
+      "plural": "Redacted copy saved: {count} items taken away.",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -25657,6 +26107,12 @@
       ]
     },
     {
+      "message": "Reinspect",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "Reject",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -25747,7 +26203,8 @@
     {
       "message": "Remove All",
       "where": [
-        "apps/desktop/renderer/apps/sheets/dialogs.js"
+        "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -25927,6 +26384,12 @@
       "message": "Remove this level",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Remove this mark",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -26664,6 +27127,12 @@
       ]
     },
     {
+      "message": "Review the inspection results.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "Review → Show Comments lists them",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -26679,6 +27148,12 @@
       "message": "Revised document",
       "where": [
         "apps/desktop/renderer/apps/word/compare.js"
+      ]
+    },
+    {
+      "message": "Revisions",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -27768,6 +28243,12 @@
       ]
     },
     {
+      "message": "Save the redacted copy as",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "Save the smaller PDF as",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -27789,6 +28270,12 @@
       "message": "Save: the picture with its layers, as a project (.rimg) to edit again (Ctrl+S)",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Saved a redacted copy as {name}: {count} taken away.",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -28597,6 +29084,12 @@
       "message": "Select the words to keep first.",
       "where": [
         "apps/desktop/renderer/apps/word/blocks.js"
+      ]
+    },
+    {
+      "message": "Select the words to mark first.",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -29718,6 +30211,12 @@
       ]
     },
     {
+      "message": "Show in Folder",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "Show in folder",
       "where": [
         "apps/desktop/renderer/apps/home.js",
@@ -30355,7 +30854,8 @@
       "where": [
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/slides/slide-size.js"
+        "apps/desktop/renderer/apps/slides/slide-size.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -30608,6 +31108,12 @@
       "message": "Solid fills, fine lines, no shadows",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Some removed content cannot be put back with Undo. Save a copy first if you may want it again.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -32256,6 +32762,12 @@
       ]
     },
     {
+      "message": "Telephone numbers",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "Teleprompter",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js"
@@ -32832,6 +33344,12 @@
       "message": "That picture is no longer in the document.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "That picture is no longer in the file.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -33755,6 +34273,24 @@
       ]
     },
     {
+      "message": "The redacted copy is saved as a new file: choose another name, so the original is kept.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The redacted copy needs a name to be saved under.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The redacted copy still holds marked words in {parts}; it was not finished.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The redactions could not be applied: {reason}",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -34093,6 +34629,12 @@
       "where": [
         "apps/desktop/renderer/apps/pdf/ocr.js",
         "apps/desktop/renderer/ocr-ui.js"
+      ]
+    },
+    {
+      "message": "The words are taken out of the body, headers and footers, notes, comments, tracked changes, fields, alt text and the file's properties; the open file is left as it is.",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -35420,6 +35962,12 @@
       ]
     },
     {
+      "message": "Thumbnail",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "Thumbnails",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -35647,6 +36195,12 @@
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "To check the {noun} for the content selected, click Inspect.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -37853,6 +38407,12 @@
       ]
     },
     {
+      "message": "Whole words only",
+      "where": [
+        "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
       "message": "Why fix:",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -38133,6 +38693,13 @@
       "message": "Work backwards: name a formula cell, the answer you want from it, and the cell that may change to get there.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Workbook",
+      "where": [
+        "apps/desktop/renderer/inspect.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -39578,7 +40145,8 @@
     {
       "message": "picture",
       "where": [
-        "apps/desktop/renderer/apps/word/drawings.js"
+        "apps/desktop/renderer/apps/word/drawings.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -40584,6 +41152,13 @@
       ]
     },
     {
+      "message": "{count} comment was found.",
+      "plural": "{count} comments were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "{count} contact",
       "plural": "{count} contacts",
       "where": [
@@ -40612,6 +41187,13 @@
       ]
     },
     {
+      "message": "{count} custom XML part was found.",
+      "plural": "{count} custom XML parts were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "{count} data file",
       "plural": "{count} data files",
       "where": [
@@ -40630,6 +41212,13 @@
       "plural": "{count} edits",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "{count} embedded document was found. Delete it from the file to remove it.",
+      "plural": "{count} embedded documents were found. Delete them from the file to remove them.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -40757,7 +41346,8 @@
       "message": "{count} found",
       "plural": "{count} found",
       "where": [
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -40773,6 +41363,48 @@
       "where": [
         "apps/desktop/renderer/apps/slides/comments.js",
         "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "{count} header or footer was found.",
+      "plural": "{count} headers or footers were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "{count} hidden name was found.",
+      "plural": "{count} hidden names were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "{count} hidden row or column was found.",
+      "plural": "{count} hidden rows or columns were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "{count} hidden worksheet was found.",
+      "plural": "{count} hidden worksheets were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "{count} ink drawing was found.",
+      "plural": "{count} ink drawings were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
+      "message": "{count} invisible object was found.",
+      "plural": "{count} invisible objects were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -40815,6 +41447,13 @@
       "plural": "{count} mailboxes and archives",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "{count} mark",
+      "plural": "{count} marks",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {
@@ -40876,6 +41515,13 @@
       ]
     },
     {
+      "message": "{count} name or detail was found.",
+      "plural": "{count} names or details were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "{count} new message",
       "plural": "{count} new messages",
       "where": [
@@ -40887,6 +41533,13 @@
       "plural": "{count} notes",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "{count} object is off the slide.",
+      "plural": "{count} objects are off the slide.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -41023,6 +41676,13 @@
       ]
     },
     {
+      "message": "{count} piece of hidden text was found.",
+      "plural": "{count} pieces of hidden text were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "{count} piece of metadata",
       "plural": "{count} pieces of metadata",
       "where": [
@@ -41034,6 +41694,13 @@
       "plural": "{count} possible duplicates shaded",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "{count} property was found.",
+      "plural": "{count} properties were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -41207,6 +41874,13 @@
       ]
     },
     {
+      "message": "{count} slide has notes.",
+      "plural": "{count} slides have notes.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
+      ]
+    },
+    {
       "message": "{count} slide is different since this deck was last open here (last saved by {person}) — Review → Show Changes lists them.",
       "plural": "{count} slides are different since this deck was last open here (last saved by {person}) — Review → Show Changes lists them.",
       "where": [
@@ -41232,6 +41906,13 @@
       "plural": "{count} takes",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "{count} tracked change was found.",
+      "plural": "{count} tracked changes were found.",
+      "where": [
+        "apps/desktop/renderer/inspect.js"
       ]
     },
     {
@@ -41507,6 +42188,12 @@
       "message": "{name} (dark)",
       "where": [
         "apps/desktop/renderer/apps/slides/design.js"
+      ]
+    },
+    {
+      "message": "{name} (redacted)",
+      "where": [
+        "apps/desktop/renderer/redact.js"
       ]
     },
     {

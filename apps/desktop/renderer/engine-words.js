@@ -208,6 +208,14 @@ export const ENGINE_WORDS = [
   msg('"{value}" is not one of the list\'s entries.'),
   msg('A date is written yyyy-mm-dd.'),
   msg('This form field is not enabled for filling in.'),
+  // packages/ooxml/src/redact-match.js, inspect.js and apps/desktop/main/review-tools.js
+  msg('"{pattern}" is not a pattern Redact knows.'),
+  msg('"{regex}" is not a pattern that can be searched for.'),
+  msg('The redacted copy needs a name to be saved under.'),
+  msg('The redacted copy is saved as a new file: choose another name, so the original is kept.'),
+  msg('That picture is no longer in the file.'),
+  msg('The redacted copy still holds marked words in {parts}; it was not finished.'),
+  msg('Inspect works on a document, a workbook or a presentation.'),
   // packages/ooxml/src/mailmerge.js
   msg('A bookmark needs a name that starts with a letter'),
   // packages/pdf/src/document.js

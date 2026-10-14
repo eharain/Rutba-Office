@@ -141,7 +141,7 @@ const styleName = (s) => String(s.name || s.id).replace(/(^|\s)\p{Ll}/gu, (m) =>
 
 export default function WordRibbon({
   tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null, blocks = null, table = null,
-  forms = null,
+  forms = null, redaction = null,
 }) {
   // Table Layout: an operation on the caret's table, and whether the selection runs across its cells.
   // A merge or a split while recording is asked about first, as Word asks (see untracked.js).
@@ -1121,6 +1121,7 @@ export default function WordRibbon({
           </Group>
           <Group label={t('Protect')}>
             <Button tall icon="lock" label={t('Restrict Editing')} pressed={Boolean(view.restrict)} title={model?.protection?.enforced ? t('Restrict Editing — the document is protected; the pane says what you may do and stops protection') : t('Restrict Editing — limit formatting and editing, with exceptions, and enforce it with an optional password')} onClick={() => act('restrictPane')} />
+            <Button tall icon="shield" label={t('Redact')} pressed={Boolean(redaction?.open)} title={t('Redact: mark words and areas of pictures to take out of a copy of the file')} onClick={() => redaction?.toggle()} />
           </Group>
         </>
       ) : null}

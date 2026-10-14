@@ -37,7 +37,10 @@
     "./labels": "./src/labels.js",
     "./protection": "./src/protection.js",
     "./blocks": "./src/blocks.js",
-    "./forms": "./src/forms.js"
+    "./forms": "./src/forms.js",
+    "./redact": "./src/redact.js",
+    "./redact-match": "./src/redact-match.js",
+    "./inspect": "./src/inspect.js"
   },
   "dependencies": {
     "@rutba/formula": "*"

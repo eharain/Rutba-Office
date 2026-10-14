@@ -222,7 +222,59 @@ function formatSize(n) {
  * `items`: [{ id, icon, label, detail, run }] — the Protect menu.
  * `notes`: sentences the card shows when something protects the file.
  */
-export function InfoDialog({ app, doc, size = null, items = [], notes = [], properties = [], onClose }) {
+/**
+ * A card of the Info page whose tile drops a menu: Check for Issues, with
+ * Inspect and Check Accessibility, as Office's Inspect card has it.
+ */
+function MenuCard({ id, icon, tile, heading, words, items }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const popRef = useRef(null);
+  const [at, setAt] = useState(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setAt({ left: r.left, top: r.bottom + 6 });
+  }, [open]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const off = (e) => { if (!ref.current?.contains(e.target) && !popRef.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', off, true);
+    return () => document.removeEventListener('mousedown', off, true);
+  }, [open]);
+  return (
+    <div className="pw-card" data-card={id}>
+      <div className="pw-card-tile-wrap" ref={ref}>
+        <button type="button" className={`pw-card-tile${open ? ' open' : ''}`} data-tip={tile} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          <Icon name={icon} size={26} />
+          <span>{tile}</span>
+          <Icon name="chevronDown" size={12} />
+        </button>
+        {open && at ? createPortal(
+          <div className="pw-menu" role="menu" ref={popRef} style={{ left: at.left, top: at.top }}>
+            <style>{PROTECT_CSS}</style>
+            {items.map((item) => (
+              <button key={item.id} type="button" role="menuitem" className="pw-menu-item" data-item={item.id} disabled={item.disabled} onClick={() => { setOpen(false); item.run(); }}>
+                <span className="pw-menu-icon"><Icon name={item.icon || 'find'} size={18} /></span>
+                <span className="pw-menu-words">
+                  <span className="pw-menu-label">{item.label}</span>
+                  {item.detail ? <span className="pw-menu-detail">{item.detail}</span> : null}
+                </span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        ) : null}
+      </div>
+      <div className="pw-card-words">
+        <h4>{heading}</h4>
+        <p>{words}</p>
+      </div>
+    </div>
+  );
+}
+
+export function InfoDialog({ app, doc, size = null, items = [], notes = [], properties = [], issues = [], onClose }) {
   const noun = NOUN[app] || 'document';
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
@@ -328,6 +380,16 @@ export function InfoDialog({ app, doc, size = null, items = [], notes = [], prop
                 )}
               </div>
             </div>
+            {issues.length ? (
+              <MenuCard
+                id="inspect"
+                icon="find"
+                tile={t('Check for Issues')}
+                heading={app === 'sheets' ? t('Inspect Workbook') : app === 'slides' ? t('Inspect Presentation') : t('Inspect Document')}
+                words={t('Before sharing this file, check it for content you may not want others to see: comments, changes, hidden words and personal information.')}
+                items={issues}
+              />
+            ) : null}
           </div>
           <aside className="pw-info-props">
             <h5>{t('Properties')}</h5>
@@ -429,7 +491,7 @@ export function EncryptDialog({ app, encrypted = false, onClose, onSet }) {
  * closes Info before it runs. Answers the app menu's Info entry, a way to
  * open Info, and the dialogs to render.
  */
-export function useProtection({ app, shell, doc, setDoc, toast, items = [], notes = [], properties = [] }) {
+export function useProtection({ app, shell, doc, setDoc, toast, items = [], notes = [], properties = [], issues = [] }) {
   const [view, setView] = useState(null);
   const [size, setSize] = useState(null);
   const noun = NOUN[app] || 'document';
@@ -469,7 +531,7 @@ export function useProtection({ app, shell, doc, setDoc, toast, items = [], note
   };
   const node =
     view === 'info' ? (
-      <InfoDialog app={app} doc={doc} size={size} items={menu} notes={notes} properties={properties} onClose={() => setView(null)} />
+      <InfoDialog app={app} doc={doc} size={size} items={menu} notes={notes} properties={properties} issues={issues.map((item) => ({ ...item, run: () => { setView(null); item.run(); } }))} onClose={() => setView(null)} />
     ) : view === 'encrypt' ? (
       <EncryptDialog app={app} encrypted={Boolean(doc?.encrypted)} onClose={() => setView('info')} onSet={setPassword} />
     ) : null;

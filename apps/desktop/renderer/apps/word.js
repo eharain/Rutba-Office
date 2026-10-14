@@ -42,6 +42,8 @@ import { useEnvelopesLabels, installEnvelopeStyles } from './word/envelopes.js';
 import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
 import { useWordReview } from './word/review.js';
 import { ControlRun, FormsContext, useWordForms } from './word/forms.js';
+import { useRedaction } from '../redact.js';
+import { InspectDialog } from '../inspect.js';
 import { LanguageDialog, PromptDialog } from '@rutba/office-ui/proofing';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog } from '../icons-insert.js';
@@ -329,8 +331,15 @@ export default function Word({ app, shell, boot }) {
   const placedCaret = useRef(null);
   const menu = useMenu();
   const openFileRef = useRef(null);
+  // File → Info → Check for Issues: the Document Inspector (inspect.js), and Check Accessibility.
+  const [inspecting, setInspecting] = useState(false);
+  const reviewRef = useRef(null);
   // File → Info: the Protect Document card and Encrypt with Password.
   const protection = useProtection({
+    issues: [
+      { id: 'inspect', icon: 'find', label: t('Inspect Document'), detail: t('Check the document for hidden properties or personal information.'), run: () => setInspecting(true) },
+      { id: 'a11y', icon: 'shield', label: t('Check Accessibility'), detail: t('Check the document for content that people with disabilities might find difficult to read.'), run: () => reviewRef.current?.openAccessibility?.() },
+    ],
     app: 'word',
     shell,
     doc,
@@ -2359,8 +2368,23 @@ export default function Word({ app, shell, boot }) {
   const mailings = useMailings({ shell, doc, model, apply, toast, extra: envelopes.extra });
   // Review → Check Accessibility and Spelling (word/review.js).
   const review = useWordReview({ shell, doc, model, apply, toast, pageRef, setPicked, view, patchView, menu });
+  reviewRef.current = review;
   // Developer → content controls and legacy form fields (word/forms.js).
   const forms = useWordForms({ shell, model, apply, toast, pageRef, view, patchView });
+  // Review → Redact (redact.js): the page's words and pictures as the marks find them.
+  const redactAdapter = useMemo(() => ({
+    pageRoot: () => pageRef.current,
+    selectionText: () => window.getSelection()?.toString() || '',
+    pictureEls: () => [...(pageRef.current?.querySelectorAll('img.wd-image') || [])],
+    pictureAt: (el) => {
+      const block = Number(el.closest('[data-block]')?.dataset.block);
+      const image = model?.blocks?.[block]?.images?.[Number(el.dataset.image)];
+      if (!image?.part || !image.href) return null;
+      return { part: image.part, href: image.href, type: image.href.slice(5, image.href.indexOf(';')), name: image.name || image.part.split('/').pop() };
+    },
+    version: model,
+  }), [model]);
+  const redaction = useRedaction({ app: 'word', shell, doc, toast, adapter: redactAdapter });
   // References → Citations & Bibliography (word/references.js).
   const references = useReferences({ shell, doc, model, apply, toast, layout: blockLayout, patchView });
   // Insert → Quick Parts: the building block galleries, kept by the suite.
@@ -2470,6 +2494,7 @@ export default function Word({ app, shell, boot }) {
           mailings={mailings}
           review={review}
           forms={forms}
+          redaction={redaction}
           references={references}
           blocks={blocks}
         />
@@ -2843,6 +2868,11 @@ export default function Word({ app, shell, boot }) {
           </div>
           {view.split ? <SplitPane pageRef={pageRef} version={model} onGo={(i) => act('goto', i)} onResize={(at) => patchView({ splitAt: Math.round(at * 100) / 100 })} /> : null}
           </div>
+          {redaction.pane ? (
+            <Panel right width={320} resizable title={t('Redact')} actions={<Button icon="close" title={t('Close the pane')} onClick={() => redaction.setOpen(false)} />}>
+              {redaction.pane}
+            </Panel>
+          ) : null}
           {review.pane ? (
             <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title={t('Close the pane')} onClick={review.close} />}>
               {review.paneNode}
@@ -3276,6 +3306,20 @@ export default function Word({ app, shell, boot }) {
       {envelopes.node}
       {review.dialogs}
       {forms.overlay}
+      {redaction.overlay}
+      {inspecting && doc ? (
+        <InspectDialog
+          app="word"
+          onClose={() => setInspecting(false)}
+          inspect={() => shell.doc.inspect({ id: doc.id, action: 'check' })}
+          remove={async (ids) => {
+            const r = await shell.doc.inspect({ id: doc.id, action: 'remove', ids });
+            setModel(await shell.doc.model({ id: doc.id }));
+            setDoc(await shell.doc.meta({ id: doc.id }));
+            return r;
+          }}
+        />
+      ) : null}
       {references.node}
       {blocks.node ? <><style>{BLOCKS_CSS}</style>{blocks.node}</> : null}
 
