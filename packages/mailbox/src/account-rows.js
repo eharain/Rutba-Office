@@ -34,6 +34,13 @@ export function isDomain(domain) {
   return labels.length >= 2 && labels.every((l) => LABEL.test(l)) && TOP.test(labels[labels.length - 1]);
 }
 
+/**
+ * Text that stands where an address goes, so it may be shown back to be put
+ * right (bo@northwind). Its domain may hold only what a host name can, so a
+ * password run on after it (ali@example.com=Secret123) never reads as one.
+ */
+const addressLike = (s) => /^[^\s@]+@[A-Za-z0-9.-]+$/.test(String(s || '').trim());
+
 /** Is this text an email address. */
 export function isAddress(s) {
   const text = String(s || '').trim();
@@ -156,7 +163,7 @@ export function parseAccountRows(text) {
       };
       const email = get('email').trim();
       // A cell that is not address-like (columns out of step, a password where the address goes) is not shown back.
-      if (!isAddress(email)) row = { line: i + 1, email: '', password: '', unreadable: true };
+      if (!addressLike(email)) row = { line: i + 1, email: '', password: '', unreadable: true };
       else {
         row = { line: i + 1, email, password: get('password') };
         if (get('name')) row.name = get('name');
@@ -169,13 +176,13 @@ export function parseAccountRows(text) {
       const trimmed = line.trim();
       const quoted = /^"([^"]*)"\s*([\t,;:| ])\s*(.*)$/.exec(trimmed);
       const m = quoted || /^([^\s,;:|\t]+@[^\s,;:|\t]+?)(?:\s*([\t,;:|])\s*|\s+)(.*)$/.exec(trimmed);
-      if (m && isAddress(m[1])) {
+      if (m && addressLike(m[1])) {
         let password = m[3];
         // A password a spreadsheet quoted ("p,w") is the text inside its quotes.
         const q = /^"((?:[^"]|"")*)"$/.exec(password);
         if (q) password = q[1].replace(/""/g, '"');
         row = { line: i + 1, email: m[1].trim(), password };
-      } else if (isAddress(trimmed)) row = { line: i + 1, email: trimmed, password: '' };
+      } else if (addressLike(trimmed)) row = { line: i + 1, email: trimmed, password: '' };
       // Not an address and a password: its text is never shown back, only that line N could not be read.
       else row = { line: i + 1, email: '', password: '', unreadable: true };
     }
