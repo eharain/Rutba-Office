@@ -271,3 +271,42 @@ test('invoiceNote: a letter that only names an invoice, with no total, number or
   assert.equal(read.kind, 'invoice', 'the word alone makes it look like one');
   assert.equal(invoiceNote(read), null);
 });
+
+test('on the pool, in every language read: a figure goes in unmarked only when it is right, and a page in Arabic-Indic digits gives none', async () => {
+  const { createOcrHost } = await import('@rutba/ocr');
+  const fs = await import('node:fs');
+  const host = createOcrHost({ threads: 3 });
+  const fixture = (name) => fs.readFileSync(new URL(`./fixtures/${name}`, import.meta.url));
+  const pages = [['receipt-ara', ['ara', 'eng']], ['receipt-urd', ['urd', 'eng']], ['receipt-hin', ['hin', 'eng']], ['receipt-chi_sim', ['chi_sim', 'eng']], ['receipt-jpn', ['jpn', 'eng']], ['receipt-ara-digits', ['ara', 'eng']]];
+  try {
+    const rows = await Promise.all(pages.map(async ([name, languages]) => {
+      const read = await host.recognize(fixture(`${name}.png`), { languages, document: true });
+      return { name, languages, row: documentRecord(read.document), truth: JSON.parse(fixture(`${name}.json`)).fields };
+    }));
+    for (const { name, row, truth } of rows) {
+      assert.equal(row.kind, 'receipt', `${name}: read as a receipt`);
+      for (const f of ['subtotal', 'tax', 'total']) {
+        // The promise the windows make: unmarked is right; anything wrong or missing is marked.
+        if (row.values[f] !== null && !row.check[f]) assert.equal(row.values[f], truth[f], `${name}: ${f} unmarked must be right`);
+        if (row.values[f] !== truth[f] && f === 'total') assert.equal(row.check.total, true, `${name}: a total wrong or missing is marked`);
+        if (row.values[f] !== null && row.values[f] !== truth[f]) assert.equal(row.check[f], true, `${name}: ${f} wrong is marked`);
+      }
+      if (row.values.date === null) assert.equal(row.check.date, true, `${name}: a date not read is marked`);
+      if (row.values.date !== null && !row.check.date) assert.equal(row.values.date, truth.date, `${name}: date`);
+    }
+    const by = Object.fromEntries(rows.map((r) => [r.name, r]));
+    // What is read now in Western digits (docs/OCR.md measures more): the totals of four of the five languages,
+    // and every receipt's number.
+    for (const name of ['receipt-ara', 'receipt-urd', 'receipt-hin', 'receipt-chi_sim']) assert.equal(by[name].row.values.total, by[name].truth.total, `${name}: total read`);
+    for (const name of ['receipt-ara', 'receipt-urd', 'receipt-hin', 'receipt-chi_sim', 'receipt-jpn']) assert.equal(by[name].row.values.number, by[name].truth.number, `${name}: number read`);
+    assert.equal(by['receipt-urd'].row.consistent, true, 'the Urdu receipt\'s sums agree, so its figures go in as read');
+    // Arabic-Indic digits are not read: no figure of that page is right, nothing is offered as sure, and the limit is said.
+    const digits = by['receipt-ara-digits'];
+    assert.equal(digits.row.consistent, false);
+    assert.ok(['subtotal', 'tax', 'total'].every((f) => digits.row.values[f] !== digits.truth[f]), 'no figure of it read');
+    assert.ok(['subtotal', 'tax', 'total'].every((f) => digits.row.values[f] === null || digits.row.check[f]), 'and none unmarked');
+    assert.deepEqual(ocrLimits(digits.languages), ['digits']);
+  } finally {
+    await host.stop();
+  }
+});

@@ -1,0 +1,55 @@
+{
+  "name": "receipt-hin",
+  "kind": "receipt",
+  "lang": "hin",
+  "layout": "receipt",
+  "font": "Nirmala UI",
+  "digits": "latin",
+  "fields": {
+    "supplier": "विद्या बुक डिपो",
+    "number": "584722",
+    "date": "2025-06-26",
+    "subtotal": 143.7,
+    "tax": 25.87,
+    "taxRate": 18,
+    "total": 169.57,
+    "currency": "INR"
+  },
+  "items": [
+    {
+      "description": "छपाई का कागज़",
+      "quantity": 3,
+      "unitPrice": 3.26,
+      "amount": 9.78
+    },
+    {
+      "description": "नेटवर्क केबल",
+      "quantity": 1,
+      "unitPrice": 30.53,
+      "amount": 30.53
+    },
+    {
+      "description": "टेबल लैंप",
+      "quantity": 1,
+      "unitPrice": 27.79,
+      "amount": 27.79
+    },
+    {
+      "description": "कॉपियाँ",
+      "quantity": 1,
+      "unitPrice": 17,
+      "amount": 17
+    },
+    {
+      "description": "फ़ाइलें",
+      "quantity": 4,
+      "unitPrice": 14.65,
+      "amount": 58.6
+    }
+  ],
+  "checkboxes": [],
+  "seed": 7402,
+  "dpi": 150,
+  "width": 473,
+  "height": 788
+}

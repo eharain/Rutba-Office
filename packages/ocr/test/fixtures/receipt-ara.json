@@ -1,0 +1,43 @@
+{
+  "name": "receipt-ara",
+  "kind": "receipt",
+  "lang": "ara",
+  "layout": "receipt",
+  "font": "Tahoma",
+  "digits": "latin",
+  "fields": {
+    "supplier": "شركة الأفق للقرطاسية",
+    "number": "935033",
+    "date": "2025-04-23",
+    "subtotal": 43.46,
+    "tax": 6.52,
+    "taxRate": 15,
+    "total": 49.98,
+    "currency": "AED"
+  },
+  "items": [
+    {
+      "description": "قهوة عربية",
+      "quantity": 4,
+      "unitPrice": 4.45,
+      "amount": 17.8
+    },
+    {
+      "description": "خدمة التوصيل",
+      "quantity": 1,
+      "unitPrice": 20.1,
+      "amount": 20.1
+    },
+    {
+      "description": "أقلام حبر",
+      "quantity": 1,
+      "unitPrice": 5.56,
+      "amount": 5.56
+    }
+  ],
+  "checkboxes": [],
+  "seed": 7201,
+  "dpi": 150,
+  "width": 473,
+  "height": 742
+}

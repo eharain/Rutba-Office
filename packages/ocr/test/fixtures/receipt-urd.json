@@ -1,0 +1,37 @@
+{
+  "name": "receipt-urd",
+  "kind": "receipt",
+  "lang": "urd",
+  "layout": "receipt",
+  "font": "Tahoma",
+  "digits": "latin",
+  "fields": {
+    "supplier": "کراچی پرنٹنگ پریس",
+    "number": "758615",
+    "date": "2025-05-08",
+    "subtotal": 24.15,
+    "tax": 4.11,
+    "taxRate": 17,
+    "total": 28.26,
+    "currency": "PKR"
+  },
+  "items": [
+    {
+      "description": "چائے کی پتی",
+      "quantity": 1,
+      "unitPrice": 13.77,
+      "amount": 13.77
+    },
+    {
+      "description": "بال پوائنٹ قلم",
+      "quantity": 1,
+      "unitPrice": 10.38,
+      "amount": 10.38
+    }
+  ],
+  "checkboxes": [],
+  "seed": 7301,
+  "dpi": 150,
+  "width": 473,
+  "height": 645
+}

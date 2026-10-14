@@ -1,0 +1,55 @@
+{
+  "name": "receipt-chi_sim",
+  "kind": "receipt",
+  "lang": "chi_sim",
+  "layout": "receipt",
+  "font": "Microsoft YaHei",
+  "digits": "latin",
+  "fields": {
+    "supplier": "新华文具店",
+    "number": "538131",
+    "date": "2026-12-22",
+    "subtotal": 110.31,
+    "tax": 9.93,
+    "taxRate": 9,
+    "total": 120.24,
+    "currency": "CNY"
+  },
+  "items": [
+    {
+      "description": "网线",
+      "quantity": 1,
+      "unitPrice": 39.36,
+      "amount": 39.36
+    },
+    {
+      "description": "台灯",
+      "quantity": 2,
+      "unitPrice": 6.14,
+      "amount": 12.28
+    },
+    {
+      "description": "茶叶",
+      "quantity": 3,
+      "unitPrice": 3.9,
+      "amount": 11.7
+    },
+    {
+      "description": "笔记本",
+      "quantity": 1,
+      "unitPrice": 38.18,
+      "amount": 38.18
+    },
+    {
+      "description": "文件夹",
+      "quantity": 3,
+      "unitPrice": 2.93,
+      "amount": 8.79
+    }
+  ],
+  "checkboxes": [],
+  "seed": 7501,
+  "dpi": 150,
+  "width": 473,
+  "height": 831
+}

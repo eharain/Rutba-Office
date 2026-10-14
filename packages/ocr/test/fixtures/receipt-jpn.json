@@ -1,0 +1,43 @@
+{
+  "name": "receipt-jpn",
+  "kind": "receipt",
+  "lang": "jpn",
+  "layout": "receipt",
+  "font": "Yu Gothic",
+  "digits": "latin",
+  "fields": {
+    "supplier": "東京電機商会",
+    "number": "479057",
+    "date": "2025-10-08",
+    "subtotal": 10550,
+    "tax": 844,
+    "taxRate": 8,
+    "total": 11394,
+    "currency": "JPY"
+  },
+  "items": [
+    {
+      "description": "緑茶",
+      "quantity": 3,
+      "unitPrice": 1900,
+      "amount": 5700
+    },
+    {
+      "description": "LANケーブル",
+      "quantity": 4,
+      "unitPrice": 1100,
+      "amount": 4400
+    },
+    {
+      "description": "ファイル",
+      "quantity": 1,
+      "unitPrice": 450,
+      "amount": 450
+    }
+  ],
+  "checkboxes": [],
+  "seed": 7601,
+  "dpi": 150,
+  "width": 473,
+  "height": 725
+}

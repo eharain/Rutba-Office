@@ -1,0 +1,49 @@
+{
+  "name": "receipt-ara-digits",
+  "kind": "receipt",
+  "lang": "ara",
+  "layout": "receipt",
+  "font": "Tahoma",
+  "digits": "arabic",
+  "fields": {
+    "supplier": "مطبعة الرياض الحديثة",
+    "number": "169748",
+    "date": "2025-03-25",
+    "subtotal": 185.38,
+    "tax": 9.27,
+    "taxRate": 5,
+    "total": 194.65,
+    "currency": "SAR"
+  },
+  "items": [
+    {
+      "description": "كابل شبكة",
+      "quantity": 2,
+      "unitPrice": 27.91,
+      "amount": 55.82
+    },
+    {
+      "description": "خدمة تنظيف",
+      "quantity": 1,
+      "unitPrice": 16.97,
+      "amount": 16.97
+    },
+    {
+      "description": "ورق طباعة",
+      "quantity": 1,
+      "unitPrice": 22.05,
+      "amount": 22.05
+    },
+    {
+      "description": "حبر أسود",
+      "quantity": 3,
+      "unitPrice": 30.18,
+      "amount": 90.54
+    }
+  ],
+  "checkboxes": [],
+  "seed": 7717,
+  "dpi": 150,
+  "width": 473,
+  "height": 788
+}
