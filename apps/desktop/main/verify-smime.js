@@ -6,22 +6,29 @@
 // password, and a stranger's from an authority nobody trusts. Into an account
 // of the check's own arrive: a message Amina signed, the same message with a
 // word changed after signing, one the stranger signed, and one Amina signed
-// and encrypted for the owner. In the window each says what it is: signed by
-// Amina, valid and unchanged; changed since it was signed; signed by someone
-// no authority here vouches for; encrypted, with no certificate here to open
-// it. The owner's .p12 is imported from that strip (a wrong password refused
-// in a sentence first), and the encrypted message then opens, its signature
-// checked inside. A new message to Amina, signed and encrypted, goes out: its
-// Sent copy opens with the owner's own certificate, and Amina's key opens
-// what was sent. Then the strip in Urdu, right to left. Everything the check
-// made is taken away at the end. Run alone with RUTBA_VERIFY_ONLY=smime.
+// and encrypted for the owner; and the hostile ones: Amina's signature on a
+// message from Bo, a second certificate for Amina's address from someone
+// else, and an encrypted message nobody signed whose HTML has a link and a
+// remote picture. In the window each says what it is: signed by Amina, valid
+// and unchanged; changed since it was signed; signed by someone no authority
+// here vouches for; signed by someone who is not the sender (not shown as
+// good); a certificate different from the one kept (held aside, not
+// swapped in, and the Certificates dialog asks); encrypted, with no
+// certificate here to open it. The owner's .p12 is imported from that strip
+// (a wrong password refused in a sentence first), the encrypted message then
+// opens, its signature checked inside, and the unsigned one opens as plain
+// text with nothing fetched. A new message to Amina, signed and encrypted,
+// is refused while it has a Bcc, then goes out: its Sent copy opens with the
+// owner's own certificate, and Amina's key opens what was sent. Then the strip
+// in Urdu, right to left. Everything the check made is taken away at the end.
+// Run alone with RUTBA_VERIFY_ONLY=smime.
 
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { protect, readSmime, certificate } from '@rutba/mailbox/smime';
-import { makeIdentities, makePkcs12 } from '../../../tests/fixtures/smime-keys.js';
+import { makeIdentities, makePkcs12, makeCertificate } from '../../../tests/fixtures/smime-keys.js';
 
 const PASSWORD = 'Harbour 2026';
 
@@ -30,6 +37,9 @@ const message = ({ from, to, subject, body }) =>
     `From: ${from.name} <${from.email}>\r\nTo: ${to.name} <${to.email}>\r\nSubject: ${subject}\r\nDate: ${new Date().toUTCString()}\r\nMessage-ID: <${crypto.randomUUID()}@check.example>\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 7bit\r\n\r\n${body}\r\n`,
     'latin1'
   );
+
+/** Would this document fetch anything: an http(s) address in a src, href or url(). */
+const fetchesRemote = (html) => /(?:src|href)\s*=\s*["']?https?:|url\(\s*["']?https?:/i.test(html);
 
 /** Files under `dir` named `name`, newest first. */
 function findFiles(dir, name, out = []) {
@@ -92,16 +102,24 @@ export async function verifySmime(h) {
     const altered = Buffer.from(protect(message({ from: people.amina, to: people.owner, subject: 'Harbour lease: altered copy', body: 'The rent is 900 a month.' }), { sign: { key: people.amina.key, cert: people.amina.cert } }).toString('latin1').replace('900 a month', '990 a month'), 'latin1');
     const stranger = protect(message({ from: people.stranger, to: people.owner, subject: 'An offer from an unknown signer', body: 'Sign here.' }), { sign: { key: people.stranger.key, cert: people.stranger.cert } });
     const sealed = protect(message({ from: people.amina, to: people.owner, subject: 'Harbour lease: the sealed terms', body: 'The sealed quartzberry terms: twelve months.' }), { sign: { key: people.amina.key, cert: people.amina.cert, chain: [people.ca.cert] }, encryptFor: [people.owner.cert, people.amina.cert] });
-    for (const raw of [signed, altered, stranger, sealed]) await mail('deliverTest', { accountId, folder: 'Inbox', raw: raw.toString('latin1') });
+    const fromBo = protect(message({ from: people.bo, to: people.owner, subject: 'Invoice from Bo, signed by Amina', body: 'Pay the new account.' }), { sign: { key: people.amina.key, cert: people.amina.cert, chain: [people.ca.cert] } });
+    // Someone else with a certificate for Amina's address (the authority fooled, or a key not hers).
+    const otherKeys = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const otherCert = makeCertificate({ subject: { cn: 'Amina Rahman', email: people.amina.email }, issuer: { cn: 'Rutba Check Authority Root', o: 'Rutba Check Authority' }, publicKey: otherKeys.publicKey, signingKey: people.ca.key, email: people.amina.email });
+    const secondKey = protect(message({ from: people.amina, to: people.owner, subject: 'Harbour lease: from a second key', body: 'Use my new certificate from now on.' }), { sign: { key: otherKeys.privateKey, cert: otherCert, chain: [people.ca.cert] } });
+    // Encrypted for the owner, signed by nobody, its HTML with a link and a remote picture (EFAIL's shape).
+    const unsignedHtml = Buffer.from(`From: ${people.amina.name} <${people.amina.email}>\r\nTo: ${people.owner.name} <${people.owner.email}>\r\nSubject: Harbour lease: unsigned and sealed\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>The unsigned quartzberry note.</p><p><a href="https://collector.example/?q=secret">Open</a><img src="https://collector.example/pixel.png"></p>\r\n`, 'latin1');
+    const unsignedSealed = protect(unsignedHtml, { encryptFor: [people.owner.cert] });
+    for (const raw of [signed, altered, stranger, sealed, fromBo, secondKey, unsignedSealed]) await mail('deliverTest', { accountId, folder: 'Inbox', raw: raw.toString('latin1') });
 
     await js(`(() => { const b = [...document.querySelectorAll('.ml-accounts button')].find((n) => n.textContent.trim().startsWith('Archive Owner')); b?.click(); return Boolean(b); })()`);
     const openSubject = (subject) => js(`(() => { const r = [...document.querySelectorAll('.ml-row .ml-subject')].find((n) => n.textContent.trim() === ${JSON.stringify(subject)}); r?.click(); return Boolean(r); })()`);
     const strip = (want) =>
       waitFor(async () => {
-        const s = await js(`(() => { const el = document.querySelector('.ml-smime'); return el ? { signed: el.dataset.signed, encrypted: el.dataset.encrypted, text: [...el.querySelectorAll('.ml-smime-text')].map((n) => n.textContent).join(' | '), note: el.querySelector('.ml-smime-note')?.textContent || '', head: document.querySelector('.ml-head h2')?.textContent || '', body: document.querySelector('.ml-body iframe')?.srcdoc || '' } : null; })()`);
+        const s = await js(`(() => { const el = document.querySelector('.ml-smime'); return el ? { signed: el.dataset.signed, encrypted: el.dataset.encrypted, tone: el.classList.contains('good') ? 'good' : el.classList.contains('bad') ? 'bad' : 'caution', text: [...el.querySelectorAll('.ml-smime-text')].map((n) => n.textContent).join(' | '), note: el.querySelector('.ml-smime-note')?.textContent || '', head: document.querySelector('.ml-head h2')?.textContent || '', body: document.querySelector('.ml-body iframe')?.srcdoc || '' } : null; })()`);
         return s && want(s) ? s : false;
       }, 'the S/MIME strip', 10000);
-    await until(() => js(`document.querySelectorAll('.ml-row').length >= 4`), 'the four messages', 10000).catch(() => {});
+    await until(() => js(`document.querySelectorAll('.ml-row').length >= 7`), 'the seven messages', 10000).catch(() => {});
 
     // Signed, valid, unchanged.
     await openSubject('Harbour lease: signed copy');
@@ -113,6 +131,26 @@ export async function verifySmime(h) {
     const details = await waitFor(() => js(`(() => { const d = document.querySelector('.ml-smime-details'); return d ? d.textContent : null; })()`), 'the certificate details', 4000);
     check('smime: its details name the issuer, the dates, the day it was signed and the authority it is trusted through', Boolean(details) && /Rutba Check Authority Root/.test(details) && /Trusted through/.test(details) && details.includes(String(new Date().getFullYear())) && !/\b2[1-9]\d\d\b/.test(details.replace(/Thumbprint.*/, '')), details);
     await shot(win, 'smime-1-signed-valid.png');
+
+    // Amina's good signature on a message from Bo: not shown as good, and her certificate not kept for Bo.
+    await openSubject('Invoice from Bo, signed by Amina');
+    const otherSender = await strip((s) => s.head.includes('Invoice from Bo'));
+    const boKept = (await mail('smimeCertificates'))['bo@contoso.example'];
+    check('smime: a good signature by someone other than the sender says so, is not shown as good, and keeps no certificate for the sender',
+      otherSender?.signed === 'other-sender' && otherSender.tone !== 'good' && /who is not the sender/.test(otherSender.text) && /amina@northwind\.example/.test(otherSender.text) && !boKept,
+      JSON.stringify(otherSender && { signed: otherSender.signed, tone: otherSender.tone, text: otherSender.text, boKept: Boolean(boKept) }));
+    await shot(win, 'smime-8-other-sender.png');
+
+    // A second certificate for Amina's address: held aside, the one kept stays, the strip says so.
+    const keptBefore = (await mail('smimeCertificates'))['amina@northwind.example']?.[0]?.thumbprint || null;
+    await openSubject('Harbour lease: from a second key');
+    const second = await strip((s) => s.head.includes('second key'));
+    const keptAfter = (await mail('smimeCertificates'))['amina@northwind.example']?.[0]?.thumbprint || null;
+    const held = (await mail('pendingCertificates'))['amina@northwind.example'];
+    check('smime: a different certificate for an address already kept is held aside, never swapped in, and the strip says so',
+      Boolean(second) && Boolean(keptBefore) && keptAfter === keptBefore && Boolean(held) && held.thumbprint !== keptBefore && second.tone !== 'good' && /is not the one kept for amina@northwind\.example before/.test(second.text),
+      JSON.stringify(second && { signed: second.signed, tone: second.tone, text: second.text, keptBefore, keptAfter, held: held?.thumbprint }));
+    await shot(win, 'smime-9-certificate-changed.png');
 
     // Changed after signing.
     await openSubject('Harbour lease: altered copy');
@@ -150,6 +188,13 @@ export async function verifySmime(h) {
     thumbprint = listed?.thumbprint || null;
     await shot(win, 'smime-4-certificates.png');
     check('smime: the right password imports the certificate, listed with its address, issuer and date', Boolean(listed) && /owner@example\.com/.test(listed.text) && /Rutba Check Authority Root/.test(listed.text), JSON.stringify(listed));
+    const asked = await waitFor(() => js(`(() => { const c = document.querySelector('.ml-cert.changed[data-email="amina@northwind.example"]'); return c ? { text: c.textContent, accept: Boolean(c.querySelector('.ml-cert-accept')), dismiss: Boolean(c.querySelector('.ml-cert-dismiss')) } : null; })()`), 'the changed certificate in the dialog', 4000);
+    await js(`document.querySelector('.ml-cert.changed[data-email="amina@northwind.example"] .ml-cert-dismiss')?.click(), 1`);
+    const cleared = await waitFor(() => js(`!document.querySelector('.ml-cert.changed')`), 'the held certificate dismissed', 4000);
+    const stillKept = (await mail('smimeCertificates'))['amina@northwind.example']?.[0]?.thumbprint || null;
+    check('smime: Certificates lists the certificate that changed, to use the new one or keep the old; keeping the old forgets the new',
+      Boolean(asked) && asked.accept && asked.dismiss && /Use it only if they told you it changed/.test(asked.text) && Boolean(cleared) && stillKept === keptBefore,
+      JSON.stringify({ asked, cleared, stillKept, keptBefore }));
     await js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Close')?.click(), 1`);
     await until(() => js(`!document.querySelector('.ml-cert-path')`), 'the dialog closed', 4000).catch(() => {});
 
@@ -159,6 +204,14 @@ export async function verifySmime(h) {
       Boolean(opened) && opened.signed === 'valid' && /Encrypted \(AES-256\), and opened with your certificate for owner@example\.com\./.test(opened.text) && /sealed quartzberry terms/.test(opened.body),
       JSON.stringify(opened && { signed: opened.signed, encrypted: opened.encrypted, text: opened.text }));
     await shot(win, 'smime-5-encrypted-opened.png');
+
+    // Encrypted but signed by nobody: plain text, no link, nothing fetched (EFAIL).
+    await openSubject('Harbour lease: unsigned and sealed');
+    const unsigned = await strip((s) => s.head.includes('unsigned and sealed') && s.encrypted === 'decrypted');
+    check('smime: an encrypted message nobody signed opens as plain text, with no link and nothing fetched, and says why',
+      Boolean(unsigned) && /unsigned quartzberry note/.test(unsigned.body) && /<pre class="plain">/.test(unsigned.body) && !/<a\b|<img\b/i.test(unsigned.body) && /shown as plain text/.test(unsigned.text) && !fetchesRemote(unsigned.body),
+      JSON.stringify(unsigned && { encrypted: unsigned.encrypted, signed: unsigned.signed, text: unsigned.text, body: unsigned.body.slice(-400) }));
+    await shot(win, 'smime-10-unsigned-plain.png');
 
     // A new message to Amina, signed and encrypted (her certificate was kept from her signed mail).
     await js(`window.rutbaOffice.store.set({ key: 'mail.undoSeconds', value: 0 }).then(() => 1)`);
@@ -179,6 +232,15 @@ export async function verifySmime(h) {
     await js(`document.querySelector('.ml-security-encrypt')?.click(), 1`);
     const toggles = await waitFor(() => js(`(() => { const s = document.querySelector('.ml-security-sign'); const e = document.querySelector('.ml-security-encrypt'); return s?.getAttribute('aria-pressed') === 'true' && e?.getAttribute('aria-pressed') === 'true' ? { who: document.querySelector('.ml-security-who')?.textContent || '' } : null; })()`), 'Sign and Encrypt pressed', 4000);
     await shot(win, 'smime-6-compose.png');
+    await js(`(() => { if ([...document.querySelectorAll('.rw-field label')].some((l) => l.textContent.trim() === 'Bcc')) return 1; [...document.querySelectorAll('.ml-linkchip')].find((b) => b.textContent.trim() === 'Cc / Bcc')?.click(); return 1; })()`);
+    await until(() => js(`[...document.querySelectorAll('.rw-field label')].some((l) => l.textContent.trim() === 'Bcc')`), 'the Bcc line', 4000).catch(() => {});
+    const bccSet = await setField('Bcc', people.bo.email);
+    await js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Send')?.click(), 1`);
+    const bccRefused = await waitFor(() => js(`[...document.querySelectorAll('.rw-toast')].map((n) => n.textContent).find((x) => /Bcc/.test(x)) || ''`), 'the Bcc refusal', 5000);
+    const stillOpen = await js(`Boolean(document.querySelector('.ml-to-row'))`);
+    check('smime: an encrypted message with a Bcc is refused, saying why, and the message stays open', /Encrypted mail is not sent to Bcc recipients/.test(bccRefused || '') && stillOpen, JSON.stringify({ bccSet, bccRefused, stillOpen }));
+    await shot(win, 'smime-11-bcc-refused.png');
+    await setField('Bcc', '');
     await js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Send')?.click(), 1`);
     const sentRow = await waitFor(async () => {
       const rows = (await mail('messages', { accountId, folder: 'Sent', limit: 50 })).rows;
@@ -194,7 +256,8 @@ export async function verifySmime(h) {
       Boolean(toggles) && sentView?.smime?.encrypted?.status === 'decrypted' && sentView?.smime?.signed?.status === 'valid' && asAmina?.encrypted?.status === 'decrypted' && asAmina?.signed?.status === 'valid' && asAmina?.signed?.signer?.email === 'owner@example.com',
       JSON.stringify({ toggles, sent: sentView?.smime && { signed: sentView.smime.signed?.status, encrypted: sentView.smime.encrypted?.status }, asAmina: asAmina && { encrypted: asAmina.encrypted?.status, signed: asAmina.signed?.status, by: asAmina.signed?.signer?.email }, original: Boolean(original) }));
 
-    const complaints = await errorsIn(win);
+    // Less the Bcc refusal the check itself provoked.
+    const complaints = (await errorsIn(win)).filter((c) => !/not sent to Bcc recipients/.test(c));
     check('smime: the window reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
 
     // The strip in Urdu, right to left.
@@ -203,7 +266,7 @@ export async function verifySmime(h) {
     const wjs = (code) => w.webContents.executeJavaScript(code);
     await until(() => wjs(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the Urdu window', 10000).catch(() => {});
     await wjs(`(() => { const b = [...document.querySelectorAll('.ml-accounts button')].find((n) => n.textContent.trim().startsWith('Archive Owner')); b?.click(); return Boolean(b); })()`);
-    await until(() => wjs(`document.querySelectorAll('.ml-row').length >= 4`), 'the messages in Urdu', 10000).catch(() => {});
+    await until(() => wjs(`document.querySelectorAll('.ml-row').length >= 7`), 'the messages in Urdu', 10000).catch(() => {});
     await wjs(`(() => { const r = [...document.querySelectorAll('.ml-row .ml-subject')].find((n) => n.textContent.trim() === 'Harbour lease: the sealed terms'); r?.click(); return Boolean(r); })()`);
     const urdu = await waitFor(async () => {
       const s = await wjs(`(() => { const el = document.querySelector('.ml-smime'); if (!el) return null; const r = (n) => n?.getBoundingClientRect(); const row = el.querySelector('.ml-smime-signed'); return { dir: document.documentElement.dir, encrypted: el.dataset.encrypted, signed: el.dataset.signed, text: el.textContent, iconRight: row ? r(row.querySelector('svg')).left > r(row.querySelector('.ml-smime-text')).left : false }; })()`);
@@ -220,7 +283,7 @@ export async function verifySmime(h) {
         await js(`window.rutbaOffice.store.set({ key: 'language', value: ${JSON.stringify(language ?? null)} }).then(() => 1)`).catch(() => {});
         await js(`window.rutbaOffice.store.set({ key: 'mail.undoSeconds', value: ${JSON.stringify(undo ?? 8)} }).then(() => 1)`).catch(() => {});
         if (thumbprint) await js(`window.rutbaOffice.mail.removeIdentity({ thumbprint: ${JSON.stringify(thumbprint)} })`).catch(() => {});
-        await js(`window.rutbaOffice.mail.forgetCertificates({ emails: ['amina@northwind.example', 'stranger@elsewhere.example', 'owner@example.com'] })`).catch(() => {});
+        await js(`window.rutbaOffice.mail.forgetCertificates({ emails: ['amina@northwind.example', 'stranger@elsewhere.example', 'owner@example.com', 'bo@contoso.example'] })`).catch(() => {});
         if (accountId) await js(`window.rutbaOffice.mail.removeAccount({ id: ${JSON.stringify(accountId)}, keepMail: false })`).catch(() => {});
       }
     } finally {

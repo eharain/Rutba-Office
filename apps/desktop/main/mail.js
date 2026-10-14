@@ -1199,7 +1199,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         const list = (v) => String(v || '').split(',').map((s) => (/<([^>]+)>/.exec(s)?.[1] || s).trim()).filter(Boolean);
         const recipients = [...list(draft.to), ...list(draft.cc), ...list(draft.bcc)];
         const raw = await composeRaw({ account, draft });
-        protectedRaw = smime.protectOutgoing(raw, { sign: Boolean(draft.smime.sign), encrypt: Boolean(draft.smime.encrypt), from: account.email, recipients });
+        protectedRaw = smime.protectOutgoing(raw, { sign: Boolean(draft.smime.sign), encrypt: Boolean(draft.smime.encrypt), from: account.email, recipients: [...list(draft.to), ...list(draft.cc)], bcc: list(draft.bcc) });
         draft = { ...draft, raw: protectedRaw, envelope: { from: account.email, to: recipients } };
       }
       const info = await transport.send({ account, credentials, draft });
@@ -1363,17 +1363,21 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
   const smime = createSmimeDesk({ stores, checkRun: CHECK_RUN });
   {
     const own = { message: service.message, attachment: service.attachment, attachmentText: service.attachmentText };
-    // The message inside a signed or encrypted one, read from the bytes it arrived as.
-    const viewOf = ({ accountId, folder, id }) => {
+    // The message inside a signed or encrypted one, read from the bytes it
+    // arrived as on the S/MIME thread (a message that cannot be read in its
+    // time is shown as it arrived, saying so).
+    const viewOf = async ({ accountId, folder, id }) => {
       const original = store.original(accountId, folder, id);
       return original ? smime.read(original) : null;
     };
     service.message = (args = {}) => {
       const message = own.message(args);
       if (!message?.smime?.original) return message;
-      const view = viewOf(args);
+      return viewOf(args).then((view) => withView(message, view, args));
+    };
+    const withView = (message, view, { accountId, folder, id }) => {
       if (!view) return message;
-      const { accountId, folder, id } = args;
+      if (!view.message) return { ...message, smime: view.smime };
       const inline = {};
       for (const a of view.message.attachments || []) {
         if (!a.inline || !a.bytes || !a.contentId) continue;
@@ -1389,23 +1393,20 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         smime: view.smime,
       };
     };
-    const innerAttachment = (args) => {
-      const record = store.get(args.accountId, args.folder, args.id);
-      if (!record?.smime?.original) return null;
-      return viewOf(args)?.message?.attachments?.[args.index] || false;
-    };
+    const isSmime = (args) => Boolean(store.get(args.accountId, args.folder, args.id)?.smime?.original);
+    const innerAttachment = async (args) => (await viewOf(args))?.message?.attachments?.[args.index] || null;
     service.attachment = (args = {}) => {
-      const a = innerAttachment(args);
-      if (a === null) return own.attachment(args);
-      if (!a?.bytes) return null;
-      const name = attachmentFileName(a.filename);
-      const bytes = Buffer.from(a.bytes);
-      return { ...holdBlob(bytes, a.type, name, { group: 'mail-attachment', generation: `${args.accountId}|${args.folder}|${args.id}|${args.index}` }), name, type: a.type, size: bytes.length };
+      if (!isSmime(args)) return own.attachment(args);
+      return innerAttachment(args).then((a) => {
+        if (!a?.bytes) return null;
+        const name = attachmentFileName(a.filename);
+        const bytes = Buffer.from(a.bytes);
+        return { ...holdBlob(bytes, a.type, name, { group: 'mail-attachment', generation: `${args.accountId}|${args.folder}|${args.id}|${args.index}` }), name, type: a.type, size: bytes.length };
+      });
     };
     service.attachmentText = (args = {}) => {
-      const a = innerAttachment(args);
-      if (a === null) return own.attachmentText(args);
-      return a?.bytes ? { name: a.filename, type: a.type, text: Buffer.from(a.bytes).toString('utf8') } : null;
+      if (!isSmime(args)) return own.attachmentText(args);
+      return innerAttachment(args).then((a) => (a?.bytes ? { name: a.filename, type: a.type, text: Buffer.from(a.bytes).toString('utf8') } : null));
     };
     Object.assign(service, {
       smimeIdentities: () => smime.desk.identities(),
@@ -1414,6 +1415,9 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       importCertificate: (args) => smime.desk.importCertificate(args),
       smimeCertificates: () => smime.desk.certificates(),
       forgetCertificates: (args) => smime.desk.forgetCertificates(args),
+      pendingCertificates: () => smime.desk.pendingCertificates(),
+      acceptCertificate: (args) => smime.desk.acceptCertificate(args),
+      dismissCertificate: (args) => smime.desk.dismissCertificate(args),
       canEncryptFor: (args) => smime.desk.canEncryptFor(args),
       trustForTest: (args) => smime.desk.trustForTest(args),
     });

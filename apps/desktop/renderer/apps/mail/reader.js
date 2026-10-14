@@ -10,7 +10,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Chip, formatWhen, formatBytes, t, tn } from '@rutba/office-ui';
 import { bodyDocument, avatarFor, displayName } from './parts.js';
-import { SmimeStrip } from './smime.js';
+import { SmimeStrip, unsafeDecrypted } from './smime.js';
 
 export default function Reader({
   message,
@@ -38,7 +38,9 @@ export default function Reader({
   const frameRef = useRef(null);
   const [height, setHeight] = useState(600);
   const [showTrackers, setShowTrackers] = useState(false);
-  const doc = useMemo(() => bodyDocument(message, { remote, dark, plain }), [message, remote, dark, plain]);
+  // An encrypted message not signed by someone trusted is drawn as plain text, nothing fetched (EFAIL).
+  const guarded = unsafeDecrypted(message.smime);
+  const doc = useMemo(() => bodyDocument(message, { remote: remote && !guarded, dark, plain: plain || guarded }), [message, remote, dark, plain, guarded]);
   const blocked = !remote && /data-blocked-remote=/.test(doc);
   const from = message.from?.[0];
   const avatar = avatarFor(from);

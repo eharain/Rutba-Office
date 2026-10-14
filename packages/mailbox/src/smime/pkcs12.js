@@ -9,7 +9,7 @@
 // checked first, so a wrong password is said to be one.
 
 import crypto from 'node:crypto';
-import { parse, oidOf, intOf, isContext, seq, set, int, oid, octets, explicit, tlv, algorithm, nul } from './der.js';
+import { parse, oidOf, smallInt, isContext, seq, set, int, oid, octets, explicit, tlv, algorithm, nul } from './der.js';
 import { OID } from './oids.js';
 import { octetsOf } from './cms.js';
 import { certificate } from './cert.js';
@@ -21,6 +21,21 @@ export class Pkcs12Error extends Error {
     this.name = 'Pkcs12Error';
     this.code = code;
   }
+}
+
+/**
+ * The most work a file may ask for. Windows and OpenSSL write 2,000 to
+ * 600,000 iterations; ten million is already minutes. A file asking for more,
+ * or a key longer than any cipher takes, is refused rather than ground through.
+ */
+export const MAX_ITERATIONS = 10_000_000;
+export const MAX_KEY_LENGTH = 64;
+
+/** An iteration count, refused past the most any real file asks for. */
+function iterationsOf(node) {
+  const n = node ? smallInt(node, 4) : 1;
+  if (n < 1 || n > MAX_ITERATIONS) throw new Pkcs12Error('algorithm', 'That file asks for more work to open than any real one does, so it is not opened.');
+  return n;
 }
 
 const HMAC = { [OID.sha1]: 'sha1', [OID.sha256]: 'sha256', [OID.sha384]: 'sha384', [OID.sha512]: 'sha512' };
@@ -78,10 +93,11 @@ function decryptWith(algNode, data, password) {
     if (oidOf(kdf.children[0]) !== OID.pbkdf2) throw new Pkcs12Error('algorithm', 'The file is protected in a way this cannot open.');
     const p = kdf.children[1].children;
     const salt = octetsOf(p[0]);
-    const iterations = Number(intOf(p[1]));
+    const iterations = iterationsOf(p[1]);
     let k = 2;
     let keyLength = null;
-    if (p[k] && p[k].tag === 0x02) keyLength = Number(intOf(p[k++]));
+    if (p[k] && p[k].tag === 0x02) keyLength = smallInt(p[k++], 2);
+    if (keyLength != null && (keyLength < 1 || keyLength > MAX_KEY_LENGTH)) throw new Pkcs12Error('algorithm', 'That file asks for a key no cipher takes, so it is not opened.');
     const prf = p[k] ? PRF[oidOf(p[k].children[0])] || 'sha1' : 'sha1';
     const cipherOid = oidOf(scheme.children[0]);
     const cipher = { [OID.aes128CBC]: ['aes-128-cbc', 16], [OID.aes192CBC]: ['aes-192-cbc', 24], [OID.aes256CBC]: ['aes-256-cbc', 32], [OID.desEde3CBC]: ['des-ede3-cbc', 24] }[cipherOid];
@@ -92,7 +108,7 @@ function decryptWith(algNode, data, password) {
     return Buffer.concat([d.update(data), d.final()]);
   }
   const salt = octetsOf(params.children[0]);
-  const iterations = params.children[1] ? Number(intOf(params.children[1])) : 1;
+  const iterations = iterationsOf(params.children[1]);
   if (alg === OID.pbeSHA1And3DES || alg === OID.pbeSHA1And2DES) {
     let key = pkcs12Kdf(password, salt, iterations, 1, 24);
     if (alg === OID.pbeSHA1And2DES) key = Buffer.concat([key.subarray(0, 16), key.subarray(0, 8)]);
@@ -137,7 +153,7 @@ export function readPkcs12(bytes, password) {
   let pfx;
   try {
     pfx = parse(Buffer.from(bytes));
-    if (pfx.children.length < 2 || Number(intOf(pfx.children[0])) !== 3) throw new Error('version');
+    if (pfx.children.length < 2 || smallInt(pfx.children[0], 1) !== 3) throw new Error('version');
   } catch {
     throw new Pkcs12Error('not-pkcs12', 'That file is not a certificate with its key (.p12 or .pfx).');
   }
@@ -150,7 +166,7 @@ export function readPkcs12(bytes, password) {
     const hash = HMAC[oidOf(digestInfo.children[0].children[0])] || 'sha1';
     const expected = octetsOf(digestInfo.children[1]);
     const salt = octetsOf(saltNode);
-    const iterations = iterNode ? Number(intOf(iterNode)) : 1;
+    const iterations = iterationsOf(iterNode);
     const macKey = pkcs12Kdf(password, salt, iterations, 3, crypto.createHash(hash).digest().length, hash);
     const mac = crypto.createHmac(hash, macKey).update(content).digest();
     if (!crypto.timingSafeEqual(mac, expected.length === mac.length ? expected : Buffer.alloc(mac.length))) {

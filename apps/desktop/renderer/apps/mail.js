@@ -626,8 +626,11 @@ export default function Mail({ app, shell }) {
     async (draft, at) => {
       const from = draft.accountId || accountId;
       if (!from || from === EVERYTHING) return toast(t('Choose which account to send from.'), { tone: 'bad' });
+      if (draft.smime?.encrypt && String(draft.bcc || '').trim()) {
+        return toast(t('Encrypted mail is not sent to Bcc recipients: every recipient\'s certificate is named inside the message, so the others would see who had a blind copy. Send it to them separately.'), { tone: 'bad', ms: 9000 });
+      }
       if (draft.smime?.encrypt) {
-        const addresses = [draft.to, draft.cc, draft.bcc].join(',').split(',').map((s) => (/<([^>]+)>/.exec(s)?.[1] || s).trim()).filter(Boolean);
+        const addresses = [draft.to, draft.cc].join(',').split(',').map((s) => (/<([^>]+)>/.exec(s)?.[1] || s).trim()).filter(Boolean);
         const can = await shell.mail.canEncryptFor({ addresses });
         if (!can.ok) return toast(t('This cannot be encrypted for {names}: there is no certificate for them here. Ask them for a signed message, or import their certificate.', { names: can.missing.join(', ') }), { tone: 'bad' });
       }

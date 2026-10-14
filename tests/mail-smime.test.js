@@ -100,7 +100,7 @@ test('a signature says so when no authority here vouches for it, the certificate
   const old = readSmime(protect(message({ from: people.expired }), { sign: signer(people.expired) }), { anchors });
   assert.equal(old.signed.status, 'expired');
   const other = readSmime(protect(message({ from: people.bo }), { sign: signer(people.amina) }), { anchors });
-  assert.equal(other.signed.status, 'valid');
+  assert.equal(other.signed.status, 'other-sender', 'a good signature by someone other than the sender is not shown as good');
   assert.equal(other.signed.fromMatches, false, 'signed by Amina, sent from Bo\'s address');
   const ec = readSmime(protect(message({ from: people.ecSigner }), { sign: signer(people.ecSigner) }), { anchors });
   assert.equal(ec.signed.status, 'valid', 'an elliptic-curve signature');
@@ -166,6 +166,6 @@ test('an Outlook data file\'s smime.p7m attachment gives back the message it hol
   assert.equal(readSmime(Buffer.concat([Buffer.from('From: Amina Rahman <amina@northwind.example>\r\n', 'latin1'), whole]), { anchors }).signed.status, 'valid');
   // ... or the body alone, its boundary on its first line.
   const bare = entityFromAttachment({ filename: 'smime.p7m', bytes: body.subarray(body.indexOf('--')) });
-  assert.equal(readSmime(bare, { anchors }).signed.status, 'valid');
+  assert.equal(readSmime(bare, { anchors }).signed.status, 'no-from', 'with no From to compare, it is said so');
   assert.equal(entityFromAttachment({ filename: 'report.pdf', bytes: Buffer.from('x') }), null);
 });

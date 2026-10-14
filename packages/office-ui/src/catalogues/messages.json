@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6913,
+  "count": 6924,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -878,6 +878,12 @@
       "message": "A diagram goes in the body, after a paragraph of its own — move the caret out of the box or the table first.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A different certificate arrived for this address. Use it only if they told you it changed. Issued by {issuer}, thumbprint {thumbprint}.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/smime.js"
       ]
     },
     {
@@ -5769,6 +5775,12 @@
       "message": "Certificates for signed and encrypted mail…",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Certificates that changed",
+      "where": [
+        "apps/desktop/renderer/apps/mail/smime.js"
       ]
     },
     {
@@ -11121,6 +11133,12 @@
       "message": "Encrypted ({cipher}), and opened with your certificate for {email}.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "Encrypted mail is not sent to Bcc recipients: every recipient's certificate is named inside the message, so the others would see who had a blind copy. Send it to them separately.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -16799,9 +16817,21 @@
       ]
     },
     {
+      "message": "It is shown as plain text, with its links and pictures left out: an encrypted message that is not signed by someone trusted could have been changed on the way to send its words elsewhere.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
       "message": "It uses the {encoding} encoding, which this build cannot decode.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "It was signed with SHA-1, which no longer protects a signature from forgery.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/smime.js"
       ]
     },
     {
@@ -17012,6 +17042,12 @@
       "message": "Keep the mail",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Keep the old one",
+      "where": [
+        "apps/desktop/renderer/apps/mail/smime.js"
       ]
     },
     {
@@ -31148,13 +31184,25 @@
       ]
     },
     {
-      "message": "Signed by {name}, and the message has not changed, but the certificate was out of date when it was signed.",
+      "message": "Signed by {name}, and the message has not changed, but the certificate is out of date.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
       ]
     },
     {
       "message": "Signed by {name}, but the message has changed since it was signed. Do not rely on what it says.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "Signed by {name}, but the message names no sender to compare the certificate with.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "Signed by {name}, who is not the sender: the certificate is for {email}, and the message says it is from {from}.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
       ]
@@ -33904,6 +33952,12 @@
       ]
     },
     {
+      "message": "That cipher is too weak to keep a message private now.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
       "message": "That could not be sent to the document service: {v1}",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -34297,13 +34351,7 @@
       ]
     },
     {
-      "message": "The certificate has expired since.",
-      "where": [
-        "apps/desktop/renderer/apps/mail/smime.js"
-      ]
-    },
-    {
-      "message": "The certificate is for {email}, not for the address this came from ({from}).",
+      "message": "The certificate is not the one kept for {email} before, so it was not kept: check with them, then choose in Certificates.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
       ]
@@ -36391,6 +36439,18 @@
     },
     {
       "message": "This message is signed, but the signer's certificate is neither in it nor on this computer, so the signature cannot be checked.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "This message is too large to check its signature or encryption.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "This message's signature or encryption could not be read.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
       ]
@@ -38557,6 +38617,12 @@
       "message": "Use settings",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Use the new one",
+      "where": [
+        "apps/desktop/renderer/apps/mail/smime.js"
       ]
     },
     {

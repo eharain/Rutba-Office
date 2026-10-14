@@ -145,8 +145,8 @@ export function createArchiveDesk({ stores, store, broadcast, holdBlob, insightF
   /** A message as read, or the one inside it when it is signed or encrypted (for its attachments). */
   const innerOf = async (accountId, folder, id) => {
     const message = await ask(accountId, 'message', { folder, id });
-    const view = message && smime ? smime.read(smime.rawOf(message)) : null;
-    return view ? view.message : message;
+    const view = message && smime ? await smime.read(smime.rawOf(message)) : null;
+    return view?.message ? view.message : message;
   };
 
   const desk = {
@@ -224,8 +224,10 @@ export function createArchiveDesk({ stores, store, broadcast, holdBlob, insightF
       let message = await ask(accountId, 'message', { folder, id });
       if (!message) return null;
       // A signed or encrypted message: the one inside, with what was found about it.
-      const view = smime ? smime.read(smime.rawOf(message)) : null;
-      if (view) message = { ...message, text: view.message.text, html: view.message.html, attachments: view.message.attachments || [], hasAttachments: Boolean(view.message.hasAttachments), smime: view.smime };
+      const view = smime ? await smime.read(smime.rawOf(message)) : null;
+      // Unreadable in its time: shown as it arrived, saying so.
+      if (view && !view.message) message = { ...message, smime: view.smime };
+      else if (view) message = { ...message, text: view.message.text, html: view.message.html, attachments: view.message.attachments || [], hasAttachments: Boolean(view.message.hasAttachments), smime: view.smime };
       delete message.smimeRaw;
       const inline = {};
       for (const a of message.attachments || []) {

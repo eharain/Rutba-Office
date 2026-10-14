@@ -24,20 +24,27 @@ const ext = (id, critical, value) => seq(oid(id), critical ? bool(true) : null, 
 
 /**
  * A certificate.
- * @param {{ subject: {cn, o?, email?}, issuer?: {cn, o?, email?}, publicKey, signingKey, serial?, from?, to?, ca?, email?: string, usage?: string[] }} o
+ * The awkward ones are made with: `pathLen` on an authority, `caUsage` (an
+ * authority's own extended key usage), `permitted` (mail name constraints),
+ * `keyUsage` (the byte, to replace the usual one), `noBasicConstraints`,
+ * and `unknownCritical` (an extension nobody knows, marked critical).
+ * @param {{ subject: {cn, o?, email?}, issuer?: {cn, o?, email?}, publicKey, signingKey, serial?, from?, to?, ca?, email?: string, usage?: string[], pathLen?: number, caUsage?: string[], permitted?: string[], keyUsage?: number, noBasicConstraints?: boolean, unknownCritical?: boolean }} o
  * @returns {string} PEM
  */
-export function makeCertificate({ subject, issuer = subject, publicKey, signingKey, serial = crypto.randomBytes(9), from = new Date(Date.now() - DAY), to = new Date(Date.now() + 365 * DAY), ca = false, email = null, usage = [OID.emailProtection] }) {
+export function makeCertificate({ subject, issuer = subject, publicKey, signingKey, serial = crypto.randomBytes(9), from = new Date(Date.now() - DAY), to = new Date(Date.now() + 365 * DAY), ca = false, email = null, usage = [OID.emailProtection], pathLen = null, caUsage = null, permitted = null, keyUsage = null, noBasicConstraints = false, unknownCritical = false }) {
   const spki = publicKey.export({ type: 'spki', format: 'der' });
   const ski = crypto.createHash('sha1').update(spki).digest();
   const ec = signingKey.asymmetricKeyType === 'ec';
   const sigAlg = ec ? algorithm(OID.ecdsaWithSHA256, false) : algorithm(OID.sha256WithRSA);
   const extensions = [
-    ext(OID.basicConstraints, ca, ca ? seq(bool(true)) : seq()),
-    ext(OID.keyUsage, true, bits(Buffer.from([ca ? 0x06 : 0xa0]))),
+    ...(noBasicConstraints ? [] : [ext(OID.basicConstraints, ca, ca ? seq(bool(true), pathLen == null ? null : int(pathLen)) : seq())]),
+    ext(OID.keyUsage, true, bits(Buffer.from([keyUsage ?? (ca ? 0x06 : 0xa0)]))),
     ext(OID.subjectKeyIdentifier, false, octets(ski)),
     ...(email ? [ext(OID.subjectAltName, false, seq(tlv(0x81, Buffer.from(email, 'latin1'))))] : []),
     ...(!ca && usage ? [ext(OID.extKeyUsage, false, seq(...usage.map((u) => oid(u))))] : []),
+    ...(ca && caUsage ? [ext(OID.extKeyUsage, false, seq(...caUsage.map((u) => oid(u))))] : []),
+    ...(permitted ? [ext('2.5.29.30', true, seq(explicit(0, ...permitted.map((p) => seq(tlv(0x81, Buffer.from(p, 'latin1')))))))] : []),
+    ...(unknownCritical ? [ext('1.3.6.1.4.1.55555.1', true, seq())] : []),
   ];
   const tbs = seq(explicit(0, int(2)), int(serial), sigAlg, name(issuer), seq(time(from), time(to)), name(subject), Buffer.from(spki), explicit(3, seq(...extensions)));
   const signature = ec ? crypto.sign('sha256', tbs, { key: signingKey, dsaEncoding: 'der' }) : crypto.sign('sha256', tbs, signingKey);

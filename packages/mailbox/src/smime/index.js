@@ -20,20 +20,40 @@
 import crypto from 'node:crypto';
 import { parseMessage, parseHeaders, parseParameters, decodeBase64 } from '../mime.js';
 import { contentInfo, readSignedData, verifySigners, signDetached, readEnveloped, decryptEnveloped, encryptEnveloped, CmsError } from './cms.js';
-import { certificate, describe, forMail, pemBlocks, pem } from './cert.js';
+import { certificate, describe, forMail, forSigning, forEncrypting, pemBlocks, pem } from './cert.js';
 import { chainOf, inDate, systemAnchors, setSystemAnchors } from './trust.js';
 import { readPkcs12, writePkcs12, Pkcs12Error } from './pkcs12.js';
 import { OID } from './oids.js';
 
 const latin1 = (b) => Buffer.from(b).toString('latin1');
 
-/** Where the headers end: the index of the blank line's start, and where the body begins. */
-function headEnd(bytes) {
-  const s = latin1(bytes.subarray(0, Math.min(bytes.length, 262144)));
-  // A blank line, however its ends were written (CRLF, LF, or the CR CR LF a
-  // program writing CRLF in text mode on Windows leaves).
-  const m = /\r*\n\r*\n/.exec(s);
-  if (m) return { head: m.index, body: m.index + m[0].length };
+/** The largest message or CMS structure read: past this a message is said to be too large. */
+export const MAX_SMIME_BYTES = 50 * 1048576;
+
+const CR = 13;
+const LF = 10;
+
+/**
+ * Where the headers end: the index of the blank line's start, and where the
+ * body begins. A blank line however its ends were written (CRLF, LF, or the
+ * CR CR LF a program writing CRLF in text mode on Windows leaves), found in
+ * one pass over the bytes: every byte is looked at a fixed number of times,
+ * so a run of carriage returns cannot make it slow.
+ */
+export function headEnd(bytes) {
+  const n = Math.min(bytes.length, 262144);
+  for (let i = 0; i < n; i++) {
+    if (bytes[i] !== LF) continue;
+    let j = i + 1;
+    while (j < n && bytes[j] === CR) j++;
+    if (j < n && bytes[j] === LF) {
+      let k = i;
+      while (k > 0 && bytes[k - 1] === CR) k--;
+      return { head: k, body: j + 1 };
+    }
+    // The carriage returns just passed are not a blank line's: carry on after them.
+    i = j - 1;
+  }
   return { head: bytes.length, body: bytes.length };
 }
 
@@ -44,10 +64,44 @@ export function splitEntity(bytes) {
   return { headText: latin1(b.subarray(0, head)), body: b.subarray(body) };
 }
 
-/** Every line ending CRLF, as MIME is signed (stray carriage returns before a newline are one). */
+/**
+ * Every line ending CRLF, as MIME is signed (stray carriage returns before a
+ * newline are one), in one pass over the bytes.
+ */
 export function canonical(bytes) {
-  const s = latin1(bytes);
-  return Buffer.from(s.replace(/\r*\n/g, '\r\n'), 'latin1');
+  const b = Buffer.from(bytes);
+  const out = Buffer.allocUnsafe(b.length * 2);
+  let o = 0;
+  for (let i = 0; i < b.length; i++) {
+    const c = b[i];
+    if (c === CR) {
+      let j = i;
+      while (j < b.length && b[j] === CR) j++;
+      if (j < b.length && b[j] === LF) {
+        out[o++] = CR;
+        out[o++] = LF;
+        i = j;
+      } else {
+        // Carriage returns not before a newline stay as they were.
+        for (let k = i; k < j; k++) out[o++] = CR;
+        i = j - 1;
+      }
+    } else if (c === LF) {
+      out[o++] = CR;
+      out[o++] = LF;
+    } else out[o++] = c;
+  }
+  return Buffer.from(out.subarray(0, o));
+}
+
+/** Does the content have a line end that is not CRLF (a bare LF, or CR CR LF), by one pass. */
+function oddLineEnds(bytes) {
+  for (let i = 0; i < bytes.length; i++) {
+    if (bytes[i] !== LF) continue;
+    if (i === 0 || bytes[i - 1] !== CR) return true;
+    if (i > 1 && bytes[i - 2] === CR) return true;
+  }
+  return false;
 }
 
 /** The header lines of a header text, each with its continuation lines. */
@@ -119,21 +173,36 @@ function joinOuter(outerHeadText, inner) {
   return Buffer.concat([Buffer.from(`${kept.join('\r\n')}\r\nMIME-Version: 1.0\r\n`, 'latin1'), Buffer.from(inner)]);
 }
 
-const SEVERITY = ['valid', 'expired', 'untrusted', 'no-certificate', 'not-for-mail', 'unsupported', 'bad-signature', 'changed'];
+/**
+ * The statuses a signature can have, least worrying first. Only 'valid' is
+ * shown as good: signed by someone this computer trusts, unchanged, in date
+ * now, and for the address the message is from. 'other-sender' (a good
+ * signature by someone other than the From address) and 'no-from' (no From
+ * to compare) are said, not passed over.
+ */
+const SEVERITY = ['valid', 'other-sender', 'no-from', 'expired', 'untrusted', 'no-certificate', 'not-for-mail', 'unsupported', 'bad-signature', 'changed', 'damaged'];
 
 /** One signer's result as the window says it. */
 function judgeSigner(r, { pool, anchors, now, from }) {
+  if (r.error === 'mismatch') return { status: 'bad-signature', signer: r.cert ? describe(r.cert) : null, digest: r.digest };
   if (r.error === 'algorithm') return { status: 'unsupported', signer: r.cert ? describe(r.cert) : null };
   if (!r.cert) return { status: r.intact ? 'no-certificate' : 'changed', signer: null, signedAt: r.signedAt?.toISOString() || null };
   const chain = chainOf(r.cert, pool, anchors);
-  const at = r.signedAt && r.signedAt <= now ? r.signedAt : now;
+  const address = String(from || '').toLowerCase();
+  const fromMatches = address ? r.cert.emails.includes(address) : null;
+  // In date now, and when it says it was signed (a date the signer chose, so never the only test).
+  const dated = inDate(chain.chain, now) && (!r.signedAt || r.signedAt > now || inDate(chain.chain, r.signedAt));
   let status = 'valid';
   if (!r.intact) status = 'changed';
   else if (!r.valid) status = 'bad-signature';
-  else if (!forMail(r.cert)) status = 'not-for-mail';
+  else if (!forSigning(r.cert)) status = 'not-for-mail';
   else if (!chain.trusted) status = 'untrusted';
-  else if (!inDate(chain.chain, at)) status = 'expired';
-  const address = String(from || '').toLowerCase();
+  else if (!dated) status = 'expired';
+  else if (!address) status = 'no-from';
+  else if (!fromMatches) status = 'other-sender';
+  // Weak hashes are said, whatever the status.
+  const cautions = [];
+  if (r.digest === 'sha1') cautions.push('sha1');
   return {
     status,
     signer: describe(r.cert),
@@ -141,8 +210,9 @@ function judgeSigner(r, { pool, anchors, now, from }) {
     digest: r.digest,
     trustedBy: chain.anchor ? chain.anchor.name : null,
     chain: chain.chain.map((c) => c.name),
-    fromMatches: address ? r.cert.emails.includes(address) : null,
-    expiredSince: status === 'valid' && !inDate(chain.chain, now),
+    untrustedBecause: chain.trusted ? null : chain.reason || null,
+    fromMatches,
+    cautions,
     revocation: 'not-checked',
   };
 }
@@ -156,6 +226,13 @@ function judgeSigner(r, { pool, anchors, now, from }) {
  *   `certificates` the signers' certificates found, to keep for encrypting to them later
  */
 export function readSmime(raw, { identities = [], certificates = [], anchors = systemAnchors(), now = new Date() } = {}) {
+  // A message larger than any real one is not read: said so, and the rest of the window carries on.
+  if (raw.length > MAX_SMIME_BYTES) {
+    const head = Buffer.from(raw).subarray(0, headEnd(raw).head);
+    const m = parseMessage(Buffer.concat([head, Buffer.from('\r\n\r\n', 'latin1')]));
+    delete m.structure;
+    return { message: { ...m, text: null, html: null, attachments: [], hasAttachments: false }, signed: null, encrypted: null, error: 'too-large', certificates: [] };
+  }
   let current = Buffer.from(raw);
   let outerHead = splitEntity(current).headText;
   const from = parseMessage(Buffer.from(`${outerHead}\r\n\r\n`, 'latin1')).from?.[0]?.address || null;
@@ -197,7 +274,7 @@ export function readSmime(raw, { identities = [], certificates = [], anchors = s
       // A message whose line endings were changed on the way (stored with bare
       // newlines, or with a carriage return too many) is checked as it would
       // have been sent, and shown so.
-      if (results.some((r) => !r.intact) && /(^|[^\r])\n|\r\r\n/.test(latin1(content))) {
+      if (results.some((r) => !r.intact) && oddLineEnds(content)) {
         const fixed = canonical(content);
         const again = verifySigners(sd, fixed, certificates);
         if (again.every((r) => r.intact)) {
@@ -224,7 +301,8 @@ export function readSmime(raw, { identities = [], certificates = [], anchors = s
       const env = readEnveloped(ci.content, ci.type === OID.authEnvelopedData);
       try {
         const opened = decryptEnveloped(env, identities);
-        encrypted = { status: 'decrypted', cipher: opened.cipher, recipient: describe(opened.identity.cert), recipients: env.recipients.length };
+        // RC2 and Triple DES open, with a caution: they are too weak to keep a message private now.
+        encrypted = { status: 'decrypted', cipher: opened.cipher, recipient: describe(opened.identity.cert), recipients: env.recipients.length, cautions: /RC2|Triple DES/.test(opened.cipher) ? ['weak-cipher'] : [] };
         current = joinOuter(outerHead, opened.content);
         outerHead = splitEntity(current).headText;
         continue;
@@ -299,4 +377,5 @@ export function entityFromAttachment(a) {
   return null;
 }
 
-export { readPkcs12, writePkcs12, Pkcs12Error, CmsError, certificate, describe, pem, pemBlocks, forMail, systemAnchors, setSystemAnchors, chainOf };
+export { readPkcs12, writePkcs12, Pkcs12Error, CmsError, certificate, describe, pem, pemBlocks, forMail, forEncrypting, systemAnchors, setSystemAnchors, chainOf };
+export { forSigning };

@@ -10,7 +10,7 @@
 // written by der.js.
 
 import crypto from 'node:crypto';
-import { parse, oidOf, intOf, timeOf, isContext, seq, set, int, oid, octets, explicit, tlv, time, algorithm, nul } from './der.js';
+import { parse, oidOf, smallInt, timeOf, isContext, seq, set, int, oid, octets, explicit, tlv, time, algorithm, nul } from './der.js';
 import { OID, DIGEST, DIGEST_OID, SIGNATURE_DIGEST, CIPHER } from './oids.js';
 import { certificate } from './cert.js';
 import { rc2Decrypt } from './rc2.js';
@@ -105,24 +105,31 @@ export function readSignedData(node) {
   return { content, contentType, certificates, signers };
 }
 
-/** Verify a signature with a certificate's key, by the algorithm the signer named. */
+/**
+ * Verify a signature with a certificate's key, by the algorithm the signer
+ * named. A signature algorithm that names a hash other than the digest the
+ * signer gave is refused (a signature over one hash claiming another).
+ */
 function verifySignature({ oid: alg, params }, digestName, data, signature, cert) {
   const key = cert.x509.publicKey;
+  const mismatch = () => new CmsError('mismatch', 'The signature names a different hash from the one the message was summed with.');
   if (alg === OID.rsassaPss) {
     // RSASSA-PSS-params: [0] hash, [1] mask generation, [2] salt length (default SHA-1 and 20).
     let hash = 'sha1';
     let saltLength = 20;
     for (const p of params?.children || []) {
       if (isContext(p, 0)) hash = DIGEST[oidOf(p.children[0].children[0])] || hash;
-      if (isContext(p, 2)) saltLength = Number(intOf(p.children[0]));
+      if (isContext(p, 2)) saltLength = smallInt(p.children[0], 2);
     }
+    if (hash !== digestName) throw mismatch();
     return crypto.verify(hash, data, { key, padding: crypto.constants.RSA_PKCS1_PSS_PADDING, saltLength }, signature);
   }
+  if (SIGNATURE_DIGEST[alg] && SIGNATURE_DIGEST[alg] !== digestName) throw mismatch();
   if (alg === OID.rsaEncryption || SIGNATURE_DIGEST[alg] && alg.startsWith('1.2.840.113549')) {
-    return crypto.verify(SIGNATURE_DIGEST[alg] || digestName, data, { key, padding: crypto.constants.RSA_PKCS1_PADDING }, signature);
+    return crypto.verify(digestName, data, { key, padding: crypto.constants.RSA_PKCS1_PADDING }, signature);
   }
   if (alg === OID.ecPublicKey || alg.startsWith('1.2.840.10045.4')) {
-    return crypto.verify(SIGNATURE_DIGEST[alg] || digestName, data, { key, dsaEncoding: 'der' }, signature);
+    return crypto.verify(digestName, data, { key, dsaEncoding: 'der' }, signature);
   }
   throw new CmsError('algorithm', `The message is signed with an algorithm this cannot check (${alg}).`);
 }
@@ -179,7 +186,8 @@ export function signDetached(content, { key, cert, chain = [], digest = 'sha256'
   const signer = certificate(cert);
   const digestOid = DIGEST_OID[digest];
   const md = crypto.createHash(digest).update(content).digest();
-  const caps = seq(seq(oid(OID.aes256CBC)), seq(oid(OID.aes128CBC)), seq(oid(OID.desEde3CBC)));
+  // Only AES is offered: Triple DES is too weak to ask anyone to encrypt with.
+  const caps = seq(seq(oid(OID.aes256CBC)), seq(oid(OID.aes128CBC)));
   const attrs = [
     seq(oid(OID.contentType), set(oid(OID.data))),
     seq(oid(OID.signingTime), set(time(now))),
@@ -274,7 +282,7 @@ export function decryptEnveloped(env, identities) {
     // RC2-CBC parameters: a version (the effective key bits, encoded) and the IV.
     const p = alg.params;
     const iv = octetsOf(p.children[p.children.length - 1]);
-    const version = p.children.length > 1 ? Number(intOf(p.children[0])) : 32;
+    const version = p.children.length > 1 ? smallInt(p.children[0], 3) : 32;
     const bits = { 160: 40, 120: 64, 58: 128 }[version] || version;
     content = rc2Decrypt(env.encrypted, cek, iv, bits);
     return { content, identity, cipher: `RC2 (${bits}-bit)` };
@@ -284,7 +292,8 @@ export function decryptEnveloped(env, identities) {
   try {
     if (cipher.gcm) {
       const nonce = octetsOf(alg.params.children[0]);
-      const tagLength = alg.params.children[1] ? Number(intOf(alg.params.children[1])) : 12;
+      const tagLength = alg.params.children[1] ? smallInt(alg.params.children[1], 1) : 12;
+      if (tagLength < 12 || tagLength > 16) throw new CmsError('changed', 'The encrypted message names an authentication tag no sender uses.');
       const d = crypto.createDecipheriv(cipher.name, cek, nonce, { authTagLength: tagLength });
       if (env.authAttrs) {
         const aad = Buffer.from(env.authAttrs.raw);

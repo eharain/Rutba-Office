@@ -64,6 +64,7 @@ export const OID = {
   keyUsage: '2.5.29.15',
   subjectAltName: '2.5.29.17',
   basicConstraints: '2.5.29.19',
+  nameConstraints: '2.5.29.30',
   extKeyUsage: '2.5.29.37',
   emailProtection: '1.3.6.1.5.5.7.3.4',
   anyExtendedKeyUsage: '2.5.29.37.0',

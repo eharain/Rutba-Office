@@ -6,10 +6,22 @@
 // they were sent and a re-encoding that differs by one byte does not verify.
 // Writing builds bytes from small functions (seq, set, oid, int...), so a
 // structure reads in the code as it does in the RFC.
+//
+// What is read comes from a stranger's message, so reading has limits: no
+// more than MAX_NODES values in one structure and no deeper than MAX_DEPTH,
+// which no certificate or message comes near (a few thousand values, a depth
+// of twenty or so). Past either, the structure is refused rather than built:
+// a two-megabyte run of empty values would otherwise become a million objects
+// and hundreds of megabytes of memory.
+
+export const MAX_NODES = 100_000;
+export const MAX_DEPTH = 64;
 
 /** A node: `{ tag, cls, constructed, number, header, length, raw, value, children }`. */
-export function read(bytes, at = 0, end = bytes.length) {
+export function read(bytes, at = 0, end = bytes.length, state = { nodes: 0, depth: 0 }) {
   const start = at;
+  if (++state.nodes > MAX_NODES) throw new Error('ASN.1: more values than any certificate or message holds');
+  if (state.depth > MAX_DEPTH) throw new Error('ASN.1: nested deeper than any certificate or message is');
   if (at + 2 > end) throw new Error('ASN.1: the data ends inside a tag');
   const tag = bytes[at++];
   let number = tag & 0x1f;
@@ -45,7 +57,9 @@ export function read(bytes, at = 0, end = bytes.length) {
         at += 2;
         break;
       }
-      const child = read(bytes, at, end);
+      state.depth++;
+      const child = read(bytes, at, end, state);
+      state.depth--;
       node.children.push(child);
       at += child.raw.length;
     }
@@ -62,7 +76,9 @@ export function read(bytes, at = 0, end = bytes.length) {
     node.children = [];
     let p = at;
     while (p < at + length) {
-      const child = read(bytes, p, at + length);
+      state.depth++;
+      const child = read(bytes, p, at + length, state);
+      state.depth--;
       node.children.push(child);
       p += child.raw.length;
     }
@@ -95,11 +111,25 @@ export function oidOf(node) {
   return parts.join('.');
 }
 
-/** An INTEGER as a BigInt. */
+/** An INTEGER as a BigInt, in one step however long it is (by its hex digits, not a shift a byte). */
 export function intOf(node) {
-  let n = 0n;
-  for (const b of node.value) n = (n << 8n) | BigInt(b);
-  if (node.value.length && node.value[0] & 0x80) n -= 1n << BigInt(node.value.length * 8);
+  const v = node.value;
+  if (!v.length) return 0n;
+  let n = BigInt(`0x${Buffer.from(v).toString('hex')}`);
+  if (v[0] & 0x80) n -= 1n << BigInt(v.length * 8);
+  return n;
+}
+
+/**
+ * An INTEGER that is a count - an iteration count, a salt or tag length, a
+ * version - as a Number. More than `most` bytes (a count that could not be
+ * real) or a negative one is refused.
+ */
+export function smallInt(node, most = 6) {
+  const v = node?.value;
+  if (!v || !v.length || v.length > most || (v[0] & 0x80)) throw new Error('ASN.1: a count that cannot be real');
+  let n = 0;
+  for (const b of v) n = n * 256 + b;
   return n;
 }
 

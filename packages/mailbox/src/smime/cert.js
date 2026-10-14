@@ -7,7 +7,7 @@
 // here from its DER.
 
 import crypto from 'node:crypto';
-import { parse, oidOf, textOf, timeOf, isContext } from './der.js';
+import { parse, oidOf, textOf, timeOf, isContext, smallInt } from './der.js';
 import { OID } from './oids.js';
 
 /** PEM blocks of a kind in a text, as DER. */
@@ -57,15 +57,44 @@ export function certificate(input) {
   const emails = [];
   let usage = null;
   let ca = false;
+  let basicConstraints = false;
+  let pathLen = null;
+  let keyUsage = null;
+  let nameConstraints = null;
+  const unknownCritical = [];
   const extensions = tbs.children.find((c) => isContext(c, 3));
   for (const ext of extensions?.children?.[0]?.children || []) {
     const id = oidOf(ext.children[0]);
+    const critical = ext.children.length === 3 && ext.children[1].tag === 0x01 && ext.children[1].value[0] !== 0;
     const value = parse(ext.children[ext.children.length - 1].value);
     if (id === OID.subjectKeyIdentifier) subjectKeyId = Buffer.from(value.value).toString('hex');
     else if (id === OID.subjectAltName) {
       for (const g of value.children || []) if (g.cls === 2 && g.number === 1) emails.push(Buffer.from(g.value).toString('latin1'));
     } else if (id === OID.extKeyUsage) usage = (value.children || []).map(oidOf);
-    else if (id === OID.basicConstraints) ca = Boolean(value.children?.[0]?.number === 1 && value.children[0].value[0]);
+    else if (id === OID.basicConstraints) {
+      basicConstraints = true;
+      const kids = value.children || [];
+      ca = Boolean(kids[0]?.tag === 0x01 && kids[0].value[0]);
+      const len = kids.find((k) => k.tag === 0x02);
+      if (len) pathLen = smallInt(len, 2);
+    } else if (id === OID.keyUsage) {
+      // BIT STRING: the first byte counts unused bits; bit 0 is digitalSignature.
+      const b = value.value;
+      const bit = (n) => Boolean(b[1 + (n >> 3)] & (0x80 >> (n & 7)));
+      keyUsage = { digitalSignature: bit(0), nonRepudiation: bit(1), keyEncipherment: bit(2), dataEncipherment: bit(3), keyAgreement: bit(4), keyCertSign: bit(5), cRLSign: bit(6) };
+    } else if (id === OID.nameConstraints) {
+      // permittedSubtrees [0], excludedSubtrees [1]: the mail addresses (rfc822Name) are read;
+      // any other kind of constraint is noted, since it cannot be judged here.
+      nameConstraints = { permitted: [], excluded: [], other: false };
+      for (const subtrees of value.children || []) {
+        const list = isContext(subtrees, 0) ? nameConstraints.permitted : nameConstraints.excluded;
+        for (const tree of subtrees.children || []) {
+          const base = tree.children?.[0];
+          if (base && base.cls === 2 && base.number === 1) list.push(Buffer.from(base.value).toString('latin1').toLowerCase());
+          else if (base && !(base.cls === 2 && base.number === 2)) nameConstraints.other = true;
+        }
+      }
+    } else if (critical && !KNOWN_EXTENSIONS.has(id)) unknownCritical.push(id);
   }
   for (const p of subjectParts) if (p.oid === OID.emailAddress && !emails.includes(p.value)) emails.push(p.value);
   return {
@@ -83,14 +112,28 @@ export function certificate(input) {
     validFrom: new Date(x509.validFrom),
     validTo: new Date(x509.validTo),
     thumbprint: x509.fingerprint.replace(/:/g, ''),
-    ca: ca || x509.ca,
+    ca,
+    basicConstraints,
+    pathLen,
+    keyUsage,
+    nameConstraints,
+    unknownCritical,
     usage,
     selfIssued: issuer.raw.length === subject.raw.length && Buffer.from(issuer.raw).equals(Buffer.from(subject.raw)),
   };
 }
 
+/** Extensions a certificate may mark critical that are understood or harmless to pass over here. */
+const KNOWN_EXTENSIONS = new Set(['2.5.29.14', '2.5.29.15', '2.5.29.17', '2.5.29.19', '2.5.29.30', '2.5.29.32', '2.5.29.35', '2.5.29.37', '2.5.29.31', '1.3.6.1.5.5.7.1.1']);
+
 /** May the certificate be used for mail (no extended key usage at all, or one that includes mail)? */
 export const forMail = (c) => !c.usage || c.usage.includes(OID.emailProtection) || c.usage.includes(OID.anyExtendedKeyUsage);
+
+/** May it sign mail: for mail, and a key usage (when it has one) that signs. */
+export const forSigning = (c) => forMail(c) && (!c.keyUsage || c.keyUsage.digitalSignature || c.keyUsage.nonRepudiation);
+
+/** May mail be encrypted to it: for mail, and a key usage (when it has one) that takes a key. */
+export const forEncrypting = (c) => forMail(c) && (!c.keyUsage || c.keyUsage.keyEncipherment);
 
 /** The facts about a certificate a window shows, with nothing that cannot be sent to it. */
 export const describe = (c) => ({

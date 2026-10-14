@@ -15,11 +15,15 @@ const day = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { year: 
 const who = (s) => (s ? (s.email ? `${s.name} <${s.email}>` : s.name) : t('an unknown signer'));
 
 /** The sentence for a signature, by what was found. */
-function signedSentence(signed) {
+function signedSentence(signed, from) {
   const name = who(signed.signer);
   switch (signed.status) {
     case 'valid':
       return t('Signed by {name}. The signature is valid and the message has not changed since it was signed.', { name });
+    case 'other-sender':
+      return t('Signed by {name}, who is not the sender: the certificate is for {email}, and the message says it is from {from}.', { name, email: signed.signer?.email || signed.signer?.name || '', from });
+    case 'no-from':
+      return t('Signed by {name}, but the message names no sender to compare the certificate with.', { name });
     case 'changed':
       return t('Signed by {name}, but the message has changed since it was signed. Do not rely on what it says.', { name });
     case 'bad-signature':
@@ -27,7 +31,7 @@ function signedSentence(signed) {
     case 'untrusted':
       return t('Signed by {name}, and the message has not changed, but no authority this computer trusts vouches for the certificate.', { name });
     case 'expired':
-      return t('Signed by {name}, and the message has not changed, but the certificate was out of date when it was signed.', { name });
+      return t('Signed by {name}, and the message has not changed, but the certificate is out of date.', { name });
     case 'not-for-mail':
       return t('Signed by {name} with a certificate that is not meant for mail.', { name });
     case 'no-certificate':
@@ -56,21 +60,47 @@ function encryptedSentence(encrypted) {
 const GOOD = new Set(['valid']);
 
 /**
+ * Is a decrypted message one whose words must not be drawn as a web page:
+ * encrypted, but not signed by someone trusted, so it could have been changed
+ * on the way to send its own contents elsewhere when opened (EFAIL). Such a
+ * message is shown as plain text, with no links and nothing fetched.
+ */
+export const unsafeDecrypted = (smime) => smime?.encrypted?.status === 'decrypted' && smime?.signed?.status !== 'valid';
+
+/**
  * The strip over a signed or encrypted message.
- * @param {{ smime: { signed, encrypted }, from?: string, onImport?: () => void, onCertificates?: () => void }} props
+ * @param {{ smime: { signed, encrypted, error?, certificateChanged? }, from?: string, onImport?: () => void, onCertificates?: () => void }} props
  */
 export function SmimeStrip({ smime, from = '', onImport, onCertificates }) {
   const [open, setOpen] = useState(false);
-  if (!smime || (!smime.signed && !smime.encrypted)) return null;
+  if (!smime) return null;
+  if (smime.error) {
+    return (
+      <div className="ml-smime caution" data-signed="" data-encrypted="" data-error={smime.error}>
+        <div className="ml-smime-row">
+          <Icon name="info" size={15} />
+          <span className="ml-smime-text">
+            {smime.error === 'too-large' ? t('This message is too large to check its signature or encryption.') : t('This message\'s signature or encryption could not be read.')}
+          </span>
+        </div>
+      </div>
+    );
+  }
+  if (!smime.signed && !smime.encrypted) return null;
   const { signed, encrypted } = smime;
-  const bad = (signed && !GOOD.has(signed.status)) || (encrypted && encrypted.status !== 'decrypted');
+  const cautions = [...(signed?.cautions || []), ...(encrypted?.cautions || [])];
+  const bad = (signed && !GOOD.has(signed.status)) || (encrypted && encrypted.status !== 'decrypted') || cautions.length > 0 || Boolean(smime.certificateChanged);
   const warn = signed && ['changed', 'bad-signature', 'damaged'].includes(signed.status);
   return (
-    <div className={`ml-smime${warn ? ' bad' : bad ? ' caution' : ' good'}`} data-signed={signed?.status || ''} data-encrypted={encrypted?.status || ''}>
+    <div className={`ml-smime${warn ? ' bad' : bad ? ' caution' : ' good'}`} data-signed={signed?.status || ''} data-encrypted={encrypted?.status || ''} data-cautions={cautions.join(' ')}>
       {encrypted ? (
         <div className="ml-smime-row ml-smime-encrypted">
           <Icon name="lock" size={15} />
-          <span className="ml-smime-text">{encryptedSentence(encrypted)}</span>
+          <span className="ml-smime-text">
+            {encryptedSentence(encrypted)}
+            {encrypted.cautions?.includes('weak-cipher') ? ` ${t('That cipher is too weak to keep a message private now.')}` : ''}
+            {unsafeDecrypted(smime) ? ` ${t('It is shown as plain text, with its links and pictures left out: an encrypted message that is not signed by someone trusted could have been changed on the way to send its words elsewhere.')}` : ''}
+          </span>
           {encrypted.status === 'no-identity' && onImport ? (
             <button type="button" className="ml-smime-import" onClick={onImport}>
               {t('Import certificate…')}
@@ -82,9 +112,9 @@ export function SmimeStrip({ smime, from = '', onImport, onCertificates }) {
         <div className="ml-smime-row ml-smime-signed">
           <Icon name={warn ? 'info' : 'shield'} size={15} />
           <span className="ml-smime-text">
-            {signedSentence(signed)}
-            {signed.fromMatches === false && signed.signer ? ` ${t('The certificate is for {email}, not for the address this came from ({from}).', { email: signed.signer.email || signed.signer.name, from })}` : ''}
-            {signed.expiredSince ? ` ${t('The certificate has expired since.')}` : ''}
+            {signedSentence(signed, from)}
+            {signed.cautions?.includes('sha1') ? ` ${t('It was signed with SHA-1, which no longer protects a signature from forgery.')}` : ''}
+            {smime.certificateChanged ? ` ${t('The certificate is not the one kept for {email} before, so it was not kept: check with them, then choose in Certificates.', { email: smime.certificateChanged.email })}` : ''}
           </span>
           {signed.signer ? (
             <button type="button" className="ml-smime-more" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
@@ -139,6 +169,7 @@ export function SmimeStrip({ smime, from = '', onImport, onCertificates }) {
 export function CertificatesDialog({ shell, onClose, toast, start = null }) {
   const [identities, setIdentities] = useState([]);
   const [others, setOthers] = useState({});
+  const [held, setHeld] = useState({});
   const [path, setPath] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -147,6 +178,7 @@ export function CertificatesDialog({ shell, onClose, toast, start = null }) {
   const load = useCallback(async () => {
     setIdentities(await shell.mail.smimeIdentities());
     setOthers(await shell.mail.smimeCertificates());
+    setHeld(await shell.mail.pendingCertificates());
   }, [shell]);
   useEffect(() => {
     load().catch(() => {});
@@ -228,6 +260,31 @@ export function CertificatesDialog({ shell, onClose, toast, start = null }) {
             {error ? <span className="ml-cert-error" role="alert">{error}</span> : null}
           </div>
         </div>
+        {Object.keys(held).length ? (
+          <>
+            <div className="ml-hold-section">{t('Certificates that changed')}</div>
+            <ul className="ml-cert-list">
+              {Object.entries(held).map(([email, c]) => (
+                <li key={email} className="ml-cert changed" data-email={email}>
+                  <Icon name="info" size={16} />
+                  <span className="ml-cert-who">
+                    <strong>{c.name}</strong>
+                    <span dir="ltr">{email}</span>
+                  </span>
+                  <span className="ml-cert-dates">{t('A different certificate arrived for this address. Use it only if they told you it changed. Issued by {issuer}, thumbprint {thumbprint}.', { issuer: c.issuer, thumbprint: c.thumbprint })}</span>
+                  <span className="ml-cert-choice">
+                    <button type="button" className="ml-cert-accept" onClick={async () => { await shell.mail.acceptCertificate({ email }); await load(); }}>
+                      {t('Use the new one')}
+                    </button>
+                    <button type="button" className="ml-cert-dismiss" onClick={async () => { await shell.mail.dismissCertificate({ email }); await load(); }}>
+                      {t('Keep the old one')}
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
         <div className="ml-hold-section">{t('Other people\'s certificates')}</div>
         {people.length ? (
           <ul className="ml-cert-list">
@@ -320,6 +377,9 @@ const SMIME_CSS = `
 .ml-cert-who { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
 .ml-cert-who span { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ml-cert-dates { grid-column: 2; color: var(--ink-3); font-size: 11.5px; }
+.ml-cert-choice { grid-column: 3; grid-row: 1 / 3; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.ml-cert-choice button { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
+.ml-cert.changed > svg { color: var(--warn, #b26a00); }
 .ml-cert-remove { grid-column: 3; grid-row: 1 / 3; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
 .ml-cert-empty, .ml-cert-note { margin: 0; color: var(--ink-3); font-size: 12px; }
 .ml-cert-import { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px dashed var(--line); border-radius: var(--r-2); }

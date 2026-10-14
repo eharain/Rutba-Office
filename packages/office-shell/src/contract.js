@@ -202,6 +202,9 @@ export const METHODS = {
     'importCertificate', // ({ path }) -> [certificate] someone else's, from a .cer/.crt/.pem
     'smimeCertificates', // () -> { [email]: [certificate] } other people's, kept from their signed mail or imported
     'forgetCertificates', // ({ emails }) -> { forgotten }
+    'pendingCertificates', // () -> { [email]: certificate } a different certificate arrived for an address that has one, held aside
+    'acceptCertificate', // ({ email }) -> { accepted } use the one held aside instead
+    'dismissCertificate', // ({ email }) -> { dismissed } keep the one kept, forget the one held aside
     'canEncryptFor',    // ({ addresses }) -> { ok, missing } is there a certificate for each
     'trustForTest',     // ({ pem }) -> { anchors } a test authority trusted for a check run; refused otherwise
   ],
