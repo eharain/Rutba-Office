@@ -563,27 +563,42 @@ export function Group({ label, icon, children }) {
 
 /**
  * Fit the groups to the ribbon's width, as Office does when its window
- * narrows: first the large buttons become small ones stacked three high,
- * then the small buttons lose their names and keep their pictures, and last
- * whole groups fold into a button each; every step taken from the end of
- * the ribbon inwards, and no more of them than it takes. A group whose
- * pictures repeat keeps its names, since its buttons could not be told
- * apart without them. Classes on the groups' own nodes: React never sets
- * them, so a render keeps them.
+ * narrows: first a gallery shows fewer of its items (Word's Styles,
+ * PowerPoint's Themes), one at a time down to its fewest, then the large
+ * buttons become small ones stacked three high, then the small buttons lose
+ * their names and keep their pictures, and last whole groups fold into a
+ * button each; every step taken from the end of the ribbon inwards, and no
+ * more of them than it takes. A group whose pictures repeat keeps its
+ * names, since its buttons could not be told apart without them. Classes on
+ * the groups' own nodes: React never sets them, so a render keeps them.
  */
 const STAGES = ['compact', 'small', 'folded'];
 function fitGroups(el, iconsOnly = false) {
   const groups = [...el.querySelectorAll(':scope > .rw-group')];
   for (const g of groups) g.classList.remove(...STAGES);
+  const galleries = (g) => [...g.querySelectorAll('.rw-gallery')];
+  for (const g of groups) for (const gal of galleries(g)) galleryShow(gal, Number(gal.dataset.max) || Infinity);
   const fits = () => el.scrollWidth <= el.clientWidth + 1;
   if (!groups.length || fits()) return;
   // Icons only, every group is small already; what does not fit still folds.
-  for (const stage of iconsOnly ? ['folded'] : STAGES) {
+  for (const stage of iconsOnly ? ['gallery', 'folded'] : ['gallery', ...STAGES]) {
     for (let i = groups.length - 1; i >= 0; i--) {
       const g = groups[i];
       if (g.classList.contains('folded')) continue;
+      if (stage === 'gallery') {
+        for (const gal of galleries(g).reverse()) {
+          const fewest = Math.max(1, Number(gal.dataset.min) || 1);
+          while (Number(gal.dataset.shown) > fewest) {
+            galleryShow(gal, Number(gal.dataset.shown) - 1);
+            if (fits()) return giveBack(groups, fits);
+          }
+        }
+        continue;
+      }
       if (stage === 'folded') {
         g.classList.remove('compact', 'small');
+        // Dropped from its button, a folded group's gallery has the room to show all it would.
+        for (const gal of galleries(g)) galleryShow(gal, Number(gal.dataset.max) || Infinity);
         const slot = g.querySelector(':scope > .rw-fold > .rw-fold-icon');
         if (slot && !slot.firstChild) {
           const first = g.querySelector('.rw-group-items .rw-btn > svg:not(.rw-caret)');
@@ -607,7 +622,7 @@ function fitGroups(el, iconsOnly = false) {
 /**
  * A group shrunk early may have room again once a later one has folded:
  * from the start of the ribbon, each gets back what it gave up, where the
- * ribbon still fits.
+ * ribbon still fits, its buttons' names first and then its gallery's items.
  */
 function giveBack(groups, fits) {
   for (const g of groups) {
@@ -620,6 +635,108 @@ function giveBack(groups, fits) {
       }
     }
   }
+  for (const g of groups) {
+    if (g.classList.contains('folded')) continue;
+    for (const gal of g.querySelectorAll('.rw-gallery')) {
+      const most = Number(gal.dataset.max) || Infinity;
+      while (Number(gal.dataset.shown) < Math.min(most, gal.querySelector(':scope > .rw-gallery-items')?.children.length || 0)) {
+        const was = Number(gal.dataset.shown);
+        galleryShow(gal, was + 1);
+        if (!fits()) {
+          galleryShow(gal, was);
+          break;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * A gallery shows its first `count` items' worth of width (fewer when it
+ * has fewer), the rest reached with its arrows. The items keep their own
+ * widths, so the viewport is the span of the first `count` of them; the
+ * step its arrows scroll by is the span from one page to the next.
+ */
+export function galleryShow(gal, count) {
+  const items = gal?.querySelector(':scope > .rw-gallery-items');
+  if (!items) return;
+  const kids = [...items.children];
+  if (!kids.length) {
+    items.style.maxWidth = '';
+    gal.dataset.shown = '0';
+    return;
+  }
+  const n = Math.max(1, Math.min(kids.length, Number.isFinite(count) ? count : kids.length));
+  const a = kids[0].getBoundingClientRect();
+  const b = kids[n - 1].getBoundingClientRect();
+  const span = Math.max(a.right, b.right) - Math.min(a.left, b.left);
+  const cs = getComputedStyle(items);
+  const pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0) + (cs.boxSizing === 'border-box' ? (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0) : 0);
+  items.style.maxWidth = `${Math.ceil(span + (cs.boxSizing === 'border-box' ? pad : 0))}px`;
+  const next = kids[n]?.getBoundingClientRect();
+  gal.dataset.step = String(Math.round(next ? Math.abs(next.left - a.left) : span));
+  gal.dataset.shown = String(n);
+}
+
+/**
+ * A gallery in the ribbon, as Office draws one: a row of choices (Word's
+ * Styles, PowerPoint's Themes and Variants) with three arrows at its end.
+ * Up and down page back and on through the choices it has no room to show;
+ * the third, under a bar, opens them all (`onMore`). `max` is how many it
+ * shows when there is room, `min` the fewest it is shrunk to, a choice at
+ * a time, before its group folds into a button. `label` names the choices
+ * in the arrows' tips; `moreTip` and `moreClass` dress the third arrow.
+ */
+export function Gallery({ children, max = 6, min = 3, label = '', onMore, moreTip, moreClass = '', className = '', itemsClassName = '' }) {
+  const ref = useRef(null);
+  const [edge, setEdge] = useState({ start: true, end: true });
+  useLayoutEffect(() => {
+    const gal = ref.current;
+    const items = gal?.querySelector(':scope > .rw-gallery-items');
+    if (!items) return undefined;
+    // Shown at its length until the ribbon fits it (fitGroups shows it again when the window changes).
+    if (!gal.dataset.shown) galleryShow(gal, max);
+    const measure = () => {
+      const at = Math.abs(items.scrollLeft);
+      const start = at < 1;
+      const end = at + items.clientWidth >= items.scrollWidth - 1;
+      setEdge((e) => (e.start === start && e.end === end ? e : { start, end }));
+    };
+    measure();
+    items.addEventListener('scroll', measure, { passive: true });
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    ro?.observe(items);
+    return () => {
+      items.removeEventListener('scroll', measure);
+      ro?.disconnect();
+    };
+  }, [max, children]);
+  const page = (dir) => {
+    const gal = ref.current;
+    const items = gal?.querySelector(':scope > .rw-gallery-items');
+    if (!items) return;
+    const rtl = getComputedStyle(items).direction === 'rtl';
+    const step = Number(gal.dataset.step) || items.clientWidth;
+    items.scrollBy({ left: dir * step * (rtl ? -1 : 1), behavior: 'smooth' });
+  };
+  const named = label || t('choices');
+  return (
+    <div ref={ref} className={`rw-gallery ${className}`.trim()} data-max={max} data-min={min}>
+      <div className={`rw-gallery-items ${itemsClassName}`.trim()}>{children}</div>
+      <div className="rw-gallery-arrows">
+        <button type="button" className="rw-gallery-up" disabled={edge.start} data-tip={t('Previous {label}', { label: named })} aria-label={t('Previous {label}', { label: named })} onClick={() => page(-1)}>
+          <Icon name="chevronUp" size={10} strokeWidth={2.2} />
+        </button>
+        <button type="button" className="rw-gallery-down" disabled={edge.end} data-tip={t('Next {label}', { label: named })} aria-label={t('Next {label}', { label: named })} onClick={() => page(1)}>
+          <Icon name="chevronDown" size={10} strokeWidth={2.2} />
+        </button>
+        <button type="button" className={`rw-gallery-more ${moreClass}`.trim()} disabled={!onMore} data-tip={moreTip || t('More: every one of the {label}', { label: named })} aria-label={moreTip || t('More: every one of the {label}', { label: named })} onClick={(e) => onMore?.(e)}>
+          <span className="rw-gallery-bar" aria-hidden="true" />
+          <Icon name="chevronDown" size={10} strokeWidth={2.2} />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /** Whether a group's buttons can be told apart by their pictures alone. */

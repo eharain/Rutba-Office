@@ -467,6 +467,24 @@ textarea,
 /* A small picture button on its own (Previous, Next) sits in the middle of the height, beside its neighbour. */
 .rw-group-items > .rw-btn.icon:not(.tall) { grid-row: 1 / -1; }
 /*
+  A gallery: a row of choices the height of the group, and its three arrows
+  at the end (up, down, and more under a bar), as Office draws Styles and
+  Themes. The ribbon narrows the row a choice at a time (fitGroups); the
+  choices it no longer shows are a page away on the arrows.
+*/
+.rw-gallery { display: flex; align-items: stretch; align-self: stretch; min-width: 0; box-sizing: border-box; }
+.rw-gallery-items { display: flex; align-items: center; overflow: hidden; scrollbar-width: none; min-width: 0; }
+.rw-gallery-items::-webkit-scrollbar { display: none; }
+.rw-gallery-items > * { flex: none; }
+.rw-gallery-arrows { display: flex; flex-direction: column; flex: none; width: 17px; margin-inline-start: 3px; border-inline-start: 1px solid var(--line-soft); }
+.rw-gallery-arrows > button { flex: 1; min-height: 0; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; position: relative; }
+.rw-gallery-arrows > button:first-child { border-start-end-radius: 5px; }
+.rw-gallery-arrows > button:last-child { border-end-end-radius: 5px; }
+.rw-gallery-arrows > button:hover:not(:disabled) { background: var(--hover); color: var(--accent); }
+.rw-gallery-arrows > button:disabled { color: var(--ink-3); opacity: .45; cursor: default; }
+.rw-gallery-arrows > button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rw-gallery-bar { position: absolute; top: 4px; inset-inline: 4px; height: 1.5px; border-radius: 1px; background: currentColor; }
+/*
   A named button standing on its own in a group is drawn large, its picture
   over its name, like the large ones beside it: a few named small buttons
   sitting in a line among large ones read as out of step. Buttons in rows
@@ -635,6 +653,8 @@ textarea,
 :is(.rw-group.compact, .rw-group.small) .rw-group-items > :is(.rw-btn.tall, .rw-btn:has(> span):has(> svg:not(.rw-caret))) > span { white-space: nowrap; max-width: none; max-height: none; text-align: start; }
 :is(.rw-group.small, .rw-ribbon.icons-only .rw-group:not(.folded)) .rw-btn:has(> svg:not(.rw-caret)) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 :is(.rw-group.small, .rw-ribbon.icons-only .rw-group:not(.folded)) .rw-btn:has(> svg:not(.rw-caret)) { min-width: 28px; justify-content: center; position: relative; }
+/* A group of one button (Voice), made small, keeps it in the middle row rather than alone at the top. */
+:is(.rw-group.compact, .rw-group.small) .rw-group-items > .rw-btn:only-child { grid-row: 2; }
 /* Icons only, a large button stays large: its picture in the middle of the full height, its name in its tip. */
 .rw-ribbon.icons-only .rw-group:not(.folded):not(.compact):not(.small) .rw-group-items > :is(.rw-btn.tall, .rw-btn:has(> span):has(> svg:not(.rw-caret))) { justify-content: center; padding: 0 7px; min-width: 40px; }
 

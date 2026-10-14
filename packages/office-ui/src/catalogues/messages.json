@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6427,
+  "count": 6434,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -18444,7 +18444,13 @@
       ]
     },
     {
-      "message": "More Themes — every theme, drawn on this slide",
+      "message": "More Styles: every style in this document",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "More Themes: every theme, drawn on this slide",
       "where": [
         "apps/desktop/renderer/apps/slides/design.js"
       ]
@@ -18458,7 +18464,7 @@
       ]
     },
     {
-      "message": "More Variants — the four colourings of this theme",
+      "message": "More Variants: the four colourings of this theme",
       "where": [
         "apps/desktop/renderer/apps/slides/design.js"
       ]
@@ -18514,6 +18520,12 @@
     },
     {
       "message": "More, to the right",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "More: every one of the {label}",
       "where": [
         "packages/office-ui/src/index.js"
       ]
@@ -19440,6 +19452,12 @@
       "message": "Next tracked change",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Next {label}",
+      "where": [
+        "packages/office-ui/src/index.js"
       ]
     },
     {
@@ -22191,12 +22209,6 @@
       ]
     },
     {
-      "message": "Paragraph style",
-      "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
       "message": "Paragraphs",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -23427,6 +23439,12 @@
       "message": "Previous tracked change",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Previous {label}",
+      "where": [
+        "packages/office-ui/src/index.js"
       ]
     },
     {
@@ -37604,6 +37622,12 @@
       ]
     },
     {
+      "message": "choices",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
       "message": "cited source",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -38509,6 +38533,12 @@
       ]
     },
     {
+      "message": "styles",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
       "message": "tOGGLE cASE",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -38776,6 +38806,12 @@
       ]
     },
     {
+      "message": "themes",
+      "where": [
+        "apps/desktop/renderer/apps/slides/design.js"
+      ]
+    },
+    {
       "message": "this account",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -38853,6 +38889,12 @@
       "message": "vCard (.vcf)",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "variants",
+      "where": [
+        "apps/desktop/renderer/apps/slides/design.js"
       ]
     },
     {

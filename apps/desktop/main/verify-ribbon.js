@@ -83,7 +83,7 @@ function fixtures(dir, files) {
  * and stage, every control cut off by its group or by the ribbon, and every
  * label shown short.
  */
-const MEASURE = `(() => {
+export const MEASURE = `(() => {
   const ribbon = document.querySelector('.rw-ribbon');
   const groups = document.querySelector('.rw-groups');
   if (!ribbon || !groups) return { none: true };
@@ -101,6 +101,9 @@ const MEASURE = `(() => {
     for (const n of items) {
       if (!shown(n)) continue;
       const b = n.getBoundingClientRect();
+      // A gallery's choices past its row are scrolled out of sight on purpose, a page away on its arrows.
+      const row = n.closest('.rw-gallery-items')?.getBoundingClientRect();
+      if (row && (b.right <= row.left + 1 || b.left >= row.right - 1)) continue;
       if (b.left < gb.left - 1 || b.right > gb.right + 1 || b.bottom > g.bottom + 1 || b.top < g.top - 1) clipped.push(name(n));
     }
     for (const s of grp.querySelectorAll('.rw-btn > span, .rw-group-label')) {

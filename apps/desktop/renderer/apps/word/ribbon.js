@@ -23,7 +23,7 @@
 import React from 'react';
 import { TABLE_STYLES } from '@rutba/ooxml/table-styles';
 import { WARP_PRESETS, WARP_MORE, warpLabel } from '@rutba/drawing/warp';
-import { Ribbon, Group, Rows, Button, Separator, Select, Input, t, msg } from '@rutba/office-ui';
+import { Ribbon, Group, Rows, Button, Separator, Select, Input, Gallery, t, msg } from '@rutba/office-ui';
 import { EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
 import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS } from '@rutba/office-formats/themes';
 import { MailingsTab } from './mailings.js';
@@ -134,6 +134,9 @@ const CM = 96 / 2.54;
 const PEN_STYLES = [['single', t('Single')], ['double', t('Double')], ['dotted', t('Dotted')], ['dashed', t('Dashed')], ['thick', t('Thick')]];
 const PEN_WEIGHTS = [[2, t('¼ pt')], [4, t('½ pt')], [6, t('¾ pt')], [8, t('1 pt')], [12, t('1½ pt')], [18, t('2¼ pt')], [24, t('3 pt')], [36, t('4½ pt')], [48, t('6 pt')]];
 
+
+/** A style's name as Word shows it: its built-in names are kept in lower case in the file ("heading 1"), shown capitalised. */
+const styleName = (s) => String(s.name || s.id).replace(/(^|\s)\p{Ll}/gu, (m) => m.toUpperCase());
 
 export default function WordRibbon({
   tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null, blocks = null, table = null,
@@ -440,11 +443,24 @@ export default function WordRibbon({
           </Group>
 
           <Group label={t('Styles')} icon="styles">
-            <div className="wd-styles">
-              {(styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).slice(0, 8).map((s) => (
+            {/* Word's Styles gallery: as many as there is room for, the rest a page away on its arrows, every one under More. */}
+            <Gallery
+              className="wd-styles"
+              max={8}
+              min={3}
+              label={t('styles')}
+              moreTip={t('More Styles: every style in this document')}
+              onMore={(e) => menu.open(e, (styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).map((s) => ({
+                label: styleName(s),
+                icon: (format.paragraphStyle || 'Normal') === s.id ? 'check' : undefined,
+                run: () => para({ styleId: s.id === 'Normal' && !styles.some((x) => x.id === 'Normal') ? null : s.id }),
+              })))}
+            >
+              {(styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).map((s) => (
                 <button
                   key={s.id}
                   type="button"
+                  data-style={s.id}
                   className={`wd-style${(format.paragraphStyle || 'Normal') === s.id ? ' on' : ''}`}
                   title={t('Apply {style}', { style: s.name || s.id })}
                   onClick={() => para({ styleId: s.id === 'Normal' && !styles.some((x) => x.id === 'Normal') ? null : s.id })}
@@ -453,15 +469,7 @@ export default function WordRibbon({
                   <span className="wd-style-name">{s.name || s.id}</span>
                 </button>
               ))}
-            </div>
-            <Select
-              value={format.paragraphStyle || 'Normal'}
-              onChange={(e) => para({ styleId: e.target.value === 'Normal' && !styles.some((s) => s.id === 'Normal') ? null : e.target.value })}
-              style={{ width: 120 }}
-              title={t('Paragraph style')}
-            >
-              {(styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).map((s) => <option key={s.id} value={s.id}>{s.name || s.id}</option>)}
-            </Select>
+            </Gallery>
           </Group>
 
           <Group label={t('Editing')}>
@@ -604,13 +612,20 @@ export default function WordRibbon({
               title={t('Themes — colours, fonts and effects for the whole document, in one; now {theme}', { theme: design?.name || 'Office Theme' })}
               onClick={(e) => menu.open(e, THEMES.map((th) => ({ label: t(th.name), icon: design?.builtIn === th.id ? 'check' : undefined, run: () => dispatch({ op: 'setDocTheme', spec: { theme: th.id } }) })))}
             />
-            <div className="wd-styles">
-              {(styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).slice(0, 6).map((s) => (
-                <button key={s.id} type="button" className={`wd-style${(format.paragraphStyle || 'Normal') === s.id ? ' on' : ''}`} style={STYLE_LOOK[s.id] || undefined} title={t('Apply {style} to this paragraph', { style: s.name || s.id })} onClick={() => para({ styleId: s.id })}>
+            <Gallery
+              className="wd-styles"
+              max={6}
+              min={3}
+              label={t('styles')}
+              moreTip={t('More Styles: every style in this document')}
+              onMore={(e) => menu.open(e, (styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).map((s) => ({ label: styleName(s), icon: (format.paragraphStyle || 'Normal') === s.id ? 'check' : undefined, run: () => para({ styleId: s.id }) })))}
+            >
+              {(styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).map((s) => (
+                <button key={s.id} type="button" data-style={s.id} className={`wd-style${(format.paragraphStyle || 'Normal') === s.id ? ' on' : ''}`} style={STYLE_LOOK[s.id] || undefined} title={t('Apply {style} to this paragraph', { style: s.name || s.id })} onClick={() => para({ styleId: s.id })}>
                   <span className="wd-style-name">{s.name || s.id}</span>
                 </button>
               ))}
-            </div>
+            </Gallery>
             <Button dropdown
               icon="contrast"
               label={t('Colours')}

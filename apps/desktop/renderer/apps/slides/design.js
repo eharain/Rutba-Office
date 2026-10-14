@@ -7,7 +7,7 @@
 // the theme part is rewritten and every slide follows.
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Button, Dialog, Icon, t } from '@rutba/office-ui';
+import { Button, Dialog, Gallery, Icon, t } from '@rutba/office-ui';
 import { Markup } from './markup.js';
 
 /** The twelve slots, in Customise Colours' order, with PowerPoint's own words for them. */
@@ -281,11 +281,20 @@ export function CustomFontsDialog({ info, onClose, onSave }) {
 export function RibbonStrip({ items = [], kind, count = 4, onPick, onMore, label }) {
   // The deck's own theme leads the strip, the way PowerPoint puts it first.
   const ordered = kind === 'themes' ? [...(items || [])].sort((a, b) => (b.current ? 1 : 0) - (a.current ? 1 : 0)) : items || [];
-  const shown = ordered.slice(0, count);
+  // Every choice is in the row; the ribbon shows `count` of them where there
+  // is room and fewer, down to two, before the group folds (Gallery).
   return (
-    <div className={`sl-rs sl-rs-${kind}`}>
-      <div className="sl-rs-items">
-        {shown.length ? shown.map((it) => (
+    <Gallery
+      className={`sl-rs sl-rs-${kind}`}
+      itemsClassName="sl-rs-items"
+      max={count}
+      min={2}
+      label={kind === 'themes' ? t('themes') : t('variants')}
+      moreClass="sl-rs-more"
+      moreTip={kind === 'themes' ? t('More Themes: every theme, drawn on this slide') : t('More Variants: the four colourings of this theme')}
+      onMore={onMore}
+    >
+        {ordered.length ? ordered.map((it) => (
           <button
             key={it.id}
             type="button"
@@ -299,11 +308,7 @@ export function RibbonStrip({ items = [], kind, count = 4, onPick, onMore, label
             <Accents colors={it.colors} />
           </button>
         )) : <span className="sl-rs-wait">{label}</span>}
-      </div>
-      <button type="button" className="sl-rs-more" data-tip={kind === 'themes' ? t('More Themes — every theme, drawn on this slide') : t('More Variants — the four colourings of this theme')} onClick={onMore}>
-        <Icon name="chevronDown" size={12} />
-      </button>
-    </div>
+    </Gallery>
   );
 }
 
@@ -345,8 +350,8 @@ export const DESIGN_CSS = `
 .sl-dg-custom { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; padding: 7px 8px; border-radius: 7px; font-size: 12.5px; color: var(--ink); cursor: pointer; text-align: left; }
 .sl-dg-custom:hover { background: var(--hover); }
 /* The ribbon's own strip: live thumbnails in a row, the rest behind a button. */
-.sl-rs { display: flex; align-items: stretch; gap: 0; height: 60px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--surface-2); padding: 3px; }
-.sl-rs-items { display: flex; gap: 4px; align-items: center; }
+.sl-rs { display: flex; align-items: stretch; gap: 0; height: 60px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--surface-2); padding: 3px 0 3px 3px; }
+.sl-rs-items { gap: 4px; padding: 2px; box-sizing: border-box; }
 .sl-rs-item { width: 88px; height: 52px; padding: 0; border: 1.5px solid transparent; border-radius: 5px; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; transition: border-color var(--fast), transform var(--fast); }
 .sl-rs-item:hover { border-color: var(--line-strong); }
 .sl-rs-item.current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
@@ -357,8 +362,6 @@ export const DESIGN_CSS = `
 .sl-dg-name .sl-accents { width: 54px; margin-left: auto; height: 6px; border-radius: 3px; }
 .sl-dg-label { overflow: hidden; text-overflow: ellipsis; }
 .sl-rs-wait { font-size: 11.5px; color: var(--ink-3); padding: 0 10px; white-space: nowrap; }
-.sl-rs-more { width: 18px; margin-left: 3px; border: 0; border-left: 1px solid var(--line-soft); background: transparent; color: var(--ink-2); cursor: pointer; display: grid; place-items: center; border-radius: 0 5px 5px 0; }
-.sl-rs-more:hover { background: var(--hover); color: var(--accent); }
 /* Customise Colours and Customise Fonts. */
 .sl-cc { display: grid; grid-template-columns: 1fr 190px; gap: 18px; }
 .sl-cc-caption { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); font-weight: 600; margin-bottom: 6px; }

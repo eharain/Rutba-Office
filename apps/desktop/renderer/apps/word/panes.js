@@ -61,7 +61,8 @@ const CSS = `
   sample in its look and its name under it. Paper, so dark or light the
   sample is the colour it will be on the page.
 */
-.wd-styles { display: flex; gap: 2px; align-items: center; height: 100%; padding: 3px; border: 1px solid var(--line-soft); border-radius: var(--r-2); background: var(--surface-2); }
+.wd-styles { display: flex; align-items: stretch; height: 100%; padding: 3px 0 3px 3px; border: 1px solid var(--line-soft); border-radius: var(--r-2); background: var(--surface-2); }
+.wd-styles > .rw-gallery-items { gap: 2px; height: 100%; padding: 1px; box-sizing: border-box; align-items: stretch; }
 .wd-style {
   border: 1px solid transparent; background: #ffffff; color: #1b1b1b;
   border-radius: var(--r-1); padding: 3px 6px 2px; font: inherit; font-size: 13px; cursor: pointer;
