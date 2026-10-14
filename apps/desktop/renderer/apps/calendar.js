@@ -977,7 +977,7 @@ const CSS = `
 .cal-day-top, .cal-probe-top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 4px; }
 .cal-day-h, .cal-probe-h, .cal-col-head .dh { font-size: 10.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cal-col-head .dh { margin-inline-start: 6px; }
-.cal-chip, .cal-probe-chip { flex: none; display: flex; align-items: center; gap: 4px; border: 0; border-left: 3px solid var(--c); border-radius: 3px; background: color-mix(in srgb, var(--c) 14%, var(--surface)); color: var(--ink); font: inherit; font-size: 11.5px; line-height: 15px; padding: 1px 5px; text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; }
+.cal-chip, .cal-probe-chip { flex: none; display: flex; align-items: center; gap: 4px; border: 0; border-left: 3px solid var(--c); border-radius: 3px; background: color-mix(in srgb, var(--c) 14%, var(--surface)); color: var(--ink); font: inherit; font-size: 11.5px; line-height: 14px; padding: 1px 5px; text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; }
 .cal-chip.allday { background: var(--c); color: white; border-left-color: var(--c); }
 .cal-chip .t { color: var(--ink-3); flex: none; }
 .cal-chip.allday .t { color: white; }
