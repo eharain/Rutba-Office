@@ -564,7 +564,7 @@ export default function Calendar({ app, shell, boot }) {
               {hijri ? <span className="cal-probe-h">{hijriLabel(days[0])}</span> : <span />}
               <div className="cal-probe-n">30</div>
             </div>
-            <span className="cal-probe-chip"><span className="t">10:00</span><span className="s">Ag</span></span>
+            <span className="cal-probe-chip"><span className="t">10:00</span><span className="s">Ag</span></span>{/* words-ok: a sample to measure, never seen */}
             <span className="cal-probe-more">+9</span>
           </div>
         </div>
