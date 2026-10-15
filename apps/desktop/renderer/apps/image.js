@@ -2697,6 +2697,13 @@ const CSS = `
 .im-straighten input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; margin-top: -5px;
   border-radius: 50%; background: var(--bg, #fff); border: 2px solid var(--accent); box-shadow: 0 1px 2px rgba(0,0,0,0.18); }
 input[type=range]:disabled::-webkit-slider-thumb { border-color: var(--line); }
+/* High Contrast: the tracks this window draws itself, drawn again in the system's ink. */
+@media (forced-colors: active) {
+  .im-rs input[type=range]::-webkit-slider-runnable-track, .im-ps input[type=range]::-webkit-slider-runnable-track,
+  .im-straighten input[type=range]::-webkit-slider-runnable-track { forced-color-adjust: none; background: CanvasText; }
+  .im-rs input[type=range]::-webkit-slider-thumb, .im-ps input[type=range]::-webkit-slider-thumb,
+  .im-straighten input[type=range]::-webkit-slider-thumb { forced-color-adjust: none; background: Canvas; border-color: Highlight; }
+}
 .im-rs input[type=range]:focus-visible, .im-ps input[type=range]:focus-visible, .im-straighten input[type=range]:focus-visible { outline: 2px solid var(--accent-line, var(--accent)); outline-offset: 2px; border-radius: 4px; }
 .im-ps-value { color: var(--ink-3); font-variant-numeric: tabular-nums; font-size: 11.5px; text-align: end; white-space: nowrap; }
 .im-format-hint { font-size: 11px; }

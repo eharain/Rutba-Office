@@ -1164,3 +1164,42 @@ textarea,
   --font: "Segoe UI", "Noto Sans Arabic", "Noto Naskh Arabic", Tahoma, system-ui, sans-serif;
   --font-display: "Segoe UI Semibold", "Segoe UI", "Noto Sans Arabic", Tahoma, system-ui, sans-serif;
 }
+
+/*
+  Windows High Contrast (forced colours). The system's colours replace the
+  suite's, and backgrounds and shadows go: so whatever a fill or a shadow
+  said (the chosen tab's bar, a pressed button, a chosen row, a dialog's
+  edge, a ring) is said again here in the system's own colours, Highlight
+  for what is chosen and CanvasText for edges, as Office's own windows do.
+*/
+@media (forced-colors: active) {
+  :focus-visible { outline: 2px solid Highlight; outline-offset: 1px; }
+  .rw-ribbon[data-kbd] :is(.rw-tab, .rw-btn, .rw-fold, .rw-collapse, .rw-ribbon-options, select, input):focus { outline: 2px solid Highlight; }
+  /* The chosen tab keeps its bar, in the highlight. */
+  .rw-tab[aria-selected='true']::before { forced-color-adjust: none; background: Highlight; }
+  /* Pressed, chosen and current: outlined in the highlight, the words left in the window's own colour. */
+  .rw-btn[aria-pressed='true'], .rw-item.selected, .rw-item[aria-current='true'], [role='option'][aria-selected='true'],
+  [role='row'][aria-selected='true'], [aria-current='true'], [aria-current='date'], [aria-pressed='true']:not(.rw-btn) {
+    outline: 2px solid Highlight; outline-offset: -2px;
+  }
+  .rw-item.selected::before { forced-color-adjust: none; background: Highlight; }
+  /* What floats over the window keeps an edge where its shadow was. */
+  .rw-dialog, .rw-menu, .rw-tip, .rw-toast, .rw-ribbon .rw-group-body { border: 1px solid CanvasText; }
+  .rw-dialog-foot, .rw-dialog-head { border-color: CanvasText; }
+  .rw-panel, .rw-status, .rw-ribbon { border-color: CanvasText; }
+  .rw-menu button:focus-visible, .rw-menu button:hover:not(:disabled) { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+  .rw-menu button:focus-visible svg, .rw-menu button:hover:not(:disabled) svg { color: HighlightText; }
+  .rw-btn:disabled, button:disabled { color: GrayText; opacity: 1; }
+  .rw-progress { border: 1px solid CanvasText; }
+  .rw-progress > div { forced-color-adjust: none; background: Highlight; }
+  .rw-gallery-bar { forced-color-adjust: none; background: CanvasText; }
+  /* Pictures in the system's ink, as Office draws its ribbon in High Contrast; greyed with their names when off. */
+  .rw-groups .rw-btn svg, .rw-fold-icon svg, .rw-quick .rw-btn svg { color: ButtonText !important; }
+  .rw-btn:disabled svg { color: GrayText !important; }
+  /* A colour to choose is the colour itself, as Office keeps its swatches. */
+  [data-swatch], [class*='swatch'] { forced-color-adjust: none; }
+  .rw-btn svg[data-icon] path { stroke: currentColor; }
+  .rw-btn svg[data-icon='bucketFill'] path:last-child { fill: currentColor; }
+  /* A button its fill marked keeps an edge. */
+  .rw-btn.primary { border: 1px solid ButtonText; }
+}

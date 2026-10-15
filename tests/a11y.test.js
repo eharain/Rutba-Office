@@ -75,3 +75,15 @@ test("by day each app's colour as words reads 4.5:1 on the chrome and a chosen r
     assert.ok(ratio(W, fill) >= 4.5, `${app}: white on its fill: ${ratio(W, fill).toFixed(2)}`);
   }
 });
+
+test('in Windows High Contrast what a fill or a shadow said is said again in the system colours', () => {
+  const at = CSS.indexOf('@media (forced-colors: active)');
+  assert.ok(at > 0, 'theme.css has a forced-colours block');
+  const block = CSS.slice(at);
+  // The chosen tab's bar, a pressed or chosen control, the keyboard's ring, and the edges of what floats.
+  assert.match(block, /\.rw-tab\[aria-selected='true'\]::before \{ forced-color-adjust: none; background: Highlight; \}/);
+  assert.match(block, /\.rw-btn\[aria-pressed='true'\][^{]*\[aria-current='date'\][^{]*\{\s*outline: 2px solid Highlight;/);
+  assert.match(block, /:focus-visible \{ outline: 2px solid Highlight;/);
+  assert.match(block, /\.rw-dialog, \.rw-menu[^{]*\{ border: 1px solid CanvasText; \}/);
+  assert.match(block, /\.rw-btn:disabled svg \{ color: GrayText !important; \}/);
+});

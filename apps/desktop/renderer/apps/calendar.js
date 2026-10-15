@@ -909,7 +909,7 @@ export default function Calendar({ app, shell, boot }) {
           <h2 className="cal-title">{title}</h2>
           <Spacer />
           <div className="cal-views">
-            {['day', 'week', 'month', 'agenda'].map((v) => <button type="button" key={v} className={`cal-view${view === v ? ' on' : ''}`} onClick={() => setView(v)}>{VIEW_NAMES[v]}</button>)}
+            {['day', 'week', 'month', 'agenda'].map((v) => <button type="button" key={v} className={`cal-view${view === v ? ' on' : ''}`} aria-pressed={view === v} onClick={() => setView(v)}>{VIEW_NAMES[v]}</button>)}
           </div>
         </div>
         <div className="cal-body">{body}</div>

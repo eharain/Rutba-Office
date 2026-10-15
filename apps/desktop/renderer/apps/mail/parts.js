@@ -322,6 +322,7 @@ export const CSS = `
   transition: filter var(--fast);
 }
 .ml-compose-cta button:hover { filter: brightness(1.08); }
+@media (forced-colors: active) { .ml-compose-cta button { border: 1px solid ButtonText; } }
 .ml-compose-cta button:disabled { opacity: .5; cursor: default; }
 .ml-accounts { padding: 2px 6px; border-bottom: 1px solid var(--line-soft); }
 
