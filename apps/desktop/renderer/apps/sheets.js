@@ -35,6 +35,7 @@ import { CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/des
 import { SlicerPanel, InsertSlicersDialog, ObjectHandles, RotateHandle, SelectionPane, angleAt, followPointer, OBJECTS_CSS } from './sheets/objects.js';
 import { IconsDialog } from '../icons-insert.js';
 import { QrDialog, qrOf } from '../qrcode.js';
+import { RotationDialog } from '../rotation-dialog.js';
 import { DataFromPictureDialog, PICTURE_DATA_CSS } from './sheets/picture-data.js';
 import { ReceiptDialog, RECEIPT_ROW_CSS } from './sheets/receipt-row.js';
 import { OCR_CSS } from '../ocr-ui.js';
@@ -1446,8 +1447,11 @@ export default function Sheets({ app, shell, boot }) {
     const pickedShown = shown.filter((d) => picked.includes(d.id));
     const finish = (op) => Promise.resolve(dispatch(op)).finally(() => setLive(null));
     // Resize one, from a handle.
+    // A turned drawing resizes along its own sides; on a sheet right to left
+    // the grid is mirrored, so its turn there is the other way.
+    const gridTurn = (d) => (rtlRef.current ? -1 : 1) * (d.kind === 'chart' || d.kind === 'slicer' ? 0 : d.rot || 0);
     const resize = (e, d, handle) => followPointer(e, {
-      box: boxFor(d), mode: 'resize', handle, zoom: z, mirrored: rtlRef.current,
+      box: boxFor(d), mode: 'resize', handle, zoom: z, mirrored: rtlRef.current, turn: gridTurn(d),
       onMove: (box) => setLive({ boxes: { [d.id]: box } }),
       onDone: (box) => (box ? finish({ op: 'drawingBox', id: d.id, ...box }) : setLive(null)),
     });
@@ -1534,19 +1538,20 @@ export default function Sheets({ app, shell, boot }) {
               />
             );
           }
-          // A shape or a picture draws its own turn; a group is turned whole,
-          // and so is anything while its rotation handle is being dragged.
-          const dragging = live?.turn?.id === d.id;
-          const extra = dragging && d.kind !== 'group' ? turnOf(d) - (d.rot || 0) : 0;
+          // A shape or a picture draws its own turn in its SVG: its box is
+          // turned with it and the SVG turned back by as much, so what is
+          // drawn stays as it was while a press lands by the turned outline,
+          // not in the empty corners of the upright box. A group is turned
+          // whole, members and all; and the turn follows the rotation handle.
+          const own = d.kind !== 'group' && d.svg ? d.rot || 0 : 0;
           const transform = [
-            d.kind === 'group' && (turnOf(d) || 0) ? `rotate(${turnOf(d)}deg)` : '',
-            extra ? `rotate(${extra}deg)` : '',
+            turnOf(d) ? `rotate(${turnOf(d)}deg)` : '',
             d.kind === 'group' && (d.flipH || d.flipV) ? `scale(${d.flipH ? -1 : 1}, ${d.flipV ? -1 : 1})` : '',
           ].filter(Boolean).join(' ');
           return (
             <div
               key={d.id}
-              className={`sh-drawing${d.svg || d.members ? '' : ' unsupported'}${picked.includes(d.id) ? ' picked' : ''}`}
+              className={`sh-drawing${d.svg || d.members ? '' : ' unsupported'}${picked.includes(d.id) ? ' picked' : ''}${own ? ' turned' : ''}`}
               data-id={d.id}
               data-kind={d.kind}
               // The drawing's own place on the sheet: an id like "d5" is its
@@ -1556,7 +1561,7 @@ export default function Sheets({ app, shell, boot }) {
                 { label: picked.includes(d.id) && picked.length > 1 ? t('Delete drawings') : t('Delete'), icon: 'trash', run: () => { const ids = picked.includes(d.id) ? picked : [d.id]; setPicked([]); dispatch({ op: 'deleteDrawings', ids }); } },
               ])}
               data-name={d.name || ''}
-              style={{ left: box.x, top: box.y, width: box.width, height: box.height, ...(transform ? { transform } : {}) }}
+              style={{ left: box.x, top: box.y, width: box.width, height: box.height, ...(transform ? { transform } : {}), ...(own ? { '--sh-own-turn': `${-own}deg` } : {}) }}
               title={d.unsupported ? `${d.name || d.kind}: ${d.unsupported}` : d.pivot ? t('{name} — a PivotChart of {pivot}', { name: d.name || t('PivotChart'), pivot: d.pivot }) : d.name || undefined}
               onMouseDown={(e) => press(e, d)}
               // An equation opens again in the equation editor.
@@ -1576,12 +1581,14 @@ export default function Sheets({ app, shell, boot }) {
           return <div key={`ring-${d.id}`} className="sh-obj-ring several" style={{ left: b.x, top: b.y, width: b.width, height: b.height }} />;
         }) : null}
         {one ? (() => {
-          // The ring and handles turn with the drawing, as Excel's do.
+          // The ring and handles turn with the drawing, as Excel's do; on a
+          // sheet right to left the grid is mirrored, so they turn the other
+          // way within it to stand on the drawing on the screen.
           const b = boxFor(one);
-          const deg = turnOf(one);
+          const deg = (rtlRef.current ? -1 : 1) * turnOf(one);
           return (
-            <div className="sh-obj-turn" style={deg ? { position: 'absolute', left: 0, top: 0, width: 0, height: 0, transformOrigin: `${b.x + b.width / 2}px ${b.y + b.height / 2}px`, transform: `rotate(${deg}deg)` } : { position: 'absolute', left: 0, top: 0, width: 0, height: 0 }}>
-              <ObjectHandles box={b} onHandle={(e, handle) => resize(e, one, handle)} />
+            <div className="sh-obj-turn" style={deg ? { position: 'absolute', left: 0, top: 0, width: 0, height: 0, zIndex: 6, transformOrigin: `${b.x + b.width / 2}px ${b.y + b.height / 2}px`, transform: `rotate(${deg}deg)` } : { position: 'absolute', left: 0, top: 0, width: 0, height: 0 }}>
+              <ObjectHandles box={b} turn={deg} onHandle={(e, handle) => resize(e, one, handle)} />
               {['shape', 'image', 'group'].includes(one.kind) ? <RotateHandle box={b} onStart={(e) => turn(e, one)} /> : null}
             </div>
           );
@@ -2985,6 +2992,11 @@ export default function Sheets({ app, shell, boot }) {
           if (next?.opResult) setPicked([next.opResult]);
           return;
         }
+        if (arg.op === 'rotationDialog') {
+          const first = (model?.drawings || []).find((d) => d.id === ids[0]);
+          setDialog({ kind: 'rotation', ids, rot: first?.rot || 0 });
+          return;
+        }
         if (arg.op === 'ungroup') { const next = await dispatch({ op: 'ungroupDrawings', ids }); if (next) setPicked([]); return; }
         const ops = {
           order: { op: 'reorderDrawings', ids, to: arg.to },
@@ -3855,6 +3867,9 @@ export default function Sheets({ app, shell, boot }) {
           }}
         />
       ) : null}
+      {dialog?.kind === 'rotation' ? (
+        <RotationDialog initial={dialog.rot} onClose={() => setDialog(null)} onApply={(deg) => dispatch({ op: 'rotateDrawings', ids: dialog.ids, to: deg })} />
+      ) : null}
       {dialog?.kind === 'qrcode' ? (
         <QrDialog
           initial={dialog.initial || null}
@@ -4690,6 +4705,8 @@ const CSS = `
 .sh-spark { position: absolute; left: 0; top: 0; pointer-events: none; }
 .sh-drawing { position: absolute; overflow: visible; z-index: 2; }
 .sh-drawing > svg { display: block; overflow: visible; }
+/* A turned shape or picture: its box turns, its own SVG (which draws the turn) turns back. */
+.sh-drawing.turned > svg { rotate: var(--sh-own-turn); pointer-events: none; }
 .sh-drawing.unsupported { display: grid; place-items: center; border: 1px dashed var(--line); color: var(--ink-3); font-size: 11px; background: rgba(255, 255, 255, 0.6); }
 /* Page Layout → Sheet Right-to-Left: the grid drawn mirrored — column A at
    the right, the row headings and the outline on the right, the scroll bar

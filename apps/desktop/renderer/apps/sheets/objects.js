@@ -8,6 +8,7 @@
 
 import React, { useState } from 'react';
 import { Button, Dialog, Icon, t, tn } from '@rutba/office-ui';
+import { resizeTurned, handleCursor } from '@rutba/office-ui/turned-box';
 
 /** Excel's eight resize handles: where on the box, and the cursor each wears. */
 export const HANDLES = [
@@ -16,9 +17,19 @@ export const HANDLES = [
   ['sw', 0, 1, 'nesw-resize'], ['w', 0, 0.5, 'ew-resize'],
 ];
 
-/** A box moved by (dx, dy), or resized from one of the handles; never smaller than 16 px. */
-export function draggedBox(box, mode, handle, dx, dy) {
+/**
+ * A box moved by (dx, dy), or resized from one of the handles; never smaller
+ * than 16 px. A box turned by `turn` degrees resizes along its own sides,
+ * the side or corner opposite the handle staying where it is.
+ */
+export function draggedBox(box, mode, handle, dx, dy, turn = 0) {
   if (mode === 'move') return { ...box, x: Math.max(0, Math.round(box.x + dx)), y: Math.max(0, Math.round(box.y + dy)) };
+  if (turn) {
+    const r = resizeTurned({ x: box.x, y: box.y, w: box.width, h: box.height }, turn, handle, dx, dy, { min: 16 });
+    const width = Math.round(r.w);
+    const height = Math.round(r.h);
+    return { x: Math.round(r.x + (r.w - width) / 2), y: Math.round(r.y + (r.h - height) / 2), width, height };
+  }
   let { x, y, width: w, height: h } = box;
   if (handle.includes('e')) w += dx;
   if (handle.includes('s')) h += dy;
@@ -38,7 +49,7 @@ export function draggedBox(box, mode, handle, dx, dy) {
  * sheet right to left (`mirrored`) the grid is drawn mirrored, so a drag
  * across counts the other way.
  */
-export function followPointer(e, { box, mode, handle = null, zoom = 1, mirrored = false, onMove, onDone }) {
+export function followPointer(e, { box, mode, handle = null, zoom = 1, mirrored = false, turn = 0, onMove, onDone }) {
   const start = { x: e.clientX, y: e.clientY };
   let last = null;
   let moved = false;
@@ -47,7 +58,7 @@ export function followPointer(e, { box, mode, handle = null, zoom = 1, mirrored 
     const dy = (ev.clientY - start.y) / zoom;
     if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
     moved = true;
-    last = draggedBox(box, mode, handle, dx, dy);
+    last = draggedBox(box, mode, handle, dx, dy, turn);
     onMove(last);
   };
   const up = () => {
@@ -59,8 +70,8 @@ export function followPointer(e, { box, mode, handle = null, zoom = 1, mirrored 
   window.addEventListener('mouseup', up, true);
 }
 
-/** The ring and handles round a picked drawing. */
-export function ObjectHandles({ box, onHandle }) {
+/** The ring and handles round a picked drawing; `turn` is how far they stand turned, for the cursors. */
+export function ObjectHandles({ box, turn = 0, onHandle }) {
   return (
     <>
       <div className="sh-obj-ring" style={{ left: box.x, top: box.y, width: box.width, height: box.height }} />
@@ -69,7 +80,7 @@ export function ObjectHandles({ box, onHandle }) {
           key={name}
           className="sh-obj-handle"
           data-handle={name}
-          style={{ left: box.x + box.width * fx - 4.5, top: box.y + box.height * fy - 4.5, cursor }}
+          style={{ left: box.x + box.width * fx - 4.5, top: box.y + box.height * fy - 4.5, cursor: turn ? handleCursor(name, turn) : cursor }}
           onMouseDown={(e) => { if (e.button === 0) { e.preventDefault(); e.stopPropagation(); onHandle(e, name); } }}
         />
       ))}

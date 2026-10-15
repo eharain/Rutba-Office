@@ -594,6 +594,7 @@ export default function SheetsRibbon({
               { label: t('Rotate Left 90°'), run: () => act('arrange', { op: 'rotate', by: -90 }) },
               { label: t('Flip Vertical'), icon: 'flip', run: () => act('arrange', { op: 'rotate', flip: 'vertical' }) },
               { label: t('Flip Horizontal'), run: () => act('arrange', { op: 'rotate', flip: 'horizontal' }) },
+              { label: t('More Rotation Options…'), run: () => act('arrange', { op: 'rotationDialog' }) },
             ])} />
           </Group>
         </>
