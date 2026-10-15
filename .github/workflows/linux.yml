@@ -1,0 +1,85 @@
+# Linux builds, unsigned: the AppImage and the .deb, built on Ubuntu with
+# the same electron-builder configuration as the Windows installers
+# (apps/desktop/electron-builder.config.cjs, `linux` and `deb`), then
+# started under a virtual display three ways before they are kept as the
+# run's artefacts:
+#
+#   1. the unpacked build, which reports what it read and quits
+#      (RUTBA_OFFICE_UPGRADE_REPORT, apps/desktop/main/upgrade-report.js):
+#      it starts, finds its profile and answers with its version;
+#   2. the AppImage, opening every app's window and photographing it
+#      (RUTBA_OFFICE_SMOKE, apps/desktop/main/smoke.js), which fails on a
+#      window that does not paint or logs an error;
+#   3. the .deb installed with apt, as a person installs it, started from
+#      where it installs (/opt/Rutba Office/rutba-office) and reporting.
+#
+# From the Actions tab only, for now; it publishes nothing. The unpacked
+# build and the AppImage run with --no-sandbox: Chromium's sandbox helper
+# needs root's setuid bit, which only the installed .deb gives it.
+name: linux
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: The packages the build and the virtual display need
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+      - run: npm ci
+      - name: Build the AppImage and the .deb
+        run: npm run dist:linux
+      - name: What was built
+        run: ls -la apps/desktop/release apps/desktop/release/linux-unpacked
+      - name: Start the unpacked build, which reports and quits
+        run: |
+          version=$(node -p "require('./package.json').version")
+          profile=$(mktemp -d)
+          RUTBA_OFFICE_UPGRADE_REPORT="$RUNNER_TEMP/report-unpacked.json" RUTBA_UPGRADE_FEED=0 \
+            timeout 180 xvfb-run -a apps/desktop/release/linux-unpacked/rutba-office --no-sandbox --user-data-dir="$profile"
+          node -e "const r=require(process.argv[1]); if (r.version !== process.argv[2]) { console.error('the build says it is', r.version); process.exit(1) } console.log('started:', r.version, 'packaged:', r.packaged)" "$RUNNER_TEMP/report-unpacked.json" "$version"
+      - name: Open every window from the AppImage and photograph it
+        env:
+          # No FUSE on the runner: the AppImage unpacks itself and runs.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          RUTBA_OFFICE_SMOKE: '1'
+          RUTBA_SMOKE_OUT: ${{ runner.temp }}/smoke
+        run: |
+          image=$(ls apps/desktop/release/*.AppImage | head -n 1)
+          chmod +x "$image"
+          profile=$(mktemp -d)
+          timeout 600 xvfb-run -a --server-args="-screen 0 1680x1050x24" "$image" --no-sandbox --user-data-dir="$profile"
+      - name: Install the .deb with apt and start it
+        run: |
+          version=$(node -p "require('./package.json').version")
+          sudo apt-get install -y "$(ls "$PWD"/apps/desktop/release/*.deb | head -n 1)"
+          dpkg -s rutba-office | grep -E '^(Package|Version|Status):'
+          test -x "/opt/Rutba Office/rutba-office"
+          test -f /usr/share/applications/rutba-office.desktop
+          profile=$(mktemp -d)
+          RUTBA_OFFICE_UPGRADE_REPORT="$RUNNER_TEMP/report-deb.json" RUTBA_UPGRADE_FEED=0 \
+            timeout 180 xvfb-run -a "/opt/Rutba Office/rutba-office" --user-data-dir="$profile"
+          node -e "const r=require(process.argv[1]); if (r.version !== process.argv[2]) process.exit(1); console.log('installed and started:', r.version)" "$RUNNER_TEMP/report-deb.json" "$version"
+      - name: Keep the packages and the photographs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ github.sha }}
+          path: |
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+            apps/desktop/release/latest-linux.yml
+            ${{ runner.temp }}/smoke
+          retention-days: 14
+          if-no-files-found: warn

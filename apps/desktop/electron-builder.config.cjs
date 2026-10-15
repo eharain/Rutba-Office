@@ -138,6 +138,9 @@ module.exports = async () => {
         { target: 'deb', arch: ['x64'] },
       ],
       category: 'Office',
+      // The program's name on disk: /opt/Rutba Office/rutba-office. Left to
+      // itself electron-builder takes the package's scoped name.
+      executableName: 'rutba-office',
       icon: path.resolve(__dirname, 'resources/icon.png'),
       synopsis: 'Free office suite: mail, documents, worksheets, presentations and media',
       description:
@@ -154,7 +157,8 @@ module.exports = async () => {
       },
     },
 
-    deb: { depends: ['libgtk-3-0', 'libnotify4', 'libnss3', 'libxss1', 'libxtst6', 'xdg-utils', 'libatspi2.0-0'] },
+    // A Debian package's name is lower case: `apt remove rutba-office`.
+    deb: { packageName: 'rutba-office', depends: ['libgtk-3-0', 'libnotify4', 'libnss3', 'libxss1', 'libxtst6', 'xdg-utils', 'libatspi2.0-0'] },
 
     // The update feed. electron-builder writes latest.yml beside the
     // installers, and electron-updater reads it from the release.
