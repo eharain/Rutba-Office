@@ -226,6 +226,57 @@ export function inkIn(binary, x, y, w, h) {
 }
 
 /**
+ * Word boxes drawn in to their own ink, side to side. The recogniser's box
+ * for a word of Arabic script is where its model read the letters, which can
+ * stand a few pixels off the letters themselves (narrower, or moved toward
+ * the line's start); a Latin word's is already tight. Each word's columns of
+ * ink, in the word's own height and a little beyond each side, are gathered
+ * into clusters (letters, or letters joined); a cluster belongs to the word
+ * when its middle is inside the box or most of it is, and the box's left and
+ * right are moved to the clusters' outer edges. A side moves at most half the
+ * word's height, so a box is never carried onto the next word; a box with no
+ * ink in it is kept as read. Boxes are { x, y, width, height } in the
+ * picture's pixels; the words are changed in place and returned.
+ */
+export function fitToInk(binary, words) {
+  const { width: W, height: H, data } = binary;
+  for (const w of words || []) {
+    const b = w?.box;
+    if (!b || !(b.width > 0) || !(b.height > 0)) continue;
+    const h = b.height;
+    const reach = Math.max(2, Math.round(h * 0.5));
+    const x0 = Math.max(0, Math.floor(b.x - reach)), x1 = Math.min(W, Math.ceil(b.x + b.width + reach));
+    const y0 = Math.max(0, Math.floor(b.y)), y1 = Math.min(H, Math.ceil(b.y + b.height));
+    if (x1 - x0 < 2 || y1 <= y0) continue;
+    const ink = new Uint8Array(x1 - x0);
+    for (let x = x0; x < x1; x++) {
+      for (let y = y0; y < y1; y++) if (data[y * W + x] === 0) { ink[x - x0] = 1; break; }
+    }
+    // Letters a column or two apart are one cluster; a word's space parts two.
+    const gap = Math.max(1, Math.round(h * 0.06));
+    const clusters = [];
+    let start = -1, last = -1e9;
+    for (let i = 0; i < ink.length; i++) {
+      if (!ink[i]) continue;
+      if (start < 0 || i - last > gap) { if (start >= 0) clusters.push([x0 + start, x0 + last + 1]); start = i; }
+      last = i;
+    }
+    if (start >= 0) clusters.push([x0 + start, x0 + last + 1]);
+    const left = b.x, right = b.x + b.width;
+    const mine = clusters.filter(([a, c]) => {
+      const mid = (a + c) / 2;
+      return (mid >= left && mid <= right) || Math.min(c, right) - Math.max(a, left) >= 0.5 * (c - a);
+    });
+    if (!mine.length) continue;
+    const nl = Math.max(mine[0][0], left - reach);
+    const nr = Math.min(mine[mine.length - 1][1], right + reach);
+    if (nr - nl < 1) continue;
+    w.box = { x: nl, y: b.y, width: nr - nl, height: b.height };
+  }
+  return words;
+}
+
+/**
  * The connected blobs of ink (eight-connected), each with its box and
  * pixel count; runs are labelled row by row and joined with union-find.
  */

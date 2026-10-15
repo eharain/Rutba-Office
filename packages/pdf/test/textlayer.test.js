@@ -70,8 +70,25 @@ test('each word is stretched to its width and placed at its baseline; a word on 
   const { bytes } = addTextLayer(scannedPdf(), [{ page: 0, lines: [{ words: [{ text: 'abcd', x: 100, y: 500, width: 40, size: 10 }, { text: 'up', x: 300, y: 200, width: 20, size: 10, angle: 90 }] }] }]);
   const content = openPdf(bytes).pageContent(0).toString('latin1');
   // Four units at half an em: scale 40 / 2 = 20.
-  assert.match(content, /\n20 0 0 10 100 500 Tm\n/);
-  assert.match(content, /\n0 20 -10 0 300 200 Tm\n/);
+  assert.match(content, /\/ROCR 1 Tf\n20 0 0 10 100 500 Tm\n/);
+  // The next word a size step on (2), its matrix halved: the same stretch and place.
+  assert.match(content, /\/ROCR 2 Tf\n0 10 -5 0 300 200 Tm\n/);
+});
+
+test('every word is a size step from the one before it, so a reader that runs a line together still keeps each word over its place', () => {
+  const words = ['Rutba', 'Office', 'reads', 'the', 'words'].map((text, i) => ({ text, x: 72 + i * 60, y: 700, width: 10 * text.length, size: 12 }));
+  const { bytes } = addTextLayer(scannedPdf(), [{ page: 0, lines: [{ words }] }]);
+  const content = openPdf(bytes).pageContent(0).toString('latin1');
+  const sizes = [...content.matchAll(/\/ROCR (\d+) Tf/g)].map((m) => Number(m[1]));
+  assert.deepEqual(sizes, [1, 2, 1, 2, 1]);
+  // Size times matrix is each word's own stretch (its width over its units at half an em) and height.
+  const steps = [...content.matchAll(/\/ROCR (\d+) Tf\n([-\d.]+) [-\d.]+ [-\d.]+ ([-\d.]+) ([-\d.]+) ([-\d.]+) Tm/g)];
+  assert.equal(steps.length, words.length);
+  steps.forEach((m, i) => {
+    assert.equal(Number(m[1]) * Number(m[2]), words[i].width / (words[i].text.length * 0.5));
+    assert.equal(Number(m[1]) * Number(m[3]), 12);
+    assert.equal(Number(m[4]), words[i].x);
+  });
 });
 
 test('right-to-left words are written in the order a page shows them; Chinese has no space between characters', () => {

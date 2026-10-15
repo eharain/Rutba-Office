@@ -24,6 +24,12 @@
  * ToUnicode CMap, over an embedded TrueType font with one empty glyph half
  * an em wide. Each word is placed with its own text matrix, stretched to
  * the width of the word on the page, so selecting it highlights the word.
+ * Each word is also set at a size one step from its neighbour's (1 or 2,
+ * the matrix halved to match, so nothing moves): a reader that gathers a
+ * line's words into one run while the size holds (pdf.js does) then keeps
+ * every word a run of its own, laid exactly over the word, rather than one
+ * run for the line whose letters it spaces evenly in a font of its own, so
+ * a found word was marked a few points off its place on the page.
  * Right-to-left words are written in the order they are drawn, as a PDF
  * writes Urdu and Arabic, and readers put them back in reading order.
  */
@@ -147,7 +153,8 @@ function codes(text) {
  *   degrees (0 along x), and whether a space follows it on its line
  */
 function layerContent(words, fontName) {
-  const ops = ['Q', 'BT', '3 Tr', `/${fontName} 1 Tf`];
+  const ops = ['Q', 'BT', '3 Tr'];
+  let n = 0;
   for (const w of words) {
     const text = String(w.text || '').trim();
     const shown = hasRtl(text) ? visualText(text) : text;
@@ -158,7 +165,10 @@ function layerContent(words, fontName) {
     if (w.space) units.push(0x20);
     const a = ((w.angle || 0) * Math.PI) / 180;
     const cos = Math.cos(a), sin = Math.sin(a);
-    ops.push(`${num(scale * cos)} ${num(scale * sin)} ${num(-w.size * sin)} ${num(w.size * cos)} ${num(w.x)} ${num(w.y)} Tm`);
+    // Size 1 and 2 in turn, the matrix divided by it: the same place and stretch, a run per word.
+    const k = (n++ % 2) + 1;
+    ops.push(`/${fontName} ${k} Tf`);
+    ops.push(`${num((scale * cos) / k)} ${num((scale * sin) / k)} ${num((-w.size * sin) / k)} ${num((w.size * cos) / k)} ${num(w.x)} ${num(w.y)} Tm`);
     ops.push(`<${units.map((u) => u.toString(16).padStart(4, '0')).join('')}> Tj`);
   }
   ops.push('ET');

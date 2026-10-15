@@ -15,7 +15,7 @@
 import { checkLanguages } from './languages.js';
 import { isPng, decodePng } from './png.js';
 import { toGrey } from './pixels.js';
-import { binarise, estimateSkew, rotate, unrotatePoint, scale, textHeight, unevenPaper, rulings, cropPadded, inkIn } from './analyse.js';
+import { binarise, estimateSkew, rotate, unrotatePoint, scale, textHeight, unevenPaper, rulings, cropPadded, inkIn, fitToInk } from './analyse.js';
 import { tableCells } from './layout.js';
 import { documentFields } from './fields.js';
 import { findCheckboxes } from './checkboxes.js';
@@ -164,6 +164,10 @@ export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto'
     return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
   };
   const result = fromEngine(json, { width: pixels.width, height: pixels.height, languages: langs, angle: how.angle, map });
+  // Each word's box drawn in to its own ink, side to side, on a page read as it lies (a box mapped back
+  // from a turned reading is a turned box's bounds, wider than the word by its slant): what Find marks
+  // and a selection covers is then the word on the page, in Arabic script as in Latin.
+  if (!how.turn) fitToInk(binarise(grey), result.words);
   result.prepared = { turned: how.turn, factor: how.factor, binarised: how.uneven, textHeight: how.textHeight };
   if (table) result.table = readTable(engine, { grey, prepared, how, langs, dpi, result, map });
   if (document) {

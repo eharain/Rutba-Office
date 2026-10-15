@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { otsu, binarise, unevenPaper, estimateSkew, rotate, unrotatePoint, scale, components, textHeight, rulings } from '@rutba/ocr/analyse';
+import { otsu, binarise, unevenPaper, estimateSkew, rotate, unrotatePoint, scale, components, textHeight, rulings, fitToInk } from '@rutba/ocr/analyse';
 import { groupLines, columns, tableCells } from '@rutba/ocr/layout';
 
 /** A blank grey page. */
@@ -213,4 +213,40 @@ test('cropPadded and inkIn: a part of a picture with paper round it, and the ink
   words[0].confidence = 40;
   words[1].confidence = 90;
   assert.deepEqual(tableCells(words).confidence, [[40, 90]]);
+});
+
+test('fitToInk: a word box read a few pixels off its letters is drawn in to them, never onto the next word; a box with no ink is kept', () => {
+  // Three words on a binary line 30 px tall: letters 8 px wide, 2 px apart, words 12 px apart.
+  const p = page(260, 60);
+  const letters = (x, n) => { for (let i = 0; i < n; i++) fill(p, x + i * 10, 15, 8, 30); return x + n * 10 - 2; };
+  const a1 = letters(20, 5); // 20..68
+  const b0 = a1 + 12, b1 = letters(b0, 4); // 80..118
+  const c0 = b1 + 12; letters(c0, 6); // 130..188
+  const box = (x, width) => ({ x, y: 15, width, height: 30 });
+  const words = [
+    { text: 'moved', box: box(24, 48) }, // 4 px to the right of its letters
+    { text: 'narrow', box: box(84, 30) }, // 4 px short each side
+    { text: 'wide', box: box(c0 - 5, 70) }, // past both sides, the space before it reaching the last word
+    { text: 'nothing', box: box(200, 40) }, // paper only
+  ];
+  fitToInk(p, words);
+  assert.deepEqual(words[0].box, box(20, 48));
+  assert.deepEqual(words[1].box, box(b0, b1 - b0));
+  assert.deepEqual(words[2].box, box(c0, 58));
+  assert.deepEqual(words[3].box, box(200, 40));
+});
+
+test('fitToInk: an Arabic word\'s clusters (letters joined, a dot over one) are one word, and a side moves no more than half its height', () => {
+  const p = page(200, 60);
+  // Two joined clusters with a dot above, read with a box missing the left cluster's outer half.
+  fill(p, 40, 30, 22, 12); fill(p, 64, 26, 30, 16); fill(p, 70, 18, 4, 4);
+  const words = [{ text: 'word', box: { x: 48, y: 18, width: 50, height: 24 } }];
+  fitToInk(p, words);
+  assert.deepEqual(words[0].box, { x: 40, y: 18, width: 54, height: 24 });
+  // A cluster far beyond reach is not taken.
+  const q = page(200, 60);
+  fill(q, 10, 20, 80, 20);
+  const far = [{ text: 'x', box: { x: 60, y: 20, width: 20, height: 20 } }];
+  fitToInk(q, far);
+  assert.ok(far[0].box.x >= 50, JSON.stringify(far[0].box));
 });
