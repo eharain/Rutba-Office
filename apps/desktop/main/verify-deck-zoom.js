@@ -73,7 +73,8 @@ export async function verifyDeckZoom(h, { dir }) {
     // Summary Zoom of slides 2 and 4.
     await zoomMenu('Summary Zoom…');
     await choose([1, 3]);
-    const summary = await until(() => model(0).count === 5 && zooms(1).length === 2, 'the summary slide', 12000).then(() => true).catch(() => false);
+    // Waited for with both links set: the pictures arrive a beat before the second one's link, and a busy full run read in between.
+    const summary = await until(() => model(0).count === 5 && zooms(1).length === 2 && zooms(1).every((s) => s.action?.slide != null), 'the summary slide', 12000).then(() => true).catch(() => false);
     const title = (model(1).slide?.shapes || []).find((s) => s.placeholder?.type === 'title')?.text?.paragraphs?.[0]?.plain;
     const targets = zooms(1).map((s) => s.action?.slide);
     check('presentations: Insert → Zoom → Summary Zoom makes a Summary slide before the first slide picked, a picture of each linked to it',
