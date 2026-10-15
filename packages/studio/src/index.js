@@ -2190,7 +2190,47 @@ function compilePaintMask(m, plan) {
         invert: !!m.invert,
         off: !!m.off,
         rev: m.rev ?? 0,
+        // A mask that followed its layer through a turn or a transform lies on four corners.
+        corners: Array.isArray(m.corners) && m.corners.length === 4 && m.corners.every((c) => Array.isArray(c) && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1])))
+            ? m.corners.map(([x, y]) => [W * Number(x), H * Number(y)])
+            : null,
     };
+}
+
+/**
+ * A mask's bitmap laid on its four corners on `g` (the plan's pixels): by a
+ * plain transform where the corners make a parallelogram (moved, scaled,
+ * turned, skewed), exactly; through the projective warp where they do not
+ * (perspective, a distorted corner).
+ */
+function drawMaskOnCorners(g, img, q, W, H) {
+    const iw = img.width || img.naturalWidth || 1;
+    const ih = img.height || img.naturalHeight || 1;
+    const flat = Math.abs(q[0][0] + q[2][0] - q[1][0] - q[3][0]) < 0.01 && Math.abs(q[0][1] + q[2][1] - q[1][1] - q[3][1]) < 0.01;
+    if (flat) {
+        g.save();
+        g.setTransform((q[1][0] - q[0][0]) / iw, (q[1][1] - q[0][1]) / iw, (q[3][0] - q[0][0]) / ih, (q[3][1] - q[0][1]) / ih, q[0][0], q[0][1]);
+        g.drawImage(img, 0, 0, iw, ih);
+        g.restore();
+        return;
+    }
+    const b = quadBounds(q);
+    const x0 = Math.max(0, Math.floor(b.x));
+    const y0 = Math.max(0, Math.floor(b.y));
+    const w = Math.min(W, Math.ceil(b.x + b.w)) - x0;
+    const h = Math.min(H, Math.ceil(b.y + b.h)) - y0;
+    if (w <= 0 || h <= 0) return;
+    const src = makeSurface(iw, ih);
+    const sc = src.getContext('2d', { willReadFrequently: true });
+    sc.drawImage(img, 0, 0);
+    const px = sc.getImageData(0, 0, iw, ih);
+    const data = warpPixels({ data: px.data, width: iw, height: ih }, q.map(([x, y]) => [x - x0, y - y0]), { width: w, height: h });
+    const out = makeSurface(w, h);
+    const oc = out.getContext('2d');
+    const id = oc.createImageData(w, h);
+    id.data.set(data);
+    oc.putImageData(id, 0, 0);
+    g.drawImage(out, x0, y0);
 }
 
 const maskCache = new WeakMap();
@@ -2206,7 +2246,7 @@ export function paintMaskSurface(plan, pm) {
     const W = Math.max(1, Math.round(plan.W));
     const H = Math.max(1, Math.round(plan.H));
     const owner = pm.src || NO_SOURCE;
-    const key = [W, H, pm.x, pm.y, pm.w, pm.h, pm.outside, pm.feather.toFixed(2), pm.invert, pm.rev, owner.version ?? 0].join('|');
+    const key = [W, H, pm.x, pm.y, pm.w, pm.h, pm.outside, pm.feather.toFixed(2), pm.invert, pm.rev, owner.version ?? 0, pm.corners ? pm.corners.map((c) => `${c[0].toFixed(2)},${c[1].toFixed(2)}`).join(';') : ''].join('|');
     const cached = maskCache.get(owner);
     if (cached && cached.key === key) return cached.surface;
     // The mask at the plan's size: what lies beyond the bitmap, then the bitmap.
@@ -2217,9 +2257,21 @@ export function paintMaskSurface(plan, pm) {
     if (pm.outside) {
         f.fillStyle = '#ffffff';
         f.fillRect(0, 0, W, H);
-        f.clearRect(pm.x, pm.y, pm.w, pm.h);
+        if (pm.corners) {
+            f.save();
+            f.globalCompositeOperation = 'destination-out';
+            f.beginPath();
+            pm.corners.forEach(([x, y], i) => (i ? f.lineTo(x, y) : f.moveTo(x, y)));
+            f.closePath();
+            f.fillStyle = '#000000';
+            f.fill();
+            f.restore();
+        } else {
+            f.clearRect(pm.x, pm.y, pm.w, pm.h);
+        }
     }
-    if (pm.src?.img) f.drawImage(pm.src.img, pm.x, pm.y, pm.w, pm.h);
+    if (pm.src?.img && pm.corners) drawMaskOnCorners(f, pm.src.img, pm.corners, W, H);
+    else if (pm.src?.img) f.drawImage(pm.src.img, pm.x, pm.y, pm.w, pm.h);
     else if (!pm.src) {
         // A mask whose bitmap is missing hides nothing.
         f.fillStyle = '#ffffff';

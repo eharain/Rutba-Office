@@ -29,6 +29,7 @@
  */
 
 import { emptyDoc, normaliseDoc, nextId } from './doc.js';
+import { homography, applyHomography, rectCorners, quadBounds, boxCorners } from './warp.js';
 
 /** The canvas compositing modes a layer can blend with, in the order a menu offers them. */
 export const BLEND_MODES = [
@@ -440,6 +441,7 @@ export function reframe(doc, rect) {
             m.fw = sw(m.fw ?? 1);
             m.fh = sh(m.fh ?? 1);
             if (m.feather != null) m.feather = sw(m.feather);
+            if (Array.isArray(m.corners)) m.corners = m.corners.map(([cx, cy]) => [fx(cx), fy(cy)]);
             q.paintMask = m;
         }
         // A picture on four corners (I14) keeps each corner where it was.
@@ -622,10 +624,100 @@ export function moveLayerBy(doc, id, dx, dy) {
             if (p.fx != null) q.fx = round4(p.fx + dx);
             if (p.fy != null) q.fy = round4(p.fy + dy);
             if (Array.isArray(p.corners)) q.corners = p.corners.map(([x, y]) => [round4(x + dx), round4(y + dy)]);
-            if (p.paintMask) q.paintMask = { ...p.paintMask, fx: round4((p.paintMask.fx ?? 0) + dx), fy: round4((p.paintMask.fy ?? 0) + dy) };
+            if (p.paintMask) {
+                q.paintMask = { ...p.paintMask, fx: round4((p.paintMask.fx ?? 0) + dx), fy: round4((p.paintMask.fy ?? 0) + dy) };
+                if (Array.isArray(p.paintMask.corners)) q.paintMask.corners = p.paintMask.corners.map(([x, y]) => [round6(x + dx), round6(y + dy)]);
+            }
             return q;
         }),
     };
+}
+
+/* ── a mask follows its layer (docs/STUDIO.md 7.2, I10 with I14) ─────────
+ *
+ * A painted mask is linked to its layer, as Photoshop links them: moved,
+ * scaled, turned, given free-transform corners or put in perspective, the
+ * layer takes its mask with it. The mask lies on the canvas as a rectangle
+ * (`fx`, `fy`, `fw`, `fh`) until a change turns or bends it; then it lies on
+ * four `corners`, as a transformed picture does, with the rectangle kept as
+ * their bounds. The map that took the layer from where it was to where it
+ * is (a projective map between the layer's four corners before and after)
+ * takes the mask's corners too, so any change carries it exactly.
+ */
+
+const round6 = (v) => Math.round(v * 1e6) / 1e6;
+const validQuad = (q) => Array.isArray(q) && q.length === 4 && q.every((c) => Array.isArray(c) && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1])));
+
+/** A painted mask's four corners on the canvas, in canvas pixels (top left, top right, bottom right, bottom left). */
+export function maskCorners(doc, m) {
+    const { width: W, height: H } = canvasOf(doc);
+    if (validQuad(m?.corners)) return m.corners.map(([x, y]) => [Number(x) * W, Number(y) * H]);
+    return rectCorners(W * (m?.fw ?? 1), H * (m?.fh ?? 1), W * (m?.fx ?? 0), H * (m?.fy ?? 0));
+}
+
+/** A mask laid on four corners (canvas pixels): a plain rectangle when they make one, corners otherwise. */
+export function placeMask(doc, m, quad) {
+    const { width: W, height: H } = canvasOf(doc);
+    const f = quad.map(([x, y]) => [x / W, y / H]);
+    const { corners: _old, ...rest } = m;
+    const flat = (a, b) => Math.abs(a - b) < 1e-6;
+    if (flat(f[0][1], f[1][1]) && flat(f[3][1], f[2][1]) && flat(f[0][0], f[3][0]) && flat(f[1][0], f[2][0]) && f[1][0] > f[0][0] && f[3][1] > f[0][1]) {
+        return { ...rest, fx: round6(f[0][0]), fy: round6(f[0][1]), fw: round6(f[1][0] - f[0][0]), fh: round6(f[3][1] - f[0][1]) };
+    }
+    const b = quadBounds(f);
+    return { ...rest, fx: round6(b.x), fy: round6(b.y), fw: round6(b.w), fh: round6(b.h), corners: f.map(([x, y]) => [round6(x), round6(y)]) };
+}
+
+/** A mask taken by the map that took its layer from the corners `before` to `after` (canvas pixels). */
+export function carryMask(doc, m, before, after) {
+    if (!m || !validQuad(before) || !validQuad(after)) return m;
+    const T = homography(before, after);
+    if (!T) return m;
+    return placeMask(doc, m, maskCorners(doc, m).map(([x, y]) => applyHomography(T, x, y)));
+}
+
+/** The map from canvas pixels to a mask's own bitmap pixels (3 × 3, row major): where a brush on the mask lands. */
+export function canvasToMask(doc, m, bitmap) {
+    return homography(maskCorners(doc, m), rectCorners(bitmap.width, bitmap.height)) || [1, 0, 0, 0, 1, 0, 0, 0, 1];
+}
+
+/** A picture layer's four corners on the canvas, in canvas pixels. */
+export function pictureQuad(doc, patch, bitmap) {
+    const { box, rot, corners } = pictureBox(doc, patch, bitmap);
+    return corners || boxCorners(box, rot);
+}
+
+// What places a layer on the canvas: a change to any of these moves its mask with it.
+const GEOMETRY = ['fx', 'fy', 'fw', 'fh', 'sizeFrac', 'rot', 'corners', 'flipX', 'flipY'];
+
+/**
+ * After an edit from `prev` to `next`: every layer whose place changed while
+ * its mask was left as it was has its mask carried with it. `quadOf(doc,
+ * patch)` answers a layer's four corners in canvas pixels (or null where it
+ * cannot say, and that layer's mask stays). An edit that placed a mask
+ * itself (a move, a crop, a new mask) is left as it is, and so is a change
+ * of the canvas's size.
+ */
+export function followMasks(prev, next, quadOf) {
+    if (!prev || !next || prev === next) return next;
+    if (prev.size?.width !== next.size?.width || prev.size?.height !== next.size?.height) return next;
+    const before = new Map(prev.patches.map((p) => [p.id, p]));
+    let changed = false;
+    const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    const patches = next.patches.map((p) => {
+        const q = before.get(p.id);
+        if (!p.paintMask || !q?.paintMask || q === p) return p;
+        if (!same(q.paintMask, p.paintMask)) return p;
+        if (GEOMETRY.every((k) => same(q[k], p[k]))) return p;
+        const a = quadOf(prev, q);
+        const b = quadOf(next, p);
+        if (!a || !b) return p;
+        const carried = carryMask(next, p.paintMask, a, b);
+        if (carried === p.paintMask) return p;
+        changed = true;
+        return { ...p, paintMask: { ...carried, rev: (p.paintMask.rev || 0) + 1 } };
+    });
+    return changed ? { ...next, patches } : next;
 }
 
 /**

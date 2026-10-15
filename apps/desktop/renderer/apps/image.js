@@ -22,6 +22,7 @@ import {
   emptyImage, normaliseImage, pictureLayer, dropLayer, stepLayer, layerToEnd, groupLayers, ungroupLayers, removeLayers,
   duplicateLayers, setLayer, isLocked, reframe, canvasSize, imageSize, trimBounds, trimTo, isGroup,
   paintLayer, isPixelLayer, insertAbove, addMask, setMask, removeMask, moveLayerBy, canvasToBitmap, pictureBox as layerBox, unitOf,
+  followMasks, canvasToMask, pictureQuad,
 } from '@rutba/studio/layers';
 import { writeRimg, readRimg, rimgPath, safeName, RIMG_SCHEME } from '@rutba/studio/rimg';
 import { boxCorners, dragCorner, straighten as straightenQuad, isConvexQuad } from '@rutba/studio/warp';
@@ -38,7 +39,7 @@ import { SelectionAnts, SELECTION_CSS } from './image/selection.js';
 import { makeCanvas, ctx2d, editable, touched, blankEntry, copyCanvas, alphaCanvas, selectionCanvas, rgbaBuffer } from './image/bitmaps.js';
 import { DrawLayer, markIsSomething } from './image/marks.js';
 import { Histogram, CurveEditor } from './image/tone.js';
-import { paintLayered, renderLayered, decodeBitmap, pngBytes, mimeOf } from './image/layered.js';
+import { paintLayered, renderLayered, decodeBitmap, pngBytes, mimeOf, planAt, boundsOf } from './image/layered.js';
 import { LayersPanel, LAYERS_CSS } from './image/layers-panel.js';
 import { LayerStage, STAGE_CSS } from './image/stage.js';
 import { InsertGroups, INSERT_CSS } from './image/insert.js';
@@ -746,9 +747,27 @@ export default function ImageTool({ app, shell, boot }) {
   }, [image, plan]);
 
   /** Change the layered picture (entering it first); `key` merges a run of one change into one undo step. */
+  /**
+   * A layer's four corners on the canvas, in canvas pixels: a picture's
+   * through its box, turn and corners; any other layer's box as the engine
+   * lays it out, turned about its middle. What a mask follows its layer by.
+   */
+  const layerQuad = (d, p) => {
+    if (!d || !p || isGroup(p) || p.type === 'adjust') return null;
+    if (p.type === 'image') {
+      const bitmap = p.url === BACKGROUND ? bgRef.current : media.current.get(p.url);
+      return bitmap ? pictureQuad(d, p, bitmap) : null;
+    }
+    const b = boundsOf(planAt(d, assetsNowRef.current(), 1), p.id);
+    return b && b.w > 0 && b.h > 0 ? boxCorners({ x: b.x, y: b.y, w: b.w, h: b.h }, p.rot || 0) : null;
+  };
+  const layerQuadRef = useRef(layerQuad);
+  layerQuadRef.current = layerQuad;
+
   const editLayers = useCallback((fn, key = null) => {
     const base = layeredRef.current || enterLayers();
-    const next = fn(base);
+    // A layer moved, scaled, turned or transformed takes its mask with it, in the same step.
+    const next = followMasks(base, fn(base), (d, p) => layerQuadRef.current(d, p));
     if (!next || next === base) return null;
     steps.current.key = key;
     layeredRef.current = next;
@@ -979,12 +998,8 @@ export default function ImageTool({ app, shell, boot }) {
   };
 
   /** The map from the canvas to a mask's bitmap. */
-  const maskMap = (d, m, entry) => {
-    const { width: W, height: H } = d.size;
-    const sx = entry.width / (W * (m.fw ?? 1));
-    const sy = entry.height / (H * (m.fh ?? 1));
-    return [sx, 0, -(m.fx ?? 0) * W * sx, 0, sy, -(m.fy ?? 0) * H * sy, 0, 0, 1];
-  };
+  // Through the mask's own corners, so a brush lands right on a mask that followed its layer round.
+  const maskMap = (d, m, entry) => canvasToMask(d, m, entry);
 
   /** A new mask on a layer: everything shown, nothing shown, or what is selected. Answers the new document. */
   const makeMask = useCallback((id, how) => {
@@ -1317,6 +1332,7 @@ export default function ImageTool({ app, shell, boot }) {
       const pm = {
         src: media.current.get(m.url) || null, x: W * (m.fx ?? 0), y: H * (m.fy ?? 0), w: W * (m.fw ?? 1), h: H * (m.fh ?? 1),
         outside: m.outside === 0 ? 0 : 1, feather: W * (m.feather || 0), invert: !!m.invert, off: false, rev: m.rev ?? 0,
+        corners: Array.isArray(m.corners) ? m.corners.map(([x, y]) => [x * W, y * H]) : null,
       };
       const surface = paintMaskSurface({ W, H }, pm);
       const dest = editable(entry);
@@ -1396,6 +1412,8 @@ export default function ImageTool({ app, shell, boot }) {
     const { width: W, height: H } = d.size;
     editLayers((x) => {
       let next = setLayer(x, p.id, { corners: done.corners.map(([cx, cy]) => [+(cx / W).toFixed(5), +(cy / H).toFixed(5)]), rot: 0 });
+      // The mask goes into perspective with its layer before the crop moves both.
+      next = followMasks(x, next, (dd, pp) => layerQuadRef.current(dd, pp));
       if (crop) {
         const r = done.rect;
         next = reframe(next, { x: Math.round(r[0][0]), y: Math.round(r[0][1]), width: Math.round(r[1][0] - r[0][0]), height: Math.round(r[3][1] - r[0][1]) });
