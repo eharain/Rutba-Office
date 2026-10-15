@@ -92,7 +92,7 @@ export const ENGINE_WORDS = [
   msg('That account does not use a signed-in provider.'),
   msg('The sign-in came back with the wrong state, so it was refused.'),
   msg('The sign-in was not completed in five minutes. Nothing has been changed.'),
-  msg('No {label} client id is set up in this build. See docs/OAUTH.md — it takes about five minutes and is free.'),
+  msg('{label} sign-in is not set up in this build yet. Add the account with an app password instead: turn on 2-Step Verification, create one at {where}, and choose App password.'),
   // apps/desktop/main/pdf.js
   msg('That PDF is no longer open.'),
   msg('{name} is not a PDF.'),

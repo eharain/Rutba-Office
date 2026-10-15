@@ -2713,7 +2713,7 @@ export default {
   'No words yet. Add to Dictionary in the Editor pane puts them here.': 'لا توجد كلمات بعد. يضعها هنا «إضافة إلى القاموس» في جزء المحرر.',
   'No workbook': 'لا يوجد مصنف',
   'No {label} captions yet: Insert Caption adds them, and Update Table brings the list up to date.': 'لا توجد تسميات توضيحية من نوع {label} بعد: يضيفها «إدراج تسمية توضيحية»، ويحدّث «تحديث الجدول» القائمة.',
-  'No {label} client id is set up in this build. See docs/OAUTH.md — it takes about five minutes and is free.': 'لم يتم إعداد معرّف عميل {label} في هذا الإصدار. راجع docs/OAUTH.md — يستغرق الأمر نحو خمس دقائق وهو مجاني.',
+  '{label} sign-in is not set up in this build yet. Add the account with an app password instead: turn on 2-Step Verification, create one at {where}, and choose App password.': 'لم يُعدّ تسجيل الدخول عبر {label} في هذا الإصدار بعد. أضف الحساب بكلمة مرور تطبيق بدلاً من ذلك: فعّل التحقق بخطوتين، وأنشئ واحدة من {where}، ثم اختر كلمة مرور التطبيق.',
   'Nobody on this line is visible to the other recipients.': 'لا يظهر أي شخص في هذا السطر للمستلمين الآخرين.',
   'Nobody yet': 'لا أحد بعد',
   'None': 'بلا',

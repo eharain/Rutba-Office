@@ -2711,7 +2711,7 @@ export default {
   'No words yet. Add to Dictionary in the Editor pane puts them here.': 'ابھی کوئی لفظ نہیں۔ ایڈیٹر پین میں لغت میں شامل کریں کے ذریعے الفاظ یہاں آتے ہیں۔',
   'No workbook': 'کوئی ورک بک نہیں',
   'No {label} captions yet: Insert Caption adds them, and Update Table brings the list up to date.': 'ابھی کوئی {label} کیپشن نہیں: کیپشن داخل کریں انہیں شامل کرتا ہے، اور ٹیبل اپ ڈیٹ کریں فہرست کو تازہ کرتا ہے۔',
-  'No {label} client id is set up in this build. See docs/OAUTH.md — it takes about five minutes and is free.': 'اس بلڈ میں {label} کی کوئی کلائنٹ آئی ڈی ترتیب نہیں دی گئی۔ docs/OAUTH.md دیکھیں — اس میں تقریباً پانچ منٹ لگتے ہیں اور یہ مفت ہے۔',
+  '{label} sign-in is not set up in this build yet. Add the account with an app password instead: turn on 2-Step Verification, create one at {where}, and choose App password.': 'اس بلڈ میں {label} سائن اِن ابھی ترتیب نہیں دیا گیا۔ اس کے بجائے ایپ پاس ورڈ سے اکاؤنٹ شامل کریں: 2-مرحلہ تصدیق آن کریں، {where} پر ایک بنائیں، اور ایپ پاس ورڈ منتخب کریں۔',
   'Nobody on this line is visible to the other recipients.': 'اس لائن پر موجود کوئی بھی شخص دوسرے وصول کنندگان کو نظر نہیں آتا۔',
   'Nobody yet': 'ابھی کوئی نہیں',
   'None': 'کوئی نہیں',

@@ -2713,7 +2713,7 @@ export default {
   'No words yet. Add to Dictionary in the Editor pane puts them here.': 'अभी तक कोई शब्द नहीं है। संपादक फलक में “शब्दकोश में जोड़ें” उन्हें यहाँ रखता है।',
   'No workbook': 'कोई कार्यपुस्तिका नहीं',
   'No {label} captions yet: Insert Caption adds them, and Update Table brings the list up to date.': 'अभी तक कोई {label} कैप्शन नहीं: “कैप्शन सम्मिलित करें” उन्हें जोड़ता है, और “तालिका अद्यतन करें” सूची को अद्यतन करता है।',
-  'No {label} client id is set up in this build. See docs/OAUTH.md — it takes about five minutes and is free.': 'इस बिल्ड में कोई {label} क्लाइंट ID सेट अप नहीं है। docs/OAUTH.md देखें — इसमें लगभग पाँच मिनट लगते हैं और यह निःशुल्क है।',
+  '{label} sign-in is not set up in this build yet. Add the account with an app password instead: turn on 2-Step Verification, create one at {where}, and choose App password.': 'इस बिल्ड में {label} साइन-इन अभी सेट अप नहीं है। इसके बजाय ऐप पासवर्ड से खाता जोड़ें: 2-चरणीय सत्यापन चालू करें, {where} पर एक बनाएँ, और ऐप पासवर्ड चुनें।',
   'Nobody on this line is visible to the other recipients.': 'इस पंक्ति पर मौजूद कोई भी व्यक्ति अन्य प्राप्तकर्ताओं को दिखाई नहीं देता।',
   'Nobody yet': 'अभी तक कोई नहीं',
   'None': 'कोई नहीं',

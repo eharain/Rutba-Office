@@ -57,6 +57,8 @@ export const PROVIDERS = {
     scope: 'https://mail.google.com/',
     imap: { host: 'imap.gmail.com', port: 993, secure: true },
     smtp: { host: 'smtp.gmail.com', port: 465, secure: true },
+    // Where a person makes an app password, offered when no client id is set up.
+    appPasswords: 'myaccount.google.com/apppasswords',
     // Google will not return a refresh token a second time unless asked.
     extra: { access_type: 'offline', prompt: 'consent' },
   },
@@ -69,6 +71,7 @@ export const PROVIDERS = {
     scope: 'offline_access https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send',
     imap: { host: 'outlook.office365.com', port: 993, secure: true },
     smtp: { host: 'smtp-mail.outlook.com', port: 587, secure: false },
+    appPasswords: 'account.microsoft.com/security',
     extra: {},
   },
 };
@@ -160,7 +163,7 @@ export function createOAuthService({ stores, broadcast }) {
       const clientId = clientIdFor(provider.id);
       if (!clientId) {
         throw new Error(
-          `No ${provider.label} client id is set up in this build. See docs/OAUTH.md — it takes about five minutes and is free.`
+          `${provider.label} sign-in is not set up in this build yet. Add the account with an app password instead: turn on 2-Step Verification, create one at ${provider.appPasswords}, and choose App password.`
         );
       }
 

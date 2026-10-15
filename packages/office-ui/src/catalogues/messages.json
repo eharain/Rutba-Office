@@ -22048,12 +22048,6 @@
       ]
     },
     {
-      "message": "No {label} client id is set up in this build. See docs/OAUTH.md — it takes about five minutes and is free.",
-      "where": [
-        "apps/desktop/renderer/engine-words.js"
-      ]
-    },
-    {
       "message": "Nobody on this line is visible to the other recipients.",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js"
@@ -43522,6 +43516,12 @@
       "message": "{label} (cm)",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "{label} sign-in is not set up in this build yet. Add the account with an app password instead: turn on 2-Step Verification, create one at {where}, and choose App password.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
