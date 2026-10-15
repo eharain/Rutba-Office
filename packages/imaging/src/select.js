@@ -410,3 +410,64 @@ export function maskCoverage(maskAlpha, { inside = true, outside = 1, invert = f
   const a = inside ? maskAlpha / 255 : outside;
   return invert ? 1 - a : a;
 }
+
+/*
+ * A selection kept in a file (the Image project, docs/STUDIO.md 7.2): its
+ * bytes run by run, each run a count (a variable-length number) and the
+ * value it repeats. A selection is mostly long runs of 0 and 255 with a
+ * feathered edge between, so a canvas-sized plane packs to a few kilobytes,
+ * exactly: unpacked, it is the plane that was packed, value for value.
+ *
+ *   "RSEL", version 1, width and height (four bytes each, big-endian), runs
+ */
+const SEL_MAGIC = [0x52, 0x53, 0x45, 0x4c];
+
+/** A selection as bytes for a file. */
+export function packSelection(sel) {
+  const { width, height, data } = sel;
+  const out = [...SEL_MAGIC, 1, (width >>> 24) & 0xff, (width >>> 16) & 0xff, (width >>> 8) & 0xff, width & 0xff, (height >>> 24) & 0xff, (height >>> 16) & 0xff, (height >>> 8) & 0xff, height & 0xff];
+  let i = 0;
+  while (i < data.length) {
+    const v = data[i];
+    let n = 1;
+    while (i + n < data.length && data[i + n] === v) n++;
+    let c = n;
+    while (c >= 0x80) {
+      out.push((c & 0x7f) | 0x80);
+      c = Math.floor(c / 128);
+    }
+    out.push(c, v);
+    i += n;
+  }
+  return Uint8Array.from(out);
+}
+
+/** Bytes `packSelection` wrote, as the selection again; null for anything else or anything damaged. */
+export function unpackSelection(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  if (b.length < 13 || SEL_MAGIC.some((m, k) => b[k] !== m) || b[4] !== 1) return null;
+  const width = ((b[5] << 24) | (b[6] << 16) | (b[7] << 8) | b[8]) >>> 0;
+  const height = ((b[9] << 24) | (b[10] << 16) | (b[11] << 8) | b[12]) >>> 0;
+  if (!width || !height || width * height > 400e6) return null;
+  const data = new Uint8Array(width * height);
+  let at = 13;
+  let i = 0;
+  while (at < b.length && i < data.length) {
+    let n = 0;
+    let scale = 1;
+    for (;;) {
+      const c = b[at++];
+      if (c === undefined) return null;
+      n += (c & 0x7f) * scale;
+      if (!(c & 0x80)) break;
+      scale *= 128;
+    }
+    const v = b[at++];
+    if (v === undefined || i + n > data.length) return null;
+    data.fill(v, i, i + n);
+    i += n;
+  }
+  // Every pixel filled, and nothing left over: anything else is not what was packed.
+  if (i !== data.length || at !== b.length) return null;
+  return { width, height, data };
+}

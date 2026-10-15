@@ -7007,4 +7007,7 @@ export default {
   '{speed}× as fast as it plays, about {left} left': 'چلنے سے {speed} گنا تیز، تقریباً {left} باقی',
   'Starting the encoder…': 'انکوڈر شروع ہو رہا ہے…',
   'Exported {name} ({size}) in {time}': '{name} ({size}) {time} میں ایکسپورٹ ہو گئی',
+  'Load Selection': 'انتخاب واپس لائیں',
+  'Selection Loaded': 'انتخاب واپس آ گیا',
+  'Load Selection: the selection this layer was made from, so the Adjust and Filters tabs change it again': 'انتخاب واپس لائیں: وہ انتخاب جس سے یہ پرت بنی تھی، تاکہ ایڈجسٹ اور فلٹرز ٹیب اسے دوبارہ بدل سکیں',
 };

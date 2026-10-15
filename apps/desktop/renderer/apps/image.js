@@ -23,10 +23,10 @@ import {
   duplicateLayers, setLayer, isLocked, reframe, canvasSize, imageSize, trimBounds, trimTo, isGroup,
   paintLayer, isPixelLayer, insertAbove, addMask, setMask, removeMask, moveLayerBy, canvasToBitmap, pictureBox as layerBox, unitOf,
 } from '@rutba/studio/layers';
-import { writeRimg, readRimg, rimgPath, safeName } from '@rutba/studio/rimg';
+import { writeRimg, readRimg, rimgPath, safeName, RIMG_SCHEME } from '@rutba/studio/rimg';
 import { boxCorners, dragCorner, straighten as straightenQuad, isConvexQuad } from '@rutba/studio/warp';
 import { paintMaskSurface } from '@rutba/studio/host';
-import { rectSelection, ellipseSelection, polygonSelection, combineSelection, invertSelection, selectAll as wholeSelection, selectionBounds, isEmptySelection } from '@rutba/imaging/select';
+import { rectSelection, ellipseSelection, polygonSelection, combineSelection, invertSelection, selectAll as wholeSelection, selectionBounds, isEmptySelection, packSelection, unpackSelection } from '@rutba/imaging/select';
 import { cloneOffset } from '@rutba/imaging/paint';
 import { AppFrame, useAppMenu, pickOpen, useFileDrop, useDirtyGuard } from '../shell.js';
 import { drawBase, drawMarks } from './image/draw.js';
@@ -945,6 +945,14 @@ export default function ImageTool({ app, shell, boot }) {
     putSelection(wholeSelection(W, H));
   }, [enterLayers, putSelection]);
   const deselect = useCallback(() => putSelection(null), [putSelection]);
+  /** An Adjusted selection layer's own selection on the canvas again, and the Adjust tab changing that layer. */
+  const loadLayerSelection = useCallback((id) => {
+    const b = bases.current.get(id);
+    if (!b) return;
+    selectionRef.current = b.selection;
+    setSelection(b.selection);
+    setScopedId(id);
+  }, []);
   const invertSel = useCallback(() => {
     const s = selectionRef.current;
     if (s) putSelection(invertSelection(s));
@@ -1509,8 +1517,27 @@ export default function ImageTool({ app, shell, boot }) {
         quick = { source: at, ops, adjust, pixels };
       }
     }
-    return writeRimg({ ...doc, quick }, files);
-  }, [image, ops, adjust, pixels, shell]);
+    // The selection on the canvas, and the layer the Adjust tab was changing with it.
+    const kept = {};
+    const sel = selectionRef.current;
+    if (sel && sel.width === doc.size.width && sel.height === doc.size.height && !isEmptySelection(sel)) {
+      files['selections/selection.rsel'] = packSelection(sel);
+      kept.selection = `${RIMG_SCHEME}selections/selection.rsel`;
+      if (scopedId && doc.patches.some((p) => p.id === scopedId)) kept.scoped = scopedId;
+    }
+    // Each Adjusted selection layer with the selection it was made from and the picture it adjusts.
+    const scopes = {};
+    for (const [id, b] of bases.current) {
+      if (!doc.patches.some((p) => p.id === id)) continue;
+      const name = safeName(id, 'layer');
+      if (!b.bytes) b.bytes = await pngBytes(b.canvas);
+      files[`selections/${name}.rsel`] = packSelection(b.selection);
+      files[`bitmaps/${name}-under.png`] = b.bytes;
+      scopes[id] = { selection: `${RIMG_SCHEME}selections/${name}.rsel`, base: `${RIMG_SCHEME}bitmaps/${name}-under.png` };
+    }
+    if (Object.keys(scopes).length) kept.scopes = scopes;
+    return writeRimg({ ...doc, quick, ...kept }, files);
+  }, [image, ops, adjust, pixels, shell, scopedId]);
 
   const saveProjectTo = useCallback(async (target) => {
     commitDraft();
@@ -1555,8 +1582,29 @@ export default function ImageTool({ app, shell, boot }) {
       const raw = bytes || (await shell.fs.read({ path: file })).bytes;
       const read = await readRimg(raw);
       const quick = read.doc.quick || null;
-      const doc = normaliseImage({ ...read.doc, quick: undefined });
+      const { selection: keptSelection = null, scoped: keptScoped = null, scopes: keptScopes = null } = read.doc;
+      const doc = normaliseImage({ ...read.doc, quick: undefined, selection: undefined, scoped: undefined, scopes: undefined });
       delete doc.quick;
+      delete doc.selection;
+      delete doc.scoped;
+      delete doc.scopes;
+      // Selections come back with the layers they belong to: the one on the
+      // canvas, and each Adjusted selection layer's with the picture it adjusts.
+      const sizeFits = (s) => s && s.width === doc.size.width && s.height === doc.size.height;
+      const selAt = rimgPath(keptSelection);
+      const sel = selAt && read.files[selAt] ? unpackSelection(read.files[selAt]) : null;
+      const scopes = new Map();
+      for (const [id, s] of Object.entries(keptScopes || {})) {
+        if (!doc.patches.some((p) => p.id === id)) continue;
+        const sa = rimgPath(s?.selection);
+        const ba = rimgPath(s?.base);
+        const ssel = sa && read.files[sa] ? unpackSelection(read.files[sa]) : null;
+        if (!sizeFits(ssel) || !ba || !read.files[ba]) continue;
+        const under = await decodeBitmap(read.files[ba], 'image/png');
+        const canvas = makeCanvas(doc.size.width, doc.size.height);
+        canvas.getContext('2d').drawImage(under.img, 0, 0, canvas.width, canvas.height);
+        scopes.set(id, { canvas, selection: ssel, bytes: read.files[ba] });
+      }
       const loaded = new Map();
       for (const url of doc.patches.flatMap((p) => [p.url, p.paintMask?.url])) {
         const at = rimgPath(url);
@@ -1582,6 +1630,12 @@ export default function ImageTool({ app, shell, boot }) {
       setDraft(null);
       layeredRef.current = doc;
       setLayered(doc);
+      for (const [id, b] of scopes) bases.current.set(id, b);
+      if (sizeFits(sel) && !isEmptySelection(sel)) {
+        selectionRef.current = sel;
+        setSelection(sel);
+        if (keptScoped && scopes.has(keptScoped)) setScopedId(keptScoped);
+      }
       setSide('layers');
       setStat({ size: raw.length });
       const where = recovered ? recovered.path : file;
@@ -2255,6 +2309,9 @@ export default function ImageTool({ app, shell, boot }) {
                   onMask={onMask}
                   hasSelection={Boolean(selection)}
                   canApplyMask={(p) => Boolean(p.paintMask && isPixelLayer(p) && p.url !== BACKGROUND)}
+                  keepsSelection={(p) => bases.current.has(p.id)}
+                  onLoadSelection={loadLayerSelection}
+                  scopedId={scopedId}
                 />
               ) : (
                 <div className="im-layers-off">

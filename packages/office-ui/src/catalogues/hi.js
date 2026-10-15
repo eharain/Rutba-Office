@@ -7009,4 +7009,7 @@ export default {
   '{speed}× as fast as it plays, about {left} left': 'चलने से {speed} गुना तेज़, लगभग {left} बाकी',
   'Starting the encoder…': 'एन्कोडर शुरू हो रहा है…',
   'Exported {name} ({size}) in {time}': '{name} ({size}) {time} में एक्सपोर्ट हुआ',
+  'Load Selection': 'चयन वापस लाएँ',
+  'Selection Loaded': 'चयन वापस आ गया',
+  'Load Selection: the selection this layer was made from, so the Adjust and Filters tabs change it again': 'चयन वापस लाएँ: वह चयन जिससे यह परत बनी थी, ताकि एडजस्ट और फ़िल्टर टैब इसे फिर से बदल सकें',
 };

@@ -7009,4 +7009,7 @@ export default {
   '{speed}× as fast as it plays, about {left} left': 'أسرع من التشغيل {speed} مرة، يتبقى نحو {left}',
   'Starting the encoder…': 'جارٍ بدء الترميز…',
   'Exported {name} ({size}) in {time}': 'تم تصدير {name} ({size}) في {time}',
+  'Load Selection': 'تحميل التحديد',
+  'Selection Loaded': 'تم تحميل التحديد',
+  'Load Selection: the selection this layer was made from, so the Adjust and Filters tabs change it again': 'تحميل التحديد: التحديد الذي صُنعت منه هذه الطبقة، لتغيّرها علامتا التبويب ضبط وعوامل التصفية من جديد',
 };

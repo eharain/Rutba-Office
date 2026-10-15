@@ -36,7 +36,7 @@ const inside = (pts, x, y) => {
 };
 
 /** The fixture, as BGRA for nativeImage. */
-function toolsPicture() {
+export function toolsPicture() {
   const buf = Buffer.alloc(W * H * 4);
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
@@ -58,7 +58,7 @@ const near = (a, b, tol = 14) => b.every((v, i) => Math.abs(a[i] - v) <= tol);
 const grey = (p, tol = 8) => Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2]) <= tol;
 
 /** Helpers over the image driver: the tools, pointer gestures on the tool stage, pixels by canvas position. */
-function toolsDriver(d, { until, wait }) {
+export function toolsDriver(d, { until, wait }) {
   const { js } = d;
   const size = async () => {
     const r = await d.result();

@@ -12,6 +12,12 @@
  *                       edits stay editable
  *   bitmaps/<name>.png  the painted bitmaps: the opened picture with its quick
  *                       edits, and every picture added as a layer
+ *   selections/<name>   selections, packed (@rutba/imaging/select): the one
+ *                       on the canvas when it was saved (`selection`), and
+ *                       each one a layer was made from (`scopes`: an
+ *                       "Adjusted selection" layer keeps its selection and
+ *                       the picture it adjusts, so it can still be changed
+ *                       from the Adjust and Filters tabs after opening)
  *
  * A layer names a bitmap inside the file by a url `rimg:<path>`; `readRimg`
  * answers the files by those paths and names any a layer asks for that is
@@ -48,7 +54,7 @@ export function writeRimg(doc, files = {}) {
         { name: 'doc.json', bytes: utf8(JSON.stringify(body, null, 1)) },
     ];
     for (const [name, bytes] of Object.entries(files)) {
-        if (!/^(source|bitmaps)\/[^/]+$/.test(name) || !bytes) continue;
+        if (!/^(source|bitmaps|selections)\/[^/]+$/.test(name) || !bytes) continue;
         entries.push({ name, bytes: bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes) });
     }
     return zipStored(entries);
@@ -65,6 +71,15 @@ export function rimgPaths(doc) {
         if (mask) out.add(mask);
     }
     if (doc?.quick?.source) out.add(doc.quick.source);
+    // The selection on the canvas, and those layers were made from.
+    const sel = rimgPath(doc?.selection);
+    if (sel) out.add(sel);
+    for (const scope of Object.values(doc?.scopes || {})) {
+        for (const url of [scope?.selection, scope?.base]) {
+            const at = rimgPath(url);
+            if (at) out.add(at);
+        }
+    }
     return [...out];
 }
 
@@ -93,7 +108,7 @@ export async function readRimg(bytes) {
     delete doc.rimg;
     const files = {};
     for (const [name, data] of Object.entries(parts)) {
-        if (/^(source|bitmaps)\//.test(name)) files[name] = data;
+        if (/^(source|bitmaps|selections)\//.test(name)) files[name] = data;
     }
     const missing = rimgPaths(doc).filter((p) => !files[p]);
     return { doc, files, missing };

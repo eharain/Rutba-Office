@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6999,
+  "count": 7002,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -18564,6 +18564,18 @@
       ]
     },
     {
+      "message": "Load Selection",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
+      "message": "Load Selection: the selection this layer was made from, so the Adjust and Filters tabs change it again",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
       "message": "Load from a file…",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
@@ -30145,6 +30157,12 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/word/drawings.js"
+      ]
+    },
+    {
+      "message": "Selection Loaded",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {

@@ -39,7 +39,7 @@ function colourChange(p, c) {
   return { fill: { kind: 'solid', color: c } };
 }
 
-export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep, onGroup, onUngroup, onDuplicate, onRemove, assets, target = null, onTarget = null, onMask = null, hasSelection = false, canApplyMask = null }) {
+export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep, onGroup, onUngroup, onDuplicate, onRemove, assets, target = null, onTarget = null, onMask = null, hasSelection = false, canApplyMask = null, keepsSelection = null, onLoadSelection = null, scopedId = null }) {
   const rows = layerRows(doc);
   const [collapsed, setCollapsed] = useState(() => new Set());
   const [renaming, setRenaming] = useState(null);
@@ -191,7 +191,7 @@ export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep,
         <Button icon="duplicate" title={t('Duplicate the layer')} disabled={!primary} onClick={() => onDuplicate(primary)} data-role="layer-duplicate" />
         <Button icon="trash" title={t('Delete the layer')} disabled={!selected.length} onClick={() => onRemove(selected)} data-role="layer-delete" />
       </div>
-      {layer ? <LayerProperties layer={layer} onChange={onChange} onMask={onMask} canvasWidth={doc.size?.width || 1} hasSelection={hasSelection} canApplyMask={canApplyMask ? canApplyMask(layer) : false} /> : <div className="rw-hint im-layer-hint">{t('Choose a layer to set its opacity, blend and look.')}</div>}
+      {layer ? <LayerProperties layer={layer} onChange={onChange} onMask={onMask} canvasWidth={doc.size?.width || 1} hasSelection={hasSelection} canApplyMask={canApplyMask ? canApplyMask(layer) : false} keepsSelection={keepsSelection ? keepsSelection(layer) : false} selectionLoaded={hasSelection && scopedId === layer.id} onLoadSelection={onLoadSelection} /> : <div className="rw-hint im-layer-hint">{t('Choose a layer to set its opacity, blend and look.')}</div>}
     </div>
   );
 }
@@ -289,7 +289,7 @@ function MaskProperties({ layer, onMask, canvasWidth, hasSelection, canApply }) 
 }
 
 /** The chosen layer's own settings. */
-function LayerProperties({ layer, onChange, onMask = null, canvasWidth = 1, hasSelection = false, canApplyMask = false }) {
+function LayerProperties({ layer, onChange, onMask = null, canvasWidth = 1, hasSelection = false, canApplyMask = false, keepsSelection = false, selectionLoaded = false, onLoadSelection = null }) {
   const id = layer.id;
   const group = isGroup(layer);
   const opacity = Math.round((layer.opacity == null ? 1 : layer.opacity) * 100);
@@ -317,6 +317,11 @@ function LayerProperties({ layer, onChange, onMask = null, canvasWidth = 1, hasS
     <div className="im-props" data-props={layer.type}>
       <div className="im-props-head">{nameOf(layer)}</div>
       {layer.quick ? <div className="rw-hint" data-role="adjusted-note">{t('The Adjust and Filters tabs change this layer while its selection stays.')}</div> : null}
+      {layer.quick && keepsSelection && onLoadSelection ? (
+        <div className="im-scope-row">
+          <Button icon="marquee" label={selectionLoaded ? t('Selection Loaded') : t('Load Selection')} title={t('Load Selection: the selection this layer was made from, so the Adjust and Filters tabs change it again')} disabled={selectionLoaded} onClick={() => onLoadSelection(id)} data-role="load-selection" />
+        </div>
+      ) : null}
       {row(t('Opacity'), (
         <span className="im-prop-range">
           <input type="range" min={0} max={100} value={opacity} data-role="opacity" onChange={(e) => onChange(id, { opacity: Number(e.target.value) / 100 }, t('Opacity'), 'opacity')} />
@@ -451,6 +456,9 @@ export const LAYERS_CSS = `
 .im-layer-hint { padding: 4px 2px; }
 .im-props { display: flex; flex-direction: column; gap: 9px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
 .im-props-head { font-size: 12px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.im-scope-row { display: flex; gap: 6px; margin-top: -2px; }
+.im-scope-row .rw-btn { height: 26px; padding: 0 10px; font-size: 11.5px; border: 1px solid var(--line); background: var(--surface); gap: 6px; }
+.im-scope-row .rw-btn:hover:not(:disabled) { border-color: var(--accent); }
 .im-prop { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; font-size: 12px; }
 .im-prop-label { color: var(--ink-2); }
 .im-prop .rw-select { width: 100%; min-width: 0; }
