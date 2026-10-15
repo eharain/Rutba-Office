@@ -2560,6 +2560,7 @@ export default function Word({ app, shell, boot }) {
               // Immersive Reader is for reading: the words are not edited there, as in Word.
               contentEditable={!view.immersive}
               suppressContentEditableWarning
+              data-f6-home=""
               spellCheck={view.spell !== false}
               onMouseDown={(e) => {
                 // A press on an equation selects it whole — the one character

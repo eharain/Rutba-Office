@@ -107,12 +107,127 @@ export function nameControls(root) {
   quietPictures(root);
 }
 
-/** Once per window: name what is there and whatever comes. */
+/* ── the keyboard ─────────────────────────────────────────────────────────── */
+
+/** How the last thing was done: by key or by pointer. A menu opened from the keyboard takes the keyboard. */
+export const modality = { last: 'pointer' };
+
+const TABBABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+const shownEl = (el) => Boolean(el && el.isConnected && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+const firstTabbable = (root, skip = null) => [...root.querySelectorAll(TABBABLE)].find((el) => shownEl(el) && !(skip && skip(el)));
+
+/** Where F6 last left the keyboard in each part of the window. */
+const lastIn = new WeakMap();
+
+/**
+ * The parts of the window F6 goes round, in the order they stand: the
+ * ribbon, the panes, the document and the status bar, as Office's F6 does.
+ * The document is the window's work outside its panes: what the app marks
+ * `data-f6-home`, or where the keyboard last was there, or the first thing
+ * there that takes it.
+ */
+export function f6Regions(doc = document) {
+  const out = [];
+  const ribbon = doc.querySelector('.rw-ribbon');
+  if (shownEl(ribbon)) out.push({ kind: 'ribbon', el: ribbon });
+  const body = doc.querySelector('.rw-body');
+  const panels = body ? [...body.querySelectorAll('.rw-panel')].filter((p) => shownEl(p) && !p.parentElement.closest('.rw-panel')) : [];
+  const marked = body ? [...body.querySelectorAll('[data-f6-home]')].find(shownEl) : null;
+  // The app's own mark says where its document is, even in a pane (Mail's message list).
+  for (const p of panels) out.push(marked && p.contains(marked) ? { kind: 'document', el: p, home: marked, inPane: () => false } : { kind: 'pane', el: p });
+  if (body) {
+    const inPane = (el) => panels.some((p) => p.contains(el));
+    const home = marked && !inPane(marked) ? marked : firstTabbable(body, inPane);
+    if (home) out.push({ kind: marked && !inPane(marked) || !marked ? 'document' : 'pane', el: body, home, inPane });
+  }
+  const status = doc.querySelector('.rw-status');
+  if (shownEl(status)) out.push({ kind: 'status', el: status });
+  // In the order they stand on the page: a pane on the left before the document, one on the right after it.
+  const at = (r) => (r.kind === 'document' ? r.home : r.el);
+  return out.sort((a, b) => (at(a) === at(b) ? 0 : at(a).compareDocumentPosition(at(b)) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+}
+
+/** The part of the window the keyboard is in now. */
+function regionOf(list, el) {
+  if (!el || el === document.body) return -1;
+  // A pane before the window's work that holds it.
+  const pane = list.findIndex((r) => r.el !== r.el.ownerDocument.querySelector('.rw-body') && r.el.contains(el));
+  if (pane >= 0) return pane;
+  return list.findIndex((r) => r.inPane && r.el.contains(el) && !r.inPane(el));
+}
+
+/** Put the keyboard in a part of the window: back where it was there, or at the part's own start. */
+export function enterRegion(r) {
+  const kept = lastIn.get(r.el);
+  const ok = (el) => el && shownEl(el) && r.el.contains(el) && !el.matches?.('[disabled]') && (!r.inPane || !r.inPane(el));
+  let to = null;
+  if (r.kind === 'ribbon') to = r.el.querySelector('.rw-tab[aria-selected="true"]') || firstTabbable(r.el);
+  else if (r.home) to = ok(kept) ? kept : r.home;
+  else to = ok(kept) ? kept : firstTabbable(r.el);
+  if (!to) {
+    // A part with nothing that takes the keyboard (a status bar of words) is read as a whole.
+    if (!r.el.hasAttribute('tabindex')) r.el.setAttribute('tabindex', '-1');
+    to = r.el;
+  }
+  to.focus({ preventScroll: r.kind === 'ribbon' });
+  return to;
+}
+
+/** F6 forward or Shift+F6 back round the window's parts; false when there is nowhere to go. */
+export function cycleRegions(back = false) {
+  const list = f6Regions();
+  if (!list.length) return false;
+  const now = regionOf(list, document.activeElement);
+  const next = now < 0 ? (back ? list.length - 1 : 0) : (now + (back ? -1 : 1) + list.length) % list.length;
+  enterRegion(list[next]);
+  return true;
+}
+
+/** The document's own place for the keyboard, when what held it has gone. */
+export function focusDocument() {
+  const doc = f6Regions().find((r) => r.kind === 'document');
+  if (doc) enterRegion(doc);
+  return Boolean(doc);
+}
+
+/** Once per window: name what is there and whatever comes, F6 round the parts, and the keyboard never left on nothing. */
 export function useControlNames() {
   useEffect(() => {
+    const onKey = (e) => {
+      modality.last = 'key';
+      if (e.key !== 'F6' || e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
+      // A dialog keeps the keyboard until it closes; a menu, until it is put away.
+      if (document.querySelector('.rw-dialog, .rw-menu')) return;
+      if (cycleRegions(e.shiftKey)) e.preventDefault();
+    };
+    const onPointer = () => { modality.last = 'pointer'; };
+    let held = null;
+    const onFocus = (e) => {
+      held = e.target;
+      const list = f6Regions();
+      const r = list[regionOf(list, e.target)];
+      if (r) lastIn.set(r.el, e.target);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointer, true);
+    document.addEventListener('focusin', onFocus);
+    // What held the keyboard was taken away (a pane closed, a list redrawn) and
+    // nothing took it after: it goes to the document rather than to nothing.
+    // Late enough that a dialog or a menu gives it back to what opened it first.
+    let fixing = 0;
+    const lost = () => {
+      if (fixing || !held || held.isConnected) return;
+      fixing = setTimeout(() => {
+        fixing = 0;
+        if (held && !held.isConnected && (!document.activeElement || document.activeElement === document.body)) {
+          if (!document.querySelector('.rw-dialog, .rw-menu')) focusDocument();
+        }
+      }, 80);
+    };
     if (typeof MutationObserver !== 'function') return undefined;
     nameControls(document.body);
     const watch = new MutationObserver((list) => {
+      lost();
       const roots = new Set();
       for (const m of list) {
         if (m.type === 'attributes') { if (m.target.nodeType === 1) roots.add(m.target); continue; }
@@ -123,6 +238,12 @@ export function useControlNames() {
       for (const r of roots) if (r.isConnected) nameControls(r);
     });
     watch.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-tip', 'title'] });
-    return () => watch.disconnect();
+    return () => {
+      watch.disconnect();
+      clearTimeout(fixing);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointer, true);
+      document.removeEventListener('focusin', onFocus);
+    };
   }, []);
 }

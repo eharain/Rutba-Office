@@ -130,7 +130,7 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
       items.push({ label: t('What’s new'), icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) });
       items.push({ label: t('About Rutba Office'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) });
 
-      setMenu({ x: rect.left, y: rect.bottom + 4, items });
+      setMenu({ x: rect.left, y: rect.bottom + 4, items, keyboard: e.detail === 0 });
     },
     [recent, onNew, onOpen, extra, mode, setTheme, shell, appKey, galleryApp, chosenLanguage, chooseLanguage, chosenDigits, chooseDigits]
   );

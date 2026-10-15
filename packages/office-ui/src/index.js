@@ -4,8 +4,8 @@
 
 import React, { createContext, useContext, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './icons.js';
-import { useControlNames, splitTip, labelFirstControl } from './a11y.js';
-export { labelFirstControl, nameControls, splitTip } from './a11y.js';
+import { useControlNames, splitTip, labelFirstControl, modality, focusDocument } from './a11y.js';
+export { labelFirstControl, nameControls, splitTip, cycleRegions, focusDocument } from './a11y.js';
 import { useRibbonKeys } from './keytips.js';
 import { t, tFilled } from './messages.js';
 
@@ -1217,7 +1217,10 @@ export function Dialog({ title, children, actions, onClose, width, className = n
       window.removeEventListener('keydown', onKey);
       openDialogs.splice(openDialogs.indexOf(self), 1);
       const focus = document.activeElement;
-      if (before?.isConnected && (!focus || focus === document.body || box?.contains(focus))) before.focus?.({ preventScroll: true });
+      if (!focus || focus === document.body || box?.contains(focus)) {
+        if (before?.isConnected && before !== document.body) before.focus?.({ preventScroll: true });
+        else setTimeout(() => { if (!document.activeElement || document.activeElement === document.body) focusDocument(); }, 0);
+      }
     };
   }, []);
   const trap = (e) => {
@@ -1246,9 +1249,38 @@ export function Dialog({ title, children, actions, onClose, width, className = n
  * A context menu placed where it was asked for, then nudged back on screen —
  * a menu opened near the bottom edge should not run off it.
  */
-export function Menu({ x, y, rtl = false, items, onClose }) {
+export function Menu({ x, y, rtl = false, items, onClose, keyboard = false }) {
   const ref = useRef(null);
   const [pos, setPos] = useState({ x, y });
+  const [from] = useState(() => (typeof document === 'undefined' ? null : document.activeElement));
+  const entries = () => [...(ref.current?.querySelectorAll('button:not(:disabled)') || [])];
+  // The keyboard goes back while the items are still on the page, so it is never on nothing for a moment
+  // (a sheet takes the keyboard whenever it finds it there).
+  useLayoutEffect(() => {
+    const box = ref.current;
+    return () => {
+      if (box?.contains(document.activeElement) && from && from.isConnected && from !== document.body) from.focus({ preventScroll: true });
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (keyboard || modality.last === 'key') entries()[0]?.focus({ preventScroll: true });
+    const box = ref.current;
+    return () => {
+      const now = document.activeElement;
+      if (!now || now === document.body || box?.contains(now)) {
+        if (from && from.isConnected && from !== document.body) from.focus({ preventScroll: true });
+        else focusDocument();
+      }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const keys = (e) => {
+    const all = entries();
+    if (!all.length) return;
+    const at = all.indexOf(document.activeElement);
+    const to = e.key === 'ArrowDown' ? (at + 1) % all.length : e.key === 'ArrowUp' ? (at <= 0 ? all.length - 1 : at - 1) : e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : -1;
+    if (to >= 0) { e.preventDefault(); e.stopPropagation(); all[to].focus(); return; }
+    if (e.key === 'Tab') { e.preventDefault(); onClose?.(); }
+  };
 
   useEffect(() => {
     const el = ref.current;
@@ -1262,7 +1294,14 @@ export function Menu({ x, y, rtl = false, items, onClose }) {
 
   useEffect(() => {
     const off = () => onClose?.();
-    const key = (e) => e.key === 'Escape' && onClose?.();
+    const key = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); onClose?.(); return; }
+      // The arrows take the keyboard into a menu opened by the pointer.
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !ref.current?.contains(document.activeElement)) {
+        const all = entries();
+        if (all.length) { e.preventDefault(); (e.key === 'ArrowDown' ? all[0] : all[all.length - 1]).focus(); }
+      }
+    };
     window.addEventListener('mousedown', off);
     window.addEventListener('blur', off);
     window.addEventListener('keydown', key);
@@ -1274,7 +1313,7 @@ export function Menu({ x, y, rtl = false, items, onClose }) {
   }, [onClose]);
 
   return (
-    <div ref={ref} className="rw-menu" role="menu" style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.stopPropagation()}>
+    <div ref={ref} className="rw-menu" role="menu" style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={keys}>
       {items.map((item, i) =>
         item === '-' ? (
           <hr key={`sep${i}`} role="separator" />
@@ -1319,13 +1358,17 @@ export function useMenu() {
     // A ribbon button's menu drops from the button, as Office's do, rather
     // than from wherever the pointer was on it, and from its far edge right
     // to left. A right click anywhere else opens where it was made.
+    const keyboard = (e.type === 'click' && e.detail === 0) || (e.type === 'contextmenu' && !e.clientX && !e.clientY);
     const button = e.currentTarget instanceof Element && e.type !== 'contextmenu' ? e.currentTarget.closest('.rw-ribbon button') : null;
     const r = button?.getBoundingClientRect();
     if (r && r.width) {
       const rtl = getComputedStyle(button).direction === 'rtl';
-      setMenu({ x: rtl ? r.right : r.left, y: r.bottom + 2, rtl, items });
+      setMenu({ x: rtl ? r.right : r.left, y: r.bottom + 2, rtl, items, keyboard });
+    } else if (e.type === 'contextmenu' && !e.clientX && !e.clientY && e.target instanceof Element) {
+      const at = (document.activeElement && document.activeElement !== document.body ? document.activeElement : e.target).getBoundingClientRect();
+      setMenu({ x: at.left + Math.min(24, at.width / 2), y: at.top + Math.min(at.height, 24), items, keyboard });
     } else {
-      setMenu({ x: e.clientX, y: e.clientY, items });
+      setMenu({ x: e.clientX, y: e.clientY, items, keyboard });
     }
   }, []);
   const close = useCallback(() => {

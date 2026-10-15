@@ -2814,6 +2814,7 @@ export default function Slides({ app, shell, boot }) {
               className={`sl-stage tone-${view.tone || 'colour'}`}
               ref={stageRef}
               tabIndex={0}
+              data-f6-home=""
               onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null); }}
               onKeyDown={(e) => {
                 // The keyboard on the stage: arrows nudge the selected shape

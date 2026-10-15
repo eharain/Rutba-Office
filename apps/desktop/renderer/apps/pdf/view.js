@@ -256,7 +256,7 @@ export function PageView({ pages, sources, zoom, layout, current, onCurrent, onT
 
   return (
     // The pages are one stop in the Tab order, so the keyboard scrolls them as a pointer would.
-    <div className={`pdf-view layout-${layout}`} ref={scrollerRef} onScroll={onScroll} dir="ltr" onMouseDown={onFocusText} onMouseUp={onMouseUp} role="document" aria-label={t('Pages')} tabIndex={0}>
+    <div className={`pdf-view layout-${layout}`} ref={scrollerRef} onScroll={onScroll} dir="ltr" onMouseDown={onFocusText} onMouseUp={onMouseUp} role="document" aria-label={t('Pages')} tabIndex={0} data-f6-home="">
       <div className="pdf-view-inner">
         {rows.map((row) => (
           <div className="pdf-row" key={row.map((p) => p.key).join('-')}>

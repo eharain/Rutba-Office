@@ -276,6 +276,8 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
         JSON.stringify({ tabs: tabCodes.map((t) => t.code).join(' '), controls: onControls.length, sample: onControls.slice(0, 8).map((t) => t.code).join(' '), chosen, backToTabs, gone }));
 
       await pick(js, 0);
+      // The page takes the keyboard first: a ring is drawn only in a page that has it (Chromium drops :focus in a page without it).
+      if (!(await js(`document.hasFocus()`))) wc.focus();
       await key('Alt');
       await until(() => tipsNow().then((l) => l.length > 0), 'the KeyTips', 2000).catch(() => {});
       await key('Down');
@@ -283,7 +285,7 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
         const a = document.activeElement;
         if (!a || !a.closest('.rw-groups')) return { inside: false, name: a?.className || '' };
         const cs = getComputedStyle(a);
-        return { inside: true, visible: a.matches(':focus-visible'), width: parseFloat(cs.outlineWidth) || 0, style: cs.outlineStyle, name: (a.dataset.tip || a.textContent || '').trim().slice(0, 20) };
+        return { inside: true, visible: a.matches(':focus-visible'), kbd: Boolean(a.closest('.rw-ribbon')?.dataset.kbd), width: parseFloat(cs.outlineWidth) || 0, style: cs.outlineStyle, name: (a.dataset.tip || a.textContent || '').trim().slice(0, 20) };
       })()`);
       await until(() => ring().then((r) => r.inside), 'the keyboard in the ribbon', 2000).catch(() => {});
       const first = await ring();

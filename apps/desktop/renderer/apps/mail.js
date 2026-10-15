@@ -2044,6 +2044,7 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
         aria-selected={selected}
         aria-expanded={many ? Boolean(expanded) : undefined}
         tabIndex={selected || first ? 0 : -1}
+        data-f6-home={selected || first ? '' : undefined}
         onClick={() => onOpen(thread)}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(thread))}
         onContextMenu={onMenu}
