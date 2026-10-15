@@ -10,6 +10,8 @@
 // the sheet came from a .xlsx, a .csv or an .ods.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRedaction } from '../redact.js';
+import { InspectDialog } from '../inspect.js';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, menuItems, Input, t, tn } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
@@ -203,6 +205,8 @@ export default function Sheets({ app, shell, boot }) {
   const openFileRef = useRef(null);
   /** The ribbon's verbs, for a command defined before them (Ctrl+Alt+M). */
   const actRef = useRef(null);
+  // File → Info → Check for Issues: Inspect Workbook (inspect.js).
+  const [inspecting, setInspecting] = useState(false);
   // File → Info: the Protect Workbook card — Encrypt with Password, and the
   // sheet and structure protection Review already offers, as Excel lists them.
   const protection = useProtection({
@@ -211,6 +215,9 @@ export default function Sheets({ app, shell, boot }) {
     doc,
     setDoc,
     toast,
+    issues: [
+      { id: 'inspect', icon: 'find', label: t('Inspect Workbook'), detail: t('Check the workbook for hidden properties or personal information.'), run: () => setInspecting(true) },
+    ],
     items: [
       { id: 'sheet', icon: 'table', label: model?.protection?.sheet ? t('Unprotect Current Sheet') : t('Protect Current Sheet'), detail: t('Control what types of changes people can make to the current sheet.'), run: () => actRef.current?.('protectSheet') },
       { id: 'structure', icon: 'grid', label: model?.workbookProtection?.structure ? t('Unprotect Workbook Structure') : t('Protect Workbook Structure'), detail: t('Prevent unwanted changes to the structure of the workbook, such as adding sheets.'), run: () => actRef.current?.('protectWorkbook') },
@@ -2422,6 +2429,15 @@ export default function Sheets({ app, shell, boot }) {
   // Review → Check Accessibility and Spelling (sheets/review.js) — a hook,
   // so above the early return.
   const review = useSheetsReview({ shell, doc, model, dispatch, toast });
+  // Review → Redact cells (redact.js): the grid's words as the marks find them; the selection's cells, each a mark.
+  const redactAdapter = useMemo(() => ({
+    pageRoot: () => document.querySelector('.sh-cells'),
+    selectionText: () => window.getSelection()?.toString() || [...document.querySelectorAll('.sh-cells .sh-cell.sel')].map((n) => n.textContent).join('\n'),
+    pictureEls: () => [],
+    pictureAt: () => null,
+    version: model,
+  }), [model]);
+  const redaction = useRedaction({ app: 'sheets', shell, doc, toast, adapter: redactAdapter });
 
   if (error) {
     return (
@@ -3283,6 +3299,7 @@ export default function Sheets({ app, shell, boot }) {
           view={recording ? { ...view, recordingScript: true } : view}
           sel={sel}
           review={review}
+          redaction={redaction}
         />
       }
       status={
@@ -3641,6 +3658,11 @@ export default function Sheets({ app, shell, boot }) {
               {review.paneNode}
             </Panel>
           ) : null}
+          {redaction.pane ? (
+            <Panel right width={320} resizable title={t('Redact')} actions={<Button icon="close" title={t('Close the pane')} onClick={() => redaction.setOpen(false)} />}>
+              {redaction.pane}
+            </Panel>
+          ) : null}
           {selPane ? (
             <SelectionPane
               objects={model.objects || []}
@@ -3700,6 +3722,20 @@ export default function Sheets({ app, shell, boot }) {
         </div>
       )}
 
+      {redaction.overlay}
+      {inspecting && doc ? (
+        <InspectDialog
+          app="sheets"
+          onClose={() => setInspecting(false)}
+          inspect={() => shell.doc.inspect({ id: doc.id, action: 'check' })}
+          remove={async (ids) => {
+            const r = await shell.doc.inspect({ id: doc.id, action: 'remove', ids });
+            setDoc(await shell.doc.meta({ id: doc.id }));
+            setModel(await shell.doc.model({ id: doc.id }));
+            return r;
+          }}
+        />
+      ) : null}
       {dialog === 'print' && doc ? (
         <PrintDialog
           shell={shell}

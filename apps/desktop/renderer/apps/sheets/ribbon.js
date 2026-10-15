@@ -182,6 +182,7 @@ export function withDecimals(code, delta) {
 
 export default function SheetsRibbon({
   tab, setTab, model, dispatch, commands, shell, menu, save, openFile, exportAs, doc, sel, openDialog, act, view = {}, review = null, arrange = { picked: [], pane: false }, ink = null,
+  redaction = null,
 }) {
   // Page Layout → Arrange acts on the drawings picked on the sheet.
   const nPicked = arrange.picked.length;
@@ -739,6 +740,7 @@ export default function SheetsRibbon({
               onClick={() => act('protectWorkbook')} />
             <Button icon="lock" label={format.locked === false ? t('Unlocked') : t('Locked')} title={t('Whether these cells are locked when the sheet is protected')} pressed={format.locked !== false} onClick={() => setFormat({ locked: format.locked === false })} />
             <Button icon="lock" label={t('Allow Edit Ranges')} title={(model?.editRanges || []).length ? t('Allow Edit Ranges — ranges that stay editable when the sheet is protected, each with an optional password ({count} now)', { count: model.editRanges.length }) : t('Allow Edit Ranges — ranges that stay editable when the sheet is protected, each with an optional password')} onClick={() => act('editRanges')} />
+            <Button tall icon="shield" label={t('Redact')} pressed={Boolean(redaction?.open)} title={t('Redact: mark the words and numbers in cells to take out of a copy of the workbook')} onClick={() => redaction?.toggle()} />
           </Group>
           <Group label={t('Rules')}>
             <Button tall icon="wand" label={t('Conditional')} onClick={() => openDialog('conditional')} />

@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6989,
+  "count": 6990,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -6160,6 +6160,12 @@
       "message": "Check the presentation for hidden properties or personal information.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Check the workbook for hidden properties or personal information.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -16605,6 +16611,7 @@
     {
       "message": "Inspect Workbook",
       "where": [
+        "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/protect.js"
       ]
     },
@@ -19259,12 +19266,6 @@
     },
     {
       "message": "Mark an area of a picture on the page",
-      "where": [
-        "apps/desktop/renderer/redact.js"
-      ]
-    },
-    {
-      "message": "Mark an area of a picture on the sheet",
       "where": [
         "apps/desktop/renderer/redact.js"
       ]
@@ -26680,10 +26681,18 @@
       "message": "Redact",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Redact: mark the words and numbers in cells to take out of a copy of the workbook",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {

@@ -334,7 +334,9 @@ export function RedactPane({ app, marks, scan, picking, busy, done, onAdd, onRem
     try { finders = compileMarks([m]); } catch { return 0; }
     return scan.words.filter((w) => findSpans(w, finders).length).length;
   };
-  const pictureLabel = app === 'sheets' ? t('Mark an area of a picture on the sheet') : app === 'slides' ? t('Mark an area of a picture on the slide') : t('Mark an area of a picture on the page');
+  const pictureLabel = app === 'slides' ? t('Mark an area of a picture on the slide') : t('Mark an area of a picture on the page');
+  // A sheet's pictures float over the grid and are not marked here: only its cells' words are.
+  const pictures = app !== 'sheets';
   return (
     <div className="rd-pane">
       <p className="rd-lead">{t('Mark what must not be read. The marks show as you go; Apply saves a copy with them taken out of every part of the file, black bars in their place.')}</p>
@@ -360,11 +362,11 @@ export function RedactPane({ app, marks, scan, picking, busy, done, onAdd, onRem
           <Button className="rd-custom-add" label={t('Add')} disabled={!custom.trim()} onClick={() => { if (onAdd({ regex: custom.trim() })) setCustom(''); }} />
         </div>
       </div>
-      <div className="rd-section">
+      {pictures ? <div className="rd-section">
         <h4>{t('Pictures')}</h4>
         <Button className="rd-pick-area" icon="marquee" label={picking ? t('Done Marking Areas') : pictureLabel} pressed={picking} onClick={onPicking} />
         {picking ? <div className="rd-note" style={{ marginTop: 6 }}>{t('Drag over a picture to mark the part to black out. Escape when done.')}</div> : null}
-      </div>
+      </div> : null}
       <div className="rd-section">
         <h4>{tn(marks.length, '{count} mark', '{count} marks')}</h4>
         <div className="rd-marks">

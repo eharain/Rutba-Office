@@ -6833,7 +6833,6 @@ export default {
   'Invisible Content': 'अदृश्य सामग्री',
   'Mark Selection': 'चयन चिह्नित करें',
   'Mark an area of a picture on the page': 'पृष्ठ पर किसी चित्र का क्षेत्र चिह्नित करें',
-  'Mark an area of a picture on the sheet': 'शीट पर किसी चित्र का क्षेत्र चिह्नित करें',
   'Mark an area of a picture on the slide': 'स्लाइड पर किसी चित्र का क्षेत्र चिह्नित करें',
   'Mark what must not be read. The marks show as you go; Apply saves a copy with them taken out of every part of the file, black bars in their place.': 'जो पढ़ा नहीं जाना चाहिए उसे चिह्नित करें। चिह्न साथ-साथ दिखते हैं; लागू करें एक प्रति सहेजता है जिसमें वे फ़ाइल के हर हिस्से से हटा दिए जाते हैं और उनकी जगह काली पट्टियाँ होती हैं।',
   'Masters and layouts': 'मास्टर और लेआउट',
@@ -6999,4 +6998,6 @@ export default {
   'Mention someone': 'किसी का उल्लेख करें',
   'Reply… @ mentions someone': 'उत्तर दें… @ से किसी का उल्लेख होता है',
   'Type your comment… @ mentions someone': 'अपनी टिप्पणी लिखें… @ से किसी का उल्लेख होता है',
+  'Check the workbook for hidden properties or personal information.': 'वर्कबुक में छिपे गुण या व्यक्तिगत जानकारी जाँचें।',
+  'Redact: mark the words and numbers in cells to take out of a copy of the workbook': 'रिडैक्ट: सेलों के शब्द और संख्याएँ चिह्नित करें जिन्हें वर्कबुक की प्रति से हटाना है',
 };

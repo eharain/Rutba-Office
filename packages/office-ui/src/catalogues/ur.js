@@ -6831,7 +6831,6 @@ export default {
   'Invisible Content': 'غیر مرئی مواد',
   'Mark Selection': 'انتخاب پر نشان لگائیں',
   'Mark an area of a picture on the page': 'صفحے پر تصویر کے کسی حصے پر نشان لگائیں',
-  'Mark an area of a picture on the sheet': 'شیٹ پر تصویر کے کسی حصے پر نشان لگائیں',
   'Mark an area of a picture on the slide': 'سلائیڈ پر تصویر کے کسی حصے پر نشان لگائیں',
   'Mark what must not be read. The marks show as you go; Apply saves a copy with them taken out of every part of the file, black bars in their place.': 'جو پڑھا نہیں جانا چاہیے اس پر نشان لگائیں۔ نشان ساتھ ساتھ دکھائی دیتے ہیں؛ لاگو کریں ایک نقل محفوظ کرتا ہے جس میں یہ فائل کے ہر حصے سے نکال دیے جاتے ہیں اور ان کی جگہ سیاہ پٹیاں ہوتی ہیں۔',
   'Masters and layouts': 'ماسٹرز اور لے آؤٹس',
@@ -6997,4 +6996,6 @@ export default {
   'Mention someone': 'کسی کا ذکر کریں',
   'Reply… @ mentions someone': 'جواب دیں… @ سے کسی کا ذکر ہوتا ہے',
   'Type your comment… @ mentions someone': 'اپنا تبصرہ لکھیں… @ سے کسی کا ذکر ہوتا ہے',
+  'Check the workbook for hidden properties or personal information.': 'ورک بک میں چھپی خصوصیات یا ذاتی معلومات دیکھیں۔',
+  'Redact: mark the words and numbers in cells to take out of a copy of the workbook': 'ریڈیکٹ: ورک بک کی نقل سے نکالنے کے لیے سیلز کے الفاظ اور اعداد پر نشان لگائیں',
 };

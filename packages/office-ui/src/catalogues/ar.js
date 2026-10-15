@@ -6833,7 +6833,6 @@ export default {
   'Invisible Content': 'المحتوى غير المرئي',
   'Mark Selection': 'تحديد التحديد',
   'Mark an area of a picture on the page': 'حدد منطقة من صورة على الصفحة',
-  'Mark an area of a picture on the sheet': 'حدد منطقة من صورة على الورقة',
   'Mark an area of a picture on the slide': 'حدد منطقة من صورة على الشريحة',
   'Mark what must not be read. The marks show as you go; Apply saves a copy with them taken out of every part of the file, black bars in their place.': 'حدد ما يجب ألا يُقرأ. تظهر العلامات أثناء العمل؛ ويحفظ التطبيق نسخة أُزيلت منها من كل أجزاء الملف ووُضعت مكانها أشرطة سوداء.',
   'Masters and layouts': 'الشرائح الرئيسية والتخطيطات',
@@ -6999,4 +6998,6 @@ export default {
   'Mention someone': 'أشر إلى شخص',
   'Reply… @ mentions someone': 'رد… @ للإشارة إلى شخص',
   'Type your comment… @ mentions someone': 'اكتب تعليقك… @ للإشارة إلى شخص',
+  'Check the workbook for hidden properties or personal information.': 'افحص المصنف بحثًا عن خصائص مخفية أو معلومات شخصية.',
+  'Redact: mark the words and numbers in cells to take out of a copy of the workbook': 'تنقيح: حدّد الكلمات والأرقام في الخلايا لإزالتها من نسخة من المصنف',
 };
