@@ -148,7 +148,7 @@ async function blackedOut(href, rects, type) {
  * Redact for one window. `adapter`:
  *   pageRoot()        the element whose words the marks are drawn over
  *   selectionText()   the words selected now, for Mark Selection
- *   pictureAt(el)     for a picture element on the page: { part, href, type, name } or null
+ *   pictureAt(el)     for a picture element on the page: { part, href, type, name, el? (the drawn image, when it is not `el`) } or null
  *   pictureEls()      the picture elements on the page, for drawing the areas
  *   version           anything that changes when the page is drawn again
  */
@@ -191,12 +191,13 @@ export function useRedaction({ app, shell, doc, toast, adapter }) {
     root?.classList.add('rd-picking');
     let drag = null;
     const down = (e) => {
-      const el = e.target?.closest?.('img.wd-image, [data-redact-picture]');
+      const el = e.target?.closest?.(adapter.pictureSelector || 'img.wd-image, [data-redact-picture]');
       const pic = el ? adapter.pictureAt(el) : null;
       if (!pic) return;
       e.preventDefault();
       e.stopPropagation();
-      const r = el.getBoundingClientRect();
+      // The picture's own box: an app may hand back the drawn image for a press on what stands over it.
+      const r = (pic.el || el).getBoundingClientRect();
       drag = { el, pic, r, x0: e.clientX, y0: e.clientY };
       setLive({ left: e.clientX, top: e.clientY, width: 0, height: 0 });
     };
@@ -246,7 +247,7 @@ export function useRedaction({ app, shell, doc, toast, adapter }) {
       for (const el of adapter.pictureEls()) {
         const pic = adapter.pictureAt(el);
         if (!pic) continue;
-        const r = el.getBoundingClientRect();
+        const r = (pic.el || el).getBoundingClientRect();
         pics.filter((m) => m.picture === pic.part).forEach((m, i) => out.push({ key: `${pic.part}:${i}:${r.left}`, left: r.left + m.rect.x * r.width, top: r.top + m.rect.y * r.height, width: m.rect.w * r.width, height: m.rect.h * r.height }));
       }
       setAreas((was) => (JSON.stringify(was) === JSON.stringify(out) ? was : out));

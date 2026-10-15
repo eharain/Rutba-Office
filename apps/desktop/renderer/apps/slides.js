@@ -59,6 +59,9 @@ import { presetCommands, parsePath, fit as fitPath } from '@rutba/presentation/p
 import { CameoLayer, CameraRecorder, CAMEO_CSS } from './slides/cameo.js';
 import { ChangesPane, CHANGES_CSS } from './slides/changes.js';
 import { RevisionsPane, ReviewMarkers, REVISIONS_CSS } from './slides/revisions.js';
+import { useShowInk } from './slides/show-ink.js';
+import { useRedaction } from '../redact.js';
+import { InspectDialog } from '../inspect.js';
 import { compareFingerprints } from '@rutba/presentation/changes';
 import { loadModelFile, modelDrawer, pngOf, urlOf, MODEL_PICTURE, DEFAULT_MODEL_VIEW } from '../model3d.js';
 
@@ -180,6 +183,9 @@ export default function Slides({ app, shell, boot }) {
   /** The Format Painter, armed with a shape's look: its fill, its outline and its first run's font. */
   const [painter, setPainter] = useState(null);
   const [present, setPresent] = useState(false);
+  // Read by the shortcuts: in a show Ctrl+P is the pen, as in PowerPoint, not Print.
+  const presentRef = useRef(false);
+  presentRef.current = present;
   // Slide Show → Rehearse Timings, while the rehearsal runs.
   const [rehearsing, setRehearsing] = useState(false);
   const [, setRehearseTick] = useState(0);
@@ -469,7 +475,16 @@ export default function Slides({ app, shell, boot }) {
   const menu = useMenu();
   const openFileRef = useRef(null);
   // File → Info: the Protect Presentation card and Encrypt with Password.
-  const protection = useProtection({ app: 'slides', shell, doc, setDoc, toast });
+  // File → Info → Check for Issues: Inspect Presentation (inspect.js) and Check Accessibility.
+  const [inspecting, setInspecting] = useState(false);
+  const reviewRef = useRef(null);
+  const protection = useProtection({
+    app: 'slides', shell, doc, setDoc, toast,
+    issues: [
+      { id: 'inspect', icon: 'find', label: t('Inspect Presentation'), detail: t('Check the presentation for hidden properties or personal information.'), run: () => setInspecting(true) },
+      { id: 'a11y', icon: 'shield', label: t('Check Accessibility'), detail: t('Check the presentation for content that people with disabilities might find difficult to read.'), run: () => reviewRef.current?.openAccessibility?.() },
+    ],
+  });
   // File → Save as Template, from the menu made before `save` is.
   const saveRef = useRef(null);
   const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.(), extra: doc && !presenterFor ? [protection.menuItem, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'slides', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
@@ -962,7 +977,7 @@ export default function Slides({ app, shell, boot }) {
       'file.new': { label: t('New'), icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'slides' }) },
       'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
       'file.save': { label: t('Save'), icon: 'save', key: 'Mod+S', run: () => save(false) },
-      'file.print': { label: t('Print…'), icon: 'print', key: 'Mod+P', global: true, run: () => setPrinting(true) },
+      'file.print': { label: t('Print…'), icon: 'print', key: 'Mod+P', global: true, when: () => !presentRef.current, run: () => setPrinting(true) },
       'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', run: () => actRef.current?.('undo') },
       'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', run: () => actRef.current?.('redo') },
       'edit.find': { label: t('Find…'), icon: 'find', key: 'Mod+F', global: true, run: () => setFindOpen('find') },
@@ -2538,6 +2553,36 @@ export default function Slides({ app, shell, boot }) {
   actRef.current = act;
   // Review → Check Accessibility and Spelling (slides/review.js).
   const review = useSlidesReview({ shell, doc, model, apply, toast, index, setIndex, setSelected, patchView, caret: lastCaret, commitText });
+  reviewRef.current = review;
+  // Review → Redact (redact.js): the slide's words and pictures as the marks find them.
+  const redactAdapter = useMemo(() => ({
+    pageRoot: () => document.querySelector('.sl-stage .sl-slide'),
+    selectionText: () => window.getSelection()?.toString() || (selectedShape?.text?.paragraphs || []).map((p) => p.plain).join('\n'),
+    pictureSelector: '.sl-slide [data-shape]',
+    pictureEls: () => [...document.querySelectorAll('.sl-stage .sl-slide svg g[data-shape]')].filter((g) => g.querySelector('image')),
+    pictureAt: (el) => {
+      // Pressed on the shape's hit box or on its drawing: the picture is the image drawn for that shape.
+      const id = el.closest?.('[data-shape]')?.getAttribute('data-shape');
+      const shape = id != null && (slide?.shapes || []).find((s) => String(s.id) === id && s.picture);
+      const image = shape ? [...document.querySelectorAll('.sl-stage .sl-slide svg g[data-shape]')].find((g) => g.getAttribute('data-shape') === id)?.querySelector('image') : null;
+      const href = image?.getAttribute('href');
+      if (!shape || !href) return null;
+      const ext = shape.picture.part.split('.').pop().toLowerCase();
+      return { part: shape.picture.part, href, el: image, type: ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg', name: shape.name || shape.picture.part.split('/').pop() };
+    },
+    version: model,
+  }), [model, slide, selectedShape]);
+  const redaction = useRedaction({ app: 'slides', shell, doc, toast, adapter: redactAdapter });
+  // The show's pen (slides/show-ink.js): what was drawn kept on its slides as ink, if the person says so.
+  const showInk = useShowInk({
+    present,
+    index,
+    size: model?.size,
+    onKeep: async (list) => {
+      for (const { slide: at, strokes } of list) await apply({ op: 'addInk', slide: at, strokes: strokes.map((s) => ({ points: s.points, color: s.color, width: s.width, alpha: s.alpha, cap: s.cap })) });
+      toast(t('Ink annotations kept on the slides.'), { tone: 'good', ms: 3200 });
+    },
+  });
 
   // Every hook above, every early return below. This return sat above the
   // formatting memo, so a file the engine refused made React throw
@@ -2612,6 +2657,7 @@ export default function Slides({ app, shell, boot }) {
         {actioned.length ? <style>{`${actioned.map((s) => `.sl-present [data-shape="${String(s.id).replace(/[^\w-]/g, '')}"]`).join(', ')} { cursor: pointer; }`}</style> : null}
         {/* A black screen is a thing speakers ask for by name: attention back on them. It hides the stage rather than dropping it, so coming back does not replay the transition. */}
         <ShowStage slide={slide} size={model.size} step={showStep} hidden={blank} onSettled={setSettled} control={showControl} mediaControls={model?.showSettings?.mediaControls !== false} narration={!recording && model?.showSettings?.narration !== false} />
+        {showInk.overlay}
         {recording ? <><style>{RECORD_CSS}</style><RecordingBar startedAt={recording.startedAt} slideAt={recording.slideAt} paused={recording.paused} onPause={() => act('recordPause')} onStop={() => setPresent(false)} /></> : null}
         <div className="sl-present-bar">
           {led ? t('{at} / {total} · driven from the presenter window', { at: index + 1, total: model.count }) : t('{at} / {total} · press Esc to leave', { at: index + 1, total: model.count })}
@@ -2663,6 +2709,7 @@ export default function Slides({ app, shell, boot }) {
           addSlide={addSlide}
           insertPicture={insertPicture}
           presentWithNotes={presentWithNotes}
+          redaction={redaction}
           monitorName={monitorName}
 
           setPresent={setPresent}
@@ -3292,11 +3339,31 @@ export default function Slides({ app, shell, boot }) {
               {review.paneNode}
             </Panel>
           ) : null}
+          {redaction.pane && model ? (
+            <Panel right width={320} resizable title={t('Redact')} actions={<Button icon="close" title={t('Close the pane')} onClick={() => redaction.setOpen(false)} />}>
+              {redaction.pane}
+            </Panel>
+          ) : null}
           {menu.node}
         </>
       )}
 
       {review.dialogs}
+      {redaction.overlay}
+      {showInk.dialog}
+      {inspecting && doc ? (
+        <InspectDialog
+          app="slides"
+          onClose={() => setInspecting(false)}
+          inspect={() => shell.doc.inspect({ id: doc.id, action: 'check' })}
+          remove={async (ids) => {
+            const r = await shell.doc.inspect({ id: doc.id, action: 'remove', ids });
+            setDoc(await shell.doc.meta({ id: doc.id }));
+            await load(Math.min(index, Math.max(0, (model?.count || 1) - 1)));
+            return r;
+          }}
+        />
+      ) : null}
 
       {shortcutsOpen ? <SlidesShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
 

@@ -279,7 +279,8 @@ function topShapes(xml) {
 function inspectPresentation(pkg) {
   const size = slideSize(pkg);
   const commentParts = partsWhere(pkg, (n) => /^ppt\/comments\/(?:comment|modernComment)[^/]*\.xml$/.test(n));
-  const comments = commentParts.flatMap((n) => [...pkg.text(n).matchAll(/<p(?:188)?:text>([\s\S]*?)<\/p(?:188)?:text>|<p:cm\b[\s\S]*?<p:text>([\s\S]*?)<\/p:text>/g)].map((m) => unesc((m[1] ?? m[2] ?? '').replace(/<[^>]*>/g, '')).trim().slice(0, 60)));
+  // A legacy comment's p:text, or a PowerPoint 365 comment (p188:cm) or reply (p188:reply) with its words in a txBody.
+  const comments = commentParts.flatMap((n) => [...pkg.text(n).matchAll(/<p:cm\b[\s\S]*?<p:text>([\s\S]*?)<\/p:text>|<p188:(?:cm|reply)\b[^>]*>[\s\S]*?<p188:txBody>([\s\S]*?)<\/p188:txBody>/g)].map((m) => unesc((m[1] ?? m[2] ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')).trim().slice(0, 60)));
   const notes = partsWhere(pkg, (n) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(n)).filter((n) => notesWords(pkg.text(n)).trim());
   const invisible = [];
   const offSlide = [];

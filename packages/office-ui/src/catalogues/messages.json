@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6975,
+  "count": 6986,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -6010,6 +6010,7 @@
       "message": "Check Accessibility",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -6147,6 +6148,18 @@
       "plural": "Check the other {count} sheets",
       "where": [
         "apps/desktop/renderer/apps/sheets/review.js"
+      ]
+    },
+    {
+      "message": "Check the presentation for content that people with disabilities might find difficult to read.",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Check the presentation for hidden properties or personal information.",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -9819,7 +9832,8 @@
       "where": [
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/mail/compose.js"
+        "apps/desktop/renderer/apps/mail/compose.js",
+        "apps/desktop/renderer/apps/slides/show-ink.js"
       ]
     },
     {
@@ -9951,6 +9965,12 @@
       "message": "Do not use them",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Do you want to keep your ink annotations?",
+      "where": [
+        "apps/desktop/renderer/apps/slides/show-ink.js"
       ]
     },
     {
@@ -11418,12 +11438,24 @@
       ]
     },
     {
+      "message": "Erase All Ink on Slide (E)",
+      "where": [
+        "apps/desktop/renderer/apps/slides/show-ink.js"
+      ]
+    },
+    {
       "message": "Eraser",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Eraser (Ctrl+E)",
+      "where": [
+        "apps/desktop/renderer/apps/slides/show-ink.js"
       ]
     },
     {
@@ -15042,6 +15074,12 @@
       ]
     },
     {
+      "message": "Highlighter (Ctrl+I)",
+      "where": [
+        "apps/desktop/renderer/apps/slides/show-ink.js"
+      ]
+    },
+    {
       "message": "Highlights",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -15899,6 +15937,12 @@
       ]
     },
     {
+      "message": "Ink Color",
+      "where": [
+        "apps/desktop/renderer/apps/slides/show-ink.js"
+      ]
+    },
+    {
       "message": "Ink Help",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -15914,6 +15958,12 @@
       "message": "Ink Replay — the slide's strokes drawn again, in the order they were made",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Ink annotations kept on the slides.",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -16541,6 +16591,7 @@
     {
       "message": "Inspect Presentation",
       "where": [
+        "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/protect.js"
       ]
     },
@@ -17105,6 +17156,12 @@
       "message": "Justify with kashida — stretch the letters to fill the line, as Arabic is justified",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Keep",
+      "where": [
+        "apps/desktop/renderer/apps/slides/show-ink.js"
       ]
     },
     {
@@ -24196,6 +24253,12 @@
       ]
     },
     {
+      "message": "Pen (Ctrl+P)",
+      "where": [
+        "apps/desktop/renderer/apps/slides/show-ink.js"
+      ]
+    },
+    {
       "message": "Pen Colour",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -25618,6 +25681,7 @@
       "message": "Protect",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -26603,6 +26667,8 @@
       "message": "Redact",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/slides.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -26610,6 +26676,7 @@
     {
       "message": "Redact: mark words and areas of pictures to take out of a copy of the file",
       "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -28713,6 +28780,7 @@
     {
       "message": "Rutba Presentations",
       "where": [
+        "apps/desktop/renderer/apps/slides/show-ink.js",
         "apps/desktop/renderer/registry-words.js"
       ]
     },
@@ -43177,6 +43245,13 @@
       "plural": "{count} stars ({key})",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "{count} stroke drawn in the show.",
+      "plural": "{count} strokes drawn in the show.",
+      "where": [
+        "apps/desktop/renderer/apps/slides/show-ink.js"
       ]
     },
     {

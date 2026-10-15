@@ -124,6 +124,7 @@ export default function SlidesRibbon({
   act, view = {}, index = 0, selected = null, selectedIds = [], format = {}, canPaste = false, painter = false, animation = null, animPainter = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
   monitorName = t('Automatic'),
   ink = null,
+  redaction = null,
   designStrip = null,
   masterView = null,
   masterPart = null,
@@ -969,6 +970,9 @@ export default function SlidesRibbon({
               <Button icon="list" label={t('Reviewing Pane')} pressed={view.pane === 'revisions'} title={t('Reviewing Pane: the Revisions pane, the changes on this slide and in the presentation')} onClick={() => act('pane', 'revisions')} />
             </Rows>
             <Button tall icon="stop" label={t('End Review')} disabled={!model?.review} title={t('End Review: close the review; the changes not accepted are left out')} onClick={() => act('reviewEnd')} />
+          </Group>
+          <Group label={t('Protect')}>
+            <Button tall icon="shield" label={t('Redact')} pressed={Boolean(redaction?.open)} title={t('Redact: mark words and areas of pictures to take out of a copy of the file')} onClick={() => redaction?.toggle()} />
           </Group>
           <Group label={t('Notes')}>
             <Button tall icon="word" label={t('Speaker Notes')} title={t("Speaker Notes — this slide's, shown in Presenter View")} onClick={() => setNotesOpen(true)} />

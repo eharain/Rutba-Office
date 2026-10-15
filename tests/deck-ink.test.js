@@ -81,3 +81,29 @@ test('a stroke begun along the Ruler\'s edge is laid on it, a stroke away from i
   const turned = alongRuler([[640, 328], [700, 340]], { ...ruler, angle: 90 });
   assert.equal(turned, null, 'away from a turned ruler\'s edge');
 });
+
+test('ink is saved as PowerPoint saves it: an InkML part named by a p14 content part, the freeform its fallback', async () => {
+  const { readInkml } = await import('@rutba/ooxml/inkml');
+  const deck = blank();
+  const [id] = deck.addInk(0, [{ points: [[100, 100], [140, 120], [180, 110]], color: '#0000FF', width: 2, alpha: 1, cap: 'rnd' }]);
+  const again = Deck.open(deck.save());
+  const xml = again.pkg.text('ppt/slides/slide1.xml');
+  assert.match(xml, /<mc:Choice xmlns:p14="[^"]+" Requires="p14"><p:contentPart p14:bwMode="auto" r:id="(rId\d+)">/);
+  assert.match(xml, /<mc:Fallback><p:sp><p:nvSpPr><p:cNvPr id="\d+" name="Ink 1"\/>/);
+  const rId = /<p:contentPart\b[^>]*r:id="(rId\d+)"/.exec(xml)[1];
+  const rel = again.pkg.rels('ppt/slides/slide1.xml').find((r) => r.Id === rId);
+  assert.equal(rel.Type, 'http://schemas.microsoft.com/office/2011/relationships/ink');
+  assert.match(again.pkg.text('[Content_Types].xml'), /application\/inkml\+xml/);
+  const ink = readInkml(again.pkg.text('ppt/ink/ink1.xml'));
+  assert.equal(ink.strokes?.length ?? ink.length, 1);
+  // Read back as one ink shape, and moved with its content part's box.
+  const shapes = again.slide(0).shapes;
+  assert.equal(shapes.filter(isInk).length, 1);
+  const g = shapes.find(isInk).geometry;
+  again.setGeometry(0, id, { ...g, x: g.x + 50 });
+  const moved = again.pkg.text('ppt/slides/slide1.xml');
+  const p14 = /<p14:xfrm><a:off x="(\d+)"/.exec(moved)[1];
+  const a = /<mc:Fallback>[\s\S]*?<a:xfrm><a:off x="(\d+)"/.exec(moved)[1];
+  assert.equal(p14, a);
+  assert.equal(Math.round(again.slide(0).shapes.find(isInk).geometry.x), Math.round(g.x + 50));
+});

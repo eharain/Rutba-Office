@@ -2045,6 +2045,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
               model3d: s.model3d ?? null,
               // A picture's alt text and title: a QR Code's text, for a double-click to open it again.
               descr: s.descr ?? null,
+              // A picture's own part, for Redact to black out an area of it.
+              picture: s.kind === 'picture' && s.source?.part ? { part: s.source.part } : null,
               title: s.title ?? null,
               // Insert → Object: the embedded document's program and name, for a double-click to open it.
               object: s.object ? { progId: s.object.progId, name: s.object.name, part: s.object.source?.part || null } : null,

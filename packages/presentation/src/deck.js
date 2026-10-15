@@ -29,6 +29,7 @@ import { BEVELS, CAMERAS, shape3dXml } from './shape3d.js';
 import { withNarration, withoutMediaNode, isNarration, NARRATION_NAME } from './narration.js';
 import { masterPartXml, placeholderXml, placeholderBox, placeholderTypesIn, MASTER_PLACEHOLDERS, NOTES_MASTER_CT, HANDOUT_MASTER_CT, NOTES_MASTER_REL, HANDOUT_MASTER_REL } from './notes-master.js';
 import { designIdeas } from './design-ideas.js';
+import { inkmlXml, INK_CT, INK_REL } from '@rutba/ooxml/inkml';
 
 const A = (n) => `a:${n}`;
 const P = (n) => `p:${n}`;
@@ -1372,7 +1373,11 @@ export class Deck {
     };
     // An equation is two shapes — the one PowerPoint draws and the picture it
     // falls back to — and both move together.
-    const shapeXml = range.alt ? whole.replace(/<p:sp>[\s\S]*?<\/p:sp>/g, (sp) => move(sp)) : move(whole);
+    let shapeXml = range.alt ? whole.replace(/<p:sp>[\s\S]*?<\/p:sp>/g, (sp) => move(sp)) : move(whole);
+    if (range.alt && /<p14:xfrm\b/.test(shapeXml)) {
+      const box = /<a:xfrm\b[^>]*>([\s\S]*?)<\/a:xfrm>/.exec(shapeXml)?.[1];
+      if (box) shapeXml = shapeXml.replace(/<p14:xfrm\b[^>]*>[\s\S]*?<\/p14:xfrm>/, () => '<p14:xfrm>' + box + '</p14:xfrm>');
+    }
     this.#writeSlide(part, xml.slice(0, range.start) + shapeXml + xml.slice(range.end));
     return true;
   }
@@ -3744,14 +3749,26 @@ export class Deck {
       const color = String(s.color || '#000000').replace('#', '').toUpperCase();
       const alpha = s.alpha != null && s.alpha < 1 ? `<a:alpha val="${Math.round(Math.max(0, s.alpha) * 100000)}"/>` : '';
       const cap = s.cap === 'sq' ? 'sq' : 'rnd';
-      shapes += `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Ink ${n}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>`
+      const freeform = `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Ink ${n}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>`
         + `<p:spPr><a:xfrm><a:off x="${pxToEmu(left)}" y="${pxToEmu(top)}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>`
         + `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="${cx}" h="${cy}" fill="none" extrusionOk="0">${path}</a:path></a:pathLst></a:custGeom>`
         + `<a:noFill/><a:ln w="${Math.round(Math.max(0.25, Number(s.width) || 1) * 12700)}" cap="${cap}"><a:solidFill>${alpha ? `<a:srgbClr val="${escapeXml(color)}">${alpha}</a:srgbClr>` : `<a:srgbClr val="${escapeXml(color)}"/>`}</a:solidFill><a:round/></a:ln></p:spPr></p:sp>`;
+      // As PowerPoint keeps ink: the stroke an InkML part (its points where they are on the slide)
+      // in a content part PowerPoint 2010 and later draw, the freeform the fallback for the rest.
+      let k = 1;
+      while (this.pkg.has(`ppt/ink/ink${k}.xml`)) k += 1;
+      this.pkg.addPart(`ppt/ink/ink${k}.xml`, inkmlXml([{ ...s, points: pts, highlighter: cap === 'sq' }]), INK_CT);
+      const rId = this.pkg.addRelationshipTo(part, INK_REL, `../ink/ink${k}.xml`);
+      shapes += `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" Requires="p14">`
+        + `<p:contentPart p14:bwMode="auto" r:id="${rId}"><p14:nvContentPartPr><p14:cNvPr id="${id}" name="Ink ${n}"/><p14:cNvContentPartPr/><p14:nvPr/></p14:nvContentPartPr>`
+        + `<p14:xfrm><a:off x="${pxToEmu(left)}" y="${pxToEmu(top)}"/><a:ext cx="${cx}" cy="${cy}"/></p14:xfrm></p:contentPart></mc:Choice><mc:Fallback>${freeform}</mc:Fallback></mc:AlternateContent>`;
       ids.push(id);
       id += 1;
     }
     if (!shapes) return ids;
+    // The relationships just added are read again: the content part names one.
+    xml = this.pkg.text(part);
+    if (!/<p:sld\b[^>]*xmlns:r=/.test(xml)) xml = xml.replace(/<p:sld\b/, '<p:sld xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"');
     const end = xml.lastIndexOf('</p:spTree>');
     if (end < 0) throw new Error('slide has no shape tree');
     this.#writeSlide(part, xml.slice(0, end) + shapes + xml.slice(end));
