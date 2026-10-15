@@ -7010,4 +7010,7 @@ export default {
   'Load Selection': 'انتخاب واپس لائیں',
   'Selection Loaded': 'انتخاب واپس آ گیا',
   'Load Selection: the selection this layer was made from, so the Adjust and Filters tabs change it again': 'انتخاب واپس لائیں: وہ انتخاب جس سے یہ پرت بنی تھی، تاکہ ایڈجسٹ اور فلٹرز ٹیب اسے دوبارہ بدل سکیں',
+  'Colour of the words': 'الفاظ کا رنگ',
+  'Done: stop typing (Esc)': 'ہو گیا: لکھنا بند کریں (Esc)',
+  'The layer\'s words': 'پرت کے الفاظ',
 };

@@ -7012,4 +7012,7 @@ export default {
   'Load Selection': 'चयन वापस लाएँ',
   'Selection Loaded': 'चयन वापस आ गया',
   'Load Selection: the selection this layer was made from, so the Adjust and Filters tabs change it again': 'चयन वापस लाएँ: वह चयन जिससे यह परत बनी थी, ताकि एडजस्ट और फ़िल्टर टैब इसे फिर से बदल सकें',
+  'Colour of the words': 'शब्दों का रंग',
+  'Done: stop typing (Esc)': 'हो गया: लिखना बंद करें (Esc)',
+  'The layer\'s words': 'परत के शब्द',
 };

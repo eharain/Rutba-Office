@@ -42,6 +42,7 @@ import { Histogram, CurveEditor } from './image/tone.js';
 import { paintLayered, renderLayered, decodeBitmap, pngBytes, mimeOf, planAt, boundsOf } from './image/layered.js';
 import { LayersPanel, LAYERS_CSS } from './image/layers-panel.js';
 import { LayerStage, STAGE_CSS } from './image/stage.js';
+import { TextEditor, TypeBar, TYPE_CSS } from './image/type-editor.js';
 import { InsertGroups, INSERT_CSS } from './image/insert.js';
 import { CanvasSizeDialog, CANVAS_CSS } from './image/canvas-size.js';
 import { nameOf } from './image/words.js';
@@ -134,6 +135,11 @@ export default function ImageTool({ app, shell, boot }) {
   const [resizing, setResizing] = useState(false);
   const [stage, setStage] = useState({ width: 0, height: 0 });
   const [scale, setScale] = useState(1);
+  // Typing on the canvas: the text layer whose words are being edited in place, whether
+  // its words start selected (a new Text), and the undo step the spell of typing makes.
+  const [typing, setTyping] = useState(null);
+  const typingRef = useRef(null);
+  typingRef.current = typing;
   const [exportOpts, setExportOpts] = useState({ format: null, quality: 90, longSide: 0, maxKB: 0, strip: true });
   // The file that would not decode, and why. A toast says it once and fades,
   // and the window then shows "No picture open" — which is what it says when
@@ -653,7 +659,7 @@ export default function ImageTool({ app, shell, boot }) {
     const key = h.key;
     h.key = null;
     const at = Date.now();
-    if (key && key === h.lastKey && (key.startsWith('drag:') || at - h.lastAt < 900)) {
+    if (key && key === h.lastKey && (key.startsWith('drag:') || key.startsWith('type:') || at - h.lastAt < 900)) {
       h.lastAt = at;
       if (bits && h.undo.length) h.undo[h.undo.length - 1] = { ...h.undo[h.undo.length - 1], bits: mergeBits(h.undo[h.undo.length - 1].bits, bits) };
       setProjectDirty(true);
@@ -717,7 +723,9 @@ export default function ImageTool({ app, shell, boot }) {
     const fitScale = Math.max(0.02, Math.min(1, (stage.width - 48) / W, (stage.height - 48) / H));
     const dpr = window.devicePixelRatio || 1;
     setScale(fitScale);
-    const painted = paintLayered(canvas, layered, assetsNow(), fitScale * dpr);
+    // The layer being typed in is left out of the picture: its words are in the text box over it.
+    const shown = typing && layered.patches.some((p) => p.id === typing.id) ? setLayer(layered, typing.id, { opacity: 0, keepEmpty: true }) : layered;
+    const painted = paintLayered(canvas, shown, assetsNow(), fitScale * dpr);
     canvas.style.width = `${Math.round(W * fitScale)}px`;
     canvas.style.height = `${Math.round(H * fitScale)}px`;
     if (draftOp && plan) {
@@ -726,7 +734,7 @@ export default function ImageTool({ app, shell, boot }) {
     }
     setLayerPlan(painted);
     canvas.dataset.drawn = String(++drawn.current);
-  }, [layered, assetsTick, stage, draftOp, plan, assetsNow]);
+  }, [layered, assetsTick, stage, draftOp, plan, assetsNow, typing]);
 
   /** The picture as layers: the Background made from it, the canvas its size. */
   const enterLayers = useCallback(() => {
@@ -861,6 +869,28 @@ export default function ImageTool({ app, shell, boot }) {
   const dragKey = useRef(null);
   const lockedNow = useCallback((id) => Boolean(layeredRef.current && isLocked(layeredRef.current, id)), []);
 
+  /** Start typing in a text layer on the canvas; `all` selects its words (a new Text's, to type over). */
+  const startTyping = useCallback((id, { all = false } = {}) => {
+    setSelected([id]);
+    setPtool('move');
+    setTyping({ id, all, key: `type:${id}:${Date.now()}` });
+  }, []);
+  /** Stop typing: a layer left with no words goes, as an empty text box does in a photo editor. */
+  const stopTyping = useCallback(() => {
+    const now = typingRef.current;
+    if (!now) return;
+    setTyping(null);
+    const p = layeredRef.current?.patches.find((x) => x.id === now.id);
+    if (p && !String(p.text || '').trim()) {
+      editLayersRef.current?.((d) => removeLayers(d, [now.id]));
+      setSelected([]);
+    }
+  }, []);
+  // A layer that went away while typed in (an undo past its making) ends the typing.
+  useEffect(() => {
+    if (typing && !layered?.patches.some((p) => p.id === typing.id)) setTyping(null);
+  }, [typing, layered]);
+
   const removeChosen = useCallback((ids) => {
     if (!ids.length) return;
     editLayers((d) => removeLayers(d, ids));
@@ -920,6 +950,7 @@ export default function ImageTool({ app, shell, boot }) {
   /** Pick a tool from the column: anything but Move works on layers, so the picture becomes layers. */
   const pickTool = useCallback((id) => {
     commitDraft();
+    setTyping(null);
     setCrop(null);
     setTool(null);
     if (id !== 'move' && !layeredRef.current) enterLayers();
@@ -1985,7 +2016,7 @@ export default function ImageTool({ app, shell, boot }) {
           </Group>
         </>
       ) : tab === 'insert' ? (
-        <InsertGroups onAdd={addLayerPatch} onPicture={insertPicture} disabled={false} />
+        <InsertGroups onAdd={(patch) => { const id = addLayerPatch(patch); if (id && patch.type === 'textblock') startTyping(id, { all: true }); }} onPicture={insertPicture} disabled={false} />
       ) : tab === 'layers' ? (
         <>
           <Group label={t('Panel')}>
@@ -2231,7 +2262,15 @@ export default function ImageTool({ app, shell, boot }) {
             <div className="im-work">
             {editFor ? null : <ToolBar tool={ptool} onTool={pickTool} options={toolOpts} onOptions={opt} disabled={!hasResult} />}
             <div className="im-main">
-            {editFor ? null : (
+            {editFor ? null : typing && layered?.patches.some((p) => p.id === typing.id) ? (
+              <TypeBar
+                patch={layered.patches.find((p) => p.id === typing.id)}
+                canvasWidth={layered.size.width}
+                onChange={(change, label) => editLayers((d) => setLayer(d, typing.id, change), `${typing.key}:${Object.keys(change).join(',')}`)}
+                onDone={stopTyping}
+                refocus={() => requestAnimationFrame(() => document.querySelector('.im-type-box')?.focus())}
+              />
+            ) : (
               <OptionsBar
                 tool={ptool}
                 options={toolOpts}
@@ -2267,7 +2306,25 @@ export default function ImageTool({ app, shell, boot }) {
                     source={cloneSrc}
                   />
                 ) : null}
-                {layered && layerPlan && !crop && !tool && ptool === 'move' ? (
+                {layered && layerPlan && typing && !crop && !tool ? (() => {
+                  const compiled = layerPlan.layers.find((l) => l.id === typing.id);
+                  const patch = layered.patches.find((p) => p.id === typing.id);
+                  const box = compiled ? boundsOf(layerPlan, typing.id) : null;
+                  return compiled && patch && box ? (
+                    <TextEditor
+                      key={typing.key}
+                      layer={compiled}
+                      bounds={box}
+                      patch={patch}
+                      cssPerPx={1 / (window.devicePixelRatio || 1)}
+                      selectAll={typing.all}
+                      onText={(text) => editLayers((d) => setLayer(d, typing.id, { text }), typing.key)}
+                      onStyle={(change) => editLayers((d) => setLayer(d, typing.id, change), `${typing.key}:${Object.keys(change).join(',')}:${Date.now()}`)}
+                      onDone={stopTyping}
+                    />
+                  ) : null;
+                })() : null}
+                {layered && layerPlan && !crop && !tool && ptool === 'move' && !typing ? (
                   <LayerStage
                     plan={layerPlan}
                     cssPerPx={1 / (window.devicePixelRatio || 1)}
@@ -2277,7 +2334,11 @@ export default function ImageTool({ app, shell, boot }) {
                     isLocked={lockedNow}
                     onBegin={(kind) => { dragKey.current = `drag:${kind}:${Date.now()}`; }}
                     onLive={(id, change) => editLayers((d) => liveChange(d, id, change), dragKey.current)}
-                    onOpenText={(id) => { setSelected([id]); setSide('layers'); requestAnimationFrame(() => document.querySelector('[data-role="layer-text"]')?.focus()); }}
+                    onOpenText={(id) => {
+                      // Words in a box are typed where they are; word art and labels in the Layers panel.
+                      if (layered.patches.find((p) => p.id === id)?.type === 'textblock') { startTyping(id); return; }
+                      setSelected([id]); setSide('layers'); requestAnimationFrame(() => document.querySelector('[data-role="layer-text"]')?.focus());
+                    }}
                   />
                 ) : null}
                 {crop && cropFrame ? <CropBox crop={crop} plan={cropFrame} onChange={(c) => setCrop(constrainCrop(c, cropFrame.target, ratio))} /> : null}
@@ -2461,7 +2522,7 @@ export default function ImageTool({ app, shell, boot }) {
         />
       ) : null}
       {pictureText.asking ? <OcrLanguagesDialog onClose={() => pictureText.setAsking(false)} /> : null}
-      <style>{CSS + LAYERS_CSS + STAGE_CSS + INSERT_CSS + CANVAS_CSS + TOOLS_CSS + TOOL_STAGE_CSS + SELECTION_CSS + OCR_CSS}</style>
+      <style>{CSS + LAYERS_CSS + STAGE_CSS + INSERT_CSS + CANVAS_CSS + TOOLS_CSS + TOOL_STAGE_CSS + SELECTION_CSS + OCR_CSS + TYPE_CSS}</style>
     </AppFrame>
   );
 }
