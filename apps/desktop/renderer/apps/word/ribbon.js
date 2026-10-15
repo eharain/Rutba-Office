@@ -288,6 +288,7 @@ export default function WordRibbon({
           { label: t('Rotate Left 90°'), run: () => act('rotate', -90) },
           { label: t('Flip Vertical'), icon: 'flip', run: () => act('rotate', 'flipV') },
           { label: t('Flip Horizontal'), run: () => act('rotate', 'flipH') },
+          { label: t('More Rotation Options…'), run: () => act('rotationDialog') },
         ])} />
       </Rows>
     </Group>

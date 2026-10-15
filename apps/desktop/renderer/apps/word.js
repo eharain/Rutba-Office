@@ -69,6 +69,7 @@ import { useReferences, installReferencesStyles } from './word/references.js';
 import { useBuildingBlocks, BLOCKS_CSS } from './word/blocks.js';
 import { untrackedOk } from './word/untracked.js';
 import { loadModelFile, modelDrawer, pngOf, MODEL_PICTURE, DEFAULT_MODEL_VIEW } from '../model3d.js';
+import { RotationDialog } from '../rotation-dialog.js';
 
 installMailingsStyles();
 installEnvelopeStyles();
@@ -257,6 +258,8 @@ export default function Word({ app, shell, boot }) {
   const [iconsOpen, setIconsOpen] = useState(false);
   // Insert > QR Code: {} for a new one, { block, image, initial } for one double-clicked.
   const [qrDialog, setQrDialog] = useState(null);
+  /** Layout → Rotate → More Rotation Options…: the drawings and the first one's angle, or null. */
+  const [rotationOpen, setRotationOpen] = useState(null);
   const [signatureOpen, setSignatureOpen] = useState(false);
   // The equation editor: null, or what it opened on — a new equation, or
   // one being edited at `block`/`offset`.
@@ -2048,6 +2051,12 @@ export default function Word({ app, shell, boot }) {
           if (changes.length) await apply({ op: 'updateDrawings', changes });
           return;
         }
+        case 'rotationDialog': {
+          const ids = picked?.ids?.length ? picked.ids : editingBox != null ? [editingBox] : [];
+          if (!ids.length) return toast(t('Select a drawing to turn first.'), { ms: 4000 });
+          setRotationOpen({ ids, rot: (model?.drawings || []).find((x) => x.id === ids[0])?.rot || 0 });
+          return;
+        }
         case 'rotate': {
           // Rotate Right 90°, Rotate Left 90°, Flip Vertical, Flip Horizontal.
           const ids = picked?.ids?.length ? picked.ids : editingBox != null ? [editingBox] : [];
@@ -3219,6 +3228,13 @@ export default function Word({ app, shell, boot }) {
         />
       ) : null}
 
+      {rotationOpen ? (
+        <RotationDialog
+          initial={rotationOpen.rot}
+          onClose={() => setRotationOpen(null)}
+          onApply={(deg) => apply({ op: 'updateDrawings', changes: rotationOpen.ids.map((id) => ({ id, rot: deg })) })}
+        />
+      ) : null}
       {qrDialog ? (
         <QrDialog
           initial={qrDialog.initial || null}

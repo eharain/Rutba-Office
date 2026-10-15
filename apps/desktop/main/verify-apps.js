@@ -83,6 +83,7 @@ import { verifyImageSelectionSave } from './verify-image-selection-save.js';
 import { verifyImageMaskTransform } from './verify-image-mask-transform.js';
 import { verifyImageTextEdit } from './verify-image-text-edit.js';
 import { verifyRotateFrameDeck } from './verify-rotate-frame-deck.js';
+import { verifyRotateFrameWord } from './verify-rotate-frame-word.js';
 import { verifyPdfApp } from './verify-pdf-app.js';
 import { verifyOcrPdf } from './verify-ocr-pdf.js';
 import { verifyPdfAnnot } from './verify-pdf-annot.js';
@@ -4799,7 +4800,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,dark-pass,video-mp4,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,dark-pass,video-mp4,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4870,6 +4871,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('image-selection-save')) await verifyImageSelectionSave({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('image-mask-transform')) await verifyImageMaskTransform({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('image-text-edit')) await verifyImageTextEdit({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('rotate-frame-word')) await verifyRotateFrameWord({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('rotate-frame-deck')) await verifyRotateFrameDeck({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('pdf-app')) await verifyPdfApp({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('ocr-pdf')) await verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir });
@@ -5217,6 +5219,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyImageSelectionSave({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyImageMaskTransform({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyImageTextEdit({ open, check, until, wait, errorsIn }, { dir }));
+  await block(() => verifyRotateFrameWord({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyRotateFrameDeck({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyPdfApp({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir }));

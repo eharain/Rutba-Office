@@ -23,6 +23,7 @@ import { Button, Icon, Spacer, t } from '@rutba/office-ui';
 import { floatPlace, layerOf, sideOf } from '@rutba/doc-view/floats';
 import { warpedTextSvg, drawnWarp } from '@rutba/drawing/warp';
 import { rectOf, pageTopOf, pageIndexAt, pointOf } from './pages.js';
+import { resizeTurned, handleCursor } from '@rutba/office-ui/turned-box';
 
 /** The layer a drawing lives in; a centred square-wrapped one stands under the words, as before. */
 export function drawingLayer(d) {
@@ -548,35 +549,30 @@ export function DrawingFrame({ page, ids, editingId = null, drawings, deps, onMo
   const startResize = (e, b, name) => {
     const el = find(b.id);
     const keepRatio = b.kind === 'picture' || b.kind === 'group';
-    const ratio = b.height / Math.max(1, b.width);
-    const was = { width: el?.style.width || '', height: el?.style.height || '', minHeight: el?.style.minHeight || '' };
+    const was = { width: el?.style.width || '', height: el?.style.height || '', minHeight: el?.style.minHeight || '', translate: el?.style.translate || '' };
+    // Along the drawing's own sides, turned or not: the side or corner
+    // opposite the handle stays where it is on the page, as in Word.
     const sized = ({ dx, dy, shift }) => {
-      // In the drawing's own turned frame: the pointer's travel turned back.
-      const rad = (-(b.rot || 0) * Math.PI) / 180;
-      const ux = dx * Math.cos(rad) - dy * Math.sin(rad);
-      const uy = dx * Math.sin(rad) + dy * Math.cos(rad);
-      let w = b.width + (name.includes('e') ? ux : name.includes('w') ? -ux : 0);
-      let h = b.height + (name.includes('s') ? uy : name.includes('n') ? -uy : 0);
       const corner = name.length === 2;
-      if ((keepRatio && corner) !== Boolean(shift && corner)) h = w * ratio;
-      w = Math.max(12, Math.round(w));
-      h = Math.max(12, Math.round(h));
-      const left = b.left + (name.includes('w') ? b.width - w : 0);
-      const top = b.top + (name.includes('n') ? b.height - h : 0);
-      return { left, top, width: w, height: h };
+      const s = resizeTurned({ x: b.left, y: b.top, w: b.width, h: b.height }, b.rot || 0, name, dx, dy, { keep: (keepRatio && corner) !== Boolean(shift && corner), min: 12 });
+      const width = Math.round(s.w);
+      const height = Math.round(s.h);
+      return { left: s.x + (s.w - width) / 2, top: s.y + (s.h - height) / 2, width, height };
     };
     drag(e, (t) => {
       const s = sized(t);
       if (el) {
         el.style.width = `${s.width}px`;
         if (b.kind === 'textbox') el.style.minHeight = `${s.height}px`; else el.style.height = `${s.height}px`;
+        // The drawing follows the frame: its box moved to where the turned resize puts it.
+        el.style.translate = `${Math.round(s.left - b.left)}px ${Math.round(s.top - b.top)}px`;
       }
       setLive({ id: b.id, ...s, rot: b.rot });
     }, (t) => {
-      if (el) { el.style.width = was.width; el.style.height = was.height; el.style.minHeight = was.minHeight; }
+      if (el) { el.style.width = was.width; el.style.height = was.height; el.style.minHeight = was.minHeight; el.style.translate = was.translate; }
       setLive(null);
       if (Math.abs(t.dx) < 1 && Math.abs(t.dy) < 1) return;
-      onResize?.(b.id, sized(t), { moved: name.includes('w') || name.includes('n'), from: b });
+      onResize?.(b.id, sized(t), { moved: Boolean(b.rot) || name.includes('w') || name.includes('n'), from: b });
     });
   };
 
@@ -628,9 +624,10 @@ export function DrawingFrame({ page, ids, editingId = null, drawings, deps, onMo
         {/* The edge takes hold of a floating drawing to move it. */}
         {b.anchored ? ['t', 'r', 'b', 'l'].map((s) => <div key={s} className={`wd-frame-edge ${s}`} onMouseDown={(e) => startMove(e, b)} />) : null}
         {main ? HANDLES.map(([name, fx, fy, cursor]) => (
-          <div key={name} className="wd-handle" data-handle={name} style={{ left: `calc(${fx * 100}% - 5px)`, top: `calc(${fy * 100}% - 5px)`, cursor }} onMouseDown={(e) => startResize(e, b, name)} />
+          <div key={name} className="wd-handle" data-handle={name} style={{ left: `calc(${fx * 100}% - 5px)`, top: `calc(${fy * 100}% - 5px)`, cursor: g.rot ? handleCursor(name, g.rot) : cursor }} onMouseDown={(e) => startResize(e, b, name)} />
         )) : null}
-        {main && b.anchored ? (
+        {/* A picture in line with the text turns too, as in Word; a text box being typed in does not. */}
+        {main && editingId !== b.id ? (
           <>
             <div className="wd-rotate-stem" />
             <div className="wd-rotate" data-handle="rotate" title={t('Turn — hold Shift for steps of 15°')} onMouseDown={(e) => startRotate(e, b)}>
