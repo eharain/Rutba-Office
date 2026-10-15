@@ -1,0 +1,285 @@
+{
+  "about": "Where every file in this folder came from, and its licence. Made by tools/make-corpus.mjs; tests/corpus.test.js holds the folder to it.",
+  "files": [
+    {
+      "file": "doc/floats.doc",
+      "source": "copied from tests/fixtures/binary/floats.doc; made by this project with Microsoft Office from content written here (tools/make-binary-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "fed769121ed041ed4d8bc33327faffc20d433e664c6b5f94cc708560461448e1"
+    },
+    {
+      "file": "doc/locked.doc",
+      "source": "copied from tests/fixtures/binary/locked.doc; made by this project with Microsoft Office from content written here (tools/make-binary-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "b5d39d45f796b3de32e68ea9b5364de6e40050505803b2ba6c068a3854fc5cbf"
+    },
+    {
+      "file": "doc/paragraphs.doc",
+      "source": "copied from tests/fixtures/binary/paragraphs.doc; made by this project with Microsoft Office from content written here (tools/make-binary-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "796f2e28a4e7ddf27cef5dc87dfb2a75bdc1588f47996484a689ff069d3d01f6"
+    },
+    {
+      "file": "doc/structure.doc",
+      "source": "copied from tests/fixtures/binary/structure.doc; made by this project with Microsoft Office from content written here (tools/make-binary-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "9f5d6024cad4afed963153292eef7b3288e468ab41ac5185e987eee5c3bd2b2a"
+    },
+    {
+      "file": "doc/text.doc",
+      "source": "copied from tests/fixtures/binary/text.doc; made by this project with Microsoft Office from content written here (tools/make-binary-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "f40bd56b39a0d9a092449b0e2c9203faaf91f9d78357e5d038df3a655be5b69b"
+    },
+    {
+      "file": "docx/complex-parts.docx",
+      "source": "written by tests/fixtures/complex-document.js (styles, numbering, header, footer, footnotes, comments, a content control, a field)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "33317218a3037c5881bf69250617f9d20d7ae579eedf13debfddb07186c4b9b1"
+    },
+    {
+      "file": "docx/cover-page.docx",
+      "source": "written by tests/fixtures/cover-page-document.js (a cover page and a table of contents in content controls)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "08a83e65b79a05499fa333963878d2ba5bded3d0c04e4b9623f37ae9f227dd1f"
+    },
+    {
+      "file": "docx/equation.docx",
+      "source": "written by @rutba/ooxml buildDocx with tests/fixtures/equations.js (an Office Math equation)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "7951c5c0e899a365450967c8eddd8e477322d854033e1087bbc82af4d05db926"
+    },
+    {
+      "file": "docx/letter.docx",
+      "source": "written by @rutba/ooxml buildDocx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "5565ff82310c4eee9eb2bbb96fef2a5db1dc6c61542a20860723d2fab8c1e310"
+    },
+    {
+      "file": "docx/multilingual.docx",
+      "source": "written by @rutba/ooxml buildDocx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "ff43954a7f5d35e75ce43bedc4f9410d2077c94fb64ba02944be22d1dc2b3f2e"
+    },
+    {
+      "file": "docx/office-showcase.docx",
+      "source": "copied from tests/fixtures/rich/showcase.docx; made by this project with Microsoft Office from content written here (tools/make-rich-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "88e15867520faa8d981519d3d503da42f593688085dea786ed694a7d75fad432"
+    },
+    {
+      "file": "docx/password-protected.docx",
+      "source": "copied from tests/fixtures/encrypted.docx; a document encrypted with a password by this project's test suite; the corpus run must ask for the password, not fail",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "986da4bc9470440150e44e3fe3311147821ba61d14add5f9a093d7753f4b83de"
+    },
+    {
+      "file": "eml/html-with-attachment.eml",
+      "source": "written by @rutba/mailbox toRfc822 (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "8a42cd33721f024076daef02dee42ea5c3e6c792357698efe5384ce002961bdb"
+    },
+    {
+      "file": "eml/non-ascii.eml",
+      "source": "written by @rutba/mailbox toRfc822 (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "5a586ae3ffe73ad42a56fa989bca155fa0d024af098d0a4a38925a288d46a82d"
+    },
+    {
+      "file": "eml/plain.eml",
+      "source": "written by @rutba/mailbox toRfc822 (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "d670caa5cf6777eeef5b4134e65b55a65c6225be389e8abbc252efee4b6d3c3b"
+    },
+    {
+      "file": "ics/meetings.ics",
+      "source": "written by @rutba/calendar writeCalendar (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "956c12ee12cb42a1dbbc572894acc6f3c0cbc5c67e6b480a795b34bc0601cb5a"
+    },
+    {
+      "file": "odp/agenda.odp",
+      "source": "written by the suite's OpenDocument export from pptx/agenda.pptx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "1ff42bee5339c30c3d03cd8b4234707d303173166286763cf5755316a9e15f0b"
+    },
+    {
+      "file": "odp/office-showcase.odp",
+      "source": "copied from tests/fixtures/rich/showcase.odp; made by this project with Microsoft Office from content written here (tools/make-rich-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "a30cadefe0b98e7ee079131f0670f3ee04b8977fbbcb8c87553649ae4821053e"
+    },
+    {
+      "file": "ods/budget.ods",
+      "source": "written by the suite's OpenDocument export from xlsx/budget.xlsx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "6fcb98f7730cf61c16a603c1fcb932eb16ab515e334e9e68ea9cebf0b4c4bdf9"
+    },
+    {
+      "file": "ods/office-showcase.ods",
+      "source": "copied from tests/fixtures/rich/showcase.ods; made by this project with Microsoft Office from content written here (tools/make-rich-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "907da60558b63b23140790b9d22552689dd163d97360cb635ea9c1aaf3aee51b"
+    },
+    {
+      "file": "odt/complex-parts.odt",
+      "source": "written by the suite's OpenDocument export from docx/complex-parts.docx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "fedab99ec2ad51bc900125f331a695bfb84d504c12d52439f413f9cf3a76de7c"
+    },
+    {
+      "file": "odt/letter.odt",
+      "source": "written by the suite's OpenDocument export from docx/letter.docx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "b6d09db3dc19dbb94a29fd0f400b241d3c3c0f691cf54e9109a61bddef9a52fa"
+    },
+    {
+      "file": "pdf/complex-parts.pdf",
+      "source": "written by the suite's PDF export from docx/complex-parts.docx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "75473d8b31875e35a7a18cce5fb338e73108d38200bd98ada95e8b9ab2c8dcf0"
+    },
+    {
+      "file": "pdf/delivery-note.pdf",
+      "source": "written by @rutba/pdf PdfDocument (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "67192c57eb11b7bd51948132d9618df4f3958cb6459d21d19ce5047ea1b82763"
+    },
+    {
+      "file": "pdf/letter.pdf",
+      "source": "written by the suite's PDF export from docx/letter.docx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "ad416cb8d91e4ead49d285d9a4c9c45096c4f69521e1f24735f4f5e2a7de300d"
+    },
+    {
+      "file": "ppt/tables.ppt",
+      "source": "copied from tests/fixtures/binary/tables.ppt; made by this project with Microsoft Office from content written here (tools/make-binary-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "dd07244d2bb8ef0fc36b61e76fd908ddff0ff59093553e80f9985aad1958dccf"
+    },
+    {
+      "file": "pptx/agenda.pptx",
+      "source": "written by @rutba/presentation buildPptx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "ee3491e7ae2f827b1081ef55b87f0d83e99028911f4870a439abba1ca392dffd"
+    },
+    {
+      "file": "pptx/office-showcase.pptx",
+      "source": "copied from tests/fixtures/rich/showcase.pptx; made by this project with Microsoft Office from content written here (tools/make-rich-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "832d0be1d561f0ed753dd6731a5a2da37c72cbc5cc28af4c5701761a63b48607"
+    },
+    {
+      "file": "pptx/pitch-template.pptx",
+      "source": "written by @rutba/presentation TEMPLATES.pitch, the suite's own pitch deck template",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "15bfcf7c2d46be7857c08529c4886f6d98b7a22c2cc991aa871ba3e77828eb45"
+    },
+    {
+      "file": "pst/northwind.pst",
+      "source": "written by tests/fixtures/pst-writer.js with the messages of tests/fixtures/mail-archives.js (attachments replaced by a line of text)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "d1528b903125dc2fb6d6004f895369d9a80826ff575332d4b95089573215abae"
+    },
+    {
+      "file": "vcf/people-v4.vcf",
+      "source": "written by @rutba/contacts writeVCards, vCard 4.0 (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "289fdcf89d6edde2ec7dd251bd1de020acbfacae4729bc7513795bc11badf0f2"
+    },
+    {
+      "file": "vcf/people.vcf",
+      "source": "written by @rutba/contacts writeVCards, vCard 3.0 (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "2c3be2ae2f7f3d1522e5f00fdc2f94a67164d939f5d86af49625d29664f55977"
+    },
+    {
+      "file": "xls/charts-95.xls",
+      "source": "copied from tests/fixtures/binary/charts-95.xls; made by this project with Microsoft Office from content written here (tools/make-binary-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "73ea02ac8edec9513bc39e83eba43c4ebadffb51589540ee3d8e652dff88fa3c"
+    },
+    {
+      "file": "xls/charts.xls",
+      "source": "copied from tests/fixtures/binary/charts.xls; made by this project with Microsoft Office from content written here (tools/make-binary-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "77d0658e81060bee942adfcbfcff0983f651db08200a76c60b7b8d482907eb17"
+    },
+    {
+      "file": "xls/conditions.xls",
+      "source": "copied from tests/fixtures/binary/conditions.xls; made by this project with Microsoft Office from content written here (tools/make-binary-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "9d7ecb2745a531a7a13f2376b13a0c6d4df394bbca3ea5c537fe32a6370b459c"
+    },
+    {
+      "file": "xls/showcase.xls",
+      "source": "copied from tests/fixtures/binary/showcase.xls; made by this project with Microsoft Office from content written here (tools/make-binary-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "7c00d183618b84984735fa7e4b60b9247fa18bef4d2dc5281669da9c0f124829"
+    },
+    {
+      "file": "xlsx/budget.xlsx",
+      "source": "written by @rutba/ooxml buildXlsx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "7390644b140564f264f66613ce457c0dc45f42e30285abbb57ec0fe348bf1b8c"
+    },
+    {
+      "file": "xlsx/complex-parts.xlsx",
+      "source": "written by tests/fixtures/complex-workbook.js (a chart, a pivot cache, merged cells, conditional formats, validation)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "c0c7656dfc7d7a510826ca578280cf373e822c73d830acddc0da84a1a1f6f376"
+    },
+    {
+      "file": "xlsx/multilingual.xlsx",
+      "source": "written by @rutba/ooxml buildXlsx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "19dbc8a32720cc663d30e9cb1e6262bec44f84261084b0f6c50c50a716f76303"
+    },
+    {
+      "file": "xlsx/office-showcase.xlsx",
+      "source": "copied from tests/fixtures/rich/showcase.xlsx; made by this project with Microsoft Office from content written here (tools/make-rich-fixtures.ps1)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "2715d0133ab1f8e64b42827767f45e135e631d528244d824f6fc2bae613b0276"
+    }
+  ]
+}

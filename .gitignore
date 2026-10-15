@@ -28,3 +28,5 @@ apps/desktop/build/screens/
 
 # Real files gathered for verify:corpus — never in the repository.
 .corpus/
+# What a corpus run writes (results.json, summary.md, the window run's report).
+apps/desktop/build/corpus/

@@ -1,0 +1,28 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Amina Rahman
+N:Rahman;Amina;;;
+ORG:Northwind
+TITLE:Buyer
+EMAIL;TYPE=work,pref,INTERNET:amina@northwind.example
+TEL;TYPE=work:+44 20 7946 0001
+REV:20261015T111645Z
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Bo Lindqvist
+N:Lindqvist;Bo;;;
+ORG:Northwind
+EMAIL;TYPE=work,INTERNET:bo@northwind.example
+TEL;TYPE=cell:+46 8 555 0102
+ADR;TYPE=work:;;1 Harbour Road;Stockholm;;111 22;Sweden
+REV:20261015T111645Z
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:زینب علی
+N:علی;زینب;;;
+ORG:Contoso
+EMAIL;TYPE=work,INTERNET:zainab@contoso.example
+REV:20261015T111645Z
+END:VCARD

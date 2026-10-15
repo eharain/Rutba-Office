@@ -11,6 +11,8 @@
 //   - `ok`       the window drew the document (the app's own "I am showing
 //                the file" element appeared), and the time it took;
 //   - `refused`  the app said "This file could not be opened", with its reason;
+//   - `locked`   the app asked for the file's password, which is the right
+//                answer to a protected file (the corpus carries no passwords);
 //   - `timeout`  nothing appeared within the limit — a hang, or a file so slow
 //                the person would have given up;
 //   - `crashed`  the renderer went away;
@@ -177,6 +179,8 @@ export async function verifyCorpus({ windows, doc = null, appForFile }) {
     if (loaded) {
       const probe = `(() => {
         const ready = document.querySelector(${JSON.stringify(READY[app])});
+        // A protected file: the password prompt, or the page that says it is protected.
+        if (document.querySelector('.pw-prompt') || [...document.querySelectorAll(${JSON.stringify(REFUSED)})].some((h) => /password-protected/i.test(h.textContent))) return { locked: true };
         const refused = [...document.querySelectorAll(${JSON.stringify(REFUSED)})].find((h) => /could not be opened/i.test(h.textContent));
         if (refused) return { refused: (refused.parentElement?.textContent || '').replace(refused.textContent, '').trim().slice(0, 300) };
 
@@ -211,6 +215,10 @@ export async function verifyCorpus({ windows, doc = null, appForFile }) {
         // Only the deadline decides.
         if (r?.__hung) continue;
 
+        if (r?.locked) {
+          status = 'locked';
+          break;
+        }
         if (r?.refused) {
           status = 'refused';
           reason = r.refused;
@@ -287,10 +295,10 @@ export async function verifyCorpus({ windows, doc = null, appForFile }) {
   }
   lines.push('');
   lines.push('## By format');
-  lines.push('ext     files    ok  refused timeout hung crash  skip   median    p90     max');
+  lines.push('ext     files    ok  locked refused timeout hung crash  skip   median    p90     max');
   const byExt = new Map();
   for (const r of results) {
-    const e = byExt.get(r.ext) || { files: 0, ok: 0, refused: 0, timeout: 0, hung: 0, crashed: 0, skipped: 0, times: [] };
+    const e = byExt.get(r.ext) || { files: 0, ok: 0, locked: 0, refused: 0, timeout: 0, hung: 0, crashed: 0, skipped: 0, times: [] };
     e.files += 1;
     e[r.status] = (e[r.status] || 0) + 1;
     if (r.status === 'ok') e.times.push(r.ms);
@@ -298,7 +306,7 @@ export async function verifyCorpus({ windows, doc = null, appForFile }) {
   }
   for (const [ext, e] of [...byExt.entries()].sort((a, b) => b[1].files - a[1].files)) {
     lines.push(
-      `${ext.padEnd(7)} ${String(e.files).padStart(5)} ${String(e.ok).padStart(5)} ${String(e.refused).padStart(8)} ${String(e.timeout).padStart(7)} ${String(e.hung).padStart(4)} ${String(e.crashed).padStart(5)} ${String(e.skipped).padStart(5)} ` +
+      `${ext.padEnd(7)} ${String(e.files).padStart(5)} ${String(e.ok).padStart(5)} ${String(e.locked).padStart(7)} ${String(e.refused).padStart(8)} ${String(e.timeout).padStart(7)} ${String(e.hung).padStart(4)} ${String(e.crashed).padStart(5)} ${String(e.skipped).padStart(5)} ` +
       `${String(percentile(e.times, 0.5)).padStart(8)} ${String(percentile(e.times, 0.9)).padStart(6)} ${String(percentile(e.times, 1)).padStart(7)}`
     );
   }

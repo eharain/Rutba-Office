@@ -1,0 +1,30 @@
+From: Amina Rahman <amina@northwind.example>
+To: Bo Lindqvist <bo@northwind.example>
+Cc: Dana Okafor <dana@contoso.example>
+Subject: Signed order
+Date: Sat, 14 Mar 2026 11:05:00 +0000
+Message-ID: <order-2@northwind.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="=_rutba_96cfe9a510b989fc6a31ebcf"
+
+--=_rutba_96cfe9a510b989fc6a31ebcf
+Content-Type: multipart/alternative; boundary="=_rutba_b43afdb5daa26796c9d3828f"
+
+--=_rutba_b43afdb5daa26796c9d3828f
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+The signed order is attached.
+--=_rutba_b43afdb5daa26796c9d3828f
+Content-Type: text/html; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+<p>The <b>signed order</b> is attached.</p>
+--=_rutba_b43afdb5daa26796c9d3828f--
+--=_rutba_96cfe9a510b989fc6a31ebcf
+Content-Type: text/plain
+Content-Disposition: attachment; filename="order.txt"
+Content-Transfer-Encoding: base64
+
+T3JkZXIgMTA0MjogdHdlbHZlIGJveGVzIG9mIEE0IHBhcGVyLgo=
+--=_rutba_96cfe9a510b989fc6a31ebcf--

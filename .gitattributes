@@ -1,2 +1,6 @@
 apps/desktop/vendor/** -text
 packages/ocr/vendor/** -text
+# The corpus files are kept byte for byte: their hashes are recorded, a PDF
+# counts its own offsets, and mail, calendar and contact files end their lines
+# as their formats say.
+tests/corpus-public/** -text
