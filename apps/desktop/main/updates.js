@@ -34,7 +34,7 @@ import { app } from 'electron';
 import { isSnoozed, snoozeFor } from './update-snooze.js';
 import { updateErrorKind } from './update-error.js';
 
-const FEED = { provider: 'github', owner: 'eharain', repo: 'Rutba-Office' };
+export const FEED = { provider: 'github', owner: 'eharain', repo: 'Rutba-Office' };
 const SIX_HOURS = 6 * 60 * 60 * 1000;
 
 /**

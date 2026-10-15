@@ -89,6 +89,46 @@ node tools/fuzz-pdf.js 300 <seed>
    the end (`gh run watch`) and look at the release's files
    (`gh release view v<version>`): the installer, the portable executable,
    `latest.yml` and the blockmap.
+   When it has published, `.github/workflows/upgrade.yml` runs by itself
+   (see **The upgrade test**); its two jobs must pass.
 6. The site (Rutba-Management) is brought to the release in the same sitting:
    `npm run import:releases`, then `npm run check:facts`, there.
 7. The branches that went into the release are deleted locally.
+
+## The upgrade test
+
+Every release is proven to take over the previous one's profile:
+`tools/upgrade-test.js` starts the older version on a profile seeded as a
+person's would be (settings changed, a recent document, a setting no
+version knows), waits until it has recorded itself there, closes it, and
+starts the newer one on the same profile with
+`RUTBA_OFFICE_UPGRADE_REPORT`, which writes what it read and quits
+(`apps/desktop/main/upgrade-report.js`). The settings, the recent list and
+the arrival record (the card that says which version replaced which) must
+have survived, and the newer copy's updater must have read the release
+feed. The judgement is `tools/upgrade-check.js`, tested in
+`tests/upgrade-check.test.js`.
+
+On a desk it installs nothing: both versions run as the portable
+executable (or the unpacked build) with `--user-data-dir` in the temporary
+folder, so the machine's own copy and profile are not touched.
+
+```
+node tools/upgrade-test.js
+node tools/upgrade-test.js --from v2.0.0
+node tools/upgrade-test.js --from <older portable .exe> --to "apps\desktop\release\win-unpacked\Rutba Office.exe"
+```
+
+With no `--to` it takes this checkout's build of package.json's version
+(`npm run dist:win`, or `electron-builder --dir` for the unpacked copy);
+with no `--from`, the newest GitHub release older than that. A tag's file
+is fetched from its GitHub release into a cache in the temporary folder.
+`--no-feed` leaves out the feed for a run with no network.
+
+On GitHub, `.github/workflows/upgrade.yml` runs after the release workflow
+succeeds and from the Actions tab for any two tags: once installed (the
+older installer, then the newer one over it, and the registry must show
+one copy, of the newer version) and once portable, each opening a document
+in the older version so it writes the recent list itself. A release made
+before the upgrade report existed cannot be the newer side: the report is
+the newer version's to write.
