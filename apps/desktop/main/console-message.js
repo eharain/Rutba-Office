@@ -4,7 +4,7 @@
  *
  * The positional arguments — (event, level, message, line, source) — are
  * deprecated in favour of one details object whose level is a word
- * ("warning", "error"). Electron 43 still sends both. Reading only the old
+ * ("warning", "error"). Electron 44 still sends both. Reading only the old
  * ones means that on the day it stops, `level >= 2` becomes
  * `undefined >= 2`, and every check that asserts a window logged nothing
  * passes because nothing is ever seen again. That is the worst way for a

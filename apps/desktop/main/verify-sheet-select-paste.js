@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { clipboard } from 'electron';
+import { readHTML } from '@rutba/office-shell/electron/clipboard';
 import { buildXlsx } from '@rutba/ooxml/build';
 
 export async function verifySheetSelectPaste({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }) {
@@ -54,9 +55,9 @@ export async function verifySheetSelectPaste({ open, check, until, wait, press, 
     // Ctrl+C: words and a table on the system clipboard.
     clipboard.clear();
     await press(wc, 'C', { modifiers: ['control'] });
-    await until(() => clipboard.readText() !== '', 'the clipboard', 4000).catch(() => {});
-    const words = clipboard.readText();
-    const table = clipboard.readHTML();
+    await until(async () => (await clipboard.readText()) !== '', 'the clipboard', 4000).catch(() => {});
+    const words = await clipboard.readText();
+    const table = await readHTML();
     check('sheets: Ctrl+C puts the cells on the system clipboard, as words and as a table', words.replace(/\r/g, '') === 'Item\tQty\nInk\t4\nPaper\t6' && /<table>[\s\S]*Paper[\s\S]*<\/table>/.test(table), JSON.stringify(words) + ' ' + table.slice(0, 80));
 
     // Ctrl+V at E1.

@@ -302,7 +302,7 @@ export async function verifyEditing({ windows, doc }) {
 
     // Paste over a selection replaces it — the clipboard's words where the
     // selected ones were, nothing of the old ones left.
-    clipboard.writeText('Pasted');
+    await clipboard.writeText('Pasted');
     await word.webContents.executeJavaScript(`(() => {
       const page = document.querySelector('.wd-page');
       const block = page.querySelector('[data-block="0"]');

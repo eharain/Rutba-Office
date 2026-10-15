@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clipboard, nativeImage } from 'electron';
+import { readImage, writeImage, writeParts } from '@rutba/office-shell/electron/clipboard';
 import { buildXlsx } from '@rutba/ooxml/build';
 
 const fixture = (name) => fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.resolve('@rutba/ocr')));
@@ -33,8 +34,8 @@ export async function verifyOcrSheet(h, { dir }) {
   const ruled = path.join(root, 'invoice-table.png');
   fs.copyFileSync(fixture('table-ruled.png'), ruled);
   const truth = JSON.parse(fs.readFileSync(fixture('table.json'), 'utf8'));
-  const keptText = clipboard.readText();
-  const keptImage = clipboard.readImage();
+  const keptText = await clipboard.readText();
+  const keptImage = await readImage();
 
   const win = await open('sheets', book);
   const wc = win.webContents;
@@ -112,7 +113,7 @@ export async function verifyOcrSheet(h, { dir }) {
     check('ocr-sheet: the data from the picture is one step that Undo takes back and Redo puts back', undone && redone, JSON.stringify({ undone, redone }));
 
     // From the clipboard: a table with no rules at all.
-    clipboard.writeImage(nativeImage.createFromPath(fixture('table-plain.png')));
+    await writeImage(nativeImage.createFromPath(fixture('table-plain.png')));
     await select('G1');
     const cpressed = await fromPicture('Picture From Clipboard');
     const cshown = await until(() => js(`Boolean(document.querySelector('[data-role="pd-grid"]'))`), 'the preview from the clipboard', 30000).then(() => true).catch(() => false);
@@ -126,7 +127,7 @@ export async function verifyOcrSheet(h, { dir }) {
     check('ocr-sheet: no error was shown', !errors.length, errors.join(' | '));
     await js(`localStorage.removeItem('rutba-ocr-languages'), 1`).catch(() => {});
   } finally {
-    if (keptImage && !keptImage.isEmpty()) clipboard.write({ text: keptText || '', image: keptImage });
-    else clipboard.writeText(keptText || '');
+    if (keptImage && !keptImage.isEmpty()) await writeParts({ text: keptText || '', image: keptImage });
+    else await clipboard.writeText(keptText || '');
   }
 }

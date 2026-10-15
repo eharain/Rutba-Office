@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { clipboard, nativeImage } from 'electron';
+import { readImage, writeImage } from '@rutba/office-shell/electron/clipboard';
 import { probeImage } from '@rutba/imaging/probe';
 import { straightenRect } from '@rutba/imaging/pipeline';
 
@@ -42,7 +43,7 @@ export function noisyPicture(width, height, seed = 11) {
  */
 export async function verifyImageEdits({ open, check, until, wait, press, errorsIn }, { dir }) {
   const root = path.join(dir, 'image-edits');
-  const keptText = clipboard.readText();
+  const keptText = await clipboard.readText();
   try {
     fs.mkdirSync(root, { recursive: true });
     const file = path.join(root, 'scene.png');
@@ -221,8 +222,8 @@ export async function verifyImageEdits({ open, check, until, wait, press, errors
     // Copy: the result on the clipboard, at its size.
     clipboard.clear();
     await click('Copy');
-    await until(() => !clipboard.readImage().isEmpty(), 'the picture on the clipboard', 8000).catch(() => {});
-    const copied = clipboard.readImage().getSize();
+    await until(async () => !(await readImage()).isEmpty(), 'the picture on the clipboard', 8000).catch(() => {});
+    const copied = (await readImage()).getSize();
     check('image: Copy puts the edited picture on the clipboard at its size', `${copied.width}x${copied.height}` === want, JSON.stringify(copied));
 
     // Export: JPEG at 90 and at 30; then under 100 KB; then a PNG with its longest side 320.
@@ -288,7 +289,7 @@ export async function verifyImageEdits({ open, check, until, wait, press, errors
     check('image: the quick edits report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
 
     // I5: Paste into an empty Image window opens the clipboard's picture.
-    clipboard.writeImage(noisyPicture(90, 60, 3));
+    await writeImage(noisyPicture(90, 60, 3));
     const empty = await open('image');
     const ejs = (code) => empty.webContents.executeJavaScript(code);
     await until(() => ejs(`Boolean(document.querySelector('.rw-empty'))`), 'the empty window', 6000).catch(() => {});
@@ -299,6 +300,6 @@ export async function verifyImageEdits({ open, check, until, wait, press, errors
   } catch (err) {
     check('image: the quick-edit checks ran', false, err?.message || String(err));
   } finally {
-    clipboard.writeText(keptText || '');
+    await clipboard.writeText(keptText || '');
   }
 }

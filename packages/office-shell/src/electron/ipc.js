@@ -20,6 +20,7 @@ import { runsWhenOpened } from '../runs.js';
 import { writeWhole } from '../write-whole.js';
 import { grantPlace } from './grants.js';
 import { speakAs, t } from './words.js';
+import { readHTML, readImage, writeImage, writeParts } from './clipboard.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -410,19 +411,25 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   };
 
   impl.clipboard = {
-    writeText: ({ text }) => void clipboard.writeText(text ?? ''),
+    // Every call answers once the clipboard has taken or given its part, so a
+    // window that awaits a write can read it back at once.
+    writeText: async ({ text }) => {
+      await clipboard.writeText(text ?? '');
+    },
     readText: () => clipboard.readText(),
-    write: ({ text, html }) => void clipboard.write(html ? { text: text ?? '', html } : { text: text ?? '' }),
-    read: () => ({ text: clipboard.readText(), html: clipboard.readHTML() }),
+    write: async ({ text, html }) => {
+      await writeParts({ text: text ?? '', html });
+    },
+    read: async () => ({ text: await clipboard.readText(), html: await readHTML() }),
     // Image: Copy puts the picture on the clipboard, Paste takes one off it.
-    writeImage: ({ bytes }) => {
+    writeImage: async ({ bytes }) => {
       const picture = nativeImage.createFromBuffer(Buffer.from(bytes || []));
       if (picture.isEmpty()) throw new Error('That is not a picture the clipboard can hold.');
-      clipboard.writeImage(picture);
+      await writeImage(picture);
       return picture.getSize();
     },
-    readImage: () => {
-      const picture = clipboard.readImage();
+    readImage: async () => {
+      const picture = await readImage();
       if (picture.isEmpty()) return null;
       const { width, height } = picture.getSize();
       return { bytes: new Uint8Array(picture.toPNG()), width, height };
