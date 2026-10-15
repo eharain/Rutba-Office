@@ -11,6 +11,7 @@
     "./icons": "./src/icons.js",
     "./commands": "./src/commands.js",
     "./zoom": "./src/zoom.js",
+    "./contrast": "./src/contrast.js",
     "./proofing": "./src/proofing.js",
     "./messages": "./src/messages.js",
     "./catalogues": "./src/catalogues/index.js"

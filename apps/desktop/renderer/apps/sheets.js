@@ -12,7 +12,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRedaction } from '../redact.js';
 import { InspectDialog } from '../inspect.js';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, menuItems, Input, t, tn } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, useTheme, menuItems, Input, t, tn } from '@rutba/office-ui';
+import { cellInk, edgeInk } from '@rutba/office-ui/contrast';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
@@ -94,6 +95,8 @@ const tipFor = (cell) => {
 
 export default function Sheets({ app, shell, boot }) {
   const toast = useToast();
+  // The theme decides only the suite's own ink: a cell's fill and font colours are the file's.
+  const { dark } = useTheme();
   const [doc, setDoc] = useState(null);
   const [model, setModel] = useState(null);
   const [busy, setBusy] = useState(true);
@@ -1169,7 +1172,15 @@ export default function Sheets({ app, shell, boot }) {
   const cellStyle = (cell) => {
     const s = cell.style || {};
     const font = s.font || {};
-    const edge = (e) => (e && e.style && e.style !== 'none' ? `${e.widthPx || 1}px ${e.style === 'dashed' || e.style === 'dotted' || e.style === 'double' ? e.style : 'solid'} ${e.colour || '#000'}` : undefined);
+    // A fill (the file's, a rule's or a table style's) stays as it is in
+    // either theme, as Excel keeps it; the words on it take the file's own
+    // colour, or, when automatic, whichever ink reads on that fill. With no
+    // fill the words sit on the suite's surface, and a file colour too dark
+    // for it at night is lifted until it reads. A link keeps the accent.
+    const fill = s.fill?.colour || null;
+    const own = font.colour || cell.colour || null;
+    const { ink } = cell.link && !own ? { ink: null } : cellInk({ fill, font: own, dark });
+    const edge = (e) => (e && e.style && e.style !== 'none' ? `${e.widthPx || 1}px ${e.style === 'dashed' || e.style === 'dotted' || e.style === 'double' ? e.style : 'solid'} ${edgeInk({ colour: e.colour, fill, dark })}` : undefined);
     return {
       left: cell.x,
       top: cell.y,
@@ -1179,8 +1190,8 @@ export default function Sheets({ app, shell, boot }) {
       fontWeight: font.bold ? 700 : undefined,
       fontStyle: font.italic ? 'italic' : undefined,
       textDecoration: [font.underline ? 'underline' : '', font.strike ? 'line-through' : ''].filter(Boolean).join(' ') || undefined,
-      color: font.colour || cell.colour || undefined,
-      background: s.fill?.colour || undefined,
+      color: ink || undefined,
+      background: fill || undefined,
       fontSize: font.sizePt ? `${font.sizePt}pt` : undefined,
       fontFamily: font.family || undefined,
       borderTop: edge(s.border?.top),
