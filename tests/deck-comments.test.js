@@ -141,3 +141,23 @@ test('adding a comment is one undo step: undone, the new parts and relationships
   deck.redo();
   assert.equal(deck.comments()[0].text, 'Undo me');
 });
+
+test('Edit comment changes the words of a thread or one reply, the authors, times and the rest kept', () => {
+  const deck = Deck.open(DECK);
+  const id = deck.addComment(0, { text: 'Start here', author: 'Jane Doe' });
+  const reply = deck.replyComment(0, id, { text: 'Agreed', author: 'Sam Lee' });
+  deck.replyComment(0, id, { text: 'Done', author: 'Jane Doe' });
+  const before = deck.comments()[0];
+  deck.editComment(0, id, { text: 'Start on slide one, @Sam Lee' });
+  const replyId = typeof reply === 'string' ? reply : deck.comments()[0].replies[0].id;
+  deck.editComment(0, id, { reply: replyId, text: 'Agreed & done <now>' });
+  const again = Deck.open(deck.save());
+  const t = again.comments()[0];
+  assert.equal(t.text, 'Start on slide one, @Sam Lee');
+  assert.deepEqual(t.replies.map((r) => [r.author, r.text]), [['Sam Lee', 'Agreed & done <now>'], ['Jane Doe', 'Done']]);
+  assert.equal(t.author, before.author);
+  assert.equal(t.created, before.created);
+  assert.match(again.pkg.text(partOf(again, /modernComment/)), /Agreed &amp; done &lt;now&gt;/);
+  assert.throws(() => deck.editComment(0, id, { text: '  ' }), /some words/);
+  assert.throws(() => deck.editComment(0, id, { reply: '{00000000-0000-0000-0000-000000000000}', text: 'x' }), /no such reply/);
+});

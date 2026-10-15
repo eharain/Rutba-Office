@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6986,
+  "count": 6989,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -10828,7 +10828,8 @@
     {
       "message": "Edit comment",
       "where": [
-        "apps/desktop/renderer/apps/sheets.js"
+        "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/slides/comments.js"
       ]
     },
     {
@@ -10869,6 +10870,12 @@
       "message": "Edit its words",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Edit reply",
+      "where": [
+        "apps/desktop/renderer/apps/slides/comments.js"
       ]
     },
     {
@@ -19594,6 +19601,12 @@
       ]
     },
     {
+      "message": "Mention someone",
+      "where": [
+        "apps/desktop/renderer/apps/slides/comments.js"
+      ]
+    },
+    {
       "message": "Merge",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js",
@@ -27626,7 +27639,12 @@
     {
       "message": "Reply…",
       "where": [
-        "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Reply… @ mentions someone",
+      "where": [
         "apps/desktop/renderer/apps/slides/comments.js"
       ]
     },
@@ -28893,6 +28911,7 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/sheets/scripts.js",
         "apps/desktop/renderer/apps/slides.js",
+        "apps/desktop/renderer/apps/slides/comments.js",
         "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -38246,7 +38265,7 @@
       ]
     },
     {
-      "message": "Type your comment…",
+      "message": "Type your comment… @ mentions someone",
       "where": [
         "apps/desktop/renderer/apps/slides/comments.js"
       ]

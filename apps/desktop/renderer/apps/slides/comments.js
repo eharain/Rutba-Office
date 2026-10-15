@@ -30,9 +30,33 @@ const Avatar = ({ name, initials, size = 26 }) => (
   <span className="sl-cm-avatar" style={{ width: size, height: size, background: personColour(name), fontSize: size * 0.4 }} aria-hidden="true">{initials || '?'}</span>
 );
 
-/** A box that posts on Ctrl+Enter, the pane's composer and every reply box. */
-function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, className = '', label = t('Post') }) {
-  const [text, setText] = useState('');
+/**
+ * A comment's words, its mentions shown as PowerPoint shows them: @ and
+ * the name, in the accent colour. A mention is the name of someone in the
+ * deck's comments after an @, or else the one word after it.
+ */
+export function withMentions(text, people = []) {
+  const names = [...people].filter(Boolean).sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const re = new RegExp('@(?:' + (names.length ? names.join('|') + '|' : '') + "[\\p{L}][\\p{L}\\p{M}'-]*)", 'gu');
+  const out = [];
+  let at = 0;
+  for (const m of String(text || '').matchAll(re)) {
+    if (m.index > at) out.push(text.slice(at, m.index));
+    out.push(<span key={m.index} className="sl-cm-mention">{m[0]}</span>);
+    at = m.index + m[0].length;
+  }
+  if (at < String(text || '').length) out.push(String(text).slice(at));
+  return out;
+}
+
+/**
+ * A box that posts on Ctrl+Enter, the pane's composer and every reply box.
+ * Typing @ offers the people in the deck's comments, as PowerPoint offers
+ * the people it knows; the name goes in as words.
+ */
+function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, className = '', label = t('Post'), initial = '', people = [] }) {
+  const [text, setText] = useState(initial);
+  const [caret, setCaret] = useState(initial.length);
   const ref = useRef(null);
   useEffect(() => { if (autoFocus) ref.current?.focus(); }, [autoFocus]);
   const post = () => {
@@ -40,6 +64,16 @@ function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, cla
     if (!t) return;
     onPost(t);
     setText('');
+  };
+  const typed = /(?:^|\s)@([\p{L}\p{M} '-]{0,30})$/u.exec(text.slice(0, caret));
+  const offers = typed ? people.filter((p) => p.toLowerCase().startsWith(typed[1].toLowerCase()) && p.toLowerCase() !== typed[1].toLowerCase()).slice(0, 5) : [];
+  const mention = (name) => {
+    const start = caret - typed[1].length;
+    const next = text.slice(0, start) + name + ' ' + text.slice(caret);
+    setText(next);
+    const at = start + name.length + 1;
+    setCaret(at);
+    requestAnimationFrame(() => { ref.current?.focus(); ref.current?.setSelectionRange(at, at); });
   };
   return (
     <div className={`sl-cm-compose ${className}`}>
@@ -49,12 +83,24 @@ function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, cla
         rows={2}
         placeholder={placeholder}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => { setText(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); }}
+        onSelect={(e) => setCaret(e.target.selectionStart ?? 0)}
         onKeyDown={(e) => {
+          if (offers.length && (e.key === 'Tab' || (e.key === 'Enter' && !e.ctrlKey && !e.metaKey))) { e.preventDefault(); mention(offers[0]); return; }
           if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); post(); }
           if (e.key === 'Escape' && onCancel) { e.preventDefault(); onCancel(); }
         }}
       />
+      {offers.length ? (
+        <div className="sl-cm-people" role="listbox" aria-label={t('Mention someone')}>
+          {offers.map((p) => (
+            <button key={p} type="button" role="option" className="sl-cm-person" data-person={p} onMouseDown={(e) => e.preventDefault()} onClick={() => mention(p)}>
+              <span className="sl-cm-avatar" style={{ width: 20, height: 20, background: personColour(p), fontSize: 8 }} aria-hidden="true">{initialsFrom(p)}</span>
+              <span>{p}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="sl-cm-compose-actions">
         {onCancel ? <Button label={t('Cancel')} className="sl-cm-cancel" onClick={onCancel} /> : null}
         <Button primary label={label} className="sl-cm-post" disabled={!text.trim()} title={`${label} (Ctrl+Enter)`} onClick={post} />
@@ -69,8 +115,14 @@ function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, cla
  * box, Resolve (or Reopen) and Delete. An older-format thread says so and
  * offers Delete only, as PowerPoint 365 does.
  */
-export function CommentsPane({ threads, draft, selected, shapes, me, unread = null, onSelect, onPost, onCancelDraft, onReply, onResolve, onDelete, onDeleteReply, onNew }) {
+export function CommentsPane({ threads, draft, selected, shapes, me, unread = null, onSelect, onPost, onCancelDraft, onReply, onResolve, onDelete, onDeleteReply, onNew, onEdit = null, people = [] }) {
   const shapeName = (id) => shapes.find((s) => String(s.id) === String(id))?.name || t('a shape');
+  // Edit comment: the thread's own words or a reply's, one's own only, as PowerPoint 365 allows.
+  const [editing, setEditing] = useState(null);
+  const mine = (name) => Boolean(onEdit) && String(name || '') === String(me || '');
+  const editBox = (th, reply, text) => (
+    <Composer autoFocus initial={text} people={people} label={t('Save')} className="sl-cm-editbox" onCancel={() => setEditing(null)} onPost={(words) => { setEditing(null); onEdit(th, reply, words); }} />
+  );
   const listRef = useRef(null);
   const fresh = unread ? threads.filter((th) => unread.has(String(th.id))).length : 0;
   useEffect(() => {
@@ -90,7 +142,7 @@ export function CommentsPane({ threads, draft, selected, shapes, me, unread = nu
               <Avatar name={me} initials={initialsFrom(me)} />
               <div className="sl-cm-who"><span className="sl-cm-name">{me}</span><span className="sl-cm-anchor">{draft.shape != null ? t('On {shape}', { shape: shapeName(draft.shape) }) : t('On this slide')}</span></div>
             </div>
-            <Composer autoFocus placeholder={t('Type your comment…')} onPost={onPost} onCancel={onCancelDraft} className="sl-cm-draftbox" />
+            <Composer autoFocus placeholder={t('Type your comment… @ mentions someone')} onPost={onPost} onCancel={onCancelDraft} className="sl-cm-draftbox" people={people} />
           </div>
         ) : null}
         {!threads.length && !draft ? (
@@ -114,6 +166,11 @@ export function CommentsPane({ threads, draft, selected, shapes, me, unread = nu
                 <span className="sl-cm-anchor">{whenOf(th.created)}{th.shapeId != null ? ` · ${t('on {shape}', { shape: shapeName(th.shapeId) })}` : ''}</span>
               </div>
               <div className="sl-cm-actions">
+                {!th.legacy && mine(th.author) && th.status !== 'resolved' ? (
+                  <button type="button" className="sl-cm-act sl-cm-edit" data-tip={t('Edit comment')} aria-label={t('Edit comment')} onClick={(e) => { e.stopPropagation(); setEditing({ id: th.id, reply: null }); }}>
+                    <Icon name="pen" size={14} />
+                  </button>
+                ) : null}
                 {!th.legacy ? (
                   <button type="button" className="sl-cm-act sl-cm-resolve" data-tip={th.status === 'resolved' ? t('Reopen this thread') : t('Resolve this thread')} aria-label={th.status === 'resolved' ? t('Reopen this thread') : t('Resolve this thread')} onClick={(e) => { e.stopPropagation(); onResolve(th, th.status !== 'resolved'); }}>
                     <Icon name={th.status === 'resolved' ? 'refresh' : 'check'} size={14} />
@@ -125,7 +182,7 @@ export function CommentsPane({ threads, draft, selected, shapes, me, unread = nu
               </div>
             </div>
             {th.status === 'resolved' ? <div className="sl-cm-badge">{t('Resolved')}</div> : null}
-            <div className="sl-cm-text">{th.text}</div>
+            {editing?.id === th.id && !editing.reply ? editBox(th, null, th.text) : <div className="sl-cm-text">{withMentions(th.text, people)}</div>}
             {th.replies.length ? (
               <div className="sl-cm-replies">
                 {th.replies.map((r) => (
@@ -135,11 +192,12 @@ export function CommentsPane({ threads, draft, selected, shapes, me, unread = nu
                       <div className="sl-cm-who"><span className="sl-cm-name">{r.author}</span><span className="sl-cm-anchor">{whenOf(r.created)}</span></div>
                       {!th.legacy ? (
                         <div className="sl-cm-actions">
+                          {mine(r.author) && th.status !== 'resolved' ? <button type="button" className="sl-cm-act sl-cm-edit-reply" data-tip={t('Edit reply')} aria-label={t('Edit reply')} onClick={(e) => { e.stopPropagation(); setEditing({ id: th.id, reply: r.id }); }}><Icon name="pen" size={13} /></button> : null}
                           <button type="button" className="sl-cm-act sl-cm-delete-reply" data-tip={t('Delete this reply')} aria-label={t('Delete this reply')} onClick={(e) => { e.stopPropagation(); onDeleteReply(th, r); }}><Icon name="trash" size={13} /></button>
                         </div>
                       ) : null}
                     </div>
-                    <div className="sl-cm-text">{r.text}</div>
+                    {editing?.id === th.id && editing.reply === r.id ? editBox(th, r, r.text) : <div className="sl-cm-text">{withMentions(r.text, people)}</div>}
                   </div>
                 ))}
               </div>
@@ -147,7 +205,7 @@ export function CommentsPane({ threads, draft, selected, shapes, me, unread = nu
             {th.legacy ? (
               <div className="sl-cm-note">{t('Made in an older version of PowerPoint: it can be read and deleted, not replied to.')}</div>
             ) : th.status === 'resolved' ? null : selected === th.id ? (
-              <Composer placeholder={t('Reply…')} label={t('Reply')} className="sl-cm-replybox" onPost={(text) => onReply(th, text)} />
+              <Composer placeholder={t('Reply… @ mentions someone')} label={t('Reply')} className="sl-cm-replybox" onPost={(text) => onReply(th, text)} people={people} />
             ) : null}
           </div>
         ))}
@@ -236,6 +294,11 @@ export function markerSpots(threads, shapes) {
 }
 
 export const COMMENTS_CSS = `
+.sl-cm-mention { color: var(--accent); font-weight: 600; }
+.sl-cm-compose { position: relative; }
+.sl-cm-people { position: absolute; left: 0; right: 0; top: calc(100% - 34px); z-index: 5; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px rgba(15,23,42,.16); padding: 4px; }
+.sl-cm-person { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; padding: 5px 8px; border-radius: 5px; font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer; text-align: start; }
+.sl-cm-person:hover, .sl-cm-person:first-child { background: var(--hover); }
 /* Review → Comments: the pane. */
 .sl-cm-pane { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .sl-cm-tools { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line-soft); }

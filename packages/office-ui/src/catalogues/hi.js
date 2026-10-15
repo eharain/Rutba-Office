@@ -4666,7 +4666,6 @@ export default {
   'Type recipient information in the table. To add more entries, click New Entry. The list is saved as a .csv file beside your document.': 'तालिका में प्राप्तकर्ता की जानकारी टाइप करें। और प्रविष्टियाँ जोड़ने के लिए “नई प्रविष्टि” पर क्लिक करें। सूची आपके दस्तावेज़ के पास एक .csv फ़ाइल के रूप में सहेजी जाती है।',
   'Type the equation first.': 'पहले समीकरण टाइप करें।',
   'Type the words first.': 'पहले शब्द टाइप करें।',
-  'Type your comment…': 'अपनी टिप्पणी टाइप करें…',
   'Type your text here': 'अपना टेक्स्ट यहाँ टाइप करें',
   'Type your words here. Drag the box by its edge to put it anywhere on the page.': 'अपने शब्द यहाँ टाइप करें। बॉक्स को पृष्ठ पर कहीं भी रखने के लिए उसे किनारे से खींचें।',
   'UPPERCASE': 'अपरकेस',
@@ -6996,4 +6995,8 @@ export default {
   'Keep': 'रखें',
   'Pen (Ctrl+P)': 'पेन (Ctrl+P)',
   '{count} stroke drawn in the show.': { one: 'शो में {count} रेखा खींची गई।', other: 'शो में {count} रेखाएँ खींची गईं।' },
+  'Edit reply': 'उत्तर संपादित करें',
+  'Mention someone': 'किसी का उल्लेख करें',
+  'Reply… @ mentions someone': 'उत्तर दें… @ से किसी का उल्लेख होता है',
+  'Type your comment… @ mentions someone': 'अपनी टिप्पणी लिखें… @ से किसी का उल्लेख होता है',
 };

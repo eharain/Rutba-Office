@@ -2334,6 +2334,36 @@ export class Deck {
     return replyId;
   }
 
+  /**
+   * Edit a comment's words, or a reply's (`reply` its id), PowerPoint
+   * 365's Edit comment. The thread keeps its author, time and replies; only
+   * the words of the one comment change.
+   */
+  editComment(slideIndex, id, { text, reply = null } = {}) {
+    const words = String(text ?? '').trim();
+    if (!words) throw new Error('a comment needs some words');
+    if (String(id).startsWith('legacy:')) throw new Error('This comment was made in an older version of PowerPoint; it can be read and deleted, not edited.');
+    const part = this.#commentsPart(slideIndex, false);
+    const range = part && threadRange(this.pkg.text(part), id);
+    if (!range) throw new Error('no such comment on this slide');
+    const body = `<p188:txBody><a:bodyPr/><a:lstStyle/>${words.split('\n').map((l) => (l ? `<a:p><a:r><a:rPr lang="en-US"/><a:t>${escapeXml(l)}</a:t></a:r></a:p>` : '<a:p><a:endParaRPr lang="en-US"/></a:p>')).join('')}</p188:txBody>`;
+    let cm = range.xml;
+    if (reply) {
+      const r = new RegExp(`<p188:reply\\b[^>]*\\bid="${String(reply).replace(/[{}]/g, (c) => `\\${c}`)}"[^>]*>[\\s\\S]*?</p188:reply>`).exec(cm);
+      if (!r) throw new Error('no such reply in this thread');
+      cm = cm.slice(0, r.index) + r[0].replace(/<p188:txBody>[\s\S]*?<\/p188:txBody>/, () => body) + cm.slice(r.index + r[0].length);
+    } else {
+      // The thread's own words are its last txBody, after the replies.
+      const at = cm.lastIndexOf('<p188:txBody>');
+      const end = cm.indexOf('</p188:txBody>', at) + '</p188:txBody>'.length;
+      cm = cm.slice(0, at) + body + cm.slice(end);
+    }
+    const xml = this.pkg.text(part);
+    this.pkg.write_(part, Buffer.from(xml.slice(0, range.start) + cm + xml.slice(range.end), 'utf8'));
+    this.dirty = true;
+    return true;
+  }
+
   /** Resolve (or reopen) a thread — PowerPoint 365's status="resolved". */
   resolveComment(slideIndex, id, resolved = true) {
     if (String(id).startsWith('legacy:')) throw new Error('This comment was made in an older version of PowerPoint; it can be read and deleted, not resolved.');

@@ -4666,7 +4666,6 @@ export default {
   'Type recipient information in the table. To add more entries, click New Entry. The list is saved as a .csv file beside your document.': 'اكتب معلومات المستلمين في الجدول. لإضافة المزيد من الإدخالات، انقر فوق «إدخال جديد». تُحفظ القائمة كملف .csv بجانب المستند.',
   'Type the equation first.': 'اكتب المعادلة أولاً.',
   'Type the words first.': 'اكتب النص أولاً.',
-  'Type your comment…': 'اكتب تعليقك…',
   'Type your text here': 'اكتب النص هنا',
   'Type your words here. Drag the box by its edge to put it anywhere on the page.': 'اكتب النص هنا. اسحب المربع من حافته لوضعه في أي مكان على الصفحة.',
   'UPPERCASE': 'أحرف كبيرة',
@@ -6996,4 +6995,8 @@ export default {
   'Keep': 'احتفاظ',
   'Pen (Ctrl+P)': 'قلم (Ctrl+P)',
   '{count} stroke drawn in the show.': { zero: 'لم تُرسم أي خطوط في العرض.', one: 'رُسم خط واحد في العرض.', two: 'رُسم خطان في العرض.', few: 'رُسمت {count} خطوط في العرض.', many: 'رُسم {count} خطًا في العرض.', other: 'رُسم {count} خط في العرض.' },
+  'Edit reply': 'تحرير الرد',
+  'Mention someone': 'أشر إلى شخص',
+  'Reply… @ mentions someone': 'رد… @ للإشارة إلى شخص',
+  'Type your comment… @ mentions someone': 'اكتب تعليقك… @ للإشارة إلى شخص',
 };

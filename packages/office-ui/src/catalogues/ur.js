@@ -4664,7 +4664,6 @@ export default {
   'Type recipient information in the table. To add more entries, click New Entry. The list is saved as a .csv file beside your document.': 'ٹیبل میں وصول کنندگان کی معلومات ٹائپ کریں۔ مزید اندراجات شامل کرنے کے لیے نیا اندراج پر کلک کریں۔ فہرست آپ کی دستاویز کے ساتھ ایک .csv فائل کے طور پر محفوظ ہوتی ہے۔',
   'Type the equation first.': 'پہلے مساوات ٹائپ کریں۔',
   'Type the words first.': 'پہلے الفاظ ٹائپ کریں۔',
-  'Type your comment…': 'اپنا تبصرہ ٹائپ کریں…',
   'Type your text here': 'اپنا متن یہاں ٹائپ کریں',
   'Type your words here. Drag the box by its edge to put it anywhere on the page.': 'اپنے الفاظ یہاں ٹائپ کریں۔ باکس کو صفحے پر کہیں بھی رکھنے کے لیے اسے کنارے سے گھسیٹیں۔',
   'UPPERCASE': 'بڑے حروف',
@@ -6994,4 +6993,8 @@ export default {
   'Keep': 'رکھیں',
   'Pen (Ctrl+P)': 'قلم (Ctrl+P)',
   '{count} stroke drawn in the show.': { one: 'شو میں {count} لکیر کھینچی گئی۔', other: 'شو میں {count} لکیریں کھینچی گئیں۔' },
+  'Edit reply': 'جواب میں ترمیم کریں',
+  'Mention someone': 'کسی کا ذکر کریں',
+  'Reply… @ mentions someone': 'جواب دیں… @ سے کسی کا ذکر ہوتا ہے',
+  'Type your comment… @ mentions someone': 'اپنا تبصرہ لکھیں… @ سے کسی کا ذکر ہوتا ہے',
 };

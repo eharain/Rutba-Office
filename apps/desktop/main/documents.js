@@ -2767,6 +2767,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     addComment: (d, a) => d.addComment(a.slide, { text: a.text, author: a.author || safeUserName() || 'Rutba Office user', shape: a.shape ?? null, x: a.x ?? null, y: a.y ?? null }),
     replyComment: (d, a) => d.replyComment(a.slide, a.id, { text: a.text, author: a.author || safeUserName() || 'Rutba Office user' }),
     resolveComment: (d, a) => d.resolveComment(a.slide, a.id, a.resolved !== false),
+    // Review → Comments: a comment's or a reply's words edited, as PowerPoint 365's Edit comment.
+    editComment: (d, a) => d.editComment(a.slide, a.id, { text: a.text, reply: a.reply || null }),
     removeComment: (d, a) => d.removeComment(a.slide, a.id, { reply: a.reply ?? null }),
     removeAllComments: (d, a) => d.removeAllComments(a.all ? null : a.slide),
 

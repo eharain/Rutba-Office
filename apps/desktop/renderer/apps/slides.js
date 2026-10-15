@@ -1591,6 +1591,9 @@ export default function Slides({ app, shell, boot }) {
       case 'resolveComment':
         await apply({ op: 'resolveComment', slide: arg.thread.slide, id: arg.thread.id, resolved: arg.resolved });
         return;
+      case 'editComment':
+        await apply({ op: 'editComment', slide: arg.thread.slide, id: arg.thread.id, reply: arg.reply?.id || null, text: arg.text });
+        return;
       case 'deleteComment': {
         const thread = arg || (model?.comments || []).find((c) => c.id === commentSel);
         if (!thread) return toast(t('Pick a comment first — in the pane or on the slide.'), { ms: 3000 });
@@ -3308,6 +3311,8 @@ export default function Slides({ app, shell, boot }) {
                   onResolve={(thread, resolved) => act('resolveComment', { thread, resolved })}
                   onDelete={(thread) => act('deleteComment', thread)}
                   onDeleteReply={(thread, reply) => act('deleteReply', { thread, reply })}
+                  onEdit={(thread, reply, text) => act('editComment', { thread, reply, text })}
+                  people={[...new Set([model.me, ...(model.comments || []).flatMap((c) => [c.author, ...(c.replies || []).map((r) => r.author)])].filter(Boolean))]}
                 />
               ) : view.pane === 'layers' ? (
                 <LayersPane slide={slide} selected={selected} selectedIds={selectedIds} onSelect={setSelected} onToggle={toggleSelected} act={act} />
