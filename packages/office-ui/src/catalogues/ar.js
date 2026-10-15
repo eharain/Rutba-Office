@@ -7015,4 +7015,9 @@ export default {
   'Colour of the words': 'لون الكلمات',
   'Done: stop typing (Esc)': 'تم: إنهاء الكتابة (Esc)',
   'The layer\'s words': 'كلمات الطبقة',
+  'Ribbon': 'الشريط',
+  'Ribbon tabs': 'علامات تبويب الشريط',
+  'Status bar': 'شريط الحالة',
+  'Start time': 'وقت البدء',
+  'End time': 'وقت الانتهاء',
 };

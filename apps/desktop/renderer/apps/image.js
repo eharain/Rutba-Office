@@ -2680,16 +2680,17 @@ const CSS = `
 
 /* the ribbon's sliders, three to a group */
 /* Each group's sliders share one grid, so their labels and tracks line up. */
-.im-rs-col { display: grid; grid-template-columns: max-content 96px 40px; align-items: center; column-gap: 8px; row-gap: 1px; align-self: center; }
+/* A row the 24 px a pointer needs (WCAG 2.2 target size): three still fit the ribbon's height. */
+.im-rs-col { display: grid; grid-template-columns: max-content 96px 40px; align-items: center; column-gap: 8px; row-gap: 0; align-self: center; }
 .im-rs { display: contents; font-size: 11.5px; }
-.im-rs > * { height: 19px; display: flex; align-items: center; justify-content: flex-start; }
+.im-rs > * { height: 24px; display: flex; align-items: center; justify-content: flex-start; }
 .im-rs .im-ps-value { justify-content: flex-end; }
 .im-rs .im-ps-label { color: var(--ink-2); white-space: nowrap; font-size: 11.5px; }
 .im-format-hint { grid-column: 1 / -1; }
 
 /* Sliders drawn the same everywhere in the window: a fine track, a round thumb. */
 .im-rs input[type=range], .im-ps input[type=range], .im-straighten input[type=range] {
-  -webkit-appearance: none; appearance: none; width: 100%; height: 16px; margin: 0; background: transparent; cursor: pointer; }
+  -webkit-appearance: none; appearance: none; width: 100%; height: 24px; margin: 0; background: transparent; cursor: pointer; }
 .im-rs input[type=range]::-webkit-slider-runnable-track, .im-ps input[type=range]::-webkit-slider-runnable-track,
 .im-straighten input[type=range]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: var(--line); }
 .im-rs input[type=range]::-webkit-slider-thumb, .im-ps input[type=range]::-webkit-slider-thumb,

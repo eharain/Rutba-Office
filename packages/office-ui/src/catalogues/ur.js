@@ -7013,4 +7013,9 @@ export default {
   'Colour of the words': 'الفاظ کا رنگ',
   'Done: stop typing (Esc)': 'ہو گیا: لکھنا بند کریں (Esc)',
   'The layer\'s words': 'پرت کے الفاظ',
+  'Ribbon': 'ربن',
+  'Ribbon tabs': 'ربن کے ٹیب',
+  'Status bar': 'اسٹیٹس بار',
+  'Start time': 'شروع ہونے کا وقت',
+  'End time': 'ختم ہونے کا وقت',
 };

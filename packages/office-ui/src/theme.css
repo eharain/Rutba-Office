@@ -46,8 +46,10 @@
 
   /* Text. */
   --ink: var(--n-100);
-  --ink-2: var(--n-70);
-  --ink-3: var(--n-60);
+  /* The quieter greys as Fluent sets its secondary text: each still 4.5:1 on
+     the chrome, the panes and a chosen row (WCAG 2 AA), --n-60 left for lines. */
+  --ink-2: #4a515c;
+  --ink-3: #5e6571;
   --ink-on-accent: #ffffff;
 
   /* Accent — each app overrides this one value. */
@@ -155,6 +157,18 @@
    colours. Declared on each element that names an app, so each of Home's
    app tiles works out its own. */
 :root, [data-app] { --accent-text: var(--accent); --accent-fill: var(--accent); }
+/* By day an app's colour as words, and under white words, is taken only as
+   much deeper as it needs to read 4.5:1 on the chrome and on a chosen row
+   (WCAG 2 AA): Word's and PDF's blues and reds already do. */
+:root:not([data-theme='dark']) [data-app='mail'] { --accent-text: color-mix(in srgb, var(--accent) 78%, black); --accent-fill: color-mix(in srgb, var(--accent) 91%, black); }
+:root:not([data-theme='dark']) [data-app='word'], :root:not([data-theme='dark']) [data-app='home'] { --accent-text: color-mix(in srgb, var(--accent) 93%, black); }
+:root:not([data-theme='dark']) [data-app='sheets'] { --accent-text: color-mix(in srgb, var(--accent) 73%, black); --accent-fill: color-mix(in srgb, var(--accent) 84%, black); }
+:root:not([data-theme='dark']) [data-app='slides'] { --accent-text: color-mix(in srgb, var(--accent) 77%, black); --accent-fill: color-mix(in srgb, var(--accent) 90%, black); }
+:root:not([data-theme='dark']) [data-app='pictures'] { --accent-text: color-mix(in srgb, var(--accent) 86%, black); }
+:root:not([data-theme='dark']) [data-app='image'] { --accent-text: color-mix(in srgb, var(--accent) 65%, black); --accent-fill: color-mix(in srgb, var(--accent) 72%, black); }
+:root:not([data-theme='dark']) [data-app='video'] { --accent-text: color-mix(in srgb, var(--accent) 84%, black); }
+:root:not([data-theme='dark']) [data-app='calendar'] { --accent-text: color-mix(in srgb, var(--accent) 71%, black); --accent-fill: color-mix(in srgb, var(--accent) 82%, black); }
+:root:not([data-theme='dark']) [data-app='contacts'] { --accent-text: color-mix(in srgb, var(--accent) 91%, black); }
 :root[data-theme='dark'], :root[data-theme='dark'] [data-app] {
   --accent-text: color-mix(in srgb, var(--accent) 60%, white);
   --accent-fill: color-mix(in srgb, var(--accent) 72%, black);
@@ -274,6 +288,7 @@ textarea,
 .rw-doctitle {
   flex: 1;
   min-width: 0;
+  margin: 0;
   text-align: center;
   color: var(--ink-2);
   font-size: 12.5px;
@@ -331,6 +346,8 @@ textarea,
   scrollbar-width: none;
 }
 .rw-tabs::-webkit-scrollbar { display: none; }
+/* The tabs themselves, the tablist a screen reader is given; the quick buttons stand beside it. */
+.rw-tablist { display: flex; align-items: center; gap: 2px; flex: none; height: 100%; }
 /*
   A tab is its name with a bar under it when it is chosen, as Office draws
   them. The bold of the chosen tab is measured into every tab (the hidden
@@ -382,6 +399,8 @@ textarea,
 .rw-tab.contextual:hover { background: color-mix(in srgb, var(--accent) 13%, transparent); }
 .rw-tab-sep { flex: none; width: 1px; height: 18px; margin: 0 5px; background: var(--line); }
 
+/* Every ribbon button at least the 24 px a pointer needs (WCAG 2.2 target size): a one-letter button (%, the comma style) included. */
+.rw-groups .rw-btn:not(.tall) { min-width: 24px; }
 .rw-quick { display: flex; align-items: center; gap: 1px; margin-inline-start: auto; padding-inline-start: 8px; padding-inline-end: 2px; }
 .rw-quick .rw-btn { color: var(--ink-2); border-radius: var(--r-1); }
 .rw-quick .rw-btn:hover:not(:disabled) { color: var(--ink); }
@@ -490,8 +509,8 @@ textarea,
 .rw-gallery-items { display: flex; align-items: center; overflow: hidden; scrollbar-width: none; min-width: 0; }
 .rw-gallery-items::-webkit-scrollbar { display: none; }
 .rw-gallery-items > * { flex: none; }
-.rw-gallery-arrows { display: flex; flex-direction: column; flex: none; width: 17px; margin-inline-start: 3px; border-inline-start: 1px solid var(--line-soft); }
-.rw-gallery-arrows > button { flex: 1; min-height: 0; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; position: relative; }
+.rw-gallery-arrows { display: flex; flex-direction: column; flex: none; width: 24px; margin-inline-start: 3px; border-inline-start: 1px solid var(--line-soft); }
+.rw-gallery-arrows > button { flex: 1; min-height: 24px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; position: relative; }
 .rw-gallery-arrows > button:first-child { border-start-end-radius: 5px; }
 .rw-gallery-arrows > button:last-child { border-end-end-radius: 5px; }
 .rw-gallery-arrows > button:hover:not(:disabled) { background: var(--hover); color: var(--accent-text); }

@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7005,
+  "count": 7010,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -7672,6 +7672,7 @@
     {
       "message": "Contacts",
       "where": [
+        "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/registry-words.js"
       ]
@@ -11300,6 +11301,12 @@
       ]
     },
     {
+      "message": "End time",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "Endnote",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -13510,6 +13517,7 @@
     {
       "message": "Formula Bar",
       "where": [
+        "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -19909,6 +19917,7 @@
     {
       "message": "Messages",
       "where": [
+        "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js"
       ]
     },
@@ -21182,6 +21191,7 @@
     {
       "message": "Next month",
       "where": [
+        "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
@@ -25480,6 +25490,7 @@
     {
       "message": "Previous month",
       "where": [
+        "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/word/forms.js"
       ]
     },
@@ -28126,7 +28137,19 @@
       ]
     },
     {
+      "message": "Ribbon",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
       "message": "Ribbon display options",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Ribbon tabs",
       "where": [
         "packages/office-ui/src/index.js"
       ]
@@ -29791,6 +29814,7 @@
     {
       "message": "Select",
       "where": [
+        "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -32976,6 +33000,12 @@
       ]
     },
     {
+      "message": "Start time",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "Start — when the effect plays: on a click, with the one before it, or after it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -33028,6 +33058,12 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Status bar",
+      "where": [
+        "packages/office-ui/src/index.js"
       ]
     },
     {
@@ -38254,6 +38290,7 @@
     {
       "message": "Type",
       "where": [
+        "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image/type-editor.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",

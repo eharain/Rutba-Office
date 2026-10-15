@@ -84,7 +84,7 @@ const TRANSITION_ICONS = { none: 'trNone', cut: 'trCut', fade: 'trFade', push: '
  * and sent once it settles — on Enter, on leaving the box, or a moment
  * after the last keystroke — rather than once per keystroke.
  */
-function SecondsField({ value, onCommit, disabled = false, min = 0, max = 3600, className = '' }) {
+function SecondsField({ value, onCommit, disabled = false, min = 0, max = 3600, className = '', label }) {
   const shown = (v) => (v == null ? '' : Number(v).toFixed(2));
   const [text, setText] = React.useState(shown(value));
   const timer = React.useRef(null);
@@ -105,6 +105,7 @@ function SecondsField({ value, onCommit, disabled = false, min = 0, max = 3600, 
       min={min}
       max={max}
       className={`rw-input sl-rb-seconds ${className}`}
+      aria-label={label}
       value={text}
       disabled={disabled}
       onChange={(e) => {
@@ -153,6 +154,8 @@ export default function SlidesRibbon({
   };
   const fmt = (delta) => act('format', delta);
   const needShape = hasShape ? undefined : t('Select a text box first — click it once');
+  // A control that waits for a text box keeps its own name first, and says what it waits for after it.
+  const need = (tip) => (hasShape ? tip : `${tip} ${String.fromCharCode(0x2014)} ${needShape}`);
   const hasSections = (model?.sections || []).length > 0;
   const inSection = (model?.sections || []).some((s) => s.slides.includes(index));
   // Transitions: this slide's own, the gallery button it presses (none for
@@ -248,8 +251,8 @@ export default function SlidesRibbon({
             <Button tall icon="paste" label={t('Paste')} title={canPaste ? t('Paste the copied shape on this slide (Ctrl+V)') : t('Paste — copy a shape first, then Ctrl+V')} disabled={!canPaste} onClick={() => act('pasteShape')} />
             <Rows>
               <>
-                <Button icon="cut" label={t('Cut')} title={needShape || t('Cut the shape (Ctrl+X)')} disabled={!hasShape} onClick={() => act('cutShape')} />
-                <Button icon="copy" label={t('Copy')} title={needShape || t('Copy the shape (Ctrl+C)')} disabled={!hasShape} onClick={() => act('copyShape')} />
+                <Button icon="cut" label={t('Cut')} title={need(t('Cut the shape (Ctrl+X)'))} disabled={!hasShape} onClick={() => act('cutShape')} />
+                <Button icon="copy" label={t('Copy')} title={need(t('Copy the shape (Ctrl+C)'))} disabled={!hasShape} onClick={() => act('copyShape')} />
               </>
               <Button
                 icon="brush"
@@ -288,50 +291,50 @@ export default function SlidesRibbon({
           <Group label={t('Font')}>
             <Rows>
               <>
-                <Select value={format.font || ''} onChange={(e) => fmt({ font: e.target.value })} style={{ width: 118 }} title={needShape || t('Font')} disabled={!hasShape}>
+                <Select value={format.font || ''} onChange={(e) => fmt({ font: e.target.value })} style={{ width: 118 }} title={need(t('Font'))} disabled={!hasShape}>
                   <option value="">{format.font || (format.themeFont ? t('{font} (theme)', { font: format.themeFont }) : t('Theme font'))}</option>
                   {['Calibri', 'Calibri Light', 'Arial', 'Segoe UI', 'Georgia', 'Times New Roman', 'Verdana', 'Consolas'].filter((f) => f !== format.font).map((f) => <option key={f} value={f}>{f}</option>)}
                 </Select>
-                <Select value={String(size)} onChange={(e) => fmt({ size: Number(e.target.value) })} style={{ width: 58 }} title={needShape || t('Font size')} disabled={!hasShape}>
+                <Select value={String(size)} onChange={(e) => fmt({ size: Number(e.target.value) })} style={{ width: 58 }} title={need(t('Font size'))} disabled={!hasShape}>
                   {SIZES.map((s) => <option key={s} value={String(s)}>{s}</option>)}
                   {SIZES.includes(size) ? null : <option value={String(size)}>{size}</option>}
                 </Select>
-                <Button icon="chevronUp" title={needShape || t('Increase font size')} disabled={!hasShape} onClick={() => fmt({ size: nearer(1) })} />
-                <Button icon="chevronDown" title={needShape || t('Decrease font size')} disabled={!hasShape} onClick={() => fmt({ size: nearer(-1) })} />
+                <Button icon="chevronUp" title={need(t('Increase font size'))} disabled={!hasShape} onClick={() => fmt({ size: nearer(1) })} />
+                <Button icon="chevronDown" title={need(t('Decrease font size'))} disabled={!hasShape} onClick={() => fmt({ size: nearer(-1) })} />
                 <Button icon="undo" title={needShape || t('Clear all formatting — the words keep only their links')} disabled={!hasShape} onClick={() => act('clearFormat')} />
               </>
               <>
-                <Button icon="bold" title={needShape || t('Bold (Ctrl+B)')} pressed={format.bold} disabled={!hasShape} onClick={() => fmt({ bold: 'toggle' })} />
-                <Button icon="italic" title={needShape || t('Italic (Ctrl+I)')} pressed={format.italic} disabled={!hasShape} onClick={() => fmt({ italic: 'toggle' })} />
-                <Button icon="underline" title={needShape || t('Underline (Ctrl+U)')} pressed={format.underline} disabled={!hasShape} onClick={() => fmt({ underline: 'toggle' })} />
-                <Button icon="strike" title={needShape || t('Strikethrough')} pressed={format.strike} disabled={!hasShape} onClick={() => fmt({ strike: 'toggle' })} />
-                <Button dropdown icon="textbox" label="AV" title={needShape || (format.spacing ? t('Character spacing: now {spacing} pt', { spacing: format.spacing }) : t('Character spacing: now normal'))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Very tight'), -1.5], [t('Tight'), -0.75], [t('Normal'), 0], [t('Loose'), 1.5], [t('Very loose'), 3]].map(([label, v]) => ({ label, icon: (format.spacing || 0) === v ? 'check' : undefined, run: () => fmt({ spacing: v }) })))} />{/* words-ok: AV is the control's picture of letter spacing, as PowerPoint draws it */}
-                <Button dropdown icon="textbox" label="Aa" title={needShape || t('Change case')} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Sentence case'), 'sentence'], [t('lowercase'), 'lower'], [t('UPPERCASE'), 'upper'], [t('Capitalise Each Word'), 'title']].map(([label, mode]) => ({ label, run: () => fmt({ case: mode }) })))} />{/* words-ok: Aa is the control's picture of letter case, as PowerPoint draws it */}
+                <Button icon="bold" title={need(t('Bold (Ctrl+B)'))} pressed={format.bold} disabled={!hasShape} onClick={() => fmt({ bold: 'toggle' })} />
+                <Button icon="italic" title={need(t('Italic (Ctrl+I)'))} pressed={format.italic} disabled={!hasShape} onClick={() => fmt({ italic: 'toggle' })} />
+                <Button icon="underline" title={need(t('Underline (Ctrl+U)'))} pressed={format.underline} disabled={!hasShape} onClick={() => fmt({ underline: 'toggle' })} />
+                <Button icon="strike" title={need(t('Strikethrough'))} pressed={format.strike} disabled={!hasShape} onClick={() => fmt({ strike: 'toggle' })} />
+                <Button dropdown icon="textbox" label="AV" title={need((format.spacing ? t('Character spacing: now {spacing} pt', { spacing: format.spacing }) : t('Character spacing: now normal')))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Very tight'), -1.5], [t('Tight'), -0.75], [t('Normal'), 0], [t('Loose'), 1.5], [t('Very loose'), 3]].map(([label, v]) => ({ label, icon: (format.spacing || 0) === v ? 'check' : undefined, run: () => fmt({ spacing: v }) })))} />{/* words-ok: AV is the control's picture of letter spacing, as PowerPoint draws it */}
+                <Button dropdown icon="textbox" label="Aa" title={need(t('Change case'))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Sentence case'), 'sentence'], [t('lowercase'), 'lower'], [t('UPPERCASE'), 'upper'], [t('Capitalise Each Word'), 'title']].map(([label, mode]) => ({ label, run: () => fmt({ case: mode }) })))} />{/* words-ok: Aa is the control's picture of letter case, as PowerPoint draws it */}
                 <Separator />
-                <Button dropdown icon="wand" title={needShape || t('Text highlight colour')} pressed={Boolean(format.highlight)} disabled={!hasShape} onClick={(e) => menu.open(e, [['#FFFF00', t('Yellow')], ['#00FF00', t('Bright green')], ['#00FFFF', t('Turquoise')], ['#FF00FF', t('Pink')], [null, t('No colour')]].map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => fmt({ highlight: value }) })))} />
-                <Button dropdown icon="contrast" title={needShape || t('Font colour')} disabled={!hasShape} onClick={(e) => menu.open(e, COLOURS.map(([value, label]) => ({ label, run: () => fmt({ color: value }) })))} />
+                <Button dropdown icon="wand" title={need(t('Text highlight colour'))} pressed={Boolean(format.highlight)} disabled={!hasShape} onClick={(e) => menu.open(e, [['#FFFF00', t('Yellow')], ['#00FF00', t('Bright green')], ['#00FFFF', t('Turquoise')], ['#FF00FF', t('Pink')], [null, t('No colour')]].map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => fmt({ highlight: value }) })))} />
+                <Button dropdown icon="contrast" title={need(t('Font colour'))} disabled={!hasShape} onClick={(e) => menu.open(e, COLOURS.map(([value, label]) => ({ label, run: () => fmt({ color: value }) })))} />
               </>
             </Rows>
           </Group>
           <Group label={t('Paragraph')}>
             <Rows>
               <>
-                <Button icon="listBullet" title={needShape || t('Bullets')} pressed={format.bullet === 'char'} disabled={!hasShape} onClick={() => fmt({ bullet: format.bullet === 'char' ? 'none' : 'char' })} />
-                <Button icon="listNumber" title={needShape || t('Numbering')} pressed={format.bullet === 'number'} disabled={!hasShape} onClick={() => fmt({ bullet: format.bullet === 'number' ? 'none' : 'number' })} />
-                <Button icon="chevronLeft" title={needShape || t('Decrease list level')} disabled={!hasShape || !format.level} onClick={() => fmt({ level: -1 })} />
-                <Button icon="chevronRight" title={needShape || t('Increase list level')} disabled={!hasShape} onClick={() => fmt({ level: 1 })} />
-                <Button dropdown icon="list" title={needShape || (format.lineHeight ? t('Line spacing: now {value}', { value: String(format.lineHeight) }) : t('Line spacing: now as the layout has it'))} disabled={!hasShape} onClick={(e) => menu.open(e, [1, 1.15, 1.5, 2].map((v) => ({ label: String(v), icon: format.lineHeight === v ? 'check' : undefined, run: () => fmt({ lineHeight: v }) })))} />
+                <Button icon="listBullet" title={need(t('Bullets'))} pressed={format.bullet === 'char'} disabled={!hasShape} onClick={() => fmt({ bullet: format.bullet === 'char' ? 'none' : 'char' })} />
+                <Button icon="listNumber" title={need(t('Numbering'))} pressed={format.bullet === 'number'} disabled={!hasShape} onClick={() => fmt({ bullet: format.bullet === 'number' ? 'none' : 'number' })} />
+                <Button icon="chevronLeft" title={need(t('Decrease list level'))} disabled={!hasShape || !format.level} onClick={() => fmt({ level: -1 })} />
+                <Button icon="chevronRight" title={need(t('Increase list level'))} disabled={!hasShape} onClick={() => fmt({ level: 1 })} />
+                <Button dropdown icon="list" title={need((format.lineHeight ? t('Line spacing: now {value}', { value: String(format.lineHeight) }) : t('Line spacing: now as the layout has it')))} disabled={!hasShape} onClick={(e) => menu.open(e, [1, 1.15, 1.5, 2].map((v) => ({ label: String(v), icon: format.lineHeight === v ? 'check' : undefined, run: () => fmt({ lineHeight: v }) })))} />
                 <Separator />
-                <Button dropdown icon="grid" title={needShape || t('Columns: now {columns}', { columns: format.columns || 1 })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('One column'), 1], [t('Two columns'), 2], [t('Three columns'), 3]].map(([label, n]) => ({ label, icon: (format.columns || 1) === n ? 'check' : undefined, run: () => act('body', { columns: n }) })))} />
-                <Button dropdown icon="rotate" title={needShape || t('Text direction: now {direction}', { direction: ({ horz: t('horizontal'), vert270: t('rotated up'), vert: t('rotated down'), eaVert: t('stacked') })[format.vert] || t('horizontal') })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Horizontal'), 'horz'], [t('Rotate all text 90° (reads down)'), 'vert'], [t('Rotate all text 270° (reads up)'), 'vert270']].map(([label, v]) => ({ label, icon: (format.vert || 'horz') === v ? 'check' : undefined, run: () => act('body', { vert: v }) })))} />
-                <Button dropdown icon="chevronUp" title={needShape || t('Align text: now {anchor}', { anchor: ({ top: t('top'), middle: t('middle'), bottom: t('bottom') })[format.anchor || 'top'] || format.anchor })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Top'), 'top'], [t('Middle'), 'middle'], [t('Bottom'), 'bottom']].map(([label, a]) => ({ label, icon: (format.anchor || 'top') === a ? 'check' : undefined, run: () => act('body', { anchor: a }) })))} />
+                <Button dropdown icon="grid" title={need(t('Columns: now {columns}', { columns: format.columns || 1 }))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('One column'), 1], [t('Two columns'), 2], [t('Three columns'), 3]].map(([label, n]) => ({ label, icon: (format.columns || 1) === n ? 'check' : undefined, run: () => act('body', { columns: n }) })))} />
+                <Button dropdown icon="rotate" title={need(t('Text direction: now {direction}', { direction: ({ horz: t('horizontal'), vert270: t('rotated up'), vert: t('rotated down'), eaVert: t('stacked') })[format.vert] || t('horizontal') }))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Horizontal'), 'horz'], [t('Rotate all text 90° (reads down)'), 'vert'], [t('Rotate all text 270° (reads up)'), 'vert270']].map(([label, v]) => ({ label, icon: (format.vert || 'horz') === v ? 'check' : undefined, run: () => act('body', { vert: v }) })))} />
+                <Button dropdown icon="chevronUp" title={need(t('Align text: now {anchor}', { anchor: ({ top: t('top'), middle: t('middle'), bottom: t('bottom') })[format.anchor || 'top'] || format.anchor }))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Top'), 'top'], [t('Middle'), 'middle'], [t('Bottom'), 'bottom']].map(([label, a]) => ({ label, icon: (format.anchor || 'top') === a ? 'check' : undefined, run: () => act('body', { anchor: a }) })))} />
               </>
               <>
-                <Button icon="alignLeft" title={needShape || t('Align left')} pressed={format.align === 'left'} disabled={!hasShape} onClick={() => fmt({ align: 'left' })} />
-                <Button icon="alignCenter" title={needShape || t('Centre')} pressed={format.align === 'center'} disabled={!hasShape} onClick={() => fmt({ align: 'center' })} />
-                <Button icon="alignRight" title={needShape || t('Align right')} pressed={format.align === 'right'} disabled={!hasShape} onClick={() => fmt({ align: 'right' })} />
-                <Button icon="alignJustify" title={needShape || t('Justify')} pressed={format.align === 'justify'} disabled={!hasShape} onClick={() => fmt({ align: 'justify' })} />
-                <Button icon="textLtr" title={needShape || t('Left-to-right text direction')} pressed={hasShape && !format.rtl} disabled={!hasShape} onClick={() => fmt({ rtl: false })} />
+                <Button icon="alignLeft" title={need(t('Align left'))} pressed={format.align === 'left'} disabled={!hasShape} onClick={() => fmt({ align: 'left' })} />
+                <Button icon="alignCenter" title={need(t('Centre'))} pressed={format.align === 'center'} disabled={!hasShape} onClick={() => fmt({ align: 'center' })} />
+                <Button icon="alignRight" title={need(t('Align right'))} pressed={format.align === 'right'} disabled={!hasShape} onClick={() => fmt({ align: 'right' })} />
+                <Button icon="alignJustify" title={need(t('Justify'))} pressed={format.align === 'justify'} disabled={!hasShape} onClick={() => fmt({ align: 'justify' })} />
+                <Button icon="textLtr" title={need(t('Left-to-right text direction'))} pressed={hasShape && !format.rtl} disabled={!hasShape} onClick={() => fmt({ rtl: false })} />
                 <Button icon="textRtl" title={needShape || t('Right-to-left text direction — the words read from the right, as Arabic and Hebrew do')} pressed={Boolean(format.rtl)} disabled={!hasShape} onClick={() => fmt({ rtl: true })} />
                 <Separator />
                 <Button icon="shape" label={t('SmartArt')} title={needShape || t('Convert to SmartArt — this box\'s lines as a diagram: a list, a process, a cycle or a hierarchy')} disabled={!hasShape} onClick={() => act('convertSmartArt')} />
@@ -374,11 +377,11 @@ export default function SlidesRibbon({
               { label: t('Move down (nudge)'), run: () => act('nudge', { dy: 8 }) },
               { label: t('Move left (nudge)'), run: () => act('nudge', { dx: -8 }) },
               { label: t('Move right (nudge)'), run: () => act('nudge', { dx: 8 }) },
-            ])} disabled={!hasShape} title={needShape || t('Arrange the selected shape(s)')} />
-            <Button dropdown tall icon="wand" label={t('Quick Styles')} disabled={!hasShape} title={needShape || t('The theme\'s own looks: filled in an accent, outlined in the same')} onClick={(e) => menu.open(e, [1, 2, 3, 4, 5, 6].map((n) => ({ label: t('Accent {n}', { n }), icon: 'shape', run: () => act('quickStyle', n) })))} />
-            <Button icon="wand" label={t('Shape Fill')} disabled={!hasShape} title={needShape || t('The fill of the selected shape, in the Format pane')} onClick={() => act('formatPane')} />
-            <Button icon="shape" label={t('Shape Outline')} disabled={!hasShape} title={needShape || t('The outline of the selected shape, in the Format pane')} onClick={() => act('formatPane')} />
-            <Button dropdown icon="wand" label={t('Shape Effects')} disabled={!hasShape} title={needShape || t('Shape Effects: a shadow, a glow, soft edges or a reflection on the selected shape')} onClick={(e) => menu.open(e, [
+            ])} disabled={!hasShape} title={need(t('Arrange the selected shape(s)'))} />
+            <Button dropdown tall icon="wand" label={t('Quick Styles')} disabled={!hasShape} title={need(t('The theme\'s own looks: filled in an accent, outlined in the same'))} onClick={(e) => menu.open(e, [1, 2, 3, 4, 5, 6].map((n) => ({ label: t('Accent {n}', { n }), icon: 'shape', run: () => act('quickStyle', n) })))} />
+            <Button icon="wand" label={t('Shape Fill')} disabled={!hasShape} title={need(t('The fill of the selected shape, in the Format pane'))} onClick={() => act('formatPane')} />
+            <Button icon="shape" label={t('Shape Outline')} disabled={!hasShape} title={need(t('The outline of the selected shape, in the Format pane'))} onClick={() => act('formatPane')} />
+            <Button dropdown icon="wand" label={t('Shape Effects')} disabled={!hasShape} title={need(t('Shape Effects: a shadow, a glow, soft edges or a reflection on the selected shape'))} onClick={(e) => menu.open(e, [
               ...SHADOW_MENU.map(([key, label]) => ({ label, icon: key === 'none' ? 'close' : undefined, run: () => act('shapeShadow', key) })),
               '-',
               ...GLOW_MENU.map(([pt, label]) => ({ label, icon: pt === null ? 'close' : undefined, run: () => act('shapeEffects', { glow: pt === null ? null : { radius: pt, color: selectedShapeObj?.effects?.glow?.color } }) })),
@@ -689,7 +692,7 @@ export default function SlidesRibbon({
               <div className="sl-rb-field" data-tip={t('Duration — how long the transition takes, in seconds')}>
                 <Icon name="clock" size={15} />
                 <span>{t('Duration')}</span>
-                <SecondsField className="sl-tr-duration" value={transition && transitionKey !== 'none' ? transition.duration : null} disabled={!transition || transitionKey === 'none'} min={0.01} max={59} onCommit={(v) => act('transition', { duration: v })} />
+                <SecondsField className="sl-tr-duration" label={t('Duration')} value={transition && transitionKey !== 'none' ? transition.duration : null} disabled={!transition || transitionKey === 'none'} min={0.01} max={59} onCommit={(v) => act('transition', { duration: v })} />
               </div>
               <Button icon="check" label={t('Apply To All')} disabled={count < 2} title={count < 2 ? t('Apply To All — the deck has one slide') : t("Apply To All — this slide's transition, timing and advance settings on every slide")} onClick={() => act('transitionAll')} />
             </Rows>
@@ -705,7 +708,7 @@ export default function SlidesRibbon({
                   <input type="checkbox" className="sl-tr-after-on" checked={transition?.advanceAfter != null} onChange={(e) => act('transition', { advanceAfter: e.target.checked ? (transition?.advanceAfter ?? 0) : null })} />
                   <span>{t('After:')}</span>
                 </label>
-                <SecondsField className="sl-tr-after" value={transition?.advanceAfter ?? 0} min={0} max={3600} onCommit={(v) => act('transition', { advanceAfter: v })} />
+                <SecondsField className="sl-tr-after" label={t('After:')} value={transition?.advanceAfter ?? 0} min={0} max={3600} onCommit={(v) => act('transition', { advanceAfter: v })} />
               </div>
             </Rows>
           </Group>
@@ -816,7 +819,7 @@ export default function SlidesRibbon({
               <div className="sl-rb-field" data-tip={t('Start — when the effect plays: on a click, with the one before it, or after it')}>
                 <Icon name="play" size={14} />
                 <span className="sl-rb-label">{t('Start:')}</span>
-                <Select className="rw-select sl-an-start" value={animation?.trigger || 'onClick'} disabled={!animation} style={{ width: 128, height: 24 }} onChange={(e) => act('animPatch', { trigger: e.target.value })}>
+                <Select className="rw-select sl-an-start" aria-label={t('Start:')} value={animation?.trigger || 'onClick'} disabled={!animation} style={{ width: 128, height: 24 }} onChange={(e) => act('animPatch', { trigger: e.target.value })}>
                   <option value="onClick">{t('On Click')}</option>
                   <option value="withPrevious">{t('With Previous')}</option>
                   <option value="afterPrevious">{t('After Previous')}</option>
@@ -825,12 +828,12 @@ export default function SlidesRibbon({
               <div className="sl-rb-field" data-tip={t('Duration — how long the effect takes, in seconds')}>
                 <Icon name="clock" size={14} />
                 <span className="sl-rb-label">{t('Duration:')}</span>
-                <SecondsField className="sl-an-duration" value={animation ? animation.duration : null} disabled={!animation || !animation.duration} min={0.01} max={59} onCommit={(v) => act('animPatch', { duration: v })} />
+                <SecondsField className="sl-an-duration" label={t('Duration:')} value={animation ? animation.duration : null} disabled={!animation || !animation.duration} min={0.01} max={59} onCommit={(v) => act('animPatch', { duration: v })} />
               </div>
               <div className="sl-rb-field" data-tip={t('Delay — how long after its start the effect waits, in seconds')}>
                 <Icon name="clock" size={14} />
                 <span className="sl-rb-label">{t('Delay:')}</span>
-                <SecondsField className="sl-an-delay" value={animation ? animation.delay : null} disabled={!animation} min={0} max={3600} onCommit={(v) => act('animPatch', { delay: v })} />
+                <SecondsField className="sl-an-delay" label={t('Delay:')} value={animation ? animation.delay : null} disabled={!animation} min={0} max={3600} onCommit={(v) => act('animPatch', { delay: v })} />
               </div>
             </Rows>
             <Separator />

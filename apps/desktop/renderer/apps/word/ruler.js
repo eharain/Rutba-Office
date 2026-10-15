@@ -252,6 +252,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
       <button
         type="button"
         className="wd-ruler-type"
+        tabIndex={-1}
         data-type={tabType}
         data-tip={t('Tab stop to add: {type}. Click to change.', { type: TAB_NAMES[tabType] || tabType })}
         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}

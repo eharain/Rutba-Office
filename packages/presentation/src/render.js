@@ -542,10 +542,23 @@ function tableSvg(shape, opts) {
   return out.join('') + borders.join('');
 }
 
+/** A slide's title as words: its title placeholder's text, or else the first words on it. */
+export function slideTitle(slide) {
+  const words = (shape) => (shape?.text?.paragraphs || []).map((p) => (p.runs || []).map((r) => r.text || '').join('')).join(' ').replace(/\s+/g, ' ').trim();
+  const shapes = slide?.shapes || [];
+  const title = shapes.find((s) => /^(title|ctrTitle)$/.test(s.placeholder?.type || '') && words(s));
+  if (title) return words(title);
+  const first = shapes.find((s) => words(s));
+  return first ? words(first) : '';
+}
+
+const attr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
 /**
  * Render a slide scene to SVG.
  * @param {object} slide from Deck#slide()
- * @param {{ width?: number, resolveImage?: (shape) => string|null, standalone?: boolean, selection?: string }} [opts]
+ * @param {{ width?: number, resolveImage?: (shape) => string|null, standalone?: boolean, selection?: string, label?: string }} [opts]
+ * A drawing on its own is a picture to a screen reader, named by `label` or the slide's title.
  */
 export function renderSlide(slide, opts = {}) {
   const { width: outWidth, resolveImage, standalone = true, simplify = false, tagShapes = false, idPrefix = '', placeholderFrames = false } = opts;
@@ -832,9 +845,12 @@ export function renderSlide(slide, opts = {}) {
   const h = outWidth ? H * scale : H;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(0)}" height="${h.toFixed(0)}" ` +
-    `viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" role="img">${inner}</svg>`
+    `viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}"${named(opts.label ?? slideTitle(slide))}>${inner}</svg>`
   );
 }
+
+/** A picture named for a screen reader, or no picture role where there is nothing to call it. */
+const named = (label) => (label ? ` role="img" aria-label="${attr(label)}"` : '');
 
 /** Insert → Cameo's mark: a camera, a third of the shape's smaller side, in its middle. */
 function cameraGlyph(g) {

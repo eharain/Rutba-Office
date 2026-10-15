@@ -1672,6 +1672,7 @@ export default function Mail({ app, shell }) {
                       checked={false}
                       onChange={() => setChecked(new Set(threads.flatMap((t) => allRowsIn(t)).map(keyOf)))}
                       title={t('Select everything here')}
+                      aria-label={t('Select everything here')}
                     />
                     <span>
                       {prefs.threaded ? tn(threads.length, '{count} conversation', '{count} conversations') : tn(threads.length, '{count} message', '{count} messages')}
@@ -1686,10 +1687,11 @@ export default function Mail({ app, shell }) {
                     <Spinner />
                   </div>
                 ) : threads.length ? (
-                  <div className={`ml-list${prefs.density === 'compact' ? ' compact' : ''}`}>
-                    {threads.map((thread) => (
+                  <div className={`ml-list${prefs.density === 'compact' ? ' compact' : ''}`} role="grid" aria-label={t('Messages')} aria-multiselectable="true">
+                    {threads.map((thread, ti) => (
                       <Row
                         key={thread.threadKey || keyOf(thread)}
+                        first={ti === 0 && !selected}
                         thread={thread}
                         unified={unified}
                         where={allMail}
@@ -2030,7 +2032,7 @@ export default function Mail({ app, shell }) {
  * box otherwise, and the whole point of holding the mail locally is that the
  * list is instant.
  */
-const Row = React.memo(function Row({ thread, unified, where, threaded, selected, checked, expanded, onOpen, onCheck, onStar, onExpand, onMenu }) {
+const Row = React.memo(function Row({ thread, unified, where, threaded, selected, checked, expanded, first, onOpen, onCheck, onStar, onExpand, onMenu }) {
   const avatar = avatarFor(thread.from);
   const many = threaded && thread.count > 1;
 
@@ -2038,26 +2040,31 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
     <>
       <div
         className={`ml-row${selected ? ' selected' : ''}${thread.unread ? ' unread' : ''}${checked ? ' checked' : ''}${thread.pinned ? ' pinned' : ''}`}
-        role="button"
-        tabIndex={0}
+        role="row"
+        aria-selected={selected}
+        aria-expanded={many ? Boolean(expanded) : undefined}
+        tabIndex={selected || first ? 0 : -1}
         onClick={() => onOpen(thread)}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(thread))}
         onContextMenu={onMenu}
       >
-        <input
-          type="checkbox"
-          className="ml-check"
-          checked={checked}
-          style={{ marginTop: 8 }}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => onCheck(e.nativeEvent)}
-        />
+        <span role="gridcell">
+          <input
+            type="checkbox"
+            className="ml-check"
+            checked={checked}
+            aria-label={t('Select')}
+            style={{ marginTop: 8 }}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onCheck(e.nativeEvent)}
+          />
+        </span>
 
-        <span className="ml-avatar-sm" style={{ background: avatar.colour }} title={thread.from?.address || ''}>
+        <span className="ml-avatar-sm" role="gridcell" aria-hidden="true" style={{ background: avatar.colour }} title={thread.from?.address || ''}>
           {avatar.initial}
         </span>
 
-        <div className="ml-row-main">
+        <div className="ml-row-main" role="gridcell">
           <div className="ml-row-top">
             <span className="ml-from">
               {many
@@ -2094,7 +2101,7 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
           ) : null}
         </div>
 
-        <div className="ml-row-side">
+        <div className="ml-row-side" role="gridcell">
           <span className="ml-when">{formatWhen(thread.date)}</span>
           <span className="ml-marks">
             {unified ? <span className="ml-folder-tag">{String(thread.folder || '').split('/').pop()}</span> : null}
@@ -2111,23 +2118,23 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
       </div>
 
       {many && expanded ? (
-        <div className="ml-thread-children">
+        <div className="ml-thread-children" role="rowgroup">
           {thread.messages
             .slice()
             .reverse()
             .map((m) => (
-              <div key={m.id} className={`ml-row${m.unread ? ' unread' : ''}`} role="button" tabIndex={0} onClick={() => onOpen(m)} onKeyDown={(e) => e.key === 'Enter' && onOpen(m)}>
-                <span />
-                <span className="ml-avatar-sm" style={{ background: avatarFor(m.from).colour, width: 22, height: 22, fontSize: 10 }}>
+              <div key={m.id} className={`ml-row${m.unread ? ' unread' : ''}`} role="row" tabIndex={-1} onClick={() => onOpen(m)} onKeyDown={(e) => e.key === 'Enter' && onOpen(m)}>
+                <span role="gridcell" />
+                <span className="ml-avatar-sm" role="gridcell" aria-hidden="true" style={{ background: avatarFor(m.from).colour, width: 22, height: 22, fontSize: 10 }}>
                   {avatarFor(m.from).initial}
                 </span>
-                <div className="ml-row-main">
+                <div className="ml-row-main" role="gridcell">
                   <div className="ml-row-top">
                     <span className="ml-from">{displayName(m.from)}</span>
                   </div>
                   <div className="ml-preview">{m.preview}</div>
                 </div>
-                <div className="ml-row-side">
+                <div className="ml-row-side" role="gridcell">
                   <span className="ml-when">{formatWhen(m.date)}</span>
                 </div>
               </div>

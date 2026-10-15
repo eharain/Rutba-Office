@@ -23,6 +23,7 @@ body.pdf-dragging, body.pdf-dragging * { cursor: grabbing !important; }
 .pdf-split:hover { background: var(--accent-line); }
 
 .pdf-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+.pdf-view:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .pdf-view { flex: 1; min-height: 0; overflow: auto; background: color-mix(in srgb, var(--sunken) 82%, #8a8f99 18%); }
 :root[data-theme='dark'] .pdf-view { background: #2a2c31; }
 .pdf-view-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 18px 24px 40px; min-width: min-content; }

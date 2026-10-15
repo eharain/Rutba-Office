@@ -3336,13 +3336,13 @@ export default function Sheets({ app, shell, boot }) {
             <button type="button" className="sh-calc-pending" data-tip={t('Calculate — formulas are waiting for Calculate Now (F9)')} onClick={() => act('calculate', 'workbook')}>{t('Calculate')}</button>
           ) : null}
           <span className="sh-viewbtns">
-            <button type="button" className={`sh-viewbtn${(model?.viewMode || 'normal') === 'normal' ? ' on' : ''}`} data-view="normal" data-tip={t('Normal')} onClick={() => act('view', 'normal')}>
+            <button type="button" className={`sh-viewbtn${(model?.viewMode || 'normal') === 'normal' ? ' on' : ''}`} data-view="normal" aria-pressed={(model?.viewMode || 'normal') === 'normal'} data-tip={t('Normal')} onClick={() => act('view', 'normal')}>
               <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1" /><path d="M1.5 5.2h11M1.5 8.8h11M5.2 1.5v11M8.8 1.5v11" /></svg>
             </button>
-            <button type="button" className={`sh-viewbtn${model?.viewMode === 'pageLayout' ? ' on' : ''}`} data-view="pageLayout" data-tip={t('Page Layout')} onClick={() => act('view', 'pageLayout')}>
+            <button type="button" className={`sh-viewbtn${model?.viewMode === 'pageLayout' ? ' on' : ''}`} data-view="pageLayout" aria-pressed={model?.viewMode === 'pageLayout'} data-tip={t('Page Layout')} onClick={() => act('view', 'pageLayout')}>
               <svg width="14" height="14" viewBox="0 0 14 14"><rect x="2.5" y="1.5" width="9" height="11" rx="0.8" /><path d="M4.3 4h5.4M4.3 6.2h5.4M4.3 8.4h5.4M4.3 10.6h3.2" /></svg>
             </button>
-            <button type="button" className={`sh-viewbtn${model?.viewMode === 'pageBreakPreview' ? ' on' : ''}`} data-view="pageBreakPreview" data-tip={t('Page Break Preview')} onClick={() => act('view', 'pageBreakPreview')}>
+            <button type="button" className={`sh-viewbtn${model?.viewMode === 'pageBreakPreview' ? ' on' : ''}`} data-view="pageBreakPreview" aria-pressed={model?.viewMode === 'pageBreakPreview'} data-tip={t('Page Break Preview')} onClick={() => act('view', 'pageBreakPreview')}>
               <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1" /><path d="M7 1.5v11" strokeDasharray="1.6 1.4" /><path d="M1.5 7h11" /></svg>
             </button>
           </span>
@@ -3364,6 +3364,7 @@ export default function Sheets({ app, shell, boot }) {
             <div className="sh-barbox">
             <Input
               ref={barRef}
+              aria-label={t('Formula Bar')}
               className={`rw-input${refs.length && (editing || draft != null || barFocus) ? ' painted' : ''}`}
               onFocus={(e) => { setBarFocus(true); trackCaret(e); }}
               onBlur={() => setBarFocus(false)}
@@ -4635,7 +4636,7 @@ const CSS = `
 .sh-comment-tools { display: flex; gap: 2px; }
 .sh-comment-tools .rw-btn { min-width: 24px; height: 24px; padding: 0 4px; }
 /* Paste and its options as one split button, as Excel draws it: the options a narrow arrow the height of Paste, beside it. */
-.rw-group-items > .rw-btn.icon.sh-paste-options { grid-row: 1 / -1; align-self: stretch; height: auto; min-width: 16px; width: 16px; padding: 0; margin-inline-start: -3px; }
+.rw-group-items > .rw-btn.icon.sh-paste-options { grid-row: 1 / -1; align-self: stretch; height: auto; min-width: 24px; width: 24px; padding: 0; margin-inline-start: -3px; }
 .rw-group-items > .rw-btn.icon.sh-paste-options svg { width: 10px; height: 10px; }
 .sh-card-compose { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
 .sh-card-compose textarea, .sh-comment textarea {

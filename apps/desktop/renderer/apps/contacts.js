@@ -311,8 +311,8 @@ export default function Contacts({ app, shell, boot }) {
         <h4>{t('Email')}</h4>
         {draft.emails.map((e, i) => (
           <div className="ct-line" key={i}>
-            <Select value={e.type} onChange={(ev) => setRow('emails', i, { type: ev.target.value })}>{TYPES.email.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
-            <Input value={e.value} placeholder="name@example.com" onChange={(ev) => setRow('emails', i, { value: ev.target.value })} />{/* words-ok: an example address */}
+            <Select value={e.type} aria-label={t('Type')} onChange={(ev) => setRow('emails', i, { type: ev.target.value })}>{TYPES.email.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
+            <Input value={e.value} aria-label={t('Email')} placeholder="name@example.com" onChange={(ev) => setRow('emails', i, { value: ev.target.value })} />{/* words-ok: an example address */}
             <Button icon="close" title={t('Remove')} onClick={() => dropRow('emails', i)} />
           </div>
         ))}
@@ -322,8 +322,8 @@ export default function Contacts({ app, shell, boot }) {
         <h4>{t('Phone')}</h4>
         {draft.phones.map((p, i) => (
           <div className="ct-line" key={i}>
-            <Select value={p.type} onChange={(ev) => setRow('phones', i, { type: ev.target.value })}>{TYPES.phone.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
-            <Input value={p.value} placeholder="+44 7700 900123" onChange={(ev) => setRow('phones', i, { value: ev.target.value })} />
+            <Select value={p.type} aria-label={t('Type')} onChange={(ev) => setRow('phones', i, { type: ev.target.value })}>{TYPES.phone.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
+            <Input value={p.value} aria-label={t('Phone')} placeholder="+44 7700 900123" onChange={(ev) => setRow('phones', i, { value: ev.target.value })} />
             <Button icon="close" title={t('Remove')} onClick={() => dropRow('phones', i)} />
           </div>
         ))}
@@ -334,7 +334,7 @@ export default function Contacts({ app, shell, boot }) {
         {draft.addresses.map((a, i) => (
           <div className="ct-address" key={i}>
             <div className="ct-line">
-              <Select value={a.type} onChange={(ev) => setRow('addresses', i, { type: ev.target.value })}>{TYPES.address.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
+              <Select value={a.type} aria-label={t('Type')} onChange={(ev) => setRow('addresses', i, { type: ev.target.value })}>{TYPES.address.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
               <Input value={a.street} placeholder={t('Street')} onChange={(ev) => setRow('addresses', i, { street: ev.target.value })} />
               <Button icon="close" title={t('Remove')} onClick={() => dropRow('addresses', i)} />
             </div>
@@ -420,14 +420,33 @@ export default function Contacts({ app, shell, boot }) {
             <Button ghost icon="close" title={t('Back to your contacts')} onClick={() => { setPeek(null); setSelectedId(null); }} />
           </div>
         ) : null}
-        <div className="ct-list" role="listbox">
-          {groups.map((g) => (
-            <React.Fragment key={g.letter}>
-              <div className="ct-letter">{g.letter}</div>
-              {g.items.map((c) => (
+        {/* A list a screen reader reads as one: each card an option, the chosen one selected,
+            one stop in the Tab order and the arrow keys through the rest, as Outlook's People list. */}
+        <div
+          className="ct-list"
+          role="listbox"
+          aria-label={t('Contacts')}
+          onKeyDown={(e) => {
+            const all = [...e.currentTarget.querySelectorAll('.ct-item')];
+            const at = all.indexOf(document.activeElement);
+            if (at < 0) return;
+            const to = e.key === 'ArrowDown' ? at + 1 : e.key === 'ArrowUp' ? at - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : -1;
+            if (to < 0 || to >= all.length || !/^(ArrowDown|ArrowUp|Home|End)$/.test(e.key)) return;
+            e.preventDefault();
+            all[to].focus();
+            all[to].click();
+          }}
+        >
+          {groups.map((g, gi) => (
+            <div key={g.letter} role="group" aria-label={g.letter}>
+              <div className="ct-letter" aria-hidden="true">{g.letter}</div>
+              {g.items.map((c, ci) => (
                 <button
                   type="button"
                   key={c.id}
+                  role="option"
+                  aria-selected={c.id === selectedId}
+                  tabIndex={c.id === selectedId || (!list.some((x) => x.id === selectedId) && gi === 0 && ci === 0) ? 0 : -1}
                   className={`ct-item${c.id === selectedId ? ' current' : ''}`}
                   onClick={() => { setSelectedId(c.id); setDraft(null); }}
                   onContextMenu={(e) => { setSelectedId(c.id); menu.open(e, menuItems(commands, ['contact.edit', 'contact.mail', '-', 'contact.delete'])); }}
@@ -439,9 +458,9 @@ export default function Contacts({ app, shell, boot }) {
                   </span>
                 </button>
               ))}
-            </React.Fragment>
+            </div>
           ))}
-          {!list.length ? <div className="ct-none">{query ? t('Nothing matches.') : peek ? t('The file holds no cards.') : t('No contacts yet.')}</div> : null}
+          {!list.length ? <div className="ct-none" role="option" aria-selected="false" aria-disabled="true">{query ? t('Nothing matches.') : peek ? t('The file holds no cards.') : t('No contacts yet.')}</div> : null}
         </div>
       </Panel>
       <Content>

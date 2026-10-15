@@ -730,8 +730,8 @@ export default function Calendar({ app, shell, boot }) {
         <Input className="rw-input cal-title" value={form.summary} placeholder={t('Title')} autoFocus onChange={(e) => set({ summary: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') saveForm(); }} />
         <label className="cal-check"><input type="checkbox" checked={form.allDay} onChange={(e) => set({ allDay: e.target.checked })} /> {t('All day')}</label>
         <div className="cal-when">
-          <Field label={t('Starts')}><div className="cal-dt"><Input type="date" value={form.date} onChange={(e) => set({ date: e.target.value, endDate: form.endDate < e.target.value ? e.target.value : form.endDate })} />{form.allDay ? null : <Input type="time" value={form.time} onChange={(e) => set({ time: e.target.value })} />}</div></Field>
-          <Field label={t('Ends')}><div className="cal-dt"><Input type="date" value={form.endDate} onChange={(e) => set({ endDate: e.target.value })} />{form.allDay ? null : <Input type="time" value={form.endTime} onChange={(e) => set({ endTime: e.target.value })} />}</div></Field>
+          <Field label={t('Starts')}><div className="cal-dt"><Input type="date" value={form.date} onChange={(e) => set({ date: e.target.value, endDate: form.endDate < e.target.value ? e.target.value : form.endDate })} />{form.allDay ? null : <Input type="time" aria-label={t('Start time')} value={form.time} onChange={(e) => set({ time: e.target.value })} />}</div></Field>
+          <Field label={t('Ends')}><div className="cal-dt"><Input type="date" value={form.endDate} onChange={(e) => set({ endDate: e.target.value })} />{form.allDay ? null : <Input type="time" aria-label={t('End time')} value={form.endTime} onChange={(e) => set({ endTime: e.target.value })} />}</div></Field>
         </div>
         <div className="cal-when">
           <Field label={t('Repeat')}>
@@ -925,14 +925,17 @@ function MiniMonth({ cursor, today, onPick }) {
   return (
     <div className="cal-mini">
       <div className="cal-mini-head">
-        <button type="button" onClick={() => setShown(new Date(shown.getFullYear(), shown.getMonth() - 1, 1))}>‹</button>
+        <button type="button" aria-label={t('Previous month')} data-tip={t('Previous month')} onClick={() => setShown(new Date(shown.getFullYear(), shown.getMonth() - 1, 1))}>‹</button>
         <span>{MONTHS_SHORT[shown.getMonth()]} {shown.getFullYear()}</span>
-        <button type="button" onClick={() => setShown(new Date(shown.getFullYear(), shown.getMonth() + 1, 1))}>›</button>
+        <button type="button" aria-label={t('Next month')} data-tip={t('Next month')} onClick={() => setShown(new Date(shown.getFullYear(), shown.getMonth() + 1, 1))}>›</button>
       </div>
       <div className="cal-mini-grid">
-        {DAY_LETTERS.map((d, i) => <span key={i} className="h">{d}</span>)}
+        {DAY_LETTERS.map((d, i) => <span key={i} className="h" aria-hidden="true">{d}</span>)}
+        {/* Each day named in full to a screen reader, today and the chosen day said so. */}
         {cells.map((d) => (
-          <button type="button" key={isoDate(d)} className={`${d.getMonth() !== shown.getMonth() ? 'other' : ''}${sameDay(d, today) ? ' today' : ''}${sameDay(d, cursor) ? ' on' : ''}`} onClick={() => onPick(d)}>{d.getDate()}</button>
+          <button type="button" key={isoDate(d)} className={`${d.getMonth() !== shown.getMonth() ? 'other' : ''}${sameDay(d, today) ? ' today' : ''}${sameDay(d, cursor) ? ' on' : ''}`}
+            aria-label={d.toLocaleDateString(language(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            aria-current={sameDay(d, today) ? 'date' : undefined} aria-pressed={sameDay(d, cursor)} onClick={() => onPick(d)}>{d.getDate()}</button>
         ))}
       </div>
     </div>
@@ -943,10 +946,11 @@ const CSS = `
 .cal-side { display: flex; flex-direction: column; gap: 12px; padding: 10px; }
 .cal-mini { font-size: 12px; }
 .cal-mini-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; font-weight: 600; }
-.cal-mini-head button { border: 0; background: none; font: inherit; color: var(--ink-2); cursor: pointer; padding: 2px 6px; }
+.cal-mini-head button { border: 0; background: none; font: inherit; color: var(--ink-2); cursor: pointer; padding: 2px 6px; min-width: 24px; min-height: 24px; border-radius: 4px; }
+.cal-mini-head button:hover { background: var(--hover); }
 .cal-mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
 .cal-mini-grid .h { text-align: center; color: var(--ink-3); font-size: 10px; padding: 2px 0; }
-.cal-mini-grid button { border: 0; background: none; font: inherit; font-size: 11px; padding: 3px 0; border-radius: 4px; color: var(--ink); cursor: pointer; }
+.cal-mini-grid button { border: 0; background: none; font: inherit; font-size: 11px; padding: 3px 0; min-height: 24px; border-radius: 4px; color: var(--ink); cursor: pointer; }
 .cal-mini-grid button.other { color: var(--ink-3); }
 .cal-mini-grid button.today { font-weight: 700; color: var(--accent-text); }
 .cal-mini-grid button.on { background: var(--selected); }
@@ -998,7 +1002,7 @@ const CSS = `
 .cal-peek-x { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 6px; background: none; color: var(--ink-2); cursor: pointer; }
 .cal-peek-x:hover { background: var(--hover); color: var(--ink); }
 .cal-peek-list { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; min-height: 0; }
-.cal-peek-list .cal-chip { padding: 3px 6px; font-size: 12px; line-height: 16px; }
+.cal-peek-list .cal-chip { padding: 4px 6px; font-size: 12px; line-height: 16px; }
 .cal-time { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .cal-time-head, .cal-allday, .cal-hours { display: grid; grid-template-columns: 56px repeat(auto-fit, minmax(0, 1fr)); }
 /* The hours scroll and the rows over them do not: each keeps room for the scroll bar, so the days line up from the headings down. */

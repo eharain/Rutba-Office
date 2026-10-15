@@ -2,8 +2,10 @@
 // don't. A window frame with its own caption, a ribbon, panels, dialogs, menus
 // and toasts — all of it unaware of documents, mail or media.
 
-import React, { createContext, useContext, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './icons.js';
+import { useControlNames, splitTip, labelFirstControl } from './a11y.js';
+export { labelFirstControl, nameControls, splitTip } from './a11y.js';
 import { useRibbonKeys } from './keytips.js';
 import { t, tFilled } from './messages.js';
 
@@ -88,9 +90,9 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={push}>
       {children}
-      <div className="rw-toast-host">
+      <div className="rw-toast-host" aria-live="polite" aria-relevant="additions text">
         {items.map((t) => (
-          <div key={t.id} className={`rw-toast ${t.tone === 'plain' ? '' : t.tone}`} role="status">
+          <div key={t.id} className={`rw-toast ${t.tone === 'plain' ? '' : t.tone}`} role={t.tone === 'bad' ? 'alert' : undefined}>
             {t.tone === 'bad' ? <Icon name="info" /> : t.tone === 'good' ? <Icon name="check" /> : null}
             <span>{t.message}</span>
             {t.repeats > 1 ? <span className="rw-toast-count">×{t.repeats}</span> : null}
@@ -169,9 +171,10 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
   });
 
   useTips();
+  useControlNames();
 
   return (
-    <div className={`rw-titlebar${isMac ? ' mac' : ''}`}>
+    <div className={`rw-titlebar${isMac ? ' mac' : ''}`} role="banner">
       {/* words-ok: the suite's own name */}
       <button type="button" className="rw-appmark interactive rw-btn ghost" onClick={onMenu} title="Rutba Office">
         <span className="glyph">
@@ -181,11 +184,11 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
         <Icon name="chevronDown" size={12} style={{ opacity: 0.5 }} />
       </button>
 
-      <div className="rw-doctitle" title={title}>
+      <h1 className="rw-doctitle" title={title}>
         {title}
-        {dirty ? <span className="dirty">•</span> : null}
+        {dirty ? <span className="dirty" aria-hidden="true">•</span> : null}
         {subtitle ? <span style={{ opacity: 0.6 }}> — {subtitle}</span> : null}
-      </div>
+      </h1>
 
       <div className="interactive" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         {right}
@@ -309,6 +312,8 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
   }, [collapsed, collapsible, collapsedProp, onCollapse]);
 
   const showGroups = !collapsed || peek;
+  const ids = useId();
+  const tabId = (id) => `${ids}tab-${id}`;
   // KeyTips and the arrow keys (keytips.js).
   const keys = useRibbonKeys({ ref, tabs, active, onTab, collapsed, peek: setPeek });
 
@@ -379,8 +384,9 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
   };
 
   return (
-    <div ref={ref} className={`rw-ribbon${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}${iconsOnly ? ' icons-only' : ''}${keys.keyTips ? ' keytips' : ''}`} onMouseDown={keepEditorFocus} onKeyDown={keys.onKeyDown}>
-      <div className="rw-tabs" role="tablist">
+    <div ref={ref} className={`rw-ribbon${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}${iconsOnly ? ' icons-only' : ''}${keys.keyTips ? ' keytips' : ''}`} role="region" aria-label={t('Ribbon')} onMouseDown={keepEditorFocus} onKeyDown={keys.onKeyDown}>
+      <div className="rw-tabs">
+        <div className="rw-tablist" role="tablist" aria-label={t('Ribbon tabs')}>
         {tabs.map((t, i) => (
           <React.Fragment key={t.id}>
             {/* The contextual tabs, set off from the others by a line, as a group of their own. */}
@@ -388,9 +394,12 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
             <button
               type="button"
               role="tab"
+              id={tabId(t.id)}
               className={t.contextual ? 'rw-tab contextual' : 'rw-tab'}
               data-label={typeof t.label === 'string' ? t.label : undefined}
               aria-selected={t.id === active}
+              aria-controls={showGroups && t.id === active ? `${ids}panel` : undefined}
+              tabIndex={t.id === active ? 0 : -1}
               onClick={() => {
                 onTab(t.id);
                 if (collapsed) setPeek((p) => !(p && t.id === active));
@@ -400,6 +409,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
             </button>
           </React.Fragment>
         ))}
+        </div>
         {options ? (
           <Menu
             x={options.x}
@@ -454,6 +464,8 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
             ref={groupsRef}
             className="rw-groups"
             role="tabpanel"
+            id={`${ids}panel`}
+            aria-labelledby={tabs.some((x) => x.id === active) ? tabId(active) : undefined}
             onWheel={wheelSideways}
             onClick={(e) => {
               // A command pressed from a peek closes the peek, as in Office; a
@@ -824,10 +836,11 @@ export function Button({
       className={classes}
       aria-pressed={pressed === undefined ? undefined : Boolean(pressed)}
       aria-haspopup={dropdown ? 'menu' : undefined}
+      aria-expanded={dropdown ? false : undefined}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
       data-tip={title || label}
-      aria-label={!label && !children ? title : undefined}
+      aria-label={!label && !children ? splitTip(title).name || undefined : undefined}
       onClick={onClick}
       {...rest}
     >
@@ -855,10 +868,12 @@ function useTips() {
     // One per document, kept between mounts: a second frame in the same
     // window would otherwise leave an empty first one behind.
     let tip = document.querySelector('.rw-tip');
+    tip?.setAttribute('aria-hidden', 'true');
     if (!tip) {
       tip = document.createElement('div');
       tip.className = 'rw-tip';
       tip.setAttribute('role', 'tooltip');
+      tip.setAttribute('aria-hidden', 'true');
       document.body.appendChild(tip);
     }
     let timer = 0;
@@ -955,9 +970,9 @@ export function ZoomSlider({ value = 1, min = 0.5, max = 2, step = 0.05, onChang
 /* ── layout ─────────────────────────────────────────────────────────────── */
 
 export const Body = ({ children, style }) => (
-  <div className="rw-body" style={style}>
+  <main className="rw-body" style={style}>
     {children}
-  </div>
+  </main>
 );
 
 /** Where a panel keeps the width it was given: by the window's app and the panel's name. */
@@ -1040,6 +1055,8 @@ export function Panel({ title, width, right, actions, children, style, resizable
     <div
       ref={ref}
       className={`rw-panel${right ? ' right' : ''}`}
+      role={typeof title === 'string' && title ? 'region' : undefined}
+      aria-label={typeof title === 'string' && title ? title : undefined}
       data-panel={key ? key.split('.').pop() || undefined : undefined}
       style={{ width: shown, flex: 'none', position: 'relative', ...style }}
     >
@@ -1077,7 +1094,7 @@ export const Content = ({ children, style }) => (
 );
 
 export function StatusBar({ children }) {
-  return <div className="rw-status">{children}</div>;
+  return <div className="rw-status" role="region" aria-label={t('Status bar')}>{children}</div>;
 }
 
 export const Spacer = () => <div className="spacer" />;
@@ -1137,18 +1154,26 @@ export function Search({ value, onChange, placeholder, style, onKeyDown, autoFoc
 }
 
 export function Field({ label, hint, children }) {
+  const ref = useRef(null);
+  const id = useId();
+  // The first control in the field that has no name of its own takes the
+  // field's label (and its hint as its description), whatever drew it.
+  useLayoutEffect(() => {
+    if (label) labelFirstControl(ref.current, `${id}label`, hint ? `${id}hint` : null);
+  });
   return (
-    <div className="rw-field">
-      {label ? <label>{label}</label> : null}
+    <div ref={ref} className="rw-field">
+      {label ? <label id={`${id}label`}>{label}</label> : null}
       {children}
-      {hint ? <div className="rw-hint">{hint}</div> : null}
+      {hint ? <div className="rw-hint" id={`${id}hint`}>{hint}</div> : null}
     </div>
   );
 }
 
-export const Input = (props) => <input className="rw-input" spellCheck={false} {...props} />;
+// A field or a list in a ribbon is named by its tip when nothing else names it.
+export const Input = (props) => <input className="rw-input" spellCheck={false} aria-label={props['aria-label'] ?? (props['aria-labelledby'] ? undefined : props.title)} {...props} />;
 export const Select = ({ children, ...rest }) => (
-  <select className="rw-select" {...rest}>
+  <select className="rw-select" aria-label={rest['aria-label'] ?? (rest['aria-labelledby'] ? undefined : rest.title)} {...rest}>
     {children}
   </select>
 );
@@ -1249,17 +1274,19 @@ export function Menu({ x, y, rtl = false, items, onClose }) {
   }, [onClose]);
 
   return (
-    <div ref={ref} className="rw-menu" style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.stopPropagation()}>
+    <div ref={ref} className="rw-menu" role="menu" style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.stopPropagation()}>
       {items.map((item, i) =>
         item === '-' ? (
-          <hr key={`sep${i}`} />
+          <hr key={`sep${i}`} role="separator" />
         ) : item.heading ? (
           // A section's name over its items, the way Office heads Entrance, Emphasis and Exit.
-          <div key={`head${i}`} className="rw-menu-head">{item.label}</div>
+          <div key={`head${i}`} className="rw-menu-head" role="presentation">{item.label}</div>
         ) : (
           <button
             key={`${i}:${item.label}`}
             type="button"
+            role={item.icon === 'check' || item.checked !== undefined ? 'menuitemcheckbox' : 'menuitem'}
+            aria-checked={item.icon === 'check' || item.checked !== undefined ? Boolean(item.checked ?? item.icon === 'check') : undefined}
             disabled={item.disabled}
             title={item.title}
             onClick={() => {
@@ -1270,7 +1297,7 @@ export function Menu({ x, y, rtl = false, items, onClose }) {
             {/* A gallery's sample, where an item shows what it makes (a WordArt style), in place of an icon. */}
             {item.preview ? <span className="rw-menu-preview">{item.preview}</span> : item.icon ? <Icon name={item.icon} /> : <span style={{ width: 15 }} />}
             <span>{item.label}</span>
-            {item.key ? <span className="key">{item.key}</span> : null}
+            {item.key ? <span className="key" aria-hidden="true">{item.key}</span> : null}
           </button>
         )
       )}
@@ -1281,9 +1308,14 @@ export function Menu({ x, y, rtl = false, items, onClose }) {
 /** Wire a right-click to a menu, and keep the state for it. */
 export function useMenu() {
   const [menu, setMenu] = useState(null);
+  const opener = useRef(null);
   const open = useCallback((e, items) => {
     e.preventDefault();
     e.stopPropagation();
+    const from = e.currentTarget instanceof Element ? e.currentTarget.closest('button, [role="button"]') : null;
+    if (opener.current && opener.current !== from) opener.current.setAttribute('aria-expanded', 'false');
+    opener.current = from;
+    if (from?.getAttribute('aria-haspopup')) from.setAttribute('aria-expanded', 'true');
     // A ribbon button's menu drops from the button, as Office's do, rather
     // than from wherever the pointer was on it, and from its far edge right
     // to left. A right click anywhere else opens where it was made.
@@ -1296,7 +1328,10 @@ export function useMenu() {
       setMenu({ x: e.clientX, y: e.clientY, items });
     }
   }, []);
-  const close = useCallback(() => setMenu(null), []);
+  const close = useCallback(() => {
+    if (opener.current?.getAttribute('aria-haspopup')) opener.current.setAttribute('aria-expanded', 'false');
+    setMenu(null);
+  }, []);
   const node = menu ? <Menu {...menu} onClose={close} /> : null;
   return { open, close, node };
 }
@@ -1321,7 +1356,7 @@ export const Spinner = ({ style }) => <div className="rw-spinner" style={style} 
 export function Progress({ value, max = 1 }) {
   const pct = Math.max(0, Math.min(100, (value / (max || 1)) * 100));
   return (
-    <div className="rw-progress">
+    <div className="rw-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
       <div style={{ width: `${pct}%` }} />
     </div>
   );

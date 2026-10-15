@@ -7015,4 +7015,9 @@ export default {
   'Colour of the words': 'शब्दों का रंग',
   'Done: stop typing (Esc)': 'हो गया: लिखना बंद करें (Esc)',
   'The layer\'s words': 'परत के शब्द',
+  'Ribbon': 'रिबन',
+  'Ribbon tabs': 'रिबन टैब',
+  'Status bar': 'स्थिति पट्टी',
+  'Start time': 'प्रारंभ समय',
+  'End time': 'समाप्ति समय',
 };

@@ -330,6 +330,11 @@ with the standard fonts it ships (PDFium's, BSD-style; Liberation, SIL Open
 Font Licence) and its WebAssembly decoders (OpenJPEG, BSD; PDFium's JBIG2,
 BSD-style; qcms, MIT), each with its own licence file there.
 
+Notice: the accessibility checks (apps/desktop/main/verify-a11y-audit.js) run
+axe-core (MPL-2.0, © Deque Systems, Inc.) over the windows, as a development
+dependency the checks alone load; nothing of it is in the installers. Its
+licence is in node_modules/axe-core/LICENSE once the dependencies are installed.
+
 Notice: text recognition reads with Tesseract 5 compiled to WebAssembly, as
 tesseract.js 7 ships it (tesseract.js-core, Apache-2.0, © the tesseract.js
 authors; Tesseract, Apache-2.0, © Google and the Tesseract contributors), and

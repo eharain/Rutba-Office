@@ -8,7 +8,7 @@
 // size, colour and the animations in and out.
 
 import React from 'react';
-import { Button, Icon, Select, t, tn } from '@rutba/office-ui';
+import { Button, Icon, Select, labelFirstControl, t, tn } from '@rutba/office-ui';
 import { timecode } from '@rutba/media/timeline';
 import { clipById, partnersOf, previousOnLane, lengthOf, animationName, TEXT_ANIMATIONS, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker } from '@rutba/studio/project';
 import { insetRect, cornerOf } from '@rutba/studio/recorder';
@@ -38,9 +38,13 @@ function Seconds({ value, onChange, min = 0, step = 0.1, className }) {
 }
 
 function Row({ label, children }) {
+  const ref = React.useRef(null);
+  const id = React.useId();
+  // The row's name is its field's name to a screen reader.
+  React.useLayoutEffect(() => labelFirstControl(ref.current, `${id}label`));
   return (
-    <div className="vd-prop">
-      <span className="vd-prop-label">{label}</span>
+    <div className="vd-prop" ref={ref}>
+      <span className="vd-prop-label" id={`${id}label`}>{label}</span>
       <span className="vd-prop-value">{children}</span>
     </div>
   );
