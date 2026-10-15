@@ -129,7 +129,7 @@ export const CUSTOM_SHOWS_CSS = `
 .sl-cs-list { height: 220px; overflow: auto; border: 1px solid var(--line-soft); border-radius: var(--r-2); background: var(--surface); }
 .sl-cs-item { display: flex; justify-content: space-between; gap: 8px; width: 100%; border: 0; border-bottom: 1px solid var(--line-soft); background: none; font: inherit; color: var(--ink); text-align: left; padding: 5px 8px; cursor: pointer; }
 .sl-cs-item:hover { background: var(--hover); }
-.sl-cs-item.on { background: var(--selected); color: var(--accent); }
+.sl-cs-item.on { background: var(--selected); color: var(--accent-text); }
 .sl-cs-count { color: var(--ink-3); font-size: 11.5px; }
 .sl-cs-empty { padding: 10px; color: var(--ink-3); }
 .sl-cs-cols { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: start; }

@@ -541,7 +541,7 @@ export function useProtection({ app, shell, doc, setDoc, toast, items = [], note
 export const PROTECT_CSS = `
 .pw-prompt { display: flex; flex-direction: column; gap: 6px; padding: 2px 0 12px; }
 .pw-prompt-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-.pw-badge { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.pw-badge { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); }
 .pw-prompt-words { min-width: 0; }
 .pw-file { font-weight: 600; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 340px; }
 .pw-sub { font-size: 12.5px; color: var(--ink-2); margin-top: 1px; }
@@ -552,7 +552,7 @@ export const PROTECT_CSS = `
 .pw-secret.invalid .pw-secret-input { border-color: var(--bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 16%, transparent); }
 .pw-reveal { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 28px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-3); display: grid; place-items: center; cursor: pointer; }
 .pw-reveal:hover { background: var(--hover); color: var(--ink); }
-.pw-reveal[aria-pressed="true"] { color: var(--accent); }
+.pw-reveal[aria-pressed="true"] { color: var(--accent-text); }
 .pw-caps { font-size: 11.5px; color: var(--warn); }
 .pw-error { display: flex; align-items: flex-start; gap: 7px; margin-top: 6px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.4; color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--bad) 28%, transparent); }
 .pw-error svg { flex: none; margin-top: 1px; }
@@ -568,7 +568,7 @@ export const PROTECT_CSS = `
 
 .pw-info { display: flex; flex-direction: column; gap: 16px; padding: 2px 0 14px; }
 .pw-info-file { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); }
-.pw-info-file > svg { flex: none; color: var(--accent); }
+.pw-info-file > svg { flex: none; color: var(--accent-text); }
 .pw-info-name { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
 .pw-info-path { font-size: 12px; color: var(--ink-3); margin-top: 2px; word-break: break-all; }
 .pw-info-cols { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 22px; align-items: start; }
@@ -576,7 +576,7 @@ export const PROTECT_CSS = `
 .pw-card.on { background: color-mix(in srgb, var(--warn) 11%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 34%, transparent); }
 .pw-card-tile-wrap { position: relative; flex: none; }
 .pw-card-tile { width: 96px; height: 92px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 8px 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 11.5px; line-height: 1.25; text-align: center; cursor: pointer; transition: background var(--fast), border-color var(--fast); }
-.pw-card-tile > svg:first-child { color: var(--accent); }
+.pw-card-tile > svg:first-child { color: var(--accent-text); }
 .pw-card-tile > svg:last-child { color: var(--ink-3); }
 .pw-card-tile:hover, .pw-card-tile.open { background: var(--hover); border-color: var(--line-strong); }
 .pw-card.on .pw-card-tile > svg:first-child { color: var(--warn); }
@@ -590,7 +590,7 @@ export const PROTECT_CSS = `
 .pw-menu-item { display: flex; gap: 12px; align-items: flex-start; width: 100%; padding: 9px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
 .pw-menu-item:hover:not(:disabled) { background: var(--hover); }
 .pw-menu-item:disabled { opacity: 0.5; cursor: default; }
-.pw-menu-icon { flex: none; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.pw-menu-icon { flex: none; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); }
 .pw-menu-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pw-menu-label { font-weight: 600; font-size: 12.5px; }
 .pw-menu-detail { font-size: 11.5px; color: var(--ink-2); line-height: 1.4; }

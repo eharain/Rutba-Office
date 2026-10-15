@@ -650,7 +650,7 @@ const CSS = `
 .home-notice-text strong { color: var(--ink); }
 .home-notice-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-notice-link {
-  border: 0; background: none; color: var(--accent); font: inherit; font-size: 12.5px;
+  border: 0; background: none; color: var(--accent-text); font: inherit; font-size: 12.5px;
   font-weight: 600; cursor: pointer; padding: 2px 4px; border-radius: var(--r-1); flex: none;
 }
 .home-notice-link:hover { background: var(--hover); }
@@ -717,7 +717,7 @@ const CSS = `
   width: 34px; border: 0; border-left: 1px solid var(--line-soft); background: transparent;
   color: var(--ink-3); display: grid; place-items: center; transition: background var(--fast), color var(--fast);
 }
-.home-card-new:hover { background: var(--hover); color: var(--accent); }
+.home-card-new:hover { background: var(--hover); color: var(--accent-text); }
 
 .home-templates { display: flex; flex-wrap: wrap; gap: 7px; }
 .home-template {
@@ -792,7 +792,7 @@ const CSS = `
 .about-list dd { margin: 0; }
 
 .home-link {
-  color: var(--accent); text-decoration: none; font-size: 11.5px;
+  color: var(--accent-text); text-decoration: none; font-size: 11.5px;
   border-bottom: 1px solid transparent; transition: border-color var(--fast);
 }
 .home-link:hover { border-bottom-color: var(--accent); }

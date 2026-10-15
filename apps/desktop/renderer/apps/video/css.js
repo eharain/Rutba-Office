@@ -19,7 +19,7 @@ export const CSS = `
 .vd-transport { display: flex; align-items: center; gap: 4px; padding: 6px 12px; background: #15171c; border-top: 1px solid #23262d; color: #d9dce3; }
 .vd-transport .rw-btn { color: #cfd3db; }
 .vd-transport .rw-btn:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
-.vd-transport .vd-play { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; margin: 0 4px; }
+.vd-transport .vd-play { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-fill); color: #fff; margin: 0 4px; }
 .vd-transport .vd-play:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 85%, #fff); }
 .vd-time { font-size: 12px; font-variant-numeric: tabular-nums; min-width: 58px; text-align: center; color: #f1f3f7; font-weight: 600; }
 .vd-time.total { color: #8b919c; font-weight: 500; }

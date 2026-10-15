@@ -2580,7 +2580,7 @@ input[type=range]:disabled::-webkit-slider-thumb { border-color: var(--line); }
 .im-sec { border-bottom: 1px solid var(--line-soft); }
 .im-sec-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 2px; background: none; border: 0;
   color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; text-align: start; }
-.im-sec-head:hover { color: var(--accent); }
+.im-sec-head:hover { color: var(--accent-text); }
 .im-sec-body { display: flex; flex-direction: column; gap: 8px; padding: 0 2px 12px; }
 .im-ps { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'label value' 'range range'; row-gap: 3px; font-size: 12px; }
 .im-ps .im-ps-label { grid-area: label; color: var(--ink-2); }

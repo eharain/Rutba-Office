@@ -477,14 +477,14 @@ const UPDATE_CSS = `
 }
 .rw-update-mark {
   flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--accent-text);
 }
 .rw-update-body { flex: 1; min-width: 0; }
 .rw-update-title { font-weight: 600; font-size: 13.5px; }
 .rw-update-text { margin-top: 3px; color: var(--ink-2); line-height: 1.4; }
 .rw-update .rw-progress { margin-top: 8px; }
 .rw-update-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
-.rw-status .rw-update-chip { color: var(--accent); background: var(--accent-soft); }
+.rw-status .rw-update-chip { color: var(--accent-text); background: var(--accent-soft); }
 .rw-status button.rw-update-chip { border: 0; font: inherit; cursor: pointer; }
 .rw-status button.rw-update-chip:hover { filter: brightness(0.94); }
 `;

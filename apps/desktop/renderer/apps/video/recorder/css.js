@@ -56,7 +56,7 @@ export const RECORDER_CSS = `
 .rec-seg button { flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 6px; border: 0; border-radius: calc(var(--r-2) - 2px); background: transparent; color: var(--ink-2); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
 .rec-seg button:hover:not(:disabled):not(.on) { background: var(--hover); color: var(--ink); }
 .rec-seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); font-weight: 600; }
-.rec-seg button.on svg { color: var(--accent); }
+.rec-seg button.on svg { color: var(--accent-text); }
 .rec-seg button:disabled { cursor: default; }
 .rec-seg button span { overflow: hidden; text-overflow: ellipsis; }
 

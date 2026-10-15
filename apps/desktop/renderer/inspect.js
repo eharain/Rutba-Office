@@ -39,7 +39,7 @@ const INSPECT_CSS = `
 .di-mark { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; }
 .di-mark.clean { background: color-mix(in srgb, var(--good, #1e8e3e) 14%, transparent); color: var(--good, #1e8e3e); }
 .di-mark.found { background: color-mix(in srgb, var(--warn, #b26a00) 16%, transparent); color: var(--warn, #b26a00); font-weight: 700; font-size: 13px; }
-.di-mark.gone { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.di-mark.gone { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-text); }
 .di-row input[type="checkbox"] { margin-top: 3px; }
 .di-warn { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 12px; color: var(--ink-2); background: color-mix(in srgb, var(--warn, #b26a00) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn, #b26a00) 24%, transparent); }
 .di-busy { display: flex; align-items: center; gap: 10px; padding: 24px; justify-content: center; color: var(--ink-2); }

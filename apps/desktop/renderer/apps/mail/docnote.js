@@ -247,7 +247,7 @@ export const DOCNOTE_CSS = `
 .ml-docnote.reading { display: flex; align-items: center; gap: 9px; color: var(--ink-3); background: transparent; border-style: dashed; padding: 7px 12px; }
 .ml-docnote.reading .rw-spinner { width: 14px; height: 14px; flex: none; }
 .ml-docnote-row { display: flex; align-items: flex-start; gap: 11px; }
-.ml-docnote-icon { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; color: var(--accent); background: color-mix(in srgb, var(--accent) 11%, var(--surface)); }
+.ml-docnote-icon { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; flex: none; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 11%, var(--surface)); }
 .ml-docnote-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .ml-docnote-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .ml-docnote-title strong { font-weight: 600; color: var(--ink); }

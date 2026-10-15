@@ -123,7 +123,7 @@ body.pdf-dragging, body.pdf-dragging * { cursor: grabbing !important; }
 .pdf-comment-meta { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-3); padding-inline-start: 28px; flex-wrap: wrap; }
 .pdf-comment-done { display: inline-flex; align-items: center; gap: 3px; color: var(--good); font-weight: 600; margin-inline-start: 4px; }
 .pdf-comment-text { font-size: 12.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; padding-inline-start: 28px; }
-.pdf-comment-add { align-self: flex-start; margin-inline-start: 28px; border: 0; background: none; padding: 0; font: inherit; font-size: 12px; color: var(--accent); cursor: pointer; }
+.pdf-comment-add { align-self: flex-start; margin-inline-start: 28px; border: 0; background: none; padding: 0; font: inherit; font-size: 12px; color: var(--accent-text); cursor: pointer; }
 .pdf-comment-edit, .pdf-comment-reply { display: flex; gap: 6px; padding-inline-start: 28px; }
 .pdf-comment-edit { flex-direction: column; }
 .pdf-comment-edit textarea, .pdf-note-editor textarea { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; font-size: 12.5px; padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: var(--r-1); background: var(--surface); color: var(--ink); outline: none; }

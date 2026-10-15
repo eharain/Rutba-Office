@@ -81,6 +81,6 @@ export const CANVAS_CSS = `
 .im-anchor { display: grid; grid-template-columns: repeat(3, 26px); grid-template-rows: repeat(3, 26px); gap: 3px; }
 .im-anchor button { border: 1px solid var(--line); background: var(--surface); border-radius: 4px; font-size: 13px; line-height: 1; color: var(--ink-2); cursor: pointer; padding: 0; }
 .im-anchor button:hover { border-color: var(--n-50); color: var(--ink); }
-.im-anchor button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.im-anchor button.on { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
 .im-anchor-hint { font-size: 11.5px; line-height: 1.45; }
 `;

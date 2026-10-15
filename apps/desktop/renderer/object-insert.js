@@ -87,7 +87,7 @@ export const OBJECT_CSS = `
 .obj-modes { display: flex; gap: 18px; }
 .obj-list { border: 1px solid var(--line-soft); border-radius: var(--r-2); }
 .obj-item { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line-soft); background: none; padding: 6px 10px; font: inherit; color: var(--ink); cursor: pointer; }
-.obj-item.on { background: var(--selected); color: var(--accent); }
+.obj-item.on { background: var(--selected); color: var(--accent-text); }
 .obj-file { display: flex; gap: 8px; align-items: center; }
 .obj-path { flex: 1; padding: 6px 8px; border: 1px solid var(--line-soft); border-radius: var(--r-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .obj-lead { margin: 0; font-size: 11.5px; color: var(--ink-3); }

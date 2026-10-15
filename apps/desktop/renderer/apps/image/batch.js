@@ -287,7 +287,7 @@ const BATCH_CSS = `
 .im-batch-token { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: var(--bg, #fff);
   border-radius: 4px; padding: 2px 6px; font: inherit; font-size: 11.5px; color: var(--ink-2); cursor: pointer; }
 .im-batch-token:hover { border-color: var(--accent); color: var(--ink); }
-.im-batch-token code { font-family: Consolas, ui-monospace, monospace; color: var(--accent); font-size: 11px; }
+.im-batch-token code { font-family: Consolas, ui-monospace, monospace; color: var(--accent-text); font-size: 11px; }
 .im-batch-foot { border-top: 1px solid var(--line-soft); padding-top: 10px; }
 .im-batch-run { display: flex; flex-direction: column; gap: 12px; min-height: 120px; }
 .im-batch-sum { font-size: 13px; font-weight: 600; }

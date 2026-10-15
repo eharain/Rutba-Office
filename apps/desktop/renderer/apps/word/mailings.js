@@ -1021,11 +1021,11 @@ export const MAILINGS_CSS = `
 .wd-mm-grid th.wd-mm-tick { z-index: 2; }
 .wd-mm-grid td.wd-mm-tick { background: var(--surface); }
 .wd-mm-sortable { cursor: pointer; user-select: none; }
-.wd-mm-sortable:hover { color: var(--accent); }
+.wd-mm-sortable:hover { color: var(--accent-text); }
 .wd-mm-newlist td { padding: 0; border-right: 1px solid var(--line-soft); }
 .wd-mm-newlist th { border-right: 1px solid var(--line-soft); }
 .wd-mm-newlist tr.on td { background: var(--selected); }
-.wd-mm-rowno { width: 22px; text-align: center; color: var(--accent); font-size: 11px; }
+.wd-mm-rowno { width: 22px; text-align: center; color: var(--accent-text); font-size: 11px; }
 .wd-mm-cell { border: 0; background: transparent; font: inherit; font-size: 12.5px; padding: 6px 8px; width: 132px; color: var(--ink); }
 .wd-mm-cell:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--surface); }
 .wd-mm-source { margin: 8px 0 0; }

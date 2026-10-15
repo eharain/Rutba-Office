@@ -263,7 +263,7 @@ export const RESTRICT_CSS = `
 .wd-restrict-step { padding: 12px 14px; border-bottom: 1px solid var(--line-soft); display: flex; flex-direction: column; gap: 8px; }
 .wd-restrict-step:last-child { border-bottom: 0; }
 .wd-restrict-step h4 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 650; color: var(--ink); }
-.wd-restrict-n { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 10.5px; font-weight: 700; background: var(--accent-soft); color: var(--accent); flex: none; }
+.wd-restrict-n { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 10.5px; font-weight: 700; background: var(--accent-soft); color: var(--accent-text); flex: none; }
 .wd-restrict-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.4; color: var(--ink); cursor: pointer; }
 .wd-restrict-check input { margin: 2px 0 0; accent-color: var(--accent); flex: none; }
 .wd-restrict .rw-select { width: 100%; }

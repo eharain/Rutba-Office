@@ -358,9 +358,9 @@ const SMIME_CSS = `
 .ml-smime.good .ml-smime-signed > svg { color: var(--good, #2e7d32); }
 .ml-smime.caution .ml-smime-row > svg { color: var(--warn, #b26a00); }
 .ml-smime.bad .ml-smime-row > svg { color: var(--bad, #c62828); }
-.ml-smime-encrypted > svg { color: var(--accent); }
+.ml-smime-encrypted > svg { color: var(--accent-text); }
 .ml-smime-text { flex: 1; min-width: 0; color: var(--ink); }
-.ml-smime-row button, .ml-smime-note button { flex: none; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
+.ml-smime-row button, .ml-smime-note button { flex: none; border: 0; background: none; color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
 .ml-smime-row button:hover, .ml-smime-note button:hover { text-decoration: underline; }
 .ml-smime-details { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 0; padding-block: 6px 8px; padding-inline: 33px 10px; border-top: 1px solid var(--line-soft); }
 .ml-smime-details dt { color: var(--ink-3); }
@@ -373,14 +373,14 @@ const SMIME_CSS = `
 .ml-cert-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-2); }
 .ml-cert { display: grid; grid-template-columns: 18px 1fr auto; gap: 2px 10px; align-items: center; padding: 7px 10px; }
 .ml-cert + .ml-cert { border-top: 1px solid var(--line-soft); }
-.ml-cert > svg { grid-row: 1 / 3; color: var(--accent); }
+.ml-cert > svg { grid-row: 1 / 3; color: var(--accent-text); }
 .ml-cert-who { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
 .ml-cert-who span { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ml-cert-dates { grid-column: 2; color: var(--ink-3); font-size: 11.5px; }
 .ml-cert-choice { grid-column: 3; grid-row: 1 / 3; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
-.ml-cert-choice button { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
+.ml-cert-choice button { border: 0; background: none; color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
 .ml-cert.changed > svg { color: var(--warn, #b26a00); }
-.ml-cert-remove { grid-column: 3; grid-row: 1 / 3; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+.ml-cert-remove { grid-column: 3; grid-row: 1 / 3; border: 0; background: none; color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; }
 .ml-cert-empty, .ml-cert-note { margin: 0; color: var(--ink-3); font-size: 12px; }
 .ml-cert-import { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px dashed var(--line); border-radius: var(--r-2); }
 .ml-cert-path { display: flex; gap: 6px; }
@@ -393,6 +393,6 @@ const SMIME_CSS = `
 .ml-security button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); color: var(--ink-2); font: inherit; font-size: 12px; padding: 2px 10px; cursor: pointer; }
 .ml-security button.on { background: var(--selected); color: var(--ink); border-color: var(--accent); font-weight: 600; }
 .ml-security button:disabled { opacity: .55; cursor: default; }
-.ml-security .ml-security-certs { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 2px 4px; }
+.ml-security .ml-security-certs { border: 0; background: none; color: var(--accent-text); font-weight: 600; padding: 2px 4px; }
 .ml-security-who { color: var(--ink-3); font-size: 11.5px; }
 `;

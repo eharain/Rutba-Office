@@ -102,12 +102,12 @@ const CSS = `
   overflow: hidden; text-overflow: ellipsis;
 }
 .wd-nav-item:hover { background: var(--hover); color: var(--ink); }
-.wd-nav-item.on { color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
+.wd-nav-item.on { color: var(--accent-text); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
 .wd-nav-empty { padding: 12px 14px; font-size: 12px; color: var(--ink-3); }
 
 /* formatting marks --------------------------------------------------------- */
 /* The ¶ takes no room on its line — a box no wider than nothing, the mark drawn past it — so it may hang past the margin, as Word's does, rather than push a right-aligned page number onto a line of its own. */
-.wd-page.marks .wd-block::after { content: '¶'; color: var(--accent); opacity: .55; display: inline-block; width: 0; text-indent: 0; transform: translateX(2px); font-weight: 400; }
+.wd-page.marks .wd-block::after { content: '¶'; color: var(--accent-text); opacity: .55; display: inline-block; width: 0; text-indent: 0; transform: translateX(2px); font-weight: 400; }
 .wd-page.marks .wd-block { white-space: pre-wrap; }
 
 /* view modes --------------------------------------------------------------- */
@@ -138,7 +138,7 @@ const CSS = `
   cursor: pointer; border-radius: 3px; line-height: 1.2;
 }
 .wd-hyph-point:hover { background: var(--hover); color: var(--ink); }
-.wd-hyph-point.on { background: var(--accent); color: #fff; }
+.wd-hyph-point.on { background: var(--accent-fill); color: #fff; }
 .wd-hyph-done { padding: 10px 2px; color: var(--ink-2); font-size: 13px; }
 `;
 

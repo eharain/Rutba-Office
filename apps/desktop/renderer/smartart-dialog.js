@@ -106,7 +106,7 @@ export const SMARTART_CSS = `
 .sa { display: grid; grid-template-columns: 120px 1fr 276px; gap: 12px; min-height: 360px; font-size: 13px; }
 .sa-kinds { display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line-soft); padding-right: 8px; }
 .sa-kind { text-align: left; border: 0; background: none; padding: 6px 8px; border-radius: var(--r-2); font: inherit; color: var(--ink); cursor: pointer; }
-.sa-kind.on { background: var(--selected); color: var(--accent); }
+.sa-kind.on { background: var(--selected); color: var(--accent-text); }
 .sa-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; align-content: start; overflow: auto; max-height: 380px; }
 .sa-item { display: flex; flex-direction: column; align-items: center; gap: 4px; border: 1px solid var(--line-soft); border-radius: var(--r-2); background: var(--window); padding: 8px 4px 6px; font: inherit; color: var(--ink-2); cursor: pointer; }
 .sa-item.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); color: var(--ink); }

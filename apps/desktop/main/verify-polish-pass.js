@@ -28,8 +28,8 @@ const pad = (n) => String(n).padStart(2, '0');
 const icsDate = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
 const icsTime = (d, h, m = 0) => `${icsDate(d)}T${pad(h)}${pad(m)}00`;
 
-function fixtures(dir) {
-  const own = path.join(dir, 'polish-fixtures');
+export function fixtures(dir, folder = 'polish-fixtures') {
+  const own = path.join(dir, folder);
   const pics = path.join(own, 'pictures');
   fs.mkdirSync(pics, { recursive: true });
   const at = (n) => path.join(own, n);
@@ -81,7 +81,7 @@ function fixtures(dir) {
 }
 
 /** A message as it arrives, for the check's own account. */
-const message = ({ from, subject, body, date }) => [
+export const message = ({ from, subject, body, date }) => [
   `From: ${from}`, 'To: polish@checks.example', `Subject: ${subject}`, `Date: ${date}`, 'MIME-Version: 1.0',
   'Content-Type: text/plain; charset=utf-8', '', body,
 ].join('\r\n');

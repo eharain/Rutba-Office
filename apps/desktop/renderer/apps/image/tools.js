@@ -277,7 +277,7 @@ export const TOOLS_CSS = `
 .im-tool { width: 34px; height: 32px; flex: none; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--r-2);
   background: none; color: var(--ink-2); cursor: pointer; padding: 0; }
 .im-tool:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
-.im-tool[aria-pressed='true'] { background: var(--selected); color: var(--accent); border-color: var(--accent-line, var(--line)); }
+.im-tool[aria-pressed='true'] { background: var(--selected); color: var(--accent-text); border-color: var(--accent-line, var(--line)); }
 .im-tool:disabled { opacity: 0.4; cursor: default; }
 .im-tool:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .im-tools-gap { flex: none; width: 22px; height: 1px; background: var(--line-soft); margin: 4px 0; }
@@ -295,7 +295,7 @@ export const TOOLS_CSS = `
 .im-colour.fore { left: 0; top: 0; z-index: 2; }
 .im-colour.back { right: 0; bottom: 0; z-index: 1; }
 .im-colour-swap { position: absolute; right: -2px; top: -3px; width: 14px; height: 14px; padding: 0; border: 0; background: none; color: var(--ink-3); cursor: pointer; display: grid; place-items: center; }
-.im-colour-swap:hover { color: var(--accent); }
+.im-colour-swap:hover { color: var(--accent-text); }
 [dir='rtl'] .im-colour.fore { left: auto; right: 0; }
 [dir='rtl'] .im-colour.back { right: auto; left: 0; }
 [dir='rtl'] .im-colour-swap { right: auto; left: -2px; }
@@ -317,7 +317,7 @@ export const TOOLS_CSS = `
 .im-opt-seg button { border: 0; background: var(--surface); color: var(--ink-2); font: inherit; font-size: 12px; padding: 3px 9px; cursor: pointer; }
 .im-opt-seg button + button { border-inline-start: 1px solid var(--line); }
 .im-opt-seg button:hover { background: var(--hover); color: var(--ink); }
-.im-opt-seg button[aria-checked='true'] { background: var(--selected); color: var(--accent); font-weight: 600; }
+.im-opt-seg button[aria-checked='true'] { background: var(--selected); color: var(--accent-text); font-weight: 600; }
 .im-opt-range input[type=range] { -webkit-appearance: none; appearance: none; height: 16px; margin: 0; background: transparent; cursor: pointer; }
 .im-opt-range input[type=range]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: var(--line); }
 .im-opt-range input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; margin-top: -5px; border-radius: 50%; background: var(--bg, #fff); border: 2px solid var(--accent); }

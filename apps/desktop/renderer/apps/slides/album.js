@@ -98,7 +98,7 @@ export const ALBUM_CSS = `
 .sl-album-list { height: 170px; overflow: auto; border: 1px solid var(--line-soft); border-radius: var(--r-2); background: var(--surface); }
 .sl-album-row { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; border-bottom: 1px solid var(--line-soft); background: none; font: inherit; color: var(--ink); text-align: left; padding: 4px 8px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sl-album-row:hover { background: var(--hover); }
-.sl-album-row.on { background: var(--selected); color: var(--accent); }
+.sl-album-row.on { background: var(--selected); color: var(--accent-text); }
 .sl-album-n { width: 20px; color: var(--ink-3); font-variant-numeric: tabular-nums; flex: none; }
 .sl-album-empty { padding: 10px; color: var(--ink-3); }
 .sl-album-tools { display: flex; align-items: center; gap: 4px; }

@@ -372,12 +372,12 @@ export const ARCHIVE_CSS = `
   padding: 8px 12px 7px; background: color-mix(in srgb, var(--accent) 7%, var(--surface));
   border-bottom: 1px solid var(--line-soft); font-size: 12px; color: var(--ink-2);
 }
-.ml-archive-banner > svg { color: var(--accent); grid-row: 1 / span 2; align-self: start; margin-top: 1px; }
+.ml-archive-banner > svg { color: var(--accent-text); grid-row: 1 / span 2; align-self: start; margin-top: 1px; }
 .ml-archive-name { color: var(--ink); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ml-archive-size { font-size: 11px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ml-archive-note { grid-column: 2 / 4; color: var(--ink-3); font-size: 11.5px; line-height: 1.4; }
 .ml-archive-actions { grid-column: 2 / 4; display: flex; gap: 14px; margin-top: 3px; }
-.ml-archive-actions button { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
+.ml-archive-actions button { border: 0; background: none; color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
 .ml-archive-actions button:hover { text-decoration: underline; }
 
 .ml-where {
@@ -410,7 +410,7 @@ export const ARCHIVE_CSS = `
 }
 .ml-help-row:last-child { border-bottom: 0; }
 .ml-help-row:hover { background: var(--hover); }
-.ml-help-row code { font-family: var(--mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; font-size: 11.5px; color: var(--accent); text-align: left; white-space: pre; }
+.ml-help-row code { font-family: var(--mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; font-size: 11.5px; color: var(--accent-text); text-align: left; white-space: pre; }
 .ml-help-row span { color: var(--ink-2); }
 
 .ml-hold-section { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); margin: 4px 0 6px; }

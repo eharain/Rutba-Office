@@ -273,11 +273,11 @@ export const BULK_CSS = `
 .ml-bulk-mark .rw-spinner { width: 12px; height: 12px; border-width: 2px; }
 .ml-bulk-row.good .ml-bulk-mark { color: var(--good, #2e7d32); }
 .ml-bulk-row.bad .ml-bulk-mark { color: var(--bad, #c62828); }
-.ml-bulk-row.plain .ml-bulk-mark { color: var(--accent); }
+.ml-bulk-row.plain .ml-bulk-mark { color: var(--accent-text); }
 .ml-bulk-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .ml-bulk-state { color: var(--ink-2); }
 .ml-bulk-row.bad .ml-bulk-state { color: var(--bad, #c62828); }
-.ml-bulk-row button { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
+.ml-bulk-row button { border: 0; background: none; color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
 `;
 
 let installed = false;

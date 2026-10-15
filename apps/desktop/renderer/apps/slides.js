@@ -4269,7 +4269,7 @@ const CSS = `
 .sl-format-row select.rw-input { height: 26px; font-size: 12px; }
 .sl-format-kinds { flex-wrap: wrap; gap: 6px; }
 .sl-chip { white-space: nowrap; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: var(--ink-2); }
-.sl-chip:hover, .sl-chip.current { color: var(--accent); border-color: var(--accent); }
+.sl-chip:hover, .sl-chip.current { color: var(--accent-text); border-color: var(--accent); }
 .sl-format-slider { min-width: 120px; }
 .sl-format-slider input[type="range"] { width: 100%; }
 .sl-format-check { flex-direction: row !important; align-items: center; gap: 5px !important; }
@@ -4299,7 +4299,7 @@ const CSS = `
 .sl-design-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px; font-size: 12px; border-top: 1px solid var(--line-soft); }
 .sl-design-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sl-design-new { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 9px; font-size: 11.5px; color: var(--ink-2); }
-.sl-design-new:hover { color: var(--accent); border-color: var(--accent); }
+.sl-design-new:hover { color: var(--accent-text); border-color: var(--accent); }
 
 .sl-sorter { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
 /* Slide Master view's strip: the master, then its layouts indented under it, smaller, joined by a rule. */
@@ -4312,14 +4312,14 @@ const CSS = `
 .sl-mthumb-layout::before { content: ''; position: absolute; left: 9px; top: -8px; bottom: 50%; width: 9px; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); border-bottom-left-radius: 4px; }
 .sl-mthumb-name { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-2); padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sl-mthumb-master .sl-mthumb-name { font-weight: 600; color: var(--ink); }
-.sl-mthumb.active .sl-mthumb-name { color: var(--accent); }
+.sl-mthumb.active .sl-mthumb-name { color: var(--accent-text); }
 .sl-mthumb-used { flex: none; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line-soft); color: var(--ink-3); font-size: 10px; display: inline-grid; place-items: center; }
 /* A section's heading, above its first slide, as PowerPoint draws one: the name and how many slides. */
 .sl-section { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding: 6px 2px 0 20px; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .sl-sortergrid .sl-section { grid-column: 1 / -1; padding-left: 2px; }
 .sl-section + .sl-section, .sl-sorter .sl-section:first-child { padding-top: 0; }
 .sl-section-name { font-size: 11.5px; font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sl-section:hover .sl-section-name { color: var(--accent); }
+.sl-section:hover .sl-section-name { color: var(--accent-text); }
 .sl-section-count { font-size: 10.5px; color: var(--ink-3); flex: none; }
 .sl-thumb { display: flex; align-items: stretch; gap: 7px; border: 0; background: transparent; padding: 0; text-align: left; }
 .sl-thumb-n { width: 16px; font-size: 11px; color: var(--ink-3); padding-top: 3px; flex: none; text-align: right; }
@@ -4398,7 +4398,7 @@ const CSS = `
 /* The rotation handle: a small circle above the selection, joined to it by
    a thin line that orbits with the shape as it turns. */
 .sl-rotate-line { position: absolute; z-index: 5; background: var(--accent); pointer-events: none; }
-.sl-model3d-handle { position: absolute; z-index: 6; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid var(--accent); background: rgba(255, 255, 255, 0.85); color: var(--accent); cursor: grab; box-sizing: border-box; }
+.sl-model3d-handle { position: absolute; z-index: 6; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid var(--accent); background: rgba(255, 255, 255, 0.85); color: var(--accent-text); cursor: grab; box-sizing: border-box; }
 .sl-model3d-handle:active { cursor: grabbing; }
 .sl-model3d-preview { position: absolute; z-index: 3; pointer-events: none; }
 .sl-rotate-handle {
@@ -4446,8 +4446,8 @@ const CSS = `
 .sl-motion-paths circle.end { fill: #d13438; }
 /* The numbers beside animated shapes on the stage (Animations tab): PowerPoint's grey tags, the picked one in the accent. */
 .sl-anim-badge { position: absolute; z-index: 7; display: grid; place-items: center; padding: 0; border: 1px solid #8a8f98; background: #f3f4f6; color: #30343b; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; cursor: pointer; box-sizing: border-box; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
-.sl-anim-badge:hover { border-color: var(--accent); color: var(--accent); }
-.sl-anim-badge.current { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sl-anim-badge:hover { border-color: var(--accent); color: var(--accent-text); }
+.sl-anim-badge.current { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
 /* Animations → Animation Pane. */
 .sl-animpane { display: flex; flex-direction: column; }
 .sl-animrow { display: flex; align-items: center; gap: 7px; padding: 6px 10px 6px 6px; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; color: var(--ink); cursor: default; }
@@ -4471,7 +4471,7 @@ const CSS = `
 /* The strip's star: this slide has a transition (or animations). */
 .sl-thumb-n { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .sl-thumb-fx { display: grid; place-items: center; color: var(--ink-3); text-decoration: none; }
-.sl-thumb.active .sl-thumb-fx { color: var(--accent); }
+.sl-thumb.active .sl-thumb-fx { color: var(--accent-text); }
 .sl-sorterfx { position: absolute; right: 6px; bottom: 4px; display: grid; place-items: center; color: var(--ink-3); background: rgba(255,255,255,.85); padding: 1px 3px; border-radius: 3px; }
 /* Ribbon fields: Duration, the Advance Slide ticks and After. */
 .sl-rb-field { display: flex; align-items: center; gap: 6px; height: 26px; font-size: 12px; color: var(--ink-2); white-space: nowrap; padding: 0 4px; }

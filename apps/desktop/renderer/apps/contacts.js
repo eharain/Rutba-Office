@@ -522,7 +522,7 @@ const CSS = `
 .ct-fields dt { color: var(--ink-3); text-transform: lowercase; padding-top: 1px; }
 .ct-fields dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .ct-addr, .ct-note { white-space: pre-line; }
-.ct-link { border: 0; background: none; padding: 0; font: inherit; color: var(--accent); cursor: pointer; text-align: left; }
+.ct-link { border: 0; background: none; padding: 0; font: inherit; color: var(--accent-text); cursor: pointer; text-align: left; }
 .ct-link:hover { text-decoration: underline; }
 .ct-name { font-size: 20px; font-weight: 600; }
 .ct-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

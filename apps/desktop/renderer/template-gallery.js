@@ -237,7 +237,7 @@ const CSS = `
 .tg-rail-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tg-rail-item small { color: var(--ink-3); font-size: 11px; }
 .tg-rail-item:hover { background: var(--hover); color: var(--ink); }
-.tg-rail-item.on { background: var(--selected); color: var(--accent); font-weight: 600; }
+.tg-rail-item.on { background: var(--selected); color: var(--accent-text); font-weight: 600; }
 .tg-dot { width: 15px; height: 15px; display: grid; place-items: center; flex: none; }
 .tg-dot::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.55; }
 .tg-grid-wrap { flex: 1; min-width: 0; overflow: auto; padding: 18px 20px 22px; overscroll-behavior: contain; }

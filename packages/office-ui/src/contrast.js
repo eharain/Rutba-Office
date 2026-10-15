@@ -27,7 +27,16 @@ export const SURFACE = { light: '#ffffff', dark: '#1e2127' };
 export const AA = 4.5;
 export const AA_LARGE = 3;
 
-/** '#rgb', '#rrggbb', '#aarrggbb' (Excel's ARGB) or 'rgb(r, g, b)' as [r, g, b], or null. */
+/** The colour names documents use most (mail's HTML above all), as CSS defines them. */
+const NAMED = {
+  white: [255, 255, 255], black: [0, 0, 0], red: [255, 0, 0], green: [0, 128, 0], blue: [0, 0, 255], navy: [0, 0, 128],
+  maroon: [128, 0, 0], purple: [128, 0, 128], teal: [0, 128, 128], olive: [128, 128, 0], gray: [128, 128, 128], grey: [128, 128, 128],
+  silver: [192, 192, 192], darkblue: [0, 0, 139], darkred: [139, 0, 0], darkgreen: [0, 100, 0], darkgray: [169, 169, 169], darkgrey: [169, 169, 169],
+  dimgray: [105, 105, 105], dimgrey: [105, 105, 105], lightgray: [211, 211, 211], lightgrey: [211, 211, 211], whitesmoke: [245, 245, 245],
+  midnightblue: [25, 25, 112], darkslategray: [47, 79, 79], darkslategrey: [47, 79, 79], orange: [255, 165, 0], yellow: [255, 255, 0],
+};
+
+/** '#rgb', '#rrggbb', '#aarrggbb' (Excel's ARGB), 'rgb(r, g, b)' or a common name as [r, g, b], or null. */
 export function parseColour(value) {
   if (typeof value !== 'string') return null;
   const s = value.trim().toLowerCase();
@@ -44,9 +53,7 @@ export function parseColour(value) {
     }
     return [m[1], m[2], m[3]].map((n) => Math.min(255, Number(n)));
   }
-  if (s === 'white') return [255, 255, 255];
-  if (s === 'black') return [0, 0, 0];
-  return null;
+  return NAMED[s] ? [...NAMED[s]] : null;
 }
 
 const hex = (rgb) => '#' + rgb.map((n) => Math.round(Math.max(0, Math.min(255, n))).toString(16).padStart(2, '0')).join('');

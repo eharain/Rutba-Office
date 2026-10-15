@@ -1482,9 +1482,9 @@ const CSS = `
   transition: background var(--fast), color var(--fast), border-color var(--fast);
 }
 .pv-kind:hover { background: var(--hover); color: var(--ink); }
-.pv-kind[aria-pressed='true'] { background: var(--selected); color: var(--accent); border-color: var(--accent-line); }
+.pv-kind[aria-pressed='true'] { background: var(--selected); color: var(--accent-text); border-color: var(--accent-line); }
 .pv-kind-n { font-size: 10.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.pv-kind[aria-pressed='true'] .pv-kind-n { color: var(--accent); opacity: 0.8; }
+.pv-kind[aria-pressed='true'] .pv-kind-n { color: var(--accent-text); opacity: 0.8; }
 .pv-order { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .pv-tools.stacked .pv-order { margin-left: 0; justify-content: space-between; }
 
@@ -1495,7 +1495,7 @@ const CSS = `
 .pv-size[data-size='m'] i { width: 10px; height: 10px; }
 .pv-size[data-size='l'] i { width: 13px; height: 13px; }
 .pv-size:hover { background: var(--hover); color: var(--ink); }
-.pv-size[aria-pressed='true'] { background: var(--surface); color: var(--accent); box-shadow: var(--shadow-1); }
+.pv-size[aria-pressed='true'] { background: var(--surface); color: var(--accent-text); box-shadow: var(--shadow-1); }
 
 /* ── the grid ── */
 .pv-grid-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; position: relative; padding-top: 8px; scrollbar-width: thin; }
@@ -1517,7 +1517,7 @@ const CSS = `
 .pv-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .pv-tile.active { box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 2px var(--accent-soft); }
 .pv-tile.folder { background: var(--surface-2); }
-.pv-tile.folder .pv-tile-icon { color: var(--accent); opacity: 0.85; }
+.pv-tile.folder .pv-tile-icon { color: var(--accent-text); opacity: 0.85; }
 .pv-tile.folder .pv-tile-name { color: var(--ink); background: none; font-weight: 600; text-align: center; }
 .pv-thumb {
   width: 100%; height: 100%; object-fit: cover; display: block; background: var(--sunken);
@@ -1603,7 +1603,7 @@ const CSS = `
 .pv-folder-count { position: absolute; left: 0; right: 0; bottom: 7px; text-align: center; font-size: 10.5px; color: var(--ink-3); pointer-events: none; }
 .pv-tile.folder:has(.pv-folder-count) .pv-tile-name { padding-bottom: 22px; }
 .pv-deep { font: inherit; font-size: 11.5px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); background: none; color: inherit; cursor: pointer; }
-.pv-deep[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.pv-deep[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-text); }
 .pv-detail-name { font-weight: 600; font-size: 12.5px; word-break: break-all; }
 .pv-detail-wait { font-size: 11.5px; color: var(--ink-3); }
 .pv-details dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: 11.5px; }

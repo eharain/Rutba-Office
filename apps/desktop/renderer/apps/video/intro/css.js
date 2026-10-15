@@ -7,7 +7,7 @@ export const INTRO_CSS = `
 .vi-scene-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; background: none; border: 0; font: inherit; color: var(--ink); text-align: start; cursor: pointer; border-radius: 8px; }
 .vi-scene-head:hover { background: var(--hover); }
 .vi-num { flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--sunken); color: var(--ink-2); font-size: 11px; font-weight: 700; display: grid; place-items: center; }
-.vi-scene.open .vi-num { background: var(--accent); color: var(--ink-on-accent); }
+.vi-scene.open .vi-num { background: var(--accent-fill); color: var(--ink-on-accent); }
 .vi-scene-name { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
 .vi-scene-name b { font-size: 12.5px; font-weight: 600; }
 .vi-scene-name small { font-size: 11px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

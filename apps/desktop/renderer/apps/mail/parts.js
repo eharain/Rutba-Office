@@ -9,6 +9,7 @@
 
 import { withoutBlocks } from '@rutba/mailbox/mime';
 import { t } from '@rutba/office-ui/messages';
+import { parseColour, readableOn, inkOn, contrast, INK, AA } from '@rutba/office-ui/contrast';
 
 export const BLOCKED_NOTE = 'blocked-remote';
 
@@ -37,6 +38,8 @@ export function bodyDocument(message, { remote = false, dark = false, plain = fa
     html = html.replace(/(<img\b[^<>]*?\bsrc=)(["'])(https?:[^"']*)\2/gi, `$1$2$2 data-${BLOCKED_NOTE}=$2$3$2`);
   }
 
+  if (dark) html = darkBody(html);
+
   const csp = remote
     ? "default-src 'none'; img-src https: data: rutba: blob:; style-src 'unsafe-inline'; font-src data:"
     : "default-src 'none'; img-src data: rutba: blob:; style-src 'unsafe-inline'; font-src data:";
@@ -57,6 +60,85 @@ export function bodyDocument(message, { remote = false, dark = false, plain = fa
   a { color: ${dark ? '#7fb0ff' : '#1a56c4'}; }
   table { max-width: 100%; }
 </style></head><body>${html}</body></html>`;
+}
+
+/** The reading frame's own colours at night: its paper, and its light-theme inks for a box the sender filled light. */
+const NIGHT = '#1e2127';
+const DAY_INK = { text: '#1a1c20', a: '#1a56c4', blockquote: '#5b626d' };
+const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+
+/**
+ * A message's own colours made to read on the dark reading frame, the way
+ * a mail client's dark mode does, with the same rule as a sheet's cells:
+ *
+ * - a colour the sender set on a fill the sender also set is the sender's
+ *   pair and is kept (white on a navy band, dark words in a pale box);
+ * - a colour set with no fill under it would sit on the dark frame: it is
+ *   lifted, keeping its hue, until it reads (#333 becomes a light grey, a
+ *   navy heading a light blue);
+ * - a box the sender filled light keeps its fill, and words in it that had
+ *   no colour of their own get the light theme's ink, not the night's (its
+ *   links and quotes too), so they never go light on light.
+ *
+ * One pass over the tags, keeping the fills and colours each sits inside;
+ * linear in the message, however its tags are left open. A fill on the
+ * message's own html or body tag is not drawn (the frame's body is ours)
+ * and is not taken for one.
+ */
+export function darkBody(html) {
+  const stack = [];
+  const top = () => stack[stack.length - 1] || { fill: null, ink: null };
+  const styleOf = (attrs) => /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs);
+  const patterns = new Map();
+  const decl = (style, prop) => {
+    if (!style) return null;
+    if (!patterns.has(prop)) patterns.set(prop, new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`, 'i'));
+    const m = patterns.get(prop).exec(style);
+    return m ? m[1].replace(/!important/i, '').trim() : null;
+  };
+  // A message sets the same few colours again and again: each is worked out once.
+  const liftedOf = new Map();
+  const lift = (colour) => {
+    if (!liftedOf.has(colour)) liftedOf.set(colour, readableOn(colour, NIGHT, AA));
+    return liftedOf.get(colour);
+  };
+  const colourIn = (value) => {
+    if (!value) return null;
+    const m = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)|\b[a-z]+\b/gi;
+    for (const token of String(value).match(m) || []) if (parseColour(token)) return token;
+    return null;
+  };
+  const withInk = (attrs, ink) => {
+    const s = styleOf(attrs);
+    if (!s) return `${attrs.replace(/\s*\/\s*$/, '')} style="color: ${ink}"${/\/\s*$/.test(attrs) ? ' /' : ''}`;
+    const body = (s[1] ?? s[2]).replace(/(^|;)\s*color\s*:[^;]*/gi, '$1').replace(/;\s*;/g, ';').replace(/^\s*;|;\s*$/g, '');
+    return attrs.replace(s[0], `style="${(body ? body + '; ' : '').replace(/"/g, '&quot;')}color: ${ink}"`);
+  };
+  return html.replace(/<(\/?)([a-zA-Z][\w:-]*)([^<>]*)>/g, (all, close, raw, attrs) => {
+    const name = raw.toLowerCase();
+    if (close) {
+      for (let i = stack.length - 1; i >= 0; i--) if (stack[i].name === name) { stack.length = i; break; }
+      return all;
+    }
+    const style = styleOf(attrs)?.slice(1).find((v) => v !== undefined) || '';
+    const own = colourIn(decl(style, 'color')) || (name === 'font' ? colourIn(/\bcolor\s*=\s*["']?([^"'\s>]+)/i.exec(attrs)?.[1]) : null);
+    const body = name === 'body' || name === 'html';
+    const filled = body ? null : colourIn(decl(style, 'background-color')) || colourIn(decl(style, 'background')) || colourIn(/\bbgcolor\s*=\s*["']?([^"'\s>]+)/i.exec(attrs)?.[1]);
+    const parent = top();
+    const fill = filled || parent.fill;
+    let ink = null;
+    if (own && !fill) {
+      const lifted = lift(own);
+      if (lifted !== own) ink = lifted;
+    } else if (!own && filled && inkOn(filled) === INK.light) {
+      ink = parent.ink && contrast(parent.ink, filled) >= AA ? parent.ink : DAY_INK.text;
+    } else if (!own && (name === 'a' || name === 'blockquote') && fill && inkOn(fill) === INK.light) {
+      ink = DAY_INK[name];
+    }
+    // Nested past any real message's depth, the innermost context stands for the rest.
+    if (!VOID.has(name) && !/\/\s*$/.test(attrs) && stack.length < 256) stack.push({ name, fill, ink: own || parent.ink });
+    return ink ? `<${raw}${withInk(attrs, ink)}>` : all;
+  });
 }
 
 /** HTML to something readable, for the plain-text view and for quoting a reply. */
@@ -235,7 +317,7 @@ export const CSS = `
 .ml-compose-cta { padding: 10px 10px 8px; }
 .ml-compose-cta button {
   width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 9px 12px; border: 0; border-radius: var(--r-2); background: var(--accent);
+  padding: 9px 12px; border: 0; border-radius: var(--r-2); background: var(--accent-fill);
   color: #fff; font: inherit; font-weight: 600; font-size: 13px; cursor: pointer;
   transition: filter var(--fast);
 }
@@ -325,7 +407,7 @@ export const CSS = `
 .ml-to { color: var(--ink-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ml-date { color: var(--ink-3); font-size: 11.5px; flex: none; }
 .ml-attachments { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
-.ml-keep { margin-left: 8px; border: 0; background: none; padding: 0 4px; font: inherit; font-size: 11.5px; color: var(--accent); cursor: pointer; display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; }
+.ml-keep { margin-left: 8px; border: 0; background: none; padding: 0 4px; font: inherit; font-size: 11.5px; color: var(--accent-text); cursor: pointer; display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; }
 .ml-invite { display: flex; align-items: center; gap: 12px; margin: 12px 0 0; padding: 12px 14px; border-radius: var(--r-2); background: var(--sunken); border-left: 4px solid #1a9f7a; }
 .ml-invite-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ml-invite-title { font-weight: 600; }
@@ -389,7 +471,7 @@ export const CSS = `
 .ml-agree-list { margin: 0; padding: 0 0 0 23px; color: var(--ink-2); }
 .ml-agree-list b { color: var(--ink); font-weight: 600; }
 .ml-agree-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.ml-steps-toggle { align-self: flex-start; border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; }
+.ml-steps-toggle { align-self: flex-start; border: 0; background: none; padding: 0; color: var(--accent-text); font: inherit; font-size: 12px; cursor: pointer; }
 .ml-steps { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
 .ml-step { display: grid; grid-template-columns: 16px 150px 1fr; gap: 6px; align-items: baseline; color: var(--ink-2); }
 .ml-step .name { color: var(--ink); }
@@ -441,7 +523,7 @@ select.rw-input { appearance: auto; }
 .ml-provider .domain { color: var(--ink-3); font-size: 11.5px; }
 .ml-provider-change {
   align-self: flex-start; border: 0; background: none; padding: 0; margin-bottom: 2px;
-  color: var(--accent); font: inherit; font-size: 12px; cursor: pointer;
+  color: var(--accent-text); font: inherit; font-size: 12px; cursor: pointer;
 }
 .ml-note .grow { flex: 1; min-width: 0; }
 .ml-app-password { flex: none; }
@@ -463,8 +545,8 @@ select.rw-input { appearance: auto; }
   border: 0; background: none; color: var(--ink-3); font: inherit; font-size: 11.5px;
   cursor: pointer; padding: 2px 4px; border-radius: var(--r-1);
 }
-.ml-linkchip:hover { color: var(--accent); background: var(--hover); }
-.ml-linkchip.on { color: var(--accent); font-weight: 600; }
+.ml-linkchip:hover { color: var(--accent-text); background: var(--hover); }
+.ml-linkchip.on { color: var(--accent-text); font-weight: 600; }
 .ml-files { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .ml-rule-row { display: flex; align-items: center; gap: 7px; }
@@ -507,7 +589,7 @@ select.rw-input { appearance: auto; }
   border-bottom: 1px solid var(--line);
 }
 .ml-ooo-banner button {
-  border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600;
+  border: 0; background: none; color: var(--accent-text); font: inherit; font-weight: 600;
   cursor: pointer; padding: 0; margin-left: auto;
 }
 .ml-ooo-toggle { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin: 10px 0; cursor: pointer; }

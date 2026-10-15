@@ -775,7 +775,7 @@ export const REFERENCES_CSS = `
 .wd-refs-row:hover { background: var(--hover); }
 .wd-refs-row.on { background: var(--selected-strong); }
 .wd-refs-row-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.wd-refs-mark { width: 14px; flex: none; display: inline-flex; justify-content: center; color: var(--accent); }
+.wd-refs-mark { width: 14px; flex: none; display: inline-flex; justify-content: center; color: var(--accent-text); }
 .wd-refs-q { font-weight: 700; color: #b8860b; }
 .wd-refs-empty { padding: 16px 14px; font-size: 12px; color: var(--ink-3); line-height: 1.45; }
 .wd-refs-verbs { display: flex; flex-direction: column; gap: 7px; justify-content: center; }

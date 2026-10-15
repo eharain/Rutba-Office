@@ -324,7 +324,7 @@ export const OBJECTS_CSS = `
 .sh-selpane-list { flex: 1; overflow: auto; padding: 4px; }
 .sh-selpane-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 9px; border-radius: 6px; font-size: 12.5px; color: var(--ink); cursor: default; user-select: none; }
 .sh-selpane-row:hover { background: var(--hover); }
-.sh-selpane-row.on { background: var(--selected); color: var(--accent); font-weight: 600; }
+.sh-selpane-row.on { background: var(--selected); color: var(--accent-text); font-weight: 600; }
 .sh-selpane-row.hidden .sh-selpane-label { color: var(--ink-3); font-style: italic; }
 .sh-selpane-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sh-selpane-name { flex: 1; min-width: 0; height: 24px; font-size: 12.5px; }
@@ -349,9 +349,9 @@ export const OBJECTS_CSS = `
 .sh-slicer-caption { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sh-slicer-tool { width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--ink-2); cursor: pointer; flex: none; }
 .sh-slicer-tool:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
-.sh-slicer-tool.on { background: var(--selected); border-color: var(--accent-line); color: var(--accent); }
+.sh-slicer-tool.on { background: var(--selected); border-color: var(--accent-line); color: var(--accent-text); }
 .sh-slicer-tool:disabled { opacity: .38; cursor: default; }
-.sh-slicer.filtered .sh-slicer-clear { color: var(--accent); }
+.sh-slicer.filtered .sh-slicer-clear { color: var(--accent-text); }
 .sh-slicer-items { flex: 1; min-height: 0; overflow: auto; display: grid; gap: 5px; padding: 8px 9px 9px; align-content: start; }
 .sh-slicer-item {
   display: flex; align-items: center; min-width: 0; padding: 0 9px; box-sizing: border-box;
@@ -370,7 +370,7 @@ export const OBJECTS_CSS = `
 .sh-pivot-kinds { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
 .sh-pivot-kind { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink-2); font: inherit; font-size: 11.5px; cursor: pointer; }
 .sh-pivot-kind:hover { background: var(--hover); }
-.sh-pivot-kind.on { border-color: var(--accent); background: var(--selected); color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.sh-pivot-kind.on { border-color: var(--accent); background: var(--selected); color: var(--accent-text); box-shadow: 0 0 0 2px var(--accent-soft); }
 
 /* Insert → Slicer's dialog. */
 .sh-slicers-from { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-2); margin-bottom: 8px; }

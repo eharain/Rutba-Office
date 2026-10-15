@@ -821,7 +821,7 @@ export const DRAWING_CSS = `
 .wd-rotate-stem { position: absolute; left: 50%; top: -22px; width: 1px; height: 22px; background: var(--accent); }
 .wd-rotate {
   position: absolute; left: calc(50% - 9px); top: -40px; width: 18px; height: 18px; border-radius: 50%;
-  background: #fff; border: 1.5px solid var(--accent); color: var(--accent); display: grid; place-items: center;
+  background: #fff; border: 1.5px solid var(--accent); color: var(--accent-text); display: grid; place-items: center;
   pointer-events: auto; cursor: grab; box-sizing: border-box;
 }
 /* Draw Text Box: the page takes a rectangle. */

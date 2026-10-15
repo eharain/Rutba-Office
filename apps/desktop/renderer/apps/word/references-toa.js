@@ -185,7 +185,7 @@ export const TOA_CSS = `
 .wd-toa-cats { height: 268px; }
 .wd-toa-item { display: block; width: 100%; border: 0; border-bottom: 1px solid var(--line-soft); background: none; font: inherit; font-size: 12.5px; color: var(--ink); text-align: left; padding: 4px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wd-toa-item:hover { background: var(--hover); }
-.wd-toa-item.on { background: var(--selected); color: var(--accent); }
+.wd-toa-item.on { background: var(--selected); color: var(--accent-text); }
 .wd-toa-empty { padding: 8px; color: var(--ink-3); font-size: 12px; }
 .wd-toa-preview { height: 176px; margin-bottom: 8px; }
 .wd-toa-line > span:first-child { white-space: normal; }

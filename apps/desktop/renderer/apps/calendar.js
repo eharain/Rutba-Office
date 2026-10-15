@@ -948,7 +948,7 @@ const CSS = `
 .cal-mini-grid .h { text-align: center; color: var(--ink-3); font-size: 10px; padding: 2px 0; }
 .cal-mini-grid button { border: 0; background: none; font: inherit; font-size: 11px; padding: 3px 0; border-radius: 4px; color: var(--ink); cursor: pointer; }
 .cal-mini-grid button.other { color: var(--ink-3); }
-.cal-mini-grid button.today { font-weight: 700; color: var(--accent); }
+.cal-mini-grid button.today { font-weight: 700; color: var(--accent-text); }
 .cal-mini-grid button.on { background: var(--selected); }
 .cal-mini-grid button:hover { background: var(--hover); }
 .cal-cals-head { font-size: 11px; font-weight: 600; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; margin: 6px 0 4px; }
@@ -972,7 +972,7 @@ const CSS = `
 .cal-month-probe { position: absolute; top: 0; left: 0; width: 120px; visibility: hidden; pointer-events: none; display: flex; flex-direction: column; }
 .cal-day { min-width: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 2px 4px 1px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 2px; cursor: cell; }
 .cal-day.other { background: var(--sunken); color: var(--ink-3); }
-.cal-day.today .cal-day-n { background: var(--accent); color: white; }
+.cal-day.today .cal-day-n { background: var(--accent-fill); color: white; }
 .cal-day-n, .cal-probe-n { align-self: flex-end; font-size: 12px; line-height: 14px; font-weight: 600; padding: 1px 6px; border-radius: 10px; }
 .cal-day-top, .cal-probe-top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 4px; }
 .cal-day-h, .cal-probe-h, .cal-col-head .dh { font-size: 10.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -983,7 +983,7 @@ const CSS = `
 .cal-chip.allday .t { color: white; }
 .cal-chip .s { overflow: hidden; text-overflow: ellipsis; }
 /* At the foot of the day, under the events it did not have room for. */
-.cal-more, .cal-probe-more { flex: none; margin-top: auto; align-self: flex-start; border: 0; border-radius: 3px; background: none; font: inherit; font-size: 11px; line-height: 14px; font-weight: 600; color: var(--accent); text-align: left; padding: 0 5px; cursor: pointer; }
+.cal-more, .cal-probe-more { flex: none; margin-top: auto; align-self: flex-start; border: 0; border-radius: 3px; background: none; font: inherit; font-size: 11px; line-height: 14px; font-weight: 600; color: var(--accent-text); text-align: left; padding: 0 5px; cursor: pointer; }
 .cal-more:hover { background: var(--hover); }
 .cal-peek { outline: none; position: absolute; z-index: 5; display: flex; flex-direction: column; max-height: 100%; box-sizing: border-box; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-3); padding: 8px 8px 10px; animation: rw-pop 120ms var(--ease); }
 .cal-peek-top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
@@ -994,7 +994,7 @@ const CSS = `
 .cal-peek-head .dw { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
 .cal-peek-head .dn { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-peek-head .dm { font-size: 11px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal-peek.today .cal-peek-head .dd { color: var(--accent); }
+.cal-peek.today .cal-peek-head .dd { color: var(--accent-text); }
 .cal-peek-x { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 6px; background: none; color: var(--ink-2); cursor: pointer; }
 .cal-peek-x:hover { background: var(--hover); color: var(--ink); }
 .cal-peek-list { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; min-height: 0; }
@@ -1006,7 +1006,7 @@ const CSS = `
 .cal-hours { scrollbar-gutter: stable; }
 .cal-gutter { font-size: 10.5px; color: var(--ink-3); text-align: right; padding-right: 6px; }
 .cal-col-head { padding: 4px 6px; font-size: 12px; color: var(--ink-2); border-bottom: 1px solid var(--line); }
-.cal-col-head.today .dd { background: var(--accent); color: white; border-radius: 10px; padding: 0 6px; }
+.cal-col-head.today .dd { background: var(--accent-fill); color: white; border-radius: 10px; padding: 0 6px; }
 .cal-col-head .dd { font-weight: 700; }
 .cal-allday { min-height: 28px; border-bottom: 1px solid var(--line); }
 .cal-allday .cal-gutter { padding-top: 6px; }
@@ -1032,7 +1032,7 @@ const CSS = `
 .cal-agenda-date .dn { font-size: 11px; color: var(--ink-3); }
 .cal-agenda-date .dd { font-size: 22px; font-weight: 700; }
 .cal-agenda-date .dm { font-size: 11px; color: var(--ink-3); }
-.cal-agenda-day.today .cal-agenda-date .dd { color: var(--accent); }
+.cal-agenda-day.today .cal-agenda-date .dd { color: var(--accent-text); }
 .cal-agenda-list { display: flex; flex-direction: column; gap: 4px; }
 .cal-agenda-item { display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: baseline; border: 0; border-left: 3px solid var(--c); border-radius: 4px; background: var(--sunken); font: inherit; font-size: 13px; padding: 6px 10px; text-align: left; color: var(--ink); cursor: pointer; }
 .cal-agenda-item .t { color: var(--ink-3); font-size: 12px; }

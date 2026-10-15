@@ -191,7 +191,7 @@ export const FOUND_CSS = `
 .pdf-found-box { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border: 0; border-radius: var(--r-1); background: transparent; font: inherit; font-size: 12px; color: var(--ink); text-align: start; cursor: pointer; min-width: 0; }
 .pdf-found-box span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pdf-found-tick { width: 14px; height: 14px; flex: none; display: grid; place-items: center; border: 1.5px solid var(--ink-3); border-radius: 3px; background: var(--surface); }
-.pdf-found-box[data-checked='yes'] .pdf-found-tick { border-color: var(--accent); background: var(--accent); color: #fff; }
+.pdf-found-box[data-checked='yes'] .pdf-found-tick { border-color: var(--accent-fill); background: var(--accent-fill); color: #fff; }
 .pdf-found-done { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-2); }
 .pdf-found-done svg { color: var(--good); }
 .pdf-found-card > .rw-btn { align-self: flex-start; }

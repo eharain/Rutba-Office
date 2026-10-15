@@ -4515,7 +4515,7 @@ const CSS = `
   font-variant-numeric: tabular-nums; user-select: none;
   transition: background var(--fast), color var(--fast);
 }
-.sh-head.active { background: var(--selected); color: var(--accent); font-weight: 600; }
+.sh-head.active { background: var(--selected); color: var(--accent-text); font-weight: 600; }
 /* The heading of the active column carries a bar along its edge, the row's likewise. */
 .sh-colheads .sh-head.active { box-shadow: inset 0 -2px 0 var(--accent); }
 .sh-rowheads .sh-head.active { box-shadow: inset -2px 0 0 var(--accent); }
@@ -4545,7 +4545,7 @@ const CSS = `
   font-size: 9.5px; font-weight: 600; line-height: 12px; text-align: center; cursor: pointer;
   font-variant-numeric: tabular-nums;
 }
-.sh-ol-level:hover { border-color: var(--accent); color: var(--accent); background: var(--selected); }
+.sh-ol-level:hover { border-color: var(--accent); color: var(--accent-text); background: var(--selected); }
 .sh-sub-cols { display: flex; flex-direction: column; gap: 5px; max-height: 132px; overflow: auto; padding: 6px 8px; border: 1px solid var(--line-soft); border-radius: var(--r-2); }
 /* The edge of a heading is a handle: drag it and the column or row follows. */
 .sh-grip { position: absolute; z-index: 4; }
@@ -4568,7 +4568,7 @@ const CSS = `
 }
 .sh-cell.sel { background: var(--selected); }
 /* A link: the accent, underlined, a hand; Ctrl+click follows it. */
-.sh-cell.link { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); cursor: pointer; }
+.sh-cell.link { color: var(--accent-text); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); cursor: pointer; }
 /* A note: Excel's red corner, and the note itself on hover through the tip layer. */
 .sh-cell.noted::after { content: ''; position: absolute; top: 0; right: 0; border: 4px solid transparent; border-top-color: #d0362f; border-right-color: #d0362f; }
 /* View → Page Break Preview: the unprinted greyed, the pages edged in blue,
@@ -4608,7 +4608,7 @@ const CSS = `
 .sh-viewbtn { width: 24px; height: 22px; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--r-2); background: transparent; color: var(--ink-2); cursor: pointer; padding: 0; }
 .sh-viewbtn svg { fill: none; stroke: currentColor; stroke-width: 1.1; }
 .sh-viewbtn:hover { background: var(--hover); }
-.sh-viewbtn.on { background: var(--selected); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.sh-viewbtn.on { background: var(--selected); color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 /* A comment thread: Excel's purple corner — grey once the thread is resolved —
    and the corner itself is what a click opens the thread from. */
 .sh-cell.threaded::before { content: ''; position: absolute; top: 0; right: 0; border: 5px solid transparent; border-top-color: #7a3db8; border-right-color: #7a3db8; pointer-events: none; }
@@ -4654,7 +4654,7 @@ const CSS = `
 .sh-comments-head { display: flex; align-items: center; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; }
 .sh-comments-filter { display: flex; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
 .sh-comments-filter button { border: 1px solid var(--line-soft); background: var(--surface); color: var(--ink-2); font: inherit; font-size: 11.5px; padding: 3px 10px; border-radius: 999px; cursor: pointer; }
-.sh-comments-filter button.on { background: var(--selected); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); font-weight: 600; }
+.sh-comments-filter button.on { background: var(--selected); color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); font-weight: 600; }
 .sh-comments-list { overflow: auto; flex: 1; }
 .sh-comments-item { padding: 9px 12px; border-bottom: 1px solid var(--line-soft); cursor: pointer; }
 .sh-comments-item:hover, .sh-comments-item.here { background: var(--selected); }
@@ -4664,7 +4664,7 @@ const CSS = `
 .sh-comments-item .first { display: flex; gap: 6px; align-items: baseline; }
 .sh-comments-item .first b { flex: none; }
 .sh-comments-item .first span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
-.sh-comments-item .more { font-size: 11px; color: var(--accent); margin-top: 2px; }
+.sh-comments-item .more { font-size: 11px; color: var(--accent-text); margin-top: 2px; }
 .sh-comments-item.resolved .first span, .sh-comments-item.resolved .first b { color: var(--ink-3); }
 .sh-comments-empty { padding: 18px 12px; color: var(--ink-3); font-size: 12px; text-align: center; }
 /* A sparkline: drawn under the cell's own text, which is normally empty. */
@@ -4733,10 +4733,10 @@ const CSS = `
   transition: background var(--fast), color var(--fast);
 }
 .sh-tab:hover { background: var(--hover); }
-.sh-tab.active { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: var(--shadow-1); }
+.sh-tab.active { background: var(--surface); color: var(--accent-text); font-weight: 600; box-shadow: var(--shadow-1); }
 /* The status bar's "Calculate": formulas waiting in manual mode; a press calculates. */
 .sh-calc-pending {
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--surface); color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--surface); color: var(--accent-text);
   font: inherit; font-size: 11.5px; font-weight: 600; padding: 1px 10px; border-radius: 999px; cursor: pointer;
 }
 .sh-calc-pending:hover { background: var(--selected); }
@@ -4754,7 +4754,7 @@ const CSS = `
 }
 .sh-eval-level.current .sh-eval-text { background: var(--surface); border-color: var(--line); color: var(--ink); }
 .sh-eval-next { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-color: var(--accent); background: var(--selected); border-radius: 2px; }
-.sh-eval-recent { font-style: italic; color: var(--accent); }
+.sh-eval-recent { font-style: italic; color: var(--accent-text); }
 .sh-eval-message { margin: 6px 0 0; font-size: 12px; color: var(--ink-3); }
 /* The + at the end of the tabs: a new sheet, as every spreadsheet has it. */
 .sh-tab-add { min-width: 28px; font-weight: 600; color: var(--ink-2); }
@@ -4782,7 +4782,7 @@ const CSS = `
 .sh-pl-zone span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .sh-pl-zone .ask { grid-column: 1 / 4; color: color-mix(in srgb, var(--ink) 34%, transparent); font-size: 12px; transition: color var(--fast); }
 .sh-pl-zone:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
-.sh-pl-zone:hover .ask { color: var(--accent); }
+.sh-pl-zone:hover .ask { color: var(--accent-text); }
 .sh-pl-ruler { position: absolute; overflow: visible; pointer-events: none; }
 .sh-pl-ruler rect.margin { fill: color-mix(in srgb, var(--ink) 9%, transparent); }
 .sh-pl-ruler line { stroke: color-mix(in srgb, var(--ink) 42%, transparent); stroke-width: 1; shape-rendering: crispEdges; }
@@ -4806,7 +4806,7 @@ const CSS = `
 .sh-ranges-head { position: sticky; top: 0; background: var(--surface-2); border-bottom: 1px solid var(--line-soft); font-size: 11.5px; font-weight: 600; color: var(--ink-3); }
 .sh-ranges-row { border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; cursor: default; }
 .sh-ranges-row:hover { background: var(--hover); }
-.sh-ranges-row.on { background: var(--selected); color: var(--accent); }
+.sh-ranges-row.on { background: var(--selected); color: var(--accent-text); }
 .sh-ranges-row .t { display: inline-flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sh-ranges-row .c { font-variant-numeric: tabular-nums; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sh-ranges-empty { padding: 26px 12px; font-size: 12px; color: var(--ink-3); text-align: center; }
@@ -4824,13 +4824,13 @@ const CSS = `
 .sh-fc-kinds { display: flex; gap: 6px; }
 .sh-fc-kind { width: 40px; height: 30px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); color: var(--ink-2); cursor: pointer; }
 .sh-fc-kind svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.sh-fc-kind.on { border-color: var(--accent); background: var(--selected); color: var(--accent); }
+.sh-fc-kind.on { border-color: var(--accent); background: var(--selected); color: var(--accent-text); }
 .sh-fc-preview { height: 250px; border: 1px solid var(--line-soft); border-radius: var(--r-2); background: var(--surface); display: grid; place-items: center; overflow: hidden; }
 .sh-fc-preview > div, .sh-fc-preview svg { width: 100%; height: 100%; display: block; }
 .sh-fc-preview p { margin: 0; padding: 0 24px; font-size: 12.5px; color: var(--ink-3); text-align: center; }
 .sh-fc-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .sh-fc-row .rw-field { flex: 0 0 200px; }
-.sh-fc-toggle { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 12.5px; cursor: pointer; padding: 4px 2px; }
+.sh-fc-toggle { border: 0; background: transparent; color: var(--accent-text); font: inherit; font-size: 12.5px; cursor: pointer; padding: 4px 2px; }
 .sh-fc-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
 .sh-fc-col { display: flex; flex-direction: column; gap: 8px; }
 .sh-ranges-locked { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }

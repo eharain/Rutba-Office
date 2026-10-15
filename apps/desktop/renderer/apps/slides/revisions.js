@@ -162,7 +162,7 @@ export const REVISIONS_CSS = `
 .sl-rev-item.on span { color: var(--ink-2); }
 .sl-rev-none { color: var(--ink-3); padding: 4px 2px; }
 .sl-rev-jump { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--ink-2); }
-.sl-rev-goto { border: 1px solid var(--line); background: var(--surface); border-radius: 5px; padding: 1px 7px; font: inherit; color: var(--accent); cursor: pointer; }
+.sl-rev-goto { border: 1px solid var(--line); background: var(--surface); border-radius: 5px; padding: 1px 7px; font: inherit; color: var(--accent-text); cursor: pointer; }
 .sl-rev-goto.wide { align-self: flex-start; margin-top: 2px; font-size: 11.5px; }
 .sl-rev-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line-soft); color: var(--ink-2); font-size: 11.5px; }
 .sl-rev-layer { position: absolute; inset: 0; pointer-events: none; z-index: 40; }

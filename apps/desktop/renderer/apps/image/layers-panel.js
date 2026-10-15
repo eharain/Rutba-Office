@@ -417,7 +417,7 @@ export const LAYERS_CSS = `
 .im-side-tabs { display: flex; gap: 2px; padding: 8px 10px 6px; border-bottom: 1px solid var(--line-soft); }
 .im-side-tabs button { flex: 1; border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--ink-2); padding: 5px 8px; border-radius: var(--r-1); cursor: pointer; }
 .im-side-tabs button:hover { background: var(--hover); color: var(--ink); }
-.im-side-tabs button[aria-selected='true'] { background: var(--selected); color: var(--accent); }
+.im-side-tabs button[aria-selected='true'] { background: var(--selected); color: var(--accent-text); }
 .im-layers { display: flex; flex-direction: column; padding: 8px 10px 16px; gap: 8px; }
 .im-layer-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); overflow: hidden; min-height: 40px; }
 .im-layer { position: relative; display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 6px; border-bottom: 1px solid var(--line-soft); cursor: default; user-select: none; font-size: 12px; color: var(--ink); }

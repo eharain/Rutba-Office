@@ -120,7 +120,7 @@
 
   --ink: #f2f4f7;
   --ink-2: #a9b0bb;
-  --ink-3: #858c97;
+  --ink-3: #959ca7;
 
   --accent-hover: color-mix(in srgb, var(--accent) 82%, white);
 
@@ -147,6 +147,18 @@
 [data-app='contacts'] { --accent: #5d6d7e; }
 /* Contacts' slate is too dark to read as a link on the dark theme: a lighter slate there. */
 :root[data-theme='dark'] [data-app='contacts'] { --accent: #9fb0c4; }
+/* An app's colour as words, and as a fill under white words. By day both are
+   the colour itself. At night words in it are lifted toward white so they
+   read on the dark surfaces (an active tab, a link, a chosen row), and a
+   fill under white words is taken deeper so the white reads on it (a
+   primary button, today's date): Fluent's foreground and background brand
+   colours. Declared on each element that names an app, so each of Home's
+   app tiles works out its own. */
+:root, [data-app] { --accent-text: var(--accent); --accent-fill: var(--accent); }
+:root[data-theme='dark'], :root[data-theme='dark'] [data-app] {
+  --accent-text: color-mix(in srgb, var(--accent) 60%, white);
+  --accent-fill: color-mix(in srgb, var(--accent) 72%, black);
+}
 
 * { box-sizing: border-box; }
 
@@ -271,7 +283,7 @@ textarea,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.rw-doctitle .dirty { color: var(--accent); font-weight: 700; margin-inline-start: 5px; }
+.rw-doctitle .dirty { color: var(--accent-text); font-weight: 700; margin-inline-start: 5px; }
 
 .rw-wincontrols { display: flex; height: 100%; align-items: center; padding-inline-end: 4px; gap: 2px; }
 .rw-wincontrols button {
@@ -286,7 +298,7 @@ textarea,
   transition: background var(--fast), color var(--fast);
 }
 .rw-wincontrols button:hover { background: var(--hover); color: var(--ink); }
-.rw-wincontrols button.on { color: var(--accent); }
+.rw-wincontrols button.on { color: var(--accent-text); }
 .rw-wincontrols button.close:hover { background: #c8372d; color: #fff; }
 
 /* ── the ribbon ───────────────────────────────────────────────────────── */
@@ -362,11 +374,11 @@ textarea,
   transition: width var(--slow);
 }
 .rw-tab:hover { color: var(--ink); background: var(--hover); }
-.rw-tab[aria-selected='true'] { color: var(--accent); font-weight: 650; }
+.rw-tab[aria-selected='true'] { color: var(--accent-text); font-weight: 650; }
 .rw-tab[aria-selected='true']::before { width: calc(100% - 18px); }
 .rw-tab:focus-visible { outline-offset: -2px; }
 /* The contextual tabs (Table Design, Picture Format…) in the app's colour, set off from the rest. */
-.rw-tab.contextual { color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.rw-tab.contextual { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .rw-tab.contextual:hover { background: color-mix(in srgb, var(--accent) 13%, transparent); }
 .rw-tab-sep { flex: none; width: 1px; height: 18px; margin: 0 5px; background: var(--line); }
 
@@ -402,7 +414,7 @@ textarea,
   box-shadow: var(--shadow-2); display: grid; place-items: center; cursor: pointer;
   transition: background var(--fast), color var(--fast);
 }
-.rw-more:hover { background: var(--surface); color: var(--accent); }
+.rw-more:hover { background: var(--surface); color: var(--accent-text); }
 .rw-more.left { left: 12px; }
 .rw-more.right { right: 12px; }
 
@@ -482,7 +494,7 @@ textarea,
 .rw-gallery-arrows > button { flex: 1; min-height: 0; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; position: relative; }
 .rw-gallery-arrows > button:first-child { border-start-end-radius: 5px; }
 .rw-gallery-arrows > button:last-child { border-end-end-radius: 5px; }
-.rw-gallery-arrows > button:hover:not(:disabled) { background: var(--hover); color: var(--accent); }
+.rw-gallery-arrows > button:hover:not(:disabled) { background: var(--hover); color: var(--accent-text); }
 .rw-gallery-arrows > button:disabled { color: var(--ink-3); opacity: .45; cursor: default; }
 .rw-gallery-arrows > button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .rw-gallery-bar { position: absolute; top: 4px; inset-inline: 4px; height: 1.5px; border-radius: 1px; background: currentColor; }
@@ -538,7 +550,7 @@ textarea,
 .rw-btn:hover:not(:disabled) { background: var(--hover); }
 .rw-btn:active:not(:disabled) { background: var(--active); }
 .rw-btn:disabled { color: var(--ink-3); opacity: 0.6; }
-.rw-btn[aria-pressed='true'] { background: var(--selected); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.rw-btn[aria-pressed='true'] { background: var(--selected); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-line); }
 .rw-btn[aria-pressed='true']:hover:not(:disabled) { background: var(--selected-strong); }
 .rw-btn svg { width: 16px; height: 16px; flex: none; }
 
@@ -554,11 +566,12 @@ textarea,
 .rw-btn.tall svg { width: 24px; height: 24px; }
 .rw-btn.icon { padding: 6px; }
 .rw-btn.primary {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 90%, white), var(--accent));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-fill) 90%, white), var(--accent-fill));
   color: var(--ink-on-accent);
   box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 40%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 .rw-btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
+:root[data-theme='dark'] .rw-btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-fill) 88%, white); }
 /* A button whose work is under way: held, with a small spinner in its own ink. */
 .rw-btn.busy { justify-content: center; cursor: progress; }
 .rw-btn.busy:disabled { opacity: 0.82; }
@@ -811,7 +824,7 @@ textarea,
 .rw-item:hover { background: var(--hover); }
 .rw-item { position: relative; }
 .rw-item[aria-current='true'],
-.rw-item.selected { background: var(--selected); color: var(--accent); font-weight: 600; }
+.rw-item.selected { background: var(--selected); color: var(--accent-text); font-weight: 600; }
 .rw-item[aria-current='true']::before,
 .rw-item.selected::before {
   content: '';
@@ -831,7 +844,7 @@ textarea,
   font-variant-numeric: tabular-nums;
   flex: none;
 }
-.rw-item[aria-current='true'] .count { color: var(--accent); }
+.rw-item[aria-current='true'] .count { color: var(--accent-text); }
 
 .rw-status {
   display: flex;
@@ -974,7 +987,7 @@ textarea,
 }
 .rw-menu button:hover:not(:disabled),
 .rw-menu button:focus-visible { background: var(--selected); color: var(--ink); outline: none; }
-.rw-menu button:hover:not(:disabled) svg { color: var(--accent); opacity: 1; }
+.rw-menu button:hover:not(:disabled) svg { color: var(--accent-text); opacity: 1; }
 .rw-menu button:disabled { color: var(--ink-3); }
 .rw-menu button svg { width: 15px; height: 15px; opacity: 0.75; }
 .rw-menu .key { margin-inline-start: auto; font-size: 11px; color: var(--ink-3); }

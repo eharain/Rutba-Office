@@ -318,7 +318,7 @@ export const COMMENTS_CSS = `
 .sl-cm-actions { display: flex; gap: 2px; flex: none; opacity: .55; transition: opacity var(--fast); }
 .sl-cm-card:hover .sl-cm-actions, .sl-cm-card.selected .sl-cm-actions { opacity: 1; }
 .sl-cm-act { border: 0; background: transparent; color: var(--ink-2); width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; cursor: pointer; }
-.sl-cm-act:hover { background: var(--hover); color: var(--accent); }
+.sl-cm-act:hover { background: var(--hover); color: var(--accent-text); }
 .sl-cm-text { font-size: 12.5px; color: var(--ink); margin: 7px 0 0 34px; white-space: pre-wrap; word-break: break-word; line-height: 1.45; }
 .sl-cm-badge { display: inline-block; margin: 6px 0 0 34px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, #0f9d58 14%, transparent); color: #0b7a44; font-size: 10.5px; font-weight: 600; }
 .sl-cm-replies { margin: 8px 0 0 34px; display: flex; flex-direction: column; gap: 8px; border-left: 2px solid var(--line-soft); padding-left: 10px; }
@@ -341,6 +341,6 @@ export const COMMENTS_CSS = `
 .sl-cm-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-inline-end: 6px; vertical-align: 1px; }
 .sl-cm-marker .sl-cm-more { position: absolute; right: -6px; top: -6px; min-width: 14px; height: 14px; border-radius: 7px; background: var(--ink); color: #fff; font-size: 9px; display: grid; place-items: center; padding: 0 3px; }
 /* The strip: how many threads a slide has. */
-.sl-thumb-cm { display: grid; place-items: center; color: var(--accent); }
-.sl-thumb.active .sl-thumb-cm { color: var(--accent); }
+.sl-thumb-cm { display: grid; place-items: center; color: var(--accent-text); }
+.sl-thumb.active .sl-thumb-cm { color: var(--accent-text); }
 `;

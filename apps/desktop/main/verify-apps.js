@@ -98,6 +98,7 @@ import { verifyPolishPass } from './verify-polish-pass.js';
 import { verifyCalendarMonth } from './verify-calendar-month.js';
 import { verifySheetDark } from './verify-sheet-dark.js';
 import { verifyPdfFindMark } from './verify-pdf-find-mark.js';
+import { verifyDarkPass } from './verify-dark-pass.js';
 import { verifyPanels } from './verify-panels.js';
 import { verifyImageBatch } from './verify-image-batch.js';
 import { verifyPersonalTemplates } from './verify-personal-templates.js';
@@ -4789,7 +4790,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,dark-pass: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4879,6 +4880,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('calendar-month')) await verifyCalendarMonth({ open, check, until, wait }, { dir });
     if (only.includes('sheet-dark')) await verifySheetDark({ open, check, until, wait }, { dir });
     if (only.includes('pdf-find-mark')) await verifyPdfFindMark({ open, check, until, wait }, { dir });
+    if (only.includes('dark-pass')) await verifyDarkPass({ open, check, until, wait }, { dir });
     if (only.includes('templates')) await verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('templates')) await verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows });
     if (only.includes('qrcode')) await verifyQrCode({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
@@ -5215,6 +5217,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyCalendarMonth({ open, check, until, wait }, { dir }));
   await block(() => verifySheetDark({ open, check, until, wait }, { dir }));
   await block(() => verifyPdfFindMark({ open, check, until, wait }, { dir }));
+  await block(() => verifyDarkPass({ open, check, until, wait }, { dir }));
   await block(() => verifyImageBatch({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows }));

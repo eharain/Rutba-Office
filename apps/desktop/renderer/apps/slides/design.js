@@ -330,11 +330,11 @@ export const DESIGN_CSS = `
 .sl-dg-pic svg { display: block; width: 100%; height: auto; }
 .sl-dg-nopic { aspect-ratio: 16 / 9; background: var(--surface-2); }
 .sl-dg-name { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink); padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sl-dg-card.current .sl-dg-name { color: var(--accent); font-weight: 600; }
+.sl-dg-card.current .sl-dg-name { color: var(--accent-text); font-weight: 600; }
 .sl-dg-list { display: flex; flex-direction: column; gap: 1px; }
 .sl-dg-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 0; border-radius: 7px; background: transparent; cursor: pointer; text-align: left; color: var(--ink); font-size: 12.5px; }
 .sl-dg-row:hover { background: var(--hover); }
-.sl-dg-row.current { background: var(--selected); color: var(--accent); }
+.sl-dg-row.current { background: var(--selected); color: var(--accent-text); }
 .sl-dg-rowname { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sl-dg-swatches { display: inline-flex; gap: 2px; flex: none; padding: 2px; border-radius: 4px; background: var(--surface-2); }
 .sl-dg-swatch { display: inline-block; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
@@ -344,7 +344,7 @@ export const DESIGN_CSS = `
 .sl-dg-faces .sl-dg-rowname { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); }
 .sl-dg-major { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sl-dg-minor { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sl-dg-row.current .sl-dg-major, .sl-dg-row.current .sl-dg-aa { color: var(--accent); }
+.sl-dg-row.current .sl-dg-major, .sl-dg-row.current .sl-dg-aa { color: var(--accent-text); }
 .sl-dg-foot { border-top: 1px solid var(--line-soft); margin-top: 8px; padding-top: 6px; }
 .sl-dg-note { font-size: 11.5px; color: var(--ink-3); padding: 8px 4px 0; }
 .sl-dg-custom { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; padding: 7px 8px; border-radius: 7px; font-size: 12.5px; color: var(--ink); cursor: pointer; text-align: left; }
