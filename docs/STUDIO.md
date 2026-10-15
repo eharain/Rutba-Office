@@ -2,9 +2,8 @@
 
 The plan for one worker, building on `@rutba/studio` (see
 [packages/studio/README.md](../packages/studio/README.md)). It sits beside
-[ROADMAP.md](ROADMAP.md) and turns the Image and Video tiers of
-[COMPETITORS.md](COMPETITORS.md) into work items on the code that is now
-here. Read GAPS.md section 7 for what the two apps do today.
+[ROADMAP.md](ROADMAP.md) and turns the Image and Video tiers named there
+into work items on the code that is now here. Read GAPS.md section 7 for what the two apps do today.
 
 ## 1. What this is for
 

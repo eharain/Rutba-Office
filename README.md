@@ -269,13 +269,10 @@ Everything else:
 - Mail goes further than blocking trackers: it **names** them. See
   [what a message is doing to you](apps/desktop/main/mail-insight.js).
 
-## Where this stands against the alternatives
+## What is missing
 
-[COMPETITORS.md](docs/COMPETITORS.md) is an audit, app by app, against what you
-would otherwise install — Microsoft 365, LibreOffice, OnlyOffice, Thunderbird,
-Outlook, eM Client, Google. It lists the gaps as carefully as the leads, because
-a gap nobody has written down is a gap nobody fixes. Track changes, macros, a
-calendar and encryption are all on it.
+[GAPS.md](docs/GAPS.md) lists, area by area, what the suite does not do yet,
+written from the code. A gap nobody has written down is a gap nobody fixes.
 
 Other things worth reading:
 
