@@ -15,6 +15,8 @@ import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, useFileDrop
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
+import { frameHandles, frameBounds, rotateHandle, resizeTurned } from '@rutba/office-ui/turned-box';
+import { RotationDialog } from '../rotation-dialog.js';
 import Presenter, { nextShown } from './slides/presenter.js';
 import SlidesRibbon from './slides/ribbon.js';
 import { editInImage } from './edit-in-image.js';
@@ -209,6 +211,8 @@ export default function Slides({ app, shell, boot }) {
   const [linkOpen, setLinkOpen] = useState(false);
   /** Design → Slide Size: the dialog, with the size it starts from ({ start }), or null. */
   const [sizeDialog, setSizeDialog] = useState(null);
+  /** Arrange → Rotate → More Rotation Options…: the shape's angle as it was, or null. */
+  const [rotationOpen, setRotationOpen] = useState(null);
   /** The chart data dialog: the id of the chart shape it is editing, or null. */
   const [chartDataOpen, setChartDataOpen] = useState(null);
   /** Home → Section → Rename: the section (by index) and the name it has now. */
@@ -349,7 +353,8 @@ export default function Slides({ app, shell, boot }) {
       const dy = (ev.clientY - y0) / s;
       if (!moved && Math.abs(ev.clientX - x0) < 2 && Math.abs(ev.clientY - y0) < 2) return;
       moved = true;
-      g = kind === 'move' ? { ...g0, x: g0.x + dx, y: g0.y + dy } : resized(g0, handle, dx, dy, ev.shiftKey || shape.kind === 'picture');
+      // A turned shape resizes along its own sides, the opposite handle staying put on the slide.
+      g = kind === 'move' ? { ...g0, x: g0.x + dx, y: g0.y + dy } : { ...g0, ...resized(g0, handle, dx, dy, ev.shiftKey || shape.kind === 'picture') };
       setDrag({ id: shape.id, kind, handle, g });
     };
     const up = () => {
@@ -1403,6 +1408,14 @@ export default function Slides({ app, shell, boot }) {
         const ids = selectedIds.length ? selectedIds : (selectedShape ? [selectedShape.id] : []);
         if (!ids.length) return;
         await apply({ op: 'rotateShapes', slide: index, ids, delta: arg });
+        return;
+      }
+      case 'rotationDialog': {
+        // One angle for the selection: the first shape's, as PowerPoint's Size box shows it.
+        const ids = selectedIds.length ? selectedIds : (selectedShape ? [selectedShape.id] : []);
+        if (!ids.length) return;
+        const first = slide?.shapes?.find((s) => s.id === ids[0]);
+        setRotationOpen({ ids, rot: first?.geometry?.rot || 0 });
         return;
       }
       case 'flipShape': {
@@ -2892,7 +2905,13 @@ export default function Slides({ app, shell, boot }) {
               ) : slide ? (
                 <div className="sl-fit" style={{ width: Math.round(model.size.width * (view.zoom ?? fit)), height: Math.round(model.size.height * (view.zoom ?? fit)) }}>
                 {view.ruler ? <><div className="sl-ruler-h" /><div className="sl-ruler-v" /></> : null}
-                <div className="sl-slide" style={{ width: model.size.width, height: model.size.height, transform: `scale(${view.zoom ?? fit})`, transformOrigin: 'top left' }}>
+                <div
+                  className="sl-slide"
+                  style={{ width: model.size.width, height: model.size.height, transform: `scale(${view.zoom ?? fit})`, transformOrigin: 'top left' }}
+                  // A press on the slide where no shape is (the drawing itself, not a
+                  // shape's hit area) lets go of the selection, as PowerPoint does.
+                  onMouseDown={(e) => { if (e.button === 0 && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.target.closest?.('.sl-svg')) setSelected(null); }}
+                >
                   <Markup className="sl-svg" html={slide.svg} />
                   {/* Camera Format → Preview: the camera, live, in each cameo on the stage. */}
                   {view.cameoPreview && !preview ? <><style>{CAMEO_CSS}</style><CameoLayer shapes={slide.shapes} /></> : null}
@@ -2945,7 +2964,10 @@ export default function Slides({ app, shell, boot }) {
                         type="button"
                         className={`sl-hit${selectedIds.includes(s.id) ? ' selected' : ''}${selected === s.id ? ' primary' : ''}${drag?.id === s.id || groupDrag?.ids?.includes(s.id) ? ' dragging' : ''}${findHit === s.id ? ' find-current' : ''}`}
                         data-shape={s.id}
-                        style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
+                        // Turned with the shape about its centre, so a press inside the
+                        // turned outline takes hold of it and the upright box's empty
+                        // corners do not; its ring is the selection frame.
+                        style={{ left: g.x, top: g.y, width: g.w, height: g.h, transform: g.rot ? `rotate(${g.rot}deg)` : undefined }}
                         onMouseDown={(e) => { if (e.shiftKey || e.ctrlKey || e.metaKey) return; startGroupDrag(e, s); }}
                         onClick={(e) => {
                           if ((e.ctrlKey || e.metaKey) && linkOf(s)) { shell.shell.openExternal({ url: linkOf(s) }); return; }
@@ -3023,12 +3045,14 @@ export default function Slides({ app, shell, boot }) {
                       />
                     )))
                   )}
-                  {/* Several selected: one dashed frame around all of them, no resize handles of its own. */}
+                  {/* Several selected: one dashed frame around all of them, turned ones by their turned outlines, no resize handles of its own. */}
                   {selectedIds.length > 1
                     ? (() => {
                         const boxes = selectedIds
                           .map((id) => (drag?.id === id ? drag.g : groupDrag?.boxes?.get(id)) ?? slide.shapes.find((s) => s.id === id)?.geometry)
-                          .filter(Boolean);
+                          .filter(Boolean)
+                          .map((b) => frameBounds(b, b.rot || 0))
+                          .map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h }));
                         if (!boxes.length) return null;
                         const x = Math.min(...boxes.map((b) => b.x));
                         const y = Math.min(...boxes.map((b) => b.y));
@@ -3038,19 +3062,20 @@ export default function Slides({ app, shell, boot }) {
                       })()
                     : null}
                   {selectedIds.length === 1 && selectedShape?.geometry && !selectedShape.hidden && !editing && points?.id !== selectedShape.id
-                    ? HANDLES.map(([name, fx, fy, cursor]) => {
+                    ? (() => {
+                        // The eight handles stand on the turned outline and turn with it.
                         const g = drag?.id === selectedShape.id ? drag.g : selectedShape.geometry;
                         const size = 9 / scale;
-                        return (
+                        return frameHandles(g, g.rot || 0).map(({ name, x, y, cursor }) => (
                           <div
                             key={name}
                             className="sl-handle"
                             data-handle={name}
-                            style={{ left: g.x + g.w * fx - size / 2, top: g.y + g.h * fy - size / 2, width: size, height: size, cursor, borderWidth: 1.5 / scale }}
+                            style={{ left: x - size / 2, top: y - size / 2, width: size, height: size, cursor, borderWidth: 1.5 / scale, transform: g.rot ? `rotate(${g.rot}deg)` : undefined }}
                             onMouseDown={(e) => startDrag(e, selectedShape, 'resize', name)}
                           />
-                        );
-                      })
+                        ));
+                      })()
                     : null}
                   {/* A 3D model's turn handle, in its middle; while it is dragged, the model drawn small at the view so far over its picture. */}
                   {selectedIds.length === 1 && selectedShape?.model3d && selectedShape.geometry && !selectedShape.hidden && !drag
@@ -3081,16 +3106,13 @@ export default function Slides({ app, shell, boot }) {
                   {selectedIds.length === 1 && selectedShape?.geometry && !selectedShape.hidden && !editing && points?.id !== selectedShape.id
                     ? (() => {
                         const g = drag?.id === selectedShape.id ? drag.g : selectedShape.geometry;
-                        const cx = g.x + g.w / 2;
-                        const cy = g.y + g.h / 2;
-                        const rad = ((g.rot || 0) * Math.PI) / 180;
-                        const gap = ROTATE_HANDLE_GAP + g.h / 2;
                         // The stem runs from the top edge to the handle, turning with the
                         // shape; drawn from the centre it cut through the shape itself.
-                        const ex = cx + (g.h / 2) * Math.sin(rad);
-                        const ey = cy - (g.h / 2) * Math.cos(rad);
-                        const hx = cx + gap * Math.sin(rad);
-                        const hy = cy - gap * Math.cos(rad);
+                        const r = rotateHandle(g, g.rot || 0, ROTATE_HANDLE_GAP);
+                        const ex = r.stem.x;
+                        const ey = r.stem.y;
+                        const hx = r.x;
+                        const hy = r.y;
                         const size = 10 / scale;
                         return (
                           <React.Fragment>
@@ -3241,7 +3263,8 @@ export default function Slides({ app, shell, boot }) {
                           const box = s?.table?.cells?.[editing.row]?.[editing.col]?.box;
                           return box ? { left: box.x, top: box.y, width: box.w, height: box.h } : {};
                         }
-                        return s?.geometry ? { left: s.geometry.x, top: s.geometry.y, width: s.geometry.w, height: s.geometry.h } : {};
+                        // The words are typed where they stand: a turned shape's editor turns with it.
+                        return s?.geometry ? { left: s.geometry.x, top: s.geometry.y, width: s.geometry.w, height: s.geometry.h, transform: s.geometry.rot ? `rotate(${s.geometry.rot}deg)` : undefined } : {};
                       })()}
                       onBlur={(e) => { rememberCaret(e.target); return editing.row != null ? commitTableCell(editing.id, editing.row, editing.col, e.target.value) : commitText(editing.id, e.target.value); }}
                       onKeyDown={(e) => {
@@ -3377,6 +3400,14 @@ export default function Slides({ app, shell, boot }) {
 
       {shortcutsOpen ? <SlidesShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
 
+      {rotationOpen ? (
+        <RotationDialog
+          initial={rotationOpen.rot}
+          onClose={() => setRotationOpen(null)}
+          // Each shape to the angle typed, in one step.
+          onApply={(deg) => apply(...rotationOpen.ids.map((id) => ({ op: 'rotateShapes', slide: index, ids: [id], delta: deg - (slide?.shapes?.find((s) => s.id === id)?.geometry?.rot || 0) })))}
+        />
+      ) : null}
       {sizeDialog && model?.size ? (
         <>
           <style>{SLIDE_SIZE_CSS}</style>
@@ -3726,29 +3757,13 @@ export default function Slides({ app, shell, boot }) {
 /** How far above the shape's top edge the rotation handle floats, in slide pixels. */
 const ROTATE_HANDLE_GAP = 26;
 
-/** The eight handles: where each sits on the box, and the cursor it shows. */
-const HANDLES = [
-  ['nw', 0, 0, 'nwse-resize'], ['n', 0.5, 0, 'ns-resize'], ['ne', 1, 0, 'nesw-resize'],
-  ['e', 1, 0.5, 'ew-resize'], ['se', 1, 1, 'nwse-resize'], ['s', 0.5, 1, 'ns-resize'],
-  ['sw', 0, 1, 'nesw-resize'], ['w', 0, 0.5, 'ew-resize'],
-];
-
-/** The box a handle drags to, never smaller than a few pixels; `keep` holds the proportions on a corner. */
+/**
+ * The box a handle drags to, never smaller than a few pixels; `keep` holds
+ * the proportions on a corner. A turned shape is resized along its own
+ * sides, and the side or corner opposite the handle stays where it is.
+ */
 function resized(g0, handle, dx, dy, keep) {
-  let { x, y, w, h } = g0;
-  if (handle.includes('e')) w = g0.w + dx;
-  if (handle.includes('s')) h = g0.h + dy;
-  if (handle.includes('w')) { x = g0.x + dx; w = g0.w - dx; }
-  if (handle.includes('n')) { y = g0.y + dy; h = g0.h - dy; }
-  if (keep && handle.length === 2 && g0.w > 0 && g0.h > 0) {
-    const ratio = g0.w / g0.h;
-    if (Math.abs(w / g0.w) > Math.abs(h / g0.h)) h = w / ratio; else w = h * ratio;
-    if (handle.includes('w')) x = g0.x + g0.w - w;
-    if (handle.includes('n')) y = g0.y + g0.h - h;
-  }
-  if (w < 8) { if (handle.includes('w')) x = g0.x + g0.w - 8; w = 8; }
-  if (h < 8) { if (handle.includes('n')) y = g0.y + g0.h - 8; h = 8; }
-  return { x, y, w, h };
+  return resizeTurned(g0, g0.rot || 0, handle, dx, dy, { keep, min: 8 });
 }
 
 /** The theme's colours, in the order PowerPoint's gallery shows them, and its standard row. */

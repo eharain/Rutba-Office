@@ -14,7 +14,8 @@
     "./contrast": "./src/contrast.js",
     "./proofing": "./src/proofing.js",
     "./messages": "./src/messages.js",
-    "./catalogues": "./src/catalogues/index.js"
+    "./catalogues": "./src/catalogues/index.js",
+    "./turned-box": "./src/turned-box.js"
   },
   "peerDependencies": { "react": ">=19" },
   "sideEffects": ["*.css"]

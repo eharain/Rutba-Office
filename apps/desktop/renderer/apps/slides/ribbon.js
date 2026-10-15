@@ -369,6 +369,7 @@ export default function SlidesRibbon({
               { label: t('Rotate Left 90°'), run: () => act('rotateBy', -90) },
               { label: t('Flip Vertical'), run: () => act('flipShape', 'vertical') },
               { label: t('Flip Horizontal'), run: () => act('flipShape', 'horizontal') },
+              { label: t('More Rotation Options…'), run: () => act('rotationDialog') },
               '-',
               { label: t('Selection pane (layers)'), icon: 'list', run: () => act('pane', 'layers') },
               '-',
