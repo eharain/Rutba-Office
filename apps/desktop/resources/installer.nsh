@@ -68,6 +68,19 @@
         ${AndIf} $R6 == 0
           ${ExitDo}
         ${EndIf}
+        ; Still running after five seconds: ask its windows to close, as the
+        ; X would (it saves its recovery copies on the way out). After ten:
+        ; end whatever is left, background processes too. Unsaved work is
+        ; copied for Recover every minute, so at worst under a minute of it.
+        ${If} $R7 == 5
+          DetailPrint "Asking Rutba Office to close"
+          nsExec::Exec '"$SYSDIR\taskkill.exe" /T /IM "${APP_EXECUTABLE_FILENAME}"'
+          Pop $R6
+        ${ElseIf} $R7 == 10
+          DetailPrint "Closing what is left of Rutba Office"
+          nsExec::Exec '"$SYSDIR\taskkill.exe" /F /T /IM "${APP_EXECUTABLE_FILENAME}"'
+          Pop $R6
+        ${EndIf}
         ${If} $R7 >= 15
           MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Rutba Office (installed for ${SCOPE}, in $R4) is still open, so it cannot be replaced yet.$\r$\n$\r$\nClose every Rutba Office window and press Retry. Cancel stops the install and leaves the copy you have. (Uninstaller error $R6.)" /SD IDCANCEL IDRETRY +2
           Abort
