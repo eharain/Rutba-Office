@@ -142,7 +142,7 @@ export function judgeUpgrade({ from, to, seeded, report, feed = true }) {
  * 'timeout' when it was stopped at `limitSeconds`; `copies` is registered()
  * after it. Answers { ok, failures, evidence }.
  */
-export function judgeInstallRace({ race, exit, seconds, limitSeconds, copies, from, to, closedAfter = null }) {
+export function judgeInstallRace({ race, exit, seconds, limitSeconds, copies, from, to, closedAfter = null, appEnded = null }) {
   const failures = [];
   const evidence = [];
   const want = (ok, yes, no) => (ok ? evidence : failures).push(ok ? yes : no);
@@ -154,12 +154,16 @@ export function judgeInstallRace({ race, exit, seconds, limitSeconds, copies, fr
     want(exit === 0, `the installer succeeded in ${s} s, the app closed ${closedAfter} s after it started`, exit === 'timeout' ? `the installer was still running after ${limitSeconds} s` : `the installer ended with ${exit} while the app was closing`);
     want(only(newV), `one copy registered, ${newV}`, `the registry has ${copies.length ? copies.join('; ') : 'no copy'}, not one copy of ${newV}`);
   } else if (race === 'never-close') {
+    // Since 2.1.0 the installer closes a copy left open itself: its windows
+    // are asked to close after 5 s and what is left is ended after 10, so
+    // the install succeeds rather than waiting on a window nobody closes.
     want(exit !== 'timeout', `the installer ended by itself in ${s} s`, `the installer hung: still running after ${limitSeconds} s, and was stopped`);
     if (exit !== 'timeout') {
-      want(exit !== 0, `it ended with ${exit}, not 0: the install was refused while the app ran`, 'it ended with 0, replacing a copy that was still running');
-      want(seconds >= 14, `it tried for ${s} s before giving up, the 15 s of retries`, `it gave up after ${s} s, before 15 s of retries`);
+      want(exit === 0, `it ended with 0, having closed the copy left open`, `it ended with ${exit}: the copy left open was not closed for it`);
+      want(seconds >= 5, `it waited ${s} s for the copy to close before closing it`, `it ended after ${s} s, without waiting 5 s for the copy to close by itself`);
     }
-    want(only(oldV), `the copy that was there is kept, ${oldV}`, `the registry has ${copies.length ? copies.join('; ') : 'no copy'}, not the ${oldV} that was there`);
+    if (appEnded !== null) want(appEnded, `the copy left open had ended when the installer finished`, 'the copy left open was still running when the installer finished');
+    want(only(newV), `one copy registered, ${newV}`, `the registry has ${copies.length ? copies.join('; ') : 'no copy'}, not one copy of ${newV}`);
   } else {
     throw new Error(`no race ${race}`);
   }

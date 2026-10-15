@@ -6,7 +6,8 @@
 # executables (the way the test runs on a desk), and twice racing the app's
 # own closing, the 1.51 to 2.0 failure ("Uninstaller error 2"): the newer
 # installer run while the older copy is open, which is then closed (the
-# install must succeed) or left open (the install must fail cleanly).
+# install must succeed) or left open (the installer closes it itself and
+# the install must succeed, since 2.1.0).
 #
 # It runs by itself after the release workflow publishes, and from the
 # Actions tab (workflow_dispatch) for any two releases. It only reads the

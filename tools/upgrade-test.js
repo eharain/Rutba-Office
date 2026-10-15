@@ -37,9 +37,10 @@
 // newer installer run silently while it is open (/S --updated, as the
 // updater runs it), and the copy closed 2 to 5 s later, as quitAndInstall
 // closes it. The install must succeed and the report follow as above. With
-// never-close the copy stays open, and the installer must give up by itself
-// with a code other than 0 after its 15 s of retries, not hang, and leave
-// the older copy installed (tools/upgrade-check.js judgeInstallRace).
+// never-close the copy stays open: since 2.1.0 the installer closes it
+// itself (its windows asked after 5 s, what is left ended after 10), so the
+// install must succeed by itself, not hang, leave one copy of the newer
+// version and the report follow (tools/upgrade-check.js judgeInstallRace).
 //
 // Exit codes: 0 proven; 1 failed (what failed is printed); 2 could not run.
 // The verdict, with the evidence, is also written to --out (default
@@ -230,12 +231,14 @@ async function installWhileRunning({ race: how, from, to, profile, verdict }) {
   const seconds = (Date.now() - startedAt) / 1000;
   if (exit === 'timeout') stopTree(installer.pid, true);
   say(`the installer ${exit === 'timeout' ? 'was stopped' : `ended with ${exit}`} after ${Math.round(seconds)} s`);
+  // Whether the installer ended the copy left open, asked before this closes it anyway.
+  const appEnded = how === 'never-close' ? await Promise.race([running.done.then(() => true), wait(50).then(() => false)]) : null;
   if (how === 'never-close') await close(running);
-  const judged = judgeInstallRace({ race: how, exit, seconds, limitSeconds, copies: registered(), from: from.version, to: to.version, closedAfter });
+  const judged = judgeInstallRace({ race: how, exit, seconds, limitSeconds, copies: registered(), from: from.version, to: to.version, closedAfter, appEnded });
   verdict.failures.push(...judged.failures);
   verdict.evidence.push(...judged.evidence);
   verdict.installer = { exit, seconds: Math.round(seconds), closedAfter };
-  return how === 'close' && exit === 0;
+  return exit === 0;
 }
 
 function runInstaller(file) {

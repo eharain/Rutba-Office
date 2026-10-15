@@ -118,13 +118,15 @@ test('an update that meets the app still closing must install once the app has c
   assert.match(judgeInstallRace({ ...base, exit: 0, seconds: 9, copies: ['2.0.0 user', '1.51.0 machine'] }).failures[0], /not one copy of 2\.0\.0/);
 });
 
-test('an update that meets the app left open must give up by itself after its retries, and keep the copy there', () => {
-  const base = { race: 'never-close', limitSeconds: 180, from: '1.51.0', to: '2.0.0' };
-  const clean = judgeInstallRace({ ...base, exit: 2, seconds: 17, copies: ['1.51.0 user'] });
+test('an update that meets the app left open closes it itself and installs, as the installer has since 2.1.0', () => {
+  const base = { race: 'never-close', limitSeconds: 180, from: '2.0.0', to: '2.1.0' };
+  // As the first run on a runner found it: 13 s, the copy ended, one 2.1.0.
+  const clean = judgeInstallRace({ ...base, exit: 0, seconds: 13, copies: ['2.1.0 user'], appEnded: true });
   assert.equal(clean.ok, true, clean.failures.join(' | '));
-  assert.match(judgeInstallRace({ ...base, exit: 'timeout', seconds: 180, copies: ['1.51.0 user'] }).failures[0], /hung: still running after 180 s/);
-  assert.match(judgeInstallRace({ ...base, exit: 0, seconds: 20, copies: ['2.0.0 user'] }).failures.join(' | '), /ended with 0, replacing a copy that was still running/);
-  assert.match(judgeInstallRace({ ...base, exit: 2, seconds: 1, copies: ['1.51.0 user'] }).failures[0], /gave up after 1 s, before 15 s of retries/, 'the 1.51 to 2.0 failure: one try, then stop');
-  assert.match(judgeInstallRace({ ...base, exit: 2, seconds: 17, copies: [] }).failures[0], /no copy, not the 1\.51\.0 that was there/);
+  assert.match(judgeInstallRace({ ...base, exit: 'timeout', seconds: 180, copies: ['2.0.0 user'] }).failures[0], /hung: still running after 180 s/);
+  assert.match(judgeInstallRace({ ...base, exit: 2, seconds: 17, copies: ['2.0.0 user'] }).failures.join(' | '), /ended with 2: the copy left open was not closed for it/, 'the 1.51 to 2.0 failure');
+  assert.match(judgeInstallRace({ ...base, exit: 0, seconds: 1, copies: ['2.1.0 user'], appEnded: true }).failures[0], /without waiting 5 s/);
+  assert.match(judgeInstallRace({ ...base, exit: 0, seconds: 13, copies: ['2.1.0 user'], appEnded: false }).failures[0], /still running when the installer finished/);
+  assert.match(judgeInstallRace({ ...base, exit: 0, seconds: 13, copies: ['2.1.0 user', '2.0.0 machine'], appEnded: true }).failures[0], /not one copy of 2\.1\.0/);
   assert.throws(() => judgeInstallRace({ ...base, race: 'sometimes', exit: 0, seconds: 1, copies: [] }));
 });
