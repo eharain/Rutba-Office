@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseVersion, compareVersions, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade } from '../tools/upgrade-check.js';
+import { parseVersion, compareVersions, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade, judgeInstallRace } from '../tools/upgrade-check.js';
 
 test('versions compare as numbers, a pre-release before its release', () => {
   assert.equal(parseVersion('v2.0.0').text, '2.0.0');
@@ -105,4 +105,26 @@ test('each thing an upgrade can lose is a failure of its own', () => {
   lost((r) => { r.feed = { ok: false, error: 'net::ERR_INTERNET_DISCONNECTED' }; }, /did not read the feed: net::ERR/);
   assert.equal(judgeUpgrade({ from: '1.51.0', to: '2.0.0', seeded, report: { ...good(), feed: null }, feed: false }).ok, true, '--no-feed leaves the feed out');
   assert.deepEqual(judgeUpgrade({ from: '1.51.0', to: '2.0.0', seeded, report: null }).failures, ['the newer version wrote no report']);
+});
+
+test('an update that meets the app still closing must install once the app has closed', () => {
+  const base = { race: 'close', limitSeconds: 300, from: '1.51.0', to: '2.0.0', closedAfter: 3.2 };
+  const ok = judgeInstallRace({ ...base, exit: 0, seconds: 9, copies: ['2.0.0 user'] });
+  assert.equal(ok.ok, true, ok.failures.join(' | '));
+  assert.ok(ok.evidence.some((e) => /closed 3\.2 s after it started/.test(e)));
+  const error2 = judgeInstallRace({ ...base, exit: 2, seconds: 4, copies: ['1.51.0 user'] });
+  assert.deepEqual(error2.failures, ['the installer ended with 2 while the app was closing', 'the registry has 1.51.0 user, not one copy of 2.0.0']);
+  assert.match(judgeInstallRace({ ...base, exit: 'timeout', seconds: 300, copies: [] }).failures[0], /still running after 300 s/);
+  assert.match(judgeInstallRace({ ...base, exit: 0, seconds: 9, copies: ['2.0.0 user', '1.51.0 machine'] }).failures[0], /not one copy of 2\.0\.0/);
+});
+
+test('an update that meets the app left open must give up by itself after its retries, and keep the copy there', () => {
+  const base = { race: 'never-close', limitSeconds: 180, from: '1.51.0', to: '2.0.0' };
+  const clean = judgeInstallRace({ ...base, exit: 2, seconds: 17, copies: ['1.51.0 user'] });
+  assert.equal(clean.ok, true, clean.failures.join(' | '));
+  assert.match(judgeInstallRace({ ...base, exit: 'timeout', seconds: 180, copies: ['1.51.0 user'] }).failures[0], /hung: still running after 180 s/);
+  assert.match(judgeInstallRace({ ...base, exit: 0, seconds: 20, copies: ['2.0.0 user'] }).failures.join(' | '), /ended with 0, replacing a copy that was still running/);
+  assert.match(judgeInstallRace({ ...base, exit: 2, seconds: 1, copies: ['1.51.0 user'] }).failures[0], /gave up after 1 s, before 15 s of retries/, 'the 1.51 to 2.0 failure: one try, then stop');
+  assert.match(judgeInstallRace({ ...base, exit: 2, seconds: 17, copies: [] }).failures[0], /no copy, not the 1\.51\.0 that was there/);
+  assert.throws(() => judgeInstallRace({ ...base, race: 'sometimes', exit: 0, seconds: 1, copies: [] }));
 });

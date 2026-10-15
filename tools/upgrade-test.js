@@ -31,6 +31,16 @@
 // judgeUpgrade says whether settings, the recent list and the arrival record
 // survived, and whether the updater read the feed (--no-feed leaves that out).
 //
+// --race close and --race never-close (with --install) reproduce an update
+// that meets the app still closing (1.51 to 2.0 stopped on "could not be
+// removed ... Uninstaller error 2"): the older copy is started again, the
+// newer installer run silently while it is open (/S --updated, as the
+// updater runs it), and the copy closed 2 to 5 s later, as quitAndInstall
+// closes it. The install must succeed and the report follow as above. With
+// never-close the copy stays open, and the installer must give up by itself
+// with a code other than 0 after its 15 s of retries, not hang, and leave
+// the older copy installed (tools/upgrade-check.js judgeInstallRace).
+//
 // Exit codes: 0 proven; 1 failed (what failed is printed); 2 could not run.
 // The verdict, with the evidence, is also written to --out (default
 // <temp>/rutba-upgrade-result.json).
@@ -41,7 +51,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseVersion, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade } from './upgrade-check.js';
+import { parseVersion, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade, judgeInstallRace } from './upgrade-check.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OWNER = 'eharain';
@@ -56,6 +66,7 @@ const option = (name) => {
 };
 const install = flag('install');
 const openFile = flag('open-file');
+const race = option('race');
 const feed = !flag('no-feed');
 const keep = flag('keep');
 const out = path.resolve(option('out') || path.join(os.tmpdir(), 'rutba-upgrade-result.json'));
@@ -176,6 +187,57 @@ function registered() {
 
 const INSTALLED = () => path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Rutba Office', 'Rutba Office.exe');
 
+/** Whether the copy at `exe` has a window up, within `ms`. */
+async function windowUp(exe, ms) {
+  const started = Date.now();
+  while (Date.now() - started < ms) {
+    const n = powershell(`@(Get-Process -Name 'Rutba Office' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${exe.replace(/'/g, "''")}' -and $_.MainWindowHandle -ne 0 }).Count`);
+    if (Number(n) > 0) return true;
+    await wait(1000);
+  }
+  return false;
+}
+
+/**
+ * The older copy started again on the profile; the newer installer run
+ * silently while it is open, as the updater runs it (/S --updated); with
+ * race 'close' the copy is closed 2 to 5 s later, as quitAndInstall closes
+ * it, and with 'never-close' it is left open. Answers whether the newer
+ * version is now installed for the report to follow.
+ */
+async function installWhileRunning({ race: how, from, to, profile, verdict }) {
+  say(`starting ${from.version} again, to be open when the ${to.version} installer starts`);
+  const running = launch(INSTALLED(), [`--user-data-dir=${profile}`, '--app=home']);
+  if (!(await windowUp(INSTALLED(), 120000))) {
+    await close(running);
+    throw new Error(`${from.version} did not open a window within two minutes`);
+  }
+  say(`running ${path.basename(to.file)} /S --updated while ${from.version} is open`);
+  const startedAt = Date.now();
+  const installer = spawn(to.file, ['/S', '--updated'], { stdio: 'ignore' });
+  const exited = new Promise((resolve) => installer.on('exit', (code) => resolve(code)));
+  let closedAfter = null;
+  if (how === 'close') {
+    const delay = 2000 + Math.floor(Math.random() * 3000);
+    await wait(delay);
+    closedAfter = Math.round(delay / 100) / 10;
+    say(`closing ${from.version} ${closedAfter} s after the installer started`);
+    await close(running);
+  }
+  // The retries take 15 s; a hang is anything past three minutes (five for an install).
+  const limitSeconds = how === 'close' ? 300 : 180;
+  const exit = await Promise.race([exited, wait(limitSeconds * 1000).then(() => 'timeout')]);
+  const seconds = (Date.now() - startedAt) / 1000;
+  if (exit === 'timeout') stopTree(installer.pid, true);
+  say(`the installer ${exit === 'timeout' ? 'was stopped' : `ended with ${exit}`} after ${Math.round(seconds)} s`);
+  if (how === 'never-close') await close(running);
+  const judged = judgeInstallRace({ race: how, exit, seconds, limitSeconds, copies: registered(), from: from.version, to: to.version, closedAfter });
+  verdict.failures.push(...judged.failures);
+  verdict.evidence.push(...judged.evidence);
+  verdict.installer = { exit, seconds: Math.round(seconds), closedAfter };
+  return how === 'close' && exit === 0;
+}
+
 function runInstaller(file) {
   say(`installing ${path.basename(file)}`);
   const r = spawnSync(file, ['/S'], { stdio: 'ignore', timeout: 300000 });
@@ -185,6 +247,7 @@ function runInstaller(file) {
 
 async function main() {
   if (process.platform !== 'win32') throw new Error('the upgrade test runs the Windows executables; run it on Windows');
+  if (race && (!install || !['close', 'never-close'].includes(race))) throw new Error('--race is close or never-close, with --install');
   if (install && !process.env.CI && !flag('yes-install-here')) {
     throw new Error('--install installs over this machine\'s copy; it is for a CI runner (CI is set there). Leave it out to run the portable executables in a profile of their own.');
   }
@@ -200,7 +263,7 @@ async function main() {
   fs.copyFileSync(path.join(root, 'tests', 'corpus-public', 'docx', 'letter.docx'), document);
   const token = crypto.randomBytes(6).toString('hex');
   const seeded = seedProfile(profile, { document, token });
-  const verdict = { from: from.version, to: to.version, mode: install ? 'installed' : 'portable', profile, ok: false, failures: [], evidence: [] };
+  const verdict = { from: from.version, to: to.version, mode: race ? `installed, race ${race}` : install ? 'installed' : 'portable', profile, ok: false, failures: [], evidence: [] };
 
   try {
     // The older version, on the profile, until it has recorded itself.
@@ -233,9 +296,17 @@ async function main() {
     if (!ran) throw new Error(`${from.version} did not record itself in the profile within three minutes${old.exitCode != null ? ` (it exited with ${old.exitCode})` : ''}`);
     say(`${from.version} ran over the profile in ${Math.round((Date.now() - started) / 1000)} s and was closed`);
 
+    // The update that races the app's closing: the newer installer started
+    // while the older copy is open, as the updater starts it.
+    if (race) {
+      const done = await installWhileRunning({ race, from, to, profile, verdict });
+      if (!done) return finish(verdict, from, to);
+    }
+
     // The newer version, on the same profile, writing what it read.
     let newer = to.file;
-    if (install) {
+    if (race) newer = INSTALLED();
+    else if (install) {
       runInstaller(to.file);
       newer = INSTALLED();
       const copies = registered();
@@ -263,7 +334,12 @@ async function main() {
     fs.writeFileSync(out, JSON.stringify(verdict, null, 2));
     if (!keep) fs.rmSync(work, { recursive: true, force: true });
   }
+  return finish(verdict, from, to);
+}
 
+function finish(verdict, from, to) {
+  verdict.ok = verdict.failures.length === 0;
+  fs.writeFileSync(out, JSON.stringify(verdict, null, 2));
   for (const line of verdict.evidence) say(`ok    ${line}`);
   for (const line of verdict.failures) say(`FAIL  ${line}`);
   say(verdict.ok ? `proven: ${from.version} to ${to.version}, ${verdict.mode}` : `failed: ${verdict.failures.length} of ${verdict.failures.length + verdict.evidence.length}`);

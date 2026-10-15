@@ -1,9 +1,12 @@
 # The upgrade test on a Windows runner (tools/upgrade-test.js): the previous
 # release's profile opened by the newest one, settings, the recent list and
 # the arrival record kept, and the newest one's updater reading the release
-# feed. Twice: installed (the older installer, then the newer over it, the
-# registry left with one copy of the newer version), and as the portable
-# executables, the way the test runs on a desk.
+# feed. Installed (the older installer, then the newer over it, the
+# registry left with one copy of the newer version), as the portable
+# executables (the way the test runs on a desk), and twice racing the app's
+# own closing, the 1.51 to 2.0 failure ("Uninstaller error 2"): the newer
+# installer run while the older copy is open, which is then closed (the
+# install must succeed) or left open (the install must fail cleanly).
 #
 # It runs by itself after the release workflow publishes, and from the
 # Actions tab (workflow_dispatch) for any two releases. It only reads the
@@ -36,7 +39,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [installed, portable]
+        # race-close: the newer installer started while the older copy is open,
+        # the copy closed 2 to 5 s later, as the updater does it; race-never-close:
+        # left open, the silent install must give up by itself, not hang.
+        mode: [installed, portable, race-close, race-never-close]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -55,7 +61,11 @@ jobs:
           $to = if ($env:TO) { $env:TO } else { 'newest' }
           $testArgs = @('tools/upgrade-test.js', '--to', $to, '--open-file', '--out', "$env:RUNNER_TEMP\upgrade-${{ matrix.mode }}.json")
           if ($env:FROM) { $testArgs += @('--from', $env:FROM) }
-          if ('${{ matrix.mode }}' -eq 'installed') { $testArgs += '--install' }
+          switch ('${{ matrix.mode }}') {
+            'installed' { $testArgs += '--install' }
+            'race-close' { $testArgs += @('--install', '--race', 'close') }
+            'race-never-close' { $testArgs += @('--install', '--race', 'never-close') }
+          }
           node @testArgs
           exit $LASTEXITCODE
       - name: Keep the verdict

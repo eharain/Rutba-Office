@@ -129,3 +129,39 @@ export function judgeUpgrade({ from, to, seeded, report, feed = true }) {
   }
   return { ok: failures.length === 0, failures, evidence };
 }
+
+/**
+ * The update that races the app's own closing (the 1.51 to 2.0 failure:
+ * "could not be removed ... Uninstaller error 2"). The updater starts the
+ * new installer the moment the app begins to quit, so the installer meets a
+ * copy still running. `race` is 'close' (the app is closed 2 to 5 s after
+ * the installer starts, as quitAndInstall does: the install must succeed)
+ * or 'never-close' (the app is left running: the silent install must give
+ * up cleanly, with a code other than 0, after its 15 s of retries, and
+ * leave the copy that was there). `exit` is the installer's exit code, or
+ * 'timeout' when it was stopped at `limitSeconds`; `copies` is registered()
+ * after it. Answers { ok, failures, evidence }.
+ */
+export function judgeInstallRace({ race, exit, seconds, limitSeconds, copies, from, to, closedAfter = null }) {
+  const failures = [];
+  const evidence = [];
+  const want = (ok, yes, no) => (ok ? evidence : failures).push(ok ? yes : no);
+  const oldV = parseVersion(from)?.text;
+  const newV = parseVersion(to)?.text;
+  const only = (v) => copies.length === 1 && copies[0].startsWith(`${v} `);
+  const s = Math.round(seconds);
+  if (race === 'close') {
+    want(exit === 0, `the installer succeeded in ${s} s, the app closed ${closedAfter} s after it started`, exit === 'timeout' ? `the installer was still running after ${limitSeconds} s` : `the installer ended with ${exit} while the app was closing`);
+    want(only(newV), `one copy registered, ${newV}`, `the registry has ${copies.length ? copies.join('; ') : 'no copy'}, not one copy of ${newV}`);
+  } else if (race === 'never-close') {
+    want(exit !== 'timeout', `the installer ended by itself in ${s} s`, `the installer hung: still running after ${limitSeconds} s, and was stopped`);
+    if (exit !== 'timeout') {
+      want(exit !== 0, `it ended with ${exit}, not 0: the install was refused while the app ran`, 'it ended with 0, replacing a copy that was still running');
+      want(seconds >= 14, `it tried for ${s} s before giving up, the 15 s of retries`, `it gave up after ${s} s, before 15 s of retries`);
+    }
+    want(only(oldV), `the copy that was there is kept, ${oldV}`, `the registry has ${copies.length ? copies.join('; ') : 'no copy'}, not the ${oldV} that was there`);
+  } else {
+    throw new Error(`no race ${race}`);
+  }
+  return { ok: failures.length === 0, failures, evidence };
+}

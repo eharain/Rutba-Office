@@ -105,7 +105,7 @@ node tools/fuzz-pdf.js 300 <seed>
    exists without its files. A pushed tag still starts the workflow as
    before; the release stays a draft until its files are checked either way.
    When it has published, `.github/workflows/upgrade.yml` runs by itself
-   (see **The upgrade test**); its two jobs must pass.
+   (see **The upgrade test**); its four jobs must pass.
 6. The site (Rutba-Management) is brought to the release in the same sitting:
    `npm run import:releases`, then `npm run check:facts`, there.
 7. The branches that went into the release are deleted locally.
@@ -147,3 +147,14 @@ one copy, of the newer version) and once portable, each opening a document
 in the older version so it writes the recent list itself. A release made
 before the upgrade report existed cannot be the newer side: the report is
 the newer version's to write.
+
+Two more jobs race the app's own closing, as an update does: the updater
+starts the new installer the moment the app begins to quit, and 1.51 to
+2.0 stopped there on "could not be removed ... (Uninstaller error 2)".
+`--race close` starts the older copy again, runs the newer installer
+silently while it is open (`/S --updated`, as the updater runs it) and
+closes the copy 2 to 5 seconds later: the install must succeed and the
+report follow. `--race never-close` leaves the copy open: the installer
+must give up by itself after its 15 seconds of retries with a code other
+than 0, not hang, and leave the older copy installed. Both need a newer
+installer with the retry in `resources/installer.nsh`.
