@@ -54,12 +54,27 @@
         StrCpy $R5 "$R1"
       ${EndIf}
       DetailPrint "Removing the Rutba Office installed for ${SCOPE} from $R4"
-      ExecWait '"$R5" /S /KEEP_APP_DATA /${SCOPE} --updated _?=$R4' $R6
-      ${If} ${Errors}
-      ${OrIf} $R6 != 0
-        MessageBox MB_OK|MB_ICONEXCLAMATION "The Rutba Office already installed (for ${SCOPE}, in $R4) could not be removed, so this version was not installed beside it.$\r$\n$\r$\nClose Rutba Office and run the installer again. (Uninstaller error $R6.)" /SD IDOK
-        Abort
-      ${EndIf}
+      ; Tried again while the copy is still closing: an update starts this
+      ; installer the moment Rutba Office begins to quit, and the old
+      ; uninstaller refuses (error 2) until its last window and thread are
+      ; gone. Once a second for 15 seconds, as the template's own removal
+      ; does, then the person is asked rather than the install stopped.
+      StrCpy $R7 0
+      ${Do}
+        IntOp $R7 $R7 + 1
+        ClearErrors
+        ExecWait '"$R5" /S /KEEP_APP_DATA /${SCOPE} --updated _?=$R4' $R6
+        ${IfNot} ${Errors}
+        ${AndIf} $R6 == 0
+          ${ExitDo}
+        ${EndIf}
+        ${If} $R7 >= 15
+          MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Rutba Office (installed for ${SCOPE}, in $R4) is still open, so it cannot be replaced yet.$\r$\n$\r$\nClose every Rutba Office window and press Retry. Cancel stops the install and leaves the copy you have. (Uninstaller error $R6.)" /SD IDCANCEL IDRETRY +2
+          Abort
+          StrCpy $R7 0
+        ${EndIf}
+        Sleep 1000
+      ${Loop}
       ; The uninstaller run from a copy cannot delete the original of itself.
       Delete "$R1"
       RMDir "$R4"
@@ -81,8 +96,10 @@
   Push $R4
   Push $R5
   Push $R6
+  Push $R7
   !insertmacro rutbaRemoveInstalledCopy HKCU currentuser
   !insertmacro rutbaRemoveInstalledCopy HKLM allusers
+  Pop $R7
   Pop $R6
   Pop $R5
   Pop $R4
