@@ -49,7 +49,7 @@ const REPO = 'Rutba-Office';
 export function releaseAssets(names, tag) {
   const version = tag.replace(/^v/, '');
   return names
-    .filter((name) => /\.(exe|dmg|zip|AppImage|deb|blockmap)$/.test(name) || /^latest.*\.yml$/.test(name))
+    .filter((name) => /\.(exe|dmg|zip|AppImage|deb|blockmap)$/.test(name) || /^latest.*\.yml$/.test(name) || /-sbom\.cdx\.json$/.test(name))
     .filter((name) => !name.startsWith('builder-debug'))
     // Only this version's. The build directory keeps every installer ever made
     // on this machine, and a release carrying the previous version's binaries

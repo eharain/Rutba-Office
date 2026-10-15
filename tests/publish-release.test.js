@@ -84,8 +84,8 @@ function fakeGitHub({ releases = [], failUpload = null } = {}) {
 const quiet = () => {};
 
 test('the files of this version go up, the update feeds last, nothing of an older version and no build log', () => {
-  const names = ['latest.yml', INSTALLER, `${INSTALLER}.blockmap`, PORTABLE, 'Rutba-Office-2.0.0-win-x64.exe', 'builder-debug.yml', 'builder-effective-config.yaml', 'win-unpacked', 'Rutba-Office-2.1.0-x86_64.AppImage', 'latest-linux.yml'];
-  assert.deepEqual(releaseAssets(names, TAG), ['Rutba-Office-2.1.0-portable.exe', 'Rutba-Office-2.1.0-win-x64.exe', 'Rutba-Office-2.1.0-win-x64.exe.blockmap', 'Rutba-Office-2.1.0-x86_64.AppImage', 'latest-linux.yml', 'latest.yml']);
+  const names = ['latest.yml', INSTALLER, `${INSTALLER}.blockmap`, PORTABLE, 'Rutba-Office-2.0.0-win-x64.exe', 'builder-debug.yml', 'builder-effective-config.yaml', 'win-unpacked', 'Rutba-Office-2.1.0-x86_64.AppImage', 'latest-linux.yml', 'Rutba-Office-2.1.0-sbom.cdx.json', 'Rutba-Office-2.0.0-sbom.cdx.json'];
+  assert.deepEqual(releaseAssets(names, TAG), ['Rutba-Office-2.1.0-portable.exe', 'Rutba-Office-2.1.0-sbom.cdx.json','Rutba-Office-2.1.0-win-x64.exe', 'Rutba-Office-2.1.0-win-x64.exe.blockmap', 'Rutba-Office-2.1.0-x86_64.AppImage', 'latest-linux.yml', 'latest.yml']);
 });
 
 test('the update feed is read as electron-builder writes it', () => {

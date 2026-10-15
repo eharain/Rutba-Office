@@ -33,6 +33,9 @@ jobs:
         run: npm run test:perf
       - name: Build the installers
         run: npm run dist:win
+      # Beside the installers, so it goes up with them (docs/REPRODUCIBLE.md).
+      - name: The software bill of materials
+        run: node tools/sbom.mjs
       - name: Publish the pre-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
