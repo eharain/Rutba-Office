@@ -210,7 +210,7 @@ function PageBox({ entry, index, source, zoom, root, onText, overlay }) {
   }, [near, source, entry.page, entry.rotate, scale]);
 
   return (
-    <div ref={ref} className="pdf-page" data-key={entry.key} data-index={index} data-rotate={entry.rotate} style={{ width: w, height: h }}>
+    <div ref={ref} className="pdf-page" role="group" aria-label={t('Page {n}', { n: index + 1 })} data-key={entry.key} data-index={index} data-rotate={entry.rotate} style={{ width: w, height: h }}>
       {near && source?.doc ? <PageCanvas doc={source.doc} page={entry.page} rotate={entry.rotate} scale={scale} priority={0} className="pdf-page-canvas" /> : null}
       <div ref={textRef} className="textLayer pdf-text" data-ready={textReady ? 'yes' : undefined} />
       {near && overlay ? overlay(entry, { source, scale }) : null}

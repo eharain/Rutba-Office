@@ -65,7 +65,7 @@ export default function Reader({
   const auth = insight?.auth;
 
   return (
-    <div className="ml-reader" style={{ zoom: Math.abs(zoom - 1) > 0.001 ? zoom : undefined }}>
+    <div className="ml-reader" role="article" aria-label={message.subject || t('(no subject)')} style={{ zoom: Math.abs(zoom - 1) > 0.001 ? zoom : undefined }}>
       <header className="ml-head">
         <h2>
           {message.flagged ? <Icon name="star" size={16} /> : null}

@@ -208,6 +208,11 @@ function placeSelection(page, anchor, focus) {
 }
 
 const HEADING_SIZES = { Title: 28, Heading1: 21, Heading2: 17, Heading3: 15, Heading4: 14 };
+/** A heading style's paragraph is a heading at its level to a screen reader (the Title a first-level one), as Word's are. */
+const headingRole = (style) => {
+  const m = /^(?:Heading\s?(\d)|(Title))$/i.exec(style || '');
+  return m ? { role: 'heading', 'aria-level': m[2] ? 1 : Number(m[1]) } : {};
+};
 
 /**
  * Word's highlighter colours are named, and half the names are not CSS names.
@@ -2557,6 +2562,10 @@ export default function Word({ app, shell, boot }) {
             <div
               className={`wd-page${view.drawBox ? ' drawing-box' : ''}${view.gridlines ? ' gridlines' : ''}${view.noTableGridlines ? ' wd-no-table-gridlines' : ''}${view.tableDraw ? ' wd-table-' + view.tableDraw : ''}${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}${mailings.highlight ? ' wd-mm-hl' : ''}${model.mailMerge?.preview ? ' wd-mm-preview' : ''}`}
               ref={pageRef}
+              role="textbox"
+              aria-multiline="true"
+              tabIndex={0}
+              aria-label={doc?.name || APPS.word.short}
               // Immersive Reader is for reading: the words are not edited there, as in Word.
               contentEditable={!view.immersive}
               suppressContentEditableWarning
@@ -4372,6 +4381,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
       className={`wd-block${place?.kind === 'frame' ? ' wd-frame' : ''}${block.dropCap ? ' wd-dropcap' : ''}${block.dropCap?.kind === 'margin' ? ' wd-dropcap-margin' : ''}${block.tracked && markupMode !== 'final' && markupMode !== 'original' ? ' wd-changebar' : ''}${block.tracked?.mark && markupMode === 'all' ? (block.tracked.mark === 'deleted' ? ' wd-mark-del' : ' wd-mark-ins') : ''}`}
       data-block={block.index}
       data-style={block.style || 'Normal'}
+      {...headingRole(block.style)}
       data-from={from > 0 ? from : undefined}
       data-length={images.length || block.textBoxes?.length || block.groups?.length ? length : undefined}
       data-tail={images.length || block.textBoxes?.length || block.groups?.length ? tail : undefined}

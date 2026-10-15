@@ -545,6 +545,9 @@ export default function Calendar({ app, shell, boot }) {
               <div
                 key={isoDate(d)}
                 data-date={isoDate(d)}
+                role="group"
+                aria-label={d.toLocaleDateString(language(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                aria-current={sameDay(d, today) ? 'date' : undefined}
                 className={`cal-day${d.getMonth() !== cursor.getMonth() ? ' other' : ''}${sameDay(d, today) ? ' today' : ''}`}
                 onClick={() => newEvent(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9), false)}
                 onDoubleClick={(e) => e.stopPropagation()}

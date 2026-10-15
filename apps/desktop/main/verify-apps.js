@@ -105,6 +105,7 @@ import { verifyPdfFindMark } from './verify-pdf-find-mark.js';
 import { verifyDarkPass } from './verify-dark-pass.js';
 import { verifyA11yAudit } from './verify-a11y-audit.js';
 import { verifyKeyboardPass } from './verify-keyboard-pass.js';
+import { verifyScreenReader } from './verify-screen-reader.js';
 import { verifyPanels } from './verify-panels.js';
 import { verifyImageBatch } from './verify-image-batch.js';
 import { verifyPersonalTemplates } from './verify-personal-templates.js';
@@ -4892,6 +4893,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('dark-pass')) await verifyDarkPass({ open, check, until, wait }, { dir });
     if (only.includes('a11y-audit')) await verifyA11yAudit({ open, check, until, wait, press }, { dir });
     if (only.includes('keyboard-pass')) await verifyKeyboardPass({ open, check, until, wait, press }, { dir });
+    if (only.includes('screen-reader')) await verifyScreenReader({ open, check, until, wait, press }, { dir });
     if (only.includes('templates')) await verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('templates')) await verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows });
     if (only.includes('qrcode')) await verifyQrCode({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
@@ -5235,6 +5237,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDarkPass({ open, check, until, wait }, { dir }));
   await block(() => verifyA11yAudit({ open, check, until, wait, press }, { dir }));
   await block(() => verifyKeyboardPass({ open, check, until, wait, press }, { dir }));
+  await block(() => verifyScreenReader({ open, check, until, wait, press }, { dir }));
   await block(() => verifyImageBatch({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows }));

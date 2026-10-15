@@ -287,7 +287,8 @@ export default function Home({ app, shell }) {
             />
           </div>
           {filtered.length ? (
-            <div className="home-recent">
+            // A grid of rows, each a file: Enter opens it, F2 renames it, Delete takes it off the list.
+            <div className="home-recent" role="grid" aria-label={t('Recent')}>
               {filtered.map((r) => {
                 const kind = kindFromExtension(r.path);
                 const which = r.app || appFor(kind) || 'home';
@@ -296,7 +297,7 @@ export default function Home({ app, shell }) {
                 return (
                   <div
                     key={r.path}
-                    role="button"
+                    role="row"
                     tabIndex={0}
                     aria-label={`Open ${shownName}`}
                     className="home-recent-row"
@@ -326,12 +327,14 @@ export default function Home({ app, shell }) {
                     }
                     title={r.path}
                   >
-                    <span className="rr-glyph" data-app={which}>
+                    <span className="rr-glyph" data-app={which} role="gridcell" aria-hidden="true">
                       <Icon name={APPS[which]?.icon || 'file'} size={15} />
                     </span>
+                    <span className="rr-namecell" role="gridcell">
                     {editing ? (
                       <input
                         type="text"
+                        aria-label={t('Rename…')}
                         className="rw-input home-recent-rename"
                         autoFocus
                         defaultValue={shownName}
@@ -350,8 +353,10 @@ export default function Home({ app, shell }) {
                     ) : (
                       <span className="rr-name">{shownName}</span>
                     )}
-                    <span className="rr-kind">{KINDS[kind]?.label || ''}</span>
-                    <span className="rr-when">{formatWhen(r.at)}</span>
+                    </span>
+                    <span className="rr-kind" role="gridcell">{KINDS[kind]?.label || ''}</span>
+                    <span className="rr-when" role="gridcell">{formatWhen(r.at)}</span>
+                    <span role="gridcell" className="rr-removecell">
                     <button
                       type="button"
                       className="home-recent-remove"
@@ -365,6 +370,7 @@ export default function Home({ app, shell }) {
                     >
                       <Icon name="close" size={11} />
                     </button>
+                    </span>
                   </div>
                 );
               })}
@@ -773,6 +779,8 @@ const CSS = `
 .rr-glyph { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; color: #fff; flex: none; }
 .rr-glyph[data-app] { background: var(--accent); }
 .rr-glyph[data-app='home'] { background: var(--n-50); }
+.rr-namecell { flex: 1; min-width: 0; display: flex; }
+.rr-removecell { flex: none; display: flex; }
 .rr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The row's name becomes this in place, rather than a dialog elsewhere. */
 .home-recent-rename { flex: 1; min-width: 0; padding: 2px 6px; font-size: inherit; }

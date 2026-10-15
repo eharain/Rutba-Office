@@ -2461,6 +2461,15 @@ export default function Sheets({ app, shell, boot }) {
   }
 
   const sel = model?.selection;
+  // The active cell as a screen reader is told it: its address, then what it shows (a new element each move, so each is read).
+  const srCell = (() => {
+    const at = sel?.active;
+    const ref = sel?.ref?.split(':')[0];
+    if (!at || !ref) return null;
+    const cell = (model?.cells || []).find((c) => c.row === at.row && c.col === at.col);
+    const shown = cell ? String((view.formulas && cell.formula ? cell.formula : cell.text) ?? '') : '';
+    return { id: `sh-sr-cell-${ref}`, row: at.row, col: at.col, text: shown ? `${ref} ${shown}` : ref };
+  })();
   // The selection's rectangle: the frame carries its four sides on the selection itself.
   const selRange = sel && Number.isInteger(sel.top) ? { top: sel.top, left: sel.left, bottom: sel.bottom, right: sel.right } : null;
   const status = model?.status;
@@ -3355,8 +3364,16 @@ export default function Sheets({ app, shell, boot }) {
           <Spinner style={{ width: 22, height: 22 }} />
         </div>
       ) : (
-        <div className={`sh${model.rtl ? ' rtl' : ''}${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0} data-f6-home="" ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
+        <div className={`sh${model.rtl ? ' rtl' : ''}${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0}
+          role="group" aria-label={model.activeSheet || undefined} aria-activedescendant={srCell ? srCell.id : undefined} data-f6-home="" ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
           <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + OCR_CSS + PICTURE_DATA_CSS + RECEIPT_ROW_CSS}</style>
+          {srCell ? (
+            <div className="sh-sr" role="grid" aria-label={model.activeSheet || undefined} aria-rowcount={-1} aria-colcount={-1}>
+              <div role="row" aria-rowindex={srCell.row + 1}>
+                <div role="gridcell" id={srCell.id} key={srCell.id} aria-colindex={srCell.col + 1} aria-selected="true">{srCell.text}</div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="sh-formula" hidden={view.formulaBar === false}>
             <div className="sh-namebox">{sel?.ref}</div>
@@ -4415,6 +4432,7 @@ const CSS = `
   eight times a second for as long as it lived, 1,088 px wider each time.
 */
 .sh { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
+.sh-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .sh-formula {
   display: flex; align-items: center; gap: 8px; padding: 5px 10px;
   background: var(--chrome); border-bottom: 1px solid var(--line-soft);

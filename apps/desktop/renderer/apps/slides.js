@@ -2785,6 +2785,8 @@ export default function Slides({ app, shell, boot }) {
                   <button
                     type="button"
                     className={`sl-thumb${i === index ? ' active' : ''}${o.hidden ? ' hidden' : ''}`}
+                    aria-label={`${t('Slide {number}', { number: i + 1 })}: ${o.title || t('Untitled slide')}`}
+                    aria-current={i === index ? 'true' : undefined}
                     onClick={() => setIndex(i)}
                     onContextMenu={(e) => menu.open(e, menuItems(commands, ['slide.new', 'slide.delete']))}
                   >
@@ -2814,6 +2816,8 @@ export default function Slides({ app, shell, boot }) {
               className={`sl-stage tone-${view.tone || 'colour'}`}
               ref={stageRef}
               tabIndex={0}
+              role="group"
+              aria-label={`${t('Slide {number}', { number: index + 1 })}: ${model.outline?.[index]?.title || t('Untitled slide')}`}
               data-f6-home=""
               onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null); }}
               onKeyDown={(e) => {

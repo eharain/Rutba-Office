@@ -24040,6 +24040,7 @@
     {
       "message": "Page {n}",
       "where": [
+        "apps/desktop/renderer/apps/pdf/view.js",
         "apps/desktop/renderer/apps/sheets.js"
       ]
     },
