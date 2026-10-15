@@ -63,6 +63,8 @@ export const METHODS = {
     'remove',       // ({ path }) -> void        (to the OS trash, never unlink)
     'temp',         // ({ ext, bytes }) -> { path }
     'append',       // ({ path, bytes }) -> { size }: only to a file `temp` or capture.take made, in this run
+    'patch',        // ({ path, offset, bytes }) -> { size }: bytes written over what is at offset, in a file `temp` made in this run (an MP4's mdat size, once its samples are in)
+    'keepTemp',     // ({ path, to }) -> { stat }: a finished file `temp` made, moved to where it was asked to go (replacing what is there), its scratch folder gone
     'dropTemp',     // ({ path }) -> void — a file `temp` made, and its folder, gone
     'exists',       // ({ path }) -> boolean
   ],

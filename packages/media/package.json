@@ -9,7 +9,11 @@
     ".": "./src/index.js",
     "./probe": "./src/probe.js",
     "./timeline": "./src/timeline.js",
-    "./export": "./src/export.js"
+    "./export": "./src/export.js",
+    "./mp4-write": "./src/mp4-write.js",
+    "./mp4-read": "./src/mp4-read.js",
+    "./webm-read": "./src/webm-read.js",
+    "./frames": "./src/frames.js"
   },
   "sideEffects": false
 }

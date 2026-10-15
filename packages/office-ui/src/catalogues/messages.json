@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 6990,
+  "count": 6999,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -11171,6 +11171,12 @@
       ]
     },
     {
+      "message": "Encoding {done} of {total}",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Encrypt",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
@@ -11935,6 +11941,18 @@
       ]
     },
     {
+      "message": "Export writes the video as fast as this computer can encode it, on its graphics hardware: usually far less than the {length} the project runs.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "Export writes the video as fast as this computer can encode it: usually less than the {length} the project runs.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Export {count} message",
       "plural": "Export {count} messages",
       "where": [
@@ -11995,6 +12013,12 @@
     },
     {
       "message": "Exported {name} ({size})",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Exported {name} ({size}) in {time}",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
       ]
@@ -12704,6 +12728,12 @@
       "message": "Finding the scanned pages…",
       "where": [
         "apps/desktop/renderer/apps/pdf/ocr.js"
+      ]
+    },
+    {
+      "message": "Finding this computer's encoders…",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -18845,6 +18875,18 @@
     },
     {
       "message": "MP4 video (H.264 and AAC)",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "MP4 video ({video} and {audio})",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "MP4 video ({video})",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
       ]
@@ -32904,6 +32946,12 @@
       ]
     },
     {
+      "message": "Starting the encoder…",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Starting…",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js"
@@ -44143,6 +44191,12 @@
       "message": "{size} px",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "{speed}× as fast as it plays, about {left} left",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {

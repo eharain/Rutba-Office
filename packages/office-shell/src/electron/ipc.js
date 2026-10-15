@@ -262,6 +262,34 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       await fsp.appendFile(p, Buffer.from(bytes));
       return { size: (await fsp.stat(p)).size };
     },
+    // An export streamed to a scratch file writes one thing twice: a size
+    // near the front, known only once the rest is in.
+    patch: async ({ path: p, offset, bytes }) => {
+      if (!temps.has(p) || takes.has(p)) throw new Error('Only a scratch file made in this run is written over.');
+      const handle = await fsp.open(p, 'r+');
+      try {
+        const buf = Buffer.from(bytes);
+        await handle.write(buf, 0, buf.length, Math.max(0, Number(offset) || 0));
+        return { size: (await handle.stat()).size };
+      } finally {
+        await handle.close();
+      }
+    },
+    // The finished file to its place: renamed where it can be, copied across drives where it cannot.
+    keepTemp: async ({ path: p, to }) => {
+      if (!temps.has(p) || takes.has(p)) throw new Error('Only a scratch file made in this run is kept.');
+      if (!to || !path.isAbsolute(String(to))) throw new Error('A file needs a place to go.');
+      await fsp.mkdir(path.dirname(to), { recursive: true });
+      try {
+        await fsp.rename(p, to);
+      } catch {
+        await fsp.copyFile(p, to);
+        await fsp.rm(p, { force: true });
+      }
+      temps.delete(p);
+      await fsp.rmdir(path.dirname(p)).catch(() => {});
+      return { stat: statOf(to) };
+    },
     dropTemp: async ({ path: p }) => {
       if (!temps.delete(p)) return;
       await fsp.rm(p, { force: true });

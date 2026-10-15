@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseVtt } from '@rutba/studio/captions';
 import { probeMedia } from '@rutba/media/probe';
+import { EXPORT_EXT } from './verify-video-editor.js';
 import { buildDocx } from '@rutba/ooxml/build';
 import { BrowserWindow } from 'electron';
 import { gradientPng } from './sample-picture.js';
@@ -175,9 +176,10 @@ export async function verifyIntroCaptions(h, { dir }) {
     await js(`(() => { const s = document.querySelector('.vd-export-preset'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'email'); s.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
     await wait(200);
     await capture(win, 'intro-presets-box.png');
-    const ext = await js(`(() => { for (const t of ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return 'mp4'; return 'webm'; })()`);
+    const ext = await js(EXPORT_EXT);
     const small = path.join(dir, `intro-captions-email.${ext}`);
     answer('save', small);
+    await until(() => js(`document.querySelector('.vd-export-go')?.disabled === false`), 'the export format found', 6000).catch(() => {});
     await js(`document.querySelector('.vd-export-go')?.click(), 1`);
     const made = await ok(until(() => { try { return fs.statSync(small).size > 2000; } catch { return false; } }, 'the email export', 30000));
     await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 8000));
@@ -552,7 +554,7 @@ export async function verifyIntroScenes(h, { dir }) {
 
     // Exported for YouTube and for Reels, Shorts and TikTok, both read back.
     const length = await js(`Number(document.querySelector('.vd-editor')?.dataset.duration || 0)`);
-    const ext = await js(`(() => { for (const t of ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return 'mp4'; return 'webm'; })()`);
+    const ext = await js(EXPORT_EXT);
     const exportAs = async (preset, name) => {
       const target = path.join(dir, `${name}.${ext}`);
       answer('save', target);
@@ -560,6 +562,7 @@ export async function verifyIntroScenes(h, { dir }) {
       await ok(until(() => js(`Boolean(document.querySelector('.vd-export-preset'))`), 'the Export box', 4000));
       await js(fillJs('.vd-export-preset', preset, 'change'));
       await ok(until(() => js(`document.querySelector('.vd-export-preset')?.value === '${preset}'`), preset, 2000));
+      await until(() => js(`document.querySelector('.vd-export-go')?.disabled === false`), 'the export format found', 6000).catch(() => {});
       await js(`document.querySelector('.vd-export-go')?.click(), 1`);
       const made = await ok(until(() => { try { return fs.statSync(target).size > 4000; } catch { return false; } }, `the ${preset} export`, Math.round(length * 1000) + 40000));
       await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 10000));

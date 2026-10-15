@@ -7000,4 +7000,13 @@ export default {
   'Type your comment… @ mentions someone': 'اكتب تعليقك… @ للإشارة إلى شخص',
   'Check the workbook for hidden properties or personal information.': 'افحص المصنف بحثًا عن خصائص مخفية أو معلومات شخصية.',
   'Redact: mark the words and numbers in cells to take out of a copy of the workbook': 'تنقيح: حدّد الكلمات والأرقام في الخلايا لإزالتها من نسخة من المصنف',
+  'MP4 video ({video} and {audio})': 'فيديو MP4 ({video} و{audio})',
+  'MP4 video ({video})': 'فيديو MP4 ({video})',
+  'Finding this computer\'s encoders…': 'جارٍ البحث عن برامج الترميز في هذا الكمبيوتر…',
+  'Export writes the video as fast as this computer can encode it, on its graphics hardware: usually far less than the {length} the project runs.': 'يكتب التصدير الفيديو بأسرع ما يستطيع هذا الكمبيوتر ترميزه على عتاد الرسومات: عادةً في وقت أقل بكثير من {length} مدة المشروع.',
+  'Export writes the video as fast as this computer can encode it: usually less than the {length} the project runs.': 'يكتب التصدير الفيديو بأسرع ما يستطيع هذا الكمبيوتر ترميزه: عادةً في وقت أقل من {length} مدة المشروع.',
+  'Encoding {done} of {total}': 'ترميز {done} من {total}',
+  '{speed}× as fast as it plays, about {left} left': 'أسرع من التشغيل {speed} مرة، يتبقى نحو {left}',
+  'Starting the encoder…': 'جارٍ بدء الترميز…',
+  'Exported {name} ({size}) in {time}': 'تم تصدير {name} ({size}) في {time}',
 };

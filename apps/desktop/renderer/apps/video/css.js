@@ -165,7 +165,7 @@ export const CSS = `
 .vd-title-tile.p-callout .words { right: 4px; top: 3px; width: 18px; height: 7px; background: var(--accent); border-radius: 4px; }
 .vd-ribbon-field { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink-2); padding: 2px 6px; }
 
-.vd-export-format { font-weight: 600; }
+.vd-export-format { font-weight: 600; padding: 2px 0 6px; }
 
 /* A picture in picture's corner, picked from four small frames. */
 .vd-corners { display: inline-grid; grid-template-columns: repeat(2, 28px); gap: 4px; direction: ltr; }
@@ -181,4 +181,5 @@ export const CSS = `
 .vd-inset-full { margin-top: 6px; }
 .vd-start-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
 .vd-export-line { margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+.vd-export-speed { margin-top: 8px; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 `;

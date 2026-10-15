@@ -36,6 +36,7 @@ export {
   // video output
   renderVideo, startAudioPreview, soundLayers, clipFromSoundLayer,
   driveVideoElements, pauseVideoElements, layersEnd, FITS,
+  videoTimesAt, mixAudioOffline,
   pickMimeType, extensionFor, unsupportedReason, videoFileName,
   // the extension registry
   registerLayerType, registeredLayerTypes,

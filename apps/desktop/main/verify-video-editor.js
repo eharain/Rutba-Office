@@ -23,6 +23,21 @@ import { BrowserWindow } from 'electron';
 import { probeMedia } from '@rutba/media/probe';
 import { gradientPng } from './sample-picture.js';
 
+/**
+ * The extension an export will have here, asked of the window before the
+ * Export box opens: MP4 where WebCodecs encodes (our own) or MediaRecorder
+ * records it, WebM otherwise.
+ */
+export const EXPORT_EXT = `(async () => {
+  try {
+    for (const codec of ['avc1.640028', 'vp09.00.40.08']) {
+      if (typeof VideoEncoder !== 'undefined' && (await VideoEncoder.isConfigSupported({ codec, width: 1920, height: 1080, bitrate: 8e6, framerate: 30 })).supported) return 'mp4';
+    }
+  } catch { /* asked the recorder below */ }
+  for (const t of ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return 'mp4';
+  return 'webm';
+})()`;
+
 /* ── fixtures: clips with sound, encoded in a window ─────────────────── */
 
 /** Runs in the window: frames as VP8, a tone as Opus, both as base64 chunks with their times (ms). */
@@ -147,9 +162,9 @@ function muxClip({ W, H, video, audio, head }) {
   return Buffer.concat([header, ebml([0x18, 0x53, 0x80, 0x67], info, ebml([0x16, 0x54, 0xae, 0x6b], ...tracks), cluster)]);
 }
 
-/** Two clips with sound and a still, in `dir`: { a, b, still, withSound }. */
-async function makeFixtures(webContents, dir) {
-  const root = path.join(dir, 'video-editor');
+/** Two clips with sound and a still, in a folder of `dir` named for the block: { a, b, still, withSound }. */
+export async function makeFixtures(webContents, dir, folder = 'video-editor') {
+  const root = path.join(dir, folder);
   fs.mkdirSync(root, { recursive: true });
   const out = { still: path.join(root, 'still.png'), withSound: false };
   fs.writeFileSync(out.still, gradientPng(640, 360, [20, 110, 140], [240, 190, 90]));
@@ -326,7 +341,7 @@ export async function verifyVideoEditor(h, { dir }) {
     check('video editor: Recover in the launcher opens the unsaved work again, marked unsaved', Boolean(recovered && recovered.clips === (await count('video')) && recovered.titles === 1 && recovered.dirty === '1' && Math.abs(recovered.duration - (await duration())) < 0.01), JSON.stringify(recovered));
 
     // Export, with sound, and read the file back.
-    const ext = await js(`(() => { for (const t of ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return 'mp4'; return 'webm'; })()`);
+    const ext = await js(EXPORT_EXT);
     const target = path.join(dir, `video-editor-out.${ext}`);
     const projectLength = await duration();
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: target });
@@ -343,6 +358,7 @@ export async function verifyVideoEditor(h, { dir }) {
       return 1;
     })()`);
     await until(() => js(`document.querySelector('.vd-export-preset')?.value === 'project'`), 'the project shape chosen', 3000).catch(() => {});
+    await until(() => js(`document.querySelector('.vd-export-go')?.disabled === false`), 'the export format found', 6000).catch(() => {});
     await js(`document.querySelector('.vd-export-go')?.click(), 1`);
     const busy = await until(() => js(`Boolean(document.querySelector('.vd-export-busy'))`), 'the progress', 6000).then(() => true).catch(() => false);
     if (busy) await capture(win, 'video-editor-3-exporting.png');
@@ -369,12 +385,21 @@ export async function verifyVideoEditor(h, { dir }) {
         v.currentTime = 0.5;
         await new Promise((res) => { v.onseeked = res; setTimeout(res, 3000); });
         const c = document.createElement('canvas'); c.width = 64; c.height = 36;
-        const g = c.getContext('2d'); g.drawImage(v, 0, 0, 64, 36);
-        const px = g.getImageData(0, 0, 64, 36).data;
-        let sum = 0; let sq = 0; const n = px.length / 4;
-        for (let i = 0; i < px.length; i += 4) { const l = (px[i] + px[i + 1] + px[i + 2]) / 3; sum += l; sq += l * l; }
-        const mean = sum / n;
-        return { mean: Math.round(mean), spread: Math.round(Math.sqrt(Math.max(0, sq / n - mean * mean))) };
+        const g = c.getContext('2d', { willReadFrequently: true });
+        // The first frame after a seek can reach the element a moment after 'seeked' (a 1080p
+        // file decoded on the graphics hardware): read until there is one, for up to three seconds.
+        let mean = 0; let sq = 0; let n = 1; let tries = 0;
+        for (; tries < 20; tries++) {
+          g.clearRect(0, 0, 64, 36);
+          g.drawImage(v, 0, 0, 64, 36);
+          const px = g.getImageData(0, 0, 64, 36).data;
+          let sum = 0; sq = 0; n = px.length / 4;
+          for (let i = 0; i < px.length; i += 4) { const l = (px[i] + px[i + 1] + px[i + 2]) / 3; sum += l; sq += l * l; }
+          mean = sum / n;
+          if (px[3] > 0 && mean > 0) break;
+          await new Promise((res) => setTimeout(res, 150));
+        }
+        return { mean: Math.round(mean), spread: Math.round(Math.sqrt(Math.max(0, sq / n - mean * mean))), tries, ready: v.readyState, at: v.currentTime, size: v.videoWidth + 'x' + v.videoHeight, error: v.error ? v.error.code + ' ' + (v.error.message || '') : null };
       })()`).catch((err) => ({ error: err.message }));
     }
     check('video editor: a frame of the exported file has a picture in it, not a blank', Boolean(frame && frame.mean > 25 && frame.spread > 6), frame ? JSON.stringify(frame) : 'no frame');

@@ -7000,4 +7000,13 @@ export default {
   'Type your comment… @ mentions someone': 'अपनी टिप्पणी लिखें… @ से किसी का उल्लेख होता है',
   'Check the workbook for hidden properties or personal information.': 'वर्कबुक में छिपे गुण या व्यक्तिगत जानकारी जाँचें।',
   'Redact: mark the words and numbers in cells to take out of a copy of the workbook': 'रिडैक्ट: सेलों के शब्द और संख्याएँ चिह्नित करें जिन्हें वर्कबुक की प्रति से हटाना है',
+  'MP4 video ({video} and {audio})': 'MP4 वीडियो ({video} और {audio})',
+  'MP4 video ({video})': 'MP4 वीडियो ({video})',
+  'Finding this computer\'s encoders…': 'इस कंप्यूटर के एन्कोडर खोजे जा रहे हैं…',
+  'Export writes the video as fast as this computer can encode it, on its graphics hardware: usually far less than the {length} the project runs.': 'एक्सपोर्ट वीडियो को उतनी तेज़ी से लिखता है जितनी तेज़ी से यह कंप्यूटर उसे अपने ग्राफ़िक्स हार्डवेयर पर एन्कोड कर सके: आम तौर पर प्रोजेक्ट की {length} अवधि से कहीं कम समय में।',
+  'Export writes the video as fast as this computer can encode it: usually less than the {length} the project runs.': 'एक्सपोर्ट वीडियो को उतनी तेज़ी से लिखता है जितनी तेज़ी से यह कंप्यूटर उसे एन्कोड कर सके: आम तौर पर प्रोजेक्ट की {length} अवधि से कम समय में।',
+  'Encoding {done} of {total}': '{total} में से {done} एन्कोड हुआ',
+  '{speed}× as fast as it plays, about {left} left': 'चलने से {speed} गुना तेज़, लगभग {left} बाकी',
+  'Starting the encoder…': 'एन्कोडर शुरू हो रहा है…',
+  'Exported {name} ({size}) in {time}': '{name} ({size}) {time} में एक्सपोर्ट हुआ',
 };

@@ -24,6 +24,7 @@ import { gradientPng, joinPictureParagraphs } from './sample-picture.js';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { verifyViewer } from './verify-viewer.js';
 import { verifyVideoEditor, verifyVideoBasics, verifyVideoSplit } from './verify-video-editor.js';
+import { verifyVideoMp4 } from './verify-video-mp4.js';
 import { verifyRecorder } from './verify-recorder.js';
 import { verifyIntroVideo } from './verify-intro-video.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
@@ -4790,7 +4791,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,dark-pass: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,dark-pass,video-mp4: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4922,6 +4923,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await verifyVideoSplit({ open, check, until, wait, errorsIn }, { wav: files.wav });
       await verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir });
     }
+    if (only.includes('video-mp4')) await verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder')) await verifyRecorder({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('intro-video')) await verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('viewdirection')) await verifyDeckDirection({ open, check, until, wait }, { dir });
@@ -5254,6 +5256,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir }));
+  await block(() => verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyDeckDirection({ open, check, until, wait }, { dir }));
   await block(() => verifyDeckRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckZoom({ open, check, until, wait, doc, sessionFor }, { dir }));

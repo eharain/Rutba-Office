@@ -6998,4 +6998,13 @@ export default {
   'Type your comment… @ mentions someone': 'اپنا تبصرہ لکھیں… @ سے کسی کا ذکر ہوتا ہے',
   'Check the workbook for hidden properties or personal information.': 'ورک بک میں چھپی خصوصیات یا ذاتی معلومات دیکھیں۔',
   'Redact: mark the words and numbers in cells to take out of a copy of the workbook': 'ریڈیکٹ: ورک بک کی نقل سے نکالنے کے لیے سیلز کے الفاظ اور اعداد پر نشان لگائیں',
+  'MP4 video ({video} and {audio})': 'MP4 ویڈیو ({video} اور {audio})',
+  'MP4 video ({video})': 'MP4 ویڈیو ({video})',
+  'Finding this computer\'s encoders…': 'اس کمپیوٹر کے انکوڈر تلاش ہو رہے ہیں…',
+  'Export writes the video as fast as this computer can encode it, on its graphics hardware: usually far less than the {length} the project runs.': 'ایکسپورٹ ویڈیو کو اتنی تیزی سے لکھتا ہے جتنی تیزی سے یہ کمپیوٹر اپنے گرافکس ہارڈویئر پر اسے انکوڈ کر سکے: عام طور پر پروجیکٹ کے {length} سے کہیں کم وقت میں۔',
+  'Export writes the video as fast as this computer can encode it: usually less than the {length} the project runs.': 'ایکسپورٹ ویڈیو کو اتنی تیزی سے لکھتا ہے جتنی تیزی سے یہ کمپیوٹر اسے انکوڈ کر سکے: عام طور پر پروجیکٹ کے {length} سے کم وقت میں۔',
+  'Encoding {done} of {total}': '{total} میں سے {done} انکوڈ ہو چکا',
+  '{speed}× as fast as it plays, about {left} left': 'چلنے سے {speed} گنا تیز، تقریباً {left} باقی',
+  'Starting the encoder…': 'انکوڈر شروع ہو رہا ہے…',
+  'Exported {name} ({size}) in {time}': '{name} ({size}) {time} میں ایکسپورٹ ہو گئی',
 };

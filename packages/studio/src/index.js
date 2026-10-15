@@ -1644,19 +1644,29 @@ function frameOf(entry) {
 
 function paintVideo(ctx, plan, layer, time) {
     const live = videoEntry(plan, layer);
-    if (!live || !live.el) return;
-    // A paused element (the preview) follows the playhead by seeking, first,
-    // so the frame it held is what shows until the new one lands; the 0.08 s
-    // threshold stops scrubbing from thrashing the decoder.
-    const w0 = layer.timing || { start: 0, end: plan.duration };
-    const want = (layer.offset || 0) + (time - w0.start);
-    if (live.el.paused && live.el.readyState >= 2 && Math.abs(live.el.currentTime - want) > 0.08) {
-        try {
-            live.el.currentTime = Math.min(Math.max(0, want), Math.max(0, (live.duration || 1) - 0.05));
-        } catch { /* not seekable yet */ }
+    if (!live) return;
+    let entry;
+    if ('frame' in live) {
+        // Driven frame by frame (an export faster than real time): the host
+        // decoded the frame for this instant and put it here, so there is no
+        // element to seek or play.
+        if (!live.frame) return;
+        entry = { ...live, el: live.frame, img: live.frame };
+    } else {
+        if (!live.el) return;
+        // A paused element (the preview) follows the playhead by seeking, first,
+        // so the frame it held is what shows until the new one lands; the 0.08 s
+        // threshold stops scrubbing from thrashing the decoder.
+        const w0 = layer.timing || { start: 0, end: plan.duration };
+        const want = (layer.offset || 0) + (time - w0.start);
+        if (live.el.paused && live.el.readyState >= 2 && Math.abs(live.el.currentTime - want) > 0.08) {
+            try {
+                live.el.currentTime = Math.min(Math.max(0, want), Math.max(0, (live.duration || 1) - 0.05));
+            } catch { /* not seekable yet */ }
+        }
+        entry = frameOf(live);
+        if (!entry) return;
     }
-    const entry = frameOf(live);
-    if (!entry) return;
 
     if (layer.fw) {
         const rw = plan.W * layer.fw;
@@ -3354,6 +3364,73 @@ export function driveVideoElements(plan, t, { tolerance = 0.3 } = {}) {
             try { el.currentTime = target; } catch { /* mid-seek */ }
         }
     }
+}
+
+/**
+ * Which instant of each decoder's source shows at clock `t`: a Map from a
+ * key of `plan.videos` to seconds into its source, for the keys a clip
+ * holds at `t` (the later-starting clip where two overlap, as
+ * driveVideoElements decides). What an export painted frame by frame asks
+ * its decoders for.
+ */
+export function videoTimesAt(plan, t) {
+    const owner = new Map();
+    for (const l of plan.layers) {
+        if (l.type !== 'video' || l.visible === false) continue;
+        const key = l.videoKey || l.url;
+        if (!plan.videos[key]) continue;
+        const w = l.timing || { start: 0, end: plan.duration };
+        if (t < w.start || t > w.end) continue;
+        const held = owner.get(key);
+        if (!held || (held.timing?.start ?? 0) <= w.start) owner.set(key, l);
+    }
+    const out = new Map();
+    for (const [key, l] of owner) out.set(key, Math.max(0, (l.offset || 0) + (t - (l.timing?.start ?? 0))));
+    return out;
+}
+
+/**
+ * The plan's sound mixed as the export hears it, faster than real time: the
+ * same clips, fades and ducking renderVideo plays into its recorder, rendered
+ * in an OfflineAudioContext. Answers an AudioBuffer as long as the plan, or
+ * null when there is nothing to hear (or no Web Audio here).
+ */
+export async function mixAudioOffline(audio, plan, { sampleRate = 48000, channels = 2 } = {}) {
+    const clips = normalizeAudioClips(audio, plan);
+    if (!clips.length) return null;
+    const Ctor = typeof OfflineAudioContext !== 'undefined' ? OfflineAudioContext : (typeof webkitOfflineAudioContext !== 'undefined' ? webkitOfflineAudioContext : null);
+    if (!Ctor) return null;
+    const ac = new Ctor(channels, Math.max(1, Math.ceil(plan.duration * sampleRate)), sampleRate);
+    const ducks = duckEnvelopes(clips);
+    clips.forEach((clip, i) => {
+        const source = ac.createBufferSource();
+        source.buffer = clip.buffer;
+        source.loop = clip.loop;
+        const gain = ac.createGain();
+        source.connect(gain);
+        if (ducks[i]) {
+            const duck = ac.createGain();
+            gain.connect(duck);
+            duck.connect(ac.destination);
+            duck.gain.setValueAtTime(envValueAt(ducks[i], 0), 0);
+            for (const p of ducks[i]) if (p.t > 0) duck.gain.linearRampToValueAtTime(p.v, p.t);
+        } else {
+            gain.connect(ac.destination);
+        }
+        // The same envelope renderVideo writes, from the clip's start.
+        const at = clip.start;
+        gain.gain.setValueAtTime(0, at);
+        gain.gain.linearRampToValueAtTime(clip.vol, at + clip.fadeIn);
+        gain.gain.setValueAtTime(clip.vol, at + Math.max(clip.fadeIn, clip.dur - clip.fadeOut));
+        gain.gain.linearRampToValueAtTime(0, at + clip.dur);
+        if (clip.loop) {
+            source.start(at, clip.offset);
+            source.stop(at + clip.dur);
+        } else {
+            source.start(at, clip.offset, clip.dur);
+        }
+    });
+    return ac.startRendering();
 }
 
 /** Pause every element a plan's clips draw from: the preview stopped. */

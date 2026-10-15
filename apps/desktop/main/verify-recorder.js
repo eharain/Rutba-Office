@@ -27,6 +27,7 @@ import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import { buildDocx } from '@rutba/ooxml/build';
 import { probeMedia } from '@rutba/media/probe';
+import { EXPORT_EXT } from './verify-video-editor.js';
 import { readRvid } from '@rutba/studio/rvid';
 
 /**
@@ -210,7 +211,7 @@ export async function verifyRecorder(h, { dir }) {
     check('recorder: the camera stays an inset that can be moved after: Picture in picture in its properties puts it in another corner', props && moved, JSON.stringify({ props, moved }));
 
     // Export with the camera over the screen and the voice under it, read back.
-    const ext = await js(`(() => { for (const t of ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return 'mp4'; return 'webm'; })()`);
+    const ext = await js(EXPORT_EXT);
     const target = path.join(dir, `recorder-out.${ext}`);
     const projectLength = await js(`Number(document.querySelector('.vd-editor')?.dataset.duration || 0)`);
     // An answer an earlier block queued for a Save that never asked (a project
@@ -222,6 +223,7 @@ export async function verifyRecorder(h, { dir }) {
     await wait(200);
     await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Export') && !n.disabled); b?.click(); return Boolean(b); })()`);
     await ok(until(() => js(`Boolean(document.querySelector('.vd-export-go'))`), 'the Export box', 4000));
+    await until(() => js(`document.querySelector('.vd-export-go')?.disabled === false`), 'the export format found', 6000).catch(() => {});
     await js(`document.querySelector('.vd-export-go')?.click(), 1`);
     const written = await ok(until(() => { try { return fs.statSync(target).size > 4000; } catch { return false; } }, 'the exported file', Math.round(projectLength * 1000) + 30000));
     await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 8000));

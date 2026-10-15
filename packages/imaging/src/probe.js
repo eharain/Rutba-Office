@@ -111,8 +111,14 @@ export function probeImage(bytes) {
   }
 
   if (dec(b, 4, 4) === 'ftyp') {
-    const brand = dec(b, 8, 4);
-    const format = /avif|avis/.test(brand) ? 'avif' : 'heic';
+    // The same box starts a movie: a picture is one whose brands say so, and
+    // anything else (an MP4 or a QuickTime file) is left to the media probe.
+    const size = u32be(b, 0);
+    const brands = [dec(b, 8, 4)];
+    for (let at = 16; at + 4 <= Math.min(size, b.length, 96); at += 4) brands.push(dec(b, at, 4));
+    if (!brands.some((x) => /^(avif|avis|heic|heix|hevc|heim|heis|mif1|msf1)$/.test(x))) return null;
+    const brand = brands[0];
+    const format = /avif|avis/.test(brand) || (!/^(heic|heix|hevc|heim|heis)$/.test(brand) && brands.some((x) => /avif|avis/.test(x))) ? 'avif' : 'heic';
     // ISO-BMFF images carry the size in an ispe box.
     for (let at = 0; at + 12 < Math.min(b.length, 65536); at++) {
       if (dec(b, at, 4) === 'ispe') {
