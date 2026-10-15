@@ -89,6 +89,21 @@ node tools/fuzz-pdf.js 300 <seed>
    the end (`gh run watch`) and look at the release's files
    (`gh release view v<version>`): the installer, the portable executable,
    `latest.yml` and the blockmap.
+
+   The release is made as a draft, which nobody sees and the updater's
+   feed leaves out. Every file is uploaded to it, then `latest.yml` is read
+   back from the release and held to the files (its version the tag's,
+   each file it names uploaded at the size it says with the SHA-512 of the
+   file built, the installer's blockmap beside it), and only then is it
+   published. A run that fails leaves the draft: run the workflow again
+   (or `node tools/publish-release.js v<version>` on the build machine)
+   and it finds the draft, uploads what is missing and checks again.
+
+   Steps 3 and 4 can leave the tag out: push `main` and `dev`, then
+   `gh workflow run release.yml --ref main`. The release then makes the
+   tag itself, at the commit it built, when it publishes, so the tag never
+   exists without its files. A pushed tag still starts the workflow as
+   before; the release stays a draft until its files are checked either way.
    When it has published, `.github/workflows/upgrade.yml` runs by itself
    (see **The upgrade test**); its two jobs must pass.
 6. The site (Rutba-Management) is brought to the release in the same sitting:
