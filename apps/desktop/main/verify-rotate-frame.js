@@ -10,9 +10,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { frameCorners, frameBounds, insideFrame, turnPoint } from '@rutba/office-ui/turned-box';
+import { frameCorners, frameBounds, framePoint, insideFrame, turnPoint } from '@rutba/office-ui/turned-box';
 
-export { frameCorners, frameBounds, insideFrame, turnPoint };
+export { frameCorners, frameBounds, framePoint, insideFrame, turnPoint };
 
 /** Real pointer input on a window: a click and a drag, in window pixels. */
 export function pointer(win, wait) {

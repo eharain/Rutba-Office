@@ -6,8 +6,9 @@
 // handles sit where the engine paints.
 
 import React, { useRef } from 'react';
-import { layerBounds, layerHandles, scaleFromDrag, resizePatch, wordArtResize } from '@rutba/studio/host';
+import { layerBounds, layerHandles, scaleFromDrag, resizePatch, wordArtResize, applyLayerPatches } from '@rutba/studio/host';
 import { resizeCentred, rotationAt } from '@rutba/studio/layers';
+import { framePoint } from '@rutba/office-ui/turned-box';
 
 const measure = () => document.createElement('canvas').getContext('2d');
 
@@ -34,11 +35,34 @@ export function layerAt(plan, x, y, isLocked) {
   return null;
 }
 
-/** The patch a corner drag by `k` writes for a layer of any kind. */
-function resized(plan, layer, start, kind, k) {
+/** The patch a corner drag by `k` writes for a layer of any kind, before any turn is allowed for. */
+function resizedUpright(plan, layer, start, kind, k) {
   if (layer.type === 'wordart') return { ...wordArtResize(layer, k) };
   if (layer.type === 'text' || layer.type === 'image' || layer.type === 'qr') return resizePatch(measure(), plan, layer, kind, k);
   return resizeCentred({ width: plan.W, height: plan.H }, layer, start, kind, k);
+}
+
+/**
+ * The patch a corner drag by `k` writes. A turned layer is scaled from the
+ * corner opposite the grip where that corner stands on the canvas, turned,
+ * as an upright one is: the engine's patch holds it in the upright box, so
+ * the layer is then moved by however far its turned corner went.
+ */
+function resized(plan, layer, start, kind, k) {
+  const patch = resizedUpright(plan, layer, start, kind, k);
+  const rot = layer.rot || 0;
+  if (!patch || !rot || !start) return patch;
+  // Where the engine's patch puts it: the patch applied to a copy of the plan, as the next frame will.
+  const copy = { ...plan, layers: plan.layers.map((l) => (l.id === layer.id ? { ...l } : l)) };
+  applyLayerPatches(copy, [{ ...patch, id: layer.id }]);
+  const b1 = layerBounds(measure(), copy, copy.layers.find((l) => l.id === layer.id));
+  if (!b1) return patch;
+  const opposite = [kind.includes('w') ? 1 : 0, kind.includes('n') ? 1 : 0];
+  const want = framePoint(start, rot, ...opposite);
+  const got = framePoint(b1, rot, ...opposite);
+  const fx = (patch.fx ?? layer.fx ?? 0.5) + (want.x - got.x) / plan.W;
+  const fy = (patch.fy ?? layer.fy ?? 0.5) + (want.y - got.y) / plan.H;
+  return { ...patch, fx: +fx.toFixed(4), fy: +fy.toFixed(4) };
 }
 
 export function LayerStage({ plan, cssPerPx, doc, selected, onSelect, isLocked, onBegin, onLive, onOpenText }) {
