@@ -2045,7 +2045,8 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
         aria-expanded={many ? Boolean(expanded) : undefined}
         tabIndex={selected || first ? 0 : -1}
         data-f6-home={selected || first ? '' : undefined}
-        onClick={() => onOpen(thread)}
+        // Ctrl+click adds the message to those checked and Shift+click checks the run to it, as in Outlook: the whole row is the target.
+        onClick={(e) => (e.ctrlKey || e.metaKey || e.shiftKey ? onCheck(e.nativeEvent) : onOpen(thread))}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(thread))}
         onContextMenu={onMenu}
       >

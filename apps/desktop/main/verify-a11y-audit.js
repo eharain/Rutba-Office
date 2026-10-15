@@ -55,7 +55,7 @@ const SERIOUS = new Set(['serious', 'critical']);
  * rather than failed. axe cannot see an equivalent control elsewhere.
  */
 export const EXCUSED = [
-  { id: 'target-size', at: /\.ml-check|\.ml-star/, why: "WCAG 2.5.8's Equivalent exception: a message is selected by Ctrl+click or Shift+click on its row, the whole row's height, and starred from the ribbon's Star and the row's menu" },
+  { id: 'target-size', at: /\.ml-check|\.ml-star/, why: "WCAG 2.5.8's Equivalent exception: a message is checked by Ctrl+click or Shift+click anywhere on its row, the whole row's height, and starred from the ribbon's Star and the row's menu" },
   { id: 'scrollable-region-focusable', at: /^\.sh-grid$/, why: 'the grid scroller sits inside the sheet (.sh), which is in the Tab order and scrolls it with the arrow keys, Page Up and Page Down' },
 ];
 /**
@@ -191,6 +191,17 @@ export async function verifyA11yAudit({ open, check, until, wait, press }, { dir
       await js(`(() => { const r = [...document.querySelectorAll('.ml-row')].find((n) => /autumn letter/.test(n.textContent)); r?.click(); return 1; })()`);
       await until(() => js(`Boolean(document.querySelector('.ml-reader'))`), 'the message open', 6000).catch(() => {});
       await wait(500);
+      // The equivalent the target-size exception leans on: the whole row checks a message.
+      const rowClick = (i, mods) => js(`(() => { const r = document.querySelectorAll('.ml-row')[${i}]; r?.dispatchEvent(new MouseEvent('click', { bubbles: true, ${mods} })); return Boolean(r); })()`);
+      const checkedNow = () => js(`document.querySelectorAll('.ml-list > .ml-row.checked').length`);
+      await rowClick(0, 'ctrlKey: true');
+      const one = await until(() => checkedNow().then((n) => n === 1), 'one row checked', 3000).then(() => true).catch(() => false);
+      await rowClick(1, 'shiftKey: true');
+      const two = await until(() => checkedNow().then((n) => n === 2), 'two rows checked', 3000).then(() => true).catch(() => false);
+      const stillOpen = await js(`/autumn letter/.test(document.querySelector('.ml-reader')?.textContent || '')`);
+      check('a11y-audit: mail: Ctrl+click on a row checks that message and Shift+click checks the run to another, without opening it, so the small check box has an equivalent the size of the row',
+        one && two && stillOpen, JSON.stringify({ one, two, stillOpen }));
+      await js(`document.querySelector('.ml-bulk .ml-check')?.click(), 1`);
       await audit('mail', win, [appMenu, byKey('a new message', 'N', '.rw-dialog', 'compose', true)]);
     } catch (err) {
       check('a11y-audit: the mail audit ran', false, err.stack || err.message);

@@ -273,6 +273,9 @@ Everything else:
 
 [GAPS.md](docs/GAPS.md) lists, area by area, what the suite does not do yet,
 written from the code. A gap nobody has written down is a gap nobody fixes.
+[ACCESSIBILITY.md](docs/ACCESSIBILITY.md) says how the suite is checked against
+WCAG 2.2 A and AA for screen readers, the keyboard and High Contrast, and what
+it is known not to meet.
 
 Other things worth reading:
 
