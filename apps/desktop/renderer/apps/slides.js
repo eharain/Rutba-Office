@@ -2811,10 +2811,13 @@ export default function Slides({ app, shell, boot }) {
                       {commentCount.get(i) ? <span className="sl-thumb-cm" data-comments={commentCount.get(i)} title={tn(commentCount.get(i), '{count} comment', '{count} comments')}><Icon name="reply" size={10} /></span> : null}
                       {o.transition || o.animated ? <span className="sl-thumb-fx" data-fx={[o.transition ? 'transition' : null, o.animated ? 'animations' : null].filter(Boolean).join(' ')} title={[o.transition ? t('Transition: {name}', { name: describeTransition({ type: o.transition }) }) : null, o.animated ? t('Has animations') : null].filter(Boolean).join(' · ')}><Icon name="star" size={10} /></span> : null}
                     </span>
+                    {/* The drawn slide is a picture of what the button's name says: kept from screen readers, so the name is the whole of what is read (WCAG 2.5.3). */}
+                    <span aria-hidden="true" style={{ display: 'contents' }}>
                     <span className="sl-thumb-card" title={o.hidden ? t('{title} — hidden', { title: o.title || t('Slide {number}', { number: i + 1 }) }) : o.title || t('Slide {number}', { number: i + 1 })}>
                       {o.thumbnail
                         ? <Markup as="span" className="sl-thumb-pic" html={o.thumbnail} />
                         : <span className="sl-thumb-title">{o.title || t('Untitled slide')}</span>}
+                    </span>
                     </span>
                   </button>
                 </React.Fragment>

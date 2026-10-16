@@ -304,8 +304,11 @@ export function RibbonStrip({ items = [], kind, count = 4, onPick, onMore, label
             data-variant={kind === 'variants' ? it.id : undefined}
             onClick={() => onPick(it)}
           >
-            {it.svg ? <Markup as="span" className="sl-rs-pic" html={it.svg} /> : <span className="sl-rs-pic sl-dg-nopic" />}
-            <Accents colors={it.colors} />
+            {/* The drawing shows what the name says: kept from screen readers so the name is all that is read (WCAG 2.5.3). */}
+            <span aria-hidden="true" style={{ display: 'contents' }}>
+              {it.svg ? <Markup as="span" className="sl-rs-pic" html={it.svg} /> : <span className="sl-rs-pic sl-dg-nopic" />}
+              <Accents colors={it.colors} />
+            </span>
           </button>
         )) : <span className="sl-rs-wait">{label}</span>}
     </Gallery>
