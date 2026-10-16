@@ -37,6 +37,105 @@ function Seconds({ value, onChange, min = 0, step = 0.1, className }) {
   );
 }
 
+/** A fraction of the frame shown and typed as a percentage. */
+function Percent({ value, onChange, min = -100, max = 200, className }) {
+  return (
+    <input
+      className={`rw-input vd-num${className ? ` ${className}` : ''}`}
+      type="number"
+      min={min}
+      max={max}
+      step={0.5}
+      value={Math.round((value ?? 0) * 1000) / 10}
+      onChange={(e) => {
+        const v = Number(e.target.value);
+        if (Number.isFinite(v)) onChange(Math.max(min, Math.min(max, v)) / 100);
+      }}
+    />
+  );
+}
+
+const BLEND_MODES = () => [
+  ['', t('Normal')],
+  ['multiply', t('Multiply')],
+  ['screen', t('Screen')],
+  ['overlay', t('Overlay')],
+  ['darken', t('Darken')],
+  ['lighten', t('Lighten')],
+  ['difference', t('Difference')],
+];
+
+/**
+ * Where a clip stands on the frame and how: its place, size and angle as
+ * numbers (what the grips on the preview change), its opacity and blend, a
+ * clip or still that fills the frame made a picture in picture, and back.
+ */
+function PlacementProps({ clip, set, aspect }) {
+  const fills = (clip.type === 'video' && !clip.fw) || (clip.type === 'image' && Boolean(clip.fit));
+  const boxed = clip.type === 'image' || clip.type === 'video' || clip.type === 'shape';
+  const toInset = () => {
+    if (clip.type === 'video') {
+      const r = insetRect({ corner: 'br', size: 0.35, shape: 'rounded', W: 1920, H: 1080, aspect });
+      set(t('Picture in picture'), { fx: r.fx, fy: r.fy, fw: r.fw, fh: r.fh, insetShape: 'rounded' });
+    } else set(t('Picture in picture'), { fit: undefined, fx: 0.3, fy: 0.25, fw: 0.4, rot: 0 });
+  };
+  return (
+    <section className="vd-insp-section vd-place-props">
+      <h3>{t('Position and size')}</h3>
+      {fills ? (
+        <>
+          <div className="vd-prop-note">{t('This clip fills the frame. Drag a corner on the preview, or make it a picture in picture, to move, size and turn it.')}</div>
+          <Button icon="window" label={t('Picture in picture')} className="vd-to-inset" onClick={toInset} />
+        </>
+      ) : (
+        <>
+          <Row label={t('Across')}>
+            <Percent className="vd-fx" value={clip.fx ?? 0.5} onChange={(v) => set(t('Move'), { fx: v }, `fx-${clip.id}`)} />
+          </Row>
+          <Row label={t('Down')}>
+            <Percent className="vd-fy" value={clip.fy ?? 0.5} onChange={(v) => set(t('Move'), { fy: v }, `fy-${clip.id}`)} />
+          </Row>
+          {boxed ? (
+            <Row label={t('Width')}>
+              <Percent className="vd-fw" min={2} max={200} value={clip.fw ?? 0.16} onChange={(v) => set(t('Resize'), clip.fh && clip.fw ? { fw: v, fh: +(clip.fh * (v / clip.fw)).toFixed(4) } : { fw: v }, `fw-${clip.id}`)} />
+            </Row>
+          ) : null}
+          {boxed && clip.fh ? (
+            <Row label={t('Height')}>
+              <Percent className="vd-fh" min={2} max={200} value={clip.fh} onChange={(v) => set(t('Resize'), { fh: v }, `fh-${clip.id}`)} />
+            </Row>
+          ) : null}
+          <Row label={t('Angle')}>
+            <input
+              className="rw-input vd-num vd-rot"
+              type="number"
+              min={-180}
+              max={180}
+              step={1}
+              value={Math.round((clip.rot || 0) * 10) / 10}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (Number.isFinite(v)) set(t('Rotate'), { rot: (((v % 360) + 540) % 360) - 180 }, `rot-${clip.id}`);
+              }}
+            />
+          </Row>
+          {clip.type === 'image' ? (
+            <Button icon="maximize" label={t('Fill the whole frame')} className="vd-still-full" onClick={() => set(t('Fill the whole frame'), { fit: 'cover', fx: undefined, fy: undefined, fw: undefined, rot: 0 })} />
+          ) : null}
+        </>
+      )}
+      <Row label={t('Opacity')}>
+        <Slider value={clip.opacity ?? 1} min={0} max={1} step={0.05} onChange={(x) => set(t('Opacity'), { opacity: x }, `op-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
+      </Row>
+      <Row label={t('Blend')}>
+        <Select className="vd-blend" value={clip.blend || ''} onChange={(e) => set(t('Blend'), { blend: e.target.value || undefined })}>
+          {BLEND_MODES().map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </Select>
+      </Row>
+    </section>
+  );
+}
+
 function Row({ label, children }) {
   const ref = React.useRef(null);
   const id = React.useId();
@@ -239,11 +338,10 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
               </Row>
             );
           })}
-          <Row label={t('Opacity')}>
-            <Slider value={clip.opacity ?? 1} min={0} max={1} step={0.05} onChange={(x) => set(t('Opacity'), { opacity: x }, `op-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
-          </Row>
         </section>
       ) : null}
+
+      {['video', 'image', 'text', 'shape'].includes(clip.type) && !clip.caption ? <PlacementProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
 
       {(() => {
         // A screen recording with its pointer, or the pointer itself: its look and the zoom on its clicks.
@@ -330,9 +428,6 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           <h3>{t('Background')}</h3>
           <Row label={t('Colour')}>
             <Swatches value={clip.color} onPick={(c) => set(t('Colour'), { color: c })} />
-          </Row>
-          <Row label={t('Opacity')}>
-            <Slider value={clip.opacity ?? 1} min={0} max={1} step={0.05} onChange={(x) => set(t('Opacity'), { opacity: x }, `op-${clip.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
           </Row>
         </section>
       ) : null}

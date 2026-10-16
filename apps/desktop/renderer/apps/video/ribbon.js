@@ -140,6 +140,10 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
         <>
           <Group label={t('Media')}>
             <C cmds={cmds} id="insert.media" tall />
+            <Rows>
+              <C cmds={cmds} id="insert.mediaLayer" />
+              <C cmds={cmds} id="insert.mediaHere" />
+            </Rows>
             <C cmds={cmds} id="record.screen" tall />
           </Group>
           <Group label={t('Titles')}>
@@ -198,6 +202,14 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               <C cmds={cmds} id="range.in" />
               <C cmds={cmds} id="range.out" />
               <C cmds={cmds} id="range.clear" />
+            </Rows>
+          </Group>
+          <Group label={t('Tracks')}>
+            <C cmds={cmds} id="lane.split" tall />
+            <Rows>
+              <C cmds={cmds} id="lane.insert" />
+              <C cmds={cmds} id="lane.up" />
+              <C cmds={cmds} id="lane.down" />
             </Rows>
           </Group>
           <Group label={t('History')}>

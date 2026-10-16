@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7013,
+  "count": 7041,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1820,6 +1820,12 @@
       ]
     },
     {
+      "message": "Across",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "Across every account",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -2160,6 +2166,12 @@
       "message": "Add note",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Add on a New Track",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -3220,6 +3232,7 @@
     {
       "message": "Angle",
       "where": [
+        "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -4570,7 +4583,8 @@
     {
       "message": "Blend",
       "where": [
-        "apps/desktop/renderer/apps/image/layers-panel.js"
+        "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -8773,7 +8787,8 @@
     {
       "message": "Darken",
       "where": [
-        "apps/desktop/renderer/apps/image/words.js"
+        "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -9800,7 +9815,8 @@
     {
       "message": "Difference",
       "where": [
-        "apps/desktop/renderer/apps/image/words.js"
+        "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -10240,6 +10256,7 @@
       "message": "Down",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js",
+        "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -14783,6 +14800,7 @@
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -15829,6 +15847,25 @@
       ]
     },
     {
+      "message": "In point",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "In point {time}: drag to move it",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "In point {time}: drag to move it (Alt: no snapping)",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
       "message": "In {from}, Out {to}",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -16358,6 +16395,12 @@
       ]
     },
     {
+      "message": "Insert Track",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Insert Video",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -16428,6 +16471,12 @@
       "message": "Insert a row below the caret's",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Insert at Playhead",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -18254,7 +18303,8 @@
     {
       "message": "Lighten",
       "where": [
-        "apps/desktop/renderer/apps/image/words.js"
+        "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -19441,12 +19491,6 @@
       ]
     },
     {
-      "message": "Marker",
-      "where": [
-        "apps/desktop/renderer/apps/video/timeline.js"
-      ]
-    },
-    {
       "message": "Marker name",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
@@ -19456,6 +19500,12 @@
       "message": "Marker {n}",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Marker: click to go to it, drag to move it",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
       ]
     },
     {
@@ -20332,7 +20382,9 @@
       "where": [
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/mail.js",
-        "apps/desktop/renderer/apps/pictures.js"
+        "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/video/inspector.js",
+        "apps/desktop/renderer/apps/video/stage.js"
       ]
     },
     {
@@ -20363,6 +20415,13 @@
       ]
     },
     {
+      "message": "Move In",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
       "message": "Move Later",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
@@ -20381,6 +20440,13 @@
       "message": "Move Later — this effect plays after the one below it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Move Out",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/timeline.js"
       ]
     },
     {
@@ -20405,6 +20471,18 @@
       "message": "Move Split — ← and → move the slide pane's edge, ↑ and ↓ the notes; Enter or Esc when done.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Move Track Down",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Move Track Up",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -20445,6 +20523,12 @@
       ]
     },
     {
+      "message": "Move marker",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
       "message": "Move right",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -20454,12 +20538,6 @@
       "message": "Move right (nudge)",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
-      "message": "Move the inset",
-      "where": [
-        "apps/desktop/renderer/apps/video/stage.js"
       ]
     },
     {
@@ -20588,7 +20666,8 @@
       "message": "Multiply",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
-        "apps/desktop/renderer/apps/sheets/dialogs.js"
+        "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -22249,6 +22328,7 @@
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/print.js"
@@ -23691,6 +23771,25 @@
       ]
     },
     {
+      "message": "Out point",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Out point {time}: drag to move it",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Out point {time}: drag to move it (Alt: no snapping)",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
       "message": "Outbox",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -23795,7 +23894,8 @@
     {
       "message": "Overlay",
       "where": [
-        "apps/desktop/renderer/apps/image/words.js"
+        "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -25083,6 +25183,12 @@
       ]
     },
     {
+      "message": "Play this track alone (solo): the other tracks of its kind are left out until it is switched off",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
       "message": "Playback",
       "where": [
         "apps/desktop/renderer/apps/video/ribbon.js"
@@ -25178,6 +25284,12 @@
       "message": "Position",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Position and size",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -27880,7 +27992,9 @@
     {
       "message": "Resize",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/video/inspector.js",
+        "apps/desktop/renderer/apps/video/stage.js"
       ]
     },
     {
@@ -28369,6 +28483,7 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/inspector.js",
+        "apps/desktop/renderer/apps/video/stage.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -29522,6 +29637,7 @@
       "message": "Screen",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -32714,6 +32830,12 @@
       ]
     },
     {
+      "message": "Split Track",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Split a vertical merge from its first cell.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -33184,6 +33306,12 @@
       "message": "Stop indexing",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Stop playing this track alone",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
       ]
     },
     {
@@ -34675,6 +34803,12 @@
       "message": "That works on slides — Close Master View first.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "That would change a clip on a locked track. Unlock the track first.",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -36571,6 +36705,12 @@
       ]
     },
     {
+      "message": "This clip fills the frame. Drag a corner on the preview, or make it a picture in picture, to move, size and turn it.",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "This clip’s file cannot be found: {path}",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
@@ -37918,6 +38058,12 @@
       "message": "Tracking",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Tracks",
+      "where": [
+        "apps/desktop/renderer/apps/video/ribbon.js"
       ]
     },
     {
@@ -39916,6 +40062,7 @@
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -40779,6 +40926,12 @@
       ]
     },
     {
+      "message": "an empty track above the picked one",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "an insertion",
       "plural": "{count} insertions",
       "where": [
@@ -41559,6 +41712,12 @@
       ]
     },
     {
+      "message": "on the picked track at the playhead; what follows moves later to make room",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "on {shape}",
       "where": [
         "apps/desktop/renderer/apps/slides/comments.js"
@@ -41939,6 +42098,12 @@
       ]
     },
     {
+      "message": "the clips on the picked track from the playhead on move up onto a new track of their own",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "the document",
       "where": [
         "apps/desktop/renderer/apps/edit-in-image.js",
@@ -41983,6 +42148,18 @@
     },
     {
       "message": "the picked clips move together",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "the picked track moves down one",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "the picked track moves up one, drawn over the one it passes",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
       ]
@@ -42266,7 +42443,13 @@
       ]
     },
     {
-      "message": "videos, sound and pictures, placed one after another",
+      "message": "videos and pictures on a track of their own above the others, from the playhead",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "videos, sound and pictures, one after another after the clips on the picked track",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
       ]
@@ -44103,6 +44286,12 @@
       "message": "{name}: a sheet of {product} labels.",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
+      ]
+    },
+    {
+      "message": "{name}: click to go to it, drag to move it",
+      "where": [
+        "apps/desktop/renderer/apps/video/timeline.js"
       ]
     },
     {

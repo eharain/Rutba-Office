@@ -21,7 +21,7 @@ import {
   emptyProject, normaliseProject, addMedia, splitAt, splitAll, trimStart, trimEnd, removeClips, closeGap, copyClips,
   pasteClips, duplicateClips, unlinkClips, linkClips, addMarker, nextMarker, previousMarker, setTransition, addTitle,
   planPatches, projectMedia, projectDuration, clipById, clipsAt, sectionOf, laneOf, partnersOf, previousOnLane, setRange,
-  clearRange, TITLE_PRESETS, withPartners,
+  clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount,
 } from '@rutba/studio/project';
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
 import { placeTakes, settleTakes } from '@rutba/studio/recorder';
@@ -64,6 +64,55 @@ export function splitHeight(editorH, share) {
 const FPS = 30;
 const AUTOSAVE_FIRST_MS = 1500;
 const AUTOSAVE_EVERY_MS = 30000;
+
+/** A clip drawn in a box of its own, which a drag on the stage moves: a title, a shape, a picture in picture or a still not set to fill the frame. */
+export const standsInBox = (p) => p.type === 'text' || p.type === 'shape' || (p.type === 'video' && Boolean(p.fw)) || (p.type === 'image' && !p.fit);
+
+/** A clip with `change` made: a field set to undefined is taken off, so a still can stop filling the frame. */
+export function withChange(p, change) {
+  const next = { ...p, ...change };
+  for (const [k, v] of Object.entries(change)) if (v === undefined) delete next[k];
+  return next;
+}
+
+/**
+ * The In to Out stretch on the preview's scrub bar: the band, and an In and
+ * an Out flag that drag along the bar (owner, 2026-10-16: "video start and
+ * end markers"). The bar's ends sit half a thumb in from its edges.
+ */
+function ScrubRange({ range, duration, onBegin, onMove, docRef }) {
+  const ref = React.useRef(null);
+  const at = (frac) => `calc(8px + (100% - 16px) * ${Math.max(0, Math.min(1, frac))})`;
+  const drag = (edge) => (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const base = docRef.current;
+    const r = ref.current.getBoundingClientRect();
+    let begun = false;
+    const move = (ev) => {
+      if (!begun) {
+        begun = true;
+        onBegin(edge === 'in' ? t('Move In') : t('Move Out'));
+      }
+      const frac = (ev.clientX - r.left - 8) / Math.max(1, r.width - 16);
+      onMove(edge, Math.round(Math.max(0, Math.min(1, frac)) * duration * 100) / 100, base);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <span className="vd-scrub-range" ref={ref}>
+      <span className="vd-scrub-band" style={{ left: at(range.in / duration), width: `calc((100% - 16px) * ${Math.max(0, (range.out - range.in) / duration)})` }} />
+      <span className="vd-scrub-edge e-in" data-edge="in" style={{ left: at(range.in / duration) }} role="slider" aria-label={t('In point')} aria-valuetext={timecode(range.in)} data-tip={t('In point {time}: drag to move it', { time: timecode(range.in) })} onPointerDown={drag('in')} />
+      <span className="vd-scrub-edge e-out" data-edge="out" style={{ left: at(range.out / duration) }} role="slider" aria-label={t('Out point')} aria-valuetext={timecode(range.out)} data-tip={t('Out point {time}: drag to move it', { time: timecode(range.out) })} onPointerDown={drag('out')} />
+    </span>
+  );
+}
 
 /** A key for this window's recovery copy. */
 const newCopyKey = () => `v${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -169,17 +218,22 @@ export default function VideoEditor({ app, shell, boot }) {
   planRef.current = plan;
 
   /** Record the document as it is now, then change it: one undo step (a `group` merges a run of the same change). */
-  const edit = useCallback((label, fn, group = null) => {
+  const edit = useCallback((label, fn, group = null, { lanes = false } = {}) => {
     const before = docRef.current;
     const next = fn(before);
     if (!next || next === before) return false;
+    // A locked track's clips stay as they are, whatever the command.
+    if (brokenLocks(before, next, { lanesMoved: lanes }).length) {
+      toast(t('That would change a clip on a locked track. Unlock the track first.'), { ms: 5000 });
+      return false;
+    }
     history.current.record({ state: before, label, group, meta: selectedRef.current });
     docRef.current = next;
     setDoc(next);
     setDirty(true);
     setHistoryTick((n) => n + 1);
     return true;
-  }, []);
+  }, [toast]);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
 
@@ -192,6 +246,12 @@ export default function VideoEditor({ app, shell, boot }) {
     docRef.current = next;
     setDoc(next);
     setDirty(true);
+  }, []);
+  /** Whether a clip is on a locked track: the stage does not pick it. */
+  const laneLocked = useCallback((id) => {
+    const d = docRef.current;
+    const p = d.patches.find((x) => x.id === id);
+    return Boolean(p && (d.lanes?.[sectionOf(p)] || {})[laneOf(p)]?.locked);
   }, []);
 
   const undo = useCallback(() => {
@@ -322,8 +382,13 @@ export default function VideoEditor({ app, shell, boot }) {
     setPps(Math.max(4, Math.min(600, w / Math.max(1, length * 1.12))));
   }, []);
 
-  /** Put files on the timeline, one after another, at the end of the main lane. */
-  const addFiles = useCallback(async (files, { initial = false } = {}) => {
+  /**
+   * Put files on the timeline, one after another: `where` is 'end' (after
+   * the clips on the picked clip's picture track, V1 when none is picked),
+   * 'layer' (a new track from the playhead) or 'insert' (at the playhead on
+   * the picked track, what follows moved on), as placeMedia does it.
+   */
+  const addFiles = useCallback(async (files, { initial = false, where = 'end' } = {}) => {
     const list = files.filter((f) => mediaKind(f) && mediaKind(f) !== 'project');
     if (!list.length) return;
     setBusy(tn(list.length, 'Adding {count} file', 'Adding {count} files'));
@@ -342,13 +407,8 @@ export default function VideoEditor({ app, shell, boot }) {
     if (added.length) {
       const wasEmpty = !docRef.current.patches.some((p) => p.timing);
       const place = (d) => {
-        let out = d;
-        const ids = [];
-        for (const info of added) {
-          const r = addMedia(out, info, info.kind === 'audio' ? { lane: lowestFreeSoundLane(out) } : {});
-          out = r.doc;
-          ids.push(...r.ids);
-        }
+        const picked = selectedRef.current.map((id) => clipById(d, id)).find((p) => p && sectionOf(p) === 'v');
+        const { doc: out, ids } = placeMedia(d, added, { where, lane: picked ? laneOf(picked) : 0, at: timeRef.current });
         setSelected(ids.slice(0, 1));
         return out;
       };
@@ -482,7 +542,7 @@ export default function VideoEditor({ app, shell, boot }) {
   }, [shell, doc, dirty, openProject, addFiles, importCaptions]);
   appMenuOpen.current = openFiles;
 
-  const insertMedia = useCallback(async () => {
+  const insertMedia = useCallback(async (where = 'end') => {
     const files = await shell.dialog.open({
       title: t('Add Media'),
       filters: [
@@ -491,7 +551,7 @@ export default function VideoEditor({ app, shell, boot }) {
       ],
       multiple: true,
     });
-    if (files?.length) addFiles(files);
+    if (files?.length) addFiles(files, { where: typeof where === 'string' ? where : 'end' });
   }, [shell, addFiles]);
 
   const saveTo = useCallback(async (target) => {
@@ -817,7 +877,9 @@ export default function VideoEditor({ app, shell, boot }) {
     'file.save': { label: t('Save'), icon: 'save', key: 'Mod+S', run: save },
     'file.saveAs': { label: t('Save As'), icon: 'save', key: 'Mod+Shift+S', run: saveAs },
     'file.export': { label: t('Export'), icon: 'export', key: 'Mod+E', disabled: !hasClips || Boolean(exporting), tip: t('write the video file, with its sound'), run: () => setExportOpen(true) },
-    'insert.media': { label: t('Add Media'), icon: 'plus', key: 'Mod+I', tip: t('videos, sound and pictures, placed one after another'), run: insertMedia },
+    'insert.media': { label: t('Add Media'), icon: 'plus', key: 'Mod+I', tip: t('videos, sound and pictures, one after another after the clips on the picked track'), run: () => insertMedia('end') },
+    'insert.mediaLayer': { label: t('Add on a New Track'), icon: 'layers', tip: t('videos and pictures on a track of their own above the others, from the playhead'), run: () => insertMedia('layer') },
+    'insert.mediaHere': { label: t('Insert at Playhead'), icon: 'move', tip: t('on the picked track at the playhead; what follows moves later to make room'), run: () => insertMedia('insert') },
     'captions.import': { label: t('Import Captions'), icon: 'captions', tip: t('a SubRip (.srt) or WebVTT (.vtt) file, each caption a clip on its own track'), run: () => importCaptions() },
     'captions.export': { label: t('Export Captions'), icon: 'export', disabled: !doc.patches.some(isCaption), tip: t('the caption track as a .srt or .vtt file, to send beside the video'), run: exportCaptions },
     'intro.record': { label: currentScene?.take ? t('Retake Scene') : t('Record Scene'), icon: 'record', disabled: !currentScene || !RECORDED.has(currentScene.layout) || Boolean(exporting), tip: t('the scene picked, with its script above the camera; every take is kept'), run: () => { stop(); setSceneRecord(currentScene.id); } },
@@ -842,6 +904,10 @@ export default function VideoEditor({ app, shell, boot }) {
     'edit.trimStart': { label: t('Trim Start'), icon: 'crop', key: 'i', disabled: !target, tip: t('the clip starts at the playhead'), run: () => target && edit(t('Trim Start'), (d) => trimStart(d, target.id, timeRef.current, { ripple })) },
     'edit.trimEnd': { label: t('Trim End'), icon: 'crop', key: 'o', disabled: !target, tip: t('the clip ends at the playhead'), run: () => target && edit(t('Trim End'), (d) => trimEnd(d, target.id, timeRef.current, { ripple })) },
     'edit.ripple': { label: t('Ripple'), icon: 'link', pressed: ripple, tip: t('deleting or trimming a clip closes up the clips after it'), run: () => edit(t('Ripple'), (d) => ({ ...d, settings: { ...d.settings, ripple: !ripple } })) },
+    'lane.split': { label: t('Split Track'), icon: 'trSplit', tip: t('the clips on the picked track from the playhead on move up onto a new track of their own'), disabled: !first, run: () => edit(t('Split Track'), (d) => splitLane(d, sectionOf(first), laneOf(first), timeRef.current), null, { lanes: true }) },
+    'lane.insert': { label: t('Insert Track'), icon: 'plus', tip: t('an empty track above the picked one'), run: () => edit(t('Insert Track'), (d) => insertLane(d, first ? sectionOf(first) : 'v', first ? laneOf(first) + 1 : laneCount(d).v), null, { lanes: true }) },
+    'lane.up': { label: t('Move Track Up'), icon: 'layerUp', tip: t('the picked track moves up one, drawn over the one it passes'), disabled: !first, run: () => edit(t('Move Track Up'), (d) => moveLane(d, sectionOf(first), laneOf(first), sectionOf(first) === 'v' ? laneOf(first) + 1 : laneOf(first) - 1), null, { lanes: true }) },
+    'lane.down': { label: t('Move Track Down'), icon: 'layerDown', tip: t('the picked track moves down one'), disabled: !first, run: () => edit(t('Move Track Down'), (d) => moveLane(d, sectionOf(first), laneOf(first), sectionOf(first) === 'v' ? laneOf(first) - 1 : laneOf(first) + 1), null, { lanes: true }) },
     'edit.closeGap': { label: t('Close Gap'), icon: 'chevronLeft', tip: t('the empty stretch at the playhead closes'), run: () => edit(t('Close Gap'), (d) => closeGap(d, first ? sectionOf(first) : 'v', first ? laneOf(first) : 0, timeRef.current)) },
     'edit.detach': { label: t('Detach Audio'), icon: 'volume', disabled: !sel.some((p) => p.group), tip: t('the picture and its sound move on their own'), run: () => edit(t('Detach Audio'), (d) => unlinkClips(d, selected)) },
     'edit.link': { label: t('Link'), icon: 'link', disabled: sel.length < 2, tip: t('the picked clips move together'), run: () => edit(t('Link'), (d) => linkClips(d, selected)) },
@@ -1044,11 +1110,16 @@ export default function VideoEditor({ app, shell, boot }) {
                   onSelect={setSelected}
                   canvasRef={canvasRef}
                   paintTick={paintTick}
+                  isLocked={laneLocked}
                   onBegin={(label) => { dragBase.current = docRef.current; beginLive(label); }}
                   onMove={(id, dx, dy) => {
                     const base = dragBase.current || docRef.current;
                     const ids = new Set(withPartners(base, [id]));
-                    live({ ...base, patches: base.patches.map((p) => (ids.has(p.id) && (p.type === 'text' || p.type === 'shape' || (p.type === 'video' && p.fw)) ? { ...p, fx: Math.round(((p.fx ?? 0.5) + dx) * 1000) / 1000, fy: Math.round(((p.fy ?? 0.5) + dy) * 1000) / 1000 } : p)) });
+                    live({ ...base, patches: base.patches.map((p) => (ids.has(p.id) && standsInBox(p) ? { ...p, fx: Math.round(((p.fx ?? 0.5) + dx) * 10000) / 10000, fy: Math.round(((p.fy ?? 0.5) + dy) * 10000) / 10000 } : p)) });
+                  }}
+                  onLive={(id, change) => {
+                    const base = dragBase.current || docRef.current;
+                    live({ ...base, patches: base.patches.map((p) => (p.id === id ? withChange(p, change) : p)) });
                   }}
                 />
               ) : (
@@ -1069,16 +1140,27 @@ export default function VideoEditor({ app, shell, boot }) {
                 <Button icon="chevronRight" title={t('Next Frame')} onClick={() => stepFrames(1)} />
                 <Button icon="skipForward" title={t('Go to End')} onClick={() => { stop(); seek(duration); }} />
                 <span className="vd-time">{timecode(time)}</span>
-                <input
-                  className="vd-scrub"
-                  type="range"
-                  min={0}
-                  max={duration || 0}
-                  step={0.01}
-                  value={Math.min(time, duration || 0)}
-                  aria-label={t('Playhead')}
-                  onChange={(e) => { stop(); seek(Number(e.target.value)); }}
-                />
+                <span className="vd-scrub-wrap">
+                  <input
+                    className="vd-scrub"
+                    type="range"
+                    min={0}
+                    max={duration || 0}
+                    step={0.01}
+                    value={Math.min(time, duration || 0)}
+                    aria-label={t('Playhead')}
+                    onChange={(e) => { stop(); seek(Number(e.target.value)); }}
+                  />
+                  {doc.range && duration ? (
+                    <ScrubRange
+                      range={doc.range}
+                      duration={duration}
+                      onBegin={beginLive}
+                      onMove={(edge, at, base) => live(setRange(base, edge === 'in' ? { in: Math.min(at, base.range.out - 0.1) } : { out: Math.max(at, base.range.in + 0.1) }))}
+                      docRef={docRef}
+                    />
+                  ) : null}
+                </span>
                 <span className="vd-time total">{timecode(duration)}</span>
               </div>
             </div>
@@ -1147,13 +1229,4 @@ export default function VideoEditor({ app, shell, boot }) {
       {intro || brandOpen ? <style>{INTRO_CSS}</style> : null}
     </AppFrame>
   );
-}
-
-/** The first sound lane below the clips' own that is empty, for a music file. */
-function lowestFreeSoundLane(doc) {
-  const used = new Set(doc.patches.filter((p) => p.type === 'sound' && p.timing).map((p) => laneOf(p)));
-  if (!used.size) return 0;
-  let lane = 1;
-  while (used.has(lane)) lane++;
-  return lane;
 }

@@ -111,6 +111,92 @@ export function laneCount(doc) {
     return { v: Math.max(1, v), a: Math.max(1, a) };
 }
 
+// ── tracks: insert, move, split (owner, 2026-10-16) ─────────────────────────
+
+/** A section's lane states with each lane number put through `map` (null drops it). */
+function remapLaneStates(doc, section, map) {
+    const was = doc.lanes?.[section] || {};
+    const next = {};
+    for (const [k, st] of Object.entries(was)) {
+        const to = map(Number(k));
+        if (to !== null && to !== undefined && st) next[to] = st;
+    }
+    return { ...(doc.lanes || { v: {}, a: {} }), [section]: next };
+}
+
+/** Every clip of a section with its lane put through `map`, and the lanes' states with them. */
+function remapLanes(doc, section, map) {
+    const patches = doc.patches.map((p) => (p && p.timing && sectionOf(p) === section ? { ...p, lane: map(laneOf(p)) } : p));
+    return { ...doc, patches, lanes: remapLaneStates(doc, section, map) };
+}
+
+/** A new empty track at `lane` of a section: the tracks from there up move one up. */
+export function insertLane(doc, section, lane) {
+    const at = Math.max(0, Math.round(lane) || 0);
+    return remapLanes(doc, section, (n) => (n >= at ? n + 1 : n));
+}
+
+/**
+ * A track moved to `to` with its clips and its state (hidden, locked, its
+ * volume): the tracks between close up behind it. For pictures, a higher
+ * track is drawn over a lower one.
+ */
+export function moveLane(doc, section, from, to) {
+    const count = laneCount(doc)[section];
+    const a = Math.max(0, Math.round(from));
+    const b = Math.max(0, Math.min(count - 1, Math.round(to)));
+    if (a === b || a >= count) return doc;
+    return remapLanes(doc, section, (n) => {
+        if (n === a) return b;
+        if (a < b && n > a && n <= b) return n - 1;
+        if (b < a && n >= b && n < a) return n + 1;
+        return n;
+    });
+}
+
+/**
+ * A track split in two at `t` (owner: "split a layer into two so multiple
+ * clips can be brought next to each other"): a new track just above it, and
+ * the clips from `t` on moved up onto it, a clip under `t` split there
+ * first. Their sound or picture stays where it is, in step.
+ */
+export function splitLane(doc, section, lane, t) {
+    const under = laneClips(doc, section, lane).filter((p) => t > p.timing.start + EPS && t < p.timing.end - EPS);
+    let out = under.length ? splitClips(doc, under.map((p) => p.id), t).doc : doc;
+    const later = laneClips(out, section, lane).filter((p) => p.timing.start >= t - EPS).map((p) => p.id);
+    if (!later.length) return doc;
+    out = insertLane(out, section, lane + 1);
+    const moving = new Set(later);
+    return { ...out, patches: out.patches.map((p) => (p && moving.has(p.id) ? { ...p, lane: lane + 1 } : p)) };
+}
+
+/** Whether a clip is on a locked track. */
+export function onLockedLane(doc, p) {
+    return Boolean(p && p.timing && doc.lanes?.[sectionOf(p)]?.[laneOf(p)]?.locked);
+}
+
+/**
+ * An edit that changed or removed a clip on a locked track, or put a clip
+ * onto one: the clips concerned, empty when the locks were kept. Lane tools
+ * that renumber whole tracks are not edits of their clips, so `lanesMoved`
+ * compares clips leaving their lane number out.
+ */
+export function brokenLocks(before, after, { lanesMoved = false } = {}) {
+    const strip = (p) => (lanesMoved ? { ...p, lane: undefined } : p);
+    const now = new Map((after.patches || []).filter(Boolean).map((p) => [p.id, p]));
+    const was = new Map((before.patches || []).filter(Boolean).map((p) => [p.id, p]));
+    const broken = [];
+    for (const p of was.values()) {
+        if (!onLockedLane(before, p)) continue;
+        const q = now.get(p.id);
+        if (!q || JSON.stringify(strip(q)) !== JSON.stringify(strip(p))) broken.push(p.id);
+    }
+    for (const q of now.values()) {
+        if (!was.has(q.id) && onLockedLane(after, q)) broken.push(q.id);
+    }
+    return broken;
+}
+
 /** The other members of a clip's group (its sound, its picture), not the clip itself. */
 export function partnersOf(doc, id) {
     const clip = clipById(doc, id);
@@ -294,6 +380,122 @@ export function laneEnd(doc, section, lane) {
     let end = 0;
     for (const p of laneClips(doc, section, lane)) end = Math.max(end, p.timing.end);
     return round(end);
+}
+
+/** How long a file lasts on the timeline once added. */
+const mediaLength = (doc, media) => (media.kind === 'image'
+    ? Math.max(MIN_CLIP, Number(doc.settings?.stillSeconds) || STILL_SECONDS)
+    : Math.max(MIN_CLIP, Number(media.duration) || STILL_SECONDS));
+
+/** Whether nothing on a lane covers `start` to `start + length`, but the clips `exclude` names. */
+const laneFree = (doc, section, lane, start, length, exclude = new Set()) => laneClips(doc, section, lane)
+    .every((p) => exclude.has(p.id) || start + length <= p.timing.start + EPS || start >= p.timing.end - EPS);
+
+/** The lowest sound lane free from `start` for `length`. */
+export function freeSoundLane(doc, start, length, exclude = new Set()) {
+    let lane = 0;
+    while (!laneFree(doc, 'a', lane, start, length, exclude)) lane++;
+    return lane;
+}
+
+/**
+ * The lane music goes on: the lowest one already holding sound files of
+ * their own (not a clip's sound), or else the lowest with no sound at all.
+ */
+export function musicLane(doc) {
+    const sounds = clipsOf(doc).filter((p) => p.type === 'sound');
+    const own = sounds.filter((p) => !p.group).map(laneOf);
+    if (own.length) return Math.min(...own);
+    const used = new Set(sounds.map(laneOf));
+    let lane = 0;
+    while (used.has(lane)) lane++;
+    return lane;
+}
+
+/**
+ * Make room on a lane: a clip there under `at` is split at it, and every
+ * clip on the lane from `at` on, with its sound or picture, moves `by`
+ * seconds later.
+ */
+export function pushLater(doc, section, lane, at, by) {
+    if (!(by > 0)) return doc;
+    const under = laneClips(doc, section, lane).filter((p) => at > p.timing.start + EPS && at < p.timing.end - EPS);
+    let out = under.length ? splitClips(doc, under.map((p) => p.id), at).doc : doc;
+    const ids = withPartners(out, laneClips(out, section, lane).filter((p) => p.timing.start >= at - EPS).map((p) => p.id));
+    const changes = new Map();
+    for (const id of ids) {
+        const p = clipById(out, id);
+        changes.set(id, setTiming(p, p.timing.start + by, p.timing.end + by));
+    }
+    return rewrite(out, changes);
+}
+
+/**
+ * Add Media, with the choice of where (owner, 2026-10-16: "the insert media
+ * should have choice to add layer or next to existing layer"). `list` is the
+ * files as addMedia takes them, in order; pictures (videos and stills) go
+ * one after another, and sound files one after another on a lane of their
+ * own:
+ * - 'end': after the clips already on picture lane `lane`; sound files after
+ *   the music already there (musicLane), never spread over a lane each;
+ * - 'layer': on a new track from `at`, above the picture tracks there are,
+ *   and sound files on a new sound track below;
+ * - 'insert': at `at` on picture lane `lane`, the clips there from `at` on
+ *   moved later to make room (a clip under `at` split there first); sound
+ *   files from `at` on the first sound lane free for them.
+ * A video's own sound lands on the first sound lane free for its window.
+ * Answers { doc, ids }.
+ */
+export function placeMedia(doc, list, { where = 'end', lane = 0, at = 0 } = {}) {
+    const pictures = list.filter((m) => m.kind !== 'audio');
+    const sounds = list.filter((m) => m.kind === 'audio');
+    const total = (items) => items.reduce((s, m) => s + mediaLength(doc, m), 0);
+    const counts = laneCount(doc);
+    const has = (section) => clipsOf(doc).some((p) => sectionOf(p) === section);
+    let out = doc;
+    let vLane = Math.max(0, Math.round(lane) || 0);
+    let vAt;
+    let aLane;
+    let aAt;
+    const from = round(Math.max(0, Number(at) || 0));
+    if (where === 'layer') {
+        vLane = has('v') ? counts.v : 0;
+        aLane = has('a') ? counts.a : 0;
+        vAt = from;
+        aAt = from;
+    } else if (where === 'insert') {
+        out = pushLater(out, 'v', vLane, from, total(pictures));
+        vAt = from;
+        aLane = freeSoundLane(out, from, total(sounds));
+        aAt = from;
+    } else {
+        vAt = laneEnd(doc, 'v', vLane);
+        aLane = musicLane(doc);
+        aAt = laneEnd(doc, 'a', aLane);
+    }
+    const ids = [];
+    for (const media of pictures) {
+        const r = addMedia(out, media, { at: vAt, lane: vLane });
+        out = r.doc;
+        // The clip's own sound: on a lane where it covers nothing.
+        for (const id of r.ids) {
+            const p = clipById(out, id);
+            if (p?.type !== 'sound') continue;
+            const length = p.timing.end - p.timing.start;
+            if (laneFree(out, 'a', laneOf(p), p.timing.start, length, new Set([id]))) continue;
+            const free = freeSoundLane(out, p.timing.start, length, new Set([id]));
+            out = rewrite(out, new Map([[id, { ...p, lane: free }]]));
+        }
+        ids.push(...r.ids);
+        vAt = round(vAt + mediaLength(doc, media));
+    }
+    for (const media of sounds) {
+        const r = addMedia(out, media, { at: aAt, lane: aLane });
+        out = r.doc;
+        ids.push(...r.ids);
+        aAt = round(aAt + mediaLength(doc, media));
+    }
+    return { doc: out, ids };
 }
 
 // ── split (V2) ───────────────────────────────────────────────────────────────
@@ -909,10 +1111,13 @@ export function videoKeys(doc) {
  * The patches for `buildPlan`: pictures lane by lane from the bottom up (so a
  * lane's order is its paint order), within a lane by start, so an incoming
  * clip paints over the one it fades from; hidden picture lanes and muted
- * sound lanes switched off, and a sound lane's volume multiplied in.
+ * sound lanes switched off, and a sound lane's volume multiplied in. When a
+ * lane of a section is soloed, only the soloed lanes of that section play.
  */
 export function planPatches(doc) {
     const lanes = doc.lanes || { v: {}, a: {} };
+    const soloed = (section) => Object.values(lanes[section] || {}).some((st) => st?.solo);
+    const offBySolo = { v: soloed('v'), a: soloed('a') };
     const keys = videoKeys(doc);
     const pictures = [];
     const sounds = [];
@@ -923,10 +1128,10 @@ export function planPatches(doc) {
         if (sectionOf(p) === 'a') {
             const state = lanes.a?.[laneOf(p)] || {};
             const vol = (p.volume ?? 1) * (state.volume ?? 1);
-            sounds.push({ ...p, volume: Math.max(0, Math.min(1, vol)), visible: p.visible !== false && !state.muted && !p.muted });
+            sounds.push({ ...p, volume: Math.max(0, Math.min(1, vol)), visible: p.visible !== false && !state.muted && !p.muted && (!offBySolo.a || Boolean(state.solo)) });
         } else {
             const state = lanes.v?.[laneOf(p)] || {};
-            const out = { ...p, visible: p.visible !== false && !state.hidden && !(p.type === 'text' && !String(p.text || '').trim()) };
+            const out = { ...p, visible: p.visible !== false && !state.hidden && (!offBySolo.v || Boolean(state.solo)) && !(p.type === 'text' && !String(p.text || '').trim()) };
             if (p.type === 'video' && keys.has(p.id)) out.videoKey = keys.get(p.id);
             delete out.z;
             pictures.push(out);

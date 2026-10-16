@@ -49,7 +49,15 @@ function resizedUpright(plan, layer, start, kind, k) {
  * the layer is then moved by however far its turned corner went.
  */
 function resized(plan, layer, start, kind, k) {
-  const patch = resizedUpright(plan, layer, start, kind, k);
+  return keepTurnedCorner(plan, layer, start, kind, resizedUpright(plan, layer, start, kind, k));
+}
+
+/**
+ * A resize `patch` worked out as if the layer stood upright, moved so the
+ * corner opposite the grip `kind` stays where it stands turned. Video's stage
+ * uses it too.
+ */
+export function keepTurnedCorner(plan, layer, start, kind, patch) {
   const rot = layer.rot || 0;
   if (!patch || !rot || !start) return patch;
   // Where the engine's patch puts it: the patch applied to a copy of the plan, as the next frame will.

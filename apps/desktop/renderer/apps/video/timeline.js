@@ -17,7 +17,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { Icon, t } from '@rutba/office-ui';
 import { timecode } from '@rutba/media/timeline';
 import {
-  laneCount, laneOf, sectionOf, clipsOf, lengthOf, moveClip, trimStart, trimEnd, snapTime, withPartners,
+  laneCount, laneOf, sectionOf, clipsOf, lengthOf, moveClip, trimStart, trimEnd, snapTime, withPartners, setRange, updateMarker, MIN_CLIP,
 } from '@rutba/studio/project';
 
 export const HEADER_W = 120;
@@ -149,6 +149,39 @@ export default function Timeline({
     return Math.max(0, (clientX - r.left - headRef.current + el.scrollLeft) / pps);
   }, [pps]);
 
+  /**
+   * A point on the ruler dragged along it: the In or Out point, or a marker.
+   * It snaps to the clips' edges, the playhead and the other points (Alt
+   * frees it), and is one undo step. A marker pressed and let go without
+   * moving takes the playhead to it, as before.
+   */
+  const dragPoint = (e, label, apply, { onClick = null, exclude = null } = {}) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const base = doc;
+    const x0 = e.clientX;
+    let begun = false;
+    const move = (ev) => {
+      if (!begun) {
+        if (Math.abs(ev.clientX - x0) < 3) return;
+        begun = true;
+        onBegin(label);
+      }
+      const raw = timeAt(ev.clientX);
+      const threshold = ev.altKey || base.settings?.snap === false ? 0 : SNAP_PX / pps;
+      const pointless = exclude ? exclude(base) : base;
+      onLive(apply(base, snapTime(pointless, raw, { threshold, playhead: time }).t));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (!begun) onClick?.();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
   /* ── dragging clips: move, trim either end, change lanes ───────────── */
 
   const startDrag = (e, clip, mode) => {
@@ -268,6 +301,32 @@ export default function Timeline({
           </div>
           <div className="vd-ruler-track" style={{ width: trackW }} onPointerDown={scrub}>
             {range ? <div className="vd-range" style={{ left: range.in * pps, width: (range.out - range.in) * pps }} /> : null}
+            {range ? (
+              <>
+                <div
+                  className="vd-range-edge e-in"
+                  data-edge="in"
+                  style={{ left: range.in * pps }}
+                  role="slider"
+                  aria-label={t('In point')}
+                  aria-valuenow={range.in}
+                  aria-valuetext={timecode(range.in)}
+                  data-tip={t('In point {time}: drag to move it (Alt: no snapping)', { time: timecode(range.in) })}
+                  onPointerDown={(e) => dragPoint(e, t('Move In'), (d, at) => setRange(d, { in: Math.min(at, d.range.out - MIN_CLIP) }), { exclude: (d) => ({ ...d, range: null }) })}
+                />
+                <div
+                  className="vd-range-edge e-out"
+                  data-edge="out"
+                  style={{ left: range.out * pps }}
+                  role="slider"
+                  aria-label={t('Out point')}
+                  aria-valuenow={range.out}
+                  aria-valuetext={timecode(range.out)}
+                  data-tip={t('Out point {time}: drag to move it (Alt: no snapping)', { time: timecode(range.out) })}
+                  onPointerDown={(e) => dragPoint(e, t('Move Out'), (d, at) => setRange(d, { out: Math.max(at, d.range.in + MIN_CLIP) }), { exclude: (d) => ({ ...d, range: null }) })}
+                />
+              </>
+            ) : null}
             {ticks.map((s) => (
               <div key={s} className="vd-tick" style={{ left: s * pps }}>
                 <span>{timecode(s).replace(/\.0$/, '')}</span>
@@ -280,11 +339,9 @@ export default function Timeline({
                 type="button"
                 className="vd-marker"
                 style={{ left: m.t * pps }}
-                data-tip={m.name || t('Marker')}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  onSeek(m.t);
-                }}
+                data-id={m.id}
+                data-tip={m.name ? t('{name}: click to go to it, drag to move it', { name: m.name }) : t('Marker: click to go to it, drag to move it')}
+                onPointerDown={(e) => dragPoint(e, t('Move marker'), (d, at) => updateMarker(d, m.id, { t: at }), { onClick: () => onSeek(m.t), exclude: (d) => ({ ...d, markers: (d.markers || []).filter((x) => x.id !== m.id) }) })}
               />
             ))}
             <div className="vd-playhead-cap" style={{ left: time * pps }} />
@@ -310,6 +367,9 @@ export default function Timeline({
                     {state.muted ? <span className="vd-slash" /> : null}
                   </button>
                 )}
+                <button type="button" className={`vd-row-btn vd-solo${state.solo ? ' on' : ''}`} data-tip={state.solo ? t('Stop playing this track alone') : t('Play this track alone (solo): the other tracks of its kind are left out until it is switched off')} aria-pressed={Boolean(state.solo)} onClick={() => onLane(row.section, row.lane, { solo: !state.solo })}>
+                  <Icon name="headphones" size={12} />
+                </button>
                 <button type="button" className={`vd-row-btn${state.locked ? ' on' : ''}`} data-tip={state.locked ? t('Unlock this track') : t('Lock this track')} onClick={() => onLane(row.section, row.lane, { locked: !state.locked })}>
                   <Icon name="lock" size={12} />
                 </button>

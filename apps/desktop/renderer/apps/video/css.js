@@ -13,7 +13,12 @@ export const CSS = `
 .vd-stage .rw-empty h2, .vd-stage .rw-empty .rw-empty-title { color: #fff; }
 .vd-frame { position: relative; box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 12px 40px rgba(0,0,0,0.55); background: #000; }
 .vd-canvas { width: 100%; height: 100%; display: block; cursor: default; }
-.vd-outline { position: absolute; border: 1.5px solid #ffd54a; box-shadow: 0 0 0 1px rgba(0,0,0,0.6); pointer-events: none; border-radius: 2px; }
+.vd-outline { position: absolute; box-sizing: border-box; border: 1.5px solid #ffd54a; box-shadow: 0 0 0 1px rgba(0,0,0,0.6); pointer-events: none; border-radius: 2px; transform-origin: 50% 50%; }
+.vd-picked { position: absolute; inset: 0; pointer-events: none; }
+.vd-stalk { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.vd-stalk line { stroke: #ffd54a; stroke-width: 1.5; }
+.vd-grip { position: absolute; width: 11px; height: 11px; margin: -6px 0 0 -6px; box-sizing: border-box; background: #fff; border: 1.5px solid #ffd54a; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); pointer-events: none; }
+.vd-grip.g-rotate { width: 13px; height: 13px; margin: -7px 0 0 -7px; border-radius: 50%; background: #ffd54a; border-color: #fff; }
 .vd-export-canvas { position: fixed; left: -10000px; top: 0; width: 16px; height: 9px; pointer-events: none; }
 
 .vd-transport { display: flex; align-items: center; gap: 4px; padding: 6px 12px; background: #15171c; border-top: 1px solid #23262d; color: #d9dce3; }
@@ -24,6 +29,16 @@ export const CSS = `
 .vd-time { font-size: 12px; font-variant-numeric: tabular-nums; min-width: 58px; text-align: center; color: #f1f3f7; font-weight: 600; }
 .vd-time.total { color: #8b919c; font-weight: 500; }
 .vd-scrub { flex: 1; accent-color: var(--accent); min-width: 80px; }
+.vd-scrub-wrap { position: relative; flex: 1; display: flex; align-items: center; min-width: 80px; }
+.vd-scrub-wrap .vd-scrub { width: 100%; margin: 0; }
+.vd-scrub-range { position: absolute; inset: 0; pointer-events: none; }
+.vd-scrub-band { position: absolute; top: 50%; height: 6px; margin-top: -3px; background: rgba(255, 213, 74, 0.35); border-radius: 3px; }
+.vd-scrub-edge { position: absolute; top: 50%; width: 10px; height: 18px; margin: -9px 0 0 -5px; background: #ffd54a; pointer-events: auto; cursor: ew-resize; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); }
+.vd-scrub-edge.e-in { clip-path: polygon(0 0, 100% 0, 100% 35%, 45% 50%, 45% 100%, 0 100%); }
+.vd-scrub-edge.e-out { clip-path: polygon(0 0, 100% 0, 100% 100%, 55% 100%, 55% 50%, 0 35%); }
+.vd-range-edge { position: absolute; top: 0; bottom: 0; width: 11px; margin-left: -5px; z-index: 2; cursor: ew-resize; background: #ffd54a; }
+.vd-range-edge.e-in { clip-path: polygon(40% 0, 100% 0, 100% 45%, 55% 60%, 55% 100%, 40% 100%); }
+.vd-range-edge.e-out { clip-path: polygon(0 0, 60% 0, 60% 100%, 45% 100%, 45% 60%, 0 45%); }
 
 .vd-split { height: 6px; flex: none; cursor: row-resize; background: #0e1013; border-top: 1px solid #23262d; border-bottom: 1px solid #23262d; }
 .vd-split:hover { background: #1c1f26; }
@@ -49,7 +64,7 @@ export const CSS = `
 .vd-tick span { position: absolute; left: 4px; top: 3px; font-size: 10px; color: #9aa1ad; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .vd-tick.minor { top: 19px; border-left-color: #353a43; }
 .vd-range { position: absolute; top: 0; bottom: 0; background: rgba(255, 213, 74, 0.16); border-left: 2px solid #ffd54a; border-right: 2px solid #ffd54a; }
-.vd-marker { position: absolute; bottom: 1px; width: 10px; height: 12px; margin-left: -5px; padding: 0; border: 0; background: #4fc3f7; clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%); cursor: pointer; }
+.vd-marker { position: absolute; bottom: 1px; width: 10px; height: 12px; margin-left: -5px; padding: 0; border: 0; background: #4fc3f7; clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%); cursor: grab; z-index: 1; }
 .vd-playhead-cap { position: absolute; bottom: 0; width: 13px; height: 13px; margin-left: -6px; background: #ff4d5e; clip-path: polygon(0 0, 100% 0, 100% 50%, 50% 100%, 0 50%); pointer-events: none; }
 .vd-playhead { position: absolute; top: 14px; width: 2px; margin-left: -1px; background: #ff4d5e; pointer-events: none; z-index: 5; box-shadow: 0 0 6px rgba(255,77,94,0.5); }
 .vd-snapline { position: absolute; top: 0; width: 1px; background: #ffd54a; pointer-events: none; z-index: 5; }
