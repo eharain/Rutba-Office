@@ -172,7 +172,7 @@ const sectPr = ({ top = 1440, right = 1440, bottom = 1440, left = 1440 } = {}) =
  * is the XML of a paragraph or a table; `lists` names the pieces that are
  * bulleted or numbered, by their place in `pieces`.
  */
-function compose({ theme, pieces, lists = {}, margins, footer = null, finish = null }) {
+export function compose({ theme, pieces, lists = {}, margins, footer = null, finish = null }) {
   const backend = OoxmlBackend.open(buildDocx({ paragraphs: [{ text: '' }], styles: true }));
   const doc = backend.doc;
   const t = themeById(theme);
