@@ -358,6 +358,11 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     openExternal: ({ url }) => {
       const ok = /^(https?|mailto|tel):/i.test(url || '');
       if (!ok) throw new Error(`refused to open: ${url}`);
+      // Under the window checks a link is noted, not handed to the browser.
+      if (CHECK_RUN) {
+        (globalThis.__rutbaCheckOpened ||= []).push(url);
+        return undefined;
+      }
       return shell.openExternal(url);
     },
     showInFolder: ({ path: p }) => void shell.showItemInFolder(p),

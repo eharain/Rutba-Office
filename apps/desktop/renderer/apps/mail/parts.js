@@ -8,6 +8,7 @@
 /* ── the reading frame ───────────────────────────────────────────────────── */
 
 import { withoutBlocks } from '@rutba/mailbox/mime';
+import { MAILTO_HOST } from './links.js';
 import { t } from '@rutba/office-ui/messages';
 import { parseColour, readableOn, inkOn, contrast, INK, AA } from '@rutba/office-ui/contrast';
 
@@ -40,12 +41,24 @@ export function bodyDocument(message, { remote = false, dark = false, plain = fa
 
   if (dark) html = darkBody(html);
 
+  // Every link asks for a window of its own (the <base> below), which the
+  // window refuses and hands to Mail to open in the browser (owner,
+  // 2026-10-16: the link "leads to a blank page"); followed in the frame,
+  // it put the page there, drawn blank by the sandbox. A target the sender
+  // set is dropped so that none is left behind.
+  html = html.replace(/(<a\b[^<>]*?)\s+target\s*=\s*(["'])[^"']*\2/gi, '$1');
+
+  // A mailto: link is written as an address the window's handler is given
+  // (links.js MAILTO_HOST), which Mail turns back into a new message.
+  html = html.replace(/(<a\b[^<>]*?\bhref\s*=\s*)(["'])mailto:([^"']*)\2/gi, (m, a, q, rest) => `${a}${q}${MAILTO_HOST}${rest}${q}`);
+
   const csp = remote
     ? "default-src 'none'; img-src https: data: rutba: blob:; style-src 'unsafe-inline'; font-src data:"
     : "default-src 'none'; img-src data: rutba: blob:; style-src 'unsafe-inline'; font-src data:";
 
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
+<base target="_blank">
 <style>
   :root { color-scheme: ${dark ? 'dark' : 'light'}; }
   body {

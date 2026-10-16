@@ -234,10 +234,13 @@ export default function Reader({
 
       <div className="ml-body">
         {/*
-          sandbox with no tokens: no scripts, no forms, no same-origin, no
-          top-level navigation. The only thing this frame can do is draw.
+          sandbox with one token: no scripts, no forms, no same-origin, no
+          top-level navigation. The frame draws, and a person's click on a link
+          may ask for a window (allow-popups). The window refuses every one
+          and hands the link to Mail, which opens it in the browser or warns
+          first. With no scripts, nothing but a click can ask.
         */}
-        <iframe ref={frameRef} title={t('Message')} sandbox="" referrerPolicy="no-referrer" srcDoc={doc} style={{ height }} />
+        <iframe ref={frameRef} title={t('Message')} sandbox="allow-popups" referrerPolicy="no-referrer" srcDoc={doc} style={{ height }} />
       </div>
 
       {message.internetHeaders || message.headers?.length ? (

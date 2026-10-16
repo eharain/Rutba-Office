@@ -352,6 +352,7 @@ export const METHODS = {
 /** Backend-to-renderer events. */
 export const EVENTS = [
   'win:state',        // { maximized, fullscreen, focused }
+  'win:link',         // { url }             a link followed inside a frame (a message's body), for the window to open or warn about
   'app:open-file',    // { path }            OS asked us to open a document
   'app:command',      // { command, args }   menu / accelerator
   'mail:progress',    // { accountId, folder, done, total, phase }

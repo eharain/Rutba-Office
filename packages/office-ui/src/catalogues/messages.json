@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7041,
+  "count": 7053,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -7935,6 +7935,12 @@
       "message": "Copy Cells",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Copy Link",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -17072,6 +17078,12 @@
       ]
     },
     {
+      "message": "It goes to:",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "It is shown as plain text, with its links and pictures left out: an encrypted message that is not signed by someone trusted could have been changed on the way to send its words elsewhere.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
@@ -23386,6 +23398,12 @@
       ]
     },
     {
+      "message": "Open in Browser",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Open in PDF",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -23419,6 +23437,12 @@
       "message": "Open the sign-in in",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Open this link in your browser?",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -34690,6 +34714,12 @@
       ]
     },
     {
+      "message": "That link was not opened: it is not to a web page or an email address.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "That message was sent to you, not to a group or a mailing list — Never block sender keeps its sender instead.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -34857,6 +34887,12 @@
       "message": "The address book is empty. Add people in Contacts first, or type a new list.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "The address hides where it goes behind a name and an @: it really goes to {host}.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/links.js"
       ]
     },
     {
@@ -35304,9 +35340,33 @@
       ]
     },
     {
+      "message": "The link could not be opened: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "The link goes to a bare number ({host}), not a named site.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/links.js"
+      ]
+    },
+    {
+      "message": "The link is copied.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "The link on {cell}",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "The link reads {named} but goes to {host}.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/links.js"
       ]
     },
     {
@@ -35820,6 +35880,12 @@
       ]
     },
     {
+      "message": "The sender’s address did not pass its checks (SPF, DKIM, DMARC).",
+      "where": [
+        "apps/desktop/renderer/apps/mail/links.js"
+      ]
+    },
+    {
       "message": "The server answered {status} where a list was asked for.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -35919,6 +35985,12 @@
       "message": "The signature is damaged and cannot be checked.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "The site’s name is written in letters that can look like others ({host}).",
+      "where": [
+        "apps/desktop/renderer/apps/mail/links.js"
       ]
     },
     {
@@ -37075,6 +37147,7 @@
     {
       "message": "This message is in Junk.",
       "where": [
+        "apps/desktop/renderer/apps/mail/links.js",
         "apps/desktop/renderer/apps/mail/reader.js"
       ]
     },

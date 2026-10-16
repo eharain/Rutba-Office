@@ -28,6 +28,7 @@ import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
 import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags } from './mail/parts.js';
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
+import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
 import Compose from './mail/compose.js';
 import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog, JunkDialog } from './mail/dialogs.js';
@@ -1114,6 +1115,47 @@ export default function Mail({ app, shell }) {
 
   // Home → Junk, Outlook's menu: mark, unmark, the two lists and the options.
   const inJunk = unified ? role === 'junk' : current?.role === 'junk';
+
+  // A link followed in the message, which the frame hands to the window
+  // (owner, 2026-10-16: "it should open browser instead while spam should
+  // have a protection on links"): a web page opens in the browser, with a
+  // warning first when the message is junk, failed its sender's checks, or
+  // the link's words name another site than it goes to; a mailto: address
+  // is written to here; anything else is not opened.
+  const linkFacts = useRef({});
+  linkFacts.current = { message, inJunk, auth: insight?.auth };
+  useEffect(() => shell.on('win:link', async ({ url: asked }) => {
+    const url = fromFrameUrl(asked);
+    const { message: m, inJunk: junk, auth } = linkFacts.current;
+    const kind = linkKind(url);
+    if (kind === 'refused') {
+      toast(t('That link was not opened: it is not to a web page or an email address.'), { tone: 'bad', ms: 5000 });
+      return;
+    }
+    if (kind === 'mail') {
+      const f = mailtoFields(url);
+      setCompose({ to: f.to, subject: f.subject, text: f.text });
+      return;
+    }
+    const reasons = linkRisks(url, { html: m?.html || '', inJunk: junk, authFailed: Boolean(auth?.known && !auth.ok) });
+    if (reasons.length) {
+      const { response } = await shell.dialog.message({
+        type: 'warning',
+        message: t('Open this link in your browser?'),
+        detail: `${reasons.join('\n')}\n\n${t('It goes to:')}\n${url}`,
+        buttons: [t('Open in Browser'), t('Copy Link'), t('Cancel')],
+        defaultId: 2,
+        cancelId: 2,
+      });
+      if (response === 1) {
+        await shell.clipboard.writeText({ text: url }).catch(() => {});
+        toast(t('The link is copied.'), { ms: 2500 });
+      }
+      if (response !== 0) return;
+    }
+    shell.shell.openExternal({ url }).catch((err) => toast(t('The link could not be opened: {reason}', { reason: err.message }), { tone: 'bad', ms: 6000 }));
+  }), [shell, toast]);
+
   const junkMenu = (event) => {
     const none = !selected && !checked.size;
     menu.open(event, [

@@ -266,7 +266,15 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     // Nothing in this app navigates. A link goes to the browser, a popup is
     // refused, and a dropped file is handled by the renderer, not by Chromium
     // replacing the document with it.
-    win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    // A link a message's body asks to open in a window of its own (Mail's
+    // reading frame sends every link that way, and has no scripts, so only a
+    // person's click can ask) is refused as a window and handed to Mail, which
+    // opens it in the browser or warns first. Nothing loads and nothing is
+    // sent. Every other popup is refused, as before.
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      if (meta.get(winId)?.app === 'mail' && /^(https?|mailto):/i.test(url || '')) onWindowEvent?.(win, 'win:link', { url });
+      return { action: 'deny' };
+    });
     win.webContents.on('will-navigate', (e, target) => {
       if (!target.startsWith(`${SCHEME}://app/`)) e.preventDefault();
     });

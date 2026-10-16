@@ -183,6 +183,7 @@ import { verifyDeckPoints } from './verify-deck-points.js';
 import { verifyWordRtl } from './verify-word-rtl.js';
 import { verifyWordTable } from './verify-word-table.js';
 import { verifyMailJunk } from './verify-mail-junk.js';
+import { verifyMailLinks } from './verify-mail-links.js';
 import { verifyMailArchive } from './verify-mail-archive.js';
 import { verifyMailIndexWorker } from './verify-mail-index-worker.js';
 import { verifyMailBigMbox } from './verify-mail-big-mbox.js';
@@ -4804,7 +4805,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,dark-pass,video-mp4,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,dark-pass,video-mp4,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4984,6 +4985,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordtable')) await verifyWordTable({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('rtl')) await verifyWordRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('junk')) await verifyMailJunk({ open, check, until, wait, errorsIn });
+    if (only.includes('mail-links')) await verifyMailLinks({ open, check, until, wait, errorsIn });
     if (only.includes('mail-archive')) await verifyMailArchive({ open, check, until, wait, errorsIn });
     if (only.includes('mail-index-worker')) await verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo });
     if (only.includes('mail-big-mbox')) await verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo });
@@ -7012,6 +7014,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // Last of all: it leaves an Inbox and a Junk folder on the shared account,
   // and a window opens on an Inbox before the seeded folder the others read.
   await verifyMailJunk({ open, check, until, wait, errorsIn });
+  await block(() => verifyMailLinks({ open, check, until, wait, errorsIn }));
   await verifyMailArchive({ open, check, until, wait, errorsIn });
   await block(() => verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo }));
   await block(() => verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo }));
