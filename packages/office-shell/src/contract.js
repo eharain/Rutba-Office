@@ -328,6 +328,12 @@ export const METHODS = {
     'languages',    // () -> [{ code, name, script, direction, beta? }]
     'stats',        // () -> { threads, busy, queued, limit, done, failed, cancelled }   for the checks
   ],
+  ai: [
+    'state',        // () -> { mode: 'off' | 'session' | 'always', folders, connect: { command, args, env }, log, connections: [{ client, clientVersion, where, since, last, lastTool, pid }] }
+    'setMode',      // ({ mode }) -> state
+    'addFolder',    // ({ path }) -> state
+    'removeFolder', // ({ path }) -> state
+  ],
   clipboard: [
     'writeText',    // ({ text }) -> void
     'readText',     // () -> string

@@ -26,6 +26,7 @@ import { createCalendarService } from './calendar.js';
 import { createDavService } from './dav-sync.js';
 import { createPdfService } from './pdf.js';
 import { createOcrService } from './ocr.js';
+import { createAiToolsService } from './ai-tools.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -175,6 +176,8 @@ createShell({
       pdf: createPdfService(),
       // Text recognition on threads of its own: Recognise Text, Copy Text from Picture, Data from Picture.
       ocr: createOcrService(),
+      // The AI Tools window: the switch, the folders, the log (ai-tools.js).
+      ai: createAiToolsService({ stores }),
       oauth,
       mail: createMailService({
         stores,

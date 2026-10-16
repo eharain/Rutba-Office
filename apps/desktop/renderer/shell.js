@@ -13,6 +13,7 @@ import { pathOf } from '@rutba/office-shell/client';
 import { WhatsNew } from './whatsnew.js';
 import { filtersInLanguage } from './registry-words.js';
 import { TemplateGallery } from './template-gallery.js';
+import { AiBadge, AiToolsDialog, AI_TOOLS_CSS } from './ai-tools.js';
 
 /**
  * The languages the windows can be shown in, each named in its own words
@@ -129,6 +130,7 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
       items.push('-');
       items.push({ label: t('What’s new'), icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) });
       items.push({ label: t('About Rutba Office'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) });
+      items.push({ label: t('AI Tools…'), icon: 'wand', run: () => window.dispatchEvent(new Event('rutba-ai-tools')) });
 
       setMenu({ x: rect.left, y: rect.bottom + 4, items, keyboard: e.detail === 0 });
     },
@@ -312,6 +314,13 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
   // chip asked to see again.
   const [away, setAway] = useState(null);
   const [insist, setInsist] = useState(null);
+  // AI Tools, from the title bar's badge or the app menu (an 'rutba-ai-tools' event).
+  const [aiTools, setAiTools] = useState(() => typeof location !== 'undefined' && new URLSearchParams(location.search).has('aitools'));
+  useEffect(() => {
+    const open = () => setAiTools(true);
+    window.addEventListener('rutba-ai-tools', open);
+    return () => window.removeEventListener('rutba-ai-tools', open);
+  }, []);
 
   useEffect(() => {
     shell.win.state().then((s) => setPlatform(s.platform)).catch(() => {});
@@ -332,9 +341,10 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
         dirty={dirty}
         platform={platform}
         shell={shell}
-        right={right}
+        right={<>{right}<AiBadge shell={shell} onOpen={() => setAiTools(true)} /></>}
         onMenu={menu?.open}
       />
+      {aiTools ? <><style>{AI_TOOLS_CSS}</style><AiToolsDialog shell={shell} onClose={() => setAiTools(false)} /></> : null}
       {ribbon}
       <Body>{children}</Body>
       <StatusBar>
