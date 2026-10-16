@@ -23,7 +23,7 @@ Each opens the apps on real files (a document with a title and headings, a
 workbook, a deck, a PDF, a calendar with a busy day, contacts and a mailbox)
 and measures the window rather than trusting the code.
 
-- **a11y-audit** runs axe-core 4.13 (Deque's open rules engine, the rules
+- **a11y-audit** runs axe-core 4.14 (Deque's open rules engine, the rules
   tagged WCAG 2.0, 2.1 and 2.2 A and AA, and its best-practice rules) over
   every app's window, each of its ribbon tabs, its app menu, and the main
   dialogs and panes: Print and Find and Replace in Documents, Insert Link in
@@ -89,8 +89,8 @@ same tree but which no check reads.
 | 2.4.6 Headings and labels | AA | Partially supports | Fields and panes are labelled (a11y-audit); labels are not reviewed by a person for meaning. |
 | 2.4.7 Focus visible | AA | Supports | A ring shows on the ribbon's controls (ribbon), on what F6 and Tab reach (keyboard-pass captures) and in High Contrast (high-contrast). |
 | 2.4.11 Focus not obscured (minimum) | AA | Not tested | |
-| 2.5.3 Label in name | A | Partially supports | A button's tip begins with its visible name and its accessible name is taken from that start; not checked for every control. |
-| 2.5.7 Dragging movements | AA | Partially supports | Panel widths take the arrow keys, a picked shape moves with the arrows, the ruler's indents have the Paragraph dialog; Video's timeline and drawing have no alternative to dragging. |
+| 2.5.3 Label in name | A | Partially supports | A button's tip begins with its visible name and its accessible name is taken from that start. Since 2.3.0 a picture that shows words (a slide in the strip, a theme in the Design gallery) stands beside its button rather than inside it, so its words are not taken for the button's label, which axe-core 4.14 checks in every window audited; not checked for every control. |
+| 2.5.7 Dragging movements | AA | Partially supports | Panel widths take the arrow keys, a picked shape moves with the arrows, the ruler's indents have the Paragraph dialog; on Video's preview the Position and size fields do what the grips do, and Mark In and Mark Out set what the In and Out flags drag. Video's clips on the timeline and drawing have no alternative to dragging. |
 | 2.5.8 Target size (minimum) | AA | Partially supports | Ribbon buttons, gallery arrows, sliders and the mini month are at least 24 px. Known short: the events in Calendar's month view are 16 px tall, so a busy day shows its events at all (full-size in the Day, Week and Agenda views and the day's "+N more" list). Mail's row check box and star are smaller, under WCAG's equivalent-control exception: Ctrl+click and Shift+click anywhere on the row check it (and a run of rows), and the ribbon's Star and the row's menu star it. |
 | 3.1.1 Language of page | A | Supports | Each window says its language (English, Urdu, Arabic or Hindi) on its page. |
 | 3.2.1, 3.2.2 On focus, on input | A | Not tested | |

@@ -531,9 +531,18 @@ holds each item's number and state.
   (Phase 2): a screen, a window or a region, the camera as a second file on
   the same clock, the microphone and the computer's sound, pause, global
   keys and the tray, streamed to disk and recovered after a crash, landing
-  on the timeline as layers; Presentations' Screen Recording uses it. Not
-  yet: speed, keyframes, colour and picture in picture (Phase 6); media is read
-  whole into memory. Since 1.45.0, introductory videos (Phase 3): scenes
+  on the timeline as layers; Presentations' Screen Recording uses it.
+  Since 2.3.0 anything that shows on the preview is picked, moved, resized
+  and turned there to any angle, with its place, size, angle, opacity and
+  blend as numbers too, and any clip or still made a picture in picture;
+  Add Media puts files after the clips on the picked track, on a new track
+  from the playhead, or at the playhead with what follows moved on; the In
+  and Out points and markers drag on the ruler, and In and Out on the scrub
+  bar; a track splits in two at the playhead, is inserted, moved up or down,
+  soloed, and kept by every edit when locked. Not yet: speed, keyframes on
+  the timeline, colour, volume above 100% and its envelope, pitch, a
+  sound-only crossfade, loudness and noise reduction (the plan is in
+  STUDIO.md); media is read whole into memory. Since 1.45.0, introductory videos (Phase 3): scenes
   from a template with layouts switchable after recording, a teleprompter,
   takes, a brand kit with a lower third, pointer data drawn as a layer and
   Zoom on Clicks, captions read and written as .srt and .vtt, and export
