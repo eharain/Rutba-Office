@@ -2795,14 +2795,18 @@ export default function Slides({ app, shell, boot }) {
               {(model.outline || []).map((o, i) => (
                 <React.Fragment key={o.part || i}>
                   {sectionHeading(model, o, i, (s) => setSectionRename({ section: s.index, name: s.name }), () => setIndex(i))}
-                  <button
-                    type="button"
+                  {/* The slide drawn small stands beside its button, not inside it: the button over it is named for the slide and holds no words of its own, so what a screen reader or voice control hears is all its name (WCAG 2.5.3). */}
+                  <div
                     className={`sl-thumb${i === index ? ' active' : ''}${o.hidden ? ' hidden' : ''}`}
-                    aria-label={`${t('Slide {number}', { number: i + 1 })}: ${o.title || t('Untitled slide')}`}
-                    aria-current={i === index ? 'true' : undefined}
                     onClick={() => setIndex(i)}
                     onContextMenu={(e) => menu.open(e, menuItems(commands, ['slide.new', 'slide.delete']))}
                   >
+                    <button
+                      type="button"
+                      className="sl-thumb-hit"
+                      aria-label={`${t('Slide {number}', { number: i + 1 })}: ${o.title || t('Untitled slide')}`}
+                      aria-current={i === index ? 'true' : undefined}
+                    />
                     <span className="sl-thumb-n">
                       {i + 1}
                       {/* PowerPoint's little star under the number: this slide has a transition. */}
@@ -2819,7 +2823,7 @@ export default function Slides({ app, shell, boot }) {
                         : <span className="sl-thumb-title">{o.title || t('Untitled slide')}</span>}
                     </span>
                     </span>
-                  </button>
+                  </div>
                 </React.Fragment>
               ))}
               {emptySectionHeadings(model, (s) => setSectionRename({ section: s.index, name: s.name }))}
@@ -4344,7 +4348,11 @@ const CSS = `
 .sl-section-name { font-size: 11.5px; font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sl-section:hover .sl-section-name { color: var(--accent-text); }
 .sl-section-count { font-size: 10.5px; color: var(--ink-3); flex: none; }
-.sl-thumb { display: flex; align-items: stretch; gap: 7px; border: 0; background: transparent; padding: 0; text-align: left; }
+.sl-thumb { display: flex; align-items: stretch; gap: 7px; border: 0; background: transparent; padding: 0; text-align: left; position: relative; cursor: pointer; }
+.sl-thumb-hit { position: absolute; inset: 0; z-index: 0; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer; border-radius: 5px; }
+.sl-thumb-hit:focus-visible { outline: none; }
+.sl-thumb:has(> .sl-thumb-hit:focus-visible) .sl-thumb-card { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sl-thumb > .sl-thumb-n, .sl-thumb .sl-thumb-card { position: relative; z-index: 1; }
 .sl-thumb-n { width: 16px; font-size: 11px; color: var(--ink-3); padding-top: 3px; flex: none; text-align: right; }
 .sl-thumb-card {
   flex: 1; min-width: 0; aspect-ratio: var(--sl-ratio, 16 / 9); border: 2px solid var(--line); border-radius: var(--r-2);

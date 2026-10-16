@@ -295,21 +295,21 @@ export function RibbonStrip({ items = [], kind, count = 4, onPick, onMore, label
       onMore={onMore}
     >
         {ordered.length ? ordered.map((it) => (
-          <button
+          <span
             key={it.id}
-            type="button"
             className={`sl-rs-item${it.current ? ' current' : ''}`}
             data-tip={kind === 'themes' ? t('{name} — apply this theme to every slide', { name: it.name }) : t('{name} — this theme in these colours', { name: it.name })}
             data-theme={kind === 'themes' ? it.id : undefined}
             data-variant={kind === 'variants' ? it.id : undefined}
             onClick={() => onPick(it)}
           >
-            {/* The drawing shows what the name says: kept from screen readers so the name is all that is read (WCAG 2.5.3). */}
+            {/* The drawing stands beside the button, not inside it: the button over it is named for the theme and holds no words of its own, so what a screen reader or voice control hears is all its name (WCAG 2.5.3). */}
+            <button type="button" className="sl-rs-hit" aria-label={it.name} aria-pressed={it.current ? 'true' : 'false'} />
             <span aria-hidden="true" style={{ display: 'contents' }}>
               {it.svg ? <Markup as="span" className="sl-rs-pic" html={it.svg} /> : <span className="sl-rs-pic sl-dg-nopic" />}
               <Accents colors={it.colors} />
             </span>
-          </button>
+          </span>
         )) : <span className="sl-rs-wait">{label}</span>}
     </Gallery>
   );
@@ -355,9 +355,10 @@ export const DESIGN_CSS = `
 /* The ribbon's own strip: live thumbnails in a row, the rest behind a button. */
 .sl-rs { display: flex; align-items: stretch; gap: 0; height: 60px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--surface-2); padding: 3px 0 3px 3px; }
 .sl-rs-items { gap: 4px; padding: 2px; box-sizing: border-box; }
-.sl-rs-item { width: 88px; height: 52px; padding: 0; border: 1.5px solid transparent; border-radius: 5px; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; transition: border-color var(--fast), transform var(--fast); }
+.sl-rs-item { position: relative; box-sizing: border-box; width: 88px; height: 52px; padding: 0; border: 1.5px solid transparent; border-radius: 5px; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; transition: border-color var(--fast), transform var(--fast); }
 .sl-rs-item:hover { border-color: var(--line-strong); }
 .sl-rs-item.current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.sl-rs-hit { position: absolute; inset: -1.5px; z-index: 1; margin: 0; padding: 0; border: 0; border-radius: 5px; background: transparent; cursor: pointer; }
 .sl-rs-pic { display: block; width: 80px; line-height: 0; border-radius: 3px; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.10); background: #fff; }
 .sl-rs-pic svg { display: block; width: 100%; height: auto; }
 .sl-accents { display: flex; width: 80px; height: 3px; border-radius: 2px; overflow: hidden; flex: none; }
