@@ -3092,12 +3092,6 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         const name = session.recoveryFile || `${session.id}-${Date.now().toString(36)}${RECOVERY_EXT[session.kind]}`;
         const started = Date.now();
         try {
-          // A key not yet spun is spun on its thread, and the copy waits for
-          // the next round rather than spinning it here and holding every window.
-          if (session.password && !session.keyReady()) {
-            session.warmKey();
-            continue;
-          }
           fs.mkdirSync(recoveryDir, { recursive: true });
           // A document with a password is copied encrypted with the same
           // password, as Save would write it: the copy on disk is never the

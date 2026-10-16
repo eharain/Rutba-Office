@@ -33,7 +33,7 @@ const PASSWORD = 'Tr0ub4dor&3';
 /** Is the password anywhere in these bytes, as UTF-8 or UTF-16? */
 const holdsPassword = (bytes) => Buffer.from(bytes).includes(Buffer.from(PASSWORD, 'utf8')) || Buffer.from(bytes).includes(Buffer.from(PASSWORD, 'utf16le'));
 
-test('Encrypt with Password makes Save write an encrypted file, and clearing it a plain one', () => {
+test('Encrypt with Password makes Save write an encrypted file, and clearing it a plain one', async () => {
   const file = write('board.docx', buildDocx({ paragraphs: ['For the board only.'] }));
   const opened = doc.open({ path: file, kind: 'doc' });
   assert.equal(opened.encrypted, false);
@@ -41,7 +41,7 @@ test('Encrypt with Password makes Save write an encrypted file, and clearing it 
   const meta = doc.setPassword({ id: opened.id, password: PASSWORD });
   assert.equal(meta.encrypted, true);
   assert.equal(meta.dirty, true, 'setting a password is a change to save');
-  doc.save({ id: opened.id });
+  await doc.save({ id: opened.id });
   const saved = fs.readFileSync(file);
   assert.equal(isEncryptedPackage(saved), true, 'the file on disk is encrypted');
   assert.equal(holdsPassword(saved), false);
@@ -49,7 +49,7 @@ test('Encrypt with Password makes Save write an encrypted file, and clearing it 
 
   // Saved again after an edit: still encrypted, with the same password.
   doc.apply({ id: opened.id, ops: [{ op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 0, offset: 0 } }, { op: 'insertText', text: 'Draft: ' }] });
-  doc.save({ id: opened.id });
+  await doc.save({ id: opened.id });
   assert.equal(isEncryptedPackage(fs.readFileSync(file)), true);
   doc.close({ id: opened.id });
 
@@ -64,7 +64,7 @@ test('Encrypt with Password makes Save write an encrypted file, and clearing it 
 
   // Clearing the password goes back to a plain save.
   assert.equal(doc.setPassword({ id: again.id, password: '' }).encrypted, false);
-  doc.save({ id: again.id });
+  await doc.save({ id: again.id });
   assert.equal(isZip(fs.readFileSync(file)), true, 'a plain .docx again');
   doc.close({ id: again.id });
   const plain = doc.open({ path: file, kind: 'doc' });
@@ -73,7 +73,7 @@ test('Encrypt with Password makes Save write an encrypted file, and clearing it 
   doc.close({ id: plain.id });
 });
 
-test('a workbook and a presentation are saved encrypted and open again', () => {
+test('a workbook and a presentation are saved encrypted and open again', async () => {
   const cases = [
     ['figures.xlsx', 'sheet', buildXlsx({ sheets: [{ name: 'S', rows: [['Salary', 91000]] }] })],
     ['plan.pptx', 'deck', buildPptx({ title: 'Plan', slides: [{ layout: 'title', title: 'Plan', body: 'Secret' }] })],
@@ -82,7 +82,7 @@ test('a workbook and a presentation are saved encrypted and open again', () => {
     const file = write(name, bytes);
     const opened = doc.open({ path: file, kind });
     doc.setPassword({ id: opened.id, password: PASSWORD });
-    const saved = doc.save({ id: opened.id });
+    const saved = await doc.save({ id: opened.id });
     assert.equal(saved.encrypted, true);
     doc.close({ id: opened.id });
     const disk = fs.readFileSync(file);
@@ -125,11 +125,11 @@ test('the autosave copy of a protected document is encrypted with its password',
   doc.close({ id: opened.id });
 });
 
-test('a protected file changed after it was encrypted is refused with a sentence', () => {
+test('a protected file changed after it was encrypted is refused with a sentence', async () => {
   const file = write('tampered.xlsx', buildXlsx({ sheets: [{ name: 'S', rows: Array.from({ length: 400 }, (_, i) => ['Row ' + i, i * 3.25]) }] }));
   const opened = doc.open({ path: file, kind: 'sheet' });
   doc.setPassword({ id: opened.id, password: PASSWORD });
-  doc.save({ id: opened.id });
+  await doc.save({ id: opened.id });
   doc.close({ id: opened.id });
   const bytes = fs.readFileSync(file);
   const cfb = new CompoundFile(bytes);
