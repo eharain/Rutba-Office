@@ -127,8 +127,34 @@ export function Window({ app, children }) {
 }
 
 /**
+ * The suite's own mark: the application icon (resources/icon.svg) drawn
+ * small, so every window says it is Rutba Office (owner, 2026-10-16: "there
+ * should be some indicator that its a Rutba Office").
+ */
+export function SuiteMark({ size = 18 }) {
+  return (
+    <svg className="rw-suitemark" width={size} height={size} viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="rw-suite-bg" x1="0" y1="0" x2="0.35" y2="1">
+          <stop offset="0" stopColor="#3f74e8" />
+          <stop offset="1" stopColor="#1f47b0" />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#rw-suite-bg)" />
+      <path d="M150 108h132l82 82v214a14 14 0 0 1-14 14H150a14 14 0 0 1-14-14V122a14 14 0 0 1 14-14z" fill="#ffffff" opacity="0.96" />
+      <path d="M282 108l82 82h-68a14 14 0 0 1-14-14z" fill="#d7e2fb" />
+      <rect x="180" y="248" width="152" height="18" rx="9" fill="#2b5fd9" opacity="0.9" />
+      <rect x="180" y="298" width="112" height="18" rx="9" fill="#2b5fd9" opacity="0.6" />
+      <rect x="180" y="348" width="132" height="18" rx="9" fill="#2b5fd9" opacity="0.35" />
+    </svg>
+  );
+}
+
+/**
  * The caption bar. Frameless on every platform; macOS keeps its own traffic
- * lights, so the controls are drawn only where the platform has none.
+ * lights, so the controls are drawn only where the platform has none. It
+ * begins with the suite's mark and name, then the app's own, so each window
+ * says it is a Rutba Office app; a narrow window keeps the mark alone.
  */
 export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, onMenu }) {
   const [maximized, setMaximized] = useState(false);
@@ -177,8 +203,16 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
     <div className={`rw-titlebar${isMac ? ' mac' : ''}`} role="banner">
       {/* words-ok: the suite's own name */}
       <button type="button" className="rw-appmark interactive rw-btn ghost" onClick={onMenu} title="Rutba Office">
+        {app?.key && app.key !== 'home' ? (
+          <span className="rw-suite">
+            <SuiteMark />
+            {/* words-ok: the suite's own name */}
+            <span className="rw-suite-name">Rutba Office</span>
+            <span className="rw-suite-sep" aria-hidden="true" />
+          </span>
+        ) : null}
         <span className="glyph">
-          <Icon name={app?.icon || 'home'} size={12} />
+          {app?.key && app.key !== 'home' ? <Icon name={app.icon} size={12} /> : <SuiteMark size={22} />}
         </span>
         <span>{app?.short || 'Rutba Office'}</span>
         <Icon name="chevronDown" size={12} style={{ opacity: 0.5 }} />

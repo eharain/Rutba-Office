@@ -284,6 +284,17 @@ textarea,
   box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 .rw-appmark .glyph svg { width: 13px; height: 13px; }
+/* The launcher's own glyph is the suite's mark, drawn whole. */
+.rw-appmark .glyph:has(> .rw-suitemark) { background: none; box-shadow: none; }
+.rw-appmark .glyph > .rw-suitemark { width: 22px; height: 22px; }
+/* The suite's mark and name before the app's: each window says it is Rutba Office. */
+.rw-suite { display: flex; align-items: center; gap: 6px; }
+.rw-suitemark { flex: none; display: block; }
+.rw-suite-name { font-size: 12px; font-weight: 600; color: var(--ink-2); letter-spacing: -0.005em; }
+.rw-suite-sep { width: 1px; height: 16px; background: var(--line-strong); margin: 0 2px 0 4px; }
+@media (max-width: 760px) {
+  .rw-suite-name { display: none; }
+}
 
 .rw-doctitle {
   flex: 1;
