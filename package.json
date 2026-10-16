@@ -1,6 +1,6 @@
 {
   "name": "rutba-office",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-or-later",
@@ -36,7 +36,7 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "axe-core": "4.14.0",
+    "axe-core": "4.13.0",
     "electron": "44.7.2",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2"

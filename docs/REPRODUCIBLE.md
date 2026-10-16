@@ -10,7 +10,7 @@ tell whether what came out is what was published.
   release's files) names the commit in `metadata.component.properties`
   (`rutba:commit`).
 - **The packages.** `package-lock.json` fixes every npm package and its
-  SHA-512; `npm ci` installs exactly those. Electron (43.4.1 at 2.0.0) and
+  SHA-512; `npm ci` installs exactly those. Electron (44.7.2 since 2.2.0) and
   electron-builder come from the lock too.
 - **The vendored files.** pdf.js, its fonts and decoders
   (`apps/desktop/vendor/pdfjs`) and the text recognition engine and its

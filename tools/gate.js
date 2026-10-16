@@ -29,6 +29,7 @@
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -144,6 +145,41 @@ function run(command, args) {
   });
 }
 
+/** The share of the processors busy over `ms`, from the operating system's own counters. */
+async function busyShare(ms) {
+  const sample = () => os.cpus().reduce((t, c) => {
+    const all = Object.values(c.times).reduce((a, b) => a + b, 0);
+    return { idle: t.idle + c.times.idle, all: t.all + all };
+  }, { idle: 0, all: 0 });
+  const a = sample();
+  await new Promise((r) => setTimeout(r, ms));
+  const b = sample();
+  const all = b.all - a.all;
+  return all > 0 ? 1 - (b.idle - a.idle) / all : 0;
+}
+
+/**
+ * The budgets are run alone, and alone means the machine has settled: the
+ * engine tests before them write thousands of files that the virus scanner
+ * goes on reading for a while, which held the main thread past its budget in
+ * two of three gates for 2.2.0, where the same budgets passed on their own
+ * every time. So before them the gate waits, up to two minutes, until the
+ * processors have been under a quarter busy for three seconds running, and
+ * says how long it waited and how busy the machine still was.
+ */
+async function settle(limitMs = 120_000) {
+  const started = Date.now();
+  let calm = 0;
+  let share = 1;
+  while (Date.now() - started < limitMs) {
+    share = await busyShare(1000);
+    calm = share < 0.25 ? calm + 1 : 0;
+    if (calm >= 3) break;
+  }
+  const waited = ((Date.now() - started) / 1000).toFixed(0);
+  if (!quiet) console.log(`The machine settled for the budgets: waited ${waited} s, the processors ${Math.round(share * 100)}% busy.`);
+}
+
 async function main() {
   const results = [];
   const counts = {};
@@ -151,6 +187,7 @@ async function main() {
 
   for (const [name, what, command, args] of PASSES) {
     if (only.length && !only.includes(name)) continue;
+    if (name === 'test:perf') await settle();
 
     const started = Date.now();
     if (!quiet) console.log(`\n\u001b[1m── ${name} — ${what} ─────────────────────────────\u001b[0m\n`);
