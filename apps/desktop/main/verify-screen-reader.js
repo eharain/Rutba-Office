@@ -97,8 +97,8 @@ export async function verifyScreenReader({ open, check, until, wait, press }, { 
         const pic = t.find((n) => n.role === 'image' && n.name === 'Quarterly review' && within(n, 'group'));
         return one && two && stage && pic ? { stage: stage.name, pic: pic.name } : null;
       }, 'the slides in the tree');
-      // The protocol's tree carries no aria-current: read from the element the tree's button is.
-      const current = await win.webContents.executeJavaScript(`document.querySelector('.sl-thumb[aria-current="true"]')?.getAttribute('aria-label') || ''`);
+      // The protocol's tree carries no aria-current: read from the element the tree's button is (since 2.3.0 the button inside the slide's picture).
+      const current = await win.webContents.executeJavaScript(`document.querySelector('.sl-thumb [aria-current="true"], .sl-thumb[aria-current="true"]')?.getAttribute('aria-label') || ''`);
       if (got) got.current = current;
       check('screen-reader: Presentations: each slide in the strip is named by its number and title, the current one said so, and the stage is the slide it shows, its picture named by the title',
         Boolean(got) && got.current === 'Slide 1: Quarterly review', JSON.stringify(got || brief(tree.filter((n) => /button|group|image/.test(n.role) && /Slide|review|stand/.test(n.name)))));
