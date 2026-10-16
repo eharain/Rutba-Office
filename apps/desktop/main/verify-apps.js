@@ -6820,7 +6820,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('mail: a message opens in the reading pane', subject.trim().length > 0, `subject is ${JSON.stringify(subject.trim().slice(0, 40))} (${opened})`);
 
       const framed = await js(`(() => { const f = document.querySelector('.ml-body iframe'); return f ? f.getAttribute('sandbox') : null; })()`);
-      check('mail: the body is framed with no privileges', framed === '', `sandbox is ${JSON.stringify(framed)}`);
+      // One privilege since 2.3.0: a click on a link may ask for a window, which the window refuses and hands
+      // to Mail to open in the browser (mail-links). No scripts, forms, same-origin or top-level navigation.
+      check('mail: the body is framed with no privileges but asking for a window on a click (no scripts, forms, same-origin or navigation)', framed === 'allow-popups', `sandbox is ${JSON.stringify(framed)}`);
 
       // The strip is written once the body has been inspected, a moment after
       // the pane paints — a longer moment on a loaded machine.
