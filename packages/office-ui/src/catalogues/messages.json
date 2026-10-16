@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7010,
+  "count": 7013,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -5468,6 +5468,7 @@
         "apps/desktop/renderer/print.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/qrcode.js",
+        "apps/desktop/renderer/rotation-dialog.js",
         "apps/desktop/renderer/screenshot.js",
         "apps/desktop/renderer/shell.js",
         "apps/desktop/renderer/smartart-dialog.js",
@@ -9157,6 +9158,12 @@
       "message": "Deflate: Top",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Degrees clockwise; 0 stands it upright.",
+      "where": [
+        "apps/desktop/renderer/rotation-dialog.js"
       ]
     },
     {
@@ -20195,6 +20202,14 @@
       ]
     },
     {
+      "message": "More Rotation Options…",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
       "message": "More Styles: every style in this document",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -22749,6 +22764,7 @@
         "apps/desktop/renderer/ocr-ui.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/qrcode.js",
+        "apps/desktop/renderer/rotation-dialog.js",
         "apps/desktop/renderer/shell.js",
         "apps/desktop/renderer/smartart-dialog.js",
         "packages/office-ui/src/proofing.js"
@@ -28513,6 +28529,12 @@
       "message": "Rotate: {need}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Rotation",
+      "where": [
+        "apps/desktop/renderer/rotation-dialog.js"
       ]
     },
     {

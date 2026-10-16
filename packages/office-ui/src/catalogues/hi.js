@@ -7020,4 +7020,7 @@ export default {
   'Status bar': 'स्थिति पट्टी',
   'Start time': 'प्रारंभ समय',
   'End time': 'समाप्ति समय',
+  'Rotation': 'घुमाव',
+  'More Rotation Options…': 'घुमाव के और विकल्प…',
+  'Degrees clockwise; 0 stands it upright.': 'घड़ी की दिशा में डिग्री; 0 इसे सीधा कर देता है।',
 };

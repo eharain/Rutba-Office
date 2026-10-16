@@ -7018,4 +7018,7 @@ export default {
   'Status bar': 'اسٹیٹس بار',
   'Start time': 'شروع ہونے کا وقت',
   'End time': 'ختم ہونے کا وقت',
+  'Rotation': 'گردش',
+  'More Rotation Options…': 'گھمانے کے مزید اختیارات…',
+  'Degrees clockwise; 0 stands it upright.': 'گھڑی کی سمت میں ڈگریاں؛ 0 اسے سیدھا کر دیتا ہے۔',
 };

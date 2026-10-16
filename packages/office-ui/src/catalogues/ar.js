@@ -7020,4 +7020,7 @@ export default {
   'Status bar': 'شريط الحالة',
   'Start time': 'وقت البدء',
   'End time': 'وقت الانتهاء',
+  'Rotation': 'الاستدارة',
+  'More Rotation Options…': 'مزيد من خيارات الاستدارة…',
+  'Degrees clockwise; 0 stands it upright.': 'درجات باتجاه عقارب الساعة؛ 0 يجعله قائمًا.',
 };

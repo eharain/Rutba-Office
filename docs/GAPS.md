@@ -532,8 +532,7 @@ holds each item's number and state.
   the same clock, the microphone and the computer's sound, pause, global
   keys and the tray, streamed to disk and recovered after a crash, landing
   on the timeline as layers; Presentations' Screen Recording uses it. Not
-  yet: an encoder of our own and faster than real time export (Phase 4),
-  speed, keyframes, colour and picture in picture (Phase 6); media is read
+  yet: speed, keyframes, colour and picture in picture (Phase 6); media is read
   whole into memory. Since 1.45.0, introductory videos (Phase 3): scenes
   from a template with layouts switchable after recording, a teleprompter,
   takes, a brand kit with a lower third, pointer data drawn as a layer and
