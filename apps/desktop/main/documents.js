@@ -587,6 +587,12 @@ class Session {
    * in the key cache, so that the save which encrypts the file spends no
    * time on it here. A save that comes first spins it itself, as before.
    */
+  /** Whether the password's key is spun and waiting in the cache, so encrypting costs nothing here. */
+  keyReady() {
+    const c = this.keyCache;
+    return !this.password || Boolean(c && c.spun && c.password === this.password && c.spinCount === AGILE_DEFAULTS.spinCount);
+  }
+
   warmKey() {
     const cache = this.keyCache;
     const password = this.password;
@@ -2975,7 +2981,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 
-  return {
+  const service = {
     new: ({ kind = 'doc', template, design = null, templateFile = null }, win) => {
       // File → New → a template of one's own: a new, untitled document made
       // from it, as Word, Excel and PowerPoint make one, the template left as
@@ -3086,6 +3092,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         const name = session.recoveryFile || `${session.id}-${Date.now().toString(36)}${RECOVERY_EXT[session.kind]}`;
         const started = Date.now();
         try {
+          // A key not yet spun is spun on its thread, and the copy waits for
+          // the next round rather than spinning it here and holding every window.
+          if (session.password && !session.keyReady()) {
+            session.warmKey();
+            continue;
+          }
           fs.mkdirSync(recoveryDir, { recursive: true });
           // A document with a password is copied encrypted with the same
           // password, as Save would write it: the copy on disk is never the
@@ -3423,8 +3435,13 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       return { ...session.meta(), model: modelOf(session, { width, slide, master }) };
     },
 
-    save: ({ id, path: target }) => {
+    save: ({ id, path: target, warmed = false }) => {
       const session = get(id);
+      // The password's key spun on its thread first: spun here it held every
+      // window for a fifth of a second when Save came soon after Encrypt.
+      // With the key ready, or no password, Save is as it was.
+      // Waited once: should the thread fail, the save spins the key itself, as before.
+      if (!warmed && !session.keyReady()) return session.warmKey().then(() => service.save({ id, path: target, warmed: true }));
       const to = target || session.path;
       if (!to) throw new Error('This document has never been saved, so it needs a name.');
       const ext = path.extname(to).toLowerCase();
@@ -3473,7 +3490,10 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       return { ...session.meta(), path: to, stat: { size: fs.statSync(to).size } };
     },
 
-    export: ({ id, format, path: target }) => writing(target, () => exportTo(get(id), target, format)),
+    export: ({ id, format, path: target, warmed = false }) => {
+      if (!warmed && !get(id).keyReady()) return get(id).warmKey().then(() => service.export({ id, format, path: target, warmed: true }));
+      return writing(target, () => exportTo(get(id), target, format));
+    },
 
     /* ── printing ─────────────────────────────────────────────────────────
      *
@@ -3736,6 +3756,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     sessions: () => [...sessions.values()].map((s) => s.meta()),
 
   };
+  return service;
 
   function exportTo(session, target, format) {
     const ext = (format || path.extname(target).replace('.', '')).toLowerCase();
