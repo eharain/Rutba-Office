@@ -15,7 +15,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { BrowserWindow, clipboard } from 'electron';
+import { app, BrowserWindow, clipboard } from 'electron';
 import { readImage, writeImage } from '@rutba/office-shell/electron/clipboard';
 import { consoleMessage } from './console-message.js';
 import { FEATURES } from './screen-features.js';
@@ -213,7 +213,7 @@ export async function runFeatureScreens({ windows, outDir, samples, doc, stores,
       const file = feature.file ? path.join(samples, feature.file) : null;
       // What has to be in place before the window opens: a message
       // delivered, a rating stored, a setting the window reads as it starts.
-      if (feature.before) await feature.before({ stores, mail, samples, sample: (name) => path.join(samples, name), wait });
+      if (feature.before) await feature.before({ stores, mail, samples, sample: (name) => path.join(samples, name), wait, profile: app.getPath('userData') });
       win = windows.create({ app: feature.app, file, ...(feature.query ? { query: feature.query } : {}) });
       win.webContents.on('console-message', (...args) => {
         const m = consoleMessage(args);
@@ -236,6 +236,8 @@ export async function runFeatureScreens({ windows, outDir, samples, doc, stores,
     } catch (err) {
       messages.push(`setup: ${err?.message || err}`);
     }
+    // What the feature started for its picture (an AI app connected) goes.
+    if (feature.done) await feature.done().catch((err) => messages.push(`done: ${err?.message || err}`));
     lines.push(`${ok ? 'ok  ' : 'FAIL'} ${feature.name.padEnd(26)} ${String(Date.now() - started).padStart(6)} ms ${String(Math.round(size / 1024)).padStart(5)} KB`);
     for (const m of messages) lines.push(`       ${m}`);
     console.log(lines.slice(-1 - messages.length).join('\n'));

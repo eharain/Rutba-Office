@@ -46,7 +46,7 @@ import { buildPptx, Deck } from '@rutba/presentation';
 import { dateTimeAt, writeCalendar } from '@rutba/calendar/ical';
 import { writeVCards } from '@rutba/contacts/vcard';
 import { Sheet, INK } from '@rutba/pdf';
-import { emptyProject, addMedia, setTransition, addTitle, addMarker } from '@rutba/studio/project';
+import { emptyProject, addMedia, setTransition, addTitle, addMarker, setRange } from '@rutba/studio/project';
 import { writeRvid } from '@rutba/studio/rvid';
 // The second kind of capture: a feature, opened on a sample and put into the
 // state that shows it. The list and its setups live where they run, in the
@@ -248,9 +248,23 @@ const at = (name) => path.join(docsDir, name);
     ],
     name: label,
   });
+  // One of the suite's own designs, as Design → Themes applies it, and the
+  // figures behind the cards on the slides after: a chart of growth by
+  // region and a table of what changed, so every thumbnail in the rail is a
+  // slide somebody made rather than a list of points.
+  deck.applyTheme('harbour');
   card(150, '£2.9m', 'Revenue, full year');
   card(300, '17.3%', 'Growth, Q4 on Q1');
   card(450, '2.1%', 'Churn, down from 3.4%');
+  deck.addChart(1, {
+    type: 'column', title: 'Revenue by region, £k', x: 660, y: 170, w: 560, h: 420,
+    categories: ['North', 'South', 'East', 'West'],
+    series: [{ name: 'Q1', values: [142, 86, 51, 74] }, { name: 'Q4', values: [174, 98, 67, 82] }],
+  });
+  deck.addTable(2, {
+    x: 660, y: 200, w: 560, rows: 4, cols: 3,
+    cells: [['Measure', 'Q1', 'Q4'], ['Churn', '3.4%', '2.1%'], ['Onboarding, days', '9', '4'], ['Average price', '£212', '£212']],
+  });
   fs.writeFileSync(at('product-review.pptx'), deck.save());
 }
 
@@ -541,7 +555,7 @@ writeReportPdf(at('Annual Review 2026.pdf'));
  * to show. Video sources are not generated (the suite writes no sample
  * film), but stills are what an introduction video is often made of.
  */
-function writeVideoProject(file) {
+function writeVideoProject(file, { range = null } = {}) {
   let doc = emptyProject();
   const stills = fs.readdirSync(picturesDir).filter((n) => /\.(png|jpe?g|webp)$/i.test(n)).sort();
   for (const name of stills) {
@@ -550,11 +564,66 @@ function writeVideoProject(file) {
   }
   const ids = doc.patches.filter((p) => p.type === 'image').map((p) => p.id);
   for (const id of ids.slice(1)) doc = setTransition(doc, id, { kind: 'fade', seconds: 1 });
+  // The title is up from the first frame, so the project's opening picture
+  // carries it: a title fading in from nothing is blank at 0:00.
   doc = addTitle(doc, 'title', { at: 0, text: 'Our year at Northbank' }).doc;
-  doc = addMarker(doc, 10, 'Depot opening');
+  doc = { ...doc, patches: doc.patches.map((p) => (p.type === 'text' && p.preset === 'title' ? { ...p, enter: { ...p.enter, kind: 'none', seconds: 0 } } : p)) };
+  doc = addTitle(doc, 'callout', { at: 14, text: 'New depot, Leeds' }).doc;
+  // A picture in picture: the second still, turned a little, in a corner
+  // over the third, on the title's track.
+  if (stills.length > 2) {
+    const inset = path.join(picturesDir, stills[1]);
+    const placed = addMedia(doc, { url: inset, name: stills[1], kind: 'image', width: 1200, height: 800, size: fs.statSync(inset).size }, { at: 9.5, lane: 1 });
+    doc = { ...placed.doc, patches: placed.doc.patches.map((p) => (placed.ids.includes(p.id) ? { ...p, fit: undefined, fx: 0.73, fy: 0.3, fw: 0.34, rot: -4, timing: { start: 9.5, end: 13.5 } } : p)) };
+  }
+  // A music bed under the whole film, faded in and out.
+  const music = path.join(docsDir, 'Northbank theme.wav');
+  if (!fs.existsSync(music)) fs.writeFileSync(music, musicBed(18));
+  const bed = addMedia(doc, { url: music, name: 'Northbank theme.wav', kind: 'audio', duration: 18, size: fs.statSync(music).size }, { at: 0, lane: 0 });
+  doc = { ...bed.doc, patches: bed.doc.patches.map((p) => (bed.ids.includes(p.id) ? { ...p, volume: 0.8, enter: { kind: 'fade', seconds: 2 }, exit: { kind: 'fade', seconds: 3 } } : p)) };
+  doc = addMarker(doc, 6, 'First delivery');
+  doc = addMarker(doc, 14, 'Depot opening');
+  if (range) doc = setRange(doc, range);
   fs.writeFileSync(file, writeRvid(doc, { projectPath: file }));
 }
+
+/**
+ * A quiet music bed for the Video project, as a WAV: a slow major chord
+ * that swells and settles every two bars, so the timeline's sound track has
+ * a waveform with a shape. Made here, like the sample pictures, so nothing
+ * of anybody's is published.
+ */
+function musicBed(seconds, rate = 22050) {
+  const n = Math.round(seconds * rate);
+  const data = Buffer.alloc(n * 2);
+  const chords = [[220, 277.18, 329.63], [196, 246.94, 293.66], [174.61, 220, 261.63], [196, 246.94, 329.63]];
+  for (let i = 0; i < n; i++) {
+    const t = i / rate;
+    const bar = Math.floor(t / 2.25) % chords.length;
+    const within = (t % 2.25) / 2.25;
+    const swell = Math.sin(Math.PI * within) ** 0.6 * (0.55 + 0.45 * Math.sin(t * 0.9) ** 2);
+    let v = 0;
+    for (const f of chords[bar]) v += Math.sin(2 * Math.PI * f * t) + 0.3 * Math.sin(4 * Math.PI * f * t);
+    data.writeInt16LE(Math.round(Math.max(-1, Math.min(1, (v / 4.2) * swell)) * 26000), i * 2);
+  }
+  const head = Buffer.alloc(44);
+  head.write('RIFF', 0);
+  head.writeUInt32LE(36 + data.length, 4);
+  head.write('WAVEfmt ', 8);
+  head.writeUInt32LE(16, 16);
+  head.writeUInt16LE(1, 20);
+  head.writeUInt16LE(1, 22);
+  head.writeUInt32LE(rate, 24);
+  head.writeUInt32LE(rate * 2, 28);
+  head.writeUInt16LE(2, 32);
+  head.writeUInt16LE(16, 34);
+  head.write('data', 36);
+  head.writeUInt32LE(data.length, 40);
+  return Buffer.concat([head, data]);
+}
 writeVideoProject(at('Our year.rvid'));
+// The same film with an In and Out marked, for the tracks and sound picture.
+writeVideoProject(at('Our year, final cut.rvid'), { range: { in: 2, out: 15 } });
 writeFeatureSamples(docsDir);
 
 /** app -> the file it should open, or null for its empty state. */
@@ -678,6 +747,24 @@ for (const [app, file] of appsWanted) {
   // is exactly the detail that makes a screenshot look like a test artefact.
   const profile = path.join(work, `profile-${app}`);
   fs.mkdirSync(profile, { recursive: true });
+  // The launcher's recent files: the samples this build made, opened over
+  // the last few days, as somebody using the suite would have them. Empty,
+  // half the launcher's picture was "No recent files yet".
+  if (app === 'home') {
+    const hour = 3600 * 1000;
+    const opened = [
+      ['quarterly-review.docx', 'word', 0.4],
+      ['regional-sales.xlsx', 'sheets', 1.2],
+      ['product-review.pptx', 'slides', 3],
+      ['Annual Review 2026.pdf', 'pdf', 5.5],
+      ['Our year.rvid', 'video', 20],
+      ['Offer letter.docx', 'word', 26],
+      ['Orders 2026.xlsx', 'sheets', 30],
+      ['Launch plan.pptx', 'slides', 47],
+    ].filter(([name]) => fs.existsSync(at(name)));
+    const now = Date.now();
+    fs.writeFileSync(path.join(profile, 'recent.json'), JSON.stringify(opened.map(([name, which, ago]) => ({ path: at(name), name, app: which, at: Math.round(now - ago * hour) }))));
+  }
   const ok = await capture(app, file, profile);
   const png = path.join(outDir, `${app}.png`);
   const size = fs.existsSync(png) ? fs.statSync(png).size : 0;
@@ -694,7 +781,10 @@ for (const [app, file] of appsWanted) {
  * profile of its own, so a feature's setup never meets another run's
  * accounts or settings.
  */
-const featuresWanted = kind === 'apps' ? [] : FEATURES.filter((f) => (!only.length && kind !== 'apps') || only.includes(f.name));
+// A feature with `asApp` is that app's main picture taken the feature way
+// (Mail with a conversation open needs a click first), so it comes with the
+// app in a run of the apps alone.
+const featuresWanted = FEATURES.filter((f) => (kind === 'apps' ? Boolean(f.asApp) : true) && ((!only.length) || only.includes(f.name) || (f.asApp && only.includes(f.asApp))));
 const featureOut = path.join(outDir, 'features');
 const groups = new Map();
 for (const f of featuresWanted) {
@@ -748,6 +838,14 @@ for (const [key, list] of groups) {
 }
 if (featuresWanted.length && fs.existsSync(path.join(featureOut, 'report.txt'))) {
   console.log(`\nthe feature run's own report is ${path.join(featureOut, 'report.txt')}`);
+}
+
+for (const f of featuresWanted.filter((x) => x.asApp)) {
+  const png = path.join(featureOut, `${f.name}.png`);
+  if (fs.existsSync(png) && fs.statSync(png).size > 5000) {
+    fs.renameSync(png, path.join(outDir, `${f.asApp}.png`));
+    console.log(`${f.asApp}.png is ${f.name}`);
+  }
 }
 
 fs.rmSync(work, { recursive: true, force: true });

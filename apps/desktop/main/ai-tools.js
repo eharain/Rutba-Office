@@ -16,8 +16,16 @@ import { MODE_KEY, SESSION_KEY, FOLDERS_KEY, MODES, foldersOf, readLog, readConn
  * How an AI app starts the tools: Rutba Office's own program run as Node
  * (mcp/node.js), from the app's archive in an installed copy, or from the
  * source in a copy run from it.
+ *
+ * A screens run for the website shows the lines an installed copy shows (as
+ * docs/AI-TOOLS.md prints them): the development copy's own paths mean
+ * nothing to somebody reading the site.
  */
+const INSTALLED = 'C:\\Users\\you\\AppData\\Local\\Programs\\Rutba Office';
 export function mcpCommand({ execPath = process.execPath, appDir = app.getAppPath() } = {}) {
+  if (process.env.RUTBA_SCREENS_FEATURES && !app.isPackaged) {
+    return { command: path.win32.join(INSTALLED, 'Rutba Office.exe'), args: [path.win32.join(INSTALLED, 'resources', 'app.asar', 'main', 'mcp', 'node.js')], env: { ELECTRON_RUN_AS_NODE: '1' } };
+  }
   return { command: execPath, args: [path.join(appDir, 'main', 'mcp', 'node.js')], env: { ELECTRON_RUN_AS_NODE: '1' } };
 }
 

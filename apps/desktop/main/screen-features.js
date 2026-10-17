@@ -9,7 +9,8 @@
 // (a message delivered, ratings stored), `query` for the window's query,
 // `boot` ({ theme, language, group }) for what windows read as they start
 // (a run of its own per boot), `size` for a window size of its own,
-// `settle` for the pause before the setup.
+// `settle` for the pause before the setup, `done()` for what to stop after
+// the picture (the AI app connected for AI Tools' picture).
 //
 // Every person, firm and figure in them is invented.
 //
@@ -18,6 +19,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** Words selected in a PDF page's text layer, from one word to another. */
 const pdfSelect = (h, index, from, to) => h.js(`(() => {
@@ -124,6 +126,79 @@ const imageSettled = async (h) => {
 };
 
 const LANDSCAPE = path.join('Sample Pictures', 'Lakeside at dawn.png');
+
+/** Video's playhead moved, as dragging the slider under the preview moves it. */
+const scrubVideo = async (h, t) => {
+  await h.js(`(() => { const s = document.querySelector('.vd-scrub'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, ${JSON.stringify(String(t))}); s.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+  await h.until(`Math.abs(Number(document.querySelector('.vd-scrub').value) - ${t}) < 0.05`, 'the playhead to move', 3000).catch(() => {});
+  await h.wait(800);
+};
+
+/**
+ * An AI app connected to the AI tools, for their picture: it starts the
+ * tools as AI Tools says to, and asks them for a document, a workbook and a
+ * presentation in the folder they were given, so the window has a
+ * connection and a log to show. Closed by the feature's `done`.
+ */
+let aiApp = null;
+async function connectAiApp({ profile, folder }) {
+  const { spawn } = await import('node:child_process');
+  const node = path.join(path.dirname(fileURLToPath(import.meta.url)), 'mcp', 'node.js');
+  aiApp = spawn(process.execPath, [node], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', RUTBA_OFFICE_PROFILE: profile } });
+  let out = '';
+  const waiting = new Map();
+  aiApp.stdout.on('data', (d) => {
+    out += d;
+    let at;
+    while ((at = out.indexOf('\n')) >= 0) {
+      const line = out.slice(0, at);
+      out = out.slice(at + 1);
+      try {
+        const m = JSON.parse(line);
+        waiting.get(m.id)?.(m);
+      } catch {
+        /* not an answer */
+      }
+    }
+  });
+  let id = 0;
+  const ask = (method, params) => new Promise((resolve) => {
+    const my = ++id;
+    const timer = setTimeout(() => resolve(null), 30000);
+    waiting.set(my, (m) => { clearTimeout(timer); resolve(m); });
+    aiApp.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: my, method, params })}\n`);
+  });
+  const call = (name, args) => ask('tools/call', { name, arguments: args });
+  await ask('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'Desktop assistant', version: '2.1' } });
+  await call('list_folders', {});
+  await call('create_workbook', {
+    path: 'Freight figures.xlsx',
+    sheets: [{ name: 'By region', rows: [['Region', 'Q1', 'Q2', 'Q3', 'Q4', 'Year'], ['North', 142000, 161000, 158500, 174200, '=SUM(B2:E2)'], ['South', 86000, 91000, 94750, 98300, '=SUM(B3:E3)'], ['East', 51200, 57400, 60100, 66600, '=SUM(B4:E4)'], ['West', 73900, 70200, 76800, 81500, '=SUM(B5:E5)']] }],
+  });
+  await call('create_document', {
+    path: 'Board summary.docx',
+    title: 'Board summary: the year in freight',
+    theme: 'harbour',
+    blocks: [
+      { type: 'paragraph', text: 'Prepared from Freight figures.xlsx for the November board. Figures are illustrative.' },
+      { type: 'heading', text: 'Highlights', level: 1 },
+      { type: 'bullets', items: ['The north grew fastest, adding £32,200 between the first and fourth quarters.', 'The east finished 30% ahead of where it started, without a down quarter.', 'The Leeds depot opened in September, on time and under budget.'] },
+      { type: 'heading', text: 'Revenue by region', level: 1 },
+      { type: 'table', rows: [['Region', 'Q1', 'Q4', 'Change'], ['North', '£142,000', '£174,200', '+22.7%'], ['South', '£86,000', '£98,300', '+14.3%'], ['East', '£51,200', '£66,600', '+30.1%'], ['West', '£73,900', '£81,500', '+10.3%']] },
+      { type: 'heading', text: 'Decisions for the board', level: 1 },
+      { type: 'numbered', items: ['Approve the second northern depot for spring.', 'Move the east region to the new routing system.', 'Review fleet leasing terms before the year end.'] },
+    ],
+  });
+  await call('create_presentation', {
+    path: 'Board briefing.pptx',
+    title: 'The year in freight',
+    subtitle: 'Northbank Logistics, November board',
+    slides: [{ title: 'Highlights', points: ['North grew fastest', 'East up 30%', 'Leeds depot open'] }, { title: 'Decisions', points: ['Second northern depot', 'New routing in the east', 'Fleet leasing review'] }],
+  });
+  await call('read_file', { path: 'Board summary.docx' });
+  return folder;
+}
+
 
 /**
  * The status bar's zoom stepped down until the whole chart is in the
@@ -707,6 +782,49 @@ export const FEATURES = [
       await h.wait(1000);
     },
   },
+  {
+    // The inset still picked on the timeline: on the preview its outline,
+    // the grips at its corners and the one to turn it; in the panel its
+    // place, size and angle as numbers.
+    name: 'video-picture-in-picture',
+    app: 'video',
+    file: 'Our year.rvid',
+    settle: 2500,
+    async setup(h) {
+      await h.until(`document.querySelectorAll('.vd-clip').length >= 6`, 'the timeline', 10000);
+      await scrubVideo(h, 11.6);
+      await h.tab('Clip');
+      const inset = await h.centre('.vd-clip[data-kind="image"][data-start="9.5"]');
+      if (!inset) throw new Error('no inset on the timeline');
+      await h.clickAt(inset.x, inset.y);
+      await h.until(`Boolean(document.querySelector('.vd-outline')) && Boolean(document.querySelector('.vd-place-props .vd-rot'))`, 'the inset picked, with its grips', 5000);
+      await h.js(`document.querySelector('.vd-place-props')?.scrollIntoView({ block: 'start' }), 1`);
+      h.wc.sendInputEvent({ type: 'mouseMove', x: 30, y: 600 });
+      await h.wait(1200);
+    },
+  },
+  {
+    // The music bed picked, with its volume and fades, on a cut marked In
+    // and Out, and the Edit tab's track tools.
+    name: 'video-tracks-sound',
+    app: 'video',
+    file: 'Our year, final cut.rvid',
+    settle: 2500,
+    async setup(h) {
+      await h.until(`document.querySelectorAll('.vd-clip').length >= 6 && Boolean(document.querySelector('.vd-range'))`, 'the timeline and its In and Out', 10000);
+      await scrubVideo(h, 14.6);
+      await h.tab('Edit');
+      await h.js(`document.querySelector('.vd-clip[data-kind="sound"]')?.scrollIntoView({ block: 'end' }), 1`);
+      await h.wait(400);
+      const bed = await h.centre('.vd-clip[data-kind="sound"]');
+      if (!bed) throw new Error('no music on the timeline');
+      await h.clickAt(bed.x, bed.y);
+      await h.until(`[...document.querySelectorAll('.vd-insp-section h3')].some((n) => /Sound/.test(n.textContent))`, 'the sound settings', 5000);
+      await h.js(`(() => { const s = [...document.querySelectorAll('.vd-insp-section h3')].find((n) => /Sound/.test(n.textContent)); s?.scrollIntoView({ block: 'start' }); return 1; })()`);
+      h.wc.sendInputEvent({ type: 'mouseMove', x: 30, y: 600 });
+      await h.wait(1500);
+    },
+  },
 
   /* ── The launcher ──────────────────────────────────────────────────── */
   {
@@ -721,6 +839,22 @@ export const FEATURES = [
   },
 
   /* ── Across the suite ──────────────────────────────────────────────── */
+  {
+    // Mail's main picture: the imported mailbox with a conversation open in
+    // the reading pane. Taken as a feature because it needs the click, and
+    // written over the app capture's mail.png, whose reading pane said
+    // "No message selected".
+    name: 'mail-reading',
+    app: 'mail',
+    asApp: 'mail',
+    async setup(h) {
+      await h.until(`document.querySelectorAll('.ml-row').length >= 3`, 'the messages', 10000);
+      await h.js(`(() => { const r = [...document.querySelectorAll('.ml-row .ml-subject')].find((n) => /Q3 numbers/.test(n.textContent)) || document.querySelector('.ml-row .ml-subject'); r?.click(); return 1; })()`);
+      await h.until(`Boolean(document.querySelector('.ml-head h2'))`, 'the conversation open', 6000);
+      h.wc.sendInputEvent({ type: 'mouseMove', x: 1300, y: 860 });
+      await h.wait(1200);
+    },
+  },
   {
     // Mail, whose window is all the suite's own: a workbook's light cell
     // fills stay light in the dark theme, as Excel keeps them.
@@ -777,5 +911,36 @@ export const FEATURES = [
       await h.wait(400);
     },
     keepFocus: true,
+  },
+  {
+    // AI Tools on, always, for a folder the person chose, with an AI app
+    // connected that has just made the document the window is showing:
+    // the badge in the title bar, who is connected, and what was done.
+    name: 'suite-ai-tools',
+    app: 'word',
+    file: path.join('Northbank work', 'Board summary.docx'),
+    async before({ stores, samples, profile }) {
+      const folder = path.join(samples, 'Northbank work');
+      fs.mkdirSync(folder, { recursive: true });
+      stores.settings.set('ai.tools.folders', [folder]);
+      stores.settings.set('ai.tools.mode', 'always');
+      await connectAiApp({ profile, folder });
+    },
+    async setup(h) {
+      await h.until(`document.querySelector('.ai-badge')?.dataset.connections === '1'`, 'the badge to count the AI app', 15000);
+      await h.click('.ai-badge', 'the AI Tools badge');
+      await h.until(`document.querySelectorAll('.ai-connections li').length === 1 && document.querySelectorAll('.ai-log li').length >= 4`, 'who is connected and the log', 8000);
+      // Down to what the tools have done, with who is connected still above it.
+      await h.js(`(() => { const h3 = [...document.querySelectorAll('.ai-tools-dialog .ai-h')][0]; h3?.scrollIntoView({ block: 'start' }); return 1; })()`);
+      h.wc.sendInputEvent({ type: 'mouseMove', x: 30, y: 700 });
+      await h.wait(800);
+    },
+    async done() {
+      if (!aiApp) return;
+      const going = aiApp;
+      aiApp = null;
+      going.stdin.end();
+      await new Promise((resolve) => { going.once('exit', resolve); setTimeout(resolve, 5000); });
+    },
   },
 ];
