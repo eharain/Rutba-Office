@@ -1,0 +1,16 @@
+{
+  "name": "@rutba/stream",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "Live streaming for the Recorder: RTMP and RTMPS publishing of H.264 and AAC (the FLV packets and the AMF0 commands YouTube, Facebook, Twitch and any RTMP server take), and the platforms' ingest addresses. Node only, no dependencies.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./amf0": "./src/amf0.js",
+    "./flv": "./src/flv.js",
+    "./rtmp": "./src/rtmp.js",
+    "./endpoints": "./src/endpoints.js"
+  },
+  "sideEffects": false
+}

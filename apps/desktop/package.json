@@ -44,6 +44,7 @@
     "@rutba/presentation": "*",
     "@rutba/proofing": "*",
     "@rutba/sheet-view": "*",
+    "@rutba/stream": "*",
     "@rutba/studio": "*",
     "@rutba/templates": "*",
     "electron-updater": "^6.8.9",
