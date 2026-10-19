@@ -43,6 +43,7 @@ import VideoRibbon, { TITLE_NAMES } from './ribbon.js';
 import Inspector from './inspector.js';
 import { ExportDialog, ExportProgress, exportProject, exportFormat, PRESET_TAGS } from './export.js';
 import { CSS } from './css.js';
+import VideoPlayer, { playsInPlayer } from './player.js';
 
 /** The timeline's share of the editor's height when nothing else is chosen: the preview has the larger part. */
 export const TIMELINE_SHARE = 0.36;
@@ -117,7 +118,22 @@ function ScrubRange({ range, duration, onBegin, onMove, docRef }) {
 /** A key for this window's recovery copy. */
 const newCopyKey = () => `v${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
-export default function VideoEditor({ app, shell, boot }) {
+/**
+ * Video's two modes (owner, 2026-10-20): a video or a sound file opened in
+ * Video plays in the player; Edit Video, a new video, a .rvid project, a
+ * picture, a recording or an introduction open the editor. Once in the
+ * editor the window stays there.
+ */
+export default function VideoTool({ app, shell, boot }) {
+  const [playing, setPlaying] = useState(() => (boot?.file && playsInPlayer(boot.file) && !new URLSearchParams(location.search).has('edit') ? boot.file : null));
+  const [editBoot, setEditBoot] = useState(boot);
+  if (playing) {
+    return <VideoPlayer app={app} shell={shell} file={playing} onEdit={(file) => { setEditBoot({ ...boot, file }); setPlaying(null); }} />;
+  }
+  return <VideoEditor app={app} shell={shell} boot={editBoot} />;
+}
+
+function VideoEditor({ app, shell, boot }) {
   const toast = useToast();
   const media = useMemo(() => new MediaLibrary(), []);
   const [doc, setDoc] = useState(() => emptyProject());

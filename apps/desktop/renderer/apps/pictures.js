@@ -624,7 +624,8 @@ export default function Pictures({ app, shell, boot }) {
       'view.fullscreen': { label: t('Full screen'), icon: 'maximize', key: 'F11', run: () => shell.win.fullscreen({}) },
       'media.animation': { label: frozen ? t('Resume animation') : t('Hold this frame'), icon: frozen ? 'play' : 'pause', run: toggleAnimation },
       'file.edit': { label: t('Edit this picture'), icon: 'wand', run: () => current && shell.win.create({ app: 'image', file: current }) },
-      'file.video': { label: t('Open in Video'), icon: 'video', run: () => current && shell.win.create({ app: 'video', file: current }) },
+      // Pictures plays a clip itself: Video is where it is edited, so it opens in the editor.
+      'file.video': { label: t('Open in Video'), icon: 'video', run: () => current && shell.win.create({ app: 'video', file: current, query: { edit: 1 } }) },
       // A PDF met among the pictures opens in the PDF app, to work on its pages.
       'file.pdf': { label: t('Open in PDF'), icon: 'pdf', run: () => current && shell.win.create({ app: 'pdf', file: current }) },
       'file.reveal': { label: t('Show in folder'), icon: 'folderOpen', run: () => current && shell.shell.showInFolder({ path: current }) },

@@ -582,12 +582,25 @@ async function moreChecks({ win, check, until, wait, capture, project, open }) {
   }
 }
 
-/** The media loads and the timeline is built: tone.wav opened from the launcher. */
+/**
+ * A sound or a video opened in Video plays first (play mode, 2026-10-20);
+ * Edit Video puts it on the timeline. The checks that edit it go there.
+ */
+async function intoEditor(js, until) {
+  await until(() => js(`Boolean(document.querySelector('.vp-edit') || document.querySelector('.vd-editor'))`), 'the player or the editor', 10000).catch(() => {});
+  await js(`document.querySelector('.vp-edit')?.click(), 1`);
+  await until(() => js(`Boolean(document.querySelector('.vd-editor'))`), 'the editor', 10000).catch(() => {});
+}
+
+/** The media loads and the timeline is built: tone.wav opened from the launcher, then Edit Video. */
 export async function verifyVideoBasics(h, { wav }) {
   const { open, check, until } = h;
   try {
     const win = await open('video', wav);
     const js = (code) => win.webContents.executeJavaScript(code);
+    const played = await until(() => js(`Boolean(document.querySelector('.vp-stage .vp-sound'))`), 'the sound in the player', 10000).then(() => true).catch(() => false);
+    check('video: a sound file opened in Video plays in the player, its name shown in place of a picture', played, played ? 'player' : 'no player');
+    await intoEditor(js, until);
     // The sound decodes on its own schedule and the clip is drawn from what it reports, so both are waited for.
     await until(() => js(`Number(document.querySelector('.vd-editor')?.dataset.duration || 0) > 0.5 && document.querySelectorAll('.vd-clip').length > 0`), 'the media to report a duration', 20000).catch(() => {});
     const length = await js(`Number(document.querySelector('.vd-editor')?.dataset.duration || 0)`);
@@ -607,6 +620,7 @@ export async function verifyVideoSplit(h, { wav }) {
   try {
     const win = await open('video', wav);
     const js = (code) => win.webContents.executeJavaScript(code);
+    await intoEditor(js, until);
     // The media decodes on its own schedule; with a corpus run on the same machine it once took past eight seconds.
     await until(() => js(`document.querySelectorAll('.vd-clip').length > 0`), 'the timeline', 20000);
     // Move the playhead to the middle with the scrubber, then split there.

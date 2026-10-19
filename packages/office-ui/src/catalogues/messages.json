@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7087,
+  "count": 7102,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2947,6 +2947,7 @@
         "apps/desktop/renderer/apps/mail/smime.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/registry-words.js"
       ]
     },
@@ -4233,6 +4234,12 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Back 10 seconds",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -5616,6 +5623,7 @@
     {
       "message": "Captions",
       "where": [
+        "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -10864,6 +10872,7 @@
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -10954,6 +10963,18 @@
       "message": "Edit Theme",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Edit Video",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
+      ]
+    },
+    {
+      "message": "Edit Video: put it on the timeline to cut, add titles, sound and more",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -11911,6 +11932,12 @@
       "message": "Exit Edit Points",
       "where": [
         "apps/desktop/renderer/apps/slides/points.js"
+      ]
+    },
+    {
+      "message": "Exit Full Screen",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -13235,7 +13262,8 @@
       "where": [
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
-        "apps/desktop/renderer/apps/pictures.js"
+        "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -13659,6 +13687,12 @@
       ]
     },
     {
+      "message": "Forward 10 seconds",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
+      ]
+    },
+    {
       "message": "Forward a Second",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -14054,6 +14088,7 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/player.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
@@ -20796,7 +20831,8 @@
       "message": "Mute",
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
-        "apps/desktop/renderer/apps/video/inspector.js"
+        "apps/desktop/renderer/apps/video/inspector.js",
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -21338,6 +21374,12 @@
       ]
     },
     {
+      "message": "Next File",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
+      ]
+    },
+    {
       "message": "Next Footnote",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -21663,6 +21705,12 @@
       "message": "No camera was found.",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/camera.js"
+      ]
+    },
+    {
+      "message": "No captions file beside this one",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -22472,6 +22520,12 @@
       "message": "Normal Word Document",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Normal speed",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -23430,6 +23484,7 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/word/compare.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -24609,6 +24664,7 @@
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/video/ribbon.js"
       ]
@@ -24936,6 +24992,12 @@
       "message": "Picture changed",
       "where": [
         "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
+      "message": "Picture in Picture",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -25297,6 +25359,7 @@
         "apps/desktop/renderer/apps/slides/media.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/video/ribbon.js"
       ]
     },
@@ -25363,6 +25426,7 @@
     {
       "message": "Playback",
       "where": [
+        "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/video/ribbon.js"
       ]
     },
@@ -25370,6 +25434,12 @@
       "message": "Playhead",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Playing",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -25455,6 +25525,7 @@
     {
       "message": "Position",
       "where": [
+        "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -25749,6 +25820,12 @@
       "message": "Previous Change: the slide with changes before this one",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Previous File",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -27839,7 +27916,8 @@
     {
       "message": "Repeat",
       "where": [
-        "apps/desktop/renderer/apps/calendar.js"
+        "apps/desktop/renderer/apps/calendar.js",
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -32900,6 +32978,12 @@
       ]
     },
     {
+      "message": "Speed",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
+      ]
+    },
+    {
       "message": "Spelling",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -37116,6 +37200,12 @@
       ]
     },
     {
+      "message": "This file cannot be played here. Edit Video can still try to read it.",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
+      ]
+    },
+    {
       "message": "This file cannot be read",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -39078,6 +39168,12 @@
       ]
     },
     {
+      "message": "Unmute",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
+      ]
+    },
+    {
       "message": "Unmute this track",
       "where": [
         "apps/desktop/renderer/apps/video/timeline.js"
@@ -39765,7 +39861,8 @@
     {
       "message": "Video projects and media",
       "where": [
-        "apps/desktop/renderer/apps/video/index.js"
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
@@ -39803,6 +39900,7 @@
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -39881,6 +39979,7 @@
       "message": "Volume",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js",
+        "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -44635,6 +44734,12 @@
       "message": "{n} frames a second",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
+      "message": "{n} of {count} in this folder",
+      "where": [
+        "apps/desktop/renderer/apps/video/player.js"
       ]
     },
     {
