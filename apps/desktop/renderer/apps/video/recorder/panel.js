@@ -38,7 +38,7 @@ const clock = (ms) => {
 };
 
 /** A switch: a labelled checkbox drawn as a toggle. */
-function Toggle({ on, onChange, label, icon, disabled, className = '' }) {
+export function Toggle({ on, onChange, label, icon, disabled, className = '' }) {
   return (
     <label className={`rec-toggle${disabled ? ' off' : ''}${className ? ` ${className}` : ''}`}>
       {icon ? <Icon name={icon} size={16} /> : null}
@@ -50,7 +50,7 @@ function Toggle({ on, onChange, label, icon, disabled, className = '' }) {
 }
 
 /** A row of choices, one pressed. */
-function Segments({ value, options, onChange, disabled, className = '' }) {
+export function Segments({ value, options, onChange, disabled, className = '' }) {
   return (
     <div className={`rec-seg${className ? ` ${className}` : ''}`} role="radiogroup">
       {options.map((o) => (
@@ -74,7 +74,7 @@ function Segments({ value, options, onChange, disabled, className = '' }) {
 }
 
 /** A level meter, read from the rig ten times a second. */
-function Meter({ rig, name, active }) {
+export function Meter({ rig, name, active }) {
   const bar = useRef(null);
   useEffect(() => {
     if (!active) { if (bar.current) bar.current.style.width = '0%'; return undefined; }

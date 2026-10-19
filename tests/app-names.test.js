@@ -22,6 +22,7 @@ test('the apps carry their names: Documents and Presentations, plurals beside Wo
     pictures: 'Pictures',
     image: 'Image',
     video: 'Video',
+    recorder: 'Recorder',
     calendar: 'Calendar',
     contacts: 'Contacts',
   });

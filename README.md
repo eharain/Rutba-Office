@@ -1,6 +1,6 @@
 # Rutba Office
 
-A free, open-source desktop office suite. Ten apps in one download, working
+A free, open-source desktop office suite. Eleven apps in one download, working
 with the network switched off.
 
 **[office.rutba.io](https://office.rutba.io)** ·
@@ -20,6 +20,7 @@ with the network switched off.
 | **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn; star ratings and tags kept on this computer, a search through the folders inside, and a whole folder resized, converted and renamed in one go; Copy Text from Picture reads the words in a photo or scan |
 | **Image** | Crop, correct, select, paint, layer, export | Levels, curves, white balance, straighten; selections, brushes, clone and heal, masks and perspective; layers with blend modes and adjustments, saved as a project; Edit in Image from the other apps; non-destructive, so your original is never touched |
 | **Video** | An editor on a timeline, a screen recorder and introduction videos, without a render farm | Clips, stills and sound on lanes, split and trim, transitions, titles and captions, the screen recorded with the camera beside it, introductions made scene by scene with a teleprompter, and export with sound to MP4 or WebM for where it is going; no ffmpeg, no native binaries, nothing to install |
+| **Recorder** | The screen, the camera and the voice made into one video as you record | Scenes to switch between while it records (the screen with the camera in a corner, the screen alone, the camera alone, the two side by side, a Be right back card), a title across the foot and a logo in a corner, the microphone and the computer's sound with their levels, pause and a key that stops it from anywhere; one finished WebM to play, or to edit in Video |
 
 Dual-licensed: **GNU AGPL v3.0**, or a commercial licence — see
 [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
@@ -152,7 +153,7 @@ packages/
   office-shell     the platform contract, and its Electron backend
   office-ui        the design system every app renders with
 
-apps/desktop       the application: main process, renderer, ten apps
+apps/desktop       the application: main process, renderer, eleven apps
 tools/             probes for looking inside real files during development
 tests/             the engine suite
 ```

@@ -29,6 +29,8 @@ const GLYPHS = {
   slides: ['M3 5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z', 'M12 15v5M8 20h8'],
   pictures: ['M4 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', 'm5 16 4-4 3 3 3.5-3.5L20 16', 'M15 8.5h.01'],
   video: ['M3 7a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'm16 10 5-3v10l-5-3z'],
+  // A record button: the ring, and the dot inside it filled (an object is a filled shape).
+  recorder: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', { fill: 'M12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z' }],
   image: ['M4 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', 'M9 4v16M4 9h16', 'm14 15 3-3 3 3'],
   calendar: ['M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z', 'M4 10h16', 'M8 2v4M16 2v4', 'M8 14h3M13 14h3M8 17h3'],
   contacts: ['M5 4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z', 'M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M7 18c1-2.5 3-3.5 5-3.5s4 1 5 3.5'],
@@ -81,6 +83,7 @@ const APPS = {
   pictures: { colour: '#7b5cd6', glyph: 'pictures' },
   image: { colour: '#e08b2b', glyph: 'image' },
   video: { colour: '#c2408f', glyph: 'video' },
+  recorder: { colour: '#e03b4c', glyph: 'recorder' },
   mail: { colour: '#3b7de0', glyph: 'mail' },
   calendar: { colour: '#1a9f7a', glyph: 'calendar' },
   contacts: { colour: '#5d6d7e', glyph: 'contacts' },
@@ -89,7 +92,7 @@ const APPS = {
 };
 
 function tileSvg({ colour, glyph, text }) {
-  const paths = (text ? GLYPHS[glyph].slice(0, 2) : GLYPHS[glyph]).map((d) => `<path d="${d}"/>`).join('');
+  const paths = (text ? GLYPHS[glyph].slice(0, 2) : GLYPHS[glyph]).map((d) => (typeof d === 'object' ? `<path d="${d.fill}" fill="#ffffff" stroke="none"/>` : `<path d="${d}"/>`)).join('');
   const words = text
     ? `<rect x="58" y="128" width="140" height="62" rx="12" fill="${colour}"/><text x="128" y="177" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="800" font-size="54" fill="#ffffff">${text}</text>`
     : '';

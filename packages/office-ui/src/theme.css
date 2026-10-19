@@ -143,6 +143,7 @@
 [data-app='pictures'] { --accent: #7b5cd6; }
 [data-app='image'] { --accent: #e08b2b; }
 [data-app='video'] { --accent: #c2408f; }
+[data-app='recorder'] { --accent: #e03b4c; }
 [data-app='pdf'] { --accent: #b3261e; }
 [data-app='home'] { --accent: #2b5fd9; }
 [data-app='calendar'] { --accent: #1a9f7a; }
@@ -167,6 +168,7 @@
 :root:not([data-theme='dark']) [data-app='pictures'] { --accent-text: color-mix(in srgb, var(--accent) 86%, black); }
 :root:not([data-theme='dark']) [data-app='image'] { --accent-text: color-mix(in srgb, var(--accent) 65%, black); --accent-fill: color-mix(in srgb, var(--accent) 72%, black); }
 :root:not([data-theme='dark']) [data-app='video'] { --accent-text: color-mix(in srgb, var(--accent) 84%, black); }
+:root:not([data-theme='dark']) [data-app='recorder'] { --accent-text: color-mix(in srgb, var(--accent) 76%, black); --accent-fill: color-mix(in srgb, var(--accent) 88%, black); }
 :root:not([data-theme='dark']) [data-app='calendar'] { --accent-text: color-mix(in srgb, var(--accent) 71%, black); --accent-fill: color-mix(in srgb, var(--accent) 82%, black); }
 :root:not([data-theme='dark']) [data-app='contacts'] { --accent-text: color-mix(in srgb, var(--accent) 91%, black); }
 :root[data-theme='dark'], :root[data-theme='dark'] [data-app] {

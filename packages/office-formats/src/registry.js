@@ -25,7 +25,7 @@ export const SITE = {
   company: 'https://tech-style.co',
 };
 
-/** @typedef {'mail'|'word'|'sheets'|'slides'|'pdf'|'pictures'|'image'|'video'} AppKey */
+/** @typedef {'mail'|'word'|'sheets'|'slides'|'pdf'|'pictures'|'image'|'video'|'recorder'|'calendar'|'contacts'} AppKey */
 
 export const APPS = {
   mail: {
@@ -104,6 +104,17 @@ export const APPS = {
     tagline: 'Trim and export without a render farm',
     accent: '#c2408f',
     icon: 'video',
+  },
+  // Recording and, from Recorder, streaming: the screen, the camera and the
+  // voice made into one picture live (owner, 2026-10-19: "split the recording
+  // tool out"). It opens no kind of file, so it claims none.
+  recorder: {
+    key: 'recorder',
+    name: 'Rutba Recorder',
+    short: 'Recorder',
+    tagline: 'Record your screen, camera and voice as one video',
+    accent: '#e03b4c',
+    icon: 'record',
   },
   calendar: {
     key: 'calendar',

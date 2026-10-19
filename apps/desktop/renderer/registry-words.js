@@ -19,6 +19,7 @@ export const REGISTRY_WORDS = [
   msg('Rutba Pictures'), msg('Pictures'), msg('A viewer that opens before you blink'),
   msg('Rutba Image'), msg('Image'), msg('Crop, correct, annotate, export'),
   msg('Rutba Video'), msg('Video'), msg('Trim and export without a render farm'),
+  msg('Rutba Recorder'), msg('Recorder'), msg('Record your screen, camera and voice as one video'),
   msg('Rutba Calendar'), msg('Calendar'), msg('Your days, on this computer'),
   msg('Rutba Contacts'), msg('Contacts'), msg('Everyone you write to, in one book'),
   msg('Word Document (.docx)'), msg('OpenDocument Text (.odt)'), msg('PDF Document (.pdf)'), msg('Plain Text (.txt)'),

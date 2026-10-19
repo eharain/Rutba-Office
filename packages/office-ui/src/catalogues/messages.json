@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7102,
+  "count": 7123,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -984,6 +984,12 @@
       ]
     },
     {
+      "message": "A line under it",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "A link needs a shape with words.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -1631,6 +1637,7 @@
     {
       "message": "About {minutes} minutes of space are left on the disk.",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -4458,6 +4465,18 @@
       ]
     },
     {
+      "message": "Be right back",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
+      "message": "Be right back says",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Before (pt)",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -4901,6 +4920,7 @@
       "message": "Bottom left",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
@@ -4908,6 +4928,7 @@
       "message": "Bottom right",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
@@ -5440,6 +5461,7 @@
       "message": "Camera",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/shared-words.js"
@@ -5918,6 +5940,12 @@
       ]
     },
     {
+      "message": "Change Logo…",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Change Signature",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -5946,6 +5974,12 @@
       "message": "Change provider",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Change the scene at any time, while it records too.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -6419,6 +6453,7 @@
     {
       "message": "Choose a logo",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
@@ -6455,6 +6490,7 @@
     {
       "message": "Choose a screen or a window to record.",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/video/recorder/session.js"
       ]
@@ -6542,6 +6578,7 @@
       "message": "Circle",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides/motion.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
@@ -7641,6 +7678,7 @@
     {
       "message": "Computer sound",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -8256,6 +8294,7 @@
     {
       "message": "Countdown",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -11025,6 +11064,12 @@
       ]
     },
     {
+      "message": "Edit in Video",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Edit its words",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -13291,6 +13336,12 @@
       ]
     },
     {
+      "message": "Folder…",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Follow Playhead",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -13748,6 +13799,7 @@
     {
       "message": "Frame rate",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -15379,6 +15431,7 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
@@ -17727,6 +17780,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/qrcode.js"
       ]
@@ -18910,6 +18964,12 @@
       ]
     },
     {
+      "message": "Logo…",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "London",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -18985,6 +19045,7 @@
     {
       "message": "Looking at what is open…",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/screenshot.js"
       ]
@@ -19852,6 +19913,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/qrcode.js",
@@ -20133,6 +20195,7 @@
       "message": "Microphone",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -20226,6 +20289,7 @@
     {
       "message": "Minimise this window while recording",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -20257,6 +20321,7 @@
     {
       "message": "Mirror the camera",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -22070,6 +22135,7 @@
     {
       "message": "No other window is open to record.",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -22233,6 +22299,7 @@
     {
       "message": "No screen can be recorded.",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -22434,6 +22501,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -23481,6 +23549,7 @@
         "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -24099,6 +24168,12 @@
       ]
     },
     {
+      "message": "Output",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Outside Borders",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -24123,6 +24198,12 @@
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
+      "message": "Overlays",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -24660,6 +24741,7 @@
       "message": "Pause",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides/media.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/record.js",
@@ -24679,6 +24761,7 @@
       "message": "Paused",
       "where": [
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
@@ -25039,6 +25122,7 @@
         "apps/desktop/renderer/apps/pdf/fields.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/pictures/library.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -25356,6 +25440,7 @@
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides/media.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -26108,6 +26193,12 @@
       ]
     },
     {
+      "message": "Program",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Project",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js",
@@ -26435,6 +26526,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides/export-video.js",
         "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
@@ -26765,7 +26857,8 @@
     {
       "message": "Ready",
       "where": [
-        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -26882,6 +26975,7 @@
     {
       "message": "Record",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/scripts.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -26979,6 +27073,12 @@
       ]
     },
     {
+      "message": "Record your screen, camera and voice as one video",
+      "where": [
+        "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
       "message": "Record {at} of {total}",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -27015,8 +27115,16 @@
       ]
     },
     {
+      "message": "Recorder",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js",
+        "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
       "message": "Recording",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
@@ -27077,6 +27185,7 @@
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
@@ -27341,6 +27450,7 @@
     {
       "message": "Refresh the list",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -27577,6 +27687,12 @@
       "message": "Remove Duplicates — rows that repeat an earlier one in the selection, or the block round the cell, go",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Remove Logo",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -28402,6 +28518,7 @@
       "message": "Resume",
       "where": [
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
@@ -28724,12 +28841,14 @@
     {
       "message": "Room for about {hours} hours on the disk",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
     {
       "message": "Room for about {minutes} minutes on the disk",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -28919,6 +29038,7 @@
     {
       "message": "Rounded",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
@@ -29302,8 +29422,15 @@
       ]
     },
     {
+      "message": "Rutba Recorder",
+      "where": [
+        "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
       "message": "Rutba Recordings",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -29597,6 +29724,12 @@
       ]
     },
     {
+      "message": "Save recordings in",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Save the document first, so a second window can open the same file.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
@@ -29676,6 +29809,12 @@
       ]
     },
     {
+      "message": "Saved in {folder}",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Saved into this deck's theme: every slide that takes its colours from the theme follows, and Undo puts the old ones back.",
       "where": [
         "apps/desktop/renderer/apps/slides/design.js"
@@ -29706,6 +29845,7 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/index.js",
@@ -29858,6 +29998,7 @@
     {
       "message": "Scenes",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/index.js"
       ]
     },
@@ -29895,6 +30036,7 @@
       "message": "Screen",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
@@ -29918,6 +30060,12 @@
       "message": "Screen Recording — record a window or a screen until Stop, and put the recording on this slide as a video",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Screen and camera",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -31351,6 +31499,7 @@
     {
       "message": "Sharper",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -31641,7 +31790,8 @@
       "where": [
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/image/batch.js",
-        "apps/desktop/renderer/apps/pictures.js"
+        "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -31863,6 +32013,7 @@
     {
       "message": "Side by side",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
@@ -32141,6 +32292,7 @@
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/parts.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
@@ -32501,6 +32653,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/qrcode.js"
       ]
@@ -32544,6 +32697,7 @@
     {
       "message": "Smaller files",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -32895,6 +33049,7 @@
       "message": "Sources",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
@@ -33228,6 +33383,7 @@
     {
       "message": "Standard",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -33441,6 +33597,7 @@
     {
       "message": "Starting…",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -33554,6 +33711,7 @@
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/scripts.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
@@ -35360,6 +35518,7 @@
     {
       "message": "The disk is nearly full: the recording was stopped and kept.",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -35638,6 +35797,12 @@
       "plural": "The list: {ref} — it has {count} subtotal rows now",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "The logo could not be read.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -36017,6 +36182,7 @@
     {
       "message": "The recording could not be kept: {reason}",
       "where": [
+        "apps/desktop/renderer/apps/recorder/program.js",
         "apps/desktop/renderer/apps/video/recorder/session.js"
       ]
     },
@@ -36382,12 +36548,14 @@
     {
       "message": "The usual camera",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
     {
       "message": "The usual microphone",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -36755,6 +36923,7 @@
     {
       "message": "There is not enough space on the disk to record.",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -38013,6 +38182,7 @@
       "message": "Title",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -38254,6 +38424,7 @@
       "message": "Top left",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
@@ -38262,6 +38433,7 @@
       "message": "Top right",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
@@ -39853,6 +40025,12 @@
       ]
     },
     {
+      "message": "Video and sound",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Video clip",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -40492,6 +40670,7 @@
     {
       "message": "Window",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
@@ -40950,6 +41129,12 @@
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/intro/brand.js",
         "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "Your name, or the title",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -44733,6 +44918,7 @@
     {
       "message": "{n} frames a second",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -44835,6 +45021,7 @@
     {
       "message": "{seconds} s",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/video/ribbon.js"

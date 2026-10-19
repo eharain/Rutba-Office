@@ -53,7 +53,7 @@ test("the light theme's quieter greys read 4.5:1 on the chrome, the panes and a 
   for (const ink of ['ink-2', 'ink-3']) {
     for (const [where, bg] of Object.entries(under)) assert.ok(ratio(token(ink), bg) >= 4.5, `--${ink} on ${where}: ${ratio(token(ink), bg).toFixed(2)}`);
     // A chosen row in each app: its colour at 20% over white.
-    for (const app of ['mail', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'pdf', 'calendar', 'contacts']) {
+    for (const app of ['mail', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'recorder', 'pdf', 'calendar', 'contacts']) {
       const accent = hex(new RegExp(`\\[data-app='${app}'\\] \\{ --accent: (#[0-9a-f]{6}); \\}`).exec(CSS)[1]);
       if (ink === 'ink-3') assert.ok(ratio(token(ink), mix(accent, [255, 255, 255], 0.12)) >= 4.5, `--ink-3 on a chosen row in ${app}`);
     }

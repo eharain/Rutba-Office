@@ -15,6 +15,7 @@
     "./project": "./src/project.js",
     "./rvid": "./src/rvid.js",
     "./recorder": "./src/recorder.js",
+    "./compositor": "./src/compositor.js",
     "./captions": "./src/captions.js",
     "./presets": "./src/presets.js",
     "./pointer": "./src/pointer.js",
