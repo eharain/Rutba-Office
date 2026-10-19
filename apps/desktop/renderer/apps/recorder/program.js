@@ -87,6 +87,9 @@ export class Program {
     this.recording = null;
     this.listeners = new Set();
     this.track = null;
+    // A source that is live but has given no frame: when it was opened, and what to do about it.
+    this.opened = { screen: 0, camera: 0 };
+    this.onStall = null;
   }
 
   /** The settings the next frame is drawn with (normalised by the window). */
@@ -116,6 +119,15 @@ export class Program {
       this.streams[name] = stream;
       letGo(this.videos[name]);
       this.videos[name] = stream ? sourceVideo(stream) : null;
+      this.opened[name] = stream ? performance.now() : 0;
+    }
+    // Three seconds live without a single frame: the window is told, once per opening.
+    for (const name of ['screen', 'camera']) {
+      const v = this.videos[name];
+      if (v && !v.videoWidth && this.opened[name] && performance.now() - this.opened[name] > 3000) {
+        this.opened[name] = 0;
+        this.onStall?.(name);
+      }
     }
     // A source that has not started playing is asked again.
     for (const v of Object.values(this.videos)) if (v && v.paused) v.play().catch(() => {});

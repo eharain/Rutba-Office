@@ -43,6 +43,8 @@ export const STUDIO_DEFAULTS = Object.freeze({
     logoCorner: 'tr',
     folder: '',
     minimise: false,
+    // Go Live: a copy recorded on this computer while it streams.
+    liveCopy: true,
 });
 
 const pick = (v, list, fallback) => (list.includes(v) ? v : fallback);
@@ -76,6 +78,7 @@ export function normaliseStudio(raw) {
         logoCorner: pick(r.logoCorner, ['tl', 'tr', 'bl', 'br'], d.logoCorner),
         folder: text(r.folder, '', 2000),
         minimise: bool('minimise'),
+        liveCopy: bool('liveCopy'),
     };
 }
 

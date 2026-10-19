@@ -27,6 +27,7 @@ import { createDavService } from './dav-sync.js';
 import { createPdfService } from './pdf.js';
 import { createOcrService } from './ocr.js';
 import { createAiToolsService } from './ai-tools.js';
+import { createLiveService } from './live.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -178,6 +179,8 @@ createShell({
       ocr: createOcrService(),
       // The AI Tools window: the switch, the folders, the log (ai-tools.js).
       ai: createAiToolsService({ stores }),
+      // Recorder → Go Live: the destinations, their keys in the keystore, the publishers (live.js).
+      live: createLiveService({ stores }),
       oauth,
       mail: createMailService({
         stores,

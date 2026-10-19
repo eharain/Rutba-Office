@@ -125,6 +125,7 @@ export class RecorderRig {
    * it. A source already open the same way is kept.
    */
   async setScreen(source, { fps = 30, cap = 1080, system = false } = {}) {
+    this.lastScreen = { source, opts: { fps, cap, system } };
     const key = source ? JSON.stringify([source.id, fps, cap, system]) : '';
     if (key === this.screen.key && (this.screen.stream || this.screen.error)) return;
     const mine = ++this.seq;
@@ -169,6 +170,20 @@ export class RecorderRig {
     const track = stream?.getVideoTracks()[0];
     if (track) track.addEventListener('ended', () => { if (this.screen.stream === stream) { this.screen = { ...this.screen, error: t('{name} closed or stopped sharing.', { name: source.name }) }; this.changed(); } });
     this.changed();
+  }
+
+  /**
+   * The screen or window opened again, the same way: a capture that is live
+   * but has not given a single frame (a window that has not changed since it
+   * was opened, on some machines) usually gives one when it is asked again.
+   */
+  refreshScreen() {
+    const last = this.lastScreen;
+    if (!last?.source) return Promise.resolve();
+    this.screen = { ...this.screen, key: '' };
+    stopAll(this.screen.stream);
+    this.screen = { stream: null, source: last.source, error: null, key: '' };
+    return this.setScreen(last.source, last.opts);
   }
 
   /** The camera on (which one, how tall a picture) or off. */

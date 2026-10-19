@@ -92,6 +92,7 @@ export const capture = namespaces.capture;
 export const pdf = namespaces.pdf;
 export const ocr = namespaces.ocr;
 export const ai = namespaces.ai;
+export const live = namespaces.live;
 
 export function on(event, handler) {
   if (!EVENTS.includes(event)) throw new Error(`unknown event: ${event}`);
@@ -107,4 +108,4 @@ export function boot() {
   return hasShell() ? bridge().boot() : { app: 'home', file: null, platform: 'web', arch: '', versions: {} };
 }
 
-export default { app, win, fs, dialog, shell, store, doc, mail, oauth, present, update, announce, defaults, discover, print, clipboard, calendar, contacts, dav, thumbs, capture, pdf, ocr, ai, on, boot, pathOf, hasShell };
+export default { app, win, fs, dialog, shell, store, doc, mail, oauth, present, update, announce, defaults, discover, print, clipboard, calendar, contacts, dav, thumbs, capture, pdf, ocr, ai, live, on, boot, pathOf, hasShell };

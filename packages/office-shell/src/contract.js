@@ -328,6 +328,18 @@ export const METHODS = {
     'languages',    // () -> [{ code, name, script, direction, beta? }]
     'stats',        // () -> { threads, busy, queued, limit, done, failed, cancelled }   for the checks
   ],
+  // Recorder → Go Live: the destinations a person streams to (their keys kept in the
+  // keystore and never handed back), and the program's pieces sent to every one.
+  live: [
+    'destinations',     // () -> [{ id, platform, name, url, on, hasKey, keyHint }]
+    'platforms',        // () -> { youtube: { name, url, keyHelp }, ... }
+    'saveDestination',  // ({ id?, platform, name?, url?, on?, key? }) -> destinations   a key given replaces the one kept
+    'removeDestination',// ({ id }) -> destinations
+    'start',            // ({ video: { width, height, fps, kbps }, audio: { kbps, sampleRate, channels } }) -> { started: [id], skipped: [{ id, name, reason }] }
+    'send',             // ({ kind: 'video' | 'audio', timestamp, data, key, config }) -> { live }   one encoded piece, to every live destination
+    'status',           // () -> { live, destinations: [{ id, name, state, detail, bytes, dropped, since, reconnects }] }
+    'stop',             // () -> status
+  ],
   ai: [
     'state',        // () -> { mode: 'off' | 'session' | 'always', folders, connect: { command, args, env }, log, connections: [{ client, clientVersion, where, since, last, lastTool, pid }] }
     'setMode',      // ({ mode }) -> state
@@ -359,6 +371,7 @@ export const METHODS = {
 export const EVENTS = [
   'win:state',        // { maximized, fullscreen, focused }
   'win:link',         // { url }             a link followed inside a frame (a message's body), for the window to open or warn about
+  'live:status',      // { live, destinations }  Go Live's destinations as they connect, stream, drop and come back
   'app:open-file',    // { path }            OS asked us to open a document
   'app:command',      // { command, args }   menu / accelerator
   'mail:progress',    // { accountId, folder, done, total, phase }

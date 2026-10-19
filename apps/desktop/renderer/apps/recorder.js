@@ -23,6 +23,9 @@ import { RecorderRig } from './video/recorder/session.js';
 import { Toggle, Segments, Meter } from './video/recorder/panel.js';
 import { RECORDER_CSS } from './video/recorder/css.js';
 import { Program } from './recorder/program.js';
+import { LiveEncoder, AUDIO_KBPS } from './recorder/live.js';
+import { LiveDialog, LIVE_CSS } from './recorder/live-dialog.js';
+import { liveBitrate } from '@rutba/stream/endpoints';
 import { STUDIO_CSS } from './recorder/css.js';
 
 const STORE_KEY = 'recorder.studio';
@@ -63,6 +66,13 @@ export default function Recorder({ app, shell }) {
   const [logoUrl, setLogoUrl] = useState(null);
   const [, setTick] = useState(0);
   const [tab, setTab] = useState('home');
+  // Go Live: off, starting, live or ending; the destinations as the main process reports them.
+  const [livePhase, setLivePhase] = useState('off');
+  const [liveStatus, setLiveStatus] = useState([]);
+  const [liveSince, setLiveSince] = useState(0);
+  const [liveOpen, setLiveOpen] = useState(false);
+  const encoder = useRef(null);
+  const liveRecord = useRef(false);
   const canvasRef = useRef(null);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
@@ -71,6 +81,7 @@ export default function Recorder({ app, shell }) {
   const warned = useRef(false);
   const rig = useMemo(() => new RecorderRig({ shell, onChange: () => setTick((n) => n + 1) }), [shell]);
   const program = useRef(null);
+  const stalls = useRef(0);
 
   const appMenu = useAppMenu({ shell, appKey: 'recorder', onNew: () => shell.win.create({ app: 'recorder' }), onOpen: async () => {
     const files = await shell.dialog.open({ title: t('Open'), filters: [{ name: t('Video and sound'), extensions: ['webm', 'mp4', 'mov', 'mkv', 'weba', 'm4a', 'mp3', 'wav'] }] });
@@ -107,6 +118,12 @@ export default function Recorder({ app, shell }) {
   useEffect(() => {
     const p = new Program({ rig, canvas: canvasRef.current });
     program.current = p;
+    // A screen that gives no picture is opened again, twice at most for each choice of source.
+    p.onStall = (name) => {
+      if (name !== 'screen' || stalls.current >= 2) return;
+      stalls.current += 1;
+      rig.refreshScreen();
+    };
     p.set(settings);
     p.start();
     return () => { p.dispose(); rig.dispose(); };
@@ -143,6 +160,7 @@ export default function Recorder({ app, shell }) {
     if (!listed.some((s) => s.id === sourceId)) setSourceId(listed[0]?.id || null);
   }, [listed, sources, sourceId]);
   const source = listed.find((s) => s.id === sourceId) || null;
+  useEffect(() => { stalls.current = 0; }, [sourceId]);
 
   // The sources open as the settings say. The screen stays as it is while it records.
   const needsScreen = settings.scene !== 'camera' && settings.scene !== 'brb';
@@ -258,6 +276,69 @@ export default function Recorder({ app, shell }) {
     return () => { clearInterval(tick); clearInterval(watch); };
   }, [phase, checkDisk, toast]);
 
+  /* ── going live ────────────────────────────────────────────────────── */
+
+  useEffect(() => shell.on('live:status', ({ destinations = [] } = {}) => setLiveStatus(destinations)), [shell]);
+  const kbps = liveBitrate(settings.size, settings.fps);
+
+  const goLive = useCallback(async () => {
+    if (livePhase !== 'off') return;
+    const canvas = canvasRef.current;
+    let checked;
+    try {
+      checked = await LiveEncoder.check({ width: canvas.width, height: canvas.height, fps: settings.fps, kbps });
+    } catch (err) {
+      toast(err.message, { tone: 'bad', ms: 8000 });
+      return;
+    }
+    const dests = await shell.live.destinations().catch(() => []);
+    if (!dests.some((d) => d.on && d.hasKey)) { setLiveOpen(true); return; }
+    setLivePhase('starting');
+    try {
+      const r = await shell.live.start({ video: { width: canvas.width, height: canvas.height, fps: settings.fps, kbps }, audio: { kbps: AUDIO_KBPS, sampleRate: 48000, channels: 2 } });
+      if (r.skipped?.length) toast(t('Not streamed to {names}: no stream key.', { names: r.skipped.map((x) => x.name).join(', ') }), { ms: 6000 });
+      const enc = new LiveEncoder({ shell, program: program.current, rig });
+      await enc.start({ video: checked.video });
+      encoder.current = enc;
+      setLiveSince(Date.now());
+      setLivePhase('live');
+      if (settings.liveCopy && phaseRef.current === 'setup') {
+        liveRecord.current = true;
+        setPhase('starting');
+        begin();
+      }
+    } catch (err) {
+      await encoder.current?.stop().catch(() => {});
+      encoder.current = null;
+      await shell.live.stop().catch(() => {});
+      setLivePhase('off');
+      toast(err?.message || String(err), { tone: 'bad', ms: 8000 });
+    }
+  }, [livePhase, settings.fps, settings.liveCopy, kbps, shell, rig, toast, begin]);
+
+  const endLive = useCallback(async () => {
+    if (livePhase !== 'live' && livePhase !== 'starting') return;
+    setLivePhase('ending');
+    await encoder.current?.stop().catch(() => {});
+    encoder.current = null;
+    await shell.live.stop().catch(() => {});
+    setLivePhase('off');
+    toast(t('The stream has ended.'), { ms: 4000 });
+    if (liveRecord.current) {
+      liveRecord.current = false;
+      stopRef.current?.();
+    }
+  }, [livePhase, shell, toast]);
+
+  // Gone while live: the stream is ended with the window.
+  useEffect(() => () => { if (encoder.current) { encoder.current.stop().catch(() => {}); shell.live.stop().catch(() => {}); } }, [shell]);
+  const [, setLiveTick] = useState(0);
+  useEffect(() => {
+    if (livePhase !== 'live') return undefined;
+    const tick = setInterval(() => setLiveTick((n) => n + 1), 1000);
+    return () => clearInterval(tick);
+  }, [livePhase]);
+
   // Gone in the middle of a recording: the keys and the tray are let go.
   useEffect(() => () => { if (phaseRef.current === 'recording') shell.capture.controls({ on: false }).catch(() => {}); }, [shell]);
 
@@ -274,7 +355,10 @@ export default function Recorder({ app, shell }) {
   /* ── the window ────────────────────────────────────────────────────── */
 
   const recording = phase === 'recording' || phase === 'stopping';
-  const busy = phase !== 'setup';
+  const live = livePhase !== 'off';
+  const busy = phase !== 'setup' || live;
+  const liveFor = live && liveSince ? Date.now() - liveSince : 0;
+  const LIVE_WORDS = { waiting: t('Waiting'), connecting: t('Connecting…'), live: t('Live'), reconnecting: t('Reconnecting…'), error: t('Not streaming'), ended: t('Ended'), closed: t('Ended') };
   const names = SCENE_NAMES();
   const haveScreen = Boolean(rig.screen.stream);
   const canRecord = phase === 'setup' && (haveScreen || rig.camera.stream || settings.scene === 'brb') && disk?.level !== 'stop';
@@ -300,6 +384,14 @@ export default function Recorder({ app, shell }) {
         ) : (
           <Button tall primary icon="record" label={phase === 'countdown' ? t('Starting…') : t('Record')} className="st-record" disabled={!canRecord} onClick={record} />
         )}
+      </Group>
+      <Group label={t('Live')}>
+        {live ? (
+          <Button tall icon="stop" label={livePhase === 'starting' ? t('Starting…') : t('End Live')} className="st-endlive" disabled={livePhase === 'ending'} onClick={endLive} />
+        ) : (
+          <Button tall icon="globe" label={t('Go Live')} className="st-golive" disabled={phase === 'countdown' || phase === 'starting'} onClick={goLive} />
+        )}
+        <Button icon="settings" label={t('Destinations…')} className="st-dests-btn" onClick={() => setLiveOpen(true)} />
       </Group>
       <Group label={t('Scenes')}>
         {SCENES.map((s) => (
@@ -335,6 +427,7 @@ export default function Recorder({ app, shell }) {
 
   const status = (
     <span className="st-status" data-phase={phase}>
+      {live ? `${t('Live')} ${clock(liveFor)} · ` : ''}
       {recording ? `${paused ? t('Paused') : t('Recording')} · ${clock(elapsed)}` : saved ? t('Saved {name}', { name: basename(saved.path) }) : t('Ready')}
       {` · ${settings.size === 720 ? '1280 × 720' : '1920 × 1080'} · ${t('{n} frames a second', { n: settings.fps })}`}
       {diskNote && !recording ? ` · ${diskNote}` : ''}
@@ -342,9 +435,11 @@ export default function Recorder({ app, shell }) {
   );
 
   return (
-    <AppFrame app={app} shell={shell} title={recording ? `${paused ? t('Paused') : t('Recording')} ${clock(elapsed)}` : t('Recorder')} menu={appMenu} ribbon={ribbon} status={status}>
+    <AppFrame app={app} shell={shell} title={live ? `${t('Live')} ${clock(liveFor)}` : recording ? `${paused ? t('Paused') : t('Recording')} ${clock(elapsed)}` : t('Recorder')} menu={appMenu} ribbon={ribbon} status={status}>
       <style>{RECORDER_CSS}</style>
       <style>{STUDIO_CSS}</style>
+      <style>{LIVE_CSS}</style>
+      {liveOpen ? <LiveDialog shell={shell} toast={toast} kbps={kbps} busy={live} recordCopy={settings.liveCopy} onRecordCopy={(v) => change({ liveCopy: v })} onClose={() => setLiveOpen(false)} /> : null}
       <Panel name="scenes" width={210} title={t('Scenes')}>
         <div className="st-scenes" role="radiogroup" aria-label={t('Scenes')}>
           {SCENES.map((s) => (
@@ -363,11 +458,21 @@ export default function Recorder({ app, shell }) {
           <div className={`st-frame${recording ? ' live' : ''}${paused ? ' held' : ''}`} data-scene={settings.scene}>
             <canvas ref={canvasRef} className="st-canvas" width={1920} height={1080} aria-label={t('Program')} />
             {recording ? <span className="rec-badge st-badge"><i />{paused ? t('Paused') : t('Recording')} {clock(elapsed)}</span> : null}
+            {live ? <span className="st-live-badge" data-phase={livePhase}><i />{t('LIVE')} {clock(liveFor)}</span> : null}
             {phase === 'countdown' ? <div className="rec-count" aria-live="assertive"><span key={count}>{count}</span></div> : null}
             {needsScreen && !haveScreen && phase === 'setup' ? (
               <div className="st-wait">{rig.screen.error ? rig.screen.error : sources == null ? <><Spinner /> {t('Looking at what is open…')}</> : t('Choose a screen or a window to record.')}</div>
             ) : null}
           </div>
+          {live && liveStatus.length ? (
+            <div className="st-dests" aria-live="polite">
+              {liveStatus.map((d) => (
+                <span key={d.id} className="st-dest" data-state={d.state} title={d.detail || ''}>
+                  <i />{d.name}: {d.state === 'error' && d.detail ? d.detail : LIVE_WORDS[d.state] || d.state}{d.reconnects && d.state === 'reconnecting' ? ` (${d.reconnects})` : ''}
+                </span>
+              ))}
+            </div>
+          ) : null}
           {saved && phase === 'setup' ? (
             <div className="st-saved" role="status">
               <Icon name="check" size={18} />

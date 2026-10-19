@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7123,
+  "count": 7153,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1928,6 +1928,7 @@
       "where": [
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/recorder/live-dialog.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/custom-shows.js",
@@ -5911,6 +5912,7 @@
       "message": "Change",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
+        "apps/desktop/renderer/apps/recorder/live-dialog.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "packages/office-ui/src/proofing.js"
       ]
@@ -7024,6 +7026,7 @@
         "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/mail/smime.js",
+        "apps/desktop/renderer/apps/recorder/live-dialog.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/scripts.js",
@@ -7752,6 +7755,12 @@
       "message": "Connected now",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "Connecting…",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -9875,6 +9884,12 @@
       ]
     },
     {
+      "message": "Destinations…",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Detach Audio",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -10247,7 +10262,8 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/image/type-editor.js",
-        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
       ]
     },
     {
@@ -11446,6 +11462,12 @@
       ]
     },
     {
+      "message": "End Live",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "End Review",
       "where": [
         "apps/desktop/renderer/apps/slides/revisions.js",
@@ -11480,6 +11502,12 @@
       "message": "End time",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Ended",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -14317,6 +14345,18 @@
       ]
     },
     {
+      "message": "Go Live",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
+      "message": "Go Live: where to stream",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
       "message": "Go To",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -15966,6 +16006,12 @@
       ]
     },
     {
+      "message": "In Facebook Live Producer: choose Streaming software, then copy the stream key.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
       "message": "In PDF",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -15987,6 +16033,12 @@
       "message": "In Video",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "In YouTube Studio: Create, Go live, then Stream. Copy the stream key.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
       ]
     },
     {
@@ -16043,6 +16095,12 @@
       "message": "In point {time}: drag to move it (Alt: no snapping)",
       "where": [
         "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "In the Twitch Creator Dashboard: Settings, then Stream. Copy the primary stream key.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
       ]
     },
     {
@@ -17620,6 +17678,12 @@
       ]
     },
     {
+      "message": "Key kept {hint}",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
       "message": "Keyboard Shortcuts",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -17643,6 +17707,12 @@
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/smartart-dialog.js"
+      ]
+    },
+    {
+      "message": "LIVE",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -18110,6 +18180,12 @@
       "message": "Leave blank for “Automatic reply: ” and the original subject.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Leave empty to keep the one kept",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
       ]
     },
     {
@@ -18848,6 +18924,12 @@
       "message": "Lists of accounts (.csv, .tsv, .txt)",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "Live",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -20920,6 +21002,7 @@
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/pictures/library.js",
+        "apps/desktop/renderer/apps/recorder/live-dialog.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/word/blocks.js",
@@ -21321,6 +21404,12 @@
       "message": "New slide",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "New stream key",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
       ]
     },
     {
@@ -21888,6 +21977,12 @@
       ]
     },
     {
+      "message": "No destination yet. Add the platform you stream to.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
       "message": "No duplicate rows in the selection",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -22340,6 +22435,12 @@
       ]
     },
     {
+      "message": "No stream key yet",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
       "message": "No suggestions — type the word as it should be.",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -22680,6 +22781,18 @@
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Not streamed to {names}: no stream key.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
+      "message": "Not streaming",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -26613,6 +26726,12 @@
       ]
     },
     {
+      "message": "RTMP server",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
       "message": "Radial",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
@@ -26973,6 +27092,12 @@
       ]
     },
     {
+      "message": "Reconnecting…",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Record",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
@@ -27046,6 +27171,12 @@
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
+      "message": "Record a copy on this computer while live",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
       ]
     },
     {
@@ -27823,6 +27954,12 @@
       "message": "Remove this category",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Remove this destination",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
       ]
     },
     {
@@ -29532,6 +29669,7 @@
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/recorder/live-dialog.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -31133,6 +31271,7 @@
     {
       "message": "Server",
       "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js",
         "apps/desktop/renderer/dav-accounts.js"
       ]
     },
@@ -33840,6 +33979,18 @@
       ]
     },
     {
+      "message": "Stream key",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
+      "message": "Streaming to {count} at {kbps} kbit/s needs an upload of about {mbps} Mbit/s.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
       "message": "Street",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
@@ -36141,6 +36292,12 @@
       ]
     },
     {
+      "message": "The program is streamed to every destination that is on, at once. Stream keys are kept encrypted on this computer and are sent only to the server they belong to.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
       "message": "The project could not be saved: {reason}",
       "where": [
         "apps/desktop/renderer/apps/image.js",
@@ -36304,6 +36461,12 @@
       ]
     },
     {
+      "message": "The server address and the stream key your streaming service gives you.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
       "message": "The server answered {status} where a list was asked for.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -36463,6 +36626,12 @@
       "message": "The story of a business in eight slides: problem, product, market, traction, team and the ask",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "The stream has ended.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -37232,6 +37401,18 @@
       "where": [
         "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "This computer cannot make the AAC sound a live stream needs.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live.js"
+      ]
+    },
+    {
+      "message": "This computer cannot make the H.264 picture a live stream needs.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live.js"
       ]
     },
     {
@@ -38918,6 +39099,12 @@
       ]
     },
     {
+      "message": "Turn on a destination with a stream key to go live.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
       "message": "Turn the microphone on to record your voice.",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js",
@@ -40164,7 +40351,8 @@
     {
       "message": "Waiting",
       "where": [
-        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
