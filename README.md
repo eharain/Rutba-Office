@@ -24,6 +24,12 @@ with the network switched off.
 Dual-licensed: **GNU AGPL v3.0**, or a commercial licence — see
 [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
 
+## Video
+
+[![Rutba Office: ten free office apps for Windows, no account needed](https://raw.githubusercontent.com/eharain/Rutba-Office/main/docs/media/video-thumbnail.jpg)](https://www.youtube.com/watch?v=vPo8xXONjjk)
+
+A 1:40 introduction on YouTube, with English captions.
+
 ---
 
 ## Why this exists
