@@ -324,6 +324,8 @@ export default function Mail({ app, shell }) {
       .then(([m, i]) => {
         setMessage(m);
         setInsight(i);
+        // A draft is opened to be finished, not read (owner, 2026-10-20).
+        if (m && !m.readOnly && isDraftsFolder(a, f)) editDraftRef.current?.({ accountId: a, folder: f, id }, m);
         if (m?.unread && !m.readOnly) {
           shell.mail.flag({ accountId: a, folder: f, ids: [id], patch: { unread: false } }).then(() => {
             setList((current) => ({
@@ -697,6 +699,11 @@ export default function Mail({ app, shell }) {
         });
         setOutbox(await shell.mail.outbox());
         setCompose(null);
+        // A draft sent is no longer a draft.
+        if (draft.replaces?.id) {
+          await shell.mail.delete({ ...draft.replaces, ids: [draft.replaces.id] }).catch(() => {});
+          refreshList();
+        }
         if (at) toast(t('Scheduled for {when}', { when: new Date(at).toLocaleString() }), { tone: 'good', ms: 6000 });
         return item;
       } catch (err) {
@@ -704,7 +711,7 @@ export default function Mail({ app, shell }) {
         return null;
       }
     },
-    [accountId, shell, toast]
+    [accountId, shell, toast, refreshList]
   );
 
   const unsend = useCallback(
@@ -775,6 +782,46 @@ export default function Mail({ app, shell }) {
   );
 
   /** Open an attachment in whichever Rutba Office app owns it. */
+  /** Whether a folder holds drafts: its role, the unified Drafts, or its name where a server gave no role. */
+  const isDraftsFolder = (acc, path) => (unified && role === 'drafts') || foldersFor(acc).find((x) => x.path === path)?.role === 'drafts' || /(^|[/.])drafts$/i.test(String(path || ''));
+
+  /**
+   * A draft opened in Compose, whole: its recipients, subject, words and
+   * attachments (written to temporary files, as a forward's are), with the
+   * draft it came from, which saving or sending replaces.
+   */
+  const editDraft = useCallback(async (where, m) => {
+    const list = (v) => (Array.isArray(v) ? v : v ? [v] : []).map((x) => (typeof x === 'string' ? x : x?.name ? `${x.name} <${x.address}>` : x?.address || '')).filter(Boolean).join(', ');
+    const attachments = [];
+    for (const [index, a] of (m.attachments || []).entries()) {
+      if (a.inline) continue;
+      try {
+        const held = await shell.mail.attachment({ ...where, index });
+        if (!held) continue;
+        const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
+        const { path } = await shell.fs.temp({ ext: attachmentExtension(a.filename || held.name), bytes });
+        attachments.push({ filename: a.filename || held.name, path, size: bytes.length });
+      } catch {
+        /* an attachment that cannot be read is left out, and the rest kept */
+      }
+    }
+    const id = String(m.messageId || '').startsWith('draft-') ? String(m.messageId).slice(6) : undefined;
+    setCompose({
+      id,
+      to: list(m.to),
+      cc: list(m.cc),
+      bcc: m.draftBcc || '',
+      subject: m.subject || '',
+      text: m.text || '',
+      html: m.html || null,
+      attachments,
+      accountId: isArchiveId(where.accountId) ? undefined : where.accountId,
+      replaces: isArchiveId(where.accountId) ? null : where,
+    });
+  }, [shell]);
+  const editDraftRef = useRef(null);
+  editDraftRef.current = editDraft;
+
   const openAttachment = useCallback(
     async (index, meta, where = selected) => {
       const held = await shell.mail.attachment({ ...where, index });
@@ -2094,7 +2141,7 @@ export default function Mail({ app, shell }) {
           onClose={() => setCompose(null)}
           onSend={doSend}
           onSaveDraft={async (draft) => {
-            await shell.mail.saveDraft({ accountId: draft.accountId || accountId, draft });
+            await shell.mail.saveDraft({ accountId: draft.accountId || accountId, draft, replaces: draft.replaces || null });
             toast(t('Saved to Drafts'), { tone: 'good' });
             setCompose(null);
             refreshList();

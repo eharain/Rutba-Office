@@ -1299,13 +1299,37 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       return { messageId: info.messageId };
     },
 
-    saveDraft: ({ accountId, draft }) => {
-      const message = parseMessage(
-        `From: ${draft.from || ''}\r\nTo: ${draft.to || ''}\r\nSubject: ${draft.subject || ''}\r\n` +
-          `Date: ${new Date(now()).toUTCString()}\r\nMessage-ID: <draft-${draft.id || crypto.randomUUID()}>\r\n\r\n${draft.text || ''}`
-      );
-      const id = store.put(accountId, 'Drafts', message, { force: true });
-      store.upsertFolder(accountId, { path: 'Drafts', name: 'Drafts', role: 'drafts' });
+    /**
+     * A draft kept whole: To, Cc and Bcc, the subject, the words with their
+     * formatting, and the attachments, made the way a message is made for
+     * sending. `replaces` is the draft it was opened from (owner, 2026-10-20:
+     * "a draft email is not editable"): it is kept in that draft's folder, and
+     * the old one goes, so editing a draft never leaves a second copy.
+     */
+    saveDraft: async ({ accountId, draft, replaces = null }) => {
+      const account = find(accountId) || { name: '', email: draft.from || '' };
+      const folder = replaces?.folder || 'Drafts';
+      const draftId = draft.id || crypto.randomUUID();
+      let message;
+      try {
+        message = parseMessage(String(await composeRaw({ account, draft })));
+        // One draft, one id: saved again, it replaces itself.
+        message.messageId = `draft-${draftId}`;
+      } catch (err) {
+        console.log(`     [mail] the draft was kept as plain words: ${err?.message || err}`);
+        message = parseMessage(
+          `From: ${draft.from || ''}\r\nTo: ${draft.to || ''}\r\nSubject: ${draft.subject || ''}\r\n` +
+            `Date: ${new Date(now()).toUTCString()}\r\nMessage-ID: <draft-${draftId}>\r\n\r\n${draft.text || ''}`
+        );
+      }
+      message.unread = false;
+      // Bcc is never written into a message; a draft keeps it beside it.
+      if (draft.bcc) message.draftBcc = String(draft.bcc);
+      const id = store.put(accountId, folder, message, { force: true });
+      if (folder === 'Drafts') store.upsertFolder(accountId, { path: 'Drafts', name: 'Drafts', role: 'drafts' });
+      if (replaces?.id && !(replaces.id === id && replaces.folder === folder && (replaces.accountId || accountId) === accountId)) {
+        store.removeMany(replaces.accountId || accountId, replaces.folder, [replaces.id]);
+      }
       return { id };
     },
 
