@@ -7091,4 +7091,10 @@ export default {
   'Until Rutba Office closes.': 'حتى يُغلق Rutba Office.',
   'Until you turn them off here.': 'حتى توقفها من هنا.',
   'What the tools have done': 'ما فعلته الأدوات',
+  'Opening the microphone…': 'جارٍ فتح الميكروفون…',
+  'Record Voice': 'تسجيل الصوت',
+  'Turn the microphone on to record your voice.': 'شغّل الميكروفون لتسجيل صوتك.',
+  'Voice: the microphone alone, with no picture': 'الصوت: الميكروفون وحده، بلا صورة',
+  'Your voice alone, as a sound file. In Video it goes onto a sound track at the playhead.': 'صوتك وحده، كملف صوتي. في الفيديو يوضع على مسار صوتي عند رأس التشغيل.',
+  'your voice alone, onto a sound track at the playhead': 'صوتك وحده، على مسار صوتي عند رأس التشغيل',
 };

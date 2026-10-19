@@ -104,6 +104,13 @@ export const RECORDER_CSS = `
 .rec-dialog .rw-btn.rec-go:hover:not(:disabled), .rec-dialog .rw-btn.rec-stop:hover:not(:disabled) { background: #c42a30; }
 .rec-dialog .rw-btn.rec-go:disabled { opacity: 0.5; }
 
+/* A voice alone: the microphone and its level as it has gone. */
+.rec-voice { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto 1fr; justify-items: center; gap: 10px; padding: 36px 28px 28px; color: #fff; }
+.rec-voice-mic { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,0.08); box-shadow: 0 0 0 1px rgba(255,255,255,0.12); }
+.rec-frame.live .rec-voice-mic { background: rgba(229,72,77,0.22); box-shadow: 0 0 0 1px rgba(229,72,77,0.6); }
+.rec-voice-name { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.78); max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-voice-wave { width: 100%; height: 100%; min-height: 60px; }
+.rec-voice-note { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
 @media (max-width: 860px) {
   .rec-body { grid-template-columns: 1fr; overflow: auto; }
   .rec-side { contain: none; }

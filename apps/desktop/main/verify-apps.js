@@ -26,6 +26,7 @@ import { verifyViewer } from './verify-viewer.js';
 import { verifyVideoEditor, verifyVideoBasics, verifyVideoSplit } from './verify-video-editor.js';
 import { verifyVideoMp4 } from './verify-video-mp4.js';
 import { verifyRecorder } from './verify-recorder.js';
+import { verifyRecorderVoice } from './verify-recorder-voice.js';
 import { verifyIntroVideo } from './verify-intro-video.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
 import { verifyDeckArrange } from './verify-deck-arrange.js';
@@ -4954,6 +4955,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
     if (only.includes('video-mp4')) await verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder')) await verifyRecorder({ open, check, until, wait, errorsIn, doc }, { dir });
+    if (only.includes('recorder-voice')) await verifyRecorderVoice({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('intro-video')) await verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('viewdirection')) await verifyDeckDirection({ open, check, until, wait }, { dir });
     if (only.includes('deckrtl')) await verifyDeckRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -5155,6 +5157,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckCameo({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   // The recorder asks for the stand-in camera too, so it runs while the run is young as well.
   await block(() => verifyRecorder({ open, check, until, wait, errorsIn, doc }, { dir }));
+  await block(() => verifyRecorderVoice({ open, check, until, wait, errorsIn }, { dir }));
   // Introductions record scene by scene with the same stand-in camera, so they run young too.
   await block(() => verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => wordPages());

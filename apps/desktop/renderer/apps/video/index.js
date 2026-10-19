@@ -752,6 +752,8 @@ export default function VideoEditor({ app, shell, boot }) {
 
   /** The takes, read like any added file, placed together after what is there. */
   const landTakes = useCallback(async ({ takes }) => {
+    // A voice-over goes where the playhead stood; a screen recording after what is there.
+    const voiceAt = takes.length && takes.every((k) => k.role === 'voice') ? timeRef.current : null;
     setRecordOpen(false);
     stop();
     setBusy(t('Adding the recording'));
@@ -765,7 +767,7 @@ export default function VideoEditor({ app, shell, boot }) {
       let ids = [];
       let at = 0;
       edit(t('Record'), (d) => {
-        const r = placeTakes(d, placed);
+        const r = placeTakes(d, placed, { at: voiceAt });
         ids = r.ids;
         at = r.doc.patches.find((p) => p.id === r.ids[0])?.timing.start || 0;
         return r.doc;
@@ -888,7 +890,8 @@ export default function VideoEditor({ app, shell, boot }) {
     'intro.remove': { label: t('Remove Scene'), icon: 'trash', disabled: !intro || doc.intro.scenes.length < 2, tip: t('its takes stay on the disk'), run: () => { edit(t('Remove Scene'), (d) => removeScene(d, currentScene.id)); setSceneId(null); } },
     'intro.brand': { label: t('Brand Kit'), icon: 'brand', tip: t('a logo, colours, a font and a name and role, in every scene'), run: () => setBrandOpen(true) },
     'intro.new': { label: t('New Introduction Video'), icon: 'scenes', tip: t('scenes to record one at a time, in your brand'), run: () => appMenuNewIntro.current?.() },
-    'record.screen': { label: t('Record Screen'), icon: 'record', disabled: Boolean(exporting) || recordOpen, tip: t('a screen, a window or a region, with the camera and sound, onto the timeline'), run: () => { stop(); setRecordOpen(true); } },
+    'record.screen': { label: t('Record Screen'), icon: 'record', disabled: Boolean(exporting) || Boolean(recordOpen), tip: t('a screen, a window or a region, with the camera and sound, onto the timeline'), run: () => { stop(); setRecordOpen('picture'); } },
+    'record.voice': { label: t('Record Voice'), icon: 'mic', disabled: Boolean(exporting) || Boolean(recordOpen), tip: t('your voice alone, onto a sound track at the playhead'), run: () => { stop(); setRecordOpen('voice'); } },
     'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', disabled: !history.current.canUndo, run: undo },
     'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', disabled: !history.current.canRedo, run: redo },
     'edit.redo2': { label: t('Redo'), key: 'Mod+Shift+Z', run: redo, hidden: true },
@@ -1128,7 +1131,8 @@ export default function VideoEditor({ app, shell, boot }) {
                     {reason || t('Add videos, sound and pictures, or drop them onto this window. They go on the timeline one after another.')}
                     <span className="vd-start-actions">
                       <Button primary icon="plus" label={t('Add Media')} onClick={insertMedia} />
-                      <Button icon="record" label={t('Record Screen')} className="vd-start-record" onClick={() => setRecordOpen(true)} />
+                      <Button icon="record" label={t('Record Screen')} className="vd-start-record" onClick={() => setRecordOpen('picture')} />
+                      <Button icon="mic" label={t('Record Voice')} className="vd-start-voice" onClick={() => setRecordOpen('voice')} />
                     </span>
                   </Empty>
                 </div>
@@ -1206,7 +1210,7 @@ export default function VideoEditor({ app, shell, boot }) {
       </Content>
       {contextMenu.node}
       {exportOpen ? <ExportDialog doc={doc} initialPreset={lastPreset} onClose={() => setExportOpen(false)} onExport={runExport} /> : null}
-      {recordOpen ? <RecorderPanel shell={shell} mode="video" toast={toast} onDone={landTakes} onCancel={recordClosed} onProgress={recordingCopy} /> : null}
+      {recordOpen ? <RecorderPanel shell={shell} mode="video" kind={recordOpen === 'voice' ? 'voice' : 'picture'} toast={toast} onDone={landTakes} onCancel={recordClosed} onProgress={recordingCopy} /> : null}
       {sceneRecord && intro && sceneById(doc, sceneRecord) ? (
         <RecorderPanel
           shell={shell}

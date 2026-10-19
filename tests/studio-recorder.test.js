@@ -266,3 +266,23 @@ test('a screen recording of a still window, its frames only where it changed, is
   near(p.duration, 1.22, 'the sound\'s end', 0.005);
   assert.ok(p.hasVideo && p.hasAudio);
 });
+
+test('a voice alone: kept as a source, costs the disk its sound track only, and lands on a sound lane at the place asked', () => {
+  assert.equal(normaliseSettings({ source: 'voice' }).source, 'voice');
+  assert.equal(normaliseSettings({ source: 'nonsense' }).source, RECORDER_DEFAULTS.source);
+  const rate = bytesPerSecond({ source: 'voice', camera: true, mic: true }, { screen: { width: 3840, height: 2160 }, camera: { width: 1280, height: 720 } });
+  assert.ok(rate > 15000 && rate < 18000, `about 16 kB a second, not ${rate}`);
+
+  const start = placeTakes(emptyProject(), [{ role: 'screen', url: 'C:/r/screen.webm', name: 'Screen', duration: 8, width: 1920, height: 1080, hasAudio: true }]).doc;
+  const voice = { role: 'voice', url: 'C:/r/voice.weba', name: 'Voice', duration: 5, hasAudio: true };
+  const { doc, ids, group } = placeTakes(start, [voice], { at: 2 });
+  assert.equal(ids.length, 1);
+  const clip = clipById(doc, ids[0]);
+  assert.equal(clip.type, 'sound');
+  assert.equal(clip.take, 'voice');
+  assert.equal(clip.group, group);
+  near(clip.timing.start, 2, 'at the place asked');
+  near(clip.timing.end, 7, 'as long as the take');
+  assert.notEqual(clip.lane, 0, 'not on the screen take\'s sound lane, which is taken there');
+  assert.equal(doc.sources[voice.url].kind, 'audio');
+});

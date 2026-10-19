@@ -54,7 +54,7 @@ export const STOP_DISK_SECONDS = 20;
 
 /** What a recorder starts with. */
 export const RECORDER_DEFAULTS = Object.freeze({
-    source: 'screen', // 'screen' | 'window' | 'region'
+    source: 'screen', // 'screen' | 'window' | 'region' | 'voice' (the microphone alone, no picture)
     fps: 30,
     cap: 1080,
     quality: 'standard',
@@ -74,6 +74,9 @@ export const RECORDER_DEFAULTS = Object.freeze({
     pointer: true,
 });
 
+/** What may be recorded: a screen, a window, a region of either, or a voice alone. */
+export const SOURCES = ['screen', 'window', 'region', 'voice'];
+
 const pick = (v, list, fallback) => (list.includes(v) ? v : fallback);
 
 /** Stored settings, or anything, as settings the recorder can use. */
@@ -81,7 +84,7 @@ export function normaliseSettings(raw) {
     const r = raw && typeof raw === 'object' ? raw : {};
     const d = RECORDER_DEFAULTS;
     return {
-        source: pick(r.source, ['screen', 'window', 'region'], d.source),
+        source: pick(r.source, SOURCES, d.source),
         fps: pick(Number(r.fps), FRAME_RATES, d.fps),
         cap: pick(Number(r.cap), SIZE_CAPS, d.cap),
         quality: pick(r.quality, Object.keys(QUALITIES), d.quality),
@@ -127,6 +130,8 @@ export function videoBitrate({ width, height, fps = 30, quality = 'standard' }) 
  */
 export function bytesPerSecond(settings, { screen = { width: 1920, height: 1080 }, camera = null } = {}) {
     const s = normaliseSettings(settings);
+    // A voice alone is its sound track and nothing else.
+    if (s.source === 'voice') return Math.round((AUDIO_BITRATE / 8) * 1.03);
     const shot = capSize(screen.width, screen.height, s.cap);
     let bits = videoBitrate({ ...shot, fps: s.fps, quality: s.quality });
     const withCamera = s.camera && camera;
@@ -307,7 +312,10 @@ function freeLane(doc, section, from, start, end, taken = new Set()) {
  * all of it in one group, as it was recorded on one clock. They go at `at`,
  * or after everything already there.
  *
- * `takes`: [{ role: 'screen' | 'camera', url, name, duration, width, height,
+ * A voice take (role 'voice', the microphone alone) goes on a sound lane of
+ * its own at the same place, its sound marked as the voice.
+ *
+ * `takes`: [{ role: 'screen' | 'camera' | 'voice', url, name, duration, width, height,
  * hasAudio, size, crop?, inset?: { fx, fy, fw, fh }, shape?, mirror?,
  * sound?: 'voice' | 'computer', pointer?: { samples, clicks } }].
  * A screen take with pointer data gets its pointer layer on the lane above
@@ -317,10 +325,11 @@ function freeLane(doc, section, from, start, end, taken = new Set()) {
  * Answers { doc, ids, group }.
  */
 export function placeTakes(doc, takes, { at = null, unfinished = false } = {}) {
-    const list = (takes || []).filter((tk) => tk && tk.url && (tk.role === 'screen' || tk.role === 'camera'));
+    const list = (takes || []).filter((tk) => tk && tk.url && (tk.role === 'screen' || tk.role === 'camera' || tk.role === 'voice'));
     if (!list.length) return { doc, ids: [], group: null };
     const start = at ?? projectDuration(doc);
-    const order = [...list].sort((a, b) => (a.role === b.role ? 0 : a.role === 'screen' ? -1 : 1));
+    const rank = { screen: 0, camera: 1, voice: 2 };
+    const order = [...list].sort((a, b) => rank[a.role] - rank[b.role]);
     let next = doc;
     const ids = [];
     let group = null;
@@ -328,6 +337,18 @@ export function placeTakes(doc, takes, { at = null, unfinished = false } = {}) {
     let pointerLane = -1;
     const usedSound = new Set();
     for (const take of order) {
+        if (take.role === 'voice') {
+            const length = Math.max(0.1, Number(take.duration) || 0.1);
+            const lane = freeLane(next, 'a', 0, start, start + length, usedSound);
+            usedSound.add(lane);
+            const r = addMedia(next, { url: take.url, name: take.name, kind: 'audio', duration: length, size: take.size ?? null }, { at: start, lane });
+            next = r.doc;
+            const made = new Set(r.ids);
+            group = group || `rec-${r.ids[0]}`;
+            next = { ...next, patches: next.patches.map((p) => (made.has(p.id) ? { ...p, lane, group, take: 'voice' } : p)) };
+            ids.push(...r.ids);
+            continue;
+        }
         const length = Math.max(0.1, Number(take.duration) || 0.1);
         const end = start + length;
         const from = take.role === 'camera' ? screenLane + 1 : 0;

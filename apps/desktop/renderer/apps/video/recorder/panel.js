@@ -95,6 +95,47 @@ function Meter({ rig, name, active }) {
   );
 }
 
+/**
+ * What the frame shows for a voice alone: the microphone's name and its level
+ * as it has gone, a bar every tenth of a second, scrolling to the left, so a
+ * person sees their voice landing before and while it records.
+ */
+function VoiceView({ rig, name, active }) {
+  const canvas = useRef(null);
+  const history = useRef([]);
+  useEffect(() => {
+    if (!active) return undefined;
+    const timer = setInterval(() => {
+      const c = canvas.current;
+      if (!c) return;
+      const h = history.current;
+      h.push(rig.level('mic'));
+      const bars = Math.max(20, Math.floor(c.clientWidth / 6));
+      while (h.length > bars) h.shift();
+      const dpr = window.devicePixelRatio || 1;
+      if (c.width !== Math.round(c.clientWidth * dpr)) { c.width = Math.round(c.clientWidth * dpr); c.height = Math.round(c.clientHeight * dpr); }
+      const g = c.getContext('2d');
+      g.clearRect(0, 0, c.width, c.height);
+      const w = c.width / bars;
+      const mid = c.height / 2;
+      h.forEach((v, i) => {
+        const tall = Math.max(2 * dpr, v * c.height * 0.92);
+        g.fillStyle = v > 0.9 ? '#e5484d' : v > 0.02 ? '#2bb673' : 'rgba(255,255,255,0.28)';
+        g.fillRect((bars - h.length + i) * w + w * 0.2, mid - tall / 2, w * 0.6, tall);
+      });
+      c.dataset.bars = String(h.length);
+    }, 100);
+    return () => clearInterval(timer);
+  }, [rig, active]);
+  return (
+    <div className="rec-voice">
+      <span className="rec-voice-mic"><Icon name="mic" size={30} /></span>
+      <b className="rec-voice-name">{name}</b>
+      <canvas ref={canvas} className="rec-voice-wave" aria-hidden="true" />
+    </div>
+  );
+}
+
 /** A live stream in a video element. */
 function Live({ stream, className, mirror, videoRef = null }) {
   const own = useRef(null);
@@ -123,8 +164,10 @@ const containIn = (w, h, W, H) => {
  * settings the scene needs (the camera on), over the ones kept.
  * onDone({ takes, crop, inset, settings }): takes as files, each
  * { role, path, contentType, hasAudio, width, height, duration }.
+ * `kind`: 'voice' opens on the microphone alone (Record Voice); 'picture'
+ * opens on a screen, a window or a region even if a voice was recorded last.
  */
-export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, onProgress = null, prompter = null, force = null }) {
+export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, onProgress = null, prompter = null, force = null, kind = null }) {
   const slide = mode === 'slide';
   const [settings, setSettings] = useState(() => normaliseSettings(null));
   const [loaded, setLoaded] = useState(false);
@@ -165,6 +208,9 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
       const paths = await shell.app.paths().catch(() => null);
       if (!live) return;
       const s = normaliseSettings(force ? { ...(stored || {}), ...force } : stored);
+      // A voice alone is asked for by name; a slide, a scene or Record Screen wants a picture.
+      if (kind === 'voice' && !slide) { s.source = 'voice'; s.mic = true; }
+      else if (s.source === 'voice' && (slide || kind === 'picture' || prompter)) s.source = 'screen';
       setSettings(s);
       const sep = paths?.separator || '\\';
       setFolder(s.folder || (paths?.videos ? `${paths.videos}${sep}${t('Rutba Recordings')}` : ''));
@@ -194,8 +240,10 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
   }, [shell]);
   useEffect(() => { loadSources(); }, [loadSources]);
 
+  const voice = settings.source === 'voice' && !slide;
   const listed = useMemo(() => {
     const all = sources || [];
+    if (settings.source === 'voice') return [];
     if (settings.source === 'window') return all.filter((s) => s.kind === 'window');
     if (settings.source === 'region') return [...all.filter((s) => s.kind === 'screen'), ...all.filter((s) => s.kind === 'window')];
     return all.filter((s) => s.kind === 'screen');
@@ -211,12 +259,12 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
   // The sources open as the settings say, while setting up.
   useEffect(() => {
     if (!loaded || phase !== 'setup') return;
-    rig.setScreen(source, { fps: settings.fps, cap: settings.cap, system: settings.system });
-  }, [rig, loaded, phase, source, settings.fps, settings.cap, settings.system]);
+    rig.setScreen(voice ? null : source, { fps: settings.fps, cap: settings.cap, system: settings.system });
+  }, [rig, loaded, phase, voice, source, settings.fps, settings.cap, settings.system]);
   useEffect(() => {
     if (!loaded || phase !== 'setup') return;
-    rig.setCamera(settings.camera && !slide, { cameraId: settings.cameraId, cameraHeight: settings.cameraHeight });
-  }, [rig, loaded, phase, slide, settings.camera, settings.cameraId, settings.cameraHeight]);
+    rig.setCamera(settings.camera && !slide && !voice, { cameraId: settings.cameraId, cameraHeight: settings.cameraHeight });
+  }, [rig, loaded, phase, slide, voice, settings.camera, settings.cameraId, settings.cameraHeight]);
   useEffect(() => {
     if (!loaded || phase !== 'setup') return;
     rig.setMic(settings.mic, { micId: settings.micId }).then(() => RecorderRig.devices().then(setDevices));
@@ -250,7 +298,7 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
   const camAspect = camSettings.width && camSettings.height ? camSettings.height / camSettings.width : 9 / 16;
   const inset = useMemo(() => insetRect({ corner: settings.corner, size: settings.insetSize, shape: settings.shape, W: 1920, H: 1080, aspect: camAspect }), [settings.corner, settings.insetSize, settings.shape, camAspect]);
   const shownInset = drag ? { ...inset, fx: drag.fx, fy: drag.fy } : inset;
-  const showCamera = !slide && settings.camera;
+  const showCamera = !slide && !voice && settings.camera;
 
   // What the disk holds at this quality.
   const rate = useMemo(() => bytesPerSecond(settings, {
@@ -274,7 +322,7 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
 
   const fileFor = useCallback(async (role, ext) => {
     if (slide) return (await shell.fs.temp({ ext })).path;
-    const stem = role === 'camera' ? t('Camera') : t('Screen');
+    const stem = role === 'camera' ? t('Camera') : role === 'voice' ? t('Voice') : t('Screen');
     return (await shell.capture.take({ dir: folder, name: takeFileName(stem, new Date(), ext) })).path;
   }, [shell, slide, folder]);
 
@@ -282,7 +330,7 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
     try {
       await rig.record({ settings, file: fileFor, slide });
       pointerOn.current = false;
-      if (!slide && settings.pointer && source) {
+      if (!slide && !voice && settings.pointer && source) {
         const pt = await shell.capture.pointer({ on: true, id: source.id, fps: settings.fps }).catch(() => null);
         pointerOn.current = Boolean(pt?.tracking);
         if (!pt?.tracking) toast?.(t('The pointer is not written down over another program\'s window. Record its screen to keep it.'), { ms: 7000 });
@@ -295,10 +343,10 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
       setPhase('setup');
       toast?.(err?.message || String(err), { tone: 'bad', ms: 6000 });
     }
-  }, [rig, settings, fileFor, slide, shell, toast, source]);
+  }, [rig, settings, fileFor, slide, voice, shell, toast, source]);
 
   const record = useCallback(async () => {
-    if (!rig.screen.stream) return;
+    if (voice ? !rig.mic.stream : !rig.screen.stream) return;
     const state = await checkDisk();
     if (state?.level === 'stop') {
       toast?.(t('There is not enough space on the disk to record.'), { tone: 'bad', ms: 6000 });
@@ -311,7 +359,7 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
       setPhase('starting');
       begin();
     }
-  }, [rig, checkDisk, settings.countdown, begin, toast]);
+  }, [rig, voice, checkDisk, settings.countdown, begin, toast]);
 
   // The countdown, a second a step.
   useEffect(() => {
@@ -485,12 +533,14 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
   const busy = phase !== 'setup';
   const recording = phase === 'recording' || phase === 'stopping';
   const paused = rig.paused;
-  const canRecord = phase === 'setup' && Boolean(rig.screen.stream) && disk?.level !== 'stop';
+  const canRecord = phase === 'setup' && Boolean(voice ? rig.mic.stream : rig.screen.stream) && disk?.level !== 'stop';
   const kindOptions = [
     { value: 'screen', label: t('Screen'), icon: 'screen', tip: t('Screen: the whole of one screen') },
     { value: 'window', label: t('Window'), icon: 'window', tip: t('Window: one window, wherever it is') },
     { value: 'region', label: t('Region'), icon: 'region', tip: t('Region: a part you draw, kept as a crop you can change later') },
+    ...(slide || prompter ? [] : [{ value: 'voice', label: t('Voice'), icon: 'mic', tip: t('Voice: the microphone alone, with no picture') }]),
   ];
+  const micName = devices.mics.find((d) => d.id === settings.micId)?.name || t('The usual microphone');
   const fpsLabel = (n) => t('{n} frames a second', { n });
   const capLabel = (c) => (c ? t('Up to {n}p', { n: c }) : t('As the screen'));
   const minutes = disk ? Math.floor(disk.minutes) : null;
@@ -499,7 +549,7 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
       : disk.minutes < 120 ? t('Room for about {minutes} minutes on the disk', { minutes: Math.max(0, minutes) })
         : t('Room for about {hours} hours on the disk', { hours: Math.floor(disk.minutes / 60) });
 
-  const title = slide ? t('Screen Recording') : t('Record');
+  const title = slide ? t('Screen Recording') : voice ? t('Record Voice') : t('Record');
 
   const actions = (
     <>
@@ -565,8 +615,14 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
             aria-label={t('Preview')}
             onPointerDown={drawRegion}
           >
-            <Live stream={rig.screen.stream} className="rec-screen" videoRef={screenRef} />
-            {!rig.screen.stream ? (
+            {voice ? (
+              rig.mic.stream ? <VoiceView rig={rig} name={micName} active={Boolean(rig.mic.stream)} /> : (
+                <div className="rec-empty">
+                  {rig.mic.error ? <><Icon name="info" size={22} /><span>{rig.mic.error}</span></> : settings.mic ? <><Spinner /><span>{t('Opening the microphone…')}</span></> : <><Icon name="mic" size={26} /><span>{t('Turn the microphone on to record your voice.')}</span></>}
+                </div>
+              )
+            ) : <Live stream={rig.screen.stream} className="rec-screen" videoRef={screenRef} />}
+            {!voice && !rig.screen.stream ? (
               <div className="rec-empty">
                 {rig.screen.error || sourceError ? (
                   <><Icon name="info" size={22} /><span>{rig.screen.error || sourceError}</span></>
@@ -601,9 +657,9 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
           </div>
           <div className="rec-under">
             <span>
-              {source ? source.name : ''}
-              {picture.w ? ` · ${picture.w} × ${picture.h}` : ''}
-              {region ? ` · ${t('Region {w} × {h}', { w: Math.round(region.w * picture.w), h: Math.round(region.h * picture.h) })}` : ''}
+              {voice ? micName : source ? source.name : ''}
+              {!voice && picture.w ? ` · ${picture.w} × ${picture.h}` : ''}
+              {!voice && region ? ` · ${t('Region {w} × {h}', { w: Math.round(region.w * picture.w), h: Math.round(region.h * picture.h) })}` : ''}
             </span>
             {crop && phase === 'setup' ? <Button ghost icon="close" label={t('Whole picture')} className="rec-clear-region" onClick={() => setCrop(null)} /> : null}
           </div>
@@ -612,7 +668,8 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
         <aside className="rec-side" aria-disabled={busy}>
           <section className="rec-sec">
             <h3>{t('Record')}</h3>
-            <Segments value={settings.source} options={kindOptions} disabled={busy} onChange={(v) => change({ source: v })} className="rec-kinds" />
+            <Segments value={settings.source} options={kindOptions} disabled={busy} onChange={(v) => change(v === 'voice' ? { source: v, mic: true } : { source: v })} className="rec-kinds" />
+            {voice ? <p className="rec-voice-note">{t('Your voice alone, as a sound file. In Video it goes onto a sound track at the playhead.')}</p> : <>
             <div className="rec-sources">
               {sources == null ? <div className="rec-wait"><Spinner /> {t('Looking at what is open…')}</div> : null}
               {sources && !listed.length ? <div className="rec-wait">{settings.source === 'window' ? t('No other window is open to record.') : t('No screen can be recorded.')}</div> : null}
@@ -627,9 +684,10 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
             {!slide ? (
               <Toggle on={settings.pointer} icon="pointer" label={t('Pointer and clicks')} disabled={busy} onChange={(v) => change({ pointer: v })} className="rec-pointer-toggle" />
             ) : null}
+            </>}
           </section>
 
-          {!slide ? (
+          {!slide && !voice ? (
             <section className="rec-sec">
               <Toggle on={settings.camera} icon="camera" label={t('Camera')} disabled={busy} onChange={(v) => change({ camera: v })} className="rec-camera-toggle" />
               {settings.camera ? (
@@ -674,8 +732,8 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
                   {rig.mic.error ? <small className="rec-err">{rig.mic.error}</small> : <Meter rig={rig} name="mic" active={Boolean(rig.mic.stream)} />}
                 </div>
               ) : null}
-              <Toggle on={settings.system} icon="speaker" label={t('Computer sound')} disabled={busy} onChange={(v) => change({ system: v })} className="rec-system-toggle" />
-              {settings.system ? (
+              {!voice ? <Toggle on={settings.system} icon="speaker" label={t('Computer sound')} disabled={busy} onChange={(v) => change({ system: v })} className="rec-system-toggle" /> : null}
+              {settings.system && !voice ? (
                 <div className="rec-sub">
                   {rig.system.error ? <small className="rec-err">{rig.system.error}</small> : <Meter rig={rig} name="system" active={Boolean(rig.nodes.system)} />}
                 </div>
@@ -684,7 +742,8 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
           )}
 
           <section className="rec-sec">
-            <h3>{t('Quality')}</h3>
+            <h3>{voice ? t('Recording') : t('Quality')}</h3>
+            {!voice ? <>
             <label className="rec-field">
               <span>{t('Frame rate')}</span>
               <Select value={String(settings.fps)} disabled={busy} onChange={(e) => change({ fps: Number(e.target.value) })}>
@@ -705,6 +764,7 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
                 <option value="high">{t('Sharper')}</option>
               </Select>
             </label>
+            </> : null}
             <label className="rec-field">
               <span>{t('Countdown')}</span>
               <Select value={String(settings.countdown)} disabled={busy} onChange={(e) => change({ countdown: Number(e.target.value) })} className="rec-countdown">

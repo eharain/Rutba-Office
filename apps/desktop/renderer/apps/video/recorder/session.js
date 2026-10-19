@@ -42,6 +42,19 @@ export function takeType() {
   return 'video/webm';
 }
 
+/**
+ * The container a voice alone is made in, and its extension: WebM with Opus,
+ * written as a stream as the picture takes are, so a take a crash cut short
+ * still plays.
+ */
+export function voiceType() {
+  const R = typeof MediaRecorder !== 'undefined' ? MediaRecorder : null;
+  for (const k of ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']) {
+    if (R?.isTypeSupported?.(k)) return { type: k, ext: k.startsWith('audio/ogg') ? 'ogg' : 'weba' };
+  }
+  return { type: 'audio/webm', ext: 'weba' };
+}
+
 const stopAll = (stream) => { for (const k of stream?.getTracks() || []) { try { k.stop(); } catch { /* ended */ } } };
 
 /** How loud a sound is just now, 0 to 1, read off its analyser. */
@@ -235,6 +248,7 @@ export class RecorderRig {
    * take goes to and answers its path. Answers when every recorder has started.
    */
   async record({ settings, file, slide = false }) {
+    if (settings.source === 'voice' && !slide) return this.recordVoice({ file });
     if (!this.screen.stream) throw new Error(t('Choose a screen or a window to record.'));
     const withCamera = Boolean(settings.camera && this.camera.stream && !slide);
     const screenSound = withCamera ? this.mix(['system']) : this.mix(['mic', 'system']);
@@ -268,6 +282,31 @@ export class RecorderRig {
     const clock = createClock();
     // One tick for all: every recorder started before any piece is handed over.
     for (const k of takes) k.rec.start(1000);
+    clock.start(performance.now());
+    this.recording = { takes, clock, startedAt: Date.now() };
+    this.changed();
+    return this.recording;
+  }
+
+  /** A voice alone: the microphone to one sound file, on the same clock and pieces as a picture take. */
+  async recordVoice({ file }) {
+    const sound = this.mix(['mic']);
+    if (!sound) throw new Error(t('Turn the microphone on to record your voice.'));
+    const { type, ext } = voiceType();
+    const contentType = type.split(';')[0];
+    const path = await file('voice', ext);
+    let rec;
+    try {
+      rec = new MediaRecorder(new MediaStream([sound]), { mimeType: type, audioBitsPerSecond: AUDIO_BITRATE });
+    } catch {
+      rec = new MediaRecorder(new MediaStream([sound]));
+    }
+    const writer = createChunkWriter({ append: (bytes) => this.shell.fs.append({ path, bytes }) });
+    rec.ondataavailable = (e) => { if (e.data?.size) writer.push(e.data); };
+    const stopped = new Promise((resolve) => rec.addEventListener('stop', resolve, { once: true }));
+    const takes = [{ role: 'voice', path, contentType, ext, rec, writer, stopped, hasAudio: true, width: null, height: null, bits: AUDIO_BITRATE }];
+    const clock = createClock();
+    rec.start(1000);
     clock.start(performance.now());
     this.recording = { takes, clock, startedAt: Date.now() };
     this.changed();

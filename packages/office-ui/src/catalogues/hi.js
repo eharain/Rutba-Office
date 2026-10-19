@@ -7091,4 +7091,10 @@ export default {
   'Until Rutba Office closes.': 'जब तक Rutba Office बंद न हो।',
   'Until you turn them off here.': 'जब तक आप इन्हें यहाँ बंद न करें।',
   'What the tools have done': 'टूल ने क्या किया',
+  'Opening the microphone…': 'माइक्रोफ़ोन खुल रहा है…',
+  'Record Voice': 'आवाज़ रिकॉर्ड करें',
+  'Turn the microphone on to record your voice.': 'अपनी आवाज़ रिकॉर्ड करने के लिए माइक्रोफ़ोन चालू करें।',
+  'Voice: the microphone alone, with no picture': 'आवाज़: केवल माइक्रोफ़ोन, कोई चित्र नहीं',
+  'Your voice alone, as a sound file. In Video it goes onto a sound track at the playhead.': 'केवल आपकी आवाज़, एक ध्वनि फ़ाइल के रूप में। वीडियो में यह प्लेहेड पर एक साउंड ट्रैक पर जाती है।',
+  'your voice alone, onto a sound track at the playhead': 'केवल आपकी आवाज़, प्लेहेड पर एक साउंड ट्रैक पर',
 };

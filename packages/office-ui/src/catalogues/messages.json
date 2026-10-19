@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7081,
+  "count": 7087,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -23667,6 +23667,12 @@
       ]
     },
     {
+      "message": "Opening the microphone…",
+      "where": [
+        "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
       "message": "Opening the project",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -26862,6 +26868,13 @@
       "message": "Record Sound",
       "where": [
         "apps/desktop/renderer/apps/slides/record.js"
+      ]
+    },
+    {
+      "message": "Record Voice",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
     {
@@ -38643,6 +38656,13 @@
       ]
     },
     {
+      "message": "Turn the microphone on to record your voice.",
+      "where": [
+        "apps/desktop/renderer/apps/video/recorder/panel.js",
+        "apps/desktop/renderer/apps/video/recorder/session.js"
+      ]
+    },
+    {
       "message": "Turn — hold Shift for steps of 15°",
       "where": [
         "apps/desktop/renderer/apps/word/drawings.js"
@@ -39847,7 +39867,14 @@
     {
       "message": "Voice",
       "where": [
+        "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Voice: the microphone alone, with no picture",
+      "where": [
+        "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
     {
@@ -40862,6 +40889,12 @@
       "message": "Your title here",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Your voice alone, as a sound file. In Video it goes onto a sound track at the playhead.",
+      "where": [
+        "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
     {
@@ -42761,6 +42794,12 @@
       "message": "your name and a line, in the brand's colours",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "your voice alone, onto a sound track at the playhead",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
