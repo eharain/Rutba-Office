@@ -54,19 +54,31 @@ export default function Mail({ app, shell }) {
   const toast = useToast();
   const menu = useMenu();
 
+  // A message opened in a window of its own, by a double-click in the list
+  // (owner, 2026-10-19): the window shows that message alone, with the
+  // ribbon to answer, file or delete it, and closes once it is moved away.
+  const alone = useMemo(() => {
+    try {
+      const m = JSON.parse(new URLSearchParams(location.search).get('message') || 'null');
+      return m && m.id != null ? { accountId: m.accountId, folder: m.folder, id: m.id } : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const [accounts, setAccounts] = useState([]);
-  const [accountId, setAccountId] = useState(null);
+  const [accountId, setAccountId] = useState(alone?.accountId ?? null);
   const [folders, setFolders] = useState([]);
   // Bumped when mail arrives or a message moves: a folder the move made, and
   // every folder's count, are read again.
   const [folderTick, setFolderTick] = useState(0);
-  const [folder, setFolder] = useState(null);
+  const [folder, setFolder] = useState(alone?.folder ?? null);
   const [role, setRole] = useState('inbox');
   const [list, setList] = useState({ rows: [], total: 0 });
   const [busy, setBusy] = useState(false);
 
   const [checked, setChecked] = useState(() => new Set());
-  const [selected, setSelected] = useState(null); // the row object, so unified lists know where it lives
+  const [selected, setSelected] = useState(alone); // the row object, so unified lists know where it lives
   const [message, setMessage] = useState(null);
   // One's own certificates for signed and encrypted mail, and a count that
   // reopens the message read when one is imported (it may open now).
@@ -291,10 +303,12 @@ export default function Mail({ app, shell }) {
   useEffect(() => {
     refreshList();
     setChecked(new Set());
+    // A message's own window keeps its message whatever the list does.
+    if (alone) return;
     setSelected(null);
     setMessage(null);
     setInsight(null);
-  }, [refreshList]);
+  }, [refreshList, alone]);
 
   // Opening a message: the body and the report on it come together, because
   // showing the body first and the warning a moment later is exactly backwards.
@@ -431,11 +445,13 @@ export default function Mail({ app, shell }) {
     // An archive opened in place is read only: nothing in it is moved,
     // flagged or deleted, whatever is selected.
     const writable = (rows) => rows.filter((r) => !isArchiveId(r.accountId));
+    // In a message's own window, that message and nothing else.
+    if (alone) return selected ? writable([selected]) : [];
     if (checkedRows.length) return writable(checkedRows);
     if (!selected) return [];
     const thread = threads.find((t) => allRowsIn(t).some((r) => keyOf(r) === keyOf(selected)));
     return writable(thread && prefs.threaded ? thread.messages : [selected]);
-  }, [checkedRows, selected, threads, allRowsIn, prefs.threaded]);
+  }, [alone, checkedRows, selected, threads, allRowsIn, prefs.threaded]);
 
   const foldersFor = useCallback(
     (accId) => (accId === accountId && !unified ? folders : []),
@@ -514,6 +530,11 @@ export default function Mail({ app, shell }) {
         }
         setChecked(new Set());
         if (['delete', 'archive', 'junk', 'move', 'notJunk', 'block'].includes(what) || (what === 'safeGroup' && chosen.some((r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk')))) setSelected(null);
+        // Moved out of its folder, the message's own window has nothing left to show.
+        if (alone && ['delete', 'archive', 'junk', 'move', 'notJunk', 'block'].includes(what)) {
+          shell.win.close({}).catch(() => {});
+          return;
+        }
         await refreshList();
         await loadAccounts();
         setFolderTick((n) => n + 1);
@@ -521,7 +542,13 @@ export default function Mail({ app, shell }) {
         toast(err.message, { tone: 'bad' });
       }
     },
-    [targets, overRows, foldersFor, unified, role, shell, refreshList, loadAccounts, toast]
+    [alone, targets, overRows, foldersFor, unified, role, shell, refreshList, loadAccounts, toast]
+  );
+
+  /** A double-click in the list: the message in a window of its own. */
+  const popOut = useCallback(
+    (row) => shell.win.create({ app: 'mail', query: { message: JSON.stringify({ accountId: row.accountId, folder: row.folder, id: row.id }) } }).catch((err) => toast(err.message, { tone: 'bad' })),
+    [shell, toast]
   );
 
   /** Star one message from the list without opening it. */
@@ -1075,6 +1102,8 @@ export default function Mail({ app, shell }) {
       const el = document.activeElement;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      // A message's own window has no list to move through: the arrows scroll the message.
+      if (alone && ['j', 'k', 'u', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
       const at = threads.findIndex((t) => selected && allRowsIn(t).some((r) => keyOf(r) === keyOf(selected)));
       const go = (delta) => {
         const next = threads[Math.max(0, Math.min(threads.length - 1, (at < 0 ? -1 : at) + delta))];
@@ -1092,7 +1121,7 @@ export default function Mail({ app, shell }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [threads, selected, allRowsIn, act, reply, forward]);
+  }, [alone, threads, selected, allRowsIn, act, reply, forward]);
 
   /* ── chrome ───────────────────────────────────────────────────────────── */
 
@@ -1171,11 +1200,40 @@ export default function Mail({ app, shell }) {
     ]);
   };
 
+  // The message open: in the reading pane, or alone in its own window.
+  const readerView = message ? (
+    <Reader
+      message={message}
+      zoom={prefs.zoom ?? 1}
+      insight={insight}
+      invitation={invitation}
+      onRespond={respondToInvitation}
+      onKeepSender={keepSender}
+      remote={remote}
+      plain={plain}
+      dark={dark}
+      onRemote={() => setRemote(true)}
+      onSaveAttachment={saveAttachment}
+      onOpenAttachment={openAttachment}
+      onReply={() => reply(false)}
+      onReplyAll={() => reply(true)}
+      onForward={forward}
+      onUnsubscribe={unsubscribe}
+      onSender={(from) => from?.address && setQuery(from.address)}
+      inJunk={inJunk}
+      onNotJunk={() => act('notJunk')}
+      onSmimeImport={() => setDialog({ kind: 'certificates', start: 'import' })}
+      onCertificates={() => setDialog({ kind: 'certificates' })}
+      notes={<AttachmentNotes shell={shell} where={selected} notes={attachmentNotes} />}
+    />
+  ) : null;
+
   return (
     <AppFrame
       app={app}
       shell={shell}
-      title={title}
+      // A message's own window is named after the message.
+      title={alone ? message?.subject || t('Mail') : title}
       menu={appMenu}
       ribbon={
         <Ribbon
@@ -1479,7 +1537,15 @@ export default function Mail({ app, shell }) {
         </div>
       ) : null}
 
-      {!accounts.length && !archives.length ? (
+      {alone ? (
+        <Content>
+          {readerView || (
+            <div style={{ padding: 24, display: 'grid', placeItems: 'center' }}>
+              <Spinner />
+            </div>
+          )}
+        </Content>
+      ) : !accounts.length && !archives.length ? (
         <Empty icon="mail" title={t('No mail here yet')}>
           {t('Add an account to fetch mail, or import what you already have — an Outlook .pst or .ost, an mbox, or a folder of messages. Rutba Office can find them for you.')}
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
@@ -1742,6 +1808,7 @@ export default function Mail({ app, shell }) {
                         checked={allRowsIn(thread).every((r) => checked.has(keyOf(r)))}
                         expanded={expanded.has(thread.threadKey)}
                         onOpen={(row) => setSelected({ accountId: row.accountId, folder: row.folder, id: row.id })}
+                        onPopOut={popOut}
                         onCheck={(e) => toggleCheck(thread, e)}
                         onStar={star}
                         onExpand={() =>
@@ -1775,32 +1842,7 @@ export default function Mail({ app, shell }) {
 
               {prefs.layout !== 'off' ? (
                 <Content>
-                  {message ? (
-                    <Reader
-                      message={message}
-                      zoom={prefs.zoom ?? 1}
-                      insight={insight}
-                      invitation={invitation}
-                      onRespond={respondToInvitation}
-                      onKeepSender={keepSender}
-                      remote={remote}
-                      plain={plain}
-                      dark={dark}
-                      onRemote={() => setRemote(true)}
-                      onSaveAttachment={saveAttachment}
-                      onOpenAttachment={openAttachment}
-                      onReply={() => reply(false)}
-                      onReplyAll={() => reply(true)}
-                      onForward={forward}
-                      onUnsubscribe={unsubscribe}
-                      onSender={(from) => from?.address && setQuery(from.address)}
-                      inJunk={inJunk}
-                      onNotJunk={() => act('notJunk')}
-                      onSmimeImport={() => setDialog({ kind: 'certificates', start: 'import' })}
-                      onCertificates={() => setDialog({ kind: 'certificates' })}
-                      notes={<AttachmentNotes shell={shell} where={selected} notes={attachmentNotes} />}
-                    />
-                  ) : (
+                  {readerView || (
                     <Empty icon="mail" title={t('No message selected')}>
                       <span className="ml-keys-hint">
                         {t('Choose a message to read it here.')}{' '}
@@ -2074,7 +2116,7 @@ export default function Mail({ app, shell }) {
  * box otherwise, and the whole point of holding the mail locally is that the
  * list is instant.
  */
-const Row = React.memo(function Row({ thread, unified, where, threaded, selected, checked, expanded, first, onOpen, onCheck, onStar, onExpand, onMenu }) {
+const Row = React.memo(function Row({ thread, unified, where, threaded, selected, checked, expanded, first, onOpen, onPopOut, onCheck, onStar, onExpand, onMenu }) {
   const avatar = avatarFor(thread.from);
   const many = threaded && thread.count > 1;
 
@@ -2089,6 +2131,7 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
         data-f6-home={selected || first ? '' : undefined}
         // Ctrl+click adds the message to those checked and Shift+click checks the run to it, as in Outlook: the whole row is the target.
         onClick={(e) => (e.ctrlKey || e.metaKey || e.shiftKey ? onCheck(e.nativeEvent) : onOpen(thread))}
+        onDoubleClick={(e) => !(e.ctrlKey || e.metaKey || e.shiftKey) && onPopOut?.(thread)}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(thread))}
         onContextMenu={onMenu}
       >
@@ -2167,7 +2210,7 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
             .slice()
             .reverse()
             .map((m) => (
-              <div key={m.id} className={`ml-row${m.unread ? ' unread' : ''}`} role="row" tabIndex={-1} onClick={() => onOpen(m)} onKeyDown={(e) => e.key === 'Enter' && onOpen(m)}>
+              <div key={m.id} className={`ml-row${m.unread ? ' unread' : ''}`} role="row" tabIndex={-1} onClick={() => onOpen(m)} onDoubleClick={() => onPopOut?.(m)} onKeyDown={(e) => e.key === 'Enter' && onOpen(m)}>
                 <span role="gridcell" />
                 <span className="ml-avatar-sm" role="gridcell" aria-hidden="true" style={{ background: avatarFor(m.from).colour, width: 22, height: 22, fontSize: 10 }}>
                   {avatarFor(m.from).initial}

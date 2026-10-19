@@ -185,6 +185,7 @@ import { verifyWordTable } from './verify-word-table.js';
 import { verifyMailJunk } from './verify-mail-junk.js';
 import { verifyMailLinks } from './verify-mail-links.js';
 import { verifyAiTools } from './verify-ai-tools.js';
+import { verifyMailWindow } from './verify-mail-window.js';
 import { verifyMailArchive } from './verify-mail-archive.js';
 import { verifyMailIndexWorker } from './verify-mail-index-worker.js';
 import { verifyMailBigMbox } from './verify-mail-big-mbox.js';
@@ -4988,6 +4989,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('junk')) await verifyMailJunk({ open, check, until, wait, errorsIn });
     if (only.includes('mail-links')) await verifyMailLinks({ open, check, until, wait, errorsIn });
     if (only.includes('ai-tools')) await verifyAiTools({ open, check, until, wait, errorsIn });
+    if (only.includes('mail-window')) await verifyMailWindow({ open, check, until, wait, errorsIn });
     if (only.includes('mail-archive')) await verifyMailArchive({ open, check, until, wait, errorsIn });
     if (only.includes('mail-index-worker')) await verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo });
     if (only.includes('mail-big-mbox')) await verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo });
@@ -7020,6 +7022,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await verifyMailJunk({ open, check, until, wait, errorsIn });
   await block(() => verifyMailLinks({ open, check, until, wait, errorsIn }));
   await block(() => verifyAiTools({ open, check, until, wait, errorsIn }));
+  await block(() => verifyMailWindow({ open, check, until, wait, errorsIn }));
   await verifyMailArchive({ open, check, until, wait, errorsIn });
   await block(() => verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo }));
   await block(() => verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo }));
