@@ -144,6 +144,13 @@ export async function verifyTemplates(h, { dir, windows }) {
     await hjs(`document.querySelector('.tg-rail-item[data-view="slides"]').click(), 1`);
     const decks = await got(() => hjs(`(() => { const c = [...document.querySelectorAll('.tg-card[data-template]')].map((n) => n.dataset.template); return c.length === 7 && c.every((x) => x.startsWith('deck-')) ? c : false; })()`), 'the seven decks', 4000).catch(() => null);
     check('templates: a search finds the budget alone, and Presentations lists the seven decks', JSON.stringify(found) === '["sheet-budget"]' && Boolean(decks), JSON.stringify({ found, decks }));
+
+    // Templates on the web opens the site's page in the browser; the suite fetches nothing itself.
+    const openedBefore = (globalThis.__rutbaCheckOpened || []).length;
+    await hjs(`document.querySelector('.tg-more')?.click(), 1`);
+    await until(() => (globalThis.__rutbaCheckOpened || []).length > openedBefore, 'the page opened', 3000).catch(() => {});
+    const opened = (globalThis.__rutbaCheckOpened || []).slice(openedBefore);
+    check('templates: Templates on the web opens office.rutba.io/templates in the browser', JSON.stringify(opened) === '["https://office.rutba.io/templates"]', JSON.stringify(opened));
     await hjs(`document.querySelector('.tg-rail-item[data-view="all"]').click(), 1`);
 
     /* -- choosing one: an untitled copy with the template's content ------- */

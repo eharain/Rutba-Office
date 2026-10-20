@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7352,
+  "count": 7354,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -12273,6 +12273,12 @@
       "message": "Every slide's words, as an outline",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Every template to download, on office.rutba.io, in your browser",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -35728,6 +35734,12 @@
     },
     {
       "message": "Templates",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "Templates on the web",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
       ]

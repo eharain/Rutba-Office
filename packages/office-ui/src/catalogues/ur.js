@@ -7360,4 +7360,6 @@ export default {
   'The results of a quarter: the numbers, revenue by month, what went well, lessons and goals': 'ایک سہ ماہی کے نتائج: اعداد، ماہانہ آمدنی، کیا اچھا رہا، سبق اور اہداف',
   'Weekly planner': 'ہفتہ وار منصوبہ',
   'What a meeting is for, its items with times and who leads each, and what to read first': 'اجلاس کس لیے ہے، اس کے نکات اوقات کے ساتھ اور ہر ایک کی قیادت کون کرے گا، اور پہلے کیا پڑھنا ہے',
+  'Every template to download, on office.rutba.io, in your browser': 'ڈاؤن لوڈ کے لیے ہر ٹیمپلیٹ، office.rutba.io پر، آپ کے براؤزر میں',
+  'Templates on the web': 'ویب پر ٹیمپلیٹس',
 };

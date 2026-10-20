@@ -7362,4 +7362,6 @@ export default {
   'The results of a quarter: the numbers, revenue by month, what went well, lessons and goals': 'نتائج ربع سنة: الأرقام والإيرادات شهريًا وما نجح والدروس والأهداف',
   'Weekly planner': 'مخطط أسبوعي',
   'What a meeting is for, its items with times and who leads each, and what to read first': 'الغرض من الاجتماع وبنوده بأوقاتها ومن يقود كلًّا منها وما يُقرأ أولًا',
+  'Every template to download, on office.rutba.io, in your browser': 'كل القوالب للتنزيل، على office.rutba.io، في متصفحك',
+  'Templates on the web': 'قوالب على الويب',
 };

@@ -50,6 +50,9 @@ export const GALLERY_WORDS = [
   msg('Portfolio'), msg('Selected work on a dark theme: about you, three projects with pictures, and what clients say'),
 ];
 
+/** The site's page of templates, opened in the browser by More templates. */
+export const MORE_TEMPLATES_URL = 'https://office.rutba.io/templates';
+
 const APP_ORDER = ['word', 'sheets', 'slides'];
 const APP_NAMES = { word: msg('Documents'), sheets: msg('Worksheets'), slides: msg('Presentations') };
 const BLANK = { word: msg('Blank document'), sheets: msg('Blank worksheet'), slides: msg('Blank presentation') };
@@ -159,6 +162,11 @@ export function TemplateGallery({ shell, app = null, onClose }) {
                 </button>
               </React.Fragment>
             ))}
+            {/* The site's Templates page, in the browser: the suite itself fetches nothing for it. */}
+            <button type="button" className="tg-rail-item tg-more" data-tip={t('Every template to download, on office.rutba.io, in your browser')} onClick={() => shell.shell.openExternal({ url: MORE_TEMPLATES_URL }).catch(() => {})}>
+              <Icon name="open" size={15} />
+              <span>{t('Templates on the web')}</span>
+            </button>
           </nav>
           <div className="tg-grid-wrap">
             {!data ? <div className="tg-wait">{t('Loading the templates…')}</div> : null}
@@ -255,6 +263,7 @@ const CSS = `
 .tg-rail-item small { color: var(--ink-3); font-size: 11px; }
 .tg-rail-item:hover { background: var(--hover); color: var(--ink); }
 .tg-rail-item.on { background: var(--selected); color: var(--accent-text); font-weight: 600; }
+.tg-more { margin-top: auto; color: var(--accent-text); }
 .tg-dot { width: 15px; height: 15px; display: grid; place-items: center; flex: none; }
 .tg-dot::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.55; }
 .tg-grid-wrap { flex: 1; min-width: 0; overflow: auto; padding: 18px 20px 22px; overscroll-behavior: contain; }
