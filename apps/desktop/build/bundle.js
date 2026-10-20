@@ -1,9 +1,11 @@
 // The renderer build.
 //
-// esbuild, one config, no framework. The renderer is a single bundle loaded
-// from rutba://app/, so there is no dev server to run, no route table to keep
-// in step, and nothing to go wrong between a developer's machine and an
-// installed copy: the file the installer ships is the file the developer ran.
+// esbuild, one config, no framework. The renderer is loaded from rutba://app/,
+// so there is no dev server to run, no route table to keep in step, and
+// nothing to go wrong between a developer's machine and an installed copy: the
+// files the installer ships are the files the developer ran. app.js is what
+// every window shares; each app is a bundle of its own in chunks/, loaded when
+// a window of that app opens (owner, 2026-10-20, the build split by app).
 //
 //   node build/bundle.js            build once
 //   node build/bundle.js --watch    rebuild on save
@@ -32,7 +34,7 @@ const html = `<!doctype html>
 </head>
 <body>
 <div id="root"></div>
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
 `;
@@ -53,8 +55,12 @@ const shared = {
 
 const rendererOptions = {
   ...shared,
-  entryPoints: [path.join(app, 'renderer', 'index.js')],
-  outfile: path.join(out, 'app.js'),
+  // Modules, split: what two apps share is a chunk of its own, loaded once.
+  format: 'esm',
+  splitting: true,
+  entryPoints: { app: path.join(app, 'renderer', 'index.js') },
+  outdir: out,
+  chunkNames: 'chunks/[name]-[hash]',
   minify: !dev,
   sourcemap: dev ? 'inline' : false,
 };
@@ -128,6 +134,8 @@ function pdfjs() {
 }
 
 async function run() {
+  // The last build's chunks go: their names change with their contents.
+  fs.rmSync(path.join(out, 'chunks'), { recursive: true, force: true });
   fs.writeFileSync(path.join(out, 'index.html'), html);
   whatsNew();
   pdfjs();
@@ -145,7 +153,9 @@ async function run() {
   const started = Date.now();
   await Promise.all([esbuild.build(rendererOptions), esbuild.build(preloadOptions), esbuild.build(workerOptions), esbuild.build(imageWorkerOptions)]);
   const size = fs.statSync(path.join(out, 'app.js')).size;
-  console.log(`built in ${Date.now() - started} ms — app.js ${(size / 1024).toFixed(0)} KB`);
+  const chunks = fs.readdirSync(path.join(out, 'chunks')).filter((f) => f.endsWith('.js'));
+  const chunked = chunks.reduce((n, f) => n + fs.statSync(path.join(out, 'chunks', f)).size, 0);
+  console.log(`built in ${Date.now() - started} ms: app.js ${(size / 1024).toFixed(0)} KB, ${chunks.length} chunks ${(chunked / 1024).toFixed(0)} KB`);
 }
 
 run().catch((err) => {
