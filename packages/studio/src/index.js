@@ -856,6 +856,8 @@ export function applyLayerPatches(plan, patches) {
                 url: patch.url || null,
                 fileId: patch.fileId ?? null,
                 offset: Number(patch.offset) || 0,
+                // Faster or slower than recorded: the source read at this many seconds a second.
+                speed: Number(patch.speed) > 0 ? Math.max(0.25, Math.min(4, Number(patch.speed))) : 1,
                 visible: patch.visible !== false && !!entry,
                 timing: patch.timing || null,
                 enter: patch.enter || { kind: 'none', seconds: 0 },
@@ -883,6 +885,8 @@ export function applyLayerPatches(plan, patches) {
                 trackId: patch.trackId ?? null,
                 url: patch.url || null,
                 offset: Number(patch.offset) || 0,
+                // Faster or slower than recorded: the source read at this many seconds a second.
+                speed: Number(patch.speed) > 0 ? Math.max(0.25, Math.min(4, Number(patch.speed))) : 1,
                 volume: patch.volume ?? null, // null = the host's default
                 // How this clip meets OTHER audio it overlaps: 'mix' sums
                 // (the default), 'duck' dips the rest while it plays, 'solo'
@@ -1658,7 +1662,7 @@ function paintVideo(ctx, plan, layer, time) {
         // so the frame it held is what shows until the new one lands; the 0.08 s
         // threshold stops scrubbing from thrashing the decoder.
         const w0 = layer.timing || { start: 0, end: plan.duration };
-        const want = (layer.offset || 0) + (time - w0.start);
+        const want = (layer.offset || 0) + (time - w0.start) * (layer.speed || 1);
         if (live.el.paused && live.el.readyState >= 2 && Math.abs(live.el.currentTime - want) > 0.08) {
             try {
                 live.el.currentTime = Math.min(Math.max(0, want), Math.max(0, (live.duration || 1) - 0.05));
@@ -3193,6 +3197,7 @@ export function clipFromSoundLayer(layer, buffer, plan, defaults = {}) {
         fadeOut: layer.exit?.seconds ?? defaults.fadeOut ?? 0,
         mix: layer.mix || 'mix',
         loop: !!layer.loop,
+        speed: layer.speed || 1,
     };
 }
 
@@ -3251,6 +3256,8 @@ function normalizeAudioClips(audio, plan) {
             ...(({ fadeIn, fadeOut }) => ({ fadeIn, fadeOut }))(soundFades(c.fadeIn ?? 1.2, c.fadeOut ?? 1.6, dur)),
             mix: c.mix === 'duck' || c.mix === 'solo' ? c.mix : 'mix',
             loop: !!c.loop,
+            // Faster or slower, the pitch with it (a speed with the pitch kept is still to come).
+            speed: Math.max(0.25, Math.min(4, Number(c.speed) || 1)),
         });
     }
     return clips;
@@ -3390,8 +3397,9 @@ export function startAudioPreview(audio, plan, from = 0) {
             gain.gain.linearRampToValueAtTime(clip.vol, at(clip.start + clip.fadeIn));
             gain.gain.setValueAtTime(clip.vol, at(holdT));
             gain.gain.linearRampToValueAtTime(0, at(end));
+            source.playbackRate.value = clip.speed;
             if (clip.loop) source.start(at(clip.start), clip.offset);
-            else source.start(at(clip.start), clip.offset, clip.dur);
+            else source.start(at(clip.start), clip.offset, clip.dur * clip.speed);
         } else {
             // Mid-clip: pick up the envelope where it would be.
             const elapsed = from - clip.start;
@@ -3404,12 +3412,13 @@ export function startAudioPreview(audio, plan, from = 0) {
             if (elapsed < clip.fadeIn) gain.gain.linearRampToValueAtTime(clip.vol, at(clip.start + clip.fadeIn));
             if (holdT > from) gain.gain.setValueAtTime(clip.vol, at(holdT));
             gain.gain.linearRampToValueAtTime(0, at(end));
+            source.playbackRate.value = clip.speed;
             if (clip.loop) {
-                source.start(t0, clip.buffer.duration > 0 ? (clip.offset + elapsed) % clip.buffer.duration : 0);
+                source.start(t0, clip.buffer.duration > 0 ? (clip.offset + elapsed * clip.speed) % clip.buffer.duration : 0);
             } else {
-                const off = clip.offset + elapsed;
+                const off = clip.offset + elapsed * clip.speed;
                 if (off >= clip.buffer.duration) { try { gain.disconnect(); } catch { /* nothing to hear */ } continue; }
-                source.start(t0, off, clip.dur - elapsed);
+                source.start(t0, off, (clip.dur - elapsed) * clip.speed);
             }
         }
         sources.push(source);
@@ -3466,7 +3475,8 @@ export function driveVideoElements(plan, t, { tolerance = 0.3 } = {}) {
             if (!el.paused) el.pause();
             continue;
         }
-        const target = (layer.offset || 0) + (t - w.start);
+        const target = (layer.offset || 0) + (t - w.start) * (layer.speed || 1);
+        if (el.playbackRate !== (layer.speed || 1)) { try { el.playbackRate = layer.speed || 1; } catch { /* not this rate */ } }
         if (el.paused) {
             try { el.currentTime = target; } catch { /* not seekable */ }
             el.play().catch(() => { /* a clip that cannot play just holds its frame */ });
@@ -3495,7 +3505,7 @@ export function videoTimesAt(plan, t) {
         if (!held || (held.timing?.start ?? 0) <= w.start) owner.set(key, l);
     }
     const out = new Map();
-    for (const [key, l] of owner) out.set(key, Math.max(0, (l.offset || 0) + (t - (l.timing?.start ?? 0))));
+    for (const [key, l] of owner) out.set(key, Math.max(0, (l.offset || 0) + (t - (l.timing?.start ?? 0)) * (l.speed || 1)));
     return out;
 }
 
@@ -3534,11 +3544,12 @@ export async function mixAudioOffline(audio, plan, { sampleRate = 48000, channel
         gain.gain.linearRampToValueAtTime(clip.vol, at + clip.fadeIn);
         gain.gain.setValueAtTime(clip.vol, at + Math.max(clip.fadeIn, clip.dur - clip.fadeOut));
         gain.gain.linearRampToValueAtTime(0, at + clip.dur);
+        source.playbackRate.value = clip.speed;
         if (clip.loop) {
             source.start(at, clip.offset);
             source.stop(at + clip.dur);
         } else {
-            source.start(at, clip.offset, clip.dur);
+            source.start(at, clip.offset, clip.dur * clip.speed);
         }
     });
     return ac.startRendering();
@@ -3685,8 +3696,9 @@ export async function renderVideo({ canvas, plan, audio, onProgress, signal }) {
             }
             // A looped clip runs until the explicit stop below; a one-shot is
             // bounded here so it can never spill past its window.
+            source.playbackRate.value = clip.speed;
             if (clip.loop) source.start(at, clip.offset);
-            else source.start(at, clip.offset, clip.dur);
+            else source.start(at, clip.offset, clip.dur * clip.speed);
         }
     }
 

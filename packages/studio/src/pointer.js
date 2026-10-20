@@ -105,6 +105,8 @@ function compilePointer(patch, cx) {
         exit: patch.exit || { kind: 'none', seconds: 0 },
         z: patch.z == null ? cx.nextZ() : patch.z,
         offset: Number(patch.offset) || 0,
+        // At its screen recording's speed (setSpeed sets the group together).
+        speed: Number(patch.speed) > 0 ? Number(patch.speed) : 1,
         screenUrl: patch.screenUrl || null,
         samples: Array.isArray(patch.samples) ? patch.samples : [],
         clicks: Array.isArray(patch.clicks) ? patch.clicks : [],
@@ -152,7 +154,7 @@ function drawArrow(ctx, x, y, s) {
 function paintPointer(ctx, plan, layer, time) {
     const screen = screenFor(plan, layer, time);
     if (!screen) return;
-    const t = (layer.offset || 0) + (time - (layer.timing ? layer.timing.start : 0));
+    const t = (layer.offset || 0) + (time - (layer.timing ? layer.timing.start : 0)) * (layer.speed || 1);
     const r = plan.W * 0.022 * (layer.size || 1);
     if (layer.rings) {
         for (const ring of ringsAt(layer.clicks, t)) {

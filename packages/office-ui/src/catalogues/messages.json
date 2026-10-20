@@ -33816,6 +33816,7 @@
     {
       "message": "Speed",
       "where": [
+        "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/player.js"
       ]
     },

@@ -11,7 +11,7 @@ import React from 'react';
 import { Button, Icon, Select, labelFirstControl, t, tn } from '@rutba/office-ui';
 import { MAX_GAIN, gainToDb, dbToGain, soundFades } from '@rutba/studio';
 import { timecode } from '@rutba/media/timeline';
-import { clipById, partnersOf, previousOnLane, lengthOf, animationName, TEXT_ANIMATIONS, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker } from '@rutba/studio/project';
+import { clipById, partnersOf, previousOnLane, lengthOf, animationName, TEXT_ANIMATIONS, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker, SPEEDS, speedOf, setSpeed } from '@rutba/studio/project';
 import { insetRect, cornerOf } from '@rutba/studio/recorder';
 import { pointerOf, applyAutoZoom, updateZoom, setZooms } from '@rutba/studio/pointer';
 import { composeIntro } from '@rutba/studio/intro';
@@ -309,7 +309,7 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         </Row>
         {clip.type === 'video' || clip.type === 'sound' ? (
           <Row label={t('From the source')}>
-            <span className="vd-prop-note">{t('{from} to {to}', { from: timecode(clip.offset || 0), to: timecode((clip.offset || 0) + lengthOf(clip)) })}</span>
+            <span className="vd-prop-note">{t('{from} to {to}', { from: timecode(clip.offset || 0), to: timecode((clip.offset || 0) + lengthOf(clip) * speedOf(clip)) })}</span>
           </Row>
         ) : null}
         {missing?.has?.(clip.url) ? <div className="vd-warn">{t('This clip’s file cannot be found: {path}', { path: clip.url })}</div> : null}
@@ -352,6 +352,18 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
       })()}
 
       {clip.type === 'video' && clip.fw ? <InsetProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
+
+      {/* Speed: the same stretch of the clip, faster or slower; its length on the timeline follows. */}
+      {(clip.type === 'video' || clip.type === 'sound') && !clip.caption ? (
+        <section className="vd-insp-section vd-speed">
+          <h3>{t('Speed')}</h3>
+          <Row label={t('Speed')}>
+            <Select value={String(speedOf(clip))} className="vd-speed-select" onChange={(e) => edit(t('Speed'), (d) => setSpeed(d, clip.id, Number(e.target.value)))}>
+              {SPEEDS.map((s) => <option key={s} value={String(s)}>{`${s}×`}</option>)}
+            </Select>
+          </Row>
+        </section>
+      ) : null}
 
       {/* The picture's own fades: up from black where it starts, down to black where it ends. */}
       {(clip.type === 'video' || clip.type === 'image') && !clip.caption ? (

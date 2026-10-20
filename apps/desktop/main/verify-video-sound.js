@@ -94,6 +94,19 @@ export async function verifyVideoSound(h, { dir }) {
     check('video sound: a picture clip fades from black at its start and to black at its end, as long as asked',
       shown && kept[0] === '1' && kept[1] === '0.5', JSON.stringify({ shown, kept }));
 
+    // Speed: the picture clip at twice its speed takes half the time on the timeline, and back.
+    const span = () => js(`(() => { const n = document.querySelector('.vd-clip[data-kind="video"]'); return n ? Number(n.dataset.end) - Number(n.dataset.start) : 0; })()`);
+    const was = await span();
+    await js(`(() => { const n = document.querySelector('.vd-speed-select'); if (!n) return 'none'; Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(n, '2'); n.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    const halved = await ok(until(async () => Math.abs((await span()) - was / 2) < 0.06, 'the clip at twice its speed', 4000));
+    const fast = await span();
+    await pickKind('video');
+    await until(() => js(`Boolean(document.querySelector('.vd-speed-select'))`), 'the speed again', 3000).catch(() => {});
+    await js(`(() => { const n = document.querySelector('.vd-speed-select'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(n, '1'); n.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    const restored = await ok(until(async () => Math.abs((await span()) - was) < 0.06, 'the clip at its own speed', 4000));
+    check('video sound: a clip at twice its speed takes half the time on the timeline, and set back takes its own',
+      was > 0.5 && halved && restored, JSON.stringify({ was, fast, halved, restored }));
+
     // The meter beside the time: dark while stopped, a level while the tone plays.
     const idle = await js(`document.querySelector('.vd-meter')?.dataset.db ?? 'none'`);
     await js(`document.querySelector('.vd-play')?.click(), 1`);

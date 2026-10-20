@@ -499,7 +499,7 @@ function ClipArt({ clip, w, h, pps, media, version, source }) {
       for (let x = 0; x < cw; x += tw) {
         let frame = first;
         if (kind === 'video' && thumbs) {
-          const srcT = (clip.offset || 0) + (x + tw / 2) / pps;
+          const srcT = (clip.offset || 0) + ((x + tw / 2) / pps) * (Number(clip.speed) || 1);
           let i = Math.min(thumbs.frames.length - 1, Math.max(0, Math.floor(srcT / thumbs.step)));
           while (i > 0 && !thumbs.frames[i]) i--;
           frame = thumbs.frames[i] || first;
@@ -528,7 +528,7 @@ function ClipArt({ clip, w, h, pps, media, version, source }) {
       if (peaks) {
         const per = peaks.rate / pps;
         for (let x = 0; x < cw; x++) {
-          const from = Math.floor(((clip.offset || 0) + x / pps) * peaks.rate);
+          const from = Math.floor(((clip.offset || 0) + (x / pps) * (Number(clip.speed) || 1)) * peaks.rate);
           let m = 0;
           for (let i = from; i < from + Math.max(1, per); i++) if (peaks.data[i] > m) m = peaks.data[i];
           const bar = Math.max(0.5, Math.min(mid - 1, m * vol * (mid - 2)));

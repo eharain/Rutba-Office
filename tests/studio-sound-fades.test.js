@@ -26,3 +26,26 @@ test('volume: decibels and back, and the ceiling at +12 dB', () => {
   assert.equal(dbToGain(-Infinity), 0);
   assert.equal(Math.round(gainToDb(MAX_GAIN)), 12);
 });
+
+test('speed: a clip set to twice its speed takes half the time, its sound with it, and what follows on its lane moves up', async () => {
+  const { setSpeed, speedOf } = await import('@rutba/studio/project');
+  const doc = {
+    sources: { 'a.webm': { duration: 20 } },
+    patches: [
+      { id: 'v1', type: 'video', url: 'a.webm', offset: 0, timing: { start: 0, end: 10 }, lane: 0, group: 'g1' },
+      { id: 's1', type: 'sound', url: 'a.webm', offset: 0, timing: { start: 0, end: 10 }, lane: 0, group: 'g1' },
+      { id: 'v2', type: 'video', url: 'a.webm', offset: 10, timing: { start: 10, end: 14 }, lane: 0 },
+    ],
+  };
+  const out = setSpeed(doc, 'v1', 2);
+  const by = Object.fromEntries(out.patches.map((p) => [p.id, p]));
+  assert.equal(speedOf(by.v1), 2);
+  assert.equal(speedOf(by.s1), 2);
+  assert.deepEqual([by.v1.timing.start, by.v1.timing.end], [0, 5]);
+  assert.deepEqual([by.s1.timing.start, by.s1.timing.end], [0, 5]);
+  assert.deepEqual([by.v2.timing.start, by.v2.timing.end], [5, 9]);
+  const back = setSpeed(out, 'v1', 0.5);
+  const b = Object.fromEntries(back.patches.map((p) => [p.id, p]));
+  assert.deepEqual([b.v1.timing.start, b.v1.timing.end], [0, 20]);
+  assert.equal(b.v2.timing.start, 20);
+});

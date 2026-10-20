@@ -575,6 +575,39 @@ export function splitAll(doc, t) {
 // ── trim (V3) and ripple trim (V4) ───────────────────────────────────────────
 
 /** The longest a clip may run from `offset`: its source's length, when known. */
+/** The speeds a clip can be set to: a quarter to four times. */
+export const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4];
+/** A clip's speed: 1 unless it was set. */
+export function speedOf(p) {
+    const s = Number(p?.speed);
+    return s > 0 ? s : 1;
+}
+
+/**
+ * A clip's speed, and its group's (its sound, its pointer): the same stretch
+ * of its source, shown faster or slower, so its length on the clock is that
+ * stretch over the speed. What follows on its lane moves with its end, as a
+ * ripple trim does, so nothing is covered and no gap opens.
+ */
+export function setSpeed(doc, id, speed) {
+    const clip = clipById(doc, id);
+    if (!clip || !['video', 'sound', 'pointer'].includes(clip.type)) return doc;
+    const next = Math.max(0.25, Math.min(4, Number(speed) || 1));
+    if (Math.abs(speedOf(clip) - next) < EPS) return doc;
+    const ids = withPartners(doc, [id]);
+    const changes = new Map();
+    for (const pid of ids) {
+        const p = clipById(doc, pid);
+        if (!['video', 'sound', 'pointer'].includes(p.type)) continue;
+        const length = Math.max(MIN_CLIP, (lengthOf(p) * speedOf(p)) / next);
+        changes.set(pid, { ...setTiming(p, p.timing.start, p.timing.start + length), speed: next });
+    }
+    const delta = changes.get(id).timing.end - clip.timing.end;
+    let out = rewrite(doc, changes);
+    if (Math.abs(delta) > EPS) out = shift(out, rippleSet(doc, sectionOf(clip), laneOf(clip), clip.timing.start + EPS * 2, ids), delta);
+    return out;
+}
+
 function sourceRoom(doc, p) {
     const d = Number(doc.sources?.[p.url]?.duration);
     return p.type === 'video' || p.type === 'sound' ? (Number.isFinite(d) && d > 0 ? d : Infinity) : Infinity;
@@ -625,7 +658,8 @@ export function trimEnd(doc, id, t, { ripple = false } = {}) {
         const p = clipById(doc, pid);
         delta = Math.max(delta, MIN_CLIP - lengthOf(p));
         const room = sourceRoom(doc, p);
-        if (Number.isFinite(room)) delta = Math.min(delta, room - (Number(p.offset) || 0) - lengthOf(p));
+        // The source left, on the clock: a faster clip uses it up sooner.
+        if (Number.isFinite(room)) delta = Math.min(delta, (room - (Number(p.offset) || 0)) / speedOf(p) - lengthOf(p));
     }
     if (Math.abs(delta) < EPS) return doc;
     const changes = new Map();
