@@ -550,6 +550,14 @@ select.rw-input { appearance: auto; }
   font: 14px/1.6 var(--font); outline: none;
 }
 .ml-rich:focus { border-color: var(--accent-line); }
+.ml-compose-page { position: fixed; inset: var(--titlebar-h, 40px) 0 0 0; z-index: 60; display: flex; flex-direction: column; background: var(--window); }
+.ml-compose-page-head { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line-soft); background: var(--chrome); }
+.ml-compose-page-head h2 { margin: 0; font-size: 15px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml-compose-page-head .grow { flex: 1; }
+.ml-compose-page-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 24px; }
+.ml-compose-page .ml-form { max-width: 1000px; margin: 0 auto; }
+.ml-compose-page .ml-rich { max-height: none; min-height: 50vh; }
+.ml-compose-page .ml-compose-body { min-height: 50vh; }
 .ml-rich blockquote { margin: 0 0 0 10px; padding-left: 10px; border-left: 3px solid var(--line); color: var(--ink-3); }
 .ml-toolbar { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; padding: 4px 0; }
 .ml-to-row { display: flex; align-items: center; gap: 8px; }

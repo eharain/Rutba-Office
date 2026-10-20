@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7154,
+  "count": 7157,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -14212,6 +14212,12 @@
       ]
     },
     {
+      "message": "Full view",
+      "where": [
+        "apps/desktop/renderer/apps/mail/compose.js"
+      ]
+    },
+    {
       "message": "Function",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -20256,15 +20262,15 @@
       ]
     },
     {
-      "message": "Message — {subject}",
-      "where": [
-        "apps/desktop/renderer/apps/mail/compose.js"
-      ]
-    },
-    {
       "message": "Message-ID",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Message: {subject}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/compose.js"
       ]
     },
     {
@@ -32834,6 +32840,7 @@
     {
       "message": "Smaller",
       "where": [
+        "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
@@ -41186,6 +41193,18 @@
       "message": "Write each message's attachments beside it",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Write it in a box over the mailbox",
+      "where": [
+        "apps/desktop/renderer/apps/mail/compose.js"
+      ]
+    },
+    {
+      "message": "Write it in the whole window",
+      "where": [
+        "apps/desktop/renderer/apps/mail/compose.js"
       ]
     },
     {

@@ -30,7 +30,7 @@ export async function verifyMailDrafts(h) {
     const drafts = () => js(`window.rutbaOffice.mail.messages({ accountId: ${JSON.stringify(accountId)}, folder: 'Drafts', query: '', limit: 200 }).then((r) => (r.rows || r).filter((m) => (m.subject || '').includes(${JSON.stringify(String(stamp))})).map((m) => ({ id: m.id, subject: m.subject })))`);
     const openDrafts = () => js(`(() => { const f = [...document.querySelectorAll('[title="Drafts"]')].find((n) => n.textContent.trim().startsWith('Drafts')); f?.click(); return Boolean(f); })()`);
     const openRow = (words) => js(`(() => { const r = [...document.querySelectorAll('.ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(String(stamp))}) && row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(words)})); if (!r) return false; r.click(); return true; })()`);
-    const field = (name) => `[...document.querySelectorAll('.rw-dialog .rw-field')].find((f) => f.querySelector('label')?.textContent === ${JSON.stringify(name)})?.querySelector('input')?.value ?? null`;
+    const field = (name) => `[...document.querySelectorAll('.rw-dialog .rw-field, .ml-compose-page .rw-field')].find((f) => f.querySelector('label')?.textContent === ${JSON.stringify(name)})?.querySelector('input')?.value ?? null`;
 
     await until(async () => (await openDrafts()) && (await wait(400), await openRow('Draft:')), 'the draft in Drafts', 10000).catch(() => {});
     const composing = await until(() => js(`Boolean(document.querySelector('.rw-dialog .ml-form'))`), 'Compose', 8000).then(() => true).catch(() => false);
@@ -38,6 +38,20 @@ export async function verifyMailDrafts(h) {
     check('mail drafts: a draft opened from Drafts is in Compose, not the reading pane, with its To, Cc, Bcc, subject and attachment',
       composing && /amina@work\.example/.test(shown.to || '') && /tomas@/.test(shown.cc || '') && /files@/.test(shown.bcc || '') && shown.subject === subject && shown.files.some((x) => x.includes('figures.txt')),
       JSON.stringify({ composing, shown }));
+
+    // Full view (owner, 2026-10-20: "it should have conversion to full view as normal email"):
+    // the message fills the window with what was written, Smaller puts it back in its box, and the choice is kept.
+    await js(`document.querySelector('.ml-compose-full')?.click(), 1`);
+    const fullShown = await until(() => js(`Boolean(document.querySelector('.ml-compose-page .ml-form')) && !document.querySelector('.rw-dialog .ml-form')`), 'the full view', 4000).then(() => true).catch(() => false);
+    const inFull = await js(`({ subject: ${field('Subject')}, cc: ${field('Cc')}, body: document.querySelector('.ml-compose-page .ml-rich')?.textContent || '', files: document.querySelectorAll('.ml-compose-page .ml-attachment').length, wide: Math.round(document.querySelector('.ml-compose-page')?.getBoundingClientRect().width || 0), window: window.innerWidth })`);
+    const keptFull = await js(`window.rutbaOffice.store.get({ key: 'mail.composeFull', fallback: null })`);
+    await js(`document.querySelector('.ml-compose-small')?.click(), 1`);
+    const backInBox = await until(() => js(`Boolean(document.querySelector('.rw-dialog .ml-form')) && !document.querySelector('.ml-compose-page')`), 'the box again', 4000).then(() => true).catch(() => false);
+    const body = await js(`document.querySelector('.rw-dialog .ml-rich')?.textContent || ''`);
+    const keptBox = await js(`window.rutbaOffice.store.get({ key: 'mail.composeFull', fallback: null })`);
+    check('mail drafts: Full view puts the message in the whole window with everything written in it, Smaller puts it back in its box, and the choice is kept for the next message',
+      fullShown && inFull.subject === subject && /tomas@/.test(inFull.cc || '') && /board pack/.test(inFull.body) && inFull.files === 1 && inFull.wide >= inFull.window - 2 && keptFull === true && backInBox && /board pack/.test(body) && keptBox === false,
+      JSON.stringify({ fullShown, inFull, keptFull, backInBox, body: body.slice(0, 40), keptBox }));
 
     // A new subject, saved: one draft, the new subject, the attachment kept.
     await js(`(() => { const n = [...document.querySelectorAll('.rw-dialog .rw-field')].find((f) => f.querySelector('label')?.textContent === 'Subject')?.querySelector('input'); if (!n) return 0; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(n, ${JSON.stringify(`Draft, edited: the quarter's numbers ${stamp}`)}); n.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);

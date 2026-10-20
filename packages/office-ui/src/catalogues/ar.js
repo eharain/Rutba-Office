@@ -2435,7 +2435,6 @@ export default {
   'Message options': 'خيارات الرسالة',
   'Message text': 'نص الرسالة',
   'Message when the cell is selected': 'الرسالة عند تحديد الخلية',
-  'Message — {subject}': 'رسالة — {subject}',
   'Messages now send immediately': 'تُرسل الرسائل الآن فوراً',
   'Microsoft Excel Worksheet': 'ورقة عمل Microsoft Excel',
   'Microsoft PowerPoint Presentation': 'عرض تقديمي Microsoft PowerPoint',
@@ -7164,4 +7163,8 @@ export default {
   'This computer cannot make the H.264 picture a live stream needs.': 'لا يستطيع هذا الحاسوب إنشاء صورة H.264 التي يحتاجها البث المباشر.',
   'Turn on a destination with a stream key to go live.': 'فعّل وجهة لها مفتاح بث لتبدأ البث المباشر.',
   'Drag on the picture again to choose a smaller part.': 'اسحب على الصورة مرة أخرى لاختيار جزء أصغر.',
+  'Message: {subject}': 'رسالة: {subject}',
+  'Full view': 'عرض كامل',
+  'Write it in the whole window': 'اكتبها في النافذة كلها',
+  'Write it in a box over the mailbox': 'اكتبها في مربع فوق صندوق البريد',
 };

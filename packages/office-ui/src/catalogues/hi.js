@@ -2435,7 +2435,6 @@ export default {
   'Message options': 'संदेश विकल्प',
   'Message text': 'संदेश टेक्स्ट',
   'Message when the cell is selected': 'कक्ष चयनित होने पर संदेश',
-  'Message — {subject}': 'संदेश — {subject}',
   'Messages now send immediately': 'संदेश अब तुरंत भेजे जाते हैं',
   'Microsoft Excel Worksheet': 'Microsoft Excel कार्यपत्रक',
   'Microsoft PowerPoint Presentation': 'Microsoft PowerPoint प्रस्तुति',
@@ -7164,4 +7163,8 @@ export default {
   'This computer cannot make the H.264 picture a live stream needs.': 'यह कंप्यूटर वह H.264 चित्र नहीं बना सकता जो लाइव स्ट्रीम को चाहिए।',
   'Turn on a destination with a stream key to go live.': 'लाइव जाने के लिए स्ट्रीम कुंजी वाला कोई गंतव्य चालू करें।',
   'Drag on the picture again to choose a smaller part.': 'छोटा भाग चुनने के लिए चित्र पर फिर से खींचें।',
+  'Message: {subject}': 'संदेश: {subject}',
+  'Full view': 'पूरा दृश्य',
+  'Write it in the whole window': 'इसे पूरी विंडो में लिखें',
+  'Write it in a box over the mailbox': 'इसे मेलबॉक्स के ऊपर एक बॉक्स में लिखें',
 };

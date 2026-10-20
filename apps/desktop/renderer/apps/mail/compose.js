@@ -93,7 +93,14 @@ function AddressInput({ value, onChange, shell, placeholder, autoFocus }) {
   );
 }
 
-export default function Compose({ draft, accounts, accountId, onAccount, onChange, onClose, onSend, onSaveDraft, shell, toast, identities = [], onCertificates }) {
+/**
+ * `full`: the message fills the window below its title bar, as a mail
+ * client's own compose page does, instead of a dialog over the mailbox
+ * (owner, 2026-10-20: "the email reply is still in a model dialog it should
+ * have conversion to full view as normal email is also same for drafts").
+ * `onFull(on)` switches, and the window remembers the choice.
+ */
+export default function Compose({ draft, accounts, accountId, onAccount, onChange, onClose, onSend, onSaveDraft, shell, toast, identities = [], onCertificates, full = false, onFull = null }) {
   const bodyRef = useRef(null);
   const [rich, setRich] = useState(draft.rich !== false);
   const [showCc, setShowCc] = useState(Boolean(draft.cc || draft.bcc));
@@ -154,7 +161,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
     selection.addRange(range);
     el.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rich]);
+  }, [rich, full]);
 
   const collect = useCallback(() => {
     const el = bodyRef.current;
@@ -199,21 +206,18 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
   }, [shell, draft, onChange]);
 
   const total = (draft.attachments || []).reduce((n, a) => n + (a.size || 0), 0);
-
-  return (
-    <Dialog
-      title={draft.subject ? t('Message — {subject}', { subject: draft.subject }) : t('New message')}
-      width={760}
-      onClose={onClose}
-      actions={
-        <>
-          <Button label={t('Discard')} onClick={onClose} />
-          <Button label={t('Save draft')} onClick={() => onSaveDraft(collect())} />
-          <Button icon="clock" label={t('Send later')} disabled={!draft.to} onClick={() => setScheduling((s) => !s)} />
-          <Button primary icon="send" label={t('Send')} disabled={!draft.to} onClick={() => onSend(collect(), null)} />
-        </>
-      }
-    >
+  const title = draft.subject ? t('Message: {subject}', { subject: draft.subject }) : t('New message');
+  // What is typed is put in the draft first: the editor is drawn again in the other view.
+  const switchView = (on) => { onChange(collect()); onFull?.(on); };
+  const buttons = (
+    <>
+      <Button label={t('Discard')} onClick={onClose} />
+      <Button label={t('Save draft')} onClick={() => onSaveDraft(collect())} />
+      <Button icon="clock" label={t('Send later')} disabled={!draft.to} onClick={() => setScheduling((s) => !s)} />
+      <Button primary icon="send" label={t('Send')} disabled={!draft.to} onClick={() => onSend(collect(), null)} />
+    </>
+  );
+  const form = (
       <div className="ml-form">
         {accounts.length > 1 ? (
           <Field label={t('From')}>
@@ -389,6 +393,36 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
           </div>
         ) : null}
       </div>
+  );
+
+  if (full) {
+    return (
+      <div className="ml-compose-page" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="ml-compose-page-head">
+          <h2>{title}</h2>
+          <span className="grow" />
+          {onFull ? <Button icon="restore" label={t('Smaller')} className="ml-compose-small" title={t('Write it in a box over the mailbox')} onClick={() => switchView(false)} /> : null}
+          {buttons}
+        </div>
+        <div className="ml-compose-page-body">{form}</div>
+      </div>
+    );
+  }
+
+  return (
+    <Dialog
+      title={title}
+      width={760}
+      onClose={onClose}
+      actions={
+        <>
+          {onFull ? <Button icon="maximize" label={t('Full view')} className="ml-compose-full" title={t('Write it in the whole window')} onClick={() => switchView(true)} /> : null}
+          <span style={{ flex: 1 }} />
+          {buttons}
+        </>
+      }
+    >
+      {form}
     </Dialog>
   );
 }

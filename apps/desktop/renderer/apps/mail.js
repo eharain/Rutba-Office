@@ -96,6 +96,9 @@ export default function Mail({ app, shell }) {
   const [progress, setProgress] = useState(null);
   const [dialog, setDialog] = useState(() => (new URLSearchParams(location.search).has('import') ? { kind: 'import' } : null));
   const [compose, setCompose] = useState(null);
+  // A message is written in a dialog or in the whole window, as last chosen.
+  const [composeFull, setComposeFull] = useState(false);
+  useEffect(() => { shell.store.get({ key: 'mail.composeFull', fallback: false }).then((v) => setComposeFull(Boolean(v))).catch(() => {}); }, [shell]);
   // The calendar part of the open message, read and offered as a card.
   const [invitation, setInvitation] = useState(null);
   const [scan, setScan] = useState(null);
@@ -2140,6 +2143,8 @@ export default function Mail({ app, shell }) {
           onChange={setCompose}
           onClose={() => setCompose(null)}
           onSend={doSend}
+          full={composeFull}
+          onFull={(on) => { setComposeFull(on); shell.store.set({ key: 'mail.composeFull', value: on }).catch(() => {}); }}
           onSaveDraft={async (draft) => {
             await shell.mail.saveDraft({ accountId: draft.accountId || accountId, draft, replaces: draft.replaces || null });
             toast(t('Saved to Drafts'), { tone: 'good' });
