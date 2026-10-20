@@ -1117,6 +1117,29 @@ export const TITLE_PRESETS = {
  * clips that is free for its length (a two-layer title takes two lanes, its
  * band under its words, in one group). Answers { doc, ids }.
  */
+/**
+ * A shape or an icon from Video's library, at `at` for `seconds` (a still's
+ * length when not said), on the lowest track above the pictures that is free
+ * for all of it. It shows at once, so what was added is seen where it was
+ * put; a fade in or out is the person's to give it.
+ */
+export function addGraphic(doc, patch, { at = 0, seconds = null } = {}) {
+    const type = patch?.type === 'icon' ? 'icon' : patch?.type === 'shape' ? 'shape' : null;
+    if (!type) return { doc, ids: [] };
+    const length = Math.max(MIN_CLIP, Number(seconds) || Number(doc.settings?.stillSeconds) || STILL_SECONDS);
+    const start = round(Math.max(0, at));
+    const timing = { start, end: round(start + length) };
+    // The lowest lane above the pictures with room for it.
+    let lane = 1;
+    const free = (l) => laneClips(doc, 'v', l).every((p) => p.timing.end <= timing.start + EPS || p.timing.start >= timing.end - EPS);
+    while (lane < 64 && !free(lane)) lane += 1;
+    const [id] = freshIds(doc, type, 1);
+    const still = TEXT_ANIMATIONS.none;
+    const clip = { ...patch, id, type, timing, lane, enter: still, exit: still };
+    delete clip.anim;
+    return { doc: { ...doc, patches: [...doc.patches, clip] }, ids: [id] };
+}
+
 export function addTitle(doc, preset, { at = 0, text = '' } = {}) {
     const def = TITLE_PRESETS[preset] || TITLE_PRESETS.title;
     const seconds = def.seconds;

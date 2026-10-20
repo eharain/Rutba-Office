@@ -28,7 +28,7 @@ function C({ cmds, id, tall, label, icon, pressed }) {
 }
 
 /** A title preset drawn as a small frame, so the gallery shows what it adds. */
-function TitleTile({ preset }) {
+export function TitleTile({ preset }) {
   return (
     <span className={`vd-title-tile p-${preset}`} aria-hidden="true">
       <span className="band" />
@@ -280,6 +280,10 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
             <C cmds={cmds} id="view.zoomIn" tall />
             <C cmds={cmds} id="view.zoomOut" tall />
             <C cmds={cmds} id="view.fit" tall />
+          </Group>
+          <Group label={t('Panels')}>
+            <C cmds={cmds} id="view.library" tall />
+            <C cmds={cmds} id="view.properties" tall />
           </Group>
           <Group label={t('Helpers')}>
             <C cmds={cmds} id="view.snap" tall />

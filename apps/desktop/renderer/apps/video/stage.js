@@ -24,7 +24,7 @@ import { t } from '@rutba/office-ui';
 import { keepTurnedCorner } from '../image/stage.js';
 
 /** The kinds of clip that are drawn on the frame. */
-const PICTURE = new Set(['video', 'image', 'text', 'shape']);
+const PICTURE = new Set(['video', 'image', 'text', 'shape', 'icon']);
 const measure = () => document.createElement('canvas').getContext('2d');
 
 /** A clip or still that fills the frame rather than standing in a box of its own. */
@@ -78,6 +78,13 @@ function resizedUpright(ctx, plan, layer, start, kind, k) {
     return { fit: undefined, fx: +(x / plan.W).toFixed(4), fy: +(y / plan.H).toFixed(4), fw: +(w / plan.W).toFixed(4) };
   }
   if (layer.type === 'shape') return resizeCentred({ width: plan.W, height: plan.H }, layer, start, kind, k);
+  // An icon is square on the frame: its width alone, its height following.
+  if (layer.type === 'icon') {
+    const r = resizeCentred({ width: plan.W, height: plan.H }, layer, start, kind, k);
+    if (!r) return r;
+    const { fh, ...rest } = r;
+    return rest;
+  }
   return resizePatch(ctx, plan, layer, kind, k);
 }
 

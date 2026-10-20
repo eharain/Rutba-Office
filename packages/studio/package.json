@@ -20,6 +20,7 @@
     "./presets": "./src/presets.js",
     "./pointer": "./src/pointer.js",
     "./stretch": "./src/stretch.js",
+    "./effects": "./src/effects.js",
     "./intro": "./src/intro.js",
     "./layers": "./src/layers.js",
     "./rimg": "./src/rimg.js",

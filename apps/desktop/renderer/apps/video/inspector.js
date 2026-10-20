@@ -74,7 +74,7 @@ const BLEND_MODES = () => [
  */
 function PlacementProps({ clip, set, aspect }) {
   const fills = (clip.type === 'video' && !clip.fw) || (clip.type === 'image' && Boolean(clip.fit));
-  const boxed = clip.type === 'image' || clip.type === 'video' || clip.type === 'shape';
+  const boxed = clip.type === 'image' || clip.type === 'video' || clip.type === 'shape' || clip.type === 'icon';
   const toInset = () => {
     if (clip.type === 'video') {
       const r = insetRect({ corner: 'br', size: 0.35, shape: 'rounded', W: 1920, H: 1080, aspect });
@@ -295,9 +295,9 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
   return (
     <div className="vd-inspector">
       <div className="vd-insp-head">
-        <span className={`vd-insp-kind k-${clip.type}`}><Icon name={clip.caption ? 'captions' : { video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape', pointer: 'pointer' }[clip.type] || 'file'} size={14} /></span>
+        <span className={`vd-insp-kind k-${clip.type}`}><Icon name={clip.caption ? 'captions' : { video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape', icon: 'star', pointer: 'pointer' }[clip.type] || 'file'} size={14} /></span>
         <div className="vd-insp-title">
-          <strong>{clip.type === 'text' ? clip.text || t('Title') : clip.name || kindName(clip.type)}</strong>
+          <strong>{clip.type === 'text' ? clip.text || t('Title') : clip.type === 'shape' && clip.preset ? t('Title background') : clip.type === 'icon' ? clip.label || kindName('icon') : clip.name || kindName(clip.type)}</strong>
           <small>{kindName(clip.caption ? 'caption' : clip.type)}{selected.length > 1 ? `, ${t('{count} picked', { count: selected.length })}` : ''}</small>
         </div>
       </div>
@@ -345,7 +345,7 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         </section>
       ) : null}
 
-      {['video', 'image', 'text', 'shape'].includes(clip.type) && !clip.caption ? <PlacementProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
+      {['video', 'image', 'text', 'shape', 'icon'].includes(clip.type) && !clip.caption ? <PlacementProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
 
       {(() => {
         // A screen recording with its pointer, or the pointer itself: its look and the zoom on its clicks.
@@ -480,9 +480,9 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         </section>
       ) : null}
 
-      {clip.type === 'shape' ? (
-        <section className="vd-insp-section">
-          <h3>{t('Background')}</h3>
+      {clip.type === 'shape' || clip.type === 'icon' ? (
+        <section className="vd-insp-section vd-graphic-colour">
+          <h3>{clip.type === 'shape' && clip.preset ? t('Background') : t('Colour')}</h3>
           <Row label={t('Colour')}>
             <Swatches value={clip.color} onPick={(c) => set(t('Colour'), { color: c })} />
           </Row>

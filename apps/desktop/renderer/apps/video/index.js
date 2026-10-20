@@ -13,7 +13,7 @@
 // same window its own.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Spacer, Chip, Empty, Button, Panel, Content, useToast, useCommands, useMenu, menuItems, formatBytes, basename, t, tn } from '@rutba/office-ui';
+import { Spacer, Chip, Empty, Button, Icon, Panel, Content, useToast, useCommands, useMenu, menuItems, formatBytes, basename, t, tn } from '@rutba/office-ui';
 import { History } from '@rutba/editing/history';
 import { timecode } from '@rutba/media/timeline';
 import { PlayMeter, METER_CSS } from './meter.js';
@@ -22,7 +22,7 @@ import {
   emptyProject, normaliseProject, addMedia, splitAt, splitAll, trimStart, trimEnd, removeClips, closeGap, copyClips,
   pasteClips, duplicateClips, unlinkClips, linkClips, addMarker, nextMarker, previousMarker, setTransition, addTitle,
   planPatches, projectMedia, projectDuration, clipById, clipsAt, sectionOf, laneOf, partnersOf, previousOnLane, setRange,
-  clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf, setReversed,
+  clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf, setReversed, addGraphic,
 } from '@rutba/studio/project';
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
 import { placeTakes, settleTakes, takeFileName } from '@rutba/studio/recorder';
@@ -45,6 +45,8 @@ import Inspector from './inspector.js';
 import { ExportDialog, ExportProgress, exportProject, exportFormat, PRESET_TAGS } from './export.js';
 import { CSS } from './css.js';
 import { writeReversed } from './reverse.js';
+import Library, { LIBRARY_CSS, LIBRARY_TABS, EFFECT_NAMES } from './library.js';
+import { effectWav } from '@rutba/studio/effects';
 import VideoPlayer, { playsInPlayer } from './player.js';
 
 /** The timeline's share of the editor's height when nothing else is chosen: the preview has the larger part. */
@@ -72,7 +74,7 @@ const FREEZE_SECONDS = 2;
 const FREEZE_LOOK = ['fit', 'turn', 'flipX', 'flipY', 'fx', 'fy', 'fw', 'fh', 'rot', 'opacity', 'crop', 'blend', 'insetShape'];
 
 /** A clip drawn in a box of its own, which a drag on the stage moves: a title, a shape, a picture in picture or a still not set to fill the frame. */
-export const standsInBox = (p) => p.type === 'text' || p.type === 'shape' || (p.type === 'video' && Boolean(p.fw)) || (p.type === 'image' && !p.fit);
+export const standsInBox = (p) => p.type === 'text' || p.type === 'shape' || p.type === 'icon' || (p.type === 'video' && Boolean(p.fw)) || (p.type === 'image' && !p.fit);
 
 /** A clip with `change` made: a field set to undefined is taken off, so a still can stop filling the frame. */
 export function withChange(p, change) {
@@ -178,6 +180,14 @@ function VideoEditor({ app, shell, boot }) {
   const [timelineShare, setTimelineShare] = useState(TIMELINE_SHARE);
   const [editorH, setEditorH] = useState(0);
   useEffect(() => { shell.store.get({ key: 'video.timelineShare', fallback: null }).then((v) => { if (Number.isFinite(v) && v > 0 && v < 1) setTimelineShare(v); }).catch(() => {}); }, [shell]);
+  // The panels beside the preview, each shown or folded to a rail, and the library's tab: kept on this computer.
+  const [panels, setPanels] = useState({ library: true, properties: true, tab: 'media' });
+  useEffect(() => { shell.store.get({ key: 'video.panels', fallback: null }).then((v) => { if (v && typeof v === 'object') setPanels((p) => ({ ...p, library: v.library !== false, properties: v.properties !== false, tab: LIBRARY_TABS.includes(v.tab) ? v.tab : p.tab })); }).catch(() => {}); }, [shell]);
+  const setPanel = useCallback((change) => setPanels((p) => {
+    const next = { ...p, ...change };
+    shell.store.set({ key: 'video.panels', value: next }).catch(() => {});
+    return next;
+  }), [shell]);
   // The editor measured whenever it is drawn or resized, however late it first appears.
   const editorWatch = useRef(null);
   const editorRef = useCallback((el) => {
@@ -648,6 +658,31 @@ function VideoEditor({ app, shell, boot }) {
     }
   }, [shell, media, madeFolder, edit, toast]);
 
+  // The library's shapes and icons at the playhead, and its sound effects, written once beside the project.
+  const addGraphicHere = useCallback((patch) => {
+    let ids = [];
+    edit(patch.type === 'icon' ? t('Add Icon') : t('Add Shape'), (d) => {
+      const r = addGraphic(d, patch, { at: timeRef.current });
+      ids = r.ids;
+      return r.doc;
+    });
+    setSelected(ids.slice(0, 1));
+  }, [edit]);
+  const addEffect = useCallback(async (key) => {
+    try {
+      const dir = await madeFolder();
+      const sep = dir.includes('/') && !dir.includes('\\') ? '/' : '\\';
+      const file =`${dir}${sep}${EFFECT_NAMES()[key] || key}.wav`;
+      if (!(await shell.fs.exists({ path: file }).catch(() => false))) {
+        await shell.fs.mkdirp({ path: dir });
+        await shell.fs.write({ path: file, bytes: effectWav(key) });
+      }
+      await addFiles([file], { where: 'insert' });
+    } catch (err) {
+      toast(t('The sound could not be added: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+    }
+  }, [shell, madeFolder, addFiles, toast]);
+
   const saveTo = useCallback(async (target) => {
     try {
       const bytes = writeRvid(docRef.current, { projectPath: target });
@@ -1038,6 +1073,8 @@ function VideoEditor({ app, shell, boot }) {
     'clip.mute': { label: t('Mute'), icon: 'volume', disabled: !soundsOfSelection().size, pressed: soundsOfSelection().size > 0 && [...soundsOfSelection()].every((id) => clipById(doc, id)?.muted), tip: t('the picked clips make no sound'), run: () => { const all = [...soundsOfSelection()].every((id) => clipById(doc, id)?.muted); setSounds(t('Mute'), () => ({ muted: !all })); } },
     'clip.fadeIn': { label: t('Fade In'), icon: 'trFade', disabled: !soundsOfSelection().size, tip: t('the sound rises over a second'), run: () => setSounds(t('Fade In'), (p) => ({ enter: { kind: 'fade', seconds: p.enter?.seconds ? 0 : 1 } })) },
     'clip.fadeOut': { label: t('Fade Out'), icon: 'trFade', disabled: !soundsOfSelection().size, tip: t('the sound falls away over a second'), run: () => setSounds(t('Fade Out'), (p) => ({ exit: { kind: 'fade', seconds: p.exit?.seconds ? 0 : 1 } })) },
+    'view.library': { label: t('Library'), icon: 'grid', pressed: panels.library, tip: t('media, titles, shapes, icons and sounds for this project, beside the preview'), run: () => setPanel({ library: !panels.library }) },
+    'view.properties': { label: t('Properties'), icon: 'sliders', pressed: panels.properties, tip: t('the settings of the picked clip, beside the preview'), run: () => setPanel({ properties: !panels.properties }) },
     'view.zoomIn': { label: t('Zoom In'), icon: 'zoomIn', key: '=', run: () => setPps((v) => Math.min(600, v * 1.5)) },
     'view.zoomOut': { label: t('Zoom Out'), icon: 'zoomOut', key: '-', run: () => setPps((v) => Math.max(4, v / 1.5)) },
     'view.fit': { label: t('Fit to Window'), icon: 'maximize', key: 'Shift+Z', run: fitView },
@@ -1126,7 +1163,7 @@ function VideoEditor({ app, shell, boot }) {
 
   const onLane = (section, lane, change) => edit(t('Track'), (d) => ({ ...d, lanes: { ...d.lanes, [section]: { ...(d.lanes?.[section] || {}), [lane]: { ...((d.lanes?.[section] || {})[lane] || {}), ...change } } } }));
   const dragBase = useRef(null);
-  const kindName = (type) => ({ video: t('Video clip'), image: t('Picture'), sound: t('Sound clip'), text: t('Title'), shape: t('Title background'), caption: t('Caption'), pointer: t('Pointer') }[type] || t('Clip'));
+  const kindName = (type) => ({ video: t('Video clip'), image: t('Picture'), sound: t('Sound clip'), text: t('Title'), shape: t('Shape'), icon: t('Icon'), caption: t('Caption'), pointer: t('Pointer') }[type] || t('Clip'));
   const reason = useMemo(() => unsupportedReason(), []);
   const name = path ? basename(path) : t('Untitled video');
 
@@ -1202,6 +1239,25 @@ function VideoEditor({ app, shell, boot }) {
                 />
               </Panel>
             ) : null}
+            {intro ? null : panels.library ? (
+              <Panel title={t('Library')} name="video-library" width={260} resizable min={200} max={460} actions={<Button icon="chevronLeft" label="" title={t('Fold the library away')} className="vd-fold-library" onClick={() => setPanel({ library: false })} />}>
+                <Library
+                  doc={doc}
+                  media={media}
+                  tab={panels.tab}
+                  setTab={(k) => setPanel({ tab: k })}
+                  onAddSource={(url, where) => addFiles([url], { where })}
+                  onAddFiles={() => insertMedia('end')}
+                  onTitle={(p) => cmds[`insert.title.${p}`]?.run()}
+                  onGraphic={addGraphicHere}
+                  onEffect={addEffect}
+                />
+              </Panel>
+            ) : (
+              <div className="vd-panel-rail">
+                <button type="button" className="vd-open-library" onClick={() => setPanel({ library: true })}><Icon name="chevronRight" size={14} />{t('Library')}</button>
+              </div>
+            )}
             <div className="vd-monitor">
               {hasClips ? (
                 <Stage
@@ -1267,9 +1323,15 @@ function VideoEditor({ app, shell, boot }) {
                 <span className="vd-time total">{timecode(duration)}</span>
               </div>
             </div>
-            <Panel title={t('Properties')} width={286} right resizable>
-              <Inspector doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName} />
-            </Panel>
+            {panels.properties ? (
+              <Panel title={t('Properties')} width={286} right resizable actions={<Button icon="chevronRight" label="" title={t('Fold the properties away')} className="vd-fold-properties" onClick={() => setPanel({ properties: false })} />}>
+                <Inspector doc={doc} selected={selected} edit={edit} onSeek={seek} missing={missing} kindName={kindName} />
+              </Panel>
+            ) : (
+              <div className="vd-panel-rail right">
+                <button type="button" className="vd-open-properties" onClick={() => setPanel({ properties: true })}><Icon name="chevronLeft" size={14} />{t('Properties')}</button>
+              </div>
+            )}
           </div>
           <div
             className="vd-split"
@@ -1330,6 +1392,7 @@ function VideoEditor({ app, shell, boot }) {
       {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} fast={exporting.fast} since={exporting.since} from={exporting.from} onCancel={() => exportAbort.current?.abort()} /> : null}
       <style>{CSS}</style>
       <style>{METER_CSS}</style>
+      <style>{LIBRARY_CSS}</style>
       {intro || brandOpen ? <style>{INTRO_CSS}</style> : null}
     </AppFrame>
   );

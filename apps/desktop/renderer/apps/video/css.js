@@ -96,6 +96,7 @@ export const CSS = `
 .vd-clip.k-sound { background: #1a4a3c; border-color: rgba(120, 230, 190, 0.25); }
 .vd-clip.k-text { background: linear-gradient(180deg, #7b4bd1, #5f37a8); }
 .vd-clip.k-shape { background: linear-gradient(180deg, #b7792a, #8c5b1d); }
+.vd-clip.k-icon { background: linear-gradient(180deg, #8a4fb8, #66398a); }
 .vd-zoom-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
 .vd-zoom-row .rw-select { flex: 1; min-width: 0; padding: 3px 6px; }
 .vd-zoom-len { font-size: 11px; color: var(--ink-2); white-space: nowrap; }
@@ -114,8 +115,8 @@ export const CSS = `
 .vd-clip.k-video .vd-clip-art, .vd-clip.k-image .vd-clip-art { opacity: 0.92; }
 .vd-clip-label { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 5px; padding: 2px 7px 3px;
   font-size: 11px; color: #fff; pointer-events: none; background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.72) 100%); text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
-.vd-clip.k-sound .vd-clip-label, .vd-clip.k-text .vd-clip-label, .vd-clip.k-shape .vd-clip-label { top: 0; bottom: auto; background: none; }
-.vd-clip.k-text .vd-clip-label, .vd-clip.k-shape .vd-clip-label { bottom: 0; top: 0; }
+.vd-clip.k-sound .vd-clip-label, .vd-clip.k-text .vd-clip-label, .vd-clip.k-shape .vd-clip-label, .vd-clip.k-icon .vd-clip-label { top: 0; bottom: auto; background: none; }
+.vd-clip.k-text .vd-clip-label, .vd-clip.k-shape .vd-clip-label, .vd-clip.k-icon .vd-clip-label { bottom: 0; top: 0; }
 .vd-clip.k-pointer .vd-clip-label { top: 0; bottom: auto; background: none; }
 .vd-clip.k-sound .vd-clip-label, .vd-clip.k-pointer .vd-clip-label { padding-right: 24px; }
 .vd-clip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; font-weight: 600; }
@@ -139,6 +140,7 @@ export const CSS = `
 .vd-insp-kind.k-sound { background: #23896a; }
 .vd-insp-kind.k-text { background: #7b4bd1; }
 .vd-insp-kind.k-shape { background: #b7792a; }
+.vd-insp-kind.k-icon { background: #8a4fb8; }
 .vd-insp-kind.k-project { background: var(--accent); }
 .vd-insp-title { display: flex; flex-direction: column; min-width: 0; }
 .vd-insp-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
