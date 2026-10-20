@@ -21,6 +21,9 @@ apps/desktop/build/smoke/
 # commit.
 apps/desktop/build/screens/
 
+# The gate's record of its last run on this computer (tools/gate.js --resume).
+.gate/
+
 # Agent scratch and per-machine settings.
 .ai/
 .vs/

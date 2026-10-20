@@ -57,6 +57,21 @@ system lacks) is run again on its own; if it passes alone it is named in
 the release commit's message. A check that fails twice is a fault, and the
 release waits for it.
 
+The application checks are counted by app (`shell` is what every app
+shares), and the gate keeps a record of its last run in `.gate/`:
+
+```
+npm run gate -- --resume              carry on: what passed on this commit is not run again
+npm run gate -- --apps mail,pdf       the window checks of those apps only
+npm run gate -- --changed             the apps changed since the last release tag
+```
+
+After a failure, fix it and run `--resume`: only the passes and the apps
+that did not pass run again, and `--record` adds the runs up. The record
+holds only while the commit and the working tree stay the same; a commit
+starts it afresh. `--apps` and `--changed` are for working days, and a run
+limited to some apps is never put on the record.
+
 The fuzzer is run over the readers before a minor release, and its count
 goes in the note:
 
