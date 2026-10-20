@@ -1,7 +1,8 @@
 # Rutba Office
 
-A free, open-source desktop office suite. Eleven apps in one download, working
-with the network switched off.
+A free, open-source desktop office suite. Twelve apps in one download, working
+with the network switched off. It starts with the Office apps; the others are
+added from Choose apps whenever you want them.
 
 **[office.rutba.io](https://office.rutba.io)** ·
 [Download](https://github.com/eharain/Rutba-Office/releases) ·
@@ -19,8 +20,9 @@ with the network switched off.
 
 | **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn; star ratings and tags kept on this computer, a search through the folders inside, and a whole folder resized, converted and renamed in one go; Copy Text from Picture reads the words in a photo or scan |
 | **Image** | Crop, correct, select, paint, layer, export | Levels, curves, white balance, straighten; selections, brushes, clone and heal, masks and perspective; layers with blend modes and adjustments, saved as a project; Edit in Image from the other apps; non-destructive, so your original is never touched |
-| **Video** | A player first, then an editor on a timeline, a screen recorder and introduction videos, without a render farm | A video or sound file opens in a player (speed, repeat, captions, picture in picture, full screen) until Edit Video; clips, stills and sound on lanes, split and trim, transitions, titles and captions, the screen recorded with the camera beside it, introductions made scene by scene with a teleprompter, and export with sound to MP4 or WebM for where it is going; no ffmpeg, no native binaries, nothing to install |
+| **Video** | A player first, then an editor on a timeline, a screen recorder and introduction videos, without a render farm | A video or sound file opens in a player (speed, repeat, captions, picture in picture, full screen) until Edit Video; clips, stills and sound on lanes, split and trim, transitions, titles and captions, a library of titles, word art, shapes, icons and sound effects, starters to begin from, speed with the pitch kept, Freeze Frame and Reverse, a preview on a second screen, the screen recorded with the camera beside it, introductions made scene by scene with a teleprompter, and export with sound to MP4 or WebM for where it is going; no ffmpeg, no native binaries, nothing to install |
 | **Recorder** | The screen, the camera and the voice made into one video as you record | Scenes to switch between while it records (the screen with the camera in a corner, the screen alone, the camera alone, the two side by side, a Be right back card), a title across the foot and a logo in a corner, Region to record a part of a screen or window, Take Picture for a still of what is shown, the screen or the camera, the microphone and the computer's sound with their levels, pause and a key that stops it from anywhere; one finished WebM to play, or to edit in Video; and Go Live, streaming the same picture to YouTube, Facebook, Twitch or any RTMP server at once, the stream keys kept encrypted on this computer |
+| **Talk** | Messages and calls with your contacts | Someone becomes a contact once both of you have said so; messages and calls go straight between the two computers, a small Rutba service only introducing them, with a safety code to read out on a call; a relay of your choice, or your own, where the two cannot reach each other. Rutba sign-in for Talk is still being set up |
 
 Dual-licensed: **GNU AGPL v3.0**, or a commercial licence — see
 [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
@@ -153,7 +155,7 @@ packages/
   office-shell     the platform contract, and its Electron backend
   office-ui        the design system every app renders with
 
-apps/desktop       the application: main process, renderer, eleven apps
+apps/desktop       the application: main process, renderer, twelve apps
 tools/             probes for looking inside real files during development
 tests/             the engine suite
 ```

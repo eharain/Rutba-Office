@@ -539,10 +539,15 @@ holds each item's number and state.
   from the playhead, or at the playhead with what follows moved on; the In
   and Out points and markers drag on the ruler, and In and Out on the scrub
   bar; a track splits in two at the playhead, is inserted, moved up or down,
-  soloed, and kept by every edit when locked. Not yet: speed, keyframes on
-  the timeline, colour, volume above 100% and its envelope, pitch, a
-  sound-only crossfade, loudness and noise reduction (the plan is in
-  STUDIO.md); media is read whole into memory. Since 1.45.0, introductory videos (Phase 3): scenes
+  soloed, and kept by every edit when locked. Since 2.7.0: speed from a
+  quarter to four times with the pitch kept or not, pitch shift by
+  semitones, Freeze Frame, Reverse, volume to +12 dB under a limiter, Lower
+  the rest, a sound-only crossfade, picture fades, a level meter, a library
+  of the project's media, titles, word art, shapes, icons and sound effects,
+  folding panels, four starters with Replace Media, and the preview on a
+  second screen. Not yet: keyframes on the timeline, colour, a volume
+  envelope, loudness and noise reduction (the plan is in STUDIO.md); media
+  is read whole into memory. Since 1.45.0, introductory videos (Phase 3): scenes
   from a template with layouts switchable after recording, a teleprompter,
   takes, a brand kit with a lower third, pointer data drawn as a layer and
   Zoom on Clicks, captions read and written as .srt and .vtt, and export
