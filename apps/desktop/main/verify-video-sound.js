@@ -2,7 +2,7 @@
 // time): a clip's volume in decibels up to +12, the switch that lowers the
 // rest under a voice, fades as long as asked with a word when together they
 // are longer than the clip, a picture clip's fade from and to black, a
-// clip's speed, the meter, and Freeze Frame.
+// clip's speed, the meter, Freeze Frame and Reverse.
 // A clip and a sound are made here at run time. Run alone with
 // RUTBA_VERIFY_ONLY=video-sound.
 
@@ -147,6 +147,44 @@ export async function verifyVideoSound(h, { dir }) {
       check('video sound: Freeze Frame holds the picture at the playhead for two seconds as a PNG still, the clip cut there and going on after it',
         pressed === 'pressed' && held && Math.abs(s0[0] - 1) < 0.05 && Math.abs(s0[1] - s0[0] - 2) < 0.05 && shape.vids.length === 2 && Math.abs(shape.vids[1][0] - s0[1]) < 0.05 && isPng && pictured,
         JSON.stringify({ pressed, held, shape, files, isPng, pictured }));
+
+      // Reverse: the first part of the clip from a copy written backward (the ball runs right to left), and back.
+      const reverseButton = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Reverse'))`;
+      await js(`(() => {
+        const n = [...document.querySelectorAll('.vd-clip[data-kind="video"]')].find((x) => Number(x.dataset.start) === 0);
+        if (!n) return false;
+        const r = n.getBoundingClientRect();
+        const o = { bubbles: true, cancelable: true, button: 0, clientX: r.left + Math.min(8, r.width / 2), clientY: r.top + r.height / 2, pointerId: 1 };
+        n.dispatchEvent(new PointerEvent('pointerdown', o));
+        window.dispatchEvent(new PointerEvent('pointerup', o));
+        return true;
+      })()`);
+      const reversing = await press('Reverse');
+      const reversed = await ok(until(() => js(`${reverseButton}?.getAttribute('aria-pressed') === 'true'`), 'the clip reversed', 60000));
+      const copies = fs.existsSync(folder) ? fs.readdirSync(folder).filter((f) => / reversed( \(\d+\))?\.mp4$/.test(f)) : [];
+      const copy = copies.length ? path.join(folder, copies[0]) : null;
+      // Where the ball is on the preview near the clip's start and near its end: right to left when reversed.
+      const ballAt = async (t) => {
+        await js(`(() => { const s = document.querySelector('.vd-scrub'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, '${t}'); s.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+        await wait(700);
+        return js(`(() => {
+          const c = document.querySelector('.vd-canvas');
+          const d = c.getContext('2d').getImageData(0, 0, c.width, Math.floor(c.height * 0.85)).data;
+          // The whitest pixels (the clip fades from and to black, so not a fixed level).
+          let top = 0;
+          for (let i = 0; i < d.length; i += 4) top = Math.max(top, Math.min(d[i], d[i + 1], d[i + 2]));
+          let sx = 0, n = 0;
+          for (let i = 0; i < d.length; i += 4) if (Math.min(d[i], d[i + 1], d[i + 2]) >= top * 0.9) { sx += (i / 4) % c.width; n++; }
+          return top > 8 && n ? Math.round(sx / n) : null;
+        })()`);
+      };
+      const ball = { first: await ballAt(0.3), last: await ballAt(0.7) };
+      const backward = Boolean(ball && ball.first != null && ball.last != null && ball.first > ball.last + 20);
+      await wait(300);
+      await press('Reverse');
+      const forward = await ok(until(() => js(`${reverseButton}?.getAttribute('aria-pressed') === 'false'`), 'the clip forward again', 5000));
+      check('video sound: Reverse plays the clip and its sound from a copy written backward, made once, and reversed again it is back on its source',
+        reversing === 'pressed' && reversed && backward && forward, JSON.stringify({ reversing, reversed, copies, ball, forward }));
     } finally {
       app.setPath('videos', videosWas);
     }

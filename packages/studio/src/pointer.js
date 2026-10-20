@@ -107,6 +107,7 @@ function compilePointer(patch, cx) {
         offset: Number(patch.offset) || 0,
         // At its screen recording's speed (setSpeed sets the group together).
         speed: Number(patch.speed) > 0 ? Number(patch.speed) : 1,
+        backward: Boolean(patch.backward),
         screenUrl: patch.screenUrl || null,
         samples: Array.isArray(patch.samples) ? patch.samples : [],
         clicks: Array.isArray(patch.clicks) ? patch.clicks : [],
@@ -154,7 +155,9 @@ function drawArrow(ctx, x, y, s) {
 function paintPointer(ctx, plan, layer, time) {
     const screen = screenFor(plan, layer, time);
     if (!screen) return;
-    const t = (layer.offset || 0) + (time - (layer.timing ? layer.timing.start : 0)) * (layer.speed || 1);
+    // A pointer recorded with a clip that was reversed is drawn backward with it.
+    const into = layer.backward && layer.timing ? layer.timing.end - time : time - (layer.timing ? layer.timing.start : 0);
+    const t = (layer.offset || 0) + into * (layer.speed || 1);
     const r = plan.W * 0.022 * (layer.size || 1);
     if (layer.rings) {
         for (const ring of ringsAt(layer.clicks, t)) {

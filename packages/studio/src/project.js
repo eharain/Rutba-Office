@@ -574,7 +574,6 @@ export function splitAll(doc, t) {
 
 // ── trim (V3) and ripple trim (V4) ───────────────────────────────────────────
 
-/** The longest a clip may run from `offset`: its source's length, when known. */
 /** The speeds a clip can be set to: a quarter to four times. */
 export const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4];
 /** A clip's speed: 1 unless it was set. */
@@ -608,6 +607,59 @@ export function setSpeed(doc, id, speed) {
     return out;
 }
 
+/**
+ * Reverse: a video clip and its own sound played backward, from a copy of
+ * their stretch of the source written backward (`media`, as addMedia takes
+ * it). The clip keeps its place, length and speed; a pointer recorded with it
+ * is drawn backward too. Asked again, the clip goes back to its own source
+ * showing the same stretch, trimmed as it was trimmed while reversed, with no
+ * copy needed. `reversed` keeps where the copy came from: { url, offset, span }.
+ */
+export function setReversed(doc, id, media = null) {
+    const clip = clipById(doc, id);
+    if (!clip || clip.type !== 'video') return doc;
+    const back = Boolean(clip.reversed);
+    if (!back && !media?.url) return doc;
+    const span = lengthOf(clip) * speedOf(clip);
+    let out = doc;
+    if (!back) {
+        out = { ...doc, sources: { ...(doc.sources || {}), [media.url]: {
+            name: media.name || '',
+            kind: 'video',
+            duration: Number(media.duration) || null,
+            hasAudio: Boolean(media.hasAudio),
+            width: media.width || null,
+            height: media.height || null,
+            size: media.size ?? null,
+        } } };
+    }
+    const changes = new Map();
+    for (const pid of withPartners(doc, [id])) {
+        const p = clipById(doc, pid);
+        if (p.type === 'pointer') {
+            // Over the copy while reversed (a pointer finds its screen by its file), over the source after.
+            if (p.screenUrl !== clip.url) continue;
+            const { backward, ...rest } = p;
+            changes.set(pid, back ? { ...rest, screenUrl: clip.reversed.url } : { ...rest, backward: true, screenUrl: media.url });
+            continue;
+        }
+        if (p.type !== 'video' && p.type !== 'sound') continue;
+        if (back) {
+            if (!p.reversed) continue;
+            const { reversed, ...rest } = p;
+            const shown = lengthOf(p) * speedOf(p);
+            const offset = Math.max(0, (reversed.offset || 0) + (reversed.span || 0) - (p.offset || 0) - shown);
+            changes.set(pid, { ...rest, url: reversed.url, offset: round(offset) });
+        } else {
+            // Its own sound, as long as the picture: a sound trimmed apart, or another file, keeps playing forward.
+            if (p.url !== clip.url || Math.abs((p.offset || 0) - (clip.offset || 0)) > EPS || Math.abs(lengthOf(p) - lengthOf(clip)) > EPS) continue;
+            changes.set(pid, { ...p, url: media.url, offset: 0, reversed: { url: p.url, offset: p.offset || 0, span: round(span) } });
+        }
+    }
+    return rewrite(out, changes);
+}
+
+/** The longest a clip may run from `offset`: its source's length, when known. */
 function sourceRoom(doc, p) {
     const d = Number(doc.sources?.[p.url]?.duration);
     return p.type === 'video' || p.type === 'sound' ? (Number.isFinite(d) && d > 0 ? d : Infinity) : Infinity;

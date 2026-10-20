@@ -81,7 +81,7 @@ export function exportFormat() {
 export const knownFormat = () => known;
 
 /** A clip's frames by seeking a <video>: for a file the decoder will not take. */
-class SeekFrames {
+export class SeekFrames {
   constructor(entry) {
     this.entry = entry;
     this.width = entry.width;

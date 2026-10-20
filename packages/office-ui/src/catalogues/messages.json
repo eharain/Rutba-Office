@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7285,
+  "count": 7291,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -14079,12 +14079,6 @@
       ]
     },
     {
-      "message": "Frames",
-      "where": [
-        "apps/desktop/renderer/apps/video/index.js"
-      ]
-    },
-    {
       "message": "Free",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -19602,6 +19596,12 @@
       "message": "Made for",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "Made in Video",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -29138,6 +29138,24 @@
       ]
     },
     {
+      "message": "Reverse",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Reversing {name}",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Reversing {name}: {percent}%",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Review",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js",
@@ -36192,6 +36210,12 @@
       "message": "The check could not reach GitHub, where the releases are kept. Check your connection and try again.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "The clip could not be reversed: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -43611,6 +43635,12 @@
       ]
     },
     {
+      "message": "the clip and its sound play backward; a copy is written once, beside the project",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "the clip ends at the playhead",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -45671,6 +45701,12 @@
       "message": "{name} refreshed",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "{name} reversed",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {

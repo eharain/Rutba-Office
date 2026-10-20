@@ -22,7 +22,7 @@ import {
   emptyProject, normaliseProject, addMedia, splitAt, splitAll, trimStart, trimEnd, removeClips, closeGap, copyClips,
   pasteClips, duplicateClips, unlinkClips, linkClips, addMarker, nextMarker, previousMarker, setTransition, addTitle,
   planPatches, projectMedia, projectDuration, clipById, clipsAt, sectionOf, laneOf, partnersOf, previousOnLane, setRange,
-  clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf,
+  clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf, setReversed,
 } from '@rutba/studio/project';
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
 import { placeTakes, settleTakes, takeFileName } from '@rutba/studio/recorder';
@@ -44,6 +44,7 @@ import VideoRibbon, { TITLE_NAMES } from './ribbon.js';
 import Inspector from './inspector.js';
 import { ExportDialog, ExportProgress, exportProject, exportFormat, PRESET_TAGS } from './export.js';
 import { CSS } from './css.js';
+import { writeReversed } from './reverse.js';
 import VideoPlayer, { playsInPlayer } from './player.js';
 
 /** The timeline's share of the editor's height when nothing else is chosen: the preview has the larger part. */
@@ -574,6 +575,14 @@ function VideoEditor({ app, shell, boot }) {
     if (files?.length) addFiles(files, { where: typeof where === 'string' ? where : 'end' });
   }, [shell, addFiles]);
 
+  // Where what Video makes from a clip goes: beside a saved project, in a
+  // folder of its own; else where recordings go.
+  const madeFolder = useCallback(async () => {
+    const paths = await shell.app.paths().catch(() => null);
+    const sep = paths?.separator || '\\';
+    return path ? `${path.slice(0, Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/')))}${sep}${t('Made in Video')}` : `${paths?.videos || ''}${sep}${t('Rutba Recordings')}`;
+  }, [shell, path]);
+
   // Freeze Frame: the clip's picture at the playhead, as a PNG at the
   // source's own size, held for two seconds; the clip goes on after it.
   const freezeFrame = useCallback(async (clip) => {
@@ -593,11 +602,7 @@ function VideoEditor({ app, shell, boot }) {
       const blob = await new Promise((resolve) => c.toBlob(resolve, 'image/png'));
       if (!blob) throw new Error(t('the frame could not be drawn'));
       const bytes = new Uint8Array(await blob.arrayBuffer());
-      const paths = await shell.app.paths().catch(() => null);
-      const sep = paths?.separator || '\\';
-      // Beside a saved project, in a Frames folder; else where recordings go.
-      const dir = path ? `${path.slice(0, Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/')))}${sep}${t('Frames')}` : `${paths?.videos || ''}${sep}${t('Rutba Recordings')}`;
-      const { path: file } = await shell.capture.take({ dir, name: takeFileName(t('Frame'), new Date(), 'png') });
+      const { path: file } = await shell.capture.take({ dir: await madeFolder(), name: takeFileName(t('Frame'), new Date(), 'png') });
       await shell.fs.write({ path: file, bytes });
       const info = await media.describe(file, { name: basename(file), size: bytes.length });
       setBusy(null);
@@ -617,7 +622,31 @@ function VideoEditor({ app, shell, boot }) {
     } finally {
       if (entry) releaseVideos([entry]);
     }
-  }, [shell, media, path, edit, toast]);
+  }, [shell, media, madeFolder, edit, toast]);
+
+  // Reverse: the clip and its own sound from a copy written backward, made
+  // once; reversed again, back to the source with no copy needed.
+  const reverseClip = useCallback(async (clip) => {
+    if (!clip || clip.type !== 'video') return;
+    if (clip.reversed) { edit(t('Reverse'), (d) => setReversed(d, clip.id)); return; }
+    const name = basename(clip.url).replace(/\.[^.]+$/, '');
+    setBusy(t('Reversing {name}', { name }));
+    try {
+      const dir = await madeFolder();
+      const sep = dir.includes('/') && !dir.includes('\\') ? '/' : '\\';
+      let file = `${dir}${sep}${t('{name} reversed', { name })}.mp4`;
+      for (let n = 2; await shell.fs.exists({ path: file }).catch(() => false); n++) file = `${dir}${sep}${t('{name} reversed', { name })} (${n}).mp4`;
+      const out = await writeReversed(clip, media, shell, file, {
+        onProgress: (p) => setBusy(t('Reversing {name}: {percent}%', { name, percent: Math.round((Number(p) || 0) * 100) })),
+      });
+      const info = await media.describe(file, { name: basename(file), size: out.size });
+      edit(t('Reverse'), (d) => setReversed(d, clip.id, info));
+    } catch (err) {
+      toast(t('The clip could not be reversed: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 8000 });
+    } finally {
+      setBusy(null);
+    }
+  }, [shell, media, madeFolder, edit, toast]);
 
   const saveTo = useCallback(async (target) => {
     try {
@@ -950,6 +979,7 @@ function VideoEditor({ app, shell, boot }) {
     'insert.mediaLayer': { label: t('Add on a New Track'), icon: 'layers', tip: t('videos and pictures on a track of their own above the others, from the playhead'), run: () => insertMedia('layer') },
     'insert.mediaHere': { label: t('Insert at Playhead'), icon: 'move', tip: t('on the picked track at the playhead; what follows moves later to make room'), run: () => insertMedia('insert') },
     'clip.freeze': { label: t('Freeze Frame'), icon: 'pause', disabled: !freezeTarget, tip: t('the picture at the playhead held for two seconds; the clip goes on after it'), run: () => freezeFrame(freezeTarget) },
+    'clip.reverse': { label: t('Reverse'), icon: 'undo', disabled: !(first?.type === 'video') || Boolean(busy), pressed: Boolean(first?.reversed), tip: t('the clip and its sound play backward; a copy is written once, beside the project'), run: () => reverseClip(first) },
     'captions.import': { label: t('Import Captions'), icon: 'captions', tip: t('a SubRip (.srt) or WebVTT (.vtt) file, each caption a clip on its own track'), run: () => importCaptions() },
     'captions.export': { label: t('Export Captions'), icon: 'export', disabled: !doc.patches.some(isCaption), tip: t('the caption track as a .srt or .vtt file, to send beside the video'), run: exportCaptions },
     'intro.record': { label: currentScene?.take ? t('Retake Scene') : t('Record Scene'), icon: 'record', disabled: !currentScene || !RECORDED.has(currentScene.layout) || Boolean(exporting), tip: t('the scene picked, with its script above the camera; every take is kept'), run: () => { stop(); setSceneRecord(currentScene.id); } },
