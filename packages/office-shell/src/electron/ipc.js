@@ -163,6 +163,13 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     focus: (p) => windows.focusById(p.id),
     hide: (_p, win) => (win ? windows.hideWindow(win) : { hidden: false }),
     unhide: (p) => windows.unhide(p.id),
+    frameAction: (p, win) => {
+      if (!win) return { done: false };
+      const wc = win.webContents;
+      if (p.action !== 'copy') return { done: false };
+      wc.copy();
+      return { done: true };
+    },
     zoom: (p, win) => {
       if (!win) return { factor: 1 };
       const wc = win.webContents;

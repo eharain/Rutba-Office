@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7181,
+  "count": 7202,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -3905,6 +3905,12 @@
       ]
     },
     {
+      "message": "Asking the server for the message as it came…",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
       "message": "Ask…",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -7076,6 +7082,7 @@
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/apps/mail/rules.js",
+        "apps/desktop/renderer/apps/mail/safety.js",
         "apps/desktop/renderer/apps/mail/smime.js",
         "apps/desktop/renderer/apps/recorder/live-dialog.js",
         "apps/desktop/renderer/apps/sheets.js",
@@ -8091,6 +8098,7 @@
       "where": [
         "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/mail/safety.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -8115,6 +8123,7 @@
     {
       "message": "Copy All",
       "where": [
+        "apps/desktop/renderer/apps/mail/safety.js",
         "apps/desktop/renderer/ocr-ui.js"
       ]
     },
@@ -8127,7 +8136,14 @@
     {
       "message": "Copy Link",
       "where": [
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "Copy Picture",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
       ]
     },
     {
@@ -11399,6 +11415,12 @@
       "message": "Email address",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Email message",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
       ]
     },
     {
@@ -20300,7 +20322,8 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
-        "apps/desktop/renderer/apps/mail/reader.js"
+        "apps/desktop/renderer/apps/mail/reader.js",
+        "apps/desktop/renderer/apps/mail/safety.js"
       ]
     },
     {
@@ -23753,6 +23776,12 @@
       ]
     },
     {
+      "message": "Open Link",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
       "message": "Open Recent",
       "where": [
         "packages/office-shell/src/electron/main.js"
@@ -27079,6 +27108,12 @@
       ]
     },
     {
+      "message": "Rebuilt from what Mail kept, because the original was not kept here. {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
       "message": "Receipt",
       "where": [
         "apps/desktop/renderer/apps/mail/docnote.js",
@@ -29716,6 +29751,42 @@
       ]
     },
     {
+      "message": "Safety is off for this message: links and pictures can be copied and attachments saved. The next message opens with it on.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "Safety is on for this message: turn it off at the top of the message to copy or save.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Safety is on: links and pictures cannot be copied, and attachments cannot be saved, until you turn it off for this message",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "Safety is on: turn it off for this message to copy or save the source.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "Safety off",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "Safety on",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
       "message": "Saffron",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -29818,6 +29889,18 @@
       ]
     },
     {
+      "message": "Save Picture As",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "Save Picture As…",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
       "message": "Save Selection to AutoText Gallery…",
       "where": [
         "apps/desktop/renderer/apps/word/blocks.js"
@@ -29871,6 +29954,18 @@
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Save as .eml",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "Save as .eml…",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
       ]
     },
     {
@@ -30077,6 +30172,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/safety.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets.js",
@@ -33253,6 +33349,7 @@
       "message": "Source",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js",
+        "apps/desktop/renderer/apps/mail/safety.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -35416,6 +35513,7 @@
     {
       "message": "That picture could not be read.",
       "where": [
+        "apps/desktop/renderer/apps/mail/safety.js",
         "apps/desktop/renderer/apps/word.js"
       ]
     },
@@ -36120,6 +36218,12 @@
       ]
     },
     {
+      "message": "The message exactly as it came from the server, {size}.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
       "message": "The microphone could not be opened: {reason}",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
@@ -36361,6 +36465,12 @@
       "message": "The picture is back in {name}.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "The picture is copied.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -36728,6 +36838,12 @@
       "message": "The smaller PDF is saved as a new file; this one is not changed. It is now {size}.",
       "where": [
         "apps/desktop/renderer/apps/pdf/export.js"
+      ]
+    },
+    {
+      "message": "The source is copied.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
       ]
     },
     {
@@ -39224,6 +39340,12 @@
       ]
     },
     {
+      "message": "Turn Safety Off for This Message",
+      "where": [
+        "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
       "message": "Turn Up",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -40454,6 +40576,12 @@
       "message": "View Side by Side — this document and the one before it, half the screen each",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "View source: the whole message as it came",
+      "where": [
+        "apps/desktop/renderer/apps/mail/reader.js"
       ]
     },
     {
@@ -45076,12 +45204,6 @@
       ]
     },
     {
-      "message": "{name} — click to open, right-click to save",
-      "where": [
-        "apps/desktop/renderer/apps/mail/reader.js"
-      ]
-    },
-    {
       "message": "{name} — click to put this slide on it",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -45219,6 +45341,18 @@
       "message": "{name}: click to go to it, drag to move it",
       "where": [
         "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "{name}: click to open, right-click to save",
+      "where": [
+        "apps/desktop/renderer/apps/mail/reader.js"
+      ]
+    },
+    {
+      "message": "{name}: click to open. Turn Safety off to save it.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/reader.js"
       ]
     },
     {

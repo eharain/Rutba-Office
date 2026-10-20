@@ -132,6 +132,44 @@ function defaultTransport() {
  * A message as nodemailer would send it, made but not sent: what is signed or
  * encrypted before it goes. The same fields as the transport's sendMail.
  */
+/**
+ * A message written out again from what Mail kept of it: its headers as they
+ * came, then its text, its page and its attachments as one MIME message,
+ * with a header saying it was rebuilt rather than kept.
+ */
+export function rebuildSource(message, readAttachment) {
+  const boundary = `rebuilt-${crypto.randomBytes(8).toString('hex')}`;
+  const alt = `${boundary}-alt`;
+  const kept = String(message.internetHeaders || (message.headers || []).map((h) => `${h.name}: ${h.value}`).join('\r\n'))
+    .replace(/\r?\n/g, '\r\n')
+    .split(/\r\n(?![ \t])/)
+    .filter((line) => line && !/^(content-type|content-transfer-encoding|mime-version):/i.test(line));
+  const b64 = (bytes) => Buffer.from(bytes).toString('base64').replace(/.{76}(?=.)/g, '$&\r\n');
+  const out = [
+    ...kept,
+    'X-Rutba-Rebuilt: the original was not kept; this is rebuilt from what Rutba Mail stored',
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    `Content-Type: multipart/alternative; boundary="${alt}"`,
+    '',
+  ];
+  if (message.text) out.push(`--${alt}`, 'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: base64', '', b64(Buffer.from(String(message.text), 'utf8')));
+  if (message.html) out.push(`--${alt}`, 'Content-Type: text/html; charset=utf-8', 'Content-Transfer-Encoding: base64', '', b64(Buffer.from(String(message.html), 'utf8')));
+  out.push(`--${alt}--`);
+  for (const a of message.attachments || []) {
+    let bytes = null;
+    try { bytes = a.stored ? readAttachment(a) : null; } catch { /* not kept */ }
+    if (!bytes) continue;
+    const name = String(a.filename || 'attachment').replace(/["\r\n]/g, '');
+    out.push(`--${boundary}`, `Content-Type: ${a.type || 'application/octet-stream'}; name="${name}"`, 'Content-Transfer-Encoding: base64',
+      `Content-Disposition: ${a.inline ? 'inline' : 'attachment'}; filename="${name}"`, ...(a.contentId ? [`Content-ID: <${a.contentId}>`] : []), '', b64(bytes));
+  }
+  out.push(`--${boundary}--`, '');
+  return out.join('\r\n');
+}
+
 async function composeRaw({ account, draft }) {
   const { default: MailComposer } = await import('nodemailer/lib/mail-composer/index.js');
   return new MailComposer({
@@ -1434,6 +1472,53 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       // Fetched by the window at once and written to disk; the next one
       // replaces it.
       return { ...holdBlob(bytes, a.type, name, { group: 'mail-attachment', generation: `${accountId}|${folder}|${id}|${index}` }), name, type: a.type, size: bytes.length };
+    },
+
+    /**
+     * The message as it came (owner, 2026-10-20: "let the people see full raw
+     * message"). Mail keeps a message read apart, not its original bytes, so
+     * those are asked of the account's server when the source is shown. With
+     * no server to ask (an archive, a file, a server that has let it go) it is
+     * rebuilt from what Mail kept, and says so.
+     */
+    source: async ({ accountId, folder, id }) => {
+      const message = store.get(accountId, folder, id);
+      if (!message) throw new Error('That message is not here any more.');
+      const account = accounts().find((a) => a.id === accountId);
+      let reason = 'There is no server to ask: this message is from a file or an archive.';
+      if (account?.imap && message.uid) {
+        let client = null;
+        try {
+          client = await imapFor(account);
+          const lock = await client.getMailboxLock(folder);
+          try {
+            const got = await client.fetchOne(String(message.uid), { source: true }, { uid: true });
+            if (got?.source) return { text: new TextDecoder('utf-8').decode(got.source), bytes: new Uint8Array(got.source), from: 'server' };
+            reason = 'The server no longer has this message.';
+          } finally {
+            lock.release();
+          }
+        } catch (err) {
+          reason = `The server could not be asked: ${err.message}`;
+        } finally {
+          await client?.logout().catch(() => {});
+        }
+      }
+      const text = rebuildSource(message, (a) => fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored)));
+      return { text, bytes: new TextEncoder().encode(text), from: 'rebuilt', reason };
+    },
+
+    /** A picture a message shows from the web, fetched only when it is saved: no cookies, no referrer. */
+    fetchPicture: async ({ url }) => {
+      const u = new URL(String(url));
+      if (!/^https?:$/.test(u.protocol)) throw new Error('Only a picture on the web is fetched.');
+      const res = await fetch(u, { redirect: 'follow', referrerPolicy: 'no-referrer', credentials: 'omit' });
+      if (!res.ok) throw new Error(`The picture could not be fetched (${res.status}).`);
+      const type = (res.headers.get('content-type') || '').split(';')[0].trim();
+      if (!/^image\//.test(type)) throw new Error('That address is not a picture.');
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.length > 25 * 1024 * 1024) throw new Error('The picture is too large to save.');
+      return { bytes, type, name: attachmentFileName(decodeURIComponent(u.pathname.split('/').pop() || 'picture')) };
     },
 
     /** An attachment's text — a calendar part, a card — for the app that reads it. */

@@ -30,6 +30,7 @@ import { verifyRecorderVoice } from './verify-recorder-voice.js';
 import { verifyVideoPlayer } from './verify-video-player.js';
 import { verifyRecorderApp } from './verify-recorder-app.js';
 import { verifyAppsChoice } from './verify-apps-choice.js';
+import { verifyMailSafety } from './verify-mail-safety.js';
 import { verifyRecorderLive } from './verify-recorder-live.js';
 import { verifyIntroVideo } from './verify-intro-video.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
@@ -663,8 +664,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  // The app whose part is running: each check is counted under it (see part()).
+  let currentApp = 'shell';
   const check = (name, ok, detail = '') => {
-    results.push({ name, ok, detail });
+    results.push({ name, ok, detail, app: currentApp });
     lastCheck = name;
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
   };
@@ -764,6 +767,34 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /*
+   * The run is made of parts, each checking one app (owner, 2026-10-20, the
+   * gate split by app: "lets do that first then"). RUTBA_VERIFY_APPS=word,mail
+   * runs those apps' parts and leaves the rest; 'shell' is what every app
+   * shares (the launcher, the ribbon, journeys across apps, printing). Each
+   * app's counts go to the file RUTBA_VERIFY_PARTS names, which the gate
+   * reads to say which apps passed and to pick up where a run stopped.
+   */
+  const appsOnly = (process.env.RUTBA_VERIFY_APPS || '').split(',').map((a) => a.trim()).filter(Boolean);
+  const runs = (app) => !appsOnly.length || appsOnly.includes(app);
+  // The full run keeps itself alive with the windows its first sections open,
+  // which a run of some apps does not open: a hidden window does it instead,
+  // or the last block's windows closing would end the application mid-run.
+  if (appsOnly.length) {
+    const { BrowserWindow } = await import('electron');
+    new BrowserWindow({ show: false, width: 200, height: 200 });
+  }
+  const part = async (app, run) => {
+    if (!runs(app)) return;
+    const outer = currentApp;
+    currentApp = app;
+    try {
+      await block(run);
+    } finally {
+      currentApp = outer;
+    }
+  };
+
   const sessionFor = (kind) => doc.sessions().filter((s) => s.kind === kind).pop();
   const errorsIn = (win) =>
     win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent)`);
@@ -783,6 +814,20 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
 
     const failed = results.filter((r) => !r.ok);
+    if (process.env.RUTBA_VERIFY_PARTS) {
+      const byApp = {};
+      for (const r of results) {
+        const a = (byApp[r.app] ||= { passed: 0, of: 0, failed: [] });
+        a.of += 1;
+        if (r.ok) a.passed += 1;
+        else a.failed.push(r.name);
+      }
+      try {
+        fs.writeFileSync(process.env.RUTBA_VERIFY_PARTS, JSON.stringify({ apps: byApp, only: appsOnly }, null, 2));
+      } catch (err) {
+        console.log(`     [parts] not written: ${err.message}`);
+      }
+    }
     console.log(`\n${results.length - failed.length}/${results.length} application checks passed`);
     return failed.length === 0;
   };
@@ -4964,6 +5009,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('video-player')) await verifyVideoPlayer({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder-app')) await verifyRecorderApp({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('apps-choice')) await verifyAppsChoice({ open, check, until, wait, errorsIn });
+    if (only.includes('mail-safety')) await verifyMailSafety({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder-live')) await verifyRecorderLive({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('intro-video')) await verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('viewdirection')) await verifyDeckDirection({ open, check, until, wait }, { dir });
@@ -5089,6 +5135,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // the error return sat above a hook. Each document app opens a file of
   // junk here and must show "This file could not be opened" with the reason,
   // within seconds, with no exception in the console.
+  if (runs('shell')) {
+    currentApp = 'shell';
   for (const [appName, ext] of [['word', 'docx'], ['sheets', 'xlsx'], ['slides', 'pptx']]) {
     try {
       const broken = path.join(path.dirname(files.docx), `broken.${ext}`);
@@ -5120,10 +5168,13 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('word: the owner-file check ran', false, err.message);
   }
+  }
 
   /* ── Word: open, type, save in place, reopen from disk ───────────────── */
 
 
+  if (runs('word')) {
+    currentApp = 'word';
   try {
     const win = await open('word', files.docx);
     await win.webContents.executeJavaScript(`(() => {
@@ -5159,252 +5210,253 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('word: the round trip ran', false, err.message);
   }
+  }
 
   // First: Chromium's stand-in camera grows unreliable as a long run goes on
   // (the Cameo check passed alone every time while failing deep in the run),
   // so the camera is asked for while the run is young. Cameo with a recording
   // stays last, for the reason given in the list above.
-  await block(() => verifyDeckCameo({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckCameo({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   // The recorder asks for the stand-in camera too, so it runs while the run is young as well.
-  await block(() => verifyRecorder({ open, check, until, wait, errorsIn, doc }, { dir }));
-  await block(() => verifyRecorderVoice({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyVideoPlayer({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyRecorderApp({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyAppsChoice({ open, check, until, wait, errorsIn }));
-  await block(() => verifyRecorderLive({ open, check, until, wait, errorsIn }, { dir }));
+  await part('recorder', () => verifyRecorder({ open, check, until, wait, errorsIn, doc }, { dir }));
+  await part('recorder', () => verifyRecorderVoice({ open, check, until, wait, errorsIn }, { dir }));
+  await part('video', () => verifyVideoPlayer({ open, check, until, wait, errorsIn }, { dir }));
+  await part('recorder', () => verifyRecorderApp({ open, check, until, wait, errorsIn }, { dir }));
+  await part('shell', () => verifyAppsChoice({ open, check, until, wait, errorsIn }));
+  await part('recorder', () => verifyRecorderLive({ open, check, until, wait, errorsIn }, { dir }));
   // Introductions record scene by scene with the same stand-in camera, so they run young too.
-  await block(() => verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir }));
-  await block(() => wordPages());
-  await block(() => wordPagesAcross());
-  await block(() => wordFloat());
-  await block(() => sheetGrips());
-  await block(() => slidePanes());
-  await block(() => slideShapes());
-  await block(() => slideParagraphs());
-  await block(() => slideClipboard());
-  await block(() => slideFooter());
-  await block(() => slideFind());
-  await block(() => slideSections());
-  await block(() => slideHidden());
-  await block(() => slideBackground());
-  await block(() => slideTable());
-  await block(() => slideChart());
-  await block(() => verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
-  await block(() => verifyDeckTableDesign({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
-  await block(() => verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
-  await block(() => verifyDeckAnimations({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
-  await block(() => verifyDeckThemes({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
-  await block(() => verifyDeckMaster({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
-  await block(() => verifyDeckComments({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
-  await block(() => verifyDeckMath({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
-  await block(() => verifyAccessibility({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
-  await block(() => verifySpelling({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
-  await block(() => sheetFill());
-  await block(() => wordPictures());
-  await block(() => wordLook());
-  await block(() => wordDropCap());
-  await block(() => wordBookmarks());
-  await block(() => wordCrossRef());
-  await block(() => wordCaptions());
-  await block(() => wordToc());
-  await block(() => wordTextBox());
-  await block(() => wordArrange());
-  await block(() => encryptedFiles());
-  await block(() => wordHyphenation());
-  await block(() => wordCitations());
-  await block(() => wordRestrict());
-  await block(() => wordComments());
-  await block(() => verifyDeckShow({ open, check, until, wait }, { file: files.pptx }));
-  await block(() => verifyDeckSymbol({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyWindows({ open, check, until, wait }, { files }));
-  await block(() => verifyDeckSetup({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyWordGridlines({ open, check, until, wait }, { file: files.docx }));
-  await block(() => verifyWordLanguage({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckLanguage({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyDeckMonitor({ open, check, until, wait }, { dir }));
-  await block(() => verifyDeckSplit({ open, check, until, wait }, { dir }));
-  await block(() => verifyDeckRehearse({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyDeckAction({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyDeckAlbum({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyScreenshot({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyIcons({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyWordImmersive({ open, check, until, wait }, { dir }));
-  await block(() => verifyWordTheme({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyDeckTrigger({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifySheetWordArtTransform({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyWordWordArtTransform({ open, check, until, wait, press, errorsIn }, { dir }));
-  await block(() => verifyWordDefineList({ open, check, until, wait, press, errorsIn }, { dir }));
-  await block(() => verifyPictureTiles({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }));
-  await block(() => verifyDocThread({ open, check, until, errorsIn }, { dir }));
-  await block(() => verifyUrdu({ open, check, until, wait, errorsIn }, { dir, files }));
-  await block(() => verifyArabic({ open, check, until, wait, errorsIn }, { dir, files }));
-  await block(() => verifyHindi({ open, check, until, wait, errorsIn }, { dir, files }));
-  await block(() => verifyPictureRotate({ open, check, until, wait, press, errorsIn }, { dir }));
-  await block(() => verifyImageEdits({ open, check, until, wait, press, errorsIn }, { dir }));
-  await block(() => verifyImageLayers({ open, check, until, wait, errorsIn, doc }, { dir }));
-  await block(() => verifyEditInImage({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyImageTools({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyImageSelectionSave({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyImageMaskTransform({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyImageTextEdit({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyRotateFrameWord({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyRotateFrameSheet({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyRotateFrameImage({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyVideoStage({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyVideoTracks({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyRotateFrameDeck({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyPdfApp({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyPdfAnnot({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyPdfForms({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyPdfRedact({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyPdfOutline({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyPdfExport({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyOcrPicture({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyOcrSheet({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyReceiptRow({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyMailInvoice({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyPdfFields({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyRibbon({ open, check, until, wait }, { dir, files }));
-  await block(() => verifySoon({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyGalleryFold({ open, check, until, wait }, { dir }));
-  await block(() => verifyVideoPane({ open, check, until, wait }, { dir }));
-  await block(() => verifyPanels({ open, check, until, wait }, { dir }));
-  await block(() => verifyPolishPass({ open, check, until, wait }, { dir }));
-  await block(() => verifyCalendarMonth({ open, check, until, wait }, { dir }));
-  await block(() => verifySheetDark({ open, check, until, wait }, { dir }));
-  await block(() => verifyPdfFindMark({ open, check, until, wait }, { dir }));
-  await block(() => verifyDarkPass({ open, check, until, wait }, { dir }));
-  await block(() => verifyA11yAudit({ open, check, until, wait, press }, { dir }));
-  await block(() => verifyKeyboardPass({ open, check, until, wait, press }, { dir }));
-  await block(() => verifyScreenReader({ open, check, until, wait, press }, { dir }));
-  await block(() => verifyHighContrast({ open, check, until, wait, press }, { dir }));
-  await block(() => verifyImageBatch({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir }));
-  await block(() => verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows }));
-  await block(() => verifyQrCode({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordWatermarkPicture({ open, check, until, wait, press, errorsIn }, { dir }));
-  await block(() => verifyDeckWordArtTransform({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordMergeTracked({ open, check, until, doc, sessionFor }, { dir }));
-  await block(() => verifyLostMouseup({ open, check, until }, { dir }));
-  await block(() => verifyDialogFocus({ open, check, until, wait, press }, { dir }));
-  await block(() => verifyOpenProgram({ open, check, until }, { dir }));
-  await block(() => verifyPicturesMarks({ open, check, until, wait, press, errorsIn }, { dir }));
-  await block(() => verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyPdfScripts({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckMotion({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordMergeRules({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifySheetEquation({ open, check, until, wait }, { dir }));
-  await block(() => verifyWordSignature({ open, check, until, wait }, { dir }));
-  await block(() => verifyDeckInsertMaster({ open, check, until, wait }, { dir }));
-  await block(() => verifyDeckCustomShows({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyWordToa({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckWordArt({ open, check, until, wait, doc, capture: shotTo }, { dir }));
-  await block(() => verifySheetWordArt({ open, check, until, wait, capture: shotTo }, { dir }));
-  await block(() => verifyDeckNotesMaster({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir }));
-  await block(() => verifyDeckMedia({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir }));
-  await block(() => verifyDeckScreenRecording({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckTransitionSound({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckInk({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir }));
-  await block(() => verifySheetInk({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir }));
-  await block(() => verifyWordInk({ open, check, until, wait, capture: shotTo }, { dir }));
-  await block(() => verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir }));
-  await block(() => verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir }));
-  await block(() => verifyDeckDirection({ open, check, until, wait }, { dir }));
-  await block(() => verifyDeckRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckZoom({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyWordCompare({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyWordForms({ open, check, until, wait, capture: shotTo, doc }, { dir }));
-  await block(() => verifyWordRedact({ open, check, until, wait, capture: shotTo, doc }, { dir }));
-  await block(() => verifyInspect({ open, check, until, wait, capture: shotTo, doc }, { dir }));
-  await block(() => verifyWordInkml({ open, check, until, wait, capture: shotTo, doc }, { dir }));
-  await block(() => verifyDeckCompare({ open, check, until, wait, capture: shotTo, doc }, { dir }));
-  await block(() => verifyDeckRedact({ open, check, until, wait, capture: shotTo, doc }, { dir }));
-  await block(() => verifyDeckShowInk({ open, check, until, wait, capture: shotTo, doc }, { dir }));
-  await block(() => verifyDeckCommentThreads({ open, check, until, wait, capture: shotTo, doc }, { dir }));
-  await block(() => verifySheetInspect({ open, check, until, wait, capture: shotTo, doc }, { dir }));
-  await block(() => verifyDeckObject({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyWordObject({ open, check, until, wait, doc }, { dir }));
-  await block(() => verifyWordSplit({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyWordSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifySheetSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyWordTrackFormat({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifySheetPivotFields({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyDav({ open, check, until, wait, errorsIn }));
-  await block(() => verifyThesaurus({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyDesignIdeas({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifySheetQueries({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifySheetQueryTransforms({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifySheetSelectPaste({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyDeck3d({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckPoints({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordTable({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordBlocks({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordTableTools({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordOdt({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordHtml({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyBinaryLocked({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyOdfCharts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyDrawingDelete({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifySheetPointing({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifySheetRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
-  await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
-  await block(() => wordMailMerge());
-  await block(() => wordLabels());
-  await block(() => wordTrack());
-  await block(() => wordEquations());
-  await block(() => wordEffects());
-  await block(() => wordPictureFits());
-  await block(() => wordCards());
-  await block(() => wordRuler());
-  await block(() => wordColumns());
-  await block(() => updatePrompt());
-  await block(() => launcherRecent());
-  await block(() => launcherDrop());
-  await block(() => appNames());
-  await block(() => homeRecentEdit());
-  await block(() => sheetFreeze());
-  await block(() => sheetErrors());
-  await block(() => sheetWatch());
-  await block(() => sheetSparklines());
-  await block(() => zoomStaysOnThePage());
-  await block(() => zoomByWheel());
-  await block(() => sheetPicture());
-  await block(() => viewer());
-  await block(() => slideshow());
-  await block(() => sheetLinks());
-  await block(() => sheetOutline());
-  await block(() => sheetDataTools());
-  await block(() => sheetEvaluate());
-  await block(() => sheetComments());
-  await block(() => sheetViews());
-  await block(() => sheetProtect());
-  await block(() => verifyPwFast({ open, check, until, wait, capture: shotTo }, { dir }));
-  await block(() => sheetLayoutViews());
-  await block(() => sheetAnalysis());
-  await block(() => sheetSlicers());
-  await block(() => sheetArrange());
-  await block(() => sheetThemes());
-  await block(() => verifySheetCf({ open, check, until, errorsIn }, { dir }));
-  await block(() => verifyDeckDraw({ open, check, until, wait, errorsIn }, { dir }));
+  await part('video', () => verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir }));
+  await part('word', () => wordPages());
+  await part('word', () => wordPagesAcross());
+  await part('word', () => wordFloat());
+  await part('sheets', () => sheetGrips());
+  await part('slides', () => slidePanes());
+  await part('slides', () => slideShapes());
+  await part('slides', () => slideParagraphs());
+  await part('slides', () => slideClipboard());
+  await part('slides', () => slideFooter());
+  await part('slides', () => slideFind());
+  await part('slides', () => slideSections());
+  await part('slides', () => slideHidden());
+  await part('slides', () => slideBackground());
+  await part('slides', () => slideTable());
+  await part('slides', () => slideChart());
+  await part('slides', () => verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
+  await part('slides', () => verifyDeckTableDesign({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
+  await part('slides', () => verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
+  await part('slides', () => verifyDeckAnimations({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
+  await part('slides', () => verifyDeckThemes({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await part('slides', () => verifyDeckMaster({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await part('slides', () => verifyDeckComments({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await part('slides', () => verifyDeckMath({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await part('shell', () => verifyAccessibility({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await part('shell', () => verifySpelling({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await part('sheets', () => sheetFill());
+  await part('word', () => wordPictures());
+  await part('word', () => wordLook());
+  await part('word', () => wordDropCap());
+  await part('word', () => wordBookmarks());
+  await part('word', () => wordCrossRef());
+  await part('word', () => wordCaptions());
+  await part('word', () => wordToc());
+  await part('word', () => wordTextBox());
+  await part('word', () => wordArrange());
+  await part('shell', () => encryptedFiles());
+  await part('word', () => wordHyphenation());
+  await part('word', () => wordCitations());
+  await part('word', () => wordRestrict());
+  await part('word', () => wordComments());
+  await part('slides', () => verifyDeckShow({ open, check, until, wait }, { file: files.pptx }));
+  await part('slides', () => verifyDeckSymbol({ open, check, until, wait, doc }, { dir }));
+  await part('shell', () => verifyWindows({ open, check, until, wait }, { files }));
+  await part('slides', () => verifyDeckSetup({ open, check, until, wait, doc }, { dir }));
+  await part('word', () => verifyWordGridlines({ open, check, until, wait }, { file: files.docx }));
+  await part('word', () => verifyWordLanguage({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckLanguage({ open, check, until, wait, doc }, { dir }));
+  await part('slides', () => verifyDeckMonitor({ open, check, until, wait }, { dir }));
+  await part('slides', () => verifyDeckSplit({ open, check, until, wait }, { dir }));
+  await part('slides', () => verifyDeckRehearse({ open, check, until, wait, doc }, { dir }));
+  await part('slides', () => verifyDeckAction({ open, check, until, wait, doc }, { dir }));
+  await part('slides', () => verifyDeckAlbum({ open, check, until, wait, doc }, { dir }));
+  await part('shell', () => verifyScreenshot({ open, check, until, wait, doc }, { dir }));
+  await part('shell', () => verifyIcons({ open, check, until, wait, doc }, { dir }));
+  await part('word', () => verifyWordImmersive({ open, check, until, wait }, { dir }));
+  await part('word', () => verifyWordTheme({ open, check, until, wait, doc }, { dir }));
+  await part('slides', () => verifyDeckTrigger({ open, check, until, wait, doc }, { dir }));
+  await part('sheets', () => verifySheetWordArtTransform({ open, check, until, wait, errorsIn }, { dir }));
+  await part('word', () => verifyWordWordArtTransform({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('word', () => verifyWordDefineList({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('pictures', () => verifyPictureTiles({ open, check, until, wait, errorsIn }, { dir }));
+  await part('shell', () => verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('shell', () => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('shell', () => verifyDocThread({ open, check, until, errorsIn }, { dir }));
+  await part('shell', () => verifyUrdu({ open, check, until, wait, errorsIn }, { dir, files }));
+  await part('shell', () => verifyArabic({ open, check, until, wait, errorsIn }, { dir, files }));
+  await part('shell', () => verifyHindi({ open, check, until, wait, errorsIn }, { dir, files }));
+  await part('pictures', () => verifyPictureRotate({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('image', () => verifyImageEdits({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('image', () => verifyImageLayers({ open, check, until, wait, errorsIn, doc }, { dir }));
+  await part('image', () => verifyEditInImage({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('image', () => verifyImageTools({ open, check, until, wait, errorsIn }, { dir }));
+  await part('image', () => verifyImageSelectionSave({ open, check, until, wait, errorsIn }, { dir }));
+  await part('image', () => verifyImageMaskTransform({ open, check, until, wait, errorsIn }, { dir }));
+  await part('image', () => verifyImageTextEdit({ open, check, until, wait, errorsIn }, { dir }));
+  await part('word', () => verifyRotateFrameWord({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifyRotateFrameSheet({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('image', () => verifyRotateFrameImage({ open, check, until, wait, errorsIn }, { dir }));
+  await part('video', () => verifyVideoStage({ open, check, until, wait, errorsIn }, { dir }));
+  await part('video', () => verifyVideoTracks({ open, check, until, wait, errorsIn }, { dir }));
+  await part('slides', () => verifyRotateFrameDeck({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('pdf', () => verifyPdfApp({ open, check, until, wait, errorsIn }, { dir }));
+  await part('pdf', () => verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir }));
+  await part('pdf', () => verifyPdfAnnot({ open, check, until, wait, errorsIn }, { dir }));
+  await part('pdf', () => verifyPdfForms({ open, check, until, wait, errorsIn }, { dir }));
+  await part('pdf', () => verifyPdfRedact({ open, check, until, wait, errorsIn }, { dir }));
+  await part('pdf', () => verifyPdfOutline({ open, check, until, wait, errorsIn }, { dir }));
+  await part('pdf', () => verifyPdfExport({ open, check, until, wait, errorsIn }, { dir }));
+  await part('pictures', () => verifyOcrPicture({ open, check, until, wait, errorsIn }, { dir }));
+  await part('sheets', () => verifyOcrSheet({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('shell', () => verifyReceiptRow({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('mail', () => verifyMailInvoice({ open, check, until, wait, errorsIn }, { dir }));
+  await part('pdf', () => verifyPdfFields({ open, check, until, wait, errorsIn }, { dir }));
+  await part('shell', () => verifyRibbon({ open, check, until, wait }, { dir, files }));
+  await part('shell', () => verifySoon({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('shell', () => verifyGalleryFold({ open, check, until, wait }, { dir }));
+  await part('video', () => verifyVideoPane({ open, check, until, wait }, { dir }));
+  await part('shell', () => verifyPanels({ open, check, until, wait }, { dir }));
+  await part('shell', () => verifyPolishPass({ open, check, until, wait }, { dir }));
+  await part('calendar', () => verifyCalendarMonth({ open, check, until, wait }, { dir }));
+  await part('sheets', () => verifySheetDark({ open, check, until, wait }, { dir }));
+  await part('pdf', () => verifyPdfFindMark({ open, check, until, wait }, { dir }));
+  await part('shell', () => verifyDarkPass({ open, check, until, wait }, { dir }));
+  await part('shell', () => verifyA11yAudit({ open, check, until, wait, press }, { dir }));
+  await part('shell', () => verifyKeyboardPass({ open, check, until, wait, press }, { dir }));
+  await part('shell', () => verifyScreenReader({ open, check, until, wait, press }, { dir }));
+  await part('shell', () => verifyHighContrast({ open, check, until, wait, press }, { dir }));
+  await part('image', () => verifyImageBatch({ open, check, until, wait, errorsIn }, { dir }));
+  await part('shell', () => verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir }));
+  await part('shell', () => verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows }));
+  await part('shell', () => verifyQrCode({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordWatermarkPicture({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('slides', () => verifyDeckWordArtTransform({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordMergeTracked({ open, check, until, doc, sessionFor }, { dir }));
+  await part('shell', () => verifyLostMouseup({ open, check, until }, { dir }));
+  await part('shell', () => verifyDialogFocus({ open, check, until, wait, press }, { dir }));
+  await part('shell', () => verifyOpenProgram({ open, check, until }, { dir }));
+  await part('pictures', () => verifyPicturesMarks({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('slides', () => verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('pdf', () => verifyPdfScripts({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckMotion({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordMergeRules({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheetEquation({ open, check, until, wait }, { dir }));
+  await part('word', () => verifyWordSignature({ open, check, until, wait }, { dir }));
+  await part('slides', () => verifyDeckInsertMaster({ open, check, until, wait }, { dir }));
+  await part('slides', () => verifyDeckCustomShows({ open, check, until, wait, doc }, { dir }));
+  await part('word', () => verifyWordToa({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckWordArt({ open, check, until, wait, doc, capture: shotTo }, { dir }));
+  await part('sheets', () => verifySheetWordArt({ open, check, until, wait, capture: shotTo }, { dir }));
+  await part('slides', () => verifyDeckNotesMaster({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir }));
+  await part('slides', () => verifyDeckMedia({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir }));
+  await part('slides', () => verifyDeckScreenRecording({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckTransitionSound({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckInk({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir }));
+  await part('sheets', () => verifySheetInk({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir }));
+  await part('word', () => verifyWordInk({ open, check, until, wait, capture: shotTo }, { dir }));
+  await part('slides', () => verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('video', () => verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir }));
+  await part('video', () => verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir }));
+  await part('slides', () => verifyDeckDirection({ open, check, until, wait }, { dir }));
+  await part('slides', () => verifyDeckRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckZoom({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordCompare({ open, check, until, wait, doc }, { dir }));
+  await part('word', () => verifyWordForms({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('word', () => verifyWordRedact({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('shell', () => verifyInspect({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('word', () => verifyWordInkml({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('slides', () => verifyDeckCompare({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('slides', () => verifyDeckRedact({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('slides', () => verifyDeckShowInk({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('slides', () => verifyDeckCommentThreads({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('sheets', () => verifySheetInspect({ open, check, until, wait, capture: shotTo, doc }, { dir }));
+  await part('slides', () => verifyDeckObject({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordObject({ open, check, until, wait, doc }, { dir }));
+  await part('word', () => verifyWordSplit({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheetSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordTrackFormat({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheetPivotFields({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('calendar', () => verifyDav({ open, check, until, wait, errorsIn }));
+  await part('shell', () => verifyThesaurus({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDesignIdeas({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheetQueries({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheetQueryTransforms({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheetSelectPaste({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeck3d({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckPoints({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordTable({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordBlocks({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordTableTools({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordOdt({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordHtml({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('shell', () => verifyBinaryLocked({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('shell', () => verifyOdfCharts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('shell', () => verifyDrawingDelete({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheetPointing({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifySheetRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
+  await part('word', () => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
+  await part('word', () => wordMailMerge());
+  await part('word', () => wordLabels());
+  await part('word', () => wordTrack());
+  await part('word', () => wordEquations());
+  await part('word', () => wordEffects());
+  await part('word', () => wordPictureFits());
+  await part('word', () => wordCards());
+  await part('word', () => wordRuler());
+  await part('word', () => wordColumns());
+  await part('shell', () => updatePrompt());
+  await part('shell', () => launcherRecent());
+  await part('shell', () => launcherDrop());
+  await part('shell', () => appNames());
+  await part('shell', () => homeRecentEdit());
+  await part('sheets', () => sheetFreeze());
+  await part('sheets', () => sheetErrors());
+  await part('sheets', () => sheetWatch());
+  await part('sheets', () => sheetSparklines());
+  await part('shell', () => zoomStaysOnThePage());
+  await part('shell', () => zoomByWheel());
+  await part('sheets', () => sheetPicture());
+  await part('slides', () => viewer());
+  await part('slides', () => slideshow());
+  await part('sheets', () => sheetLinks());
+  await part('sheets', () => sheetOutline());
+  await part('sheets', () => sheetDataTools());
+  await part('sheets', () => sheetEvaluate());
+  await part('sheets', () => sheetComments());
+  await part('sheets', () => sheetViews());
+  await part('sheets', () => sheetProtect());
+  await part('shell', () => verifyPwFast({ open, check, until, wait, capture: shotTo }, { dir }));
+  await part('sheets', () => sheetLayoutViews());
+  await part('sheets', () => sheetAnalysis());
+  await part('sheets', () => sheetSlicers());
+  await part('sheets', () => sheetArrange());
+  await part('sheets', () => sheetThemes());
+  await part('sheets', () => verifySheetCf({ open, check, until, errorsIn }, { dir }));
+  await part('slides', () => verifyDeckDraw({ open, check, until, wait, errorsIn }, { dir }));
   // Last of the camera's checks, for the reason given in the list above.
-  await block(() => verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir }));
-  await block(() => polish());
+  await part('slides', () => verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir }));
+  await part('shell', () => polish());
 
   // The sections below are written inline rather than as blocks; each one's
   // windows are closed when the next begins, as the blocks' are.
@@ -5412,6 +5464,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */
 
+  if (runs('sheets')) {
+    currentApp = 'sheets';
   try {
     const win = await open('sheets', files.xlsx);
 
@@ -5472,9 +5526,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Presentation: navigate, save, reopen ────────────────────────────── */
 
+  if (runs('slides')) {
+    currentApp = 'slides';
   try {
     const win = await open('slides', files.pptx);
     const drawn = await win.webContents.executeJavaScript(
@@ -5501,9 +5558,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Pictures: the file actually decodes in the window ───────────────── */
 
+  if (runs('pictures')) {
+    currentApp = 'pictures';
   if (files.png) {
     try {
       const win = await open('pictures', files.png);
@@ -5528,9 +5588,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Image: open, rotate, and check the result is turned ─────────────── */
 
+  if (runs('image')) {
+    currentApp = 'image';
   if (files.png) {
     try {
       const win = await open('image', files.png);
@@ -5557,16 +5620,22 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Video: the media loads what the protocol served, and a timeline is built ── */
 
+  if (runs('video')) {
+    currentApp = 'video';
   await verifyVideoBasics({ open, check, until }, { wav: files.wav });
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Presentation: a deck can gain a slide, and a slide can gain notes ─ */
 
+  if (runs('slides')) {
+    currentApp = 'slides';
   try {
     const win = await open('slides', files.pptx);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -5626,9 +5695,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── The launcher survives a notice board that is not there ──────────── */
 
+  if (runs('shell')) {
+    currentApp = 'shell';
   try {
     const win = await open('home');
     // Long enough for the fetch to have failed and the render to have settled.
@@ -5651,9 +5723,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Worksheets: the ribbon can actually format a cell ───────────────── */
 
+  if (runs('sheets')) {
+    currentApp = 'sheets';
   try {
     const win = await open('sheets', files.xlsx);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -5710,9 +5785,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Every window offers full screen ─────────────────────────────────── */
 
+  if (runs('shell')) {
+    currentApp = 'shell';
   try {
     const win = opened[0];
     const found = await win.webContents.executeJavaScript(
@@ -5725,9 +5803,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Word: a GitHub README opens, edits and saves as Markdown ────────── */
 
+  if (runs('word')) {
+    currentApp = 'word';
   try {
     const win = await open('word', files.md);
     await wait(400);
@@ -5764,9 +5845,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Word: the ribbon reaches what the engine can do ─────────────────── */
 
+  if (runs('word')) {
+    currentApp = 'word';
   try {
     const win = await open('word', files.docx);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -5818,6 +5902,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Word: the buttons a person clicks do what they say ──────────────── */
   //
@@ -5827,6 +5912,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // every font, colour, indent and style control sending a key the engine did
   // not listen for, and nothing here noticed — because nothing here clicked.
 
+  if (runs('word')) {
+    currentApp = 'word';
   try {
     const win = await open('word', files.docx);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -6006,9 +6093,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Word: the rest of the ribbon, tab by tab ─────────────────────────── */
 
+  if (runs('word')) {
+    currentApp = 'word';
   try {
     const win = await open('word', files.docx);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -6192,9 +6282,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Worksheets: the rest of the ribbon, tab by tab ───────────────────── */
 
+  if (runs('sheets')) {
+    currentApp = 'sheets';
   try {
     const win = await open('sheets', files.xlsx);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -6338,9 +6431,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Worksheets: clicking empty grid, typing, and formatting that paints ── */
 
+  if (runs('sheets')) {
+    currentApp = 'sheets';
   try {
     const win = await open('sheets', files.xlsx);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -6481,6 +6577,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Presentation, Pictures, Image, Video, Mail: pressed, not driven ──── */
 
@@ -6513,6 +6610,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     return 'set';
   })()`);
 
+  if (runs('shell')) {
+    currentApp = 'shell';
   try {
     const win = await open('slides', files.pptx);
     const deckModel = (slide) => win.webContents.executeJavaScript(`(async () => {
@@ -6617,9 +6716,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Presentation: the rest of the ribbon, tab by tab ─────────────────── */
 
+  if (runs('slides')) {
+    currentApp = 'slides';
   try {
     const win = await open('slides', files.pptx);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -6759,6 +6861,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Mail and the calendar: an invitation in a message is answered from it ─ */
   //
@@ -6766,6 +6869,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // the invitation card; Accept keeps the event and opens a message to the
   // organizer with the reply attached. And Compose completes an address
   // from the people mail has seen.
+  if (runs('mail')) {
+    currentApp = 'mail';
   try {
     const win = await open('mail');
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -6804,9 +6909,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Mail: a seeded message opens in the reading pane ────────────────── */
 
+  if (runs('mail')) {
+    currentApp = 'mail';
   try {
     const win = await open('mail');
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -6991,6 +7099,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Mail: adding an account is an address and a password ────────────── */
   //
@@ -6998,6 +7107,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // provider table, never the network — offers the browser sign-in the
   // provider wants, and keeps the advanced fields one click away, filled
   // with what was found.
+  if (runs('mail')) {
+    currentApp = 'mail';
   try {
     const win = await open('mail');
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -7037,21 +7148,27 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // Last of all: it leaves an Inbox and a Junk folder on the shared account,
   // and a window opens on an Inbox before the seeded folder the others read.
   await verifyMailJunk({ open, check, until, wait, errorsIn });
-  await block(() => verifyMailLinks({ open, check, until, wait, errorsIn }));
-  await block(() => verifyAiTools({ open, check, until, wait, errorsIn }));
-  await block(() => verifyMailWindow({ open, check, until, wait, errorsIn }));
-  await block(() => verifyMailDrafts({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyMailLinks({ open, check, until, wait, errorsIn }));
+  // After the sections that read the seeded Inbox: it adds two messages of its own.
+  await part('mail', () => verifyMailSafety({ open, check, until, wait, errorsIn }, { dir }));
+  // AI Tools and S/MIME run inside Mail's section, so they are counted as its part.
+  await part('mail', () => verifyAiTools({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyMailWindow({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyMailDrafts({ open, check, until, wait, errorsIn }));
   await verifyMailArchive({ open, check, until, wait, errorsIn });
-  await block(() => verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo }));
-  await block(() => verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo }));
-  await block(() => verifySmime({ open, check, until, wait, errorsIn, capture: shotTo }));
-  await block(() => verifyMailAccounts({ open, check, until, wait, errorsIn, capture: shotTo }));
-  await block(() => verifyMailSignIn({ open, check, until, wait, errorsIn, capture: shotTo }));
+  await part('mail', () => verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo }));
+  await part('mail', () => verifyMailBigMbox({ open, check, until, wait, errorsIn, capture: shotTo }));
+  await part('mail', () => verifySmime({ open, check, until, wait, errorsIn, capture: shotTo }));
+  await part('mail', () => verifyMailAccounts({ open, check, until, wait, errorsIn, capture: shotTo }));
+  await part('mail', () => verifyMailSignIn({ open, check, until, wait, errorsIn, capture: shotTo }));
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── OpenDocument goes out as OpenDocument ───────────────────────────── */
+  if (runs('shell')) {
+    currentApp = 'shell';
   try {
     const odt = path.join(path.dirname(files.docx), 'report.odt');
     const s = await doc.open({ path: files.docx });
@@ -7066,8 +7183,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Contacts: a file is shown and offered, a card is kept and found ─── */
+  if (runs('contacts')) {
+    currentApp = 'contacts';
   try {
     const win = await open('contacts', files.vcf);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -7096,8 +7216,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Calendar: a file is shown beside the person's own, kept, and added to ─ */
+  if (runs('calendar')) {
+    currentApp = 'calendar';
   try {
     const win = await open('calendar', files.ics);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -7125,6 +7248,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Journeys: the things a person does between the buttons ──────────── */
   //
@@ -7132,6 +7256,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // size still shows everything without a sideways scroll; the launcher
   // lists what was opened; Ctrl+F1 folds the ribbon and unfolds it.
 
+  if (runs('shell')) {
+    currentApp = 'shell';
   try {
     const win = await open('sheets', files.xlsx);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -7219,11 +7345,14 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── A presenter window ends with its editor ─────────────────────────── */
   //
   // The presenter shows the deck its editor holds open. Closing the editor
   // used to leave the presenter up, failing every call it made.
+  if (runs('slides')) {
+    currentApp = 'slides';
   try {
     const editor = await open('slides', files.pptx);
     const deckId = await editor.webContents.executeJavaScript(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); return all.filter((s) => s.kind === 'deck').pop().id; })()`);
@@ -7242,6 +7371,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Real input: the mouse and the keyboard, not element clicks ──────── */
   //
@@ -7251,6 +7381,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // these drive the windows with the same events a mouse and a keyboard
   // send, and read the engine to see where they landed.
 
+  if (runs('shell')) {
+    currentApp = 'shell';
   const mouse = async (win, selector, { at = 'centre', modifiers = [] } = {}) => {
     // A cell is named by its reference ("D5"): an empty cell has no element
     // of its own, so the point comes from the column and row headers, the
@@ -7438,6 +7570,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Autosave: a crash does not take the work ────────────────────────── */
   //
@@ -7446,6 +7579,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // crash took. This types into a document, asks the service to write its
   // copy, and then opens the launcher — where the person who lost it would be
   // looking — to see that it is offered back by name.
+  if (runs('shell')) {
+    currentApp = 'shell';
   try {
     const win = await open('word', null);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -7524,6 +7659,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Printing: paper, and a PDF of anything ──────────────────────────── */
   //
@@ -7533,6 +7669,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // dialog with Ctrl+P, is asked how many pages that would be, and then writes
   // the PDF through the same door the dialog's own button uses — which is what
   // proves the layout reached Chromium and came back as pages.
+  if (runs('shell')) {
+    currentApp = 'shell';
   for (const [appName, file, kind, options] of [
     ['word', files.docx, 'doc', {}],
     ['sheets', files.xlsx, 'sheet', { headings: true, gridlines: true }],
@@ -7589,6 +7727,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
+  }
 
   /* ── Last of all: a dirty window refuses to close ─────────────────────── */
 
@@ -7602,6 +7741,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // LAST, because the refusal is a native, window-modal message box that
   // nothing can dismiss from here; while it stood mid-run, keystrokes meant
   // for later checks reached it, answered it, and the run lost windows.
+  if (runs('word')) {
+    currentApp = 'word';
   try {
     const win = await open('word', null);
     const js = (code) => win.webContents.executeJavaScript(code);
@@ -7631,6 +7772,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('word: a dirty window refuses to close silently', !win.isDestroyed(), win.isDestroyed() ? 'the window closed and the work went with it' : 'the window is still open, asking');
   } catch (err) {
     check('word: the dirty-close check ran', false, err.message);
+  }
   }
 
   return done();

@@ -276,6 +276,20 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
       if (meta.get(winId)?.app === 'mail' && /^(https?|mailto):/i.test(url || '')) onWindowEvent?.(win, 'win:link', { url });
       return { action: 'deny' };
     });
+    // Mail's message frame has no scripts and so no menu of its own: a
+    // right-click in it is handed to the window as what was under the pointer
+    // (a link, a picture, words chosen), for Mail's own menu, which its Safety
+    // switch governs.
+    win.webContents.on('context-menu', (_e, params) => {
+      if (meta.get(winId)?.app !== 'mail') return;
+      if (!params.frame || params.frame === win.webContents.mainFrame) return;
+      onWindowEvent?.(win, 'win:frameMenu', {
+        x: params.x, y: params.y,
+        link: params.linkURL || '', linkText: params.linkText || '',
+        src: params.srcURL || '', media: params.mediaType || 'none',
+        selection: params.selectionText || '',
+      });
+    });
     win.webContents.on('will-navigate', (e, target) => {
       if (!target.startsWith(`${SCHEME}://app/`)) e.preventDefault();
     });

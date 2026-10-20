@@ -30,6 +30,7 @@ import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installS
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
+import { frameMenuItems, pictureBytes, savePicture, SourceDialog, SAFETY_CSS } from './mail/safety.js';
 import Compose from './mail/compose.js';
 import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog, JunkDialog } from './mail/dialogs.js';
 import { RulesDialog } from './mail/rules.js';
@@ -1203,7 +1204,7 @@ export default function Mail({ app, shell }) {
   // is written to here; anything else is not opened.
   const linkFacts = useRef({});
   linkFacts.current = { message, inJunk, auth: insight?.auth };
-  useEffect(() => shell.on('win:link', async ({ url: asked }) => {
+  const followLink = useCallback(async (asked) => {
     const url = fromFrameUrl(asked);
     const { message: m, inJunk: junk, auth } = linkFacts.current;
     const kind = linkKind(url);
@@ -1233,7 +1234,49 @@ export default function Mail({ app, shell }) {
       if (response !== 0) return;
     }
     shell.shell.openExternal({ url }).catch((err) => toast(t('The link could not be opened: {reason}', { reason: err.message }), { tone: 'bad', ms: 6000 }));
-  }), [shell, toast]);
+  }, [shell, toast]);
+  useEffect(() => shell.on('win:link', ({ url } = {}) => followLink(url)), [shell, followLink]);
+
+  // Safety (safety.js): on for every message as it opens.
+  const [safety, setSafety] = useState(true);
+  const safetyRef = useRef(true);
+  safetyRef.current = safety;
+  useEffect(() => { setSafety(true); }, [selected?.accountId, selected?.folder, selected?.id]);
+  const safetyFirst = useCallback(() => toast(t('Safety is on for this message: turn it off at the top of the message to copy or save.'), { ms: 4500 }), [toast]);
+  const [sourceView, setSourceView] = useState(null);
+  const messageRef = useRef(null);
+  messageRef.current = message;
+
+  // A right-click in the message: Mail's own menu, as Safety allows.
+  useEffect(() => shell.on('win:frameMenu', (at = {}) => {
+    const items = frameMenuItems({
+      at: { ...at, link: at.link ? fromFrameUrl(at.link) : '' },
+      safe: safetyRef.current,
+      onCopy: () => shell.win.frameAction({ action: 'copy' }).catch(() => {}),
+      onOpenLink: (url) => followLink(url),
+      onCopyLink: async (url) => { await shell.clipboard.writeText({ text: url }); toast(t('The link is copied.'), { ms: 2500 }); },
+      onCopyPicture: async (p) => {
+        try {
+          const { bytes } = await pictureBytes({ shell, src: p.src, message: messageRef.current });
+          await shell.clipboard.writeImage({ bytes });
+          toast(t('The picture is copied.'), { ms: 2500 });
+        } catch (err) {
+          toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
+        }
+      },
+      onSavePicture: async (src) => {
+        try {
+          const saved = await savePicture({ shell, src, message: messageRef.current });
+          if (saved) toast(t('Saved {name}', { name: saved.split(/[\\/]/).pop() }), { tone: 'good', ms: 3000 });
+        } catch (err) {
+          toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
+        }
+      },
+      onSafetyOff: () => setSafety(false),
+    });
+    if (!items.length) return;
+    menu.open({ preventDefault() {}, stopPropagation() {}, currentTarget: null, target: null, type: 'contextmenu', clientX: at.x || 1, clientY: at.y || 1 }, items);
+  }), [shell, toast, followLink, menu.open]);
 
   const junkMenu = (event) => {
     const none = !selected && !checked.size;
@@ -1263,8 +1306,24 @@ export default function Mail({ app, shell }) {
       plain={plain}
       dark={dark}
       onRemote={() => setRemote(true)}
-      onSaveAttachment={saveAttachment}
-      onOpenAttachment={openAttachment}
+      onSaveAttachment={(index) => (safety ? safetyFirst() : saveAttachment(index))}
+      onOpenAttachment={(index, meta) => {
+        // Handed to another program only with Safety off; Office's own apps open it either way.
+        if (safety && !appFor(kindFromExtension(String(meta?.filename || '')))) return safetyFirst();
+        return openAttachment(index, meta);
+      }}
+      safety={safety}
+      onSafety={setSafety}
+      onBlocked={safetyFirst}
+      onSource={async () => {
+        setSourceView({ loading: true });
+        try {
+          setSourceView(await shell.mail.source({ accountId: selected.accountId, folder: selected.folder, id: selected.id }));
+        } catch (err) {
+          setSourceView(null);
+          toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
+        }
+      }}
       onReply={() => reply(false)}
       onReplyAll={() => reply(true)}
       onForward={forward}
@@ -1908,6 +1967,8 @@ export default function Mail({ app, shell }) {
       )}
 
       {menu.node}
+      <style>{SAFETY_CSS}</style>
+      {sourceView ? <SourceDialog shell={shell} source={sourceView} subject={message?.subject} safe={safety} toast={toast} onClose={() => setSourceView(null)} /> : null}
 
       {/* the undo window ------------------------------------------------- */}
       {outbox.length ? (

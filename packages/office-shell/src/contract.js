@@ -41,6 +41,7 @@ export const METHODS = {
     'fullscreen',   // ({ on, display, presenter }) -> { fullscreen, display }   display: 'automatic' | 'primary' | a display's id
     'displays',     // () -> [{ id, name, primary, current, width, height }]   for Slide Show → Monitor
     'zoom',         // ({ delta, reset }) -> { factor }
+    'frameAction',  // ({ action: 'copy' }) -> { done }   in a frame with no scripts of its own (Mail's message): the words chosen there, to the clipboard
     'state',        // () -> { maximized, fullscreen, focused, platform }
     'devtools',     // () -> void
     'arrange',      // ({ mode }) -> { count }   this app's windows: stack, columns, tile, cascade, sideBySide
@@ -158,6 +159,8 @@ export const METHODS = {
     'forgetAccountsJob', // ({ job }) -> { forgotten } rows still waiting for agreement forgotten, passwords and all
     'discoveryForTest', // ({ domain, found }) -> { staged } a domain whose records name servers elsewhere, for a check run; refused otherwise
     'attachmentText', // ({ accountId, folder, id, index }) -> { name, type, text }
+    'source',       // ({ accountId, folder, id }) -> { text, bytes, from: 'server' | 'rebuilt', reason? }   the message as it came, fetched from its server when shown; rebuilt from what is kept when there is no server
+    'fetchPicture', // ({ url }) -> { bytes, type, name }   a picture a message shows from the web, fetched when it is saved (http and https only)
     'attachmentReading', // ({ accountId, folder, id, index }) -> reading | null: what was read from an attachment (an invoice's details) when its message was opened
     'keepReading', // ({ accountId, folder, id, index, reading }) -> { kept: 'message' | 'run' }: kept with the message, so it is not read again
     'folders',      // ({ accountId }) -> [folder]
@@ -372,6 +375,7 @@ export const METHODS = {
 export const EVENTS = [
   'win:state',        // { maximized, fullscreen, focused }
   'win:link',         // { url }             a link followed inside a frame (a message's body), for the window to open or warn about
+  'win:frameMenu',    // { x, y, link, linkText, src, media, selection }   a right-click inside such a frame: what was under the pointer, for the window's own menu
   'live:status',      // { live, destinations }  Go Live's destinations as they connect, stream, drop and come back
   'app:open-file',    // { path }            OS asked us to open a document
   'app:command',      // { command, args }   menu / accelerator

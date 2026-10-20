@@ -11,6 +11,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Chip, formatWhen, formatBytes, t, tn } from '@rutba/office-ui';
 import { bodyDocument, avatarFor, displayName } from './parts.js';
 import { SmimeStrip, unsafeDecrypted } from './smime.js';
+import { SafetySwitch } from './safety.js';
 
 export default function Reader({
   message,
@@ -35,6 +36,11 @@ export default function Reader({
   onSmimeImport,
   onCertificates,
   notes = null,
+  // The Safety switch (safety.js): on, copying and saving wait until it is turned off.
+  safety = true,
+  onSafety = null,
+  onSource = null,
+  onBlocked = null,
 }) {
   const frameRef = useRef(null);
   const [height, setHeight] = useState(600);
@@ -92,9 +98,11 @@ export default function Reader({
             </div>
           </div>
           <span className="ml-date">{formatWhen(message.date, { long: true })}</span>
+          {onSafety ? <SafetySwitch on={safety} onChange={onSafety} /> : null}
           <Button icon="reply" title={t('Reply')} onClick={onReply} />
           <Button icon="replyAll" title={t('Reply all')} onClick={onReplyAll} />
           <Button icon="forward" title={t('Forward')} onClick={onForward} />
+          {onSource ? <Button icon="eye" title={t('View source: the whole message as it came')} className="ml-source-btn" onClick={onSource} /> : null}
         </div>
 
         {inJunk ? (
@@ -137,9 +145,10 @@ export default function Reader({
                   onClick={() => onOpenAttachment?.(index, a)}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    onSaveAttachment(index);
+                    if (safety && onBlocked) onBlocked();
+                    else onSaveAttachment(index);
                   }}
-                  title={t('{name} — click to open, right-click to save', { name: a.filename })}
+                  title={safety && onBlocked ? t('{name}: click to open. Turn Safety off to save it.', { name: a.filename }) : t('{name}: click to open, right-click to save', { name: a.filename })}
                 >
                   <Icon name="attach" size={14} />
                   <span className="name">{a.filename}</span>
@@ -148,7 +157,7 @@ export default function Reader({
               );
             })}
             {attachments.length > 1 ? (
-              <button type="button" className="ml-attachment" onClick={() => onSaveAttachment('all')}>
+              <button type="button" className="ml-attachment ml-save-all" onClick={() => (safety && onBlocked ? onBlocked() : onSaveAttachment('all'))}>
                 <Icon name="download" size={13} />
                 <span className="name">{t('Save all')}</span>
               </button>
