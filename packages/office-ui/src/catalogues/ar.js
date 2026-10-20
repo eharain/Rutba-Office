@@ -7163,4 +7163,5 @@ export default {
   'This computer cannot make the AAC sound a live stream needs.': 'لا يستطيع هذا الحاسوب إنشاء صوت AAC الذي يحتاجه البث المباشر.',
   'This computer cannot make the H.264 picture a live stream needs.': 'لا يستطيع هذا الحاسوب إنشاء صورة H.264 التي يحتاجها البث المباشر.',
   'Turn on a destination with a stream key to go live.': 'فعّل وجهة لها مفتاح بث لتبدأ البث المباشر.',
+  'Drag on the picture again to choose a smaller part.': 'اسحب على الصورة مرة أخرى لاختيار جزء أصغر.',
 };

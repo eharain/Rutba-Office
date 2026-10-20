@@ -17,7 +17,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ribbon, Group, Button, Rows, Select, Icon, Input, Panel, Content, Spinner, useToast, formatBytes, basename, t } from '@rutba/office-ui';
 import { normaliseStudio, SCENES, STUDIO_DEFAULTS } from '@rutba/studio/compositor';
-import { takeFileName, bytesPerSecond, diskState } from '@rutba/studio/recorder';
+import { takeFileName, bytesPerSecond, diskState, regionCrop } from '@rutba/studio/recorder';
 import { AppFrame, useAppMenu } from '../shell.js';
 import { RecorderRig } from './video/recorder/session.js';
 import { Toggle, Segments, Meter } from './video/recorder/panel.js';
@@ -54,6 +54,10 @@ export default function Recorder({ app, shell }) {
   const [loaded, setLoaded] = useState(false);
   const [sources, setSources] = useState(null);
   const [kind, setKind] = useState('screen');
+  // Region (owner, 2026-10-20: "in recorder the region is not present as in
+  // video is"): the part of the screen or window recorded, and the one being drawn.
+  const [crop, setCrop] = useState(null);
+  const [drawing, setDrawing] = useState(null);
   const [sourceId, setSourceId] = useState(null);
   const [devices, setDevices] = useState({ cameras: [], mics: [] });
   const [phase, setPhase] = useState('setup'); // setup | countdown | recording | stopping
@@ -154,13 +158,47 @@ export default function Recorder({ app, shell }) {
     }
   }, [shell]);
   useEffect(() => { loadSources(); }, [loadSources]);
-  const listed = useMemo(() => (sources || []).filter((s) => s.kind === kind), [sources, kind]);
+  const listed = useMemo(() => {
+    const all = sources || [];
+    // A region is drawn on a screen or a window: the screens first, then the windows.
+    if (kind === 'region') return [...all.filter((s) => s.kind === 'screen'), ...all.filter((s) => s.kind === 'window')];
+    return all.filter((s) => s.kind === kind);
+  }, [sources, kind]);
   useEffect(() => {
     if (!sources) return;
     if (!listed.some((s) => s.id === sourceId)) setSourceId(listed[0]?.id || null);
   }, [listed, sources, sourceId]);
   const source = listed.find((s) => s.id === sourceId) || null;
   useEffect(() => { stalls.current = 0; }, [sourceId]);
+  // A region belongs to its source: another source, or another kind, starts whole.
+  useEffect(() => { setCrop(null); }, [sourceId, kind]);
+  useEffect(() => { program.current?.setCrop(kind === 'region' ? crop : null); }, [crop, kind]);
+
+  /** A drag on the picture, read as the part of the source under it. */
+  const frameRef = useRef(null);
+  const drawRegion = (e) => {
+    if (kind !== 'region' || phase !== 'setup' || e.button !== 0 || !program.current?.screenAt) return;
+    e.preventDefault();
+    const box = frameRef.current.getBoundingClientRect();
+    const at = (ev) => ({ fx: (ev.clientX - box.left) / box.width, fy: (ev.clientY - box.top) / box.height });
+    const a = at(e);
+    const from = program.current.toSource(a.fx, a.fy);
+    if (!from) return;
+    setDrawing({ a, b: a });
+    const move = (ev) => setDrawing({ a, b: at(ev) });
+    const up = (ev) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setDrawing(null);
+      const b = at(ev);
+      const to = program.current.toSource(b.fx, b.fy);
+      if (!to) return;
+      const next = regionCrop({ x: from.x, y: from.y, w: to.x - from.x, h: to.y - from.y }, { width: 1, height: 1 });
+      if (next) setCrop(next);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
 
   // The sources open as the settings say. The screen stays as it is while it records.
   const needsScreen = settings.scene !== 'camera' && settings.scene !== 'brb';
@@ -455,15 +493,27 @@ export default function Recorder({ app, shell }) {
 
       <Content>
         <div className="st-stage">
-          <div className={`st-frame${recording ? ' live' : ''}${paused ? ' held' : ''}`} data-scene={settings.scene}>
+          <div ref={frameRef} className={`st-frame${recording ? ' live' : ''}${paused ? ' held' : ''}${kind === 'region' && phase === 'setup' ? ' drawing' : ''}`} data-scene={settings.scene} onPointerDown={drawRegion}>
             <canvas ref={canvasRef} className="st-canvas" width={1920} height={1080} aria-label={t('Program')} />
             {recording ? <span className="rec-badge st-badge"><i />{paused ? t('Paused') : t('Recording')} {clock(elapsed)}</span> : null}
             {live ? <span className="st-live-badge" data-phase={livePhase}><i />{t('LIVE')} {clock(liveFor)}</span> : null}
             {phase === 'countdown' ? <div className="rec-count" aria-live="assertive"><span key={count}>{count}</span></div> : null}
+            {drawing ? (
+              <div className="rec-region st-drawn" style={{ left: `${Math.min(drawing.a.fx, drawing.b.fx) * 100}%`, top: `${Math.min(drawing.a.fy, drawing.b.fy) * 100}%`, width: `${Math.abs(drawing.b.fx - drawing.a.fx) * 100}%`, height: `${Math.abs(drawing.b.fy - drawing.a.fy) * 100}%` }}><span>{t('Region')}</span></div>
+            ) : null}
+            {kind === 'region' && haveScreen && phase === 'setup' && !drawing ? (
+              <div className="rec-hint">{crop ? t('Drag on the picture again to choose a smaller part.') : t('Drag on the picture to choose the part to record.')}</div>
+            ) : null}
             {needsScreen && !haveScreen && phase === 'setup' ? (
               <div className="st-wait">{rig.screen.error ? rig.screen.error : sources == null ? <><Spinner /> {t('Looking at what is open…')}</> : t('Choose a screen or a window to record.')}</div>
             ) : null}
           </div>
+          {kind === 'region' && crop ? (
+            <div className="st-region-bar">
+              <span>{t('Region {w} × {h}', { w: Math.round(crop.w * (rig.screen.stream?.getVideoTracks()[0]?.getSettings?.().width || 0)), h: Math.round(crop.h * (rig.screen.stream?.getVideoTracks()[0]?.getSettings?.().height || 0)) })}</span>
+              {phase === 'setup' ? <Button ghost icon="close" label={t('Whole picture')} className="st-whole" onClick={() => setCrop(null)} /> : null}
+            </div>
+          ) : null}
           {live && liveStatus.length ? (
             <div className="st-dests" aria-live="polite">
               {liveStatus.map((d) => (
@@ -490,7 +540,7 @@ export default function Recorder({ app, shell }) {
         <div className="st-side" aria-disabled={busy}>
           <section className="rec-sec">
             <h3>{t('Screen')}</h3>
-            <Segments value={kind} disabled={busy} className="st-kinds" onChange={setKind} options={[{ value: 'screen', label: t('Screen'), icon: 'screen' }, { value: 'window', label: t('Window'), icon: 'window' }]} />
+            <Segments value={kind} disabled={busy} className="st-kinds" onChange={setKind} options={[{ value: 'screen', label: t('Screen'), icon: 'screen' }, { value: 'window', label: t('Window'), icon: 'window' }, { value: 'region', label: t('Region'), icon: 'region', tip: t('Region: a part you draw, kept as a crop you can change later') }]} />
             <div className="rec-sources st-sources">
               {sources && !listed.length ? <div className="rec-wait">{kind === 'window' ? t('No other window is open to record.') : t('No screen can be recorded.')}</div> : null}
               {listed.map((s) => (

@@ -7161,4 +7161,5 @@ export default {
   'This computer cannot make the AAC sound a live stream needs.': 'یہ کمپیوٹر وہ AAC آواز نہیں بنا سکتا جو لائیو اسٹریم کو درکار ہے۔',
   'This computer cannot make the H.264 picture a live stream needs.': 'یہ کمپیوٹر وہ H.264 تصویر نہیں بنا سکتا جو لائیو اسٹریم کو درکار ہے۔',
   'Turn on a destination with a stream key to go live.': 'لائیو جانے کے لیے اسٹریم کی والی کوئی منزل آن کریں۔',
+  'Drag on the picture again to choose a smaller part.': 'چھوٹا حصہ چننے کے لیے تصویر پر دوبارہ گھسیٹیں۔',
 };

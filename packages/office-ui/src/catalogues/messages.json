@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7153,
+  "count": 7154,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -10470,8 +10470,15 @@
       ]
     },
     {
+      "message": "Drag on the picture again to choose a smaller part.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Drag on the picture to choose the part to record.",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -27601,6 +27608,7 @@
       "message": "Region",
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/design.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
@@ -27608,12 +27616,14 @@
     {
       "message": "Region {w} × {h}",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
     {
       "message": "Region: a part you draw, kept as a crop you can change later",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -40741,6 +40751,7 @@
     {
       "message": "Whole picture",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },

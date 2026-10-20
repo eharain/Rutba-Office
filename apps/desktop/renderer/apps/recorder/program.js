@@ -90,6 +90,11 @@ export class Program {
     // A source that is live but has given no frame: when it was opened, and what to do about it.
     this.opened = { screen: 0, camera: 0 };
     this.onStall = null;
+    // Region: the part of the screen or window recorded, as fractions of it,
+    // or null for the whole of it; and where the screen was last drawn, for
+    // a drag on the picture to be read back as a part of the source.
+    this.crop = null;
+    this.screenAt = null;
   }
 
   /** The settings the next frame is drawn with (normalised by the window). */
@@ -109,6 +114,28 @@ export class Program {
     const img = new Image();
     img.onload = () => { this.logo = img; };
     img.src = url;
+  }
+
+  /** The part of the screen recorded, as fractions of it ({ x, y, w, h }), or null for all of it. */
+  setCrop(crop) {
+    this.crop = crop || null;
+  }
+
+  /**
+   * A point on the picture (fractions of the canvas) as a point on the
+   * screen source (fractions of the whole source), or null when the screen
+   * is not under it. Through the region already chosen, so a region can be
+   * drawn inside one.
+   */
+  toSource(fx, fy) {
+    const at = this.screenAt;
+    if (!at) return null;
+    const x = fx * this.canvas.width;
+    const y = fy * this.canvas.height;
+    const u = Math.max(0, Math.min(1, (x - at.x) / at.w));
+    const v = Math.max(0, Math.min(1, (y - at.y) / at.h));
+    const c = at.crop || { x: 0, y: 0, w: 1, h: 1 };
+    return { x: c.x + u * c.w, y: c.y + v * c.h };
   }
 
   /** Keeps the sources' video elements in step with the rig's streams. */
@@ -156,7 +183,12 @@ export class Program {
     const H = canvas.height;
     const s = this.settings;
     const size = (v) => (v && v.videoWidth ? { w: v.videoWidth, h: v.videoHeight } : null);
-    const layout = sceneLayout(s.scene, { W, H, screen: size(this.videos.screen), camera: size(this.videos.camera), settings: s });
+    // The screen's region, in its own pixels: the scene is laid out for the part recorded.
+    const sv = this.videos.screen;
+    const crop = this.crop && sv?.videoWidth ? { sx: this.crop.x * sv.videoWidth, sy: this.crop.y * sv.videoHeight, sw: this.crop.w * sv.videoWidth, sh: this.crop.h * sv.videoHeight } : null;
+    const screenSize = crop ? { w: crop.sw, h: crop.sh } : size(sv);
+    const layout = sceneLayout(s.scene, { W, H, screen: screenSize, camera: size(this.videos.camera), settings: s });
+    this.screenAt = null;
 
     // The ground.
     if (layout.background === 'card' || layout.background === 'studio') {
@@ -192,8 +224,10 @@ export class Program {
           ctx.drawImage(v, c.sx, c.sy, c.sw, c.sh, box.x, box.y, box.w, box.h);
         }
       } else {
-        const r = containRect(v.videoWidth, v.videoHeight, box);
-        ctx.drawImage(v, r.x, r.y, r.w, r.h);
+        const part = layer.source === 'screen' && crop ? crop : { sx: 0, sy: 0, sw: v.videoWidth, sh: v.videoHeight };
+        const r = containRect(part.sw, part.sh, box);
+        ctx.drawImage(v, part.sx, part.sy, part.sw, part.sh, r.x, r.y, r.w, r.h);
+        if (layer.source === 'screen') this.screenAt = { ...r, crop: this.crop };
       }
       ctx.restore();
       // A ring round the camera over the screen, so it reads as a window onto the person.
@@ -251,6 +285,7 @@ export class Program {
     canvas.dataset.frames = String(this.frames);
     canvas.dataset.scene = s.scene || '';
     canvas.dataset.layers = layout.layers.map((l) => l.source).join(' ');
+    canvas.dataset.crop = this.crop ? `${this.crop.x},${this.crop.y},${this.crop.w},${this.crop.h}` : '';
     { const v = this.videos.screen; const tr = this.streams.screen?.getVideoTracks()[0]; canvas.dataset.screen = v ? `${v.videoWidth}x${v.videoHeight} r${v.readyState} p${v.paused ? 1 : 0} ${tr?.readyState} m${tr?.muted ? 1 : 0}` : 'none'; }
     canvas.dataset.title = s.titleOn && (s.title || s.subtitle) && !layout.card ? '1' : '0';
     this.track?.requestFrame?.();

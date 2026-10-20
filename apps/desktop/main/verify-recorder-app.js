@@ -54,6 +54,33 @@ export async function verifyRecorderApp(h, { dir }) {
       listed && live && look.size[0] === 1280 && look.size[1] === 720 && look.scenes === 5 && look.mid > 60,
       JSON.stringify({ listed, live, ...look }));
 
+    // Region (owner, 2026-10-20: "in recorder the region is not present as in video is"):
+    // a part of the window drawn on the picture is what is recorded, and Whole picture undoes it.
+    await js(`document.querySelector('.st-kinds button[data-value="region"]')?.click(), 1`);
+    await until(() => js(`[...document.querySelectorAll('.st-sources .rec-source')].some((n) => (n.dataset.tip || '').includes('studio-fixture'))`), 'the window among the region sources', 8000).catch(() => {});
+    await js(`(() => { const b = [...document.querySelectorAll('.st-sources .rec-source')].find((n) => (n.dataset.tip || '').includes('studio-fixture')); b?.click(); return 1; })()`);
+    await until(() => js(`document.querySelector('.st-frame')?.classList.contains('drawing') && (document.querySelector('.st-canvas')?.dataset.layers || '').includes('screen')`), 'region mode', 15000).catch(() => {});
+    await wait(600);
+    const drawn = await js(`(async () => {
+      const f = document.querySelector('.st-frame');
+      const r = f.getBoundingClientRect();
+      const at = (x, y) => ({ bubbles: true, cancelable: true, button: 0, clientX: r.left + r.width * x, clientY: r.top + r.height * y, pointerId: 1 });
+      f.dispatchEvent(new PointerEvent('pointerdown', at(0.3, 0.25)));
+      for (let k = 1; k <= 6; k++) { window.dispatchEvent(new PointerEvent('pointermove', at(0.3 + 0.4 * k / 6, 0.25 + 0.5 * k / 6))); await new Promise((res) => setTimeout(res, 25)); }
+      window.dispatchEvent(new PointerEvent('pointerup', at(0.7, 0.75)));
+      return 'drawn';
+    })()`);
+    const cropped = await until(() => js(`(document.querySelector('.st-canvas')?.dataset.crop || '') !== '' && Boolean(document.querySelector('.st-region-bar'))`), 'the region applied', 5000).then(() => true).catch(() => false);
+    const crop = await js(`document.querySelector('.st-canvas')?.dataset.crop || ''`);
+    const [cx, cy, cw, ch] = crop.split(',').map(Number);
+    await js(`document.querySelector('.st-whole')?.click(), 1`);
+    const whole = await until(() => js(`(document.querySelector('.st-canvas')?.dataset.crop || '') === '' && !document.querySelector('.st-region-bar')`), 'the whole picture', 4000).then(() => true).catch(() => false);
+    check('recorder app: Region records the part of the window dragged out on the picture, and Whole picture records all of it again',
+      drawn === 'drawn' && cropped && cw > 0.1 && cw < 0.95 && ch > 0.1 && ch < 0.95 && cx > 0 && cy > 0 && whole,
+      JSON.stringify({ drawn, cropped, crop, whole }));
+    await js(`document.querySelector('.st-kinds button[data-value="window"]')?.click(), 1`);
+    await wait(400);
+
     // A title across the foot, then the Be right back card on its own.
     await js(`(() => { document.querySelector('.st-title-btn')?.click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.st-title'))`), 'the title fields', 4000).catch(() => {});

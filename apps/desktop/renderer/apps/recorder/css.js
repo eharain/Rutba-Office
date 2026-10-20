@@ -17,6 +17,8 @@ export const STUDIO_CSS = `
 .st-frame.live { box-shadow: 0 0 0 2px #e5484d, 0 12px 32px rgba(229,72,77,0.25); }
 .st-frame.live.held { box-shadow: 0 0 0 2px #f5a524, 0 12px 32px rgba(0,0,0,0.3); }
 .st-canvas { display: block; width: 100%; height: 100%; }
+.st-frame.drawing { cursor: crosshair; }
+.st-region-bar { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .st-badge { top: 12px; left: 12px; }
 .st-wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; color: rgba(255,255,255,0.78); font-size: 13px; text-align: center; padding: 24px; }
 .st-wait .rw-spinner { border-color: rgba(255,255,255,0.18); border-top-color: #fff; }
