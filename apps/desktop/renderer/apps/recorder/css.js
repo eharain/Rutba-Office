@@ -37,4 +37,10 @@ export const STUDIO_CSS = `
 .st-logo span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-corners button, .st-logo .rec-seg button { min-width: 30px; justify-content: center; }
 .st-brb-field { margin-top: 8px; }
+.st-flash { position: absolute; inset: 0; background: #fff; pointer-events: none; animation: st-flash 420ms ease-out forwards; }
+@keyframes st-flash { from { opacity: 0.85; } to { opacity: 0; } }
+.st-shot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border-radius: var(--r-2); background: var(--surface); border: 1px solid var(--line-soft); box-shadow: var(--shadow-1); color: var(--ink); max-width: 100%; }
+.st-shot img { width: 64px; height: 40px; object-fit: contain; background: var(--sunken); border-radius: 4px; }
+.st-shot-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+.st-shot-meta { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
 `;

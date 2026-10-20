@@ -97,6 +97,43 @@ export async function verifyRecorderApp(h, { dir }) {
     await js(`document.querySelector('.st-scene[data-scene="screen-camera"]')?.click(), 1`);
     await wait(400);
 
+    // Take Picture (owner, 2026-10-20: "there should be a way to capture pictures on camera and from screens etc."):
+    // the program as shown, the camera at its own size, and the screen after a timer, each one PNG in the folder.
+    const pictures = () => { try { return fs.readdirSync(folder).filter((n) => /^Picture .*\.png$/.test(n)).sort(); } catch { return []; } };
+    const pngSize = (name) => { const b = fs.readFileSync(path.join(folder, name)); return b.length > 24 && b.readUInt32BE(0) === 0x89504e47 ? { w: b.readUInt32BE(16), h: b.readUInt32BE(20) } : null; };
+    const pick = (cls, value) => js(`(() => { const n = document.querySelector('.${cls}'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(n, ${JSON.stringify(value)}); n.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    const dims = async (key) => { const m = String(await js(`document.querySelector('.st-canvas')?.dataset.${key} || ''`)).match(/^(\d+)x(\d+)/); return m ? { w: Number(m[1]), h: Number(m[2]) } : null; };
+    const shoot = async (n) => {
+      await until(() => js(`(() => { const b = document.querySelector('.st-shoot'); return Boolean(b) && !b.disabled; })()`), 'Take Picture ready', 6000).catch(() => {});
+      await js(`document.querySelector('.st-shoot')?.click(), 1`);
+      await until(() => pictures().length >= n, 'picture ' + n, 9000).catch(() => {});
+      await wait(300);
+      const name = pictures()[n - 1] || '';
+      return { name, size: name ? pngSize(name) : null };
+    };
+    const asShown = await shoot(1);
+    await pick('st-shot-of', 'camera');
+    const camSize = await dims('camera');
+    const cam = await shoot(2);
+    await pick('st-shot-of', 'screen');
+    await pick('st-shot-timer', '3');
+    await wait(200);
+    await js(`document.querySelector('.st-shoot')?.click(), 1`);
+    const counting = await ok(until(() => js(`Boolean(document.querySelector('.st-shot-count')) && /[23]/.test(document.querySelector('.st-shoot')?.textContent || '')`), 'the picture timer', 2500));
+    const early = pictures().length;
+    await until(() => pictures().length >= 3, 'picture 3', 9000).catch(() => {});
+    await wait(300);
+    const scr = { name: pictures()[2] || '', size: pictures()[2] ? pngSize(pictures()[2]) : null };
+    const screenSize = await dims('screen');
+    const bar = await js(`Boolean(document.querySelector('.st-shot .st-shot-open')) && Boolean(document.querySelector('.st-shot .st-shot-edit')) && Boolean(document.querySelector('.st-shot .st-shot-copy')) && (document.querySelector('.st-shot-name')?.textContent || '') === ${JSON.stringify(scr.name)}`);
+    check('recorder app: Take Picture keeps a PNG of the program as shown (1280 by 720), of the camera at its own size, and of the screen after a 3 second timer at its own size, with Open, Edit in Image and Copy',
+      asShown.size?.w === 1280 && asShown.size?.h === 720 && camSize && cam.size?.w === camSize.w && cam.size?.h === camSize.h
+        && counting && early === 2 && screenSize && scr.size?.w === screenSize.w && scr.size?.h === screenSize.h && bar,
+      JSON.stringify({ asShown, cam, camSize, counting, early, scr, screenSize, bar }));
+    await pick('st-shot-of', 'program');
+    await pick('st-shot-timer', '0');
+    await wait(300);
+
     // Record: one file growing, the scene changed while it records, a pause.
     await js(`document.querySelector('.st-record')?.click(), 1`);
     const recording = await ok(until(() => js(`(() => { const b = document.querySelector('.st-stop'); return Boolean(b) && !b.disabled; })()`), 'the recording to start', 8000));

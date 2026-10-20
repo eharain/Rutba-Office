@@ -1,6 +1,8 @@
 // Rutba Recorder: record the screen, the camera and the voice as one finished
 // video, made live from scenes (owner, 2026-10-19: "split the recording tool
-// out to be able to record video and stream videos live").
+// out to be able to record video and stream videos live"), and take still
+// pictures of the same (owner, 2026-10-20: "there should be a way to capture
+// pictures on camera and from screens etc.").
 //
 // The window is a small studio. On the left the scenes: the screen with the
 // camera in a corner, the screen alone, the camera alone, the two side by
@@ -67,6 +69,10 @@ export default function Recorder({ app, shell }) {
   const [disk, setDisk] = useState(null);
   const [keys, setKeys] = useState(null);
   const [saved, setSaved] = useState(null); // { path, written, seconds }
+  // Take Picture: the last picture kept, the seconds left on its timer, and a flash each time.
+  const [picture, setPicture] = useState(null); // { path, width, height, url }
+  const [shotCount, setShotCount] = useState(null);
+  const [flash, setFlash] = useState(0);
   const [logoUrl, setLogoUrl] = useState(null);
   const [, setTick] = useState(0);
   const [tab, setTab] = useState('home');
@@ -314,6 +320,53 @@ export default function Recorder({ app, shell }) {
     return () => { clearInterval(tick); clearInterval(watch); };
   }, [phase, checkDisk, toast]);
 
+  /* ── pictures ──────────────────────────────────────────────────────── */
+
+  const snap = useCallback(async () => {
+    setShotCount(null);
+    try {
+      const shot = await program.current?.snapshot(settings.shot);
+      if (!shot) {
+        toast(settings.shot === 'camera' ? t('The camera shows nothing to take yet.') : settings.shot === 'screen' ? t('The screen shows nothing to take yet.') : t('There is nothing to take yet.'), { tone: 'bad', ms: 5000 });
+        return;
+      }
+      const { path } = await shell.capture.take({ dir: settings.folder, name: takeFileName(t('Picture'), new Date(), 'png') });
+      await shell.fs.write({ path, bytes: shot.bytes });
+      setFlash((n) => n + 1);
+      setPicture((old) => {
+        if (old?.url) URL.revokeObjectURL(old.url);
+        return { path, width: shot.width, height: shot.height, url: URL.createObjectURL(new Blob([shot.bytes], { type: 'image/png' })) };
+      });
+    } catch (err) {
+      toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
+    }
+  }, [shell, settings.shot, settings.folder, toast]);
+
+  const takePicture = useCallback(() => {
+    if (shotCount != null) return;
+    if (settings.shotTimer > 0) setShotCount(settings.shotTimer);
+    else snap();
+  }, [shotCount, settings.shotTimer, snap]);
+
+  useEffect(() => {
+    if (shotCount == null) return undefined;
+    if (shotCount <= 0) { snap(); return undefined; }
+    const timer = setTimeout(() => setShotCount((n) => (n == null ? n : n - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [shotCount, snap]);
+
+  useEffect(() => () => { if (picture?.url) URL.revokeObjectURL(picture.url); }, [picture]);
+
+  const copyPicture = useCallback(async () => {
+    try {
+      const { bytes } = await shell.fs.read({ path: picture.path });
+      await shell.clipboard.writeImage({ bytes });
+      toast(t('The picture is on the clipboard.'), { tone: 'good', ms: 3000 });
+    } catch (err) {
+      toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
+    }
+  }, [shell, picture, toast]);
+
   /* ── going live ────────────────────────────────────────────────────── */
 
   useEffect(() => shell.on('live:status', ({ destinations = [] } = {}) => setLiveStatus(destinations)), [shell]);
@@ -400,6 +453,8 @@ export default function Recorder({ app, shell }) {
   const names = SCENE_NAMES();
   const haveScreen = Boolean(rig.screen.stream);
   const canRecord = phase === 'setup' && (haveScreen || rig.camera.stream || settings.scene === 'brb') && disk?.level !== 'stop';
+  const canShoot = shotCount == null && Boolean(settings.folder) && (settings.shot === 'screen' ? haveScreen : settings.shot === 'camera' ? Boolean(rig.camera.stream) : Boolean(haveScreen || rig.camera.stream || settings.scene === 'brb'));
+  const SHOT_NAMES = { program: t('What is shown'), screen: t('The screen'), camera: t('The camera') };
   const micName = devices.mics.find((d) => d.id === settings.micId)?.name || t('The usual microphone');
   const minutes = disk ? Math.floor(disk.minutes) : null;
   const diskNote = disk == null ? '' : disk.level === 'stop' ? t('There is not enough space on the disk to record.')
@@ -422,6 +477,18 @@ export default function Recorder({ app, shell }) {
         ) : (
           <Button tall primary icon="record" label={phase === 'countdown' ? t('Starting…') : t('Record')} className="st-record" disabled={!canRecord} onClick={record} />
         )}
+      </Group>
+      <Group label={t('Picture')}>
+        <Button tall icon="picture" label={shotCount != null ? t('In {seconds} s', { seconds: shotCount }) : t('Take Picture')} className="st-shoot" title={t('Take Picture: {of}, saved as a PNG', { of: SHOT_NAMES[settings.shot] })} disabled={!canShoot} onClick={takePicture} />
+        <Rows>
+          <Select value={settings.shot} className="st-shot-of" aria-label={t('Picture of')} onChange={(e) => change({ shot: e.target.value })}>
+            {Object.entries(SHOT_NAMES).map(([k, name]) => <option key={k} value={k}>{name}</option>)}
+          </Select>
+          <Select value={String(settings.shotTimer)} className="st-shot-timer" aria-label={t('Picture timer')} onChange={(e) => change({ shotTimer: Number(e.target.value) })}>
+            <option value="0">{t('At once')}</option>
+            {[3, 5, 10].map((n) => <option key={n} value={String(n)}>{t('After {seconds} s', { seconds: n })}</option>)}
+          </Select>
+        </Rows>
       </Group>
       <Group label={t('Live')}>
         {live ? (
@@ -498,6 +565,8 @@ export default function Recorder({ app, shell }) {
             {recording ? <span className="rec-badge st-badge"><i />{paused ? t('Paused') : t('Recording')} {clock(elapsed)}</span> : null}
             {live ? <span className="st-live-badge" data-phase={livePhase}><i />{t('LIVE')} {clock(liveFor)}</span> : null}
             {phase === 'countdown' ? <div className="rec-count" aria-live="assertive"><span key={count}>{count}</span></div> : null}
+            {shotCount != null && shotCount > 0 && phase !== 'countdown' ? <div className="rec-count st-shot-count" aria-live="assertive"><span key={shotCount}>{shotCount}</span></div> : null}
+            {flash ? <div key={flash} className="st-flash" aria-hidden="true" /> : null}
             {drawing ? (
               <div className="rec-region st-drawn" style={{ left: `${Math.min(drawing.a.fx, drawing.b.fx) * 100}%`, top: `${Math.min(drawing.a.fy, drawing.b.fy) * 100}%`, width: `${Math.abs(drawing.b.fx - drawing.a.fx) * 100}%`, height: `${Math.abs(drawing.b.fy - drawing.a.fy) * 100}%` }}><span>{t('Region')}</span></div>
             ) : null}
@@ -521,6 +590,17 @@ export default function Recorder({ app, shell }) {
                   <i />{d.name}: {d.state === 'error' && d.detail ? d.detail : LIVE_WORDS[d.state] || d.state}{d.reconnects && d.state === 'reconnecting' ? ` (${d.reconnects})` : ''}
                 </span>
               ))}
+            </div>
+          ) : null}
+          {picture ? (
+            <div className="st-shot" role="status">
+              <img src={picture.url} alt="" />
+              <span className="st-shot-name">{basename(picture.path)}</span>
+              <span className="st-shot-meta">{picture.width} × {picture.height}</span>
+              <Button icon="picture" label={t('Open')} className="st-shot-open" onClick={() => shell.win.create({ app: 'pictures', file: picture.path })} />
+              <Button icon="image" label={t('Edit in Image')} className="st-shot-edit" onClick={() => shell.win.create({ app: 'image', file: picture.path })} />
+              <Button icon="copy" label={t('Copy')} className="st-shot-copy" onClick={copyPicture} />
+              <Button icon="folderOpen" label={t('Show in folder')} onClick={() => shell.shell.showInFolder({ path: picture.path })} />
             </div>
           ) : null}
           {saved && phase === 'setup' ? (

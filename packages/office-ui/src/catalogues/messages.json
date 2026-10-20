@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7157,
+  "count": 7171,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2607,6 +2607,12 @@
       ]
     },
     {
+      "message": "After {seconds} s",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "After — the show moves on by itself this many seconds after the slide is shown",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -3942,6 +3948,12 @@
       "message": "At most {size}",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "At once",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -8040,6 +8052,7 @@
       "where": [
         "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/custom-shows.js",
@@ -11073,6 +11086,7 @@
     {
       "message": "Edit in Image",
       "where": [
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -16120,6 +16134,12 @@
       "message": "In {from}, Out {to}",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "In {seconds} s",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -25152,6 +25172,7 @@
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pdf/fields.js",
+        "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -25225,6 +25246,18 @@
       "message": "Picture layout",
       "where": [
         "apps/desktop/renderer/apps/slides/album.js"
+      ]
+    },
+    {
+      "message": "Picture of",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
+      "message": "Picture timer",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -34631,6 +34664,18 @@
       ]
     },
     {
+      "message": "Take Picture",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
+      "message": "Take Picture: {of}, saved as a PNG",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "Take it back and reopen it in Compose",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -35498,6 +35543,12 @@
       ]
     },
     {
+      "message": "The camera",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "The camera could not be opened, so only your voice is recorded: {reason}",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -35507,6 +35558,12 @@
       "message": "The camera is in use by another program.",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/camera.js"
+      ]
+    },
+    {
+      "message": "The camera shows nothing to take yet.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -36261,6 +36318,12 @@
       ]
     },
     {
+      "message": "The picture is on the clipboard.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
       "message": "The picture stays at the anchor; the canvas grows or is cut on the other sides. Nothing is scaled.",
       "where": [
         "apps/desktop/renderer/apps/image/canvas-size.js"
@@ -36419,6 +36482,18 @@
       "message": "The rows go in from the selected cell, {cell}, a date as a date and the amounts as numbers.",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
+      "message": "The screen",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
+      "message": "The screen shows nothing to take yet.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -37129,6 +37204,12 @@
       "message": "There is nothing on the clipboard to paste.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "There is nothing to take yet.",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {
@@ -40572,6 +40653,12 @@
       "message": "What is pasted is read into the list below at once and the box is cleared; the passwords go only to this computer's protected store.",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "What is shown",
+      "where": [
+        "apps/desktop/renderer/apps/recorder.js"
       ]
     },
     {

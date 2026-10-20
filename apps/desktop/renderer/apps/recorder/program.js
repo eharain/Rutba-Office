@@ -287,6 +287,7 @@ export class Program {
     canvas.dataset.layers = layout.layers.map((l) => l.source).join(' ');
     canvas.dataset.crop = this.crop ? `${this.crop.x},${this.crop.y},${this.crop.w},${this.crop.h}` : '';
     { const v = this.videos.screen; const tr = this.streams.screen?.getVideoTracks()[0]; canvas.dataset.screen = v ? `${v.videoWidth}x${v.videoHeight} r${v.readyState} p${v.paused ? 1 : 0} ${tr?.readyState} m${tr?.muted ? 1 : 0}` : 'none'; }
+    { const v = this.videos.camera; canvas.dataset.camera = v && v.videoWidth ? `${v.videoWidth}x${v.videoHeight}` : 'none'; }
     canvas.dataset.title = s.titleOn && (s.title || s.subtitle) && !layout.card ? '1' : '0';
     this.track?.requestFrame?.();
     for (const fn of this.listeners) fn(canvas);
@@ -302,6 +303,36 @@ export class Program {
     const mixed = sound ? this.rig.mix(['mic', 'system']) : null;
     tracks.push(mixed || this.rig.silence());
     return { stream: new MediaStream(tracks), heard: Boolean(mixed) };
+  }
+
+  /**
+   * A still picture as PNG bytes: the program as it was last drawn, or the
+   * screen (its region, when one is chosen) or the camera at their own size,
+   * the camera mirrored as it is shown. Answers { bytes, width, height }, or
+   * null when that source shows nothing yet.
+   */
+  async snapshot(what = 'program') {
+    let canvas = this.canvas;
+    if (what === 'screen' || what === 'camera') {
+      const v = this.videos[what];
+      if (!v || !v.videoWidth) return null;
+      const c = what === 'screen' && this.crop ? this.crop : { x: 0, y: 0, w: 1, h: 1 };
+      const sx = Math.round(c.x * v.videoWidth);
+      const sy = Math.round(c.y * v.videoHeight);
+      const sw = Math.max(1, Math.min(v.videoWidth - sx, Math.round(c.w * v.videoWidth)));
+      const sh = Math.max(1, Math.min(v.videoHeight - sy, Math.round(c.h * v.videoHeight)));
+      canvas = document.createElement('canvas');
+      canvas.width = sw;
+      canvas.height = sh;
+      const ctx = canvas.getContext('2d');
+      if (what === 'camera' && this.settings.mirror) { ctx.translate(sw, 0); ctx.scale(-1, 1); }
+      ctx.drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh);
+    } else if (!this.frames) {
+      return null;
+    }
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) return null;
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height };
   }
 
   /** Start recording the program to `path`; answers when it has begun. */
