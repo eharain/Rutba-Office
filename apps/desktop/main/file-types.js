@@ -80,13 +80,17 @@ export const CHOICE_KEY = 'HKCU\\Software\\Rutba Office';
 export async function installerChoice({ key = CHOICE_KEY } = {}) {
   const by = await reg(['query', key, '/v', 'AppsChosenAt']);
   if (!by.ok || !/REG_SZ\s+installer\s*$/m.test(by.out)) return null;
-  const r = await reg(['query', key, '/v', 'AppsOff']);
-  const raw = r.ok ? (/AppsOff\s+REG_SZ\s+(.*?)\s*$/m.exec(r.out)?.[1] ?? '') : '';
-  return { off: raw.split(',').map((s) => s.trim()).filter(Boolean) };
+  const list = async (name) => {
+    const r = await reg(['query', key, '/v', name]);
+    const raw = r.ok ? (new RegExp(`${name}\\s+REG_SZ\\s+(.*?)\\s*$`, 'm').exec(r.out)?.[1] ?? '') : '';
+    return raw.split(',').map((s) => s.trim()).filter(Boolean);
+  };
+  return { off: await list('AppsOff'), addons: await list('AddOns') };
 }
 
 /** The apps turned off, written where the installer's page reads them, as chosen in Office. */
-export async function recordChoice(off, { key = CHOICE_KEY } = {}) {
+export async function recordChoice(off, { key = CHOICE_KEY, addons = [] } = {}) {
   await reg(['add', key, '/v', 'AppsOff', '/t', 'REG_SZ', '/d', off.join(','), '/f']);
+  await reg(['add', key, '/v', 'AddOns', '/t', 'REG_SZ', '/d', addons.join(','), '/f']);
   await reg(['add', key, '/v', 'AppsChosenAt', '/t', 'REG_SZ', '/d', 'office', '/f']);
 }

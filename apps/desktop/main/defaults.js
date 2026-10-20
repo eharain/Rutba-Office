@@ -21,7 +21,7 @@ import { app, shell } from 'electron';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
-import { APPS_CHOICE_KEY, APP_ORDER, chosenApps, choiceFor } from '@rutba/office-formats/registry';
+import { APPS_CHOICE_KEY, APP_ORDER, OFF_UNTIL_CHOSEN, chosenApps, choiceFor, addonsChosen } from '@rutba/office-formats/registry';
 import { fileTypePlan, applyFileTypes, installerChoice, recordChoice } from './file-types.js';
 
 const run = promisify(execFile);
@@ -72,7 +72,7 @@ export function createDefaultsService({ associations, associationsFor = null, st
     const result = await applyFileTypes(fileTypePlan(associations, associationsFor(chosen)));
     stores?.settings.set(APPLIED_KEY, `${app.getVersion()}|${chosen.join(',')}`);
     // Where the installer's page reads it, so a newer installer shows this choice ticked.
-    await recordChoice(APP_ORDER.filter((k) => !chosen.includes(k)));
+    await recordChoice(APP_ORDER.filter((k) => !chosen.includes(k)), { addons: addonsChosen(stores?.settings.get(APPS_CHOICE_KEY, null)) });
     return { skipped: false, withdrawn: result.withdrawn.length, restored: result.restored.length };
   };
 
@@ -82,11 +82,22 @@ export function createDefaultsService({ associations, associationsFor = null, st
    * again what the installer just asked.
    */
   const adoptInstallerChoice = async () => {
-    if (!isWindows || !app.isPackaged || process.env.RUTBA_VERIFY || !stores) return { adopted: false };
-    const picked = await installerChoice();
-    if (!picked) return { adopted: false };
-    stores.settings.set(APPS_CHOICE_KEY, choiceFor(APP_ORDER.filter((k) => !picked.off.includes(k))));
-    return { adopted: true, off: picked.off };
+    if (!stores) return { adopted: false };
+    const picked = isWindows && app.isPackaged && !process.env.RUTBA_VERIFY ? await installerChoice() : null;
+    if (picked) {
+      stores.settings.set(APPS_CHOICE_KEY, choiceFor(APP_ORDER.filter((k) => !picked.off.includes(k)), picked.addons || []));
+      return { adopted: true, off: picked.off };
+    }
+    // A copy that ran before the apps came in groups keeps every app it had,
+    // and AI Tools if it was ever set up; only a new copy starts with the
+    // Office apps alone. Read before the update service writes this version.
+    const ranBefore = stores.settings.get('updates.lastRun', null);
+    if (ranBefore && !stores.settings.get(APPS_CHOICE_KEY, null)) {
+      const usedAi = stores.settings.get('ai.tools.mode', 'off') !== 'off' || (stores.settings.get('ai.tools.folders', []) || []).length > 0;
+      stores.settings.set(APPS_CHOICE_KEY, { off: [], on: OFF_UNTIL_CHOSEN.slice(), addons: usedAi ? ['ai'] : [] });
+      return { adopted: false, kept: true };
+    }
+    return { adopted: false };
   };
 
   /** At start-up: only when a choice was made and has not been applied to this version yet. */

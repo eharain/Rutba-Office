@@ -25,7 +25,7 @@ export const SITE = {
   company: 'https://tech-style.co',
 };
 
-/** @typedef {'mail'|'word'|'sheets'|'slides'|'pdf'|'pictures'|'image'|'video'|'recorder'|'calendar'|'contacts'} AppKey */
+/** @typedef {'mail'|'word'|'sheets'|'slides'|'pdf'|'pictures'|'image'|'video'|'recorder'|'talk'|'calendar'|'contacts'} AppKey */
 
 export const APPS = {
   mail: {
@@ -132,10 +132,19 @@ export const APPS = {
     accent: '#5d6d7e',
     icon: 'contacts',
   },
+  // Messages and calls with contacts who have both said yes (D-2026-10-20-11, -12).
+  talk: {
+    key: 'talk',
+    name: 'Rutba Talk',
+    short: 'Talk',
+    tagline: 'Messages and calls with your contacts',
+    accent: '#0891b2',
+    icon: 'talk',
+  },
 };
 
 /** The apps in the launcher's order. */
-export const APP_ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'recorder'];
+export const APP_ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'recorder', 'talk'];
 
 /**
  * Which apps a person wants (owner, 2026-10-20: "since the number of
@@ -147,7 +156,26 @@ export const APP_ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'sli
  * a person turns on themselves.
  */
 export const APPS_CHOICE_KEY = 'apps.choice';
-export const OFF_UNTIL_CHOSEN = [];
+
+/**
+ * The basic Office apps come with every copy; the further apps, and every app
+ * shipped from here, are added by choice, and AI Tools is an add-on (owner,
+ * 2026-10-20: "we should have all we shipping new as an optional install
+ * basic office apps and others optional and lets also make ai as an optional
+ * add on"). A copy that ran before keeps what it had (the main process's
+ * defaults.js settles that on its first start).
+ */
+export const APP_GROUPS = [
+  { id: 'office', apps: ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures'] },
+  { id: 'more', apps: ['image', 'video', 'recorder', 'talk'] },
+];
+export const OFF_UNTIL_CHOSEN = ['image', 'video', 'recorder', 'talk'];
+export const ADDONS = ['ai'];
+
+/** The add-ons added, from the stored choice. */
+export function addonsChosen(choice) {
+  return ADDONS.filter((a) => Array.isArray(choice?.addons) && choice.addons.includes(a));
+}
 
 /** The apps chosen, in order, from the stored choice ({ off, on }) or none made yet. */
 export function chosenApps(choice) {
@@ -158,12 +186,13 @@ export function chosenApps(choice) {
   return picked.length ? picked : APP_ORDER.filter((k) => !OFF_UNTIL_CHOSEN.includes(k));
 }
 
-/** The choice to store for a set of chosen apps. */
-export function choiceFor(keys) {
+/** The choice to store for a set of chosen apps and add-ons. */
+export function choiceFor(keys, addons = []) {
   const want = new Set(keys);
   return {
     off: APP_ORDER.filter((k) => !OFF_UNTIL_CHOSEN.includes(k) && !want.has(k)),
     on: APP_ORDER.filter((k) => OFF_UNTIL_CHOSEN.includes(k) && want.has(k)),
+    addons: ADDONS.filter((a) => addons.includes(a)),
   };
 }
 

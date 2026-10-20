@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { app as electron, BrowserWindow } from 'electron';
 import { createShell, holdBlob, releaseBlob, blobUrl, broadcast } from '@rutba/office-shell/electron/main';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
-import { fileAssociations, APPS } from '@rutba/office-formats/registry';
+import { fileAssociations, APPS, APPS_CHOICE_KEY, OFF_UNTIL_CHOSEN } from '@rutba/office-formats/registry';
 import { createDocumentHost } from './doc-host.js';
 import { createPrintService } from './print.js';
 import { createMathMeasurer } from './math-raster.js';
@@ -28,6 +28,7 @@ import { createPdfService } from './pdf.js';
 import { createOcrService } from './ocr.js';
 import { createAiToolsService } from './ai-tools.js';
 import { createLiveService } from './live.js';
+import { createTalkService } from './talk.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -185,6 +186,8 @@ createShell({
       ai: createAiToolsService({ stores }),
       // Recorder → Go Live: the destinations, their keys in the keystore, the publishers (live.js).
       live: createLiveService({ stores }),
+      // Talk: messages and calls with contacts, through the introducer (talk.js).
+      talk: createTalkService({ stores, broadcast, dataDir: path.join(stores.dir, 'talk') }),
       oauth,
       mail: createMailService({
         stores,
@@ -238,6 +241,10 @@ createShell({
       // machine speaks; `RUTBA_LANGUAGE=ur` asks for another on purpose (the
       // Urdu captures, the Urdu checks).
       stores.settings.set('language', process.env.RUTBA_LANGUAGE || 'en');
+      // And every app and add-on, as a person who chose them all: the checks
+      // and the captures reach every app from the launcher. Choose apps' own
+      // check takes this away to see a first start.
+      stores.settings.set(APPS_CHOICE_KEY, { off: [], on: OFF_UNTIL_CHOSEN.slice(), addons: ['ai'] });
     }
 
     // `--import-accounts=<file>` sets up the accounts in a file before the

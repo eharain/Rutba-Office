@@ -33,6 +33,11 @@ export function alive(pid) {
  * turn them on. `settings` is the settings object as saved (settings.json).
  */
 export function openNow(settings, { isAlive = alive } = {}) {
+  // AI Tools is an add-on (D-2026-10-20-19): not added in Choose apps, the tools answer nothing.
+  const choice = settings?.['apps.choice'];
+  if (choice && !(Array.isArray(choice.addons) && choice.addons.includes('ai'))) {
+    return { open: false, mode: 'off', reason: 'AI Tools is not added to this copy of Rutba Office. To add it, open Rutba Office, choose Choose apps in the launcher, and turn on AI Tools under Add-ons.' };
+  }
   const mode = MODES.includes(settings?.[MODE_KEY]) ? settings[MODE_KEY] : 'off';
   if (mode === 'always') return { open: true, mode };
   if (mode === 'session' && isAlive(Number(settings?.[SESSION_KEY]))) return { open: true, mode };

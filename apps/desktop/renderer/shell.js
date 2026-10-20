@@ -14,6 +14,7 @@ import { WhatsNew } from './whatsnew.js';
 import { filtersInLanguage } from './registry-words.js';
 import { TemplateGallery } from './template-gallery.js';
 import { AiBadge, AiToolsDialog, AI_TOOLS_CSS } from './ai-tools.js';
+import { useChosenApps } from './apps-choice.js';
 
 /**
  * The languages the windows can be shown in, each named in its own words
@@ -52,6 +53,8 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
   // File > New's template gallery, in the three document apps.
   const [gallery, setGallery] = useState(false);
   const galleryApp = ['word', 'sheets', 'slides'].includes(appKey) ? appKey : null;
+  // The add-ons added in Choose apps: AI Tools is in this menu once it is.
+  const { addons: chosenAddons } = useChosenApps(shell);
 
   useEffect(() => {
     shell.app.recent().then(setRecent).catch(() => {});
@@ -130,11 +133,12 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
       items.push('-');
       items.push({ label: t('What’s new'), icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) });
       items.push({ label: t('About Rutba Office'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) });
-      items.push({ label: t('AI Tools…'), icon: 'wand', run: () => window.dispatchEvent(new Event('rutba-ai-tools')) });
+      // AI Tools is an add-on: in the menu once it is added in Choose apps.
+      if (chosenAddons.includes('ai')) items.push({ label: t('AI Tools…'), icon: 'wand', run: () => window.dispatchEvent(new Event('rutba-ai-tools')) });
 
       setMenu({ x: rect.left, y: rect.bottom + 4, items, keyboard: e.detail === 0 });
     },
-    [recent, onNew, onOpen, extra, mode, setTheme, shell, appKey, galleryApp, chosenLanguage, chooseLanguage, chosenDigits, chooseDigits]
+    [recent, onNew, onOpen, extra, mode, setTheme, shell, appKey, galleryApp, chosenLanguage, chooseLanguage, chosenDigits, chooseDigits, chosenAddons]
   );
 
   return {

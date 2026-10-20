@@ -48,7 +48,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * verify:apps names each part's app; 'shell' is what every app shares. A run
  * can be limited to some apps, and picks up after the apps that passed.
  */
-export const VERIFY_APPS = ['shell', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'recorder', 'pdf', 'mail', 'calendar', 'contacts'];
+export const VERIFY_APPS = ['shell', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'recorder', 'talk', 'pdf', 'mail', 'calendar', 'contacts'];
 
 /** The apps a changed file touches; 'shell' means every app. */
 export function appsForPath(file) {
@@ -60,9 +60,9 @@ export function appsForPath(file) {
     return VERIFY_APPS.includes(key) ? [key] : ['shell'];
   }
   const check = /^apps\/desktop\/main\/verify-([a-z]+)/.exec(f)?.[1];
-  if (check) return [{ word: 'word', sheet: 'sheets', deck: 'slides', slide: 'slides', mail: 'mail', video: 'video', recorder: 'recorder', pdf: 'pdf', picture: 'pictures', pictures: 'pictures', image: 'image', calendar: 'calendar', contacts: 'contacts' }[check] || 'shell'];
+  if (check) return [{ word: 'word', sheet: 'sheets', deck: 'slides', slide: 'slides', mail: 'mail', video: 'video', recorder: 'recorder', talk: 'talk', pdf: 'pdf', picture: 'pictures', pictures: 'pictures', image: 'image', calendar: 'calendar', contacts: 'contacts' }[check] || 'shell'];
   const service = /^apps\/desktop\/main\/([a-z]+)/.exec(f)?.[1];
-  if (service) return [{ mail: 'mail', live: 'recorder', pdf: 'pdf', calendar: 'calendar', contacts: 'contacts', dav: 'calendar' }[service] || 'shell'];
+  if (service) return [{ mail: 'mail', live: 'recorder', talk: 'talk', pdf: 'pdf', calendar: 'calendar', contacts: 'contacts', dav: 'calendar' }[service] || 'shell'];
   const pkg = /^packages\/([a-z-]+)\//.exec(f)?.[1];
   if (pkg) {
     return {

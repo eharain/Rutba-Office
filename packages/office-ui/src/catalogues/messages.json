@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7202,
+  "count": 7267,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -743,6 +743,12 @@
       ]
     },
     {
+      "message": "A TURN server you run; offered to the other side for your calls",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "A background is a PNG, JPEG, GIF, BMP or WebP picture.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -764,6 +770,12 @@
       "message": "A calendar or contacts server is reached over HTTPS — give its address with https://",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A call goes straight between the two computers. When a network stops that, it goes through a relay, still encrypted end to end.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -1107,6 +1119,12 @@
       "message": "A newsletter with a masthead, two columns of stories and a dates panel",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "A note (optional)",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -1575,7 +1593,8 @@
     {
       "message": "AI Tools",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/apps-choice.js"
       ]
     },
     {
@@ -1731,6 +1750,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/reader.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -1933,6 +1953,7 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/custom-shows.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -2091,6 +2112,12 @@
       "message": "Add a conditional column",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Add a contact",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -2345,6 +2372,12 @@
       "message": "Add — put the word in the dictionary",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Add-ons",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
       ]
     },
     {
@@ -3058,12 +3091,6 @@
       ]
     },
     {
-      "message": "All {n} apps are on. Keep them all, or turn off the ones you do not use; they can be turned on again at any time.",
-      "where": [
-        "apps/desktop/renderer/apps/home.js"
-      ]
-    },
-    {
       "message": "Allow",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -3412,6 +3439,12 @@
       ]
     },
     {
+      "message": "Answer",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Answer the merge's questions",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -3445,6 +3478,12 @@
       "message": "Appear",
       "where": [
         "apps/desktop/renderer/apps/slides/animate.js"
+      ]
+    },
+    {
+      "message": "Appear offline",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -3583,7 +3622,6 @@
     {
       "message": "Apps",
       "where": [
-        "apps/desktop/renderer/apps-choice.js",
         "apps/desktop/renderer/apps/home.js"
       ]
     },
@@ -3893,6 +3931,12 @@
       ]
     },
     {
+      "message": "Ask",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Ask once — one answer for every record",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -3905,9 +3949,27 @@
       ]
     },
     {
+      "message": "Asked {email}",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Asked {email}. You can talk once they accept.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Asking the server for the message as it came…",
       "where": [
         "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "Asking to be in contact",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -4230,6 +4292,12 @@
       ]
     },
     {
+      "message": "Available",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Available Windows",
       "where": [
         "apps/desktop/renderer/screenshot.js"
@@ -4254,6 +4322,12 @@
       "message": "Average {value}",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Away",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -5264,6 +5338,12 @@
       ]
     },
     {
+      "message": "Busy",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Button",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -5461,9 +5541,45 @@
       ]
     },
     {
+      "message": "Call",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Call ended",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Call with {name}",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Calling…",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Callout",
       "where": [
         "apps/desktop/renderer/apps/video/ribbon.js"
+      ]
+    },
+    {
+      "message": "Calls reach a contact who is online",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Calls use that relay when they cannot connect directly.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -5569,6 +5685,7 @@
         "apps/desktop/renderer/apps/slides/setup.js",
         "apps/desktop/renderer/apps/slides/slide-size.js",
         "apps/desktop/renderer/apps/slides/zoom.js",
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/intro/brand.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
@@ -6561,6 +6678,12 @@
       ]
     },
     {
+      "message": "Choose for me",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Choose from Contacts…",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -6576,6 +6699,12 @@
       "message": "Choose picture…",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Choose someone to talk to",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -7804,9 +7933,21 @@
       ]
     },
     {
+      "message": "Connect",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Connect an AI app",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "Connect to a test server",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -7818,7 +7959,8 @@
     {
       "message": "Connecting…",
       "where": [
-        "apps/desktop/renderer/apps/recorder.js"
+        "apps/desktop/renderer/apps/recorder.js",
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -7874,6 +8016,7 @@
       "message": "Contacts",
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/registry-words.js"
       ]
@@ -9241,7 +9384,8 @@
       "message": "Decline",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/mail/reader.js"
+        "apps/desktop/renderer/apps/mail/reader.js",
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -10332,7 +10476,8 @@
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/image/type-editor.js",
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
-        "apps/desktop/renderer/apps/recorder/live-dialog.js"
+        "apps/desktop/renderer/apps/recorder/live-dialog.js",
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -11414,7 +11559,8 @@
     {
       "message": "Email address",
       "where": [
-        "apps/desktop/renderer/apps/mail/dialogs.js"
+        "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -14907,6 +15053,12 @@
       ]
     },
     {
+      "message": "Hang up",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Hanging indent",
       "where": [
         "apps/desktop/renderer/apps/word/ruler.js"
@@ -16250,6 +16402,12 @@
       "message": "Incoming",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Incoming call",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -17647,7 +17805,7 @@
       ]
     },
     {
-      "message": "Keep all",
+      "message": "Keep as it is",
       "where": [
         "apps/desktop/renderer/apps/home.js"
       ]
@@ -17728,6 +17886,12 @@
       "message": "Keeps",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Kept",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -18477,6 +18641,12 @@
       "message": "Less than or equal",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Let AI apps on this computer make and read documents with Office",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
       ]
     },
     {
@@ -20370,6 +20540,24 @@
       ]
     },
     {
+      "message": "Messages and calls go only between contacts who have both said yes.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Messages and calls with the people you know. Sign in with your Rutba account; someone becomes a contact once both of you have said so.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Messages and calls with your contacts",
+      "where": [
+        "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
       "message": "Messages now send immediately",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -20677,6 +20865,12 @@
       "message": "More Variants: the four colourings of this theme",
       "where": [
         "apps/desktop/renderer/apps/slides/design.js"
+      ]
+    },
+    {
+      "message": "More apps",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
       ]
     },
     {
@@ -21079,6 +21273,7 @@
     {
       "message": "Mute",
       "where": [
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/player.js"
@@ -21094,6 +21289,12 @@
       "message": "My calendars",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "My own relay",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -22058,6 +22259,12 @@
       "message": "No contacts yet.",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "No contacts yet. Add someone by their email address; once they accept, you can write and call.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -23422,9 +23629,21 @@
       ]
     },
     {
+      "message": "Office apps",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
+      ]
+    },
+    {
       "message": "Office documents",
       "where": [
         "apps/desktop/renderer/object-insert.js"
+      ]
+    },
+    {
+      "message": "Offline",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -24825,6 +25044,7 @@
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/restrict.js",
         "apps/desktop/renderer/dav-accounts.js",
         "apps/desktop/renderer/protect.js"
@@ -27221,7 +27441,8 @@
     {
       "message": "Reconnecting…",
       "where": [
-        "apps/desktop/renderer/apps/recorder.js"
+        "apps/desktop/renderer/apps/recorder.js",
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -27842,6 +28063,24 @@
       "message": "Relaxed Inset",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Relay address",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Relays",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Relays…",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -29074,6 +29313,12 @@
       ]
     },
     {
+      "message": "Ringing…",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Ripple",
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
@@ -29702,6 +29947,12 @@
       ]
     },
     {
+      "message": "Rutba Talk",
+      "where": [
+        "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
       "message": "Rutba Video",
       "where": [
         "apps/desktop/renderer/registry-words.js"
@@ -29718,6 +29969,12 @@
       "message": "Rutba Worksheets",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Rutba sign-in for Talk is being set up. Until then Talk can connect to a test server.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -29748,6 +30005,12 @@
       "message": "Safe Senders",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Safety code {code}: if {name} sees the same, nobody is listening in.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -30218,6 +30481,12 @@
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Say hello to {name}.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -31133,6 +31402,7 @@
       "message": "Send",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js",
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/mailings.js"
       ]
     },
@@ -31463,6 +31733,7 @@
       "message": "Server",
       "where": [
         "apps/desktop/renderer/apps/recorder/live-dialog.js",
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/dav-accounts.js"
       ]
     },
@@ -31817,6 +32088,12 @@
       "message": "Share",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "Share screen",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -32392,6 +32669,18 @@
       ]
     },
     {
+      "message": "Sign out",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Sign-in token",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Sign: import your certificate first",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
@@ -32503,9 +32792,21 @@
       ]
     },
     {
+      "message": "Signed in as {name}",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Signed on",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "Signed out",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -34087,6 +34388,12 @@
       ]
     },
     {
+      "message": "Stop sharing",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Stop value",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -34858,6 +35165,19 @@
       "message": "Taken",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Talk",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js",
+        "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Talk with your contacts",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -35681,6 +36001,12 @@
       ]
     },
     {
+      "message": "The call could not be made.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "The cameo is live again on this slide",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -36318,6 +36644,12 @@
       "message": "The name of the document's author, from its properties",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "The nearest of Rutba’s relays",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -37082,6 +37414,12 @@
       ]
     },
     {
+      "message": "The {n} Office apps are on. Add Image, Video, Recorder, Talk or AI Tools when you want them, and turn off what you do not use, at any time.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Theirs",
       "where": [
         "apps/desktop/renderer/apps/image/insert.js"
@@ -37308,6 +37646,12 @@
       ]
     },
     {
+      "message": "There is no screen to share.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "There is no sheet called \"{sheet}\"",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -37448,6 +37792,12 @@
       "message": "They are saved into the presentation, and travel with it.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "They see your name and your note, and become a contact when they accept. Nobody is told whether an address has an account.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -39352,6 +39702,18 @@
       ]
     },
     {
+      "message": "Turn camera off",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Turn camera on",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Turn each picture upright by its EXIF orientation",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js"
@@ -39371,7 +39733,7 @@
       ]
     },
     {
-      "message": "Turn on the apps you want. An app turned off is not shown and does not open its kinds of file; it stays installed, so it can be turned on again here at any time.",
+      "message": "Turn on the apps and add-ons you want, now or at any time. An app turned off is not shown and does not open its kinds of file; it stays installed, so it can be turned on again here.",
       "where": [
         "apps/desktop/renderer/apps-choice.js"
       ]
@@ -39801,6 +40163,7 @@
     {
       "message": "Unmute",
       "where": [
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/video/player.js"
       ]
     },
@@ -40254,6 +40617,12 @@
       ]
     },
     {
+      "message": "Use my relay",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Use passim",
       "where": [
         "apps/desktop/renderer/apps/word/references-toa.js"
@@ -40287,6 +40656,7 @@
     {
       "message": "User name",
       "where": [
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/dav-accounts.js"
       ]
     },
@@ -40474,6 +40844,7 @@
       "message": "Video",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/registry-words.js"
       ]
     },
@@ -40487,6 +40858,12 @@
       "message": "Video and sound",
       "where": [
         "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
+      "message": "Video call",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -41196,6 +41573,12 @@
       ]
     },
     {
+      "message": "With video",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Without one, anyone can take the protection off. A password cannot be recovered if it is lost — keep it somewhere safe.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -41453,7 +41836,8 @@
     {
       "message": "Write a message",
       "where": [
-        "apps/desktop/renderer/apps/contacts.js"
+        "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -41638,6 +42022,12 @@
       "message": "Your signature",
       "where": [
         "apps/desktop/renderer/apps/pdf/fields.js"
+      ]
+    },
+    {
+      "message": "Your status",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -45088,6 +45478,12 @@
       ]
     },
     {
+      "message": "{name} did not take the call.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "{name} has more than one sheet. The first row of the one you choose names the fields.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -45118,10 +45514,22 @@
       ]
     },
     {
+      "message": "{name} is not available.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "{name} is not wired yet.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "{name} is on another call.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {

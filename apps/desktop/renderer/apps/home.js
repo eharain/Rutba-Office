@@ -144,7 +144,7 @@ export default function Home({ app, shell }) {
     <AppFrame app={app} shell={shell} title="Rutba Office" menu={menu} status={<HomeStatus version={version} recent={recent.length} shell={shell} />}>
       <style>{CSS}</style>
       {gallery ? <TemplateGallery shell={shell} onClose={() => setGallery(false)} /> : null}
-      {choosing ? <AppsChooser chosen={chosen.apps} onClose={() => setChoosing(false)} onChoose={async (keys) => { setChoosing(false); await chosen.choose(keys); toast(t('{n} apps on', { n: keys.length }), { tone: 'good', ms: 3000 }); }} /> : null}
+      {choosing ? <AppsChooser chosen={chosen.apps} addons={chosen.addons} onClose={() => setChoosing(false)} onChoose={async (keys, addons) => { setChoosing(false); await chosen.choose(keys, addons); toast(t('{n} apps on', { n: keys.length }), { tone: 'good', ms: 3000 }); }} /> : null}
       <div className="home">
         <header className="home-hero">
           <div>
@@ -174,9 +174,9 @@ export default function Home({ app, shell }) {
             <Icon name="grid" size={20} />
             <span className="home-choose-text">
               <strong>{t('Choose your apps')}</strong>
-              <span>{t('All {n} apps are on. Keep them all, or turn off the ones you do not use; they can be turned on again at any time.', { n: chosen.apps.length })}</span>
+              <span>{t('The {n} Office apps are on. Add Image, Video, Recorder, Talk or AI Tools when you want them, and turn off what you do not use, at any time.', { n: chosen.apps.length })}</span>
             </span>
-            <Button label={t('Keep all')} className="home-keep-all" onClick={() => chosen.choose(chosen.apps)} />
+            <Button label={t('Keep as it is')} className="home-keep-all" onClick={() => chosen.choose(chosen.apps, chosen.addons)} />
             <Button primary label={t('Choose apps…')} className="home-choose-btn" onClick={() => setChoosing(true)} />
           </div>
         ) : null}

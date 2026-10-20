@@ -31,6 +31,7 @@ import { verifyVideoPlayer } from './verify-video-player.js';
 import { verifyRecorderApp } from './verify-recorder-app.js';
 import { verifyAppsChoice } from './verify-apps-choice.js';
 import { verifyMailSafety } from './verify-mail-safety.js';
+import { verifyTalk } from './verify-talk.js';
 import { verifyRecorderLive } from './verify-recorder-live.js';
 import { verifyIntroVideo } from './verify-intro-video.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
@@ -5010,6 +5011,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('recorder-app')) await verifyRecorderApp({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('apps-choice')) await verifyAppsChoice({ open, check, until, wait, errorsIn });
     if (only.includes('mail-safety')) await verifyMailSafety({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('talk')) await verifyTalk({ open, check, until, wait, errorsIn });
     if (only.includes('recorder-live')) await verifyRecorderLive({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('intro-video')) await verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('viewdirection')) await verifyDeckDirection({ open, check, until, wait }, { dir });
@@ -7151,6 +7153,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('mail', () => verifyMailLinks({ open, check, until, wait, errorsIn }));
   // After the sections that read the seeded Inbox: it adds two messages of its own.
   await part('mail', () => verifyMailSafety({ open, check, until, wait, errorsIn }, { dir }));
+  await part('talk', () => verifyTalk({ open, check, until, wait, errorsIn }));
   // AI Tools and S/MIME run inside Mail's section, so they are counted as its part.
   await part('mail', () => verifyAiTools({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailWindow({ open, check, until, wait, errorsIn }));

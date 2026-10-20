@@ -334,6 +334,19 @@ export const METHODS = {
   ],
   // Recorder → Go Live: the destinations a person streams to (their keys kept in the
   // keystore and never handed back), and the program's pieces sent to every one.
+  // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).
+  talk: [
+    'state',        // () -> { phase, me, contacts, requests, blocked, relays, server, relay, presence, error }
+    'signIn',       // ({ token, server? }) -> state   a Rutba sign-in token; a server for a test introducer
+    'signOut',      // () -> state
+    'resume',       // () -> state   connects again with the sign-in kept
+    'send',         // (msg) -> { sent }   a contact request, presence, a call's set-up, to the introducer
+    'message',      // ({ to, text }) -> { id, from, to, text, at, mine }   kept here and sent
+    'history',      // ({ contactId, limit? }) -> [message]
+    'relays',       // () -> { choice, relays, own, ice }
+    'setRelay',     // ({ choice: 'auto' | id | 'own', own?: { urls, username, credential } }) -> { choice, ice }
+    'callSetup',    // () -> { iceServers, offerRelay }   what a call is made with
+  ],
   live: [
     'destinations',     // () -> [{ id, platform, name, url, on, hasKey, keyHint }]
     'platforms',        // () -> { youtube: { name, url, keyHelp }, ... }
@@ -375,6 +388,8 @@ export const METHODS = {
 export const EVENTS = [
   'win:state',        // { maximized, fullscreen, focused }
   'win:link',         // { url }             a link followed inside a frame (a message's body), for the window to open or warn about
+  'talk:state',       // state                 Talk's connection, contacts and requests changed
+  'talk:event',       // msg                   what the introducer said: messages, a call's set-up
   'win:frameMenu',    // { x, y, link, linkText, src, media, selection }   a right-click inside such a frame: what was under the pointer, for the window's own menu
   'live:status',      // { live, destinations }  Go Live's destinations as they connect, stream, drop and come back
   'app:open-file',    // { path }            OS asked us to open a document

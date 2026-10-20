@@ -81,13 +81,13 @@ test('the installer\'s choice: read only when the installer chose last; what Off
     assert.equal(await installerChoice({ key }), null);
     reg('add', key, '/v', 'AppsOff', '/t', 'REG_SZ', '/d', 'sheets,video,', '/f');
     reg('add', key, '/v', 'AppsChosenAt', '/t', 'REG_SZ', '/d', 'installer', '/f');
-    assert.deepEqual(await installerChoice({ key }), { off: ['sheets', 'video'] });
+    assert.deepEqual(await installerChoice({ key }), { off: ['sheets', 'video'], addons: [] });
     await recordChoice(['pdf'], { key });
     assert.equal(await installerChoice({ key }), null);
     assert.match(reg('query', key, '/v', 'AppsOff'), /REG_SZ\s+pdf/);
     await recordChoice([], { key });
     reg('add', key, '/v', 'AppsChosenAt', '/t', 'REG_SZ', '/d', 'installer', '/f');
-    assert.deepEqual(await installerChoice({ key }), { off: [] });
+    assert.deepEqual(await installerChoice({ key }), { off: [], addons: [] });
   } finally {
     reg('delete', key, '/f');
   }
