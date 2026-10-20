@@ -134,6 +134,39 @@ export const APPS = {
   },
 };
 
+/** The apps in the launcher's order. */
+export const APP_ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'recorder'];
+
+/**
+ * Which apps a person wants (owner, 2026-10-20: "since the number of
+ * applications have grown we should let users to choose what they wanted to
+ * install and what not"). An app left out has no tile, no template and
+ * claims no file types; it stays installed and is turned on again from
+ * Choose apps. Kept as what was turned off, so an app a later version adds
+ * appears for everyone, except an app listed in OFF_UNTIL_CHOSEN, which
+ * a person turns on themselves.
+ */
+export const APPS_CHOICE_KEY = 'apps.choice';
+export const OFF_UNTIL_CHOSEN = [];
+
+/** The apps chosen, in order, from the stored choice ({ off, on }) or none made yet. */
+export function chosenApps(choice) {
+  const off = new Set(Array.isArray(choice?.off) ? choice.off : []);
+  const on = new Set(Array.isArray(choice?.on) ? choice.on : []);
+  const picked = APP_ORDER.filter((k) => (OFF_UNTIL_CHOSEN.includes(k) ? on.has(k) : !off.has(k)));
+  // Nothing at all would leave a launcher with nothing in it: every app, then.
+  return picked.length ? picked : APP_ORDER.filter((k) => !OFF_UNTIL_CHOSEN.includes(k));
+}
+
+/** The choice to store for a set of chosen apps. */
+export function choiceFor(keys) {
+  const want = new Set(keys);
+  return {
+    off: APP_ORDER.filter((k) => !OFF_UNTIL_CHOSEN.includes(k) && !want.has(k)),
+    on: APP_ORDER.filter((k) => OFF_UNTIL_CHOSEN.includes(k) && want.has(k)),
+  };
+}
+
 /** Extensions each app claims, in the order a dialog should show them. */
 export const APP_EXTENSIONS = {
   // `markdown` alongside `md`: GitHub accepts both for a README, and an editor
@@ -250,10 +283,12 @@ const EXTENSION_ALIASES = {
  * is claimed, so double-clicking works for the formats we advertise — and only
  * for those.
  */
-export function fileAssociations() {
+export function fileAssociations({ apps = null } = {}) {
   const seen = new Set();
   const out = [];
   for (const [appKey, exts] of Object.entries(APP_EXTENSIONS)) {
+    // Only the apps chosen, when a choice is given.
+    if (apps && !apps.includes(appKey)) continue;
     for (const ext of exts) {
       // Pictures claims the pictures; Image claims only its own project.
       if (appKey === 'image' && ext !== 'rimg') continue;

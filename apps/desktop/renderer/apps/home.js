@@ -12,8 +12,7 @@ import { appFor, kindFromExtension, KINDS } from '@rutba/office-formats/sniff';
 import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop, templatesFolder } from '../shell.js';
 import { WhatsNew } from '../whatsnew.js';
 import { TemplateGallery } from '../template-gallery.js';
-
-const ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'recorder'];
+import { useChosenApps, AppsChooser } from '../apps-choice.js';
 
 /** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
 const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : r.kind === 'image' ? 'image' : r.kind === 'pdf' ? 'pdf' : 'word');
@@ -61,6 +60,10 @@ export default function Home({ app, shell }) {
   const [personal, setPersonal] = useState([]);
   // The template gallery, over the launcher (?templates opens with it).
   const [gallery, setGallery] = useState(() => new URLSearchParams(location.search).has('templates'));
+  // The apps this person chose, and the window to choose them in (?apps opens with it).
+  const chosen = useChosenApps(shell);
+  const [choosing, setChoosing] = useState(() => new URLSearchParams(location.search).has('apps'));
+  const has = (key) => chosen.apps.includes(key);
 
   const refresh = useCallback(() => {
     shell.app.recent().then(setRecent).catch(() => setRecent([]));
@@ -141,6 +144,7 @@ export default function Home({ app, shell }) {
     <AppFrame app={app} shell={shell} title="Rutba Office" menu={menu} status={<HomeStatus version={version} recent={recent.length} shell={shell} />}>
       <style>{CSS}</style>
       {gallery ? <TemplateGallery shell={shell} onClose={() => setGallery(false)} /> : null}
+      {choosing ? <AppsChooser chosen={chosen.apps} onClose={() => setChoosing(false)} onChoose={async (keys) => { setChoosing(false); await chosen.choose(keys); toast(t('{n} apps on', { n: keys.length }), { tone: 'good', ms: 3000 }); }} /> : null}
       <div className="home">
         <header className="home-hero">
           <div>
@@ -152,15 +156,30 @@ export default function Home({ app, shell }) {
           </div>
           <div className="home-hero-actions">
             <Button icon="open" label={t('Open a file')} primary onClick={openFile} />
-            <Button
-              icon="import"
-              label={t('Import mail')}
-              onClick={() => shell.win.create({ app: 'mail', query: { import: 1 } })}
-            />
+            {has('mail') ? (
+              <Button
+                icon="import"
+                label={t('Import mail')}
+                onClick={() => shell.win.create({ app: 'mail', query: { import: 1 } })}
+              />
+            ) : null}
           </div>
         </header>
 
         <Announcement shell={shell} />
+
+        {/* Once, until a choice is made: all the apps are on, and they can be fewer. */}
+        {chosen.loaded && !chosen.made ? (
+          <div className="home-choose" role="note">
+            <Icon name="grid" size={20} />
+            <span className="home-choose-text">
+              <strong>{t('Choose your apps')}</strong>
+              <span>{t('All {n} apps are on. Keep them all, or turn off the ones you do not use; they can be turned on again at any time.', { n: chosen.apps.length })}</span>
+            </span>
+            <Button label={t('Keep all')} className="home-keep-all" onClick={() => chosen.choose(chosen.apps)} />
+            <Button primary label={t('Choose apps…')} className="home-choose-btn" onClick={() => setChoosing(true)} />
+          </div>
+        ) : null}
 
         {recovered.length ? (
           <section className="home-section">
@@ -207,9 +226,13 @@ export default function Home({ app, shell }) {
         ) : null}
 
         <section className="home-section">
-          <h2>{t('Apps')}</h2>
+          <div className="home-section-head">
+            <h2>{t('Apps')}</h2>
+            <Spacer />
+            <Button ghost icon="grid" label={t('Choose apps…')} className="home-apps-btn" title={t('Choose which apps are shown and open their kinds of file')} onClick={() => setChoosing(true)} />
+          </div>
           <div className="home-grid">
-            {ORDER.map((key) => (
+            {chosen.apps.map((key) => (
               <AppCard
                 key={key}
                 app={APPS[key]}
@@ -226,7 +249,7 @@ export default function Home({ app, shell }) {
         <section className="home-section">
           <h2>{t('Start something')}</h2>
           <div className="home-templates">
-            {NEW_DOCUMENTS.map((tpl) => (
+            {NEW_DOCUMENTS.filter((tpl) => has(tpl.app)).map((tpl) => (
               <button key={`${tpl.app}-${tpl.template}`} type="button" className="home-template" onClick={() => newDocument(tpl)}>
                 <span className="tpl-glyph" data-app={tpl.app}>
                   <Icon name={APPS[tpl.app].icon} size={16} />
@@ -235,7 +258,7 @@ export default function Home({ app, shell }) {
               </button>
             ))}
             {/* The screen recorder, in a new Video window: what it records lands on that window's timeline. */}
-            {APPS.video ? (
+            {has('video') ? (
               <button type="button" className="home-template home-record" data-tip={t('Record a screen: a screen, a window or a region, with the camera and sound, in a new video')} onClick={() => shell.win.create({ app: 'video', query: { record: 1 } })}>
                 <span className="tpl-glyph" data-app="video">
                   <Icon name="record" size={16} />
@@ -244,7 +267,7 @@ export default function Home({ app, shell }) {
               </button>
             ) : null}
             {/* An introduction: scenes recorded one at a time, in one's brand. */}
-            {APPS.video ? (
+            {has('video') ? (
               <button type="button" className="home-template home-intro" data-tip={t('Introduction video: a title, you on camera, your screen and an end card, recorded scene by scene in your brand')} onClick={() => shell.win.create({ app: 'video', query: { intro: 1 } })}>
                 <span className="tpl-glyph" data-app="video">
                   <Icon name="scenes" size={16} />
@@ -253,7 +276,7 @@ export default function Home({ app, shell }) {
               </button>
             ) : null}
             {/* Templates of one's own: each makes a new document, the template left as it is. */}
-            {personal.map((tpl) => (
+            {personal.filter((tpl) => has(tpl.app)).map((tpl) => (
               <button key={tpl.path} type="button" className="home-template personal" title={t('Your template: a new document made from {name}', { name: tpl.name })} data-template={tpl.path} onClick={() => shell.win.create({ app: tpl.app, query: { templateFile: tpl.path } })}>
                 <span className="tpl-glyph" data-app={tpl.app}>
                   <Icon name={APPS[tpl.app].icon} size={16} />
@@ -688,6 +711,11 @@ const CSS = `
    that is four rows without the page scrolling, more in a taller window. */
 .home-section.grow { flex: 1; min-height: 196px; }
 .home-section-head { display: flex; align-items: center; gap: 12px; }
+.home-section-head h2 { margin-bottom: 0; }
+.home-choose { display: flex; align-items: center; gap: 12px; padding: 12px 16px; margin: 0 0 18px; border-radius: var(--r-3); border: 1px solid var(--accent); background: var(--wash-strong); color: var(--ink); }
+.home-choose > svg { color: var(--accent-text); flex: none; }
+.home-choose-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.home-choose-text span { font-size: 12.5px; color: var(--ink-2); }
 .home-section h2 {
   margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--ink-3);

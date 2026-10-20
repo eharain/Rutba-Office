@@ -29,6 +29,7 @@ import { verifyRecorder } from './verify-recorder.js';
 import { verifyRecorderVoice } from './verify-recorder-voice.js';
 import { verifyVideoPlayer } from './verify-video-player.js';
 import { verifyRecorderApp } from './verify-recorder-app.js';
+import { verifyAppsChoice } from './verify-apps-choice.js';
 import { verifyRecorderLive } from './verify-recorder-live.js';
 import { verifyIntroVideo } from './verify-intro-video.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
@@ -4962,6 +4963,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('recorder-voice')) await verifyRecorderVoice({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-player')) await verifyVideoPlayer({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder-app')) await verifyRecorderApp({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('apps-choice')) await verifyAppsChoice({ open, check, until, wait, errorsIn });
     if (only.includes('recorder-live')) await verifyRecorderLive({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('intro-video')) await verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('viewdirection')) await verifyDeckDirection({ open, check, until, wait }, { dir });
@@ -5168,6 +5170,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyRecorderVoice({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyVideoPlayer({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyRecorderApp({ open, check, until, wait, errorsIn }, { dir }));
+  await block(() => verifyAppsChoice({ open, check, until, wait, errorsIn }));
   await block(() => verifyRecorderLive({ open, check, until, wait, errorsIn }, { dir }));
   // Introductions record scene by scene with the same stand-in camera, so they run young too.
   await block(() => verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir }));
