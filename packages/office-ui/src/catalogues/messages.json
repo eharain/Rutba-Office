@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7359,
+  "count": 7388,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -13807,6 +13807,12 @@
       ]
     },
     {
+      "message": "Follow for more",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
       "message": "Follow system",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -16051,6 +16057,12 @@
       "message": "How to fix:",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "How to get started",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
     {
@@ -21102,6 +21114,12 @@
       ]
     },
     {
+      "message": "Montage",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
       "message": "Month",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
@@ -21620,6 +21638,12 @@
       ]
     },
     {
+      "message": "NEW",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
       "message": "Name",
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
@@ -21878,6 +21902,12 @@
       ]
     },
     {
+      "message": "New Montage",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
       "message": "New Range",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -21900,6 +21930,24 @@
       "message": "New Slide",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "New Slideshow",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
+      "message": "New Tutorial",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
+      "message": "New Vertical Social Video",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
     {
@@ -24686,6 +24734,12 @@
       ]
     },
     {
+      "message": "Or start from",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Orange",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -24807,6 +24861,12 @@
       "message": "Otherwise insert this text:",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Our story",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
     {
@@ -25778,6 +25838,12 @@
       ]
     },
     {
+      "message": "Pick a picture and press Replace Media to put your own in its place.",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Pick a source to see how it is cited.",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -25900,6 +25966,12 @@
       ]
     },
     {
+      "message": "Picture {n}",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Picture: another picture, on a layer of its own",
       "where": [
         "apps/desktop/renderer/apps/image/insert.js"
@@ -25920,6 +25992,7 @@
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/album.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/intro/brand.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -28995,6 +29068,12 @@
       "message": "Replace (Ctrl+H)",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Replace Media",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -32276,6 +32355,12 @@
       ]
     },
     {
+      "message": "Setting out the starter",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Setting up the accounts, three at a time…",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
@@ -33693,7 +33778,8 @@
     {
       "message": "Slideshow",
       "where": [
-        "apps/desktop/renderer/apps/pictures.js"
+        "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
     {
@@ -33916,6 +34002,12 @@
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Something new is here",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
     {
@@ -34632,6 +34724,12 @@
       ]
     },
     {
+      "message": "Start from",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Start from the beginning (F5)",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -34752,6 +34850,18 @@
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Step 1: open the file",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
+      "message": "Step 2: make the change",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
     {
@@ -36103,6 +36213,12 @@
       "message": "Text: words in a box of their own, on a layer",
       "where": [
         "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
+      "message": "Thank you for watching",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
     {
@@ -37716,6 +37832,12 @@
       ]
     },
     {
+      "message": "The starter could not be set out: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "The step value is a number",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -37922,6 +38044,12 @@
       "message": "The workbook’s structure is protected with a password. Type it to take the protection off.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "The year in pictures",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
     {
@@ -39497,6 +39625,12 @@
       ]
     },
     {
+      "message": "Tip: press Ctrl+S to save",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
       "message": "Tips",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -40310,6 +40444,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Tutorial",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
     {
@@ -41354,6 +41494,12 @@
       ]
     },
     {
+      "message": "Vertical Social",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
       "message": "Vertical text",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -41456,7 +41602,8 @@
       "message": "Videos",
       "where": [
         "apps/desktop/renderer/apps/pictures/library.js",
-        "apps/desktop/renderer/apps/slides.js"
+        "apps/desktop/renderer/apps/slides.js",
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -42920,6 +43067,12 @@
       ]
     },
     {
+      "message": "a title, two steps named on the picture, a tip and an end card",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
       "message": "about {count} minute",
       "plural": "about {count} minutes",
       "where": [
@@ -43007,6 +43160,12 @@
       "message": "animated",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "another picture or clip of the same kind where the picked one is, for the same time",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -43832,6 +43991,12 @@
       ]
     },
     {
+      "message": "pictures one after another, crossfading, with a title and an end card",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
       "message": "placeholder source",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -43884,6 +44049,12 @@
       "message": "query {name}",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "quick cuts of ten pictures between a title and an end card",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
     {
@@ -44497,6 +44668,12 @@
       "message": "unsaved work from {when} — {file}",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "upright 9:16 for Reels, Shorts and TikTok, quick slides and a sticker",
+      "where": [
+        "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
     {

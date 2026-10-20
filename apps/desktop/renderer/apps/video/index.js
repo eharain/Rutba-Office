@@ -22,7 +22,7 @@ import {
   emptyProject, normaliseProject, addMedia, splitAt, splitAll, trimStart, trimEnd, removeClips, closeGap, copyClips,
   pasteClips, duplicateClips, unlinkClips, linkClips, addMarker, nextMarker, previousMarker, setTransition, addTitle,
   planPatches, projectMedia, projectDuration, clipById, clipsAt, sectionOf, laneOf, partnersOf, previousOnLane, setRange,
-  clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf, setReversed, addGraphic,
+  clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf, setReversed, addGraphic, replaceMedia,
 } from '@rutba/studio/project';
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
 import { placeTakes, settleTakes, takeFileName } from '@rutba/studio/recorder';
@@ -48,6 +48,8 @@ import { writeReversed } from './reverse.js';
 import Library, { LIBRARY_CSS, LIBRARY_TABS, EFFECT_NAMES } from './library.js';
 import { effectWav } from '@rutba/studio/effects';
 import MonitorView, { openMonitorLink } from './monitor.js';
+import { STARTERS, starterByKey, buildStarter, markStandIns } from '@rutba/studio/starters';
+import { STARTER_NAMES, STARTER_LINES, STARTER_ICONS, STARTER_WORDS, STARTER_MENU, standInPicture } from './starters.js';
 import VideoPlayer, { playsInPlayer } from './player.js';
 
 /** The timeline's share of the editor's height when nothing else is chosen: the preview has the larger part. */
@@ -217,7 +219,11 @@ function VideoEditor({ app, shell, boot }) {
     appKey: 'video',
     onNew: () => shell.win.create({ app: 'video' }),
     onOpen: () => appMenuOpen.current?.(),
-    extra: [{ label: t('New Introduction Video'), icon: 'scenes', run: () => appMenuNewIntro.current?.() }],
+    extra: [
+      { label: t('New Introduction Video'), icon: 'scenes', run: () => appMenuNewIntro.current?.() },
+      // The starters, from any window: in one with work in it, each opens a window of its own.
+      ...STARTERS.map((s) => ({ label: STARTER_MENU()[s.key], icon: STARTER_ICONS[s.key], run: () => startStarterRef.current?.(s.key) })),
+    ],
   });
   // An introduction: the scene picked, the scene being recorded, the brand kit.
   const [sceneId, setSceneId] = useState(null);
@@ -699,6 +705,66 @@ function VideoEditor({ app, shell, boot }) {
   useEffect(() => { monitor.current?.doc(doc); }, [doc]);
   useEffect(() => { if (!playWall.current) monitor.current?.time(time); }, [time]);
 
+  // A starter: its stand-in pictures drawn once into a folder of their own,
+  // and the project laid out on them. In a window with work in it, a new
+  // window opens on the starter instead.
+  const startStarterRef = useRef(null);
+  const startStarter = useCallback(async (key) => {
+    const def = starterByKey(key);
+    if (!def) return;
+    if (docRef.current.patches.some((p) => p.timing) || dirty) {
+      shell.win.create({ app: 'video', query: { starter: key } }).catch(() => {});
+      return;
+    }
+    setBusy(t('Setting out the starter'));
+    try {
+      const dir = await madeFolder();
+      const sep = dir.includes('/') && !dir.includes('\\') ? '/' : '\\';
+      const folder =`${dir}${sep}${STARTER_NAMES()[key] || key}`;
+      await shell.fs.mkdirp({ path: folder });
+      const [w, h] = def.aspect === 'vertical' ? [1080, 1920] : [1920, 1080];
+      const pictures = [];
+      for (let i = 0; i < def.pictures; i++) {
+        const file = `${folder}${sep}${t('Picture {n}', { n: i + 1 })}.png`;
+        if (!(await shell.fs.exists({ path: file }).catch(() => false))) await shell.fs.write({ path: file, bytes: await standInPicture(i, w, h) });
+        pictures.push(await media.describe(file, { name: basename(file) }));
+      }
+      const next = markStandIns(buildStarter(key, pictures, STARTER_WORDS(key)), pictures.map((p) => p.url));
+      edit(STARTER_NAMES()[key] || key, () => next);
+      setSelected([]);
+      requestAnimationFrame(() => fitTo(projectDuration(next)));
+      toast(t('Pick a picture and press Replace Media to put your own in its place.'), { ms: 7000 });
+    } catch (err) {
+      toast(t('The starter could not be set out: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+    } finally {
+      setBusy(null);
+    }
+  }, [shell, media, madeFolder, edit, dirty, toast]);
+  startStarterRef.current = startStarter;
+
+  // Replace Media: another file of the same kind where the picked clip is, in its place and for its time.
+  const replaceClip = useCallback(async (clip) => {
+    if (!clip || !['video', 'image'].includes(clip.type)) return;
+    const files = await shell.dialog.open({
+      title: t('Replace Media'),
+      filters: [
+        clip.type === 'image'
+          ? { name: t('Pictures'), extensions: MEDIA_EXTENSIONS.filter((x) => mediaKind(`a.${x}`) === 'image') }
+          : { name: t('Videos'), extensions: MEDIA_EXTENSIONS.filter((x) => mediaKind(`a.${x}`) === 'video') },
+      ],
+      multiple: false,
+    });
+    const file = files?.[0];
+    if (!file) return;
+    try {
+      const stat = await shell.fs.stat({ path: file }).catch(() => null);
+      const info = await media.describe(file, { name: basename(file), size: stat?.size ?? null });
+      edit(t('Replace Media'), (d) => replaceMedia(d, clip.id, info));
+    } catch {
+      toast(t('{names} could not be opened: it is not a video, sound or picture this system can play.', { names: basename(file) }), { tone: 'bad', ms: 7000 });
+    }
+  }, [shell, media, edit, toast]);
+
   // The library's shapes and icons at the playhead, and its sound effects, written once beside the project.
   const addGraphicHere = useCallback((patch) => {
     let ids = [];
@@ -761,6 +827,9 @@ function VideoEditor({ app, shell, boot }) {
     if (new URLSearchParams(location.search).get('record')) setRecordOpen(true);
     // The launcher's Introduction video, or New Introduction Video: a new introduction.
     if (new URLSearchParams(location.search).get('intro')) startIntroRef.current?.();
+    // New from a starter, opened in a window of its own.
+    const starter = new URLSearchParams(location.search).get('starter');
+    if (starter) startStarterRef.current?.(starter);
     if (recover) {
       (async () => {
         try {
@@ -1107,6 +1176,7 @@ function VideoEditor({ app, shell, boot }) {
     'clip.fit.contain': { label: t('Fit'), icon: 'image', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.fit === 'contain'), tip: t('the whole picture, on black bars'), run: () => setPictures(t('Fit'), () => ({ fit: 'contain' })) },
     'clip.fit.blur': { label: t('Blur Fill'), icon: 'contrast', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.fit === 'blur'), tip: t('the whole picture, over a blur of itself'), run: () => setPictures(t('Blur Fill'), () => ({ fit: 'blur' })) },
     'clip.autoZoom': { label: t('Zoom on Clicks'), icon: 'zoomIn', disabled: !(first?.type === 'video' && pointerOf(doc, first.id)?.clicks?.length), tip: t('the screen zooms in where the recorded clicks are and follows them; each zoom can be changed in the properties'), run: () => edit(t('Zoom on Clicks'), (d) => applyAutoZoom(d, first.id)) },
+    'clip.replace': { label: t('Replace Media'), icon: 'swap', disabled: !(first && ['video', 'image'].includes(first.type)), tip: t('another picture or clip of the same kind where the picked one is, for the same time'), run: () => replaceClip(first) },
     'clip.rotateLeft': { label: t('Rotate Left'), icon: 'rotate', disabled: !pictures.length, run: () => setPictures(t('Rotate'), (p) => ({ turn: ((((p.turn || 0) - 90) % 360) + 360) % 360 })) },
     'clip.rotateRight': { label: t('Rotate Right'), icon: 'rotate', disabled: !pictures.length, run: () => setPictures(t('Rotate'), (p) => ({ turn: ((p.turn || 0) + 90) % 360 })) },
     'clip.flipX': { label: t('Flip Horizontal'), icon: 'flip', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.flipX), run: () => setPictures(t('Flip'), (p) => ({ flipX: !p.flipX })) },
@@ -1330,6 +1400,17 @@ function VideoEditor({ app, shell, boot }) {
                       <Button icon="record" label={t('Record Screen')} className="vd-start-record" onClick={() => setRecordOpen('picture')} />
                       <Button icon="mic" label={t('Record Voice')} className="vd-start-voice" onClick={() => setRecordOpen('voice')} />
                     </span>
+                    {intro ? null : (
+                      <span className="vd-starters" role="group" aria-label={t('Start from')}>
+                        <span className="vd-starters-head">{t('Or start from')}</span>
+                        {STARTERS.map((s) => (
+                          <button key={s.key} type="button" className="vd-starter" data-key={s.key} data-tip={`${STARTER_NAMES()[s.key]}: ${STARTER_LINES()[s.key]}`} onClick={() => startStarter(s.key)}>
+                            <Icon name={STARTER_ICONS[s.key]} size={18} />
+                            <span>{STARTER_NAMES()[s.key]}</span>
+                          </button>
+                        ))}
+                      </span>
+                    )}
                   </Empty>
                 </div>
               )}

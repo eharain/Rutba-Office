@@ -245,6 +245,9 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
 
       {tab === 'clip' ? (
         <>
+          <Group label={t('Media')}>
+            <C cmds={cmds} id="clip.replace" tall />
+          </Group>
           <Group label={t('Fit')}>
             <C cmds={cmds} id="clip.fit.cover" tall />
             <C cmds={cmds} id="clip.fit.contain" tall />

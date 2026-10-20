@@ -149,3 +149,72 @@ export async function verifyVideoLibrary(h, { dir }) {
     app.setPath('videos', videosWas);
   }
 }
+
+/**
+ * Video starters: one laid out on its stand-in pictures, drawn into a folder
+ * beside where recordings go, a stand-in replaced by a picture of the
+ * person's, and a starter asked for in a window with work in it opening a
+ * window of its own. Run alone with RUTBA_VERIFY_ONLY=video-starters.
+ */
+export async function verifyVideoStarters(h, { dir }) {
+  const { open, check, until, wait, errorsIn } = h;
+  const ok = (p) => p.then(() => true).catch(() => false);
+  const videosWas = app.getPath('videos');
+  const home = path.join(dir, 'starters-videos');
+  fs.mkdirSync(home, { recursive: true });
+  app.setPath('videos', home);
+  try {
+    const win = await open('video');
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const fixtures = await makeFixtures(win.webContents, dir, 'video-starters');
+    const capture = async (name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      try {
+        fs.mkdirSync(process.env.RUTBA_VERIFY_CAPTURE, { recursive: true });
+        await wait(500);
+        fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+      } catch { /* a capture is a picture to look at, not a check */ }
+    };
+    const offered = await ok(until(() => js(`document.querySelectorAll('.vd-starter').length === 4`), 'the starters', 6000));
+    await capture('video-starters-offered.png');
+    await js(`document.querySelector('.vd-starter[data-key="slideshow"]')?.click(), 1`);
+    const laid = await ok(until(() => js(`document.querySelectorAll('.vd-clip[data-kind="image"]').length === 6`), 'the slideshow', 15000));
+    await capture('video-starters-slideshow.png');
+    const shape = await js(`({ texts: document.querySelectorAll('.vd-clip[data-kind="text"]').length, fades: [...document.querySelectorAll('.vd-clip[data-kind="image"]')].filter((n) => n.dataset.transition === 'fade').length })`);
+    const folder = path.join(home, 'Rutba Recordings', 'Slideshow');
+    const drawn = fs.existsSync(folder) ? fs.readdirSync(folder).filter((f) => /^Picture \d+\.png$/.test(f)).length : 0;
+    const painted = await js(`(() => { const c = document.querySelector('.vd-canvas'); if (!c || !c.width) return false; const d = c.getContext('2d').getImageData(c.width / 2, c.height * 0.2, 1, 1).data; return d[0] + d[1] + d[2] > 60; })()`);
+    check('video starters: Slideshow lays out six stand-in pictures drawn on this computer, crossfading, with a title and an end card',
+      offered && laid && shape.texts >= 2 && shape.fades === 5 && drawn === 6 && painted, JSON.stringify({ offered, laid, shape, drawn, painted }));
+
+    // Replace Media: the second stand-in becomes a picture of the person's, in the same place.
+    const second = await js(`(() => { const n = [...document.querySelectorAll('.vd-clip[data-kind="image"]')].sort((a, b) => Number(a.dataset.start) - Number(b.dataset.start))[1]; if (!n) return null; const r = n.getBoundingClientRect(); const o = { bubbles: true, cancelable: true, button: 0, clientX: r.left + Math.min(12, r.width / 2), clientY: r.top + r.height / 2, pointerId: 1 }; n.dispatchEvent(new PointerEvent('pointerdown', o)); window.dispatchEvent(new PointerEvent('pointerup', o)); return { id: n.dataset.id, start: n.dataset.start, end: n.dataset.end }; })()`);
+    await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Clip')?.click(), 1`);
+    globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'open', answer: [fixtures?.still] });
+    const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Replace Media') && !n.disabled); if (!b) return 'no button'; b.click(); return 'pressed'; })()`);
+    const replaced = second ? await ok(until(() => js(`(document.querySelector('.vd-clip[data-id="${second.id}"]')?.textContent || '').includes('still.png')`), 'the picture replaced', 6000)) : false;
+    const kept = second ? await js(`(() => { const n = document.querySelector('.vd-clip[data-id="${second.id}"]'); return n ? [n.dataset.start, n.dataset.end] : null; })()`) : null;
+    check('video starters: Replace Media puts a picture of the person\'s where a stand-in was, for the same time',
+      Boolean(fixtures) && pressed === 'pressed' && replaced && JSON.stringify(kept) === JSON.stringify([second?.start, second?.end]), JSON.stringify({ pressed, replaced, second, kept }));
+
+    // A starter asked for in a window with work in it opens in a window of its own, upright for Vertical Social.
+    await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Home')?.click(), 1`);
+    const before = new Set(BrowserWindow.getAllWindows().map((w) => w.id));
+    await js(`document.querySelector('.rw-appmark')?.click(), 1`);
+    await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'New Vertical Social Video')`), 'the starter in the menu', 4000).catch(() => {});
+    await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'New Vertical Social Video')?.click(), 1`);
+    let other = null;
+    await until(() => { other = BrowserWindow.getAllWindows().find((w) => !before.has(w.id) && /starter=social/.test(w.webContents.getURL())) || null; return Boolean(other); }, 'the social window', 8000).catch(() => {});
+    const upright = other ? await ok(until(() => other.webContents.executeJavaScript(`document.querySelectorAll('.vd-clip[data-kind="image"]').length === 4 && (() => { const c = document.querySelector('.vd-canvas'); return c && c.height > c.width; })()`), 'the upright starter', 15000)) : false;
+    check('video starters: a starter asked for in a window with work in it opens in a window of its own; Vertical Social is upright',
+      Boolean(other) && upright, JSON.stringify({ opened: Boolean(other), upright }));
+    if (other && !other.isDestroyed()) other.destroy();
+
+    const complaints = await errorsIn(win);
+    check('video starters: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('video starters: the check ran to the end', false, err?.message || String(err));
+  } finally {
+    app.setPath('videos', videosWas);
+  }
+}

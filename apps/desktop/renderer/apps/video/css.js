@@ -10,7 +10,9 @@ export const CSS = `
 .vd-stage { flex: 1; min-height: 0; display: grid; place-items: center; position: relative; overflow: hidden;
   background: radial-gradient(ellipse at center, #16181d 0%, #0b0c0f 70%); }
 .vd-stage .rw-empty { color: rgba(255,255,255,0.78); }
-.vd-stage .rw-empty h2, .vd-stage .rw-empty .rw-empty-title { color: #fff; }
+.vd-stage .rw-empty h2, .vd-stage .rw-empty h3, .vd-stage .rw-empty .rw-empty-title { color: #fff; }
+.vd-stage .vd-start-record, .vd-stage .vd-start-voice { color: #e6e8ee; border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.06); }
+.vd-stage .vd-start-record:hover:not(:disabled), .vd-stage .vd-start-voice:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
 .vd-frame { position: relative; box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 12px 40px rgba(0,0,0,0.55); background: #000; }
 .vd-canvas { width: 100%; height: 100%; display: block; cursor: default; }
 .vd-outline { position: absolute; box-sizing: border-box; border: 1.5px solid #ffd54a; box-shadow: 0 0 0 1px rgba(0,0,0,0.6); pointer-events: none; border-radius: 2px; transform-origin: 50% 50%; }
@@ -97,6 +99,11 @@ export const CSS = `
 .vd-clip.k-text { background: linear-gradient(180deg, #7b4bd1, #5f37a8); }
 .vd-clip.k-shape { background: linear-gradient(180deg, #b7792a, #8c5b1d); }
 .vd-clip.k-icon { background: linear-gradient(180deg, #8a4fb8, #66398a); }
+/* The starters in one row under the empty preview's words, centred on them however wide the row is. */
+.vd-starters { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 6px; margin-top: 16px; width: max-content; max-width: 92vw; position: relative; left: 50%; transform: translateX(-50%); }
+.vd-starters-head { font-size: 12px; color: rgba(255,255,255,0.62); margin-inline-end: 4px; white-space: nowrap; }
+.vd-starter { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.06); color: #eef0f4; font: inherit; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
+.vd-starter:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); }
 .vd-clip.k-wordart { background: linear-gradient(180deg, #c2477a, #93305a); }
 .vd-zoom-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
 .vd-zoom-row .rw-select { flex: 1; min-width: 0; padding: 3px 6px; }

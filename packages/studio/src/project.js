@@ -608,6 +608,48 @@ export function setSpeed(doc, id, speed) {
 }
 
 /**
+ * Replace Media: a picture clip or a video clip shown from another file of
+ * the same kind (`media`, as addMedia takes it), keeping its place, length,
+ * look and transitions. A video's own sound follows it to the new file; a
+ * video shorter than the clip leaves the clip as long as the new file is.
+ * A starter's stand-in so replaced is a stand-in no more.
+ */
+export function replaceMedia(doc, id, media) {
+    const clip = clipById(doc, id);
+    if (!clip || !media?.url || !['video', 'image'].includes(clip.type)) return doc;
+    const kind = media.kind === 'image' ? 'image' : media.kind === 'audio' ? null : 'video';
+    if (kind !== clip.type) return doc;
+    const sources = { ...(doc.sources || {}), [media.url]: {
+        name: media.name || '', kind,
+        duration: kind === 'image' ? null : (Number(media.duration) || null),
+        hasAudio: kind === 'video' && Boolean(media.hasAudio),
+        width: media.width || null, height: media.height || null, size: media.size ?? null,
+    } };
+    const changes = new Map();
+    const name = media.name || clip.name;
+    if (kind === 'image') {
+        const { standIn, ...rest } = clip;
+        changes.set(id, { ...rest, url: media.url, name });
+        return rewrite({ ...doc, sources }, changes);
+    }
+    const shown = lengthOf(clip) * speedOf(clip);
+    const room = Number(media.duration) > 0 ? Number(media.duration) : Infinity;
+    const offset = round(Math.max(0, Math.min(clip.offset || 0, room - shown)));
+    const length = Math.min(lengthOf(clip), (room - offset) / speedOf(clip));
+    for (const pid of withPartners(doc, [id])) {
+        const p = clipById(doc, pid);
+        if (p.type !== 'video' && p.type !== 'sound') continue;
+        if (p.type === 'sound' && (p.url !== clip.url || !media.hasAudio)) continue;
+        const { reversed, ...rest } = p;
+        changes.set(pid, { ...setTiming(rest, p.timing.start, p.timing.start + Math.max(MIN_CLIP, length)), url: media.url, offset, name });
+    }
+    // A sound of the old file's with no sound in the new one goes.
+    const gone = media.hasAudio ? [] : withPartners(doc, [id]).filter((pid) => { const p = clipById(doc, pid); return p.type === 'sound' && p.url === clip.url; });
+    const out = rewrite({ ...doc, sources }, changes);
+    return gone.length ? { ...out, patches: out.patches.filter((p) => !gone.includes(p.id)) } : out;
+}
+
+/**
  * Reverse: a video clip and its own sound played backward, from a copy of
  * their stretch of the source written backward (`media`, as addMedia takes
  * it). The clip keeps its place, length and speed; a pointer recorded with it
