@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7291,
+  "count": 7297,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -3916,6 +3916,12 @@
       "message": "As its words need",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "As recorded",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -12647,6 +12653,12 @@
       ]
     },
     {
+      "message": "Faster or slower, the voice stays as it was; off, it rises and falls with the speed",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "Feather",
       "where": [
         "apps/desktop/renderer/apps/image/layers-panel.js",
@@ -17874,6 +17886,12 @@
       "message": "Keep the old one",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "Keep the pitch",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -25730,6 +25748,12 @@
         "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Pitch",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -45983,6 +46007,18 @@
       "message": "{n} of {total} apps on",
       "where": [
         "apps/desktop/renderer/apps-choice.js"
+      ]
+    },
+    {
+      "message": "{n} semitone",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
+      "message": "{n} semitones",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {

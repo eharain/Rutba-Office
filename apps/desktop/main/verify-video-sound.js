@@ -2,7 +2,7 @@
 // time): a clip's volume in decibels up to +12, the switch that lowers the
 // rest under a voice, fades as long as asked with a word when together they
 // are longer than the clip, a picture clip's fade from and to black, a
-// clip's speed, the meter, Freeze Frame and Reverse.
+// clip's speed, its pitch, the meter, Freeze Frame and Reverse.
 // A clip and a sound are made here at run time. Run alone with
 // RUTBA_VERIFY_ONLY=video-sound.
 
@@ -118,6 +118,28 @@ export async function verifyVideoSound(h, { dir }) {
     const stilled = await ok(until(() => js(`(document.querySelector('.vd-meter')?.dataset.db ?? 'x') === ''`), 'the meter at rest', 4000));
     check('video sound: while the preview plays the meter beside the time shows the sound\'s level, and it rests when stopped',
       idle === '' && moving && stilled, JSON.stringify({ idle, moving, level, stilled }));
+
+    // Pitch: a sound at twice its speed keeps its pitch unless asked not to, a pitch moved in semitones, and it plays.
+    const selectTo = (selector, value) => js(`(() => { const n = document.querySelector(${JSON.stringify(selector)}); if (!n) return 'none'; Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(n, ${JSON.stringify(String(value))}); n.dispatchEvent(new Event('change', { bubbles: true })); return 'set'; })()`);
+    await pickKind('sound');
+    await until(() => js(`Boolean(document.querySelector('.vd-pitch-select'))`), 'the pitch', 4000).catch(() => {});
+    const noKeepAt1 = await js(`!document.querySelector('.vd-keep-pitch')`);
+    await selectTo('.vd-speed-select', 2);
+    const keepShown = await ok(until(() => js(`document.querySelector('.vd-keep-pitch')?.checked === true`), 'keep the pitch, on', 4000));
+    await selectTo('.vd-pitch-select', 12);
+    const pitched = await ok(until(() => js(`document.querySelector('.vd-pitch-select')?.value === '12'`), 'an octave up', 3000));
+    await js(`document.querySelector('.vd-play')?.click(), 1`);
+    const plays = await ok(until(() => js(`Number(document.querySelector('.vd-meter')?.dataset.db) > -60`), 'the stretched sound playing', 8000));
+    await js(`document.querySelector('.vd-play')?.click(), 1`);
+    await wait(300);
+    await pickKind('sound');
+    await until(() => js(`Boolean(document.querySelector('.vd-pitch-select'))`), 'the pitch again', 3000).catch(() => {});
+    await selectTo('.vd-pitch-select', 0);
+    await wait(200);
+    await selectTo('.vd-speed-select', 1);
+    const reset = await ok(until(() => js(`document.querySelector('.vd-pitch-select')?.value === '0' && document.querySelector('.vd-speed-select')?.value === '1'`), 'the sound as recorded', 3000));
+    check('video sound: at another speed a sound keeps its pitch (a switch turns that off), its pitch moves in semitones, and stretched it plays',
+      noKeepAt1 && keepShown && pitched && plays && reset, JSON.stringify({ noKeepAt1, keepShown, pitched, plays, reset }));
 
     // Freeze Frame: the picture at the playhead as a still of two seconds, the clip cut there and going on after it.
     const videosWas = app.getPath('videos');

@@ -7299,4 +7299,10 @@ export default {
   'The clip could not be reversed: {reason}': 'کلپ الٹا نہیں کیا جا سکا: {reason}',
   'the clip and its sound play backward; a copy is written once, beside the project': 'کلپ اور اس کی آواز الٹی چلتی ہے؛ ایک نقل ایک بار پروجیکٹ کے ساتھ لکھی جاتی ہے',
   '{name} reversed': '{name} الٹا',
+  'As recorded': 'جیسا ریکارڈ ہوا',
+  'Faster or slower, the voice stays as it was; off, it rises and falls with the speed': 'تیز ہو یا آہستہ، آواز ویسی ہی رہتی ہے؛ بند ہو تو رفتار کے ساتھ اونچی نیچی ہوتی ہے',
+  'Keep the pitch': 'سُر برقرار رکھیں',
+  'Pitch': 'سُر',
+  '{n} semitone': '{n} سیمی ٹون',
+  '{n} semitones': '{n} سیمی ٹون',
 };

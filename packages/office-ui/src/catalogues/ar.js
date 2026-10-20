@@ -7301,4 +7301,10 @@ export default {
   'The clip could not be reversed: {reason}': 'تعذّر عكس المقطع: {reason}',
   'the clip and its sound play backward; a copy is written once, beside the project': 'يُشغَّل المقطع وصوته بالعكس؛ وتُكتب نسخة مرة واحدة بجانب المشروع',
   '{name} reversed': '{name} معكوس',
+  'As recorded': 'كما سُجّل',
+  'Faster or slower, the voice stays as it was; off, it rises and falls with the speed': 'أسرع أو أبطأ، يبقى الصوت كما كان؛ وعند الإيقاف يرتفع وينخفض مع السرعة',
+  'Keep the pitch': 'الحفاظ على طبقة الصوت',
+  'Pitch': 'طبقة الصوت',
+  '{n} semitone': '{n} نصف نغمة',
+  '{n} semitones': '{n} أنصاف نغمات',
 };

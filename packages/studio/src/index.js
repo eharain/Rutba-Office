@@ -38,6 +38,7 @@
  *   taints the canvas and captureStream() then throws SecurityError.
  */
 
+import { soundRate, stretchedBuffer } from './stretch.js';
 import { warpPixels, quadBounds } from './warp.js';
 
 // ── output shapes ────────────────────────────────────────────────────────────
@@ -887,6 +888,9 @@ export function applyLayerPatches(plan, patches) {
                 offset: Number(patch.offset) || 0,
                 // Faster or slower than recorded: the source read at this many seconds a second.
                 speed: Number(patch.speed) > 0 ? Math.max(0.25, Math.min(4, Number(patch.speed))) : 1,
+                // Its pitch moved by this many semitones, and whether a speed leaves the pitch as it was.
+                pitch: Math.max(-12, Math.min(12, Number(patch.pitch) || 0)),
+                keepPitch: patch.keepPitch !== false,
                 volume: patch.volume ?? null, // null = the host's default
                 // How this clip meets OTHER audio it overlaps: 'mix' sums
                 // (the default), 'duck' dips the rest while it plays, 'solo'
@@ -3198,6 +3202,8 @@ export function clipFromSoundLayer(layer, buffer, plan, defaults = {}) {
         mix: layer.mix || 'mix',
         loop: !!layer.loop,
         speed: layer.speed || 1,
+        pitch: layer.pitch || 0,
+        keepPitch: layer.keepPitch !== false,
     };
 }
 
@@ -3247,17 +3253,23 @@ function normalizeAudioClips(audio, plan) {
         const end = Math.max(start, Math.min(plan.duration, Number(c.end) || plan.duration));
         const dur = end - start;
         if (dur <= 0.05) continue;
+        const speed = Math.max(0.25, Math.min(4, Number(c.speed) || 1));
+        const offset = c.buffer.duration > 0 ? (Number(c.offset) || 0) % c.buffer.duration : 0;
+        // Faster or slower with the pitch kept, or the pitch moved: the stretch
+        // is made first (a loop keeps the plain speed, its pitch going with it).
+        const { rate, ratio } = soundRate({ speed, semitones: c.pitch, keepPitch: c.keepPitch !== false });
+        const stretch = !c.loop && Math.abs(ratio - 1) > 1e-4;
         clips.push({
-            buffer: c.buffer,
+            buffer: stretch ? stretchedBuffer(c.buffer, offset, dur * speed, ratio) : c.buffer,
             start,
             dur,
-            offset: c.buffer.duration > 0 ? (Number(c.offset) || 0) % c.buffer.duration : 0,
+            offset: stretch ? 0 : offset,
             vol: Math.max(0, Math.min(MAX_GAIN, c.volume ?? 0.7)),
             ...(({ fadeIn, fadeOut }) => ({ fadeIn, fadeOut }))(soundFades(c.fadeIn ?? 1.2, c.fadeOut ?? 1.6, dur)),
             mix: c.mix === 'duck' || c.mix === 'solo' ? c.mix : 'mix',
             loop: !!c.loop,
-            // Faster or slower, the pitch with it (a speed with the pitch kept is still to come).
-            speed: Math.max(0.25, Math.min(4, Number(c.speed) || 1)),
+            // The rate the buffer is played at: the speed, or once stretched, the pitch alone.
+            speed: c.loop ? speed : rate,
         });
     }
     return clips;

@@ -12,6 +12,7 @@ import { Button, Icon, Select, labelFirstControl, t, tn } from '@rutba/office-ui
 import { MAX_GAIN, gainToDb, dbToGain, soundFades } from '@rutba/studio';
 import { timecode } from '@rutba/media/timeline';
 import { clipById, partnersOf, previousOnLane, lengthOf, animationName, TEXT_ANIMATIONS, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker, SPEEDS, speedOf, setSpeed } from '@rutba/studio/project';
+import { PITCH_STEPS } from '@rutba/studio/stretch';
 import { insetRect, cornerOf } from '@rutba/studio/recorder';
 import { pointerOf, applyAutoZoom, updateZoom, setZooms } from '@rutba/studio/pointer';
 import { composeIntro } from '@rutba/studio/intro';
@@ -416,6 +417,17 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           <Row label={t('Mute')}>
             <input type="checkbox" checked={!!sound.muted} onChange={(e) => setSound(t('Mute'), { muted: e.target.checked })} />
           </Row>
+          {/* The pitch moved without the length changing; and at another speed, whether the pitch stays as recorded. */}
+          <Row label={t('Pitch')}>
+            <Select value={String(Number(sound.pitch) || 0)} className="vd-pitch-select" onChange={(e) => setSound(t('Pitch'), { pitch: Number(e.target.value) || 0 })}>
+              {PITCH_STEPS.map((n) => <option key={n} value={String(n)}>{n === 0 ? t('As recorded') : Math.abs(n) === 1 ? t('{n} semitone', { n: n > 0 ? `+${n}` : String(n) }) : t('{n} semitones', { n: n > 0 ? `+${n}` : String(n) })}</option>)}
+            </Select>
+          </Row>
+          {speedOf(sound) !== 1 ? (
+            <Row label={t('Keep the pitch')}>
+              <input type="checkbox" className="vd-keep-pitch" checked={sound.keepPitch !== false} title={t('Faster or slower, the voice stays as it was; off, it rises and falls with the speed')} onChange={(e) => setSound(t('Keep the pitch'), { keepPitch: e.target.checked })} />
+            </Row>
+          ) : null}
           <Row label={t('Track volume')}>
             <Slider
               value={doc.lanes?.a?.[sound.lane || 0]?.volume ?? 1}

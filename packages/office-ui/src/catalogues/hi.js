@@ -7301,4 +7301,10 @@ export default {
   'The clip could not be reversed: {reason}': 'क्लिप उल्टी नहीं की जा सकी: {reason}',
   'the clip and its sound play backward; a copy is written once, beside the project': 'क्लिप और उसकी आवाज़ उल्टी चलती है; एक प्रति एक बार प्रोजेक्ट के पास लिखी जाती है',
   '{name} reversed': '{name} उल्टा',
+  'As recorded': 'जैसा रिकॉर्ड हुआ',
+  'Faster or slower, the voice stays as it was; off, it rises and falls with the speed': 'तेज़ हो या धीमा, आवाज़ वैसी ही रहती है; बंद होने पर गति के साथ ऊँची-नीची होती है',
+  'Keep the pitch': 'सुर बनाए रखें',
+  'Pitch': 'सुर',
+  '{n} semitone': '{n} सेमीटोन',
+  '{n} semitones': '{n} सेमीटोन',
 };
