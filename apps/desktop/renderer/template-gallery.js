@@ -37,6 +37,17 @@ export const GALLERY_WORDS = [
   msg('Project status'), msg('Where a project stands: progress, milestones, risks and next steps'),
   msg('Photo album'), msg('Pictures with captions, one large and in pairs, on a dark theme'),
   msg('Training deck'), msg('A course session: objectives, the agenda, the lessons, a quick check and a summary'),
+  msg('Cover letter'), msg('A letter to go with a job application: the role, what you bring and why this company'),
+  msg('Memo'), msg('A short note to a team: to, from, the subject, the background and what happens now'),
+  msg('Meeting agenda'), msg('What a meeting is for, its items with times and who leads each, and what to read first'),
+  msg('Project proposal'), msg('A proposal with a summary, the need, the plan, the cost and the next steps'),
+  msg('Expense report'), msg('Expenses to claim: dates, categories, VAT and receipts, with the total owed to you'),
+  msg('Stock list'), msg('Items, counts and reorder levels, the stock value and what to order again'),
+  msg('Weekly planner'), msg('A week by the hour, the dates filled in, with priorities and notes for the week'),
+  msg('Grade book'), msg('Marks for a class: averages, grades and who needs support, with a chart'),
+  msg('Quarterly review'), msg('The results of a quarter: the numbers, revenue by month, what went well, lessons and goals'),
+  msg('Lesson'), msg('A lesson for a class: goals, a starter, the main idea, key words, a task and an exit ticket'),
+  msg('Portfolio'), msg('Selected work on a dark theme: about you, three projects with pictures, and what clients say'),
 ];
 
 const APP_ORDER = ['word', 'sheets', 'slides'];

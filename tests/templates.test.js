@@ -49,9 +49,9 @@ const cell = (view, ref) => {
   return view.displayValue(Number(m[2]) - 1, col).text;
 };
 
-test('the gallery lists sixteen templates: six documents, six workbooks and four decks, each with its file and its picture', () => {
+test('the gallery lists twenty-seven templates: ten documents, ten workbooks and seven decks, each with its file and its picture', () => {
   const by = (app) => TEMPLATES.filter((t) => t.app === app).length;
-  assert.deepEqual([by('word'), by('sheets'), by('slides')], [6, 6, 4]);
+  assert.deepEqual([by('word'), by('sheets'), by('slides')], [10, 10, 7]);
   assert.equal(new Set(TEMPLATES.map((t) => t.id)).size, TEMPLATES.length);
   for (const t of TEMPLATES) {
     assert.ok(fs.statSync(templatePath(t)).size > 1000, `${t.file} is kept`);
@@ -141,7 +141,7 @@ test('the decks have five to eight slides on the theme\'s layouts, each with its
     }
   }
   const counts = Object.fromEntries(TEMPLATES.filter((x) => x.app === 'slides').map((t) => [t.id, Deck.open(fs.readFileSync(templatePath(t))).slideCount]));
-  assert.deepEqual(counts, { 'deck-pitch': 8, 'deck-status': 7, 'deck-album': 6, 'deck-training': 8 });
+  assert.deepEqual(counts, { 'deck-pitch': 8, 'deck-status': 7, 'deck-album': 6, 'deck-training': 8, 'deck-quarterly': 7, 'deck-lesson': 7, 'deck-portfolio': 7 });
 });
 
 test('the gallery speaks every template\'s name and description and every category in the catalogue', () => {

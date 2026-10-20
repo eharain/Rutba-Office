@@ -354,10 +354,96 @@ function training() {
   return Buffer.from(deck.save());
 }
 
+function quarterly() {
+  const theme = 'saffron';
+  const p = themeById(theme).palette;
+  const { deck, layouts } = start(theme, { title: 'Quarterly Review', subtitle: '[Quarter and year]  |  [Team or company]' });
+  const v = verbs(deck, layouts);
+  // The title slide's own picture: four bars rising, the last the tallest.
+  [120, 170, 210, 280].forEach((h, k) => deck.addShape(0, { preset: 'rect', x: 900 + k * 76, y: 620 - h, w: 56, h, fill: { scheme: k === 3 ? 'accent2' : 'accent1' }, line: 'none' }));
+  const h = v.titled('The quarter in numbers');
+  [['£1.24m', 'revenue, up 12%'], ['318', 'new customers'], ['4.6', 'average rating, out of 5'], ['94%', 'orders on time']].forEach(([n, line], k) => {
+    deck.addShape(h, { preset: 'roundRect', x: 96 + k * 278, y: 210, w: 250, h: 220, fill: { scheme: k % 2 ? 'accent2' : 'accent1' }, line: 'none',
+      text: [{ align: 'center', runs: [{ text: n, size: 40, bold: true, color: '#FFFFFF' }] }, { align: 'center', runs: [{ text: line, size: 16, color: '#FFFFFF' }] }] });
+  });
+  deck.addTextBox(h, { x: 96, y: 470, w: 1088, h: 150, paragraphs: [text('Say in a sentence what the numbers mean: what went well and what did not.', { size: 22 })] });
+  const r = v.titled('Revenue by month');
+  deck.addChart(r, { type: 'line', title: 'Revenue, £ thousand', categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], series: [{ name: 'This year', values: [180, 192, 205, 211, 220, 232] }, { name: 'Last year', values: [160, 168, 175, 180, 186, 195] }], x: 96, y: 180, w: 760, h: 460 });
+  deck.addTextBox(r, { x: 900, y: 220, w: 300, h: 380, paragraphs: [
+    text('+12%', { size: 54, bold: true, color: '#' + p.accent1 }),
+    text('on the same quarter last year.', { size: 20, after: 18 }),
+    text('What drove it, in a line or two.', { size: 16, color: '#' + p.dk2 }),
+  ] });
+  v.content('What went well', ['[A win, with a figure]', '[Another]', '[Another]']);
+  v.content('What we learned', ['[Something that did not go to plan, and why]', '[What we will do differently]']);
+  const g = v.titled('Goals for next quarter');
+  const head = (t) => ({ paragraphs: [{ runs: [{ text: t, bold: true, color: '#FFFFFF' }] }], fill: '#' + p.accent1 });
+  deck.addTable(g, {
+    rows: 4, cols: 3, x: 96, y: 190, w: 1088, columnWidths: [600, 244, 244],
+    cells: [
+      [head('Goal'), head('Measure'), head('Owner')],
+      ['Grow revenue', '£1.35m', '[Name]'],
+      ['Faster delivery', '97% on time', '[Name]'],
+      ['Happier customers', '4.7 rating', '[Name]'],
+    ],
+  });
+  v.closing('Questions', '[Your name]  |  [email]');
+  numberSlides(deck);
+  return Buffer.from(deck.save());
+}
+
+function lesson() {
+  const theme = 'meadow';
+  const p = themeById(theme).palette;
+  const { deck, layouts } = start(theme, { title: 'Lesson title', subtitle: '[Subject]  |  [Year group]  |  [Date]' });
+  const v = verbs(deck, layouts);
+  deck.addShape(0, { preset: 'ellipse', x: 960, y: 90, w: 220, h: 220, fill: { scheme: 'accent2', alpha: 0.85 }, line: 'none' });
+  deck.addShape(0, { preset: 'triangle', x: 880, y: 330, w: 200, h: 180, fill: { scheme: 'accent1', alpha: 0.85 }, line: 'none' });
+  const goals = v.content('By the end of this lesson you will', ['Know [the key fact or idea]', 'Be able to [the skill]', 'Understand why [the reason it matters]']);
+  deck.setNotes(goals, 'Read the goals aloud, and come back to them at the end.');
+  const start2 = v.titled('Starter');
+  deck.addShape(start2, { preset: 'roundRect', x: 196, y: 200, w: 888, h: 300, fill: { scheme: 'accent1' }, line: 'none',
+    text: [{ align: 'center', runs: [{ text: 'What do you already know about [topic]?', size: 32, bold: true, color: '#FFFFFF' }] }, { align: 'center', runs: [{ text: 'Two minutes with the person next to you', size: 20, color: '#FFFFFF' }] }] });
+  deck.setNotes(start2, 'Take three or four answers; write the useful words on the board.');
+  v.section('The main idea', 'One idea, explained simply, with an example');
+  v.content('Key words', ['[Word]: what it means', '[Word]: what it means', '[Word]: what it means']);
+  const task = v.titled('Your task');
+  [['1', 'Read', 'the text on page [n]'], ['2', 'Answer', 'questions 1 to 4'], ['3', 'Share', 'one answer with your group']].forEach(([n, verb, what], k) => {
+    deck.addShape(task, { preset: 'ellipse', x: 140 + k * 360, y: 210, w: 90, h: 90, fill: { scheme: 'accent2' }, line: 'none', text: [{ align: 'center', runs: [{ text: n, size: 32, bold: true, color: '#FFFFFF' }] }] });
+    deck.addTextBox(task, { x: 100 + k * 360, y: 320, w: 300, h: 200, paragraphs: [text(verb, { size: 26, bold: true, align: 'center', color: '#' + p.accent1 }), text(what, { size: 18, align: 'center' })] });
+  });
+  deck.setNotes(task, 'Fifteen minutes. Go round the groups; help those who are stuck first.');
+  const exit = v.content('Exit ticket', ['One thing you learned today', 'One question you still have']);
+  deck.setNotes(exit, 'Collect the tickets at the door; they shape the next lesson.');
+  numberSlides(deck);
+  return Buffer.from(deck.save());
+}
+
+function portfolio() {
+  const theme = 'nightfall';
+  const { deck, layouts } = start(theme, { title: 'Your Name', subtitle: 'Designer  |  Selected work, [year]' });
+  const v = verbs(deck, layouts);
+  v.content('About me', ['What you do, and for whom, in a sentence', '[Years] of work for [kinds of client]', 'What people come to you for']);
+  ['Project one', 'Project two', 'Project three'].forEach((name, k) => {
+    const i = deck.insertSlide(deck.slideCount - 1, { layoutPart: layouts.picture, title: name, body: '' });
+    const words = v.bodyShape(i);
+    if (words) deck.setText(i, words.id, [text('The brief, what you did and what came of it, in three short lines.', { size: 20 })]);
+    // A picture drawn here stands in for the work: Change Picture puts the real one in its place.
+    deck.addPicture(i, { data: landscape({ ...SCENES[(k * 2 + 1) % SCENES.length], w: 700, h: 580 }), contentType: 'image/png', name: `${name} picture`, x: 520, y: 70, w: 700, h: 580 });
+  });
+  v.content('What clients say', ['"A quote from a happy client, short and particular."  [Name, company]', '"Another, about something different."  [Name, company]']);
+  v.closing('Let us work together', 'you@example.com  |  example.com');
+  numberSlides(deck);
+  return Buffer.from(deck.save());
+}
+
 /** The decks, by template id. */
 export const DECKS = {
   'deck-pitch': pitch,
   'deck-status': status,
   'deck-album': album,
   'deck-training': training,
+  'deck-quarterly': quarterly,
+  'deck-lesson': lesson,
+  'deck-portfolio': portfolio,
 };

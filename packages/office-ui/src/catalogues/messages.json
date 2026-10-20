@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7330,
+  "count": 7352,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -978,9 +978,21 @@
       ]
     },
     {
+      "message": "A lesson for a class: goals, a starter, the main idea, key words, a task and an exit ticket",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "A letter first, then letters, digits or underscores",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "A letter to go with a job application: the role, what you bring and why this company",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -1230,6 +1242,12 @@
       ]
     },
     {
+      "message": "A proposal with a summary, the need, the plan, the cost and the next steps",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "A query needs a source",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -1365,6 +1383,12 @@
       "message": "A sheet of labels, each after the first starting with «Next Record». Put an Address Block in the first, then Update Labels.",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
+      ]
+    },
+    {
+      "message": "A short note to a team: to, from, the subject, the background and what happens now",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -1534,6 +1558,12 @@
       "message": "A web address, or mailto: for an email link. Ctrl+click the shape to follow it.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "A week by the hour, the dates filled in, with priorities and notes for the week",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -8636,6 +8666,12 @@
       ]
     },
     {
+      "message": "Cover letter",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Create",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -12374,6 +12410,18 @@
       ]
     },
     {
+      "message": "Expense report",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "Expenses to claim: dates, categories, VAT and receipts, with the total owed to you",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Export",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
@@ -14848,6 +14896,12 @@
       "message": "Good",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Grade book",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -17779,6 +17833,12 @@
       ]
     },
     {
+      "message": "Items, counts and reorder levels, the stock value and what to order again",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Its column",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -18823,6 +18883,12 @@
       "message": "Less than or equal",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Lesson",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -20294,6 +20360,12 @@
       ]
     },
     {
+      "message": "Marks for a class: averages, grades and who needs support, with a chart",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Marks show what will be removed; nothing is removed until you apply them. Applying saves a new file and leaves the original as it is.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -20517,7 +20589,19 @@
       ]
     },
     {
+      "message": "Meeting agenda",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Meeting minutes",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "Memo",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
       ]
@@ -26309,6 +26393,12 @@
       ]
     },
     {
+      "message": "Portfolio",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Portrait",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -26924,6 +27014,12 @@
       ]
     },
     {
+      "message": "Project proposal",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Project status",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
@@ -27248,6 +27344,12 @@
         "apps/desktop/renderer/apps/slides/export-video.js",
         "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
+      "message": "Quarterly review",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -31640,6 +31742,12 @@
       ]
     },
     {
+      "message": "Selected work on a dark theme: about you, three projects with pictures, and what clients say",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Selection",
       "where": [
         "apps/desktop/renderer/apps/sheets/objects.js",
@@ -34671,6 +34779,12 @@
       ]
     },
     {
+      "message": "Stock list",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Stop",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js",
@@ -37319,6 +37433,12 @@
       "message": "The release notes",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "The results of a quarter: the numbers, revenue by month, what went well, lessons and goals",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -41587,6 +41707,12 @@
       ]
     },
     {
+      "message": "Weekly planner",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Weight",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
@@ -41603,6 +41729,12 @@
       "message": "Western digits (123)",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "What a meeting is for, its items with times and who leads each, and what to read first",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {

@@ -416,6 +416,204 @@ function ledger() {
 }
 
 /** The workbooks, by template id. */
+function expenses() {
+  const theme = 'harbour';
+  const p = themeById(theme).palette;
+  const claims = [
+    [-20, 'Travel', 'Train to the client, return', 64.4, 0],
+    [-20, 'Meals', 'Lunch with the client', 38.5, 6.42],
+    [-14, 'Mileage', 'Site visit, 46 miles', 20.7, 0],
+    [-9, 'Accommodation', 'Hotel, one night', 112, 18.67],
+    [-8, 'Supplies', 'Printer paper and ink', 27.99, 4.67],
+  ];
+  const cells = {
+    A1: 'Expense report',
+    A2: 'Name', B2: '[Your name]', D2: 'Period', E2: '[Month and year]',
+    A3: 'Department', B3: '[Department]', D3: 'Manager', E3: '[Name]',
+    A5: 'Date', B5: 'Category', C5: 'Description', D5: 'Amount', E5: 'VAT included', F5: 'Receipt',
+    C21: 'Total claimed', D21: '=SUM(D6:D19)', E21: '=SUM(E6:E19)',
+    C22: 'Less advances', D22: 0,
+    C23: 'Owed to you', D23: '=D21-D22',
+    A25: 'Choose a category from the list, keep each receipt and tick it off. Mileage is the miles times the rate your employer pays.',
+    A27: 'Signed', B27: '', D27: 'Approved', E27: '',
+  };
+  claims.forEach(([days, cat, what, amount, vat], i) => {
+    const r = 6 + i;
+    Object.assign(cells, { [`A${r}`]: `=TODAY()${days}`, [`B${r}`]: cat, [`C${r}`]: what, [`D${r}`]: amount, [`E${r}`]: vat, [`F${r}`]: 'Yes' });
+  });
+  const sheets = [{
+    name: 'Expenses',
+    rows: grid(cells),
+    styles: {
+      A1: title(p), 'A2:A3': { bold: true, colour: '#' + p.dk2 }, 'D2:D3': { bold: true, colour: '#' + p.dk2 },
+      'A6:A19': { numFmt: 'd mmm yyyy', align: 'left' }, 'D6:E19': { numFmt: MONEY },
+      'C21:E21': total(p, MONEY), C22: { bold: true }, D22: { numFmt: MONEY }, 'C23:D23': { bold: true, numFmt: MONEY, border: true },
+      A25: note(p), A27: { bold: true }, D27: { bold: true },
+    },
+  }];
+  const charts = ({ values }) => [{
+    sheet: 'Expenses', kind: 'chart', chartKind: 'pie', title: 'Claimed by category',
+    categories: { ref: 'Expenses!$B$6:$B$10', values: claims.map((c) => c[1]) },
+    series: [{ name: 'Amount', nameRef: 'Expenses!$D$5', ref: 'Expenses!$D$6:$D$10', values: values('Expenses', 'D6', 'D10') }],
+    from: { col: 7, row: 1 }, to: { col: 13, row: 16 },
+  }];
+  return compose({
+    theme, sheets, charts,
+    finish(view) {
+      const o = ops(view);
+      o.widths({ A: 100, B: 120, C: 240, D: 96, E: 100, F: 80 });
+      o.table('A5:F19', 'TableStyleMedium9');
+      o.freeze(5, 0);
+      o.list('B6:B19', ['Travel', 'Mileage', 'Accommodation', 'Meals', 'Supplies', 'Phone', 'Other']);
+      o.list('F6:F19', ['Yes', 'No']);
+      o.rule('F6:F19', { kind: 'containsText', text: 'No', look: 'red' });
+    },
+  });
+}
+
+function inventory() {
+  const theme = 'saffron';
+  const p = themeById(theme).palette;
+  const stock = [
+    ['SKU-001', 'Notebook, A5 lined', 'Stationery', 140, 50, 2.1],
+    ['SKU-002', 'Ballpoint pens, box of 10', 'Stationery', 32, 40, 3.75],
+    ['SKU-003', 'Printer paper, 500 sheets', 'Paper', 18, 25, 4.6],
+    ['SKU-004', 'Envelopes, C5, pack of 50', 'Paper', 60, 20, 5.2],
+    ['SKU-005', 'Stapler', 'Desk', 12, 10, 6.99],
+    ['SKU-006', 'Desk lamp', 'Desk', 4, 6, 18.5],
+    ['SKU-007', 'Sticky notes, 12 pads', 'Stationery', 75, 30, 4.25],
+  ];
+  const cells = {
+    A1: 'Stock list', A2: 'Items to reorder', B2: '=COUNTIF(H5:H24,"Reorder")', D2: 'Stock value', E2: '=SUM(G5:G24)',
+    A4: 'Code', B4: 'Item', C4: 'Category', D4: 'In stock', E4: 'Reorder at', F4: 'Unit cost', G4: 'Value', H4: 'Status',
+    A26: 'Count what is on the shelf into In stock; an item at or below its reorder level is marked to reorder.',
+  };
+  for (let i = 0; i < 20; i++) {
+    const r = 5 + i;
+    const s = stock[i];
+    if (s) Object.assign(cells, { [`A${r}`]: s[0], [`B${r}`]: s[1], [`C${r}`]: s[2], [`D${r}`]: s[3], [`E${r}`]: s[4], [`F${r}`]: s[5] });
+    cells[`G${r}`] = `=IF(D${r}="","",D${r}*F${r})`;
+    cells[`H${r}`] = `=IF(D${r}="","",IF(D${r}<=E${r},"Reorder","OK"))`;
+  }
+  const sheets = [{
+    name: 'Stock',
+    rows: grid(cells),
+    styles: {
+      A1: title(p), A2: { bold: true, colour: '#' + p.dk2 }, B2: { bold: true, colour: '#' + p.accent1 },
+      D2: { bold: true, colour: '#' + p.dk2 }, E2: { bold: true, numFmt: MONEY0, colour: '#' + p.accent1 },
+      'F5:G24': { numFmt: MONEY }, A26: note(p),
+    },
+  }];
+  return compose({
+    theme, sheets,
+    finish(view) {
+      const o = ops(view);
+      o.widths({ A: 90, B: 220, C: 110, D: 80, E: 90, F: 90, G: 96, H: 90 });
+      o.table('A4:H24', 'TableStyleMedium3');
+      o.freeze(4, 0);
+      o.list('C5:C24', ['Stationery', 'Paper', 'Desk', 'Other']);
+      o.rule('H5:H24', { kind: 'containsText', text: 'Reorder', look: 'red' });
+      o.rule('H5:H24', { kind: 'containsText', text: 'OK', look: 'green' });
+    },
+  });
+}
+
+function planner() {
+  const theme = 'orchard';
+  const p = themeById(theme).palette;
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const cols = ['B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const cells = {
+    A1: 'Weekly planner', A2: 'Week starting', B2: '=TODAY()-WEEKDAY(TODAY(),3)',
+    A4: '',
+    A20: 'Priorities this week', E20: 'Notes',
+    A21: '1.', A22: '2.', A23: '3.',
+  };
+  days.forEach((d, i) => {
+    cells[`${cols[i]}4`] = d;
+    cells[`${cols[i]}5`] = `=$B$2+${i}`;
+  });
+  const hours = ['8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', 'Evening'];
+  hours.forEach((h, i) => { cells[`A${6 + i}`] = h; });
+  cells.B7 = 'Team meeting';
+  cells.D9 = 'Lunch with Sam';
+  cells.F12 = 'Dentist';
+  cells.G6 = 'Market';
+  const sheets = [{
+    name: 'Week',
+    rows: grid(cells),
+    styles: {
+      A1: title(p), A2: { bold: true, colour: '#' + p.dk2 }, B2: { numFmt: 'd mmmm yyyy', bold: true, align: 'left' },
+      'B4:H4': header(p), 'B5:H5': { numFmt: 'd mmm', colour: '#' + p.dk2, align: 'center', fill: '#' + p.lt2 },
+      'A6:A17': { bold: true, colour: '#' + p.dk2 },
+      A20: { bold: true, colour: '#' + p.accent1 }, E20: { bold: true, colour: '#' + p.accent1 }, 'A21:A23': { colour: '#' + p.dk2 },
+    },
+  }];
+  return compose({
+    theme, sheets,
+    finish(view) {
+      const o = ops(view);
+      o.widths({ A: 112, B: 130, C: 130, D: 130, E: 130, F: 130, G: 130, H: 130 });
+      for (let r = 6; r <= 17; r++) o.height(r, 30);
+      // Home > Borders > All borders, in the theme's light grey, so each hour is a box to write in.
+      const line = { style: 'thin', colour: '#C8CCD2' };
+      o.format('B6:H17', { border: { top: line, bottom: line, left: line, right: line }, wrap: true, valign: 'top' });
+      o.format('G6:H17', { fill: '#' + p.lt2 });
+      o.freeze(5, 1);
+    },
+  });
+}
+
+function grades() {
+  const theme = 'meadow';
+  const p = themeById(theme).palette;
+  const pupils = [
+    ['Amira Khan', 78, 85, 92, 88], ['Ben Thompson', 64, 70, 58, 72], ['Chloe Martin', 91, 94, 89, 95],
+    ['Daniel Osei', 55, 61, 67, 60], ['Ella Wright', 82, 79, 85, 81], ['Farhan Ali', 70, 76, 74, 79],
+    ['Grace Lee', 88, 90, 93, 91], ['Harry Evans', 47, 52, 58, 49],
+  ];
+  const cells = {
+    A1: 'Grade book', A2: 'Class', B2: '[Class and subject]', D2: 'Pass mark', E2: 50,
+    A4: 'Pupil', B4: 'Test 1', C4: 'Test 2', D4: 'Project', E4: 'Exam', F4: 'Average', G4: 'Grade', H4: 'Result',
+    A31: 'Class average', B31: '=IFERROR(AVERAGE(B5:B29),"")', C31: '=IFERROR(AVERAGE(C5:C29),"")', D31: '=IFERROR(AVERAGE(D5:D29),"")', E31: '=IFERROR(AVERAGE(E5:E29),"")', F31: '=IFERROR(AVERAGE(F5:F29),"")',
+    A33: 'Grades: A from 85, B from 70, C from 60, D from 50, otherwise E. Change the pass mark in E2.',
+  };
+  for (let i = 0; i < 25; i++) {
+    const r = 5 + i;
+    const s = pupils[i];
+    if (s) Object.assign(cells, { [`A${r}`]: s[0], [`B${r}`]: s[1], [`C${r}`]: s[2], [`D${r}`]: s[3], [`E${r}`]: s[4] });
+    cells[`F${r}`] = `=IF(COUNT(B${r}:E${r})=0,"",ROUND(AVERAGE(B${r}:E${r}),1))`;
+    cells[`G${r}`] = `=IF(F${r}="","",IF(F${r}>=85,"A",IF(F${r}>=70,"B",IF(F${r}>=60,"C",IF(F${r}>=50,"D","E")))))`;
+    cells[`H${r}`] = `=IF(F${r}="","",IF(F${r}>=$E$2,"Pass","Needs support"))`;
+  }
+  const sheets = [{
+    name: 'Grades',
+    rows: grid(cells),
+    styles: {
+      A1: title(p), A2: { bold: true, colour: '#' + p.dk2 }, D2: { bold: true, colour: '#' + p.dk2 }, E2: { bold: true },
+      'F5:F29': { numFmt: '0.0', bold: true }, 'G5:G29': { align: 'center', bold: true },
+      'A31:F31': total(p, '0.0'), A33: note(p),
+    },
+  }];
+  const charts = ({ values }) => [{
+    sheet: 'Grades', kind: 'chart', chartKind: 'bar', title: 'Average by pupil',
+    categories: { ref: 'Grades!$A$5:$A$12', values: pupils.map((x) => x[0]) },
+    series: [{ name: 'Average', nameRef: 'Grades!$F$4', ref: 'Grades!$F$5:$F$12', values: values('Grades', 'F5', 'F12') }],
+    from: { col: 9, row: 1 }, to: { col: 16, row: 18 },
+  }];
+  return compose({
+    theme, sheets, charts,
+    finish(view) {
+      const o = ops(view);
+      o.widths({ A: 170, B: 70, C: 70, D: 70, E: 70, F: 80, G: 64, H: 120 });
+      o.table('A4:H29', 'TableStyleMedium7');
+      o.freeze(4, 1);
+      o.rule('H5:H29', { kind: 'containsText', text: 'Needs support', look: 'red' });
+      o.rule('G5:G29', { kind: 'containsText', text: 'A', look: 'green' });
+    },
+  });
+}
+
 export const WORKBOOKS = {
   'sheet-budget': budget,
   'sheet-invoice': invoiceSheet,
@@ -423,4 +621,8 @@ export const WORKBOOKS = {
   'sheet-loan': loan,
   'sheet-todo': todo,
   'sheet-ledger': ledger,
+  'sheet-expenses': expenses,
+  'sheet-inventory': inventory,
+  'sheet-planner': planner,
+  'sheet-grades': grades,
 };

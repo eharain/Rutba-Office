@@ -136,14 +136,14 @@ export async function verifyTemplates(h, { dir, windows }) {
       JSON.stringify({ shown, rail }));
     await capture(home, 'templates-gallery.png');
 
-    // A search narrows it; the rail's Presentations shows the four decks.
+    // A search narrows it; the rail's Presentations shows the seven decks.
     const setSearch = (value) => hjs(`(() => { const i = document.querySelector('.tg-head .rw-search input'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, ${JSON.stringify(value)}); i.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
     await setSearch('budget');
     const found = await got(() => hjs(`(() => { const c = [...document.querySelectorAll('.tg-card[data-template]')].map((n) => n.dataset.template); return c.length === 1 ? c : false; })()`), 'one card for budget', 4000).catch(() => null);
     await setSearch('');
     await hjs(`document.querySelector('.tg-rail-item[data-view="slides"]').click(), 1`);
-    const decks = await got(() => hjs(`(() => { const c = [...document.querySelectorAll('.tg-card[data-template]')].map((n) => n.dataset.template); return c.length === 4 && c.every((x) => x.startsWith('deck-')) ? c : false; })()`), 'the four decks', 4000).catch(() => null);
-    check('templates: a search finds the budget alone, and Presentations lists the four decks', JSON.stringify(found) === '["sheet-budget"]' && Boolean(decks), JSON.stringify({ found, decks }));
+    const decks = await got(() => hjs(`(() => { const c = [...document.querySelectorAll('.tg-card[data-template]')].map((n) => n.dataset.template); return c.length === 7 && c.every((x) => x.startsWith('deck-')) ? c : false; })()`), 'the seven decks', 4000).catch(() => null);
+    check('templates: a search finds the budget alone, and Presentations lists the seven decks', JSON.stringify(found) === '["sheet-budget"]' && Boolean(decks), JSON.stringify({ found, decks }));
     await hjs(`document.querySelector('.tg-rail-item[data-view="all"]').click(), 1`);
 
     /* -- choosing one: an untitled copy with the template's content ------- */
@@ -211,8 +211,8 @@ export async function verifyTemplates(h, { dir, windows }) {
       await sjs(`document.querySelector('.rw-appmark').click(), 1`);
       await until(() => sjs(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'New from Template…')`), 'New from Template in the menu', 4000).catch(() => {});
       await sjs(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'New from Template…')?.click(), 1`);
-      const own = await got(() => sjs(`(() => { const c = [...document.querySelectorAll('.tg-card[data-template]')].map((n) => n.dataset.template); return c.length === 7 ? c : false; })()`), 'the Worksheets gallery', 6000).catch(() => null);
-      check('templates: Worksheets\' File > New from Template shows a blank workbook first, then its six templates, and no other app\'s',
+      const own = await got(() => sjs(`(() => { const c = [...document.querySelectorAll('.tg-card[data-template]')].map((n) => n.dataset.template); return c.length === 11 ? c : false; })()`), 'the Worksheets gallery', 6000).catch(() => null);
+      check('templates: Worksheets\' File > New from Template shows a blank workbook first, then its ten templates, and no other app\'s',
         Boolean(own) && own[0] === 'blank' && own.slice(1).every((x) => x.startsWith('sheet-')),
         JSON.stringify(own));
       await capture(sheets, 'templates-sheets-new.png');

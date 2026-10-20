@@ -467,6 +467,123 @@ function newsletter() {
 }
 
 /** The documents, by template id. */
+function coverLetter() {
+  const theme = 'paperkite';
+  const p = paletteOf(theme);
+  const pieces = [
+    para('Your Name', { style: 'Title', after: 40 }),
+    para([['you@example.com  |  07000 000000  |  Town', { colour: p.dk2 }]], { style: 'NoSpacing', rule: { colour: p.accent1, size: 8, space: 8 }, run: { size: 9.5 } }),
+    para('', { after: 360 }),
+    para('[Date]', { after: 360 }),
+    para('[Hiring manager\'s name]', { style: 'NoSpacing' }),
+    para('[Company]', { style: 'NoSpacing' }),
+    para('[Town]', { after: 360 }),
+    para([['Re: ', { bold: true }], ['[The job you are applying for], reference [number]', { bold: true }]], { after: 240 }),
+    para('Dear [Hiring manager\'s name],'),
+    para('I am writing to apply for the post of [job title], which I saw [where you saw it]. With [number] years in [your field], I would bring [the one thing you most want them to know] to your team.'),
+    para('In my present role at [company] I [an achievement, with a figure if you have one]. Before that, at [company], I [another achievement that fits what this job asks for].'),
+    para('What draws me to [company] is [something true and particular about them]. I would welcome the chance to talk about how I could help with [a need the advertisement names].'),
+    para('My CV is attached. Thank you for considering my application; I look forward to hearing from you.'),
+    para('Yours sincerely,', { before: 240, after: 720 }),
+    para('Your Name', { style: 'NoSpacing', run: { bold: true } }),
+  ];
+  return compose({ theme, pieces, margins: { top: 1134, bottom: 1134, left: 1440, right: 1440 } });
+}
+
+function memo() {
+  const theme = 'basalt';
+  const p = paletteOf(theme);
+  const label = (text) => ({ content: text, bold: true, colour: p.dk2 });
+  const pieces = [
+    para('MEMO', { style: 'Title', run: { spacing: 60, colour: p.accent1 } }),
+    table([
+      [label('To'), '[Names, or the team]'],
+      [label('From'), '[Your name and role]'],
+      [label('Date'), '[Date]'],
+      [label('Subject'), { content: '[What this memo is about]', bold: true }],
+    ], { widths: [1600, 7426], borders: 'none', padding: 40 }),
+    para('', { after: 240, rule: { colour: p.accent1, size: 12, space: 4 } }),
+    para('Say in the first sentence what has changed or what you are asking for, so a reader who stops there still knows.'),
+    para('Background', { style: 'Heading2' }),
+    para('Give only what the reader needs to understand the change: what happened, and why it matters to them.'),
+    para('What happens now', { style: 'Heading2' }),
+    para('[What changes, and from when]', { after: 40 }),
+    para('[What each reader needs to do]', { after: 40 }),
+    para('[Who to ask about it]', { after: 160 }),
+    para('Thank you.'),
+  ];
+  return compose({ theme, pieces, lists: { bullet: [7, 8, 9] } });
+}
+
+function agenda() {
+  const theme = 'harbour';
+  const p = paletteOf(theme);
+  const label = (text) => ({ content: text, bold: true, colour: p.dk2, fill: p.lt2 });
+  const items = [
+    ['10:00', 'Welcome and introductions', '[Chair]', '5 min'],
+    ['10:05', 'Notes and actions from the last meeting', '[Chair]', '10 min'],
+    ['10:15', 'Progress since we last met', '[Name]', '15 min'],
+    ['10:30', 'The decision we need today: [topic]', '[Name]', '20 min'],
+    ['10:50', 'Any other business', 'Everyone', '5 min'],
+    ['10:55', 'Actions and the date of the next meeting', '[Chair]', '5 min'],
+  ];
+  const pieces = [
+    para('Meeting Agenda', { style: 'Title' }),
+    para('[Name of the group or project]', { style: 'Subtitle' }),
+    table([
+      [label('Date'), '[Date]', label('Time'), '10:00 to 11:00'],
+      [label('Place'), '[Room, or the link to join]', label('Chair'), '[Name]'],
+      [label('Invited'), { content: '[Names]', span: 3 }],
+    ], { widths: [1400, 3113, 1400, 3113], borders: 'grid' }),
+    para('Purpose', { style: 'Heading1' }),
+    para('[In one or two sentences: what this meeting is for, and what should be settled by the end of it.]'),
+    para('Items', { style: 'Heading1' }),
+    table([['Time', 'Item', 'Led by', 'Length'], ...items], { widths: [1000, 4826, 1900, 1300], header: true, headerFill: p.accent1, borders: 'rows' }),
+    para('To read before the meeting', { style: 'Heading2', before: 360 }),
+    para('[A paper, a link or a figure everyone should have seen]', { after: 40 }),
+    para('[Another]', { after: 160 }),
+  ];
+  return compose({ theme, pieces, lists: { bullet: [8, 9] } });
+}
+
+function proposal() {
+  const theme = 'ember';
+  const p = paletteOf(theme);
+  const pieces = [
+    para('Project Proposal', { style: 'Title' }),
+    para('[The name of the project]', { style: 'Subtitle' }),
+    para([['Prepared for ', { colour: p.dk2 }], ['[Client or board]', { bold: true }], ['   by ', { colour: p.dk2 }], ['[Your name, company]', { bold: true }], ['   on ', { colour: p.dk2 }], ['[Date]', { bold: true }]], { after: 360 }),
+    para('Summary', { style: 'Heading1' }),
+    para('In a short paragraph: the problem, what you propose to do about it, what it will cost and what it will bring. Many readers read only this.'),
+    para('The need', { style: 'Heading1' }),
+    para('Describe the situation now and what it costs to leave it as it is. Use the reader\'s own figures where you have them.'),
+    para('What we propose', { style: 'Heading1' }),
+    para('What will be done, and what will not. Name what the reader will have at the end.'),
+    para('[A thing that will be delivered]', { after: 40 }),
+    para('[Another]', { after: 40 }),
+    para('[Another]', { after: 160 }),
+    para('Plan and timing', { style: 'Heading1' }),
+    table([
+      ['Stage', 'What happens', 'When'],
+      ['1. Discovery', 'Interviews, a review of what exists, the brief agreed', '[Weeks 1 to 2]'],
+      ['2. Build', 'The work itself, shown every fortnight', '[Weeks 3 to 8]'],
+      ['3. Hand over', 'Testing, training and the handover', '[Weeks 9 to 10]'],
+    ], { widths: [2000, 5026, 2000], header: true, headerFill: p.accent1, borders: 'rows' }),
+    para('Cost', { style: 'Heading1', before: 360 }),
+    table([
+      ['Item', 'Amount'],
+      ['[Stage or item]', { content: '£0,000', align: 'right' }],
+      ['[Stage or item]', { content: '£0,000', align: 'right' }],
+      [{ content: 'Total', bold: true }, { content: '£0,000', bold: true, align: 'right' }],
+    ], { widths: [7026, 2000], header: true, headerFill: p.accent1, borders: 'rows' }),
+    para('Why us', { style: 'Heading1', before: 360 }),
+    para('Two or three reasons, each backed by something the reader can check: a past project, a reference, a qualification.'),
+    para('Next steps', { style: 'Heading1' }),
+    para('Say what you need from the reader to begin, and by when.'),
+  ];
+  return compose({ theme, pieces, lists: { bullet: [9, 10, 11] } });
+}
+
 export const DOCUMENTS = {
   'word-letter': letter,
   'word-cv': cv,
@@ -474,4 +591,8 @@ export const DOCUMENTS = {
   'word-invoice': invoiceDoc,
   'word-minutes': minutes,
   'word-newsletter': newsletter,
+  'word-cover-letter': coverLetter,
+  'word-memo': memo,
+  'word-agenda': agenda,
+  'word-proposal': proposal,
 };
