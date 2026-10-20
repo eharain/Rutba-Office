@@ -282,7 +282,9 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
   const sound = clip.type === 'sound' ? clip : partnersOf(doc, clip.id).find((p) => p.type === 'sound');
   const setSound = (label, change, group) => edit(label, (d) => ({ ...d, patches: d.patches.map((p) => (p.id === sound.id ? { ...p, ...change } : p)) }), group);
   const isPicture = clip.type === 'video' || clip.type === 'image';
-  const before = isPicture ? previousOnLane(doc, clip.id) : null;
+  // A sound of its own crossfades from the sound before it on its track; a picture's sound goes with its picture.
+  const soundBefore = clip.type === 'sound' && !clip.group ? previousOnLane(doc, clip.id) : null;
+  const before = isPicture ? previousOnLane(doc, clip.id) : soundBefore?.type === 'sound' && !soundBefore.group ? soundBefore : null;
   const crop = clip.crop || { x: 0, y: 0, w: 1, h: 1 };
   const setCrop = (side, v) => {
     const c = { left: crop.x, top: crop.y, right: 1 - crop.x - crop.w, bottom: 1 - crop.y - crop.h, [side]: v };
@@ -385,7 +387,7 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           <Row label={t('Kind')}>
             <Select value={clip.transition?.kind || 'none'} onChange={(e) => edit(t('Transition'), (d) => setTransition(d, clip.id, { kind: e.target.value, seconds: clip.transition?.seconds || 1 }))}>
               <option value="none">{t('None')}</option>
-              {TRANSITIONS.map((k) => <option key={k} value={k}>{transitionName(k)}</option>)}
+              {(clip.type === 'sound' ? ['fade'] : TRANSITIONS).map((k) => <option key={k} value={k}>{transitionName(k)}</option>)}
             </Select>
           </Row>
           {clip.transition ? (

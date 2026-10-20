@@ -2,7 +2,8 @@
 // time): a clip's volume in decibels up to +12, the switch that lowers the
 // rest under a voice, fades as long as asked with a word when together they
 // are longer than the clip, a picture clip's fade from and to black, a
-// clip's speed, its pitch, the meter, Freeze Frame and Reverse.
+// clip's speed, its pitch, the meter, Freeze Frame, Reverse and a crossfade
+// between two sounds.
 // A clip and a sound are made here at run time. Run alone with
 // RUTBA_VERIFY_ONLY=video-sound.
 
@@ -210,6 +211,31 @@ export async function verifyVideoSound(h, { dir }) {
     } finally {
       app.setPath('videos', videosWas);
     }
+
+    // A crossfade between two sounds of their own: the second tone overlaps the first by a second, fading in as it fades out.
+    await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Home')?.click(), 1`);
+    await addWith([tone]);
+    const tones = `[...document.querySelectorAll('.vd-clip[data-kind="sound"]')].filter((n) => n.textContent.includes('video-sound-tone')).sort((a, b) => Number(a.dataset.start) - Number(b.dataset.start))`;
+    const two = await ok(until(() => js(`${tones}.length === 2`), 'a second tone', 8000));
+    const soundsSeen = await js(`[...document.querySelectorAll('.vd-clip[data-kind="sound"]')].map((n) => [n.dataset.start, n.dataset.lane, n.textContent.slice(0, 40)])`);
+    await js(`(() => {
+      const n = ${tones}[1];
+      if (!n) return 0;
+      const r = n.getBoundingClientRect();
+      const o = { bubbles: true, cancelable: true, button: 0, clientX: r.left + Math.min(8, r.width / 2), clientY: r.top + r.height / 2, pointerId: 1 };
+      n.dispatchEvent(new PointerEvent('pointerdown', o));
+      window.dispatchEvent(new PointerEvent('pointerup', o));
+      return 1;
+    })()`);
+    const kindSelect = `[...document.querySelectorAll('.vd-insp-section')].find((x) => x.querySelector('h3')?.textContent === 'Transition in')?.querySelector('select')`;
+    const offered = await ok(until(() => js(`Boolean(${kindSelect})`), 'the transition for the sound', 4000));
+    const options = await js(`[...(${kindSelect}?.options || [])].map((o) => o.value)`);
+    await js(`(() => { const n = ${kindSelect}; if (!n) return 'none'; Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(n, 'fade'); n.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    const faded = await ok(until(() => js(`${tones}[1]?.dataset.transition === 'fade'`), 'the crossfade', 4000));
+    const spans = await js(`${tones}.map((n) => [Number(n.dataset.start), Number(n.dataset.end)])`);
+    const overlap = spans.length === 2 ? Math.round((spans[0][1] - spans[1][0]) * 100) / 100 : null;
+    check('video sound: two sounds of their own crossfade, the second overlapping the first by its length; a crossfade is the one kind offered',
+      two && offered && faded && overlap === 1 && options.join(',') === 'none,fade', JSON.stringify({ two, soundsSeen, offered, options, faded, spans, overlap }));
 
     const complaints = await errorsIn(win);
     check('video sound: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

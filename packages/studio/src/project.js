@@ -986,6 +986,10 @@ const soundOf = (doc, p) => (p?.group ? clipsOf(doc).find((q) => q.group === p.g
  * everything after it on its lane, with their groups) moves up by that much,
  * and the sound crossfades with the picture. A dip goes to black and back
  * without an overlap. The length is held to half of each clip.
+ *
+ * Between two sound clips of their own (music, a voice; not a picture's
+ * sound, which crossfades with its picture) the one transition is the
+ * crossfade: they overlap, the first fading out as the second fades in.
  */
 export function setTransition(doc, id, { kind = 'fade', seconds = 1 } = {}) {
     let out = clearTransition(doc, id);
@@ -997,6 +1001,18 @@ export function setTransition(doc, id, { kind = 'fade', seconds = 1 } = {}) {
     // Only clips that meet, or nearly: a transition across a gap would fade to nothing.
     if (gap > 0.05) return out;
     const d = round(Math.max(0.1, Math.min(Number(seconds) || 1, lengthOf(clip) / 2, lengthOf(before) / 2)));
+    if (clip.type === 'sound' || before.type === 'sound') {
+        if (kind !== 'fade' || clip.type !== 'sound' || before.type !== 'sound' || clip.group || before.group) return out;
+        // What follows on the lane moves up with it; a picture's sound there stays with its picture.
+        const moved = rippleSet(out, 'a', laneOf(clip), clip.timing.start).filter((pid) => !clipById(out, pid).group);
+        out = shift(out, moved, -(d + Math.max(0, gap)));
+        const incoming = clipById(out, id);
+        const outgoing = clipById(out, before.id);
+        return rewrite(out, new Map([
+            [incoming.id, { ...incoming, enter: { kind: 'fade', seconds: d }, transition: { kind: 'fade', seconds: d } }],
+            [outgoing.id, { ...outgoing, exit: { kind: 'fade', seconds: d } }],
+        ]));
+    }
     const overlaps = OVERLAPS.has(kind);
     if (overlaps) {
         const moved = rippleSet(out, sectionOf(clip), laneOf(clip), clip.timing.start);
@@ -1027,13 +1043,15 @@ export function clearTransition(doc, id) {
     const changes = new Map();
     const { transition, ...rest } = clip;
     changes.set(id, { ...rest, enter: clip.type === 'sound' ? { kind: 'fade', seconds: 0 } : { kind: 'none', seconds: 0 } });
-    if (before) changes.set(before.id, { ...before, exit: { kind: 'none', seconds: 0 } });
+    if (before) changes.set(before.id, { ...before, exit: before.type === 'sound' ? { kind: 'fade', seconds: 0 } : { kind: 'none', seconds: 0 } });
     const inSound = soundOf(doc, clip);
     const outSound = soundOf(doc, before);
     if (inSound) changes.set(inSound.id, { ...inSound, enter: { kind: 'fade', seconds: 0 } });
     if (outSound) changes.set(outSound.id, { ...outSound, exit: { kind: 'fade', seconds: 0 } });
     out = rewrite(out, changes);
-    if (OVERLAPS.has(kind)) {
+    if (clip.type === 'sound') {
+        out = shift(out, rippleSet(out, 'a', laneOf(clip), clip.timing.start).filter((pid) => !clipById(out, pid).group), seconds);
+    } else if (OVERLAPS.has(kind)) {
         const moved = rippleSet(out, sectionOf(clip), laneOf(clip), clip.timing.start);
         out = shift(out, withPartners(out, moved), seconds);
     }
