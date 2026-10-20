@@ -7362,4 +7362,9 @@ export default {
   'What a meeting is for, its items with times and who leads each, and what to read first': 'اجلاس کس لیے ہے، اس کے نکات اوقات کے ساتھ اور ہر ایک کی قیادت کون کرے گا، اور پہلے کیا پڑھنا ہے',
   'Every template to download, on office.rutba.io, in your browser': 'ڈاؤن لوڈ کے لیے ہر ٹیمپلیٹ، office.rutba.io پر، آپ کے براؤزر میں',
   'Templates on the web': 'ویب پر ٹیمپلیٹس',
+  'The apps you want to see and to open your files.': 'وہ ایپس جو آپ دیکھنا اور اپنی فائلیں کھولنے کے لیے چاہتے ہیں۔',
+  'Tick the apps and add-ons you want. Any of them can be added or taken away later, from Choose apps in Rutba Office.': 'جو ایپس اور ایڈ آنز آپ چاہتے ہیں ان پر نشان لگائیں۔ ان میں سے کوئی بھی بعد میں Rutba Office میں «ایپس چنیں» سے شامل کی یا ہٹائی جا سکتی ہے۔',
+  'Add Word Art': 'ورڈ آرٹ شامل کریں',
+  'Word art': 'ورڈ آرٹ',
+  'Your words': 'آپ کے الفاظ',
 };

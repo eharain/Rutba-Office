@@ -5,12 +5,23 @@
 // installed: turning it on again is one click here, with no download.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Dialog, Button, Icon, t } from '@rutba/office-ui';
+import { Dialog, Button, Icon, t, msg } from '@rutba/office-ui';
 import { APPS, APP_ORDER, APP_GROUPS, ADDONS, APPS_CHOICE_KEY, chosenApps, choiceFor, addonsChosen } from '@rutba/office-formats/registry';
 
 /** The add-ons, as Choose apps shows them. */
 const ADDON_INFO = () => ({ ai: { key: 'ai', short: t('AI Tools'), tagline: t('Let AI apps on this computer make and read documents with Office'), icon: 'wand' } });
 const GROUP_TITLES = () => ({ office: t('Office apps'), more: t('More apps'), addons: t('Add-ons') });
+
+/**
+ * The installer's Choose apps page says these too (the rest of its words are
+ * the ones above and the apps' names): marked here for the catalogue, and
+ * taken from it into the installer by tools/make-installer-words.mjs.
+ */
+export const INSTALLER_WORDS = [
+  msg('The apps you want to see and to open your files.'),
+  msg('Tick the apps and add-ons you want. Any of them can be added or taken away later, from Choose apps in Rutba Office.'),
+  msg('Choose one app at least.'),
+];
 
 /**
  * The apps this person has chosen, read again whenever the window comes

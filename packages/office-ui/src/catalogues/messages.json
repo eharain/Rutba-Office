@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7354,
+  "count": 7359,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -625,7 +625,8 @@
     {
       "message": "3D",
       "where": [
-        "apps/desktop/renderer/apps/image/words.js"
+        "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/library-words.js"
       ]
     },
     {
@@ -2137,6 +2138,12 @@
       "message": "Add Watch — every cell in the current selection",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Add Word Art",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -3719,7 +3726,8 @@
     {
       "message": "Arch",
       "where": [
-        "apps/desktop/renderer/apps/image/words.js"
+        "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/library-words.js"
       ]
     },
     {
@@ -14895,6 +14903,7 @@
       "message": "Gold",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -21751,7 +21760,8 @@
     {
       "message": "Neon",
       "where": [
-        "apps/desktop/renderer/apps/image/words.js"
+        "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/library-words.js"
       ]
     },
     {
@@ -24868,6 +24878,7 @@
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
+        "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
       ]
@@ -26165,6 +26176,7 @@
       "message": "Plain",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -34763,7 +34775,8 @@
     {
       "message": "Sticker",
       "where": [
-        "apps/desktop/renderer/apps/image/words.js"
+        "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/library-words.js"
       ]
     },
     {
@@ -35006,7 +35019,8 @@
     {
       "message": "Style",
       "where": [
-        "apps/desktop/renderer/apps/image/layers-panel.js"
+        "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -36461,6 +36475,12 @@
       "message": "The answer to that could not be sent: {v1}",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The apps you want to see and to open your files.",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
       ]
     },
     {
@@ -39342,6 +39362,12 @@
       ]
     },
     {
+      "message": "Tick the apps and add-ons you want. Any of them can be added or taken away later, from Choose apps in Rutba Office.",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
+      ]
+    },
+    {
       "message": "Tidewater",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -39487,7 +39513,6 @@
         "apps/desktop/renderer/apps/slides/album.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
-        "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/video/timeline.js",
         "apps/desktop/renderer/apps/word.js",
@@ -42176,6 +42201,14 @@
       ]
     },
     {
+      "message": "Word art",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/library.js",
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
       "message": "Word count",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -42615,6 +42648,12 @@
       "message": "Your voice alone, as a sound file. In Video it goes onto a sound track at the playhead.",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
+      "message": "Your words",
+      "where": [
+        "apps/desktop/renderer/apps/video/library.js"
       ]
     },
     {

@@ -134,6 +134,8 @@
 
 !include "nsDialogs.nsh"
 !include "WordFunc.nsh"
+; The page's words in Urdu, Arabic and Hindi, made from the catalogues (tools/make-installer-words.mjs).
+!include "${__FILEDIR__}\installer-words.nsh"
 
 ; One box. With a choice written before (by Office, or an earlier page):
 ; ticked unless the app is in the list turned off. On a first install: an
@@ -181,13 +183,16 @@
   Var rutbaBox_image
   Var rutbaBox_video
   Var rutbaBox_recorder
+  Var rutbaBox_talk
   Var rutbaBox_ai
   Var rutbaAppsKnown
   Var rutbaAddOns
   Var rutbaAddOnsBefore
+  !insertmacro rutbaInstallerWords
 
 Function rutbaAppsPageShow
-  !insertmacro MUI_HEADER_TEXT "Choose apps" "The apps you want to see and to open your files."
+  Call rutbaPickWords
+  !insertmacro MUI_HEADER_TEXT "$rutbaW_title" "$rutbaW_sub"
   StrCpy $rutbaAppsKnown "0"
   ReadRegStr $rutbaAppsBefore HKCU "Software\Rutba Office" "AppsOff"
   ${IfNot} ${Errors}
@@ -201,26 +206,27 @@ Function rutbaAppsPageShow
   ${If} $0 == error
     Abort
   ${EndIf}
-  ${NSD_CreateLabel} 0 0 100% 20u "Tick the apps and add-ons you want. Any of them can be added or taken away later, from Choose apps in Rutba Office."
+  ${NSD_CreateLabel} 0 0 100% 20u "$rutbaW_lead"
   Pop $0
-  ${NSD_CreateLabel} 0 22u 46% 10u "Office apps"
+  ${NSD_CreateLabel} 0 22u 46% 10u "$rutbaW_office"
   Pop $0
-  !insertmacro rutbaAppBox mail "Mail" 0 34u 0
-  !insertmacro rutbaAppBox calendar "Calendar" 0 47u 0
-  !insertmacro rutbaAppBox contacts "Contacts" 0 60u 0
-  !insertmacro rutbaAppBox word "Documents" 0 73u 0
-  !insertmacro rutbaAppBox sheets "Worksheets" 0 86u 0
-  !insertmacro rutbaAppBox slides "Presentations" 0 99u 0
-  !insertmacro rutbaAppBox pdf "PDF" 0 112u 0
-  !insertmacro rutbaAppBox pictures "Pictures" 0 125u 0
-  ${NSD_CreateLabel} 52% 22u 46% 10u "More apps"
+  !insertmacro rutbaAppBox mail "$rutbaW_mail" 0 34u 0
+  !insertmacro rutbaAppBox calendar "$rutbaW_calendar" 0 47u 0
+  !insertmacro rutbaAppBox contacts "$rutbaW_contacts" 0 60u 0
+  !insertmacro rutbaAppBox word "$rutbaW_word" 0 73u 0
+  !insertmacro rutbaAppBox sheets "$rutbaW_sheets" 0 86u 0
+  !insertmacro rutbaAppBox slides "$rutbaW_slides" 0 99u 0
+  !insertmacro rutbaAppBox pdf "$rutbaW_pdf" 0 112u 0
+  !insertmacro rutbaAppBox pictures "$rutbaW_pictures" 0 125u 0
+  ${NSD_CreateLabel} 52% 22u 46% 10u "$rutbaW_more"
   Pop $0
-  !insertmacro rutbaAppBox image "Image" 52% 34u 1
-  !insertmacro rutbaAppBox video "Video" 52% 47u 1
-  !insertmacro rutbaAppBox recorder "Recorder" 52% 60u 1
-  ${NSD_CreateLabel} 52% 80u 46% 10u "Add-ons"
+  !insertmacro rutbaAppBox image "$rutbaW_image" 52% 34u 1
+  !insertmacro rutbaAppBox video "$rutbaW_video" 52% 47u 1
+  !insertmacro rutbaAppBox recorder "$rutbaW_recorder" 52% 60u 1
+  !insertmacro rutbaAppBox talk "$rutbaW_talk" 52% 73u 1
+  ${NSD_CreateLabel} 52% 93u 46% 10u "$rutbaW_addons"
   Pop $0
-  ${NSD_CreateCheckbox} 52% 92u 46% 12u "AI Tools"
+  ${NSD_CreateCheckbox} 52% 105u 46% 12u "$rutbaW_ai"
   Pop $rutbaBox_ai
   ${WordFind} ",$rutbaAddOnsBefore," ",ai," "E*" $0
   ${IfNot} ${Errors}
@@ -244,8 +250,9 @@ Function rutbaAppsPageLeave
   !insertmacro rutbaAppRead image
   !insertmacro rutbaAppRead video
   !insertmacro rutbaAppRead recorder
+  !insertmacro rutbaAppRead talk
   ${If} $2 == 0
-    MessageBox MB_OK|MB_ICONEXCLAMATION "Choose one app at least."
+    MessageBox MB_OK|MB_ICONEXCLAMATION "$rutbaW_none"
     Abort
   ${EndIf}
   StrCpy $rutbaAddOns ""

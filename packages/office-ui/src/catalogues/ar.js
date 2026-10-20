@@ -7364,4 +7364,9 @@ export default {
   'What a meeting is for, its items with times and who leads each, and what to read first': 'الغرض من الاجتماع وبنوده بأوقاتها ومن يقود كلًّا منها وما يُقرأ أولًا',
   'Every template to download, on office.rutba.io, in your browser': 'كل القوالب للتنزيل، على office.rutba.io، في متصفحك',
   'Templates on the web': 'قوالب على الويب',
+  'The apps you want to see and to open your files.': 'التطبيقات التي تريد أن تراها وأن تفتح ملفاتك.',
+  'Tick the apps and add-ons you want. Any of them can be added or taken away later, from Choose apps in Rutba Office.': 'حدّد التطبيقات والإضافات التي تريدها. يمكن إضافة أيٍّ منها أو إزالته لاحقًا من «اختيار التطبيقات» في Rutba Office.',
+  'Add Word Art': 'إضافة WordArt',
+  'Word art': 'WordArt',
+  'Your words': 'كلماتك',
 };
