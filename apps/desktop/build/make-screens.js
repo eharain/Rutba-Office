@@ -649,6 +649,8 @@ const PLAN = [
   // Video opens a project of the sample stills (writeVideoProject above):
   // nothing real is pointed at, and the timeline has something to show.
   ['video', at('Our year.rvid')],
+  // Recorder's own picture is taken the feature way (recorder-studio, asApp), which needs a window picked first.
+  ['recorder', null],
 ];
 
 /**

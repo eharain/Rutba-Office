@@ -127,6 +127,24 @@ const imageSettled = async (h) => {
 
 const LANDSCAPE = path.join('Sample Pictures', 'Lakeside at dawn.png');
 
+/**
+ * Recorder recording a document: the quarterly review opened in Documents,
+ * Window chosen and that window picked, and the program drawn with it.
+ */
+async function recordWindowIn(h) {
+  const doc = h.windows.create({ app: 'word', file: h.sample('quarterly-review.docx') });
+  await new Promise((resolve) => doc.webContents.once('did-finish-load', resolve));
+  await h.untilHere(() => doc.webContents.executeJavaScript(`Boolean(document.querySelector('.wd-block'))`), 'the document to record', 12000);
+  await h.wait(1200);
+  await h.until(`Boolean(document.querySelector('.st-kinds button[data-value="window"]'))`, 'the source kinds', 8000);
+  await h.click('.st-kinds button[data-value="window"]', 'Window');
+  // The list was read when the window opened, before the document was: read again.
+  await h.button('Refresh the list');
+  await h.until(`[...document.querySelectorAll('.st-sources .rec-source')].some((n) => /quarterly-review/.test(n.dataset.tip || ''))`, 'the document in the list', 10000);
+  await h.js(`(() => { [...document.querySelectorAll('.st-sources .rec-source')].find((n) => /quarterly-review/.test(n.dataset.tip || ''))?.click(); return 1; })()`);
+  await h.until(`(document.querySelector('.st-canvas')?.dataset.layers || '').includes('screen')`, 'the window in the program', 20000);
+}
+
 /** Video's playhead moved, as dragging the slider under the preview moves it. */
 const scrubVideo = async (h, t) => {
   await h.js(`(() => { const s = document.querySelector('.vd-scrub'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, ${JSON.stringify(String(t))}); s.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
@@ -823,6 +841,41 @@ export const FEATURES = [
       await h.js(`(() => { const s = [...document.querySelectorAll('.vd-insp-section h3')].find((n) => /Sound/.test(n.textContent)); s?.scrollIntoView({ block: 'start' }); return 1; })()`);
       h.wc.sendInputEvent({ type: 'mouseMove', x: 30, y: 600 });
       await h.wait(1500);
+    },
+  },
+
+  /* ── Recorder ──────────────────────────────────────────────────────── */
+  {
+    // Recorder's main picture: a document window being recorded with the
+    // camera in its corner and a title across the foot, taken the feature
+    // way because the window has to be picked first.
+    name: 'recorder-studio',
+    app: 'recorder',
+    asApp: 'recorder',
+    async before({ stores, samples }) {
+      stores.settings.set('recorder.studio', { scene: 'screen-camera', size: 1080, fps: 30, countdown: 3, camera: true, mic: true, system: false, titleOn: true, title: 'Imogen Hartley', subtitle: 'Northbank Logistics, quarterly review', folder: samples, minimise: true, shape: 'circle', corner: 'br', insetSize: 'medium' });
+    },
+    async setup(h) {
+      await recordWindowIn(h);
+      await h.wait(1500);
+    },
+  },
+  {
+    // Go Live's box: YouTube with its key kept (a sample key, never used to
+    // connect) and Facebook waiting for one, and the copy recorded meanwhile.
+    name: 'recorder-go-live',
+    app: 'recorder',
+    async before({ stores, samples }) {
+      stores.settings.set('recorder.studio', { scene: 'split', size: 1080, fps: 30, countdown: 3, camera: true, mic: true, system: false, titleOn: false, folder: samples, minimise: true, liveCopy: true });
+    },
+    async setup(h) {
+      await recordWindowIn(h);
+      for (const d of await h.js(`window.rutbaOffice.live.destinations()`)) await h.js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`);
+      await h.js(`window.rutbaOffice.live.saveDestination({ platform: 'youtube', name: 'YouTube', on: true, key: 'sample-stream-key-2025' })`);
+      await h.js(`window.rutbaOffice.live.saveDestination({ platform: 'facebook', name: 'Facebook page', on: true })`);
+      await h.click('.st-dests-btn', 'Destinations');
+      await h.until(`document.querySelectorAll('.lv-dest').length === 2`, 'the destinations', 6000);
+      await h.wait(800);
     },
   },
 
