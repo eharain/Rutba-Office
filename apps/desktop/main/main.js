@@ -170,7 +170,7 @@ createShell({
         },
       }),
       announce: createAnnouncementService({ stores, broadcast }),
-      defaults: createDefaultsService({ associations: fileAssociations() }),
+      defaults: createDefaultsService({ associations: fileAssociations(), associationsFor: (apps) => fileAssociations({ apps }), stores }),
       discover: createDiscoveryService(),
       present: createPresentService({ broadcast }),
       // The PDF app: its files read once, and new PDFs made from their pages.
@@ -393,6 +393,9 @@ createShell({
         });
       });
     }
+    // The kinds of file Windows sends here follow the apps chosen, again after an update's installer
+    // registered them all: a little after start, out of the way of the first window.
+    setTimeout(() => services?.defaults?.followAtStart().catch(() => {}), 8000).unref?.();
     return updates?.start();
   },
 });

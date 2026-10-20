@@ -21,6 +21,8 @@ import { app, shell } from 'electron';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
+import { APPS_CHOICE_KEY, chosenApps } from '@rutba/office-formats/registry';
+import { fileTypePlan, applyFileTypes } from './file-types.js';
 
 const run = promisify(execFile);
 const isWindows = process.platform === 'win32';
@@ -52,10 +54,38 @@ async function linuxHandlerFor(mime) {
   }
 }
 
-export function createDefaultsService({ associations }) {
+/** What was last brought in line, so it is done again only after a change or an update. */
+const APPLIED_KEY = 'apps.fileTypesApplied';
+
+export function createDefaultsService({ associations, associationsFor = null, stores = null }) {
   const ours = (handler) => Boolean(handler && /rutba/i.test(handler));
 
+  /**
+   * The types Windows is told about follow the apps chosen (Choose apps).
+   * Only for an installed copy: a run from the source tree, or the checks,
+   * leave the registry alone. An update's installer registers every type
+   * again, so this runs once more after each one.
+   */
+  const follow = async ({ apps } = {}) => {
+    if (!isWindows || !app.isPackaged || process.env.RUTBA_VERIFY || !associationsFor) return { skipped: true };
+    const chosen = Array.isArray(apps) ? apps : chosenApps(stores?.settings.get(APPS_CHOICE_KEY, null));
+    const result = await applyFileTypes(fileTypePlan(associations, associationsFor(chosen)));
+    stores?.settings.set(APPLIED_KEY, `${app.getVersion()}|${chosen.join(',')}`);
+    return { skipped: false, withdrawn: result.withdrawn.length, restored: result.restored.length };
+  };
+
+  /** At start-up: only when a choice was made and has not been applied to this version yet. */
+  const followAtStart = async () => {
+    const choice = stores?.settings.get(APPS_CHOICE_KEY, null);
+    if (!choice) return { skipped: true };
+    const chosen = chosenApps(choice);
+    if (stores.settings.get(APPLIED_KEY, '') === `${app.getVersion()}|${chosen.join(',')}`) return { skipped: true };
+    return follow({ apps: chosen });
+  };
+
   return {
+    follow,
+    followAtStart,
     /**
      * Which of the formats we claim currently open with us.
      * @returns {{ platform, canSet, ours: number, total: number, formats: [] }}

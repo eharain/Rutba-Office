@@ -29,6 +29,8 @@ export function useChosenApps(shell) {
     const choice = choiceFor(keys);
     await shell.store.set({ key: APPS_CHOICE_KEY, value: choice });
     setState({ apps: chosenApps(choice), made: true, loaded: true });
+    // The kinds of file Windows sends to Office follow the choice.
+    shell.defaults?.follow?.({ apps: chosenApps(choice) })?.catch?.(() => {});
   }, [shell]);
   return { ...state, choose };
 }
