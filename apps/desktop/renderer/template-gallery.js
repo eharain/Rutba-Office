@@ -11,6 +11,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon, Search, Dialog, Empty, t, msg } from '@rutba/office-ui';
 import { templatesFolder } from './shell.js';
+import { useChosenApps } from './apps-choice.js';
 
 /**
  * The gallery's words, listed so the message catalogue carries them: each
@@ -77,6 +78,9 @@ export function TemplateGallery({ shell, app = null, onClose }) {
   const [query, setQuery] = useState('');
   // What the rail has chosen: 'all', an app, a category or 'personal'.
   const [view, setView] = useState('all');
+  // From the launcher, only the apps this person chose (Choose apps).
+  const chosen = useChosenApps(shell);
+  const kept = (key) => Boolean(app) || chosen.apps.includes(key);
 
   useEffect(() => {
     let live = true;
@@ -94,22 +98,24 @@ export function TemplateGallery({ shell, app = null, onClose }) {
     if (!data) return [];
     const q = query.trim().toLocaleLowerCase();
     return data.templates.filter((tpl) => {
-      if (view === 'personal') return false;
+      if (view === 'personal' || !kept(tpl.app)) return false;
       if (APP_ORDER.includes(view) && tpl.app !== view) return false;
       if (view !== 'all' && !APP_ORDER.includes(view) && !tpl.categories.includes(view)) return false;
       if (!q) return true;
       return [t(tpl.name), t(tpl.description), tpl.name, tpl.description].some((s) => s.toLocaleLowerCase().includes(q));
     });
-  }, [data, view, query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, view, query, chosen.apps]);
 
   const ownShown = useMemo(() => {
     const q = query.trim().toLocaleLowerCase();
-    return view === 'personal' || (q && view === 'all') ? personal.filter((p) => !q || p.name.toLocaleLowerCase().includes(q)) : [];
-  }, [personal, view, query]);
+    return view === 'personal' || (q && view === 'all') ? personal.filter((p) => kept(p.app) && (!q || p.name.toLocaleLowerCase().includes(q))) : [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personal, view, query, chosen.apps]);
 
   const rail = [
     { id: 'all', label: t('All templates'), icon: 'grid' },
-    ...(app ? [] : APP_ORDER.map((a) => ({ id: a, label: t(APP_NAMES[a]), icon: a }))),
+    ...(app ? [] : APP_ORDER.filter(kept).map((a) => ({ id: a, label: t(APP_NAMES[a]), icon: a }))),
     ...(data?.categories || []).filter((c) => data.templates.some((tpl) => tpl.categories.includes(c.id))).map((c) => ({ id: c.id, label: t(c.name), heading: c === data.categories[0] ? t('Categories') : null })),
     { id: 'personal', label: t('Personal'), icon: 'star', heading: t('Yours'), count: personal.length },
   ];

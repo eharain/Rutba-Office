@@ -38,6 +38,13 @@ export async function verifyAppsChoice(h) {
         && JSON.stringify(stored) === JSON.stringify({ off: ['sheets', 'video'], on: [] }),
       JSON.stringify({ shown, onAtFirst, count, after, templates, recordShown, cardGone, stored }));
 
+    // The template gallery from the launcher shows only the apps chosen.
+    await js(`document.querySelector('.home-more')?.click(), 1`);
+    const gallery = await ok(until(() => js(`document.querySelectorAll('.tg-thumb').length > 0`), 'the template gallery', 6000));
+    const kinds = await js(`[...new Set([...document.querySelectorAll('.tg-thumb')].map((n) => [...n.classList].find((c) => ['word', 'sheets', 'slides'].includes(c))).filter(Boolean))]`);
+    check('apps choice: the template gallery from the launcher leaves out the templates of an app turned off',
+      gallery && kinds.includes('word') && kinds.includes('slides') && !kinds.includes('sheets'), JSON.stringify({ gallery, kinds }));
+
     // Another launcher keeps the choice; All apps brings everything back.
     const first = home;
     home = await open('home');
