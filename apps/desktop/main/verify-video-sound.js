@@ -1,12 +1,14 @@
 // Video's sound and the picture's fades (the 2026-10-16 plan's sound and
 // time): a clip's volume in decibels up to +12, the switch that lowers the
 // rest under a voice, fades as long as asked with a word when together they
-// are longer than the clip, and a picture clip's fade from and to black.
+// are longer than the clip, a picture clip's fade from and to black, a
+// clip's speed, the meter, and Freeze Frame.
 // A clip and a sound are made here at run time. Run alone with
 // RUTBA_VERIFY_ONLY=video-sound.
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { app, nativeImage } from 'electron';
 import { makeFixtures } from './verify-video-editor.js';
 
 /** Three seconds of a tone, as a WAV a sound clip is made from. */
@@ -116,6 +118,38 @@ export async function verifyVideoSound(h, { dir }) {
     const stilled = await ok(until(() => js(`(document.querySelector('.vd-meter')?.dataset.db ?? 'x') === ''`), 'the meter at rest', 4000));
     check('video sound: while the preview plays the meter beside the time shows the sound\'s level, and it rests when stopped',
       idle === '' && moving && stilled, JSON.stringify({ idle, moving, level, stilled }));
+
+    // Freeze Frame: the picture at the playhead as a still of two seconds, the clip cut there and going on after it.
+    const videosWas = app.getPath('videos');
+    app.setPath('videos', dir);
+    try {
+      await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Edit')?.click(), 1`);
+      await js(`(() => { const s = document.querySelector('.vd-scrub'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, '1'); s.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+      await until(() => js(`Math.abs(Number(document.querySelector('.vd-scrub').value) - 1) < 0.02`), 'the playhead at 1 s', 3000).catch(() => {});
+      await wait(200);
+      const pressed = await press('Freeze Frame');
+      const held = await ok(until(() => js(`Boolean(document.querySelector('.vd-clip[data-kind="image"]'))`), 'the frozen frame', 8000));
+      const shape = await js(`(() => {
+        const img = document.querySelector('.vd-clip[data-kind="image"]');
+        const vids = [...document.querySelectorAll('.vd-clip[data-kind="video"]')].map((n) => [Number(n.dataset.start), Number(n.dataset.end)]).sort((a, b) => a[0] - b[0]);
+        return { still: img ? [Number(img.dataset.start), Number(img.dataset.end)] : null, vids };
+      })()`);
+      const folder = path.join(dir, 'Rutba Recordings');
+      const files = fs.existsSync(folder) ? fs.readdirSync(folder).filter((f) => /^Frame .*\.png$/.test(f)) : [];
+      const png = files.length ? fs.readFileSync(path.join(folder, files[0])) : null;
+      const isPng = Boolean(png && png.length > 1000 && png.subarray(1, 4).toString() === 'PNG');
+      // The clip's own picture, not a black or empty frame.
+      const bitmap = png ? nativeImage.createFromBuffer(png).toBitmap() : Buffer.alloc(0);
+      let lit = 0;
+      for (let i = 0; i < bitmap.length; i += 4 * 97) if (bitmap[i] + bitmap[i + 1] + bitmap[i + 2] > 60) lit++;
+      const pictured = lit > (bitmap.length / (4 * 97)) * 0.5;
+      const s0 = shape.still || [0, 0];
+      check('video sound: Freeze Frame holds the picture at the playhead for two seconds as a PNG still, the clip cut there and going on after it',
+        pressed === 'pressed' && held && Math.abs(s0[0] - 1) < 0.05 && Math.abs(s0[1] - s0[0] - 2) < 0.05 && shape.vids.length === 2 && Math.abs(shape.vids[1][0] - s0[1]) < 0.05 && isPng && pictured,
+        JSON.stringify({ pressed, held, shape, files, isPng, pictured }));
+    } finally {
+      app.setPath('videos', videosWas);
+    }
 
     const complaints = await errorsIn(win);
     check('video sound: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

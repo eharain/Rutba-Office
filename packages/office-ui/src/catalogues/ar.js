@@ -7289,4 +7289,10 @@ export default {
   'While this plays, the other sound is lowered: for a voice over music': 'أثناء تشغيله يُخفَض الصوت الآخر: لصوت فوق الموسيقى',
   'Sound level': 'مستوى الصوت',
   'Sound level {db} dB': 'مستوى الصوت {db} dB',
+  'Frames': 'الإطارات',
+  'Freeze Frame': 'تجميد الإطار',
+  'Taking the frame': 'جارٍ أخذ الإطار',
+  'The frame could not be taken: {reason}': 'تعذّر أخذ الإطار: {reason}',
+  'the frame could not be drawn': 'تعذّر رسم الإطار',
+  'the picture at the playhead held for two seconds; the clip goes on after it': 'الصورة عند مؤشر التشغيل ثابتة لثانيتين؛ ويستمر المقطع بعدها',
 };

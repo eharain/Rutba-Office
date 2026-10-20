@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7279,
+  "count": 7285,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -14079,6 +14079,12 @@
       ]
     },
     {
+      "message": "Frames",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Free",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -14094,6 +14100,12 @@
       "message": "Free Transform (T): drag a picture's corners to scale, skew or distort it",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Freeze Frame",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -29973,6 +29985,7 @@
       "message": "Rutba Recordings",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
+        "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
@@ -35217,6 +35230,12 @@
       ]
     },
     {
+      "message": "Taking the frame",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Talk",
       "where": [
         "apps/desktop/renderer/apps/talk.js",
@@ -36450,6 +36469,12 @@
       "message": "The format was not recognised.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "The frame could not be taken: {reason}",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -43629,6 +43654,12 @@
       ]
     },
     {
+      "message": "the frame could not be drawn",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "the keywords",
       "where": [
         "apps/desktop/renderer/apps/pdf/redact.js"
@@ -43672,6 +43703,12 @@
     },
     {
       "message": "the picture and its sound move on their own",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "the picture at the playhead held for two seconds; the clip goes on after it",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
       ]

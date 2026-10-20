@@ -17,15 +17,15 @@ import { Spacer, Chip, Empty, Button, Panel, Content, useToast, useCommands, use
 import { History } from '@rutba/editing/history';
 import { timecode } from '@rutba/media/timeline';
 import { PlayMeter, METER_CSS } from './meter.js';
-import { buildPlan, startAudioPreview, soundLayers, clipFromSoundLayer, driveVideoElements, pauseVideoElements, unsupportedReason } from '@rutba/studio/host';
+import { buildPlan, startAudioPreview, soundLayers, clipFromSoundLayer, driveVideoElements, pauseVideoElements, unsupportedReason, loadVideo, releaseVideos } from '@rutba/studio/host';
 import {
   emptyProject, normaliseProject, addMedia, splitAt, splitAll, trimStart, trimEnd, removeClips, closeGap, copyClips,
   pasteClips, duplicateClips, unlinkClips, linkClips, addMarker, nextMarker, previousMarker, setTransition, addTitle,
   planPatches, projectMedia, projectDuration, clipById, clipsAt, sectionOf, laneOf, partnersOf, previousOnLane, setRange,
-  clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount,
+  clearRange, TITLE_PRESETS, withPartners, placeMedia, insertLane, moveLane, splitLane, brokenLocks, laneCount, speedOf,
 } from '@rutba/studio/project';
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
-import { placeTakes, settleTakes } from '@rutba/studio/recorder';
+import { placeTakes, settleTakes, takeFileName } from '@rutba/studio/recorder';
 import { parseCaptions, placeCaptions, captionsOf, writeSrt, writeVtt, isCaption } from '@rutba/studio/captions';
 import { pointerOf, applyAutoZoom } from '@rutba/studio/pointer';
 import {
@@ -37,7 +37,7 @@ import { BrandDialog, BRAND_KEY } from './intro/brand.js';
 import { INTRO_CSS } from './intro/css.js';
 import { RecorderPanel } from './recorder/panel.js';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
-import { MediaLibrary, mediaKind, MEDIA_EXTENSIONS } from './media.js';
+import { MediaLibrary, mediaKind, MEDIA_EXTENSIONS, seekTo } from './media.js';
 import Timeline from './timeline.js';
 import Stage from './stage.js';
 import VideoRibbon, { TITLE_NAMES } from './ribbon.js';
@@ -66,6 +66,9 @@ export function splitHeight(editorH, share) {
 const FPS = 30;
 const AUTOSAVE_FIRST_MS = 1500;
 const AUTOSAVE_EVERY_MS = 30000;
+/** How long Freeze Frame holds the picture, and what of the clip's look the still keeps. */
+const FREEZE_SECONDS = 2;
+const FREEZE_LOOK = ['fit', 'turn', 'flipX', 'flipY', 'fx', 'fy', 'fw', 'fh', 'rot', 'opacity', 'crop', 'blend', 'insetShape'];
 
 /** A clip drawn in a box of its own, which a drag on the stage moves: a title, a shape, a picture in picture or a still not set to fill the frame. */
 export const standsInBox = (p) => p.type === 'text' || p.type === 'shape' || (p.type === 'video' && Boolean(p.fw)) || (p.type === 'image' && !p.fit);
@@ -571,6 +574,51 @@ function VideoEditor({ app, shell, boot }) {
     if (files?.length) addFiles(files, { where: typeof where === 'string' ? where : 'end' });
   }, [shell, addFiles]);
 
+  // Freeze Frame: the clip's picture at the playhead, as a PNG at the
+  // source's own size, held for two seconds; the clip goes on after it.
+  const freezeFrame = useCallback(async (clip) => {
+    if (!clip || clip.type !== 'video') return;
+    const at = timeRef.current;
+    const source = Math.max(0, (clip.offset || 0) + (at - clip.timing.start) * speedOf(clip));
+    setBusy(t('Taking the frame'));
+    let entry = null;
+    try {
+      entry = await loadVideo(clip.url);
+      const el = entry.el;
+      await seekTo(el, Math.min(source, Math.max(0, (el.duration || source) - 0.04)));
+      const c = document.createElement('canvas');
+      c.width = el.videoWidth || entry.width || 1280;
+      c.height = el.videoHeight || entry.height || 720;
+      c.getContext('2d').drawImage(el, 0, 0, c.width, c.height);
+      const blob = await new Promise((resolve) => c.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error(t('the frame could not be drawn'));
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const paths = await shell.app.paths().catch(() => null);
+      const sep = paths?.separator || '\\';
+      // Beside a saved project, in a Frames folder; else where recordings go.
+      const dir = path ? `${path.slice(0, Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/')))}${sep}${t('Frames')}` : `${paths?.videos || ''}${sep}${t('Rutba Recordings')}`;
+      const { path: file } = await shell.capture.take({ dir, name: takeFileName(t('Frame'), new Date(), 'png') });
+      await shell.fs.write({ path: file, bytes });
+      const info = await media.describe(file, { name: basename(file), size: bytes.length });
+      setBusy(null);
+      const look = {};
+      for (const k of FREEZE_LOOK) if (clip[k] !== undefined) look[k] = clip[k];
+      let ids = [];
+      edit(t('Freeze Frame'), (d) => {
+        const held = { ...d, settings: { ...d.settings, stillSeconds: FREEZE_SECONDS } };
+        const r = placeMedia(held, [info], { where: 'insert', lane: laneOf(clip), at });
+        ids = r.ids;
+        return { ...r.doc, settings: d.settings, patches: r.doc.patches.map((p) => (ids.includes(p.id) ? { ...p, ...look } : p)) };
+      });
+      setSelected(ids.slice(0, 1));
+    } catch (err) {
+      setBusy(null);
+      toast(t('The frame could not be taken: {reason}', { reason: err?.message || String(err) }), { tone: 'bad', ms: 7000 });
+    } finally {
+      if (entry) releaseVideos([entry]);
+    }
+  }, [shell, media, path, edit, toast]);
+
   const saveTo = useCallback(async (target) => {
     try {
       const bytes = writeRvid(docRef.current, { projectPath: target });
@@ -873,6 +921,8 @@ function VideoEditor({ app, shell, boot }) {
   const under = clipsAt(doc, time);
   // What Trim Start and Trim End act on: a picked clip the playhead is in, else the main lane's clip there.
   const target = sel.find((p) => time > p.timing.start && time < p.timing.end) || under.find((p) => sectionOf(p) === 'v' && laneOf(p) === 0) || under[0] || null;
+  // What Freeze Frame holds: a picked video clip under the playhead, else the topmost one there.
+  const freezeTarget = sel.find((p) => p.type === 'video' && time >= p.timing.start && time < p.timing.end) || under.filter((p) => p.type === 'video').sort((a, b) => laneOf(b) - laneOf(a))[0] || null;
 
   const setPictures = (label, fn) => edit(label, (d) => ({ ...d, patches: d.patches.map((p) => (selected.includes(p.id) && (p.type === 'video' || p.type === 'image') ? { ...p, ...fn(p) } : p)) }));
   const soundsOfSelection = () => {
@@ -899,6 +949,7 @@ function VideoEditor({ app, shell, boot }) {
     'insert.media': { label: t('Add Media'), icon: 'plus', key: 'Mod+I', tip: t('videos, sound and pictures, one after another after the clips on the picked track'), run: () => insertMedia('end') },
     'insert.mediaLayer': { label: t('Add on a New Track'), icon: 'layers', tip: t('videos and pictures on a track of their own above the others, from the playhead'), run: () => insertMedia('layer') },
     'insert.mediaHere': { label: t('Insert at Playhead'), icon: 'move', tip: t('on the picked track at the playhead; what follows moves later to make room'), run: () => insertMedia('insert') },
+    'clip.freeze': { label: t('Freeze Frame'), icon: 'pause', disabled: !freezeTarget, tip: t('the picture at the playhead held for two seconds; the clip goes on after it'), run: () => freezeFrame(freezeTarget) },
     'captions.import': { label: t('Import Captions'), icon: 'captions', tip: t('a SubRip (.srt) or WebVTT (.vtt) file, each caption a clip on its own track'), run: () => importCaptions() },
     'captions.export': { label: t('Export Captions'), icon: 'export', disabled: !doc.patches.some(isCaption), tip: t('the caption track as a .srt or .vtt file, to send beside the video'), run: exportCaptions },
     'intro.record': { label: currentScene?.take ? t('Retake Scene') : t('Record Scene'), icon: 'record', disabled: !currentScene || !RECORDED.has(currentScene.layout) || Boolean(exporting), tip: t('the scene picked, with its script above the camera; every take is kept'), run: () => { stop(); setSceneRecord(currentScene.id); } },

@@ -183,6 +183,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               <C cmds={cmds} id="edit.trimStart" />
               <C cmds={cmds} id="edit.trimEnd" />
             </Rows>
+            <C cmds={cmds} id="clip.freeze" tall />
           </Group>
           <Group label={t('Ripple')}>
             <C cmds={cmds} id="edit.ripple" tall />

@@ -7289,4 +7289,10 @@ export default {
   'While this plays, the other sound is lowered: for a voice over music': 'इसके चलते समय दूसरी ध्वनि कम होती है: संगीत पर आवाज़ के लिए',
   'Sound level': 'ध्वनि स्तर',
   'Sound level {db} dB': 'ध्वनि स्तर {db} dB',
+  'Frames': 'फ़्रेम',
+  'Freeze Frame': 'फ़्रेम रोकें',
+  'Taking the frame': 'फ़्रेम लिया जा रहा है',
+  'The frame could not be taken: {reason}': 'फ़्रेम नहीं लिया जा सका: {reason}',
+  'the frame could not be drawn': 'फ़्रेम बनाया नहीं जा सका',
+  'the picture at the playhead held for two seconds; the clip goes on after it': 'प्लेहेड पर चित्र दो सेकंड तक रुका रहता है; क्लिप उसके बाद चलती रहती है',
 };
