@@ -143,6 +143,10 @@ createShell({
 
     const calendar = createCalendarService({ stores, broadcast, mail: { accounts: () => services?.mail?.accounts?.() || [] } });
 
+    // The apps chosen on the installer's page, taken over before any window reads the choice.
+    const defaults = createDefaultsService({ associations: fileAssociations(), associationsFor: (apps) => fileAssociations({ apps }), stores });
+    await defaults.adoptInstallerChoice().catch(() => {});
+
     return (services = {
       // Every call answered from the service's thread. A window's Open waits
       // on the file and its unzipping (documents.js, `openAsync`), and its
@@ -170,7 +174,7 @@ createShell({
         },
       }),
       announce: createAnnouncementService({ stores, broadcast }),
-      defaults: createDefaultsService({ associations: fileAssociations(), associationsFor: (apps) => fileAssociations({ apps }), stores }),
+      defaults,
       discover: createDiscoveryService(),
       present: createPresentService({ broadcast }),
       // The PDF app: its files read once, and new PDFs made from their pages.

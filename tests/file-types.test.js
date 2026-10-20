@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { fileTypePlan, applyFileTypes } from '../apps/desktop/main/file-types.js';
+import { fileTypePlan, applyFileTypes, installerChoice, recordChoice } from '../apps/desktop/main/file-types.js';
 import { fileAssociations } from '@rutba/office-formats/registry';
 
 const windows = process.platform === 'win32';
@@ -72,5 +72,23 @@ test('file types: withdrawn when the app is turned off, back when it is turned o
     assert.deepEqual(again.restored, []);
   } finally {
     reg('delete', ROOT.replace(/\\Classes$/, ''), '/f');
+  }
+});
+
+test('the installer\'s choice: read only when the installer chose last; what Office records reads back as Office\'s', { skip: !windows && 'Windows only' }, async () => {
+  const key = `HKCU\\Software\\RutbaOfficeChoiceTest${process.pid}`;
+  try {
+    assert.equal(await installerChoice({ key }), null);
+    reg('add', key, '/v', 'AppsOff', '/t', 'REG_SZ', '/d', 'sheets,video,', '/f');
+    reg('add', key, '/v', 'AppsChosenAt', '/t', 'REG_SZ', '/d', 'installer', '/f');
+    assert.deepEqual(await installerChoice({ key }), { off: ['sheets', 'video'] });
+    await recordChoice(['pdf'], { key });
+    assert.equal(await installerChoice({ key }), null);
+    assert.match(reg('query', key, '/v', 'AppsOff'), /REG_SZ\s+pdf/);
+    await recordChoice([], { key });
+    reg('add', key, '/v', 'AppsChosenAt', '/t', 'REG_SZ', '/d', 'installer', '/f');
+    assert.deepEqual(await installerChoice({ key }), { off: [] });
+  } finally {
+    reg('delete', key, '/f');
   }
 });

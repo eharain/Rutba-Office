@@ -21,8 +21,8 @@ import { app, shell } from 'electron';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
-import { APPS_CHOICE_KEY, chosenApps } from '@rutba/office-formats/registry';
-import { fileTypePlan, applyFileTypes } from './file-types.js';
+import { APPS_CHOICE_KEY, APP_ORDER, chosenApps, choiceFor } from '@rutba/office-formats/registry';
+import { fileTypePlan, applyFileTypes, installerChoice, recordChoice } from './file-types.js';
 
 const run = promisify(execFile);
 const isWindows = process.platform === 'win32';
@@ -71,7 +71,22 @@ export function createDefaultsService({ associations, associationsFor = null, st
     const chosen = Array.isArray(apps) ? apps : chosenApps(stores?.settings.get(APPS_CHOICE_KEY, null));
     const result = await applyFileTypes(fileTypePlan(associations, associationsFor(chosen)));
     stores?.settings.set(APPLIED_KEY, `${app.getVersion()}|${chosen.join(',')}`);
+    // Where the installer's page reads it, so a newer installer shows this choice ticked.
+    await recordChoice(APP_ORDER.filter((k) => !chosen.includes(k)));
     return { skipped: false, withdrawn: result.withdrawn.length, restored: result.restored.length };
+  };
+
+  /**
+   * The choice made on the installer's Choose apps page, taken over once, at
+   * start-up and before any window reads it: the launcher then does not ask
+   * again what the installer just asked.
+   */
+  const adoptInstallerChoice = async () => {
+    if (!isWindows || !app.isPackaged || process.env.RUTBA_VERIFY || !stores) return { adopted: false };
+    const picked = await installerChoice();
+    if (!picked) return { adopted: false };
+    stores.settings.set(APPS_CHOICE_KEY, choiceFor(APP_ORDER.filter((k) => !picked.off.includes(k))));
+    return { adopted: true, off: picked.off };
   };
 
   /** At start-up: only when a choice was made and has not been applied to this version yet. */
@@ -86,6 +101,7 @@ export function createDefaultsService({ associations, associationsFor = null, st
   return {
     follow,
     followAtStart,
+    adoptInstallerChoice,
     /**
      * Which of the formats we claim currently open with us.
      * @returns {{ platform, canSet, ours: number, total: number, formats: [] }}

@@ -72,3 +72,21 @@ export async function applyFileTypes(plan, { root = CLASSES } = {}) {
   }
   return out;
 }
+
+/** Where the installer's Choose apps page and Office keep the apps turned off, for each other. */
+export const CHOICE_KEY = 'HKCU\\Software\\Rutba Office';
+
+/** The apps the installer's page left unticked, if it was the last to choose: { off } or null. */
+export async function installerChoice({ key = CHOICE_KEY } = {}) {
+  const by = await reg(['query', key, '/v', 'AppsChosenAt']);
+  if (!by.ok || !/REG_SZ\s+installer\s*$/m.test(by.out)) return null;
+  const r = await reg(['query', key, '/v', 'AppsOff']);
+  const raw = r.ok ? (/AppsOff\s+REG_SZ\s+(.*?)\s*$/m.exec(r.out)?.[1] ?? '') : '';
+  return { off: raw.split(',').map((s) => s.trim()).filter(Boolean) };
+}
+
+/** The apps turned off, written where the installer's page reads them, as chosen in Office. */
+export async function recordChoice(off, { key = CHOICE_KEY } = {}) {
+  await reg(['add', key, '/v', 'AppsOff', '/t', 'REG_SZ', '/d', off.join(','), '/f']);
+  await reg(['add', key, '/v', 'AppsChosenAt', '/t', 'REG_SZ', '/d', 'office', '/f']);
+}

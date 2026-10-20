@@ -121,3 +121,113 @@
   Pop $R1
   Pop $R0
 !macroend
+
+; Choose apps (owner, 2026-10-20: "since the number of applications have
+; grown we should let users to choose what they wanted to install and what
+; not"). A page after the folder: a box for each app, all ticked, or ticked
+; as the person last chose (Office keeps HKCU\Software\Rutba Office\AppsOff
+; up to date). The apps left unticked are written to that value, and Office
+; takes the choice from it on its next start: their tiles go, and the kinds
+; of file they open are let go of. Nothing is left uninstalled: the apps
+; share one program, and any can be turned on again from Choose apps.
+; A silent install (an update) shows no page and leaves the choice as it was.
+
+!include "nsDialogs.nsh"
+!include "WordFunc.nsh"
+
+; One box: ticked unless the app is in the list turned off before.
+!macro rutbaAppBox KEY LABEL X Y
+  ${NSD_CreateCheckbox} ${X} ${Y} 46% 12u "${LABEL}"
+  Pop $rutbaBox_${KEY}
+  ${WordFind} ",$rutbaAppsBefore," ",${KEY}," "E*" $0
+  ${If} ${Errors}
+    ${NSD_Check} $rutbaBox_${KEY}
+  ${EndIf}
+  ClearErrors
+!macroend
+
+!macro rutbaAppRead KEY
+  ${NSD_GetState} $rutbaBox_${KEY} $1
+  ${If} $1 != ${BST_CHECKED}
+    StrCpy $rutbaAppsOff "$rutbaAppsOff${KEY},"
+  ${Else}
+    IntOp $2 $2 + 1
+  ${EndIf}
+!macroend
+
+; The page, its variables and its functions are put in where the template
+; asks for a page after the folder: the installer's UI library (MUI) is
+; loaded there, and the uninstaller, built without the pages, never sees them.
+!macro customPageAfterChangeDir
+  Page custom rutbaAppsPageShow rutbaAppsPageLeave
+
+  Var rutbaAppsShown
+  Var rutbaAppsOff
+  Var rutbaAppsBefore
+  Var rutbaBox_mail
+  Var rutbaBox_calendar
+  Var rutbaBox_contacts
+  Var rutbaBox_word
+  Var rutbaBox_sheets
+  Var rutbaBox_slides
+  Var rutbaBox_pdf
+  Var rutbaBox_pictures
+  Var rutbaBox_image
+  Var rutbaBox_video
+  Var rutbaBox_recorder
+
+Function rutbaAppsPageShow
+  !insertmacro MUI_HEADER_TEXT "Choose apps" "The apps you want to see and to open your files."
+  ReadRegStr $rutbaAppsBefore HKCU "Software\Rutba Office" "AppsOff"
+  ClearErrors
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 22u "Untick an app you do not want. It is not shown and does not open its kinds of file, and it can be turned on again at any time from Choose apps in Rutba Office."
+  Pop $0
+  !insertmacro rutbaAppBox mail "Mail" 0 28u
+  !insertmacro rutbaAppBox calendar "Calendar" 0 42u
+  !insertmacro rutbaAppBox contacts "Contacts" 0 56u
+  !insertmacro rutbaAppBox word "Documents" 0 70u
+  !insertmacro rutbaAppBox sheets "Worksheets" 0 84u
+  !insertmacro rutbaAppBox slides "Presentations" 0 98u
+  !insertmacro rutbaAppBox pdf "PDF" 52% 28u
+  !insertmacro rutbaAppBox pictures "Pictures" 52% 42u
+  !insertmacro rutbaAppBox image "Image" 52% 56u
+  !insertmacro rutbaAppBox video "Video" 52% 70u
+  !insertmacro rutbaAppBox recorder "Recorder" 52% 84u
+  nsDialogs::Show
+FunctionEnd
+
+Function rutbaAppsPageLeave
+  StrCpy $rutbaAppsOff ""
+  StrCpy $2 0
+  !insertmacro rutbaAppRead mail
+  !insertmacro rutbaAppRead calendar
+  !insertmacro rutbaAppRead contacts
+  !insertmacro rutbaAppRead word
+  !insertmacro rutbaAppRead sheets
+  !insertmacro rutbaAppRead slides
+  !insertmacro rutbaAppRead pdf
+  !insertmacro rutbaAppRead pictures
+  !insertmacro rutbaAppRead image
+  !insertmacro rutbaAppRead video
+  !insertmacro rutbaAppRead recorder
+  ${If} $2 == 0
+    MessageBox MB_OK|MB_ICONEXCLAMATION "Choose one app at least."
+    Abort
+  ${EndIf}
+  StrCpy $rutbaAppsShown "1"
+FunctionEnd
+!macroend
+
+!macro customInstall
+  !ifndef BUILD_UNINSTALLER
+  ${If} $rutbaAppsShown == "1"
+    WriteRegStr HKCU "Software\Rutba Office" "AppsOff" "$rutbaAppsOff"
+    WriteRegStr HKCU "Software\Rutba Office" "AppsChosenAt" "installer"
+  ${EndIf}
+  !endif
+!macroend
