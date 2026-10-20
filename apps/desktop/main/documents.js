@@ -80,6 +80,7 @@ import { docModelToDocx } from '@rutba/office-formats/msdoc-docx';
 import { decode1252 } from '@rutba/office-formats/codepage';
 import { readXls, xlsKind } from '@rutba/office-formats/msxls';
 import { xlsModelToXlsx } from '@rutba/office-formats/msxls-xlsx';
+import { readLegacySheets, legacySheetsToXlsx } from '@rutba/office-formats/legacy-sheets';
 import { readPpt } from '@rutba/office-formats/msppt';
 import { pptModelToDeck } from './legacy-deck.js';
 import { isEncryptedPackage, decryptPackage, encryptPackage, EncryptedFileError, AGILE_DEFAULTS } from '@rutba/office-formats/crypt';
@@ -467,6 +468,35 @@ function workbookToXlsx(bytes, shown, locked) {
     throw new Error(`${shown} could not be read: ${err.message}.`);
   }
   return { kind: 'sheet', bytes: Buffer.from(xlsModelToXlsx(book)), source: 'xls', converted: { from: 'xls', format: 'biff' + book.biff } };
+}
+
+/**
+ * An old spreadsheet (Lotus 1-2-3, SYLK, DIF, or a dBASE or FoxPro table)
+ * read and written as the .xlsx this suite edits. A table's memo file is
+ * read from beside it, by the same name, when it is there. What the reader
+ * could not keep travels as notes, for the window to say.
+ */
+function legacySheetToXlsx(bytes, kind, filePath, shown) {
+  let memo = null;
+  let memoKind = null;
+  if (kind === 'dbf' && filePath) {
+    const dir = path.dirname(filePath);
+    const stem = path.basename(filePath).replace(/\.dbf$/i, '').toLowerCase();
+    try {
+      for (const entry of fs.readdirSync(dir)) {
+        const m = /^(.*)\.(dbt|fpt)$/i.exec(entry);
+        if (m && m[1].toLowerCase() === stem) { memo = new Uint8Array(fs.readFileSync(path.join(dir, entry))); memoKind = m[2].toLowerCase(); break; }
+      }
+    } catch { /* a folder that cannot be listed: the memos stay empty, and the notes say so */ }
+  }
+  let model;
+  try {
+    model = readLegacySheets(new Uint8Array(bytes), kind, { name: shown.replace(/\.[^.]+$/, ''), memo, memoKind });
+  } catch (err) {
+    throw new Error(`${shown} could not be read: ${err.message}.`);
+  }
+  const from = filePath ? path.extname(filePath).slice(1).toLowerCase() || kind : kind;
+  return { kind: 'sheet', bytes: Buffer.from(legacySheetsToXlsx(model)), source: kind, converted: { from, notes: model.notes || [] } };
 }
 
 /**
@@ -1131,6 +1161,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         const parsed = readPlain(bytes);
         return { kind: 'doc', bytes: buildDocx({ paragraphs: blocksToParagraphs(parsed.blocks), styles: true }), source: kind, converted: { from: kind } };
       }
+      case 'wk1':
+      case 'wk3':
+      case 'slk':
+      case 'dif':
+      case 'dbf':
+        return legacySheetToXlsx(bytes, kind, filePath, filePath ? path.basename(filePath) : 'This file');
       case 'html': {
         // A web page as a document — headings, looks, links, lists at their levels, tables with their spans,
         // embedded pictures — where it came in as its words alone, one paragraph a block.

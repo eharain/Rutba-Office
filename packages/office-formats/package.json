@@ -16,6 +16,7 @@
     "./msdoc-docx": "./src/msdoc-docx.js",
     "./msxls": "./src/msxls.js",
     "./msxls-xlsx": "./src/msxls-xlsx.js",
+    "./legacy-sheets": "./src/legacy-sheets.js",
     "./msppt": "./src/msppt.js",
     "./crypt": "./src/crypt.js",
     "./crypt-binary": "./src/crypt-binary.js",

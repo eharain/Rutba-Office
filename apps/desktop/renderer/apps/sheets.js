@@ -94,6 +94,19 @@ const tipFor = (cell) => {
   return undefined;
 };
 
+
+/** A note from an old spreadsheet's reader (office-formats legacy-grid.js), in the window's language. */
+function oldFileNote(note) {
+  switch (note?.code) {
+    case 'empty': return t('The file has no cells.');
+    case 'deleted': return tn(note.count, '{count} deleted record was left out.', '{count} deleted records were left out.');
+    case 'memo-missing': return t('The memo file was not beside the table, so its memo fields are empty.');
+    case 'formulas-kept': return tn(note.count, '{count} formula was kept as its value: it uses {uses}, which the spreadsheet has no word for.', '{count} formulas were kept as their values: they use {uses}, which the spreadsheet has no word for.', { uses: note.uses });
+    case 'values-kept': return tn(note.count, 'Its formula is kept as the value 1-2-3 last worked out.', 'Its {count} formulas are kept as the values 1-2-3 last worked out.');
+    default: return null;
+  }
+}
+
 export default function Sheets({ app, shell, boot }) {
   const toast = useToast();
   // The theme decides only the suite's own ink: a cell's fill and font colours are the file's.
@@ -383,6 +396,9 @@ export default function Sheets({ app, shell, boot }) {
               : t('Opened from {was}. This build cannot write {was} — Save as will write a .xlsx.', { was }),
             { ms: 5200 }
           );
+          // What an old format's reader could not keep, said once the file is open.
+          const said = (opened.converted.notes || []).map(oldFileNote).filter(Boolean);
+          if (said.length) toast(said.join(' '), { ms: 9000 });
         }
       } catch (err) {
         setError(err.message);

@@ -116,6 +116,6 @@ export function readSylk(bytes, { name = 'Sheet1' } = {}) {
       names.push({ name: f.N, ref: r1c1ToA1(f.E, 0, 0).replace(/^=/, '') });
     }
   }
-  if (!grid.cells.length) notes.push('The file has no cells.');
+  if (!grid.cells.length) notes.push({ code: 'empty' });
   return { sheets: [grid.toSheet()], names, notes };
 }

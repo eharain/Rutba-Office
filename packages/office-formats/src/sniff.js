@@ -9,6 +9,10 @@
 // tie-breaker. `sniff()` needs the first 4 KB; container formats (zip, CFB) get
 // a second look with the whole buffer when one is available.
 
+import { lotusKind } from './lotus.js';
+import { isDbf } from './dbf.js';
+import { isSylk } from './sylk.js';
+import { isDif } from './dif.js';
 const dec = new TextDecoder('latin1');
 
 function bytes(input) {
@@ -63,6 +67,12 @@ export const KINDS = {
   ods: { app: 'sheets', label: 'OpenDocument Spreadsheet', ext: '.ods', mime: 'application/vnd.oasis.opendocument.spreadsheet', edit: true },
   csv: { app: 'sheets', label: 'Comma Separated Values', ext: '.csv', mime: 'text/csv', edit: true },
   tsv: { app: 'sheets', label: 'Tab Separated Values', ext: '.tsv', mime: 'text/tab-separated-values', edit: true },
+  // The old spreadsheets, read and saved on as .xlsx (legacy-sheets.js).
+  wk1: { app: 'sheets', label: 'Lotus 1-2-3 Worksheet', ext: '.wk1', mime: 'application/vnd.lotus-1-2-3', edit: false },
+  wk3: { app: 'sheets', label: 'Lotus 1-2-3 Release 3 to 5 Worksheet', ext: '.wk3', mime: 'application/vnd.lotus-1-2-3', edit: false },
+  slk: { app: 'sheets', label: 'SYLK Spreadsheet', ext: '.slk', mime: 'application/x-sylk', edit: false },
+  dif: { app: 'sheets', label: 'Data Interchange Format', ext: '.dif', mime: 'application/x-dif', edit: false },
+  dbf: { app: 'sheets', label: 'dBASE Table', ext: '.dbf', mime: 'application/x-dbf', edit: false },
 
   pptx: { app: 'slides', label: 'Presentation', ext: '.pptx', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', edit: true },
   pptm: { app: 'slides', label: 'Macro-Enabled Presentation', ext: '.pptm', mime: 'application/vnd.ms-powerpoint.presentation.macroEnabled.12', edit: true },
@@ -138,6 +148,9 @@ const BY_EXT = (() => {
   add('.xlt', 'xls');
   add('.pot', 'ppt');
   add('.pps', 'ppt');
+  add('.wks', 'wk1');
+  add('.wk4', 'wk3');
+  add('.sylk', 'slk');
   return m;
 })();
 
@@ -341,6 +354,12 @@ export function sniff(input, name = '') {
     if (b[2] === (b[1] === 0x00 ? 4 : 6) && [0x10, 0x20, 0x40, 0x100].includes(dt)) return answer('xls', 'magic', { container: 'biff' });
   }
 
+  // The old spreadsheets by their first records: Lotus 1-2-3's BOF, and a
+  // dBASE header where the name says .dbf (its header alone is too loose).
+  const lotus = lotusKind(b);
+  if (lotus) return answer(lotus, 'magic');
+  if (byExt === 'dbf' && isDbf(b)) return answer('dbf', 'magic');
+
   if (starts(b, ZIP)) {
     const z = fromZip(b);
     if (z === 'ooxml') {
@@ -358,6 +377,8 @@ export function sniff(input, name = '') {
     const text = new TextDecoder('utf-8', { fatal: false }).decode(b.subarray(0, 4096));
     const trimmed = text.replace(/^﻿/, '').trimStart();
     if (trimmed.startsWith('{\\rtf')) return answer('rtf', 'magic');
+    if (isSylk(b)) return answer('slk', 'magic');
+    if (isDif(b)) return answer('dif', 'magic');
     if (/^<\?xml/i.test(trimmed) && /<svg[\s>]/i.test(text)) return answer('svg', 'magic');
     if (/^<svg[\s>]/i.test(trimmed)) return answer('svg', 'magic');
     if (/^<!doctype html|^<html[\s>]/i.test(trimmed)) return answer('html', 'magic');

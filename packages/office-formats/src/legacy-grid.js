@@ -3,13 +3,15 @@
 // only the format it reads and the .xlsx is written in one place.
 //
 //   { sheets: [{ name, rows, styles, widths, merges }], names: [{ name, ref }],
-//     notes: [string] }
+//     notes: [{ code, count?, uses? }] }
 //
 // `rows` is rows of cells: a number, a string, a boolean, null, or a formula
 // as a string starting with '='. `styles` maps "A1" (or "A1:C3") to a look
 // buildXlsx knows ({ numFmt, bold, align, ... }); `widths` maps a column's
 // letters to its width in characters. `notes` says what a reader met and
-// could not keep, for the window to tell the person.
+// could not keep, for the window to tell the person in its own language:
+// { code: 'empty' | 'deleted' | 'memo-missing' | 'formulas-kept' |
+// 'values-kept', count?, uses? }.
 
 /** A column's letters, 0 being A. */
 export const colName = (c) => {

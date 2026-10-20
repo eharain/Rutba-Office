@@ -57,7 +57,7 @@ test('a dBASE III table reads as a header row and a row a record, with its numbe
   assert.equal(s.styles.B2.numFmt, '0.00');
   assert.equal(s.styles.C2.numFmt, 'yyyy-mm-dd');
   assert.equal(s.styles.A1.bold, true);
-  assert.deepEqual(notes, ['1 deleted record was left out.']);
+  assert.deepEqual(notes, [{ code: 'deleted', count: 1 }]);
 });
 
 test('a memo field reads from its .dbt, and says so when the memo file is missing', () => {
@@ -68,7 +68,7 @@ test('a memo field reads from its .dbt, and says so when the memo file is missin
   const { sheets } = readDbf(dbf, { memo: new Uint8Array(dbt), memoKind: 'dbt' });
   assert.deepEqual(sheets[0].rows.slice(1), [[1, 'First note'], [2, 'Second, longer note']]);
   const alone = readDbf(dbf);
-  assert.match(alone.notes.join(' '), /memo file was not beside the table/);
+  assert.deepEqual(alone.notes, [{ code: 'memo-missing' }]);
 });
 
 test('a Visual FoxPro table reads its integers, doubles, currency and date-times, and its .fpt memos', () => {

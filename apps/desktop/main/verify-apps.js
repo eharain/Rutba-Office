@@ -210,6 +210,7 @@ import { verifyWordTableTools } from './verify-word-table-tools.js';
 import { verifyWordOdt } from './verify-word-odt.js';
 import { verifyWordHtml } from './verify-word-html.js';
 import { verifySheetBinary } from './verify-sheet-binary.js';
+import { verifyOldSheets } from './verify-old-sheets.js';
 import { verifyBinaryLocked } from './verify-binary-locked.js';
 import { verifyDeckBinary } from './verify-deck-binary.js';
 import { verifyOdfCharts } from './verify-odf-charts.js';
@@ -5086,6 +5087,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('odt')) await verifyWordOdt({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('html')) await verifyWordHtml({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('xls')) await verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('old-sheets')) await verifyOldSheets({ open, check, until, wait, errorsIn, sessionFor }, { dir });
     if (only.includes('lockedbinary')) await verifyBinaryLocked({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('ppt')) await verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('odfcharts')) await verifyOdfCharts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -5439,6 +5441,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => verifyWordOdt({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordHtml({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await part('sheets', () => verifyOldSheets({ open, check, until, wait, errorsIn, sessionFor }, { dir }));
   await part('shell', () => verifyBinaryLocked({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('shell', () => verifyOdfCharts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));

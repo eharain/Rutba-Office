@@ -633,13 +633,19 @@ export function buildXlsx({ sheets, definedNames = [] }) {
         }).join('')
         + '</dataValidations>'
       : '';
-    // Schema order is fixed: sheetData, then mergeCells, then dataValidations,
-    // then drawing. Out of order and Excel rejects the file rather than
-    // ignoring the element.
+    // Column widths, in characters: { A: 18, C: 9 } (an old format's widths, read with its cells).
+    const colNumber = (letters) => [...letters].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
+    const widths = Object.entries(sheet.widths ?? {}).filter(([, w]) => w > 0).map(([l, w]) => [colNumber(l), w]).sort((x, y) => x[0] - y[0]);
+    const cols = widths.length
+      ? '<cols>' + widths.map(([n, w]) => '<col min="' + n + '" max="' + n + '" width="' + (Math.round(w * 100) / 100) + '" customWidth="1"/>').join('') + '</cols>'
+      : '';
+    // Schema order is fixed: cols, sheetData, then mergeCells, then
+    // dataValidations, then drawing. Out of order and Excel rejects the file
+    // rather than ignoring the element.
     return (
       '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-      '<sheetData>' + rows + '</sheetData>' + merges + validations + drawingRef + '</worksheet>'
+      cols + '<sheetData>' + rows + '</sheetData>' + merges + validations + drawingRef + '</worksheet>'
     );
   };
 

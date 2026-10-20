@@ -180,7 +180,7 @@ export function readDbf(bytes, { name = 'Table', memo = null, memoKind = null, c
     });
     row++;
   }
-  if (deleted) notes.push(`${deleted} deleted record${deleted === 1 ? ' was' : 's were'} left out.`);
-  if (missingMemo) notes.push('The memo file was not beside the table, so its memo fields are empty.');
+  if (deleted) notes.push({ code: 'deleted', count: deleted });
+  if (missingMemo) notes.push({ code: 'memo-missing' });
   return { sheets: [grid.toSheet()], names: [], notes, version: VERSIONS[version] || 'dBASE' };
 }

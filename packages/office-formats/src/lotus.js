@@ -296,9 +296,7 @@ export function readLotus(bytes, { name = 'Sheet1', codePage = 'cp850' } = {}) {
   }
   const notes = [];
   if (keptValues) {
-    notes.push(kind === 'wk1'
-      ? `${keptValues} formula${keptValues === 1 ? ' was' : 's were'} kept as ${keptValues === 1 ? 'its value' : 'their values'}: they use ${[...lost].join(', ')}, which the spreadsheet has no word for.`
-      : `The ${keptValues} formula${keptValues === 1 ? ' is' : 's are'} kept as the values 1-2-3 last worked out.`);
+    notes.push(kind === 'wk1' ? { code: 'formulas-kept', count: keptValues, uses: [...lost].join(', ') } : { code: 'values-kept', count: keptValues });
   }
   const sheets = [...grids.keys()].sort((a, b) => a - b).map((k) => grids.get(k).toSheet());
   if (!sheets.length) sheets.push(new Grid(name).toSheet());

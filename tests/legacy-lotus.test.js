@@ -66,7 +66,7 @@ test('a WK1 file reads its labels, numbers, formats, formulas, widths and names'
   assert.equal(s.rows[3][2], 0);
   assert.deepEqual(s.widths, { A: 18 });
   assert.deepEqual(names, [{ name: 'PRICES', ref: '$B$2:$B$3' }]);
-  assert.match(notes[0], /1 formula was kept as its value: they use @CELL/);
+  assert.deepEqual(notes, [{ code: 'formulas-kept', count: 1, uses: '@CELL' }]);
 });
 
 test('number formats from the WK1 format byte', () => {
@@ -99,6 +99,6 @@ test('WK3: several sheets, 80-bit numbers, small numbers and labels', () => {
   assert.deepEqual(sheets.map((s) => s.name), ['A', 'B']);
   assert.deepEqual(sheets[0].rows, [['North'], [1234.5]]);
   assert.deepEqual(sheets[1].rows, [['South'], [99], [100]]);
-  assert.match(notes[0], /kept as the values 1-2-3 last worked out/);
+  assert.deepEqual(notes, [{ code: 'values-kept', count: 1 }]);
   assert.equal(lotusKind(new Uint8Array([1, 2, 3, 4, 5, 6])), null);
 });

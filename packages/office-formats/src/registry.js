@@ -267,15 +267,24 @@ const TITLES = {
   contacts: 'Address books',
 };
 
+/**
+ * The old formats an app opens and saves on as its own, offered in its Open
+ * dialog but not claimed from Windows: a .dbf a mapping program opens, say,
+ * stays that program's to open on a double-click.
+ */
+export const OLD_EXTENSIONS = {
+  sheets: ['wk1', 'wks', 'wk3', 'wk4', 'slk', 'dif', 'dbf'],
+};
+
 /** Electron `dialog.showOpenDialog` filters for one app, or for everything. */
 export function openFilters(appKey) {
   if (appKey && APP_EXTENSIONS[appKey]) {
     return [
-      { name: TITLES[appKey], extensions: APP_EXTENSIONS[appKey] },
+      { name: TITLES[appKey], extensions: [...APP_EXTENSIONS[appKey], ...(OLD_EXTENSIONS[appKey] || [])] },
       { name: 'All files', extensions: ['*'] },
     ];
   }
-  const all = [...new Set(Object.values(APP_EXTENSIONS).flat())];
+  const all = [...new Set([...Object.values(APP_EXTENSIONS).flat(), ...Object.values(OLD_EXTENSIONS).flat()])];
   return [
     { name: 'All supported files', extensions: all },
     ...Object.entries(APP_EXTENSIONS).map(([k, exts]) => ({ name: TITLES[k], extensions: exts })),
