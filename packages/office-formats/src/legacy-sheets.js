@@ -1,31 +1,38 @@
 // The old spreadsheets Worksheets opens and saves on as .xlsx: Lotus 1-2-3
-// (.wks, .wk1, .wk3, .wk4), SYLK (.slk), DIF (.dif) and dBASE and FoxPro
-// tables (.dbf). Each format's reader makes sheets of cells (legacy-grid.js);
-// this tells them apart and writes the workbook.
+// (.wks, .wk1, .wk3, .wk4), SYLK (.slk), DIF (.dif), dBASE and FoxPro
+// tables (.dbf) and, read only, Access databases (.mdb, .accdb). Each
+// format's reader makes sheets of cells (legacy-grid.js); this tells them
+// apart and writes the workbook.
 
 import { buildXlsx } from '@rutba/ooxml/build';
 import { readSylk, isSylk } from './sylk.js';
 import { readDif, isDif } from './dif.js';
 import { readDbf, isDbf } from './dbf.js';
 import { readLotus, lotusKind } from './lotus.js';
+import { readAccess, isAccess } from './access.js';
 
-/** Which old spreadsheet bytes are: 'wk1', 'wk3', 'slk', 'dif', 'dbf' or null. `ext` settles a .dbf, whose header is loose. */
+/** Which old spreadsheet bytes are: 'wk1', 'wk3', 'slk', 'dif', 'dbf', 'mdb' or null. `ext` settles a .dbf, whose header is loose. */
 export function legacySheetKind(bytes, ext = '') {
   const lotus = lotusKind(bytes);
   if (lotus) return lotus;
+  if (isAccess(bytes)) return 'mdb';
   if (isSylk(bytes)) return 'slk';
   if (isDif(bytes)) return 'dif';
   if (isDbf(bytes) && (!ext || /^\.?dbf$/i.test(ext))) return 'dbf';
   return null;
 }
 
-/** Read an old spreadsheet as the readers' model, by kind. `memo` is a .dbf's memo file when there is one. */
-export function readLegacySheets(bytes, kind, { name, memo = null, memoKind = null } = {}) {
+/**
+ * Read an old spreadsheet as the readers' model, by kind. `memo` is a .dbf's
+ * memo file when there is one; `Reader` is mdb-reader's class, for Access.
+ */
+export function readLegacySheets(bytes, kind, { name, memo = null, memoKind = null, Reader = null, password } = {}) {
   switch (kind) {
     case 'wk1': case 'wk3': return readLotus(bytes, { name });
     case 'slk': return readSylk(bytes, { name });
     case 'dif': return readDif(bytes, { name });
     case 'dbf': return readDbf(bytes, { name, memo, memoKind });
+    case 'mdb': return readAccess(bytes, { Reader, password });
     default: throw new Error('not an old spreadsheet this suite reads');
   }
 }

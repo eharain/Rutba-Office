@@ -273,7 +273,7 @@ const TITLES = {
  * stays that program's to open on a double-click.
  */
 export const OLD_EXTENSIONS = {
-  sheets: ['wk1', 'wks', 'wk3', 'wk4', 'slk', 'dif', 'dbf'],
+  sheets: ['wk1', 'wks', 'wk3', 'wk4', 'slk', 'dif', 'dbf', 'mdb', 'accdb'],
 };
 
 /** Electron `dialog.showOpenDialog` filters for one app, or for everything. */

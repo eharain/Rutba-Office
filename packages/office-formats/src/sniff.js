@@ -13,6 +13,7 @@ import { lotusKind } from './lotus.js';
 import { isDbf } from './dbf.js';
 import { isSylk } from './sylk.js';
 import { isDif } from './dif.js';
+import { isAccess } from './access.js';
 const dec = new TextDecoder('latin1');
 
 function bytes(input) {
@@ -73,6 +74,7 @@ export const KINDS = {
   slk: { app: 'sheets', label: 'SYLK Spreadsheet', ext: '.slk', mime: 'application/x-sylk', edit: false },
   dif: { app: 'sheets', label: 'Data Interchange Format', ext: '.dif', mime: 'application/x-dif', edit: false },
   dbf: { app: 'sheets', label: 'dBASE Table', ext: '.dbf', mime: 'application/x-dbf', edit: false },
+  mdb: { app: 'sheets', label: 'Access Database', ext: '.mdb', mime: 'application/vnd.ms-access', edit: false },
 
   pptx: { app: 'slides', label: 'Presentation', ext: '.pptx', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', edit: true },
   pptm: { app: 'slides', label: 'Macro-Enabled Presentation', ext: '.pptm', mime: 'application/vnd.ms-powerpoint.presentation.macroEnabled.12', edit: true },
@@ -151,6 +153,7 @@ const BY_EXT = (() => {
   add('.wks', 'wk1');
   add('.wk4', 'wk3');
   add('.sylk', 'slk');
+  add('.accdb', 'mdb');
   return m;
 })();
 
@@ -358,6 +361,7 @@ export function sniff(input, name = '') {
   // dBASE header where the name says .dbf (its header alone is too loose).
   const lotus = lotusKind(b);
   if (lotus) return answer(lotus, 'magic');
+  if (isAccess(b)) return answer('mdb', 'magic');
   if (byExt === 'dbf' && isDbf(b)) return answer('dbf', 'magic');
 
   if (starts(b, ZIP)) {

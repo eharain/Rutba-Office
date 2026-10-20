@@ -102,6 +102,10 @@ function oldFileNote(note) {
     case 'deleted': return tn(note.count, '{count} deleted record was left out.', '{count} deleted records were left out.');
     case 'memo-missing': return t('The memo file was not beside the table, so its memo fields are empty.');
     case 'formulas-kept': return tn(note.count, '{count} formula was kept as its value: it uses {uses}, which the spreadsheet has no word for.', '{count} formulas were kept as their values: they use {uses}, which the spreadsheet has no word for.', { uses: note.uses });
+    case 'no-tables': return t('The database has no tables to show.');
+    case 'binary-left-out': return tn(note.count, '{count} field holding pictures or files was left out.', '{count} fields holding pictures or files were left out.');
+    case 'rows-cut': return tn(note.count, 'A table was longer than a sheet can hold, so its first 1,048,575 rows are here.', '{count} tables were longer than a sheet can hold, so their first 1,048,575 rows are here.');
+    case 'access-read-only': return t('The tables are here to work with; the database\'s forms, reports and code are not read.');
     case 'values-kept': return tn(note.count, 'Its formula is kept as the value 1-2-3 last worked out.', 'Its {count} formulas are kept as the values 1-2-3 last worked out.');
     default: return null;
   }

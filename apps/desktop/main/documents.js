@@ -81,6 +81,7 @@ import { decode1252 } from '@rutba/office-formats/codepage';
 import { readXls, xlsKind } from '@rutba/office-formats/msxls';
 import { xlsModelToXlsx } from '@rutba/office-formats/msxls-xlsx';
 import { readLegacySheets, legacySheetsToXlsx } from '@rutba/office-formats/legacy-sheets';
+import MDBReader from 'mdb-reader';
 import { readPpt } from '@rutba/office-formats/msppt';
 import { pptModelToDeck } from './legacy-deck.js';
 import { isEncryptedPackage, decryptPackage, encryptPackage, EncryptedFileError, AGILE_DEFAULTS } from '@rutba/office-formats/crypt';
@@ -471,8 +472,8 @@ function workbookToXlsx(bytes, shown, locked) {
 }
 
 /**
- * An old spreadsheet (Lotus 1-2-3, SYLK, DIF, or a dBASE or FoxPro table)
- * read and written as the .xlsx this suite edits. A table's memo file is
+ * An old spreadsheet (Lotus 1-2-3, SYLK, DIF, a dBASE or FoxPro table, or
+ * an Access database's tables) read and written as the .xlsx this suite edits. A table's memo file is
  * read from beside it, by the same name, when it is there. What the reader
  * could not keep travels as notes, for the window to say.
  */
@@ -491,8 +492,9 @@ function legacySheetToXlsx(bytes, kind, filePath, shown) {
   }
   let model;
   try {
-    model = readLegacySheets(new Uint8Array(bytes), kind, { name: shown.replace(/\.[^.]+$/, ''), memo, memoKind });
+    model = readLegacySheets(new Uint8Array(bytes), kind, { name: shown.replace(/\.[^.]+$/, ''), memo, memoKind, Reader: MDBReader });
   } catch (err) {
+    if (err.password) throw new Error(`${shown} is protected by a password. This suite cannot open a database with a password yet: open it in Access, remove the password, and save it again.`);
     throw new Error(`${shown} could not be read: ${err.message}.`);
   }
   const from = filePath ? path.extname(filePath).slice(1).toLowerCase() || kind : kind;
@@ -1166,6 +1168,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       case 'slk':
       case 'dif':
       case 'dbf':
+      case 'mdb':
         return legacySheetToXlsx(bytes, kind, filePath, filePath ? path.basename(filePath) : 'This file');
       case 'html': {
         // A web page as a document — headings, looks, links, lists at their levels, tables with their spans,
