@@ -378,6 +378,7 @@ export const METHODS = {
     'grab',         // ({ id }) -> { bytes, width, height, name }   that window or screen as a PNG
     'choose',       // ({ id, audio }) -> { loopback }   what this window's next getDisplayMedia is given: that source, and the computer's own sound where the platform hears it
     'controls',     // ({ on, paused, minimise }) -> { stop, pause, tray }   while recording: a global Stop and Pause key and a tray icon, sent back as capture:command; off releases them
+    'pictureKey',   // ({ on }) -> { key }   while Recorder is open: a global key for Take Picture, sent back as capture:command 'picture'
     'space',        // ({ path }) -> { free, total }   bytes on the disk that holds path
     'take',         // ({ dir, name }) -> { path }   a new file in dir for a recording, written to by fs.append and let go of by fs.dropTemp
     'pointer',      // ({ on, id, fps, paused }) -> on: { tracking } | off: { samples, clicks }   the pointer over the source being recorded, a sample a frame, as fractions of it

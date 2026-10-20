@@ -298,10 +298,18 @@ export default function Recorder({ app, shell }) {
   }, [shell]);
   pauseRef.current = togglePause;
 
+  const pictureRef = useRef(null);
   useEffect(() => shell.on('capture:command', ({ command } = {}) => {
     if (command === 'stop') stopRef.current?.();
     else if (command === 'pause') pauseRef.current?.();
+    else if (command === 'picture') pictureRef.current?.();
   }), [shell]);
+  // Take Picture's key, from anywhere while this window is open.
+  const [pictureKey, setPictureKey] = useState('');
+  useEffect(() => {
+    shell.capture.pictureKey({ on: true }).then((r) => setPictureKey(r?.key || '')).catch(() => {});
+    return () => { shell.capture.pictureKey({ on: false }).catch(() => {}); };
+  }, [shell]);
 
   useEffect(() => {
     if (phase !== 'recording') return undefined;
@@ -347,6 +355,7 @@ export default function Recorder({ app, shell }) {
     if (settings.shotTimer > 0) setShotCount(settings.shotTimer);
     else snap();
   }, [shotCount, settings.shotTimer, snap]);
+  pictureRef.current = takePicture;
 
   useEffect(() => {
     if (shotCount == null) return undefined;
@@ -484,7 +493,7 @@ export default function Recorder({ app, shell }) {
         )}
       </Group>
       <Group label={t('Picture')}>
-        <Button tall icon="picture" label={shotCount != null ? t('In {seconds} s', { seconds: shotCount }) : t('Take Picture')} className="st-shoot" title={t('Take Picture: {of}, saved as a PNG', { of: SHOT_NAMES[settings.shot] })} disabled={!canShoot} onClick={takePicture} />
+        <Button tall icon="picture" label={shotCount != null ? t('In {seconds} s', { seconds: shotCount }) : t('Take Picture')} className="st-shoot" title={`${t('Take Picture: {of}, saved as a PNG', { of: SHOT_NAMES[settings.shot] })}${pictureKey ? ` (${pictureKey})` : ''}`} disabled={!canShoot} onClick={takePicture} />
         <Rows>
           <Select value={settings.shot} className="st-shot-of" aria-label={t('Picture of')} onChange={(e) => change({ shot: e.target.value })}>
             {Object.entries(SHOT_NAMES).map(([k, name]) => <option key={k} value={k}>{name}</option>)}

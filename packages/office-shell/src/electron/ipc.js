@@ -496,6 +496,9 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   // it is handed the press instead (globalThis.__rutbaCaptureControls).
   const KEYS = { stop: 'CommandOrControl+Shift+F10', pause: 'CommandOrControl+Shift+F9' };
   const SHOWN_KEYS = { stop: isMac ? 'Cmd+Shift+F10' : 'Ctrl+Shift+F10', pause: isMac ? 'Cmd+Shift+F9' : 'Ctrl+Shift+F9' };
+  const PICTURE_KEY = 'CommandOrControl+Shift+F8';
+  const SHOWN_PICTURE_KEY = isMac ? 'Cmd+Shift+F8' : 'Ctrl+Shift+F8';
+  let pictureHeld = null; // { win, onClosed }
   let held = null; // { win, tray, minimised, release }
   const CHECK = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_SCREENS_FEATURES);
   const releaseControls = () => {
@@ -621,6 +624,29 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       installDisplayHandler();
       chosen.set(win.webContents.id, { id: String(id), audio: Boolean(audio) });
       return { loopback: process.platform === 'win32' };
+    },
+    /**
+     * Take Picture from anywhere while Recorder is open, minimised too: one
+     * key, held by one Recorder window at a time and let go with it.
+     */
+    pictureKey: ({ on = false }, win) => {
+      const release = () => {
+        if (!pictureHeld) return;
+        if (!CHECK) { try { globalShortcut.unregister(PICTURE_KEY); } catch { /* not ours */ } }
+        if (!pictureHeld.win.isDestroyed()) pictureHeld.win.removeListener('closed', pictureHeld.onClosed);
+        pictureHeld = null;
+        if (CHECK) globalThis.__rutbaPictureKey = null;
+      };
+      if (!on || !win) { if (!pictureHeld || !win || pictureHeld.win === win) release(); return { key: SHOWN_PICTURE_KEY }; }
+      if (pictureHeld?.win === win) return { key: SHOWN_PICTURE_KEY };
+      release();
+      const send = () => { if (!win.isDestroyed()) win.webContents.send(`${CHANNEL_PREFIX}/event/capture:command`, { command: 'picture' }); };
+      const onClosed = () => release();
+      win.once('closed', onClosed);
+      pictureHeld = { win, onClosed };
+      if (CHECK) globalThis.__rutbaPictureKey = { press: () => { send(); return true; } };
+      else { try { globalShortcut.register(PICTURE_KEY, send); } catch { /* taken by another program */ } }
+      return { key: SHOWN_PICTURE_KEY };
     },
     controls: ({ on = false, paused = false, minimise = false }, win) => {
       if (!on || !win) {

@@ -133,6 +133,17 @@ export async function verifyRecorderApp(h, { dir }) {
     await pick('st-shot-of', 'program');
     await pick('st-shot-timer', '0');
     await wait(300);
+    // The key (Ctrl+Shift+F8) takes one too, with the window minimised as well as in front.
+    const keyHeld = Boolean(globalThis.__rutbaPictureKey);
+    win.minimize();
+    await wait(300);
+    globalThis.__rutbaPictureKey?.press();
+    const byKey = await ok(until(() => pictures().length >= 4, 'the picture by the key', 6000));
+    win.restore();
+    const keyTip = await js(`(() => { const b = document.querySelector('.st-shoot'); return (b?.title || b?.dataset.tip || b?.getAttribute('aria-label') || ''); })()`);
+    check('recorder app: Take Picture\'s key takes a picture with the window minimised, and the button names the key',
+      keyHeld && byKey && /Ctrl\+Shift\+F8|Cmd\+Shift\+F8/.test(keyTip), JSON.stringify({ keyHeld, byKey, pictures: pictures().length, keyTip }));
+    await wait(300);
 
     // Record: one file growing, the scene changed while it records, a pause.
     await js(`document.querySelector('.st-record')?.click(), 1`);
