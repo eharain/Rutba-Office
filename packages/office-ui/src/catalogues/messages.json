@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7269,
+  "count": 7277,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -12593,6 +12593,18 @@
       ]
     },
     {
+      "message": "Fade from black",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
+      "message": "Fade to black",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "Fade: Down",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -14323,6 +14335,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides/animate.js",
         "apps/desktop/renderer/apps/slides/motion.js"
+      ]
+    },
+    {
+      "message": "From black",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -19517,6 +19535,12 @@
       "message": "Lower is a smaller file.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Lower the rest",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -32852,6 +32876,12 @@
       ]
     },
     {
+      "message": "Silent",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "Simple",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -39048,6 +39078,12 @@
       ]
     },
     {
+      "message": "To black",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "To check the {noun} for the content selected, click Inspect.",
       "where": [
         "apps/desktop/renderer/inspect.js"
@@ -39107,6 +39143,12 @@
       "message": "Today's date",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Together the fades are longer than the clip, so they meet in the middle: {a} s in, {b} s out.",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -41365,6 +41407,12 @@
       "message": "Whether these cells are locked when the sheet is protected",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "While this plays, the other sound is lowered: for a voice over music",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {

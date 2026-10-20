@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { Button, Icon, Select, labelFirstControl, t, tn } from '@rutba/office-ui';
+import { MAX_GAIN, gainToDb, dbToGain, soundFades } from '@rutba/studio';
 import { timecode } from '@rutba/media/timeline';
 import { clipById, partnersOf, previousOnLane, lengthOf, animationName, TEXT_ANIMATIONS, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker } from '@rutba/studio/project';
 import { insetRect, cornerOf } from '@rutba/studio/recorder';
@@ -149,9 +150,9 @@ function Row({ label, children }) {
   );
 }
 
-function Slider({ value, min, max, step, onChange, format }) {
+function Slider({ value, min, max, step, onChange, format, className }) {
   return (
-    <span className="vd-slider">
+    <span className={`vd-slider${className ? ` ${className}` : ''}`}>
       <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
       <span className="vd-slider-value">{format ? format(value) : value}</span>
     </span>
@@ -352,6 +353,19 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
 
       {clip.type === 'video' && clip.fw ? <InsetProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
 
+      {/* The picture's own fades: up from black where it starts, down to black where it ends. */}
+      {(clip.type === 'video' || clip.type === 'image') && !clip.caption ? (
+        <section className="vd-insp-section vd-picture-fades">
+          <h3>{t('Fade')}</h3>
+          <Row label={t('From black')}>
+            <Seconds value={clip.enter?.kind === 'fade' ? clip.enter.seconds || 0 : 0} onChange={(v) => set(t('Fade from black'), { enter: { kind: v > 0 ? 'fade' : 'none', seconds: Math.max(0, v) } }, `pfi-${clip.id}`)} />
+          </Row>
+          <Row label={t('To black')}>
+            <Seconds value={clip.exit?.kind === 'fade' ? clip.exit.seconds || 0 : 0} onChange={(v) => set(t('Fade to black'), { exit: { kind: v > 0 ? 'fade' : 'none', seconds: Math.max(0, v) } }, `pfo-${clip.id}`)} />
+          </Row>
+        </section>
+      ) : null}
+
       {before ? (
         <section className="vd-insp-section">
           <h3>{t('Transition in')}</h3>
@@ -373,7 +387,19 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         <section className="vd-insp-section">
           <h3>{t('Sound')}</h3>
           <Row label={t('Volume')}>
-            <Slider value={sound.volume ?? 1} min={0} max={1} step={0.01} onChange={(x) => setSound(t('Volume'), { volume: x }, `vol-${sound.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
+            {/* In decibels, to +12 dB for a quiet recording: 0 dB is as recorded, the far left silence. */}
+            <Slider
+              className="vd-volume-db"
+              value={Math.max(-40, Math.min(12, gainToDb(sound.volume ?? 1)))}
+              min={-40}
+              max={12}
+              step={0.5}
+              onChange={(db) => setSound(t('Volume'), { volume: db > -40 ? Math.min(MAX_GAIN, dbToGain(db)) : 0 }, `vol-${sound.id}`)}
+              format={(db) => (db > -40 ? `${db > 0 ? '+' : ''}${db.toFixed(1)} dB` : t('Silent'))}
+            />
+          </Row>
+          <Row label={t('Lower the rest')}>
+            <input type="checkbox" className="vd-duck" checked={sound.mix === 'duck'} title={t('While this plays, the other sound is lowered: for a voice over music')} onChange={(e) => setSound(t('Lower the rest'), { mix: e.target.checked ? 'duck' : 'mix' })} />
           </Row>
           <Row label={t('Mute')}>
             <input type="checkbox" checked={!!sound.muted} onChange={(e) => setSound(t('Mute'), { muted: e.target.checked })} />
@@ -394,6 +420,11 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           <Row label={t('Fade Out')}>
             <Seconds value={sound.exit?.seconds || 0} onChange={(v) => setSound(t('Fade Out'), { exit: { kind: 'fade', seconds: Math.max(0, v) } }, `fo-${sound.id}`)} />
           </Row>
+          {(() => {
+            const dur = sound.timing ? Math.max(0, sound.timing.end - sound.timing.start) : 0;
+            const f = soundFades(sound.enter?.seconds || 0, sound.exit?.seconds || 0, dur);
+            return f.shortened ? <p className="vd-insp-note vd-fades-note">{t('Together the fades are longer than the clip, so they meet in the middle: {a} s in, {b} s out.', { a: f.fadeIn.toFixed(1), b: f.fadeOut.toFixed(1) })}</p> : null;
+          })()}
         </section>
       ) : null}
 

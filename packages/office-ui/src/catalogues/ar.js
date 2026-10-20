@@ -7279,4 +7279,12 @@ export default {
   '{name} is on another call.': '{name} في مكالمة أخرى.',
   '{n} kb/s': '{n} ك.ب/ث',
   '(lowered to keep up with the upload)': '(خُفِّض ليواكب سرعة الرفع)',
+  'Fade from black': 'ظهور من الأسود',
+  'Fade to black': 'تلاشٍ إلى الأسود',
+  'From black': 'من الأسود',
+  'Lower the rest': 'خفض بقية الصوت',
+  'Silent': 'صامت',
+  'To black': 'إلى الأسود',
+  'Together the fades are longer than the clip, so they meet in the middle: {a} s in, {b} s out.': 'التلاشيان معًا أطول من المقطع، فيلتقيان في المنتصف: {a} ث دخولًا و{b} ث خروجًا.',
+  'While this plays, the other sound is lowered: for a voice over music': 'أثناء تشغيله يُخفَض الصوت الآخر: لصوت فوق الموسيقى',
 };

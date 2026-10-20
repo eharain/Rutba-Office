@@ -7277,4 +7277,12 @@ export default {
   '{name} is on another call.': '{name} دوسری کال پر ہیں۔',
   '{n} kb/s': '{n} kb/s',
   '(lowered to keep up with the upload)': '(اپ لوڈ کے ساتھ چلنے کے لیے کم کیا گیا)',
+  'Fade from black': 'سیاہ سے نمودار',
+  'Fade to black': 'سیاہ میں مدھم',
+  'From black': 'سیاہ سے',
+  'Lower the rest': 'باقی آواز کم کریں',
+  'Silent': 'خاموش',
+  'To black': 'سیاہ تک',
+  'Together the fades are longer than the clip, so they meet in the middle: {a} s in, {b} s out.': 'دونوں فیڈ مل کر کلپ سے لمبے ہیں، اس لیے درمیان میں ملتے ہیں: {a} سیکنڈ اندر، {b} سیکنڈ باہر۔',
+  'While this plays, the other sound is lowered: for a voice over music': 'جب یہ چلے تو دوسری آواز کم ہو جاتی ہے: موسیقی پر آواز کے لیے',
 };

@@ -3197,6 +3197,34 @@ export function clipFromSoundLayer(layer, buffer, plan, defaults = {}) {
 }
 
 /**
+ * A clip's volume goes to +12 dB, four times as loud, for a quiet recording;
+ * above 0 dB the mix is held under full scale by a limiter (mixAudio).
+ */
+export const MAX_GAIN = 3.981;
+/** Gain as decibels, and back: 1 is 0 dB, 0 is silence (-Infinity). */
+export const gainToDb = (g) => (g > 0 ? 20 * Math.log10(g) : -Infinity);
+export const dbToGain = (db) => (Number.isFinite(db) ? Math.pow(10, db / 20) : 0);
+
+/**
+ * A clip's fades as long as they were asked to be (2026-10-16 survey: the
+ * mixer used to cap each at a third of the clip without saying so). Only
+ * when the two together would be longer than the clip are both shortened,
+ * alike, so they meet in the middle; `shortened` says so, for the window.
+ */
+export function soundFades(fadeIn, fadeOut, dur) {
+    let a = Math.max(0, Number(fadeIn) || 0);
+    let b = Math.max(0, Number(fadeOut) || 0);
+    const d = Math.max(0, Number(dur) || 0);
+    const shortened = a + b > d && a + b > 0;
+    if (shortened) {
+        const k = d / (a + b);
+        a *= k;
+        b *= k;
+    }
+    return { fadeIn: a, fadeOut: b, shortened };
+}
+
+/**
  * Every accepted `audio` shape, reduced to one list of scheduled clips.
  * The single-bed form ({ buffer, offset, volume, fadeIn, fadeOut }) is the one
  * every stored recipe already uses: it becomes a one-clip array that loops
@@ -3219,9 +3247,8 @@ function normalizeAudioClips(audio, plan) {
             start,
             dur,
             offset: c.buffer.duration > 0 ? (Number(c.offset) || 0) % c.buffer.duration : 0,
-            vol: Math.max(0, Math.min(1, c.volume ?? 0.7)),
-            fadeIn: Math.max(0, Math.min(c.fadeIn ?? 1.2, dur / 3)),
-            fadeOut: Math.max(0, Math.min(c.fadeOut ?? 1.6, dur / 3)),
+            vol: Math.max(0, Math.min(MAX_GAIN, c.volume ?? 0.7)),
+            ...(({ fadeIn, fadeOut }) => ({ fadeIn, fadeOut }))(soundFades(c.fadeIn ?? 1.2, c.fadeOut ?? 1.6, dur)),
             mix: c.mix === 'duck' || c.mix === 'solo' ? c.mix : 'mix',
             loop: !!c.loop,
         });
@@ -3294,6 +3321,24 @@ function envValueAt(pts, t) {
  * call it when the preview pauses, scrubs or ends — or null when there is
  * nothing to play (no clips, or no AudioContext in this environment).
  */
+/**
+ * Where the mix goes: straight to `target`, or, when a clip is turned up
+ * above 0 dB, through a limiter first, so the loud clip is loud and the
+ * mix still never clips. A mix with every clip at or under 0 dB keeps the
+ * exact graph it always had.
+ */
+function mixOutput(ac, target, clips) {
+    if (!clips.some((c) => c.vol > 1) || typeof ac.createDynamicsCompressor !== 'function') return target;
+    const limit = ac.createDynamicsCompressor();
+    limit.threshold.value = -1;
+    limit.knee.value = 0;
+    limit.ratio.value = 20;
+    limit.attack.value = 0.003;
+    limit.release.value = 0.1;
+    limit.connect(target);
+    return limit;
+}
+
 export function startAudioPreview(audio, plan, from = 0) {
     const clips = normalizeAudioClips(audio, plan);
     if (!clips.length) return null;
@@ -3302,7 +3347,7 @@ export function startAudioPreview(audio, plan, from = 0) {
     if (ac.state === 'suspended') { try { ac.resume(); } catch { /* stays silent */ } }
 
     const master = ac.createGain();
-    master.connect(ac.destination);
+    master.connect(mixOutput(ac, ac.destination, clips));
     const sources = [];
     // A breath after "now", so ramps written below are never in the past.
     const t0 = ac.currentTime + 0.03;
@@ -3453,6 +3498,7 @@ export async function mixAudioOffline(audio, plan, { sampleRate = 48000, channel
     const Ctor = typeof OfflineAudioContext !== 'undefined' ? OfflineAudioContext : (typeof webkitOfflineAudioContext !== 'undefined' ? webkitOfflineAudioContext : null);
     if (!Ctor) return null;
     const ac = new Ctor(channels, Math.max(1, Math.ceil(plan.duration * sampleRate)), sampleRate);
+    const out = mixOutput(ac, ac.destination, clips);
     const ducks = duckEnvelopes(clips);
     clips.forEach((clip, i) => {
         const source = ac.createBufferSource();
@@ -3463,11 +3509,11 @@ export async function mixAudioOffline(audio, plan, { sampleRate = 48000, channel
         if (ducks[i]) {
             const duck = ac.createGain();
             gain.connect(duck);
-            duck.connect(ac.destination);
+            duck.connect(out);
             duck.gain.setValueAtTime(envValueAt(ducks[i], 0), 0);
             for (const p of ducks[i]) if (p.t > 0) duck.gain.linearRampToValueAtTime(p.v, p.t);
         } else {
-            gain.connect(ac.destination);
+            gain.connect(out);
         }
         // The same envelope renderVideo writes, from the clip's start.
         const at = clip.start;
@@ -3563,6 +3609,7 @@ export async function renderVideo({ canvas, plan, audio, onProgress, signal }) {
         // by simple summation into the single recorded audio track.
         const { ac } = audioNodes;
         const dest = ac.createMediaStreamDestination();
+        const out = mixOutput(ac, dest, clips);
         const ducks = duckEnvelopes(clips);
         const sources = clips.map((clip, i) => {
             const source = ac.createBufferSource();
@@ -3577,9 +3624,9 @@ export async function renderVideo({ canvas, plan, audio, onProgress, signal }) {
             if (ducks[i]) {
                 duck = ac.createGain();
                 gain.connect(duck);
-                duck.connect(dest);
+                duck.connect(out);
             } else {
-                gain.connect(dest);
+                gain.connect(out);
             }
             return { source, gain, duck, pts: ducks[i], clip };
         });
