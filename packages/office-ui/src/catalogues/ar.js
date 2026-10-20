@@ -7335,4 +7335,9 @@ export default {
   'the settings of the picked clip, beside the preview': 'إعدادات المقطع المحدد، بجانب المعاينة',
   '{name}: added at the playhead': '{name}: يُضاف عند مؤشر التشغيل',
   '{name}: double-click to add it after the clips on the picked track': '{name}: انقر نقرًا مزدوجًا لإضافته بعد المقاطع على المسار المحدد',
+  'Double-click for full screen, or back': 'انقر نقرًا مزدوجًا لملء الشاشة أو للعودة',
+  'Preview on Another Screen': 'المعاينة على شاشة أخرى',
+  'Video preview': 'معاينة الفيديو',
+  'Waiting for the Video window': 'في انتظار نافذة الفيديو',
+  'the picture alone in a window of its own, full screen on a second display when there is one; the sound stays here': 'الصورة وحدها في نافذة خاصة بها، بملء الشاشة على شاشة ثانية إن وُجدت؛ ويبقى الصوت هنا',
 };

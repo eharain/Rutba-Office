@@ -47,6 +47,7 @@ import { CSS } from './css.js';
 import { writeReversed } from './reverse.js';
 import Library, { LIBRARY_CSS, LIBRARY_TABS, EFFECT_NAMES } from './library.js';
 import { effectWav } from '@rutba/studio/effects';
+import MonitorView, { openMonitorLink } from './monitor.js';
 import VideoPlayer, { playsInPlayer } from './player.js';
 
 /** The timeline's share of the editor's height when nothing else is chosen: the preview has the larger part. */
@@ -134,6 +135,9 @@ const newCopyKey = () => `v${Date.now().toString(36)}${Math.random().toString(36
 export default function VideoTool({ app, shell, boot }) {
   const [playing, setPlaying] = useState(() => (boot?.file && playsInPlayer(boot.file) && !new URLSearchParams(location.search).has('edit') ? boot.file : null));
   const [editBoot, setEditBoot] = useState(boot);
+  // A window that shows another Video window's preview, on a second screen.
+  const [monitorKey] = useState(() => new URLSearchParams(location.search).get('monitor'));
+  if (monitorKey) return <MonitorView app={app} shell={shell} monitorKey={monitorKey} />;
   if (playing) {
     return <VideoPlayer app={app} shell={shell} file={playing} onEdit={(file) => { setEditBoot({ ...boot, file }); setPlaying(null); }} />;
   }
@@ -306,6 +310,10 @@ function VideoEditor({ app, shell, boot }) {
 
   const playback = useRef(null);
   const playStarts = useRef(0);
+  // The preview on another screen: the link to its window, and when this preview started playing, on the wall clock.
+  const monitor = useRef(null);
+  const playWall = useRef(null);
+  const [monitorOpen, setMonitorOpen] = useState(false);
 
   const seek = useCallback((t0) => {
     const next = Math.max(0, Math.min(Math.max(duration, 0), Number(t0) || 0));
@@ -331,6 +339,8 @@ function VideoEditor({ app, shell, boot }) {
     clearInterval(pb.timer);
     pb.audio?.stop();
     pauseVideoElements(planRef.current);
+    playWall.current = null;
+    monitor.current?.stop(timeRef.current);
     setPlaying(false);
     setPaintTick((n) => n + 1);
   }, []);
@@ -345,6 +355,11 @@ function VideoEditor({ app, shell, boot }) {
     playback.current = pb;
     setPlaying(true);
     if (rate === 1) pb.audio = startAudioPreview(audioClips(p), p, from);
+    // The other screen plays on its own clock from the same moment; shuttling, it follows the playhead.
+    if (rate === 1) {
+      playWall.current = { from, wall: Date.now() };
+      monitor.current?.play(from, playWall.current.wall);
+    }
     // Counted for the window checks: a preview left alone starts once.
     playStarts.current += 1;
     const end = projectDuration(docRef.current);
@@ -657,6 +672,32 @@ function VideoEditor({ app, shell, boot }) {
       setBusy(null);
     }
   }, [shell, media, madeFolder, edit, toast]);
+
+  // The preview on another screen: a window of its own, sent the project and the playhead.
+  const toggleMonitor = useCallback(async () => {
+    if (monitor.current) {
+      monitor.current.close();
+      monitor.current = null;
+      setMonitorOpen(false);
+      return;
+    }
+    const key = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    monitor.current = openMonitorLink(key, () => ({ doc: docRef.current, time: timeRef.current, playing: playWall.current }), () => {
+      monitor.current?.close();
+      monitor.current = null;
+      setMonitorOpen(false);
+    });
+    setMonitorOpen(true);
+    await shell.win.create({ app: 'video', query: { monitor: key } }).catch((err) => {
+      monitor.current?.close();
+      monitor.current = null;
+      setMonitorOpen(false);
+      toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
+    });
+  }, [shell, toast]);
+  useEffect(() => () => monitor.current?.close(), []);
+  useEffect(() => { monitor.current?.doc(doc); }, [doc]);
+  useEffect(() => { if (!playWall.current) monitor.current?.time(time); }, [time]);
 
   // The library's shapes and icons at the playhead, and its sound effects, written once beside the project.
   const addGraphicHere = useCallback((patch) => {
@@ -1073,6 +1114,7 @@ function VideoEditor({ app, shell, boot }) {
     'clip.mute': { label: t('Mute'), icon: 'volume', disabled: !soundsOfSelection().size, pressed: soundsOfSelection().size > 0 && [...soundsOfSelection()].every((id) => clipById(doc, id)?.muted), tip: t('the picked clips make no sound'), run: () => { const all = [...soundsOfSelection()].every((id) => clipById(doc, id)?.muted); setSounds(t('Mute'), () => ({ muted: !all })); } },
     'clip.fadeIn': { label: t('Fade In'), icon: 'trFade', disabled: !soundsOfSelection().size, tip: t('the sound rises over a second'), run: () => setSounds(t('Fade In'), (p) => ({ enter: { kind: 'fade', seconds: p.enter?.seconds ? 0 : 1 } })) },
     'clip.fadeOut': { label: t('Fade Out'), icon: 'trFade', disabled: !soundsOfSelection().size, tip: t('the sound falls away over a second'), run: () => setSounds(t('Fade Out'), (p) => ({ exit: { kind: 'fade', seconds: p.exit?.seconds ? 0 : 1 } })) },
+    'view.monitor': { label: t('Preview on Another Screen'), icon: 'window', pressed: monitorOpen, tip: t('the picture alone in a window of its own, full screen on a second display when there is one; the sound stays here'), run: toggleMonitor },
     'view.library': { label: t('Library'), icon: 'grid', pressed: panels.library, tip: t('media, titles, shapes, icons and sounds for this project, beside the preview'), run: () => setPanel({ library: !panels.library }) },
     'view.properties': { label: t('Properties'), icon: 'sliders', pressed: panels.properties, tip: t('the settings of the picked clip, beside the preview'), run: () => setPanel({ properties: !panels.properties }) },
     'view.zoomIn': { label: t('Zoom In'), icon: 'zoomIn', key: '=', run: () => setPps((v) => Math.min(600, v * 1.5)) },

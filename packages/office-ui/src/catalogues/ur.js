@@ -7333,4 +7333,9 @@ export default {
   'the settings of the picked clip, beside the preview': 'چنے گئے کلپ کی ترتیبات، پیش منظر کے ساتھ',
   '{name}: added at the playhead': '{name}: پلے ہیڈ پر شامل ہوتا ہے',
   '{name}: double-click to add it after the clips on the picked track': '{name}: چنے گئے ٹریک پر کلپس کے بعد شامل کرنے کے لیے ڈبل کلک کریں',
+  'Double-click for full screen, or back': 'پوری اسکرین کے لیے، یا واپس، ڈبل کلک کریں',
+  'Preview on Another Screen': 'دوسری اسکرین پر پیش منظر',
+  'Video preview': 'ویڈیو کا پیش منظر',
+  'Waiting for the Video window': 'ویڈیو ونڈو کا انتظار ہے',
+  'the picture alone in a window of its own, full screen on a second display when there is one; the sound stays here': 'صرف تصویر اپنی الگ ونڈو میں، دوسرا ڈسپلے ہو تو اس پر پوری اسکرین؛ آواز یہیں رہتی ہے',
 };

@@ -284,6 +284,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
           <Group label={t('Panels')}>
             <C cmds={cmds} id="view.library" tall />
             <C cmds={cmds} id="view.properties" tall />
+            <C cmds={cmds} id="view.monitor" tall />
           </Group>
           <Group label={t('Helpers')}>
             <C cmds={cmds} id="view.snap" tall />

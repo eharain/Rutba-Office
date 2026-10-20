@@ -7335,4 +7335,9 @@ export default {
   'the settings of the picked clip, beside the preview': 'चुनी गई क्लिप की सेटिंग्स, पूर्वावलोकन के पास',
   '{name}: added at the playhead': '{name}: प्लेहेड पर जुड़ता है',
   '{name}: double-click to add it after the clips on the picked track': '{name}: चुने गए ट्रैक पर क्लिप के बाद जोड़ने के लिए डबल-क्लिक करें',
+  'Double-click for full screen, or back': 'पूर्ण स्क्रीन के लिए, या वापस, डबल-क्लिक करें',
+  'Preview on Another Screen': 'दूसरी स्क्रीन पर पूर्वावलोकन',
+  'Video preview': 'वीडियो पूर्वावलोकन',
+  'Waiting for the Video window': 'वीडियो विंडो की प्रतीक्षा है',
+  'the picture alone in a window of its own, full screen on a second display when there is one; the sound stays here': 'केवल चित्र अपनी अलग विंडो में, दूसरा डिस्प्ले हो तो उस पर पूर्ण स्क्रीन; आवाज़ यहीं रहती है',
 };

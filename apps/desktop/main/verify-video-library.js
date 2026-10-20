@@ -1,12 +1,12 @@
 // Video's library and panels (the 2.7 plan's library and panels): the
 // project's media kept to add again, titles, shapes and icons drawn as what
 // they add, sound effects made on this computer, a search, and the library
-// and the properties each folded to a rail and opened again. A clip is made
-// here at run time. Run alone with RUTBA_VERIFY_ONLY=video-library.
+// and the properties each folded to a rail and opened again, and the preview
+// in a window of its own for another screen. A clip is made here at run time. Run alone with RUTBA_VERIFY_ONLY=video-library.
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { makeFixtures } from './verify-video-editor.js';
 
 export async function verifyVideoLibrary(h, { dir }) {
@@ -104,6 +104,31 @@ export async function verifyVideoLibrary(h, { dir }) {
     const narrower = await js(`document.querySelector('.vd-monitor')?.getBoundingClientRect().width || 0`);
     check('video library: the library and the properties fold to a rail, giving the preview the room, and open again where they were',
       libFolded && propsFolded && back && kept === 'sounds' && wider > narrower + 200, JSON.stringify({ libFolded, propsFolded, back, kept, wider, narrower }));
+
+    // The preview on another screen: a window of its own drawing the same frame, following the playhead and playing with it.
+    await js(`[...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'View')?.click(), 1`);
+    const before2 = new Set(BrowserWindow.getAllWindows().map((w) => w.id));
+    const pressMonitor = () => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith('Preview on Another Screen')); if (!b) return 'no button'; b.click(); return 'pressed'; })()`);
+    const pressed = await pressMonitor();
+    let mon = null;
+    await until(() => { mon = BrowserWindow.getAllWindows().find((w) => !before2.has(w.id) && /monitor=/.test(w.webContents.getURL())) || null; return Boolean(mon); }, 'the monitor window', 8000).catch(() => {});
+    const mjs = (code) => mon.webContents.executeJavaScript(code);
+    const clips = await js(`document.querySelectorAll('.vd-clip').length`);
+    const same = mon ? await ok(until(async () => Number(await mjs(`document.querySelector('.vd-monitor-window')?.dataset.clips || 0`)) === clips, 'the project on the monitor', 8000)) : false;
+    await js(`(() => { const s = document.querySelector('.vd-scrub'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, '1.2'); s.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+    const follows = mon ? await ok(until(async () => Math.abs(Number(await mjs(`document.querySelector('.vd-monitor-window')?.dataset.time`)) - 1.2) < 0.02, 'the monitor at 1.2 s', 4000)) : false;
+    await js(`document.querySelector('.vd-play')?.click(), 1`);
+    const plays = mon ? await ok(until(async () => Number(await mjs(`document.querySelector('.vd-monitor-window')?.dataset.time`)) > 1.6, 'the monitor playing', 5000)) : false;
+    await js(`document.querySelector('.vd-play')?.click(), 1`);
+    await wait(300);
+    const here = Number(await js(`document.querySelector('.vd-scrub').value`));
+    const there = mon ? Number(await mjs(`document.querySelector('.vd-monitor-window')?.dataset.time`)) : -1;
+    const painted = mon ? await mjs(`(() => { const c = document.querySelector('.vd-monitor-canvas'); if (!c || !c.width) return false; const d = c.getContext('2d').getImageData(c.width / 2, c.height / 2, 1, 1).data; return d[0] + d[1] + d[2] > 30; })()`) : false;
+    await pressMonitor();
+    const closed = mon ? await ok(until(() => mon.isDestroyed(), 'the monitor closed', 5000)) : false;
+    check('video library: Preview on Another Screen opens the picture in a window of its own that draws the project, follows the playhead, plays with it and closes with the button',
+      pressed === 'pressed' && Boolean(mon) && same && follows && plays && Math.abs(here - there) < 0.1 && painted && closed,
+      JSON.stringify({ pressed, opened: Boolean(mon), clips, same, follows, plays, here, there, painted, closed }));
 
     const complaints = await errorsIn(win);
     check('video library: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

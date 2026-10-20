@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7325,
+  "count": 7330,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -10673,6 +10673,12 @@
       "message": "Double-click a text box",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Double-click for full screen, or back",
+      "where": [
+        "apps/desktop/renderer/apps/video/monitor.js"
       ]
     },
     {
@@ -26542,6 +26548,12 @@
       ]
     },
     {
+      "message": "Preview on Another Screen",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Preview — play this slide's animation on the stage",
       "plural": "Preview — play this slide's {count} animations on the stage",
       "where": [
@@ -41253,6 +41265,12 @@
       ]
     },
     {
+      "message": "Video preview",
+      "where": [
+        "apps/desktop/renderer/apps/video/monitor.js"
+      ]
+    },
+    {
       "message": "Video projects and media",
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
@@ -41394,6 +41412,12 @@
       "message": "Waiting ({count})",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Waiting for the Video window",
+      "where": [
+        "apps/desktop/renderer/apps/video/monitor.js"
       ]
     },
     {
@@ -44010,6 +44034,12 @@
     },
     {
       "message": "the picked track moves up one, drawn over the one it passes",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "the picture alone in a window of its own, full screen on a second display when there is one; the sound stays here",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
       ]
