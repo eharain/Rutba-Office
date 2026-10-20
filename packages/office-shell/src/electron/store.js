@@ -51,6 +51,10 @@ export function createStores() {
   const secretsApi = {
     available: () => {
       try {
+        // On a Linux desktop with no keyring, Electron still reports encryption
+        // as available but falls back to a fixed built-in key (basic_text):
+        // that is not a keystore, so nothing is saved there either.
+        if (process.platform === 'linux' && safeStorage.getSelectedStorageBackend?.() === 'basic_text') return false;
         return safeStorage.isEncryptionAvailable();
       } catch {
         return false;
