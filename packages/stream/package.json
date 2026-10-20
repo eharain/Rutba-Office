@@ -10,7 +10,8 @@
     "./amf0": "./src/amf0.js",
     "./flv": "./src/flv.js",
     "./rtmp": "./src/rtmp.js",
-    "./endpoints": "./src/endpoints.js"
+    "./endpoints": "./src/endpoints.js",
+    "./adapt": "./src/adapt.js"
   },
   "sideEffects": false
 }

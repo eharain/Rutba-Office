@@ -152,6 +152,16 @@ export async function verifyRecorderLive(h, { dir }) {
       dropped && back && c2.data.length === 1 && c2.video[0]?.kind === 'config' && c2.video[again]?.kind === 'key' && c2.audio[0]?.kind === 'config' && c2.video.length > 20,
       JSON.stringify({ dropped, back, data: c2.data.length, first: c2.video.slice(0, 3).map((v) => v.kind), video: c2.video.length, audio: c2.audio.length }));
 
+    // A slow line: the server stops reading, the queue fills, and the picture's bitrate comes down
+    // (owner, 2026-10-20: "lower the quality to keep it upto speed"); the sound is not touched.
+    for (const sock of ingest.seen.sockets) sock.pause();
+    const lowered = await ok(until(() => js(`/lowered to keep up/.test(document.querySelector('.st-status')?.textContent || '')`), 'the bitrate lowered', 30000));
+    const rateText = await js(`document.querySelector('.st-status')?.textContent || ''`);
+    for (const sock of ingest.seen.sockets) sock.resume();
+    check('recorder live: when the line cannot keep up, the picture\'s bitrate comes down and the status bar says so',
+      lowered && /\d+ kb\/s/.test(rateText), rateText.slice(0, 160));
+    await wait(1500);
+
     // End Live: unpublished, and the copy kept.
     await js(`document.querySelector('.st-endlive')?.click(), 1`);
     const ended = await ok(until(() => js(`Boolean(document.querySelector('.st-golive')) && Boolean(document.querySelector('.st-saved'))`), 'ended and saved', 15000));

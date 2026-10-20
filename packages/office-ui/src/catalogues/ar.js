@@ -7277,4 +7277,6 @@ export default {
   '{name} did not take the call.': 'لم يرد {name} على المكالمة.',
   '{name} is not available.': '{name} غير متاح.',
   '{name} is on another call.': '{name} في مكالمة أخرى.',
+  '{n} kb/s': '{n} ك.ب/ث',
+  '(lowered to keep up with the upload)': '(خُفِّض ليواكب سرعة الرفع)',
 };

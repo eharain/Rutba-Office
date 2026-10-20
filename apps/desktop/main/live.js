@@ -19,6 +19,7 @@
 
 import crypto from 'node:crypto';
 import { RtmpPublisher, videoBody, audioBody, metadataBody, parseRtmpUrl, maskKey, PLATFORMS } from '@rutba/stream';
+import { BitrateGovernor } from '@rutba/stream/adapt';
 import { sendEvent } from '@rutba/office-shell/electron/main';
 
 const LIST_KEY = 'live.destinations';
@@ -55,7 +56,7 @@ export function createLiveService({ stores, makePublisher = (o) => new RtmpPubli
   })) : []);
 
   const tell = () => {
-    if (session?.win) sendEvent(session.win, 'live:status', { live: Boolean(session.running), destinations: statusOf() });
+    if (session?.win) sendEvent(session.win, 'live:status', { live: Boolean(session.running), destinations: statusOf(), kbps: session.kbps, target: session.governor?.target || session.kbps });
   };
 
   /** Bring one destination's publisher up, and give it what it needs before frames. */
@@ -74,6 +75,7 @@ export function createLiveService({ stores, makePublisher = (o) => new RtmpPubli
       return;
     }
     s.pub = pub;
+    s.seenDropped = 0;
     pub.on('error', (err) => { s.detail = err.message; });
     pub.on('close', () => {
       if (s.pub !== pub) return;
@@ -170,8 +172,21 @@ export function createLiveService({ stores, makePublisher = (o) => new RtmpPubli
         videoConfig: null,
         audioConfig: null,
         last: 0,
-        ticker: setInterval(tell, 2000),
+        // The picture's bitrate follows the slowest destination's line (@rutba/stream/adapt).
+        governor: new BitrateGovernor({ target: Number(video.kbps) || 4500 }),
+        kbps: Number(video.kbps) || 4500,
+        ticker: null,
       };
+      session.ticker = setInterval(() => {
+        if (!session?.running) return;
+        const looks = [...session.dest.values()].filter((s) => s.pub?.state === 'live').map((s) => {
+          const dropped = Math.max(0, s.pub.dropped - (s.seenDropped || 0));
+          s.seenDropped = s.pub.dropped;
+          return { dropped, queued: (s.pub.socket?.writableLength || 0) / (s.pub.maxQueueBytes || 1) };
+        });
+        if (looks.length) session.kbps = session.governor.tick(looks);
+        tell();
+      }, 2000);
       for (const s of dest.values()) connect(s);
       tell();
       return { started: [...dest.keys()], skipped };
@@ -199,7 +214,7 @@ export function createLiveService({ stores, makePublisher = (o) => new RtmpPubli
     },
 
     /** () -> { live, destinations: [{ id, name, state, detail, bytes, dropped, since, reconnects }] } */
-    status: () => ({ live: Boolean(session?.running), destinations: statusOf() }),
+    status: () => ({ live: Boolean(session?.running), destinations: statusOf(), kbps: session?.kbps || 0, target: session?.governor?.target || 0 }),
 
     /** () -> status: every destination closed, nothing tried again. */
     stop: () => {

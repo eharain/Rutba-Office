@@ -102,7 +102,9 @@ export class LiveEncoder {
       },
       error: (err) => { this.error = err; },
     });
-    this.video.configure({ ...video.config, width: canvas.width, height: canvas.height });
+    this.config = { ...video.config, width: canvas.width, height: canvas.height };
+    this.kbps = Math.round(this.config.bitrate / 1000);
+    this.video.configure(this.config);
 
     this.off = this.program.onFrame((cv) => {
       if (!this.running || this.video.state !== 'configured') return;
@@ -120,6 +122,24 @@ export class LiveEncoder {
     });
 
     this.startSound();
+  }
+
+  /**
+   * The picture's bitrate, as the main process says the slowest line can
+   * carry (@rutba/stream/adapt). The encoder is set again, and the next frame
+   * is a key frame, so the platforms pick the new rate up cleanly.
+   */
+  setBitrate(kbps) {
+    const next = Math.round(Number(kbps) || 0);
+    if (!next || next === this.kbps || !this.video || this.video.state !== 'configured') return;
+    this.kbps = next;
+    this.config = { ...this.config, bitrate: next * 1000 };
+    try {
+      this.video.configure(this.config);
+      this.lastKey = -Infinity;
+    } catch (err) {
+      this.error = err;
+    }
   }
 
   /** The program's sound, read off its track and encoded as AAC on its own clock, lined up with the picture's. */

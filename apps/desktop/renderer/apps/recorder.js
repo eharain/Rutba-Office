@@ -369,7 +369,12 @@ export default function Recorder({ app, shell }) {
 
   /* ── going live ────────────────────────────────────────────────────── */
 
-  useEffect(() => shell.on('live:status', ({ destinations = [] } = {}) => setLiveStatus(destinations)), [shell]);
+  // The bitrate the slowest destination can carry: the encoder follows it, and the status bar says so.
+  const [liveRate, setLiveRate] = useState(null);
+  useEffect(() => shell.on('live:status', ({ destinations = [], kbps, target } = {}) => {
+    setLiveStatus(destinations);
+    if (kbps) { setLiveRate({ kbps, target }); encoder.current?.setBitrate(kbps); }
+  }), [shell]);
   const kbps = liveBitrate(settings.size, settings.fps);
 
   const goLive = useCallback(async () => {
@@ -533,6 +538,7 @@ export default function Recorder({ app, shell }) {
   const status = (
     <span className="st-status" data-phase={phase}>
       {live ? `${t('Live')} ${clock(liveFor)} · ` : ''}
+      {live && liveRate?.kbps ? `${t('{n} kb/s', { n: liveRate.kbps })}${liveRate.kbps < liveRate.target ? ` ${t('(lowered to keep up with the upload)')}` : ''} · ` : ''}
       {recording ? `${paused ? t('Paused') : t('Recording')} · ${clock(elapsed)}` : saved ? t('Saved {name}', { name: basename(saved.path) }) : t('Ready')}
       {` · ${settings.size === 720 ? '1280 × 720' : '1920 × 1080'} · ${t('{n} frames a second', { n: settings.fps })}`}
       {diskNote && !recording ? ` · ${diskNote}` : ''}

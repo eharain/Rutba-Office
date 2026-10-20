@@ -7277,4 +7277,6 @@ export default {
   '{name} did not take the call.': '{name} ने कॉल नहीं उठाई।',
   '{name} is not available.': '{name} उपलब्ध नहीं हैं।',
   '{name} is on another call.': '{name} दूसरी कॉल पर हैं।',
+  '{n} kb/s': '{n} kb/s',
+  '(lowered to keep up with the upload)': '(अपलोड के साथ चलने के लिए घटाया गया)',
 };
