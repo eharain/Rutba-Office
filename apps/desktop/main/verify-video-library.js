@@ -80,6 +80,17 @@ export async function verifyVideoLibrary(h, { dir }) {
     check('video library: an icon is added and picked with its colours, and a title is added from the library',
       icon && iconTitle && colour && title, JSON.stringify({ icon, iconTitle, colour, title }));
 
+    // Word art: styles drawn by the studio's painter, one added and its words typed.
+    const arts = await js(`document.querySelectorAll('.vd-lib-wordart-tile').length`);
+    const artDrawn = await js(`(() => { const c = document.querySelector('.vd-lib-wordart-tile[data-key="gold"] canvas'); if (!c) return false; const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let lit = 0; for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 300) lit++; return lit > 30; })()`);
+    await js(`document.querySelector('.vd-lib-wordart-tile[data-key="gold"]')?.click(), 1`);
+    const art = await ok(until(async () => (await count('wordart')) === 1, 'the word art on the timeline', 4000));
+    await until(() => js(`Boolean(document.querySelector('.vd-wordart-props textarea'))`), 'its words', 3000).catch(() => {});
+    await js(`(() => { const n = document.querySelector('.vd-wordart-props textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(n, 'Grand opening'); n.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+    const typed = await ok(until(() => js(`(document.querySelector('.vd-clip[data-kind="wordart"]')?.textContent || '').includes('Grand opening')`), 'the words on the clip', 3000));
+    check('video library: word art styles are drawn as they look, and one is added with its words to type',
+      arts === 7 && artDrawn && art && typed, JSON.stringify({ arts, artDrawn, art, typed }));
+
     // A sound effect: written once beside the project (here, where recordings go) and put at the playhead.
     await tab('sounds');
     const effects = await js(`document.querySelectorAll('.vd-lib-sound').length`);

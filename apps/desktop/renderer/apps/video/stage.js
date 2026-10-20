@@ -24,7 +24,7 @@ import { t } from '@rutba/office-ui';
 import { keepTurnedCorner } from '../image/stage.js';
 
 /** The kinds of clip that are drawn on the frame. */
-const PICTURE = new Set(['video', 'image', 'text', 'shape', 'icon']);
+const PICTURE = new Set(['video', 'image', 'text', 'shape', 'icon', 'wordart']);
 const measure = () => document.createElement('canvas').getContext('2d');
 
 /** A clip or still that fills the frame rather than standing in a box of its own. */

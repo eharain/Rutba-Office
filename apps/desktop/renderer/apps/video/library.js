@@ -8,10 +8,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, t } from '@rutba/office-ui';
 import { timecode } from '@rutba/media/timeline';
 import { TITLE_PRESETS } from '@rutba/studio/project';
-import { paintShapeTile, ICONS } from '@rutba/studio/host';
+import { paintShapeTile, ICONS, WORDART_PRESETS, buildPlan, paintFrame } from '@rutba/studio/host';
 import { insertCatalogFor } from '@rutba/studio/insert-catalog';
 import { SOUND_EFFECTS, effectSamples } from '@rutba/studio/effects';
-import { SHAPE_GROUP_NAMES, SHAPE_NAMES, ICON_GROUP_NAMES, ICON_NAMES } from './library-words.js';
+import { SHAPE_GROUP_NAMES, SHAPE_NAMES, ICON_GROUP_NAMES, ICON_NAMES, WORDART_NAMES } from './library-words.js';
 import { TitleTile, TITLE_NAMES } from './ribbon.js';
 
 export const LIBRARY_TABS = ['media', 'titles', 'shapes', 'icons', 'sounds'];
@@ -39,6 +39,20 @@ function ShapeTile({ geometry }) {
     g.restore();
   }, [geometry]);
   return <canvas ref={ref} className="vd-lib-shape" width={56} height={40} aria-hidden="true" />;
+}
+
+/** A word art style drawn by the studio's own painter on a small dark frame. */
+function WordArtTile({ preset }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    try {
+      const plan = buildPlan({ canvas: c, images: [], options: { aspect: 'landscape', frame: { width: 192, height: 108 } }, layerPatches: [{ id: 'w', type: 'wordart', text: 'Abc', preset, fx: 0.5, fy: 0.55, sizeFrac: 0.26 }], videos: {}, assets: {} });
+      paintFrame(c.getContext('2d'), plan, 0);
+    } catch { /* a style this painter does not know draws nothing */ }
+  }, [preset]);
+  return <canvas ref={ref} className="vd-lib-wordart" width={192} height={108} aria-hidden="true" />;
 }
 
 function IconTile({ name }) {
@@ -137,15 +151,32 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
     );
   } else if (tab === 'titles') {
     const names = TITLE_NAMES();
+    const styles = WORDART_NAMES();
+    const arts = Object.keys(WORDART_PRESETS).filter((k) => has(styles[k] || k));
     body = (
-      <div className="vd-lib-grid wide">
-        {Object.keys(TITLE_PRESETS).filter((p) => has(names[p] || p)).map((p) => (
-          <button key={p} type="button" className="vd-lib-tile vd-lib-title" data-key={p} data-tip={t('{name}: added at the playhead', { name: names[p] || p })} onClick={() => onTitle(p)}>
-            <TitleTile preset={p} />
-            <span className="vd-lib-name">{names[p] || p}</span>
-          </button>
-        ))}
-      </div>
+      <>
+        <div className="vd-lib-grid wide">
+          {Object.keys(TITLE_PRESETS).filter((p) => has(names[p] || p)).map((p) => (
+            <button key={p} type="button" className="vd-lib-tile vd-lib-title" data-key={p} data-tip={t('{name}: added at the playhead', { name: names[p] || p })} onClick={() => onTitle(p)}>
+              <TitleTile preset={p} />
+              <span className="vd-lib-name">{names[p] || p}</span>
+            </button>
+          ))}
+        </div>
+        {arts.length ? (
+          <div className="vd-lib-group">
+            <h4>{t('Word art')}</h4>
+            <div className="vd-lib-grid wide">
+              {arts.map((k) => (
+                <button key={k} type="button" className="vd-lib-tile vd-lib-wordart-tile" data-key={k} aria-label={styles[k] || k} data-tip={t('{name}: added at the playhead', { name: styles[k] || k })} onClick={() => onGraphic({ type: 'wordart', text: t('Your words'), preset: k, fx: 0.5, fy: 0.3, sizeFrac: 0.1 })}>
+                  <WordArtTile preset={k} />
+                  <span className="vd-lib-name">{styles[k] || k}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </>
     );
   } else if (tab === 'shapes' || tab === 'icons') {
     const section = catalogue.find((s) => s.key === tab);
@@ -232,6 +263,7 @@ export const LIBRARY_CSS = `
 .vd-lib-title { padding: 8px 4px; }
 .vd-lib-title .vd-title-tile { width: 72px; height: 40px; }
 .vd-lib-shape { width: 56px; height: 40px; color: var(--accent); }
+.vd-lib-wordart { width: 96px; height: 54px; border-radius: 4px; background: #111; }
 .vd-lib-sound { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 6px; }
 .vd-lib-sound:hover { background: var(--hover); }
 .vd-lib-sound .vd-lib-name { flex: 1; }

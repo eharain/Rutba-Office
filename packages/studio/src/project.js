@@ -1118,13 +1118,13 @@ export const TITLE_PRESETS = {
  * band under its words, in one group). Answers { doc, ids }.
  */
 /**
- * A shape or an icon from Video's library, at `at` for `seconds` (a still's
+ * A shape, an icon or word art from Video's library, at `at` for `seconds` (a still's
  * length when not said), on the lowest track above the pictures that is free
  * for all of it. It shows at once, so what was added is seen where it was
  * put; a fade in or out is the person's to give it.
  */
 export function addGraphic(doc, patch, { at = 0, seconds = null } = {}) {
-    const type = patch?.type === 'icon' ? 'icon' : patch?.type === 'shape' ? 'shape' : null;
+    const type = ['icon', 'shape', 'wordart'].includes(patch?.type) ? patch.type : null;
     if (!type) return { doc, ids: [] };
     const length = Math.max(MIN_CLIP, Number(seconds) || Number(doc.settings?.stillSeconds) || STILL_SECONDS);
     const start = round(Math.max(0, at));

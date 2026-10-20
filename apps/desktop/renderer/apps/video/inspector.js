@@ -13,6 +13,8 @@ import { MAX_GAIN, gainToDb, dbToGain, soundFades } from '@rutba/studio';
 import { timecode } from '@rutba/media/timeline';
 import { clipById, partnersOf, previousOnLane, lengthOf, animationName, TEXT_ANIMATIONS, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker, SPEEDS, speedOf, setSpeed } from '@rutba/studio/project';
 import { PITCH_STEPS } from '@rutba/studio/stretch';
+import { WORDART_PRESETS } from '@rutba/studio/host';
+import { WORDART_NAMES } from './library-words.js';
 import { insetRect, cornerOf } from '@rutba/studio/recorder';
 import { pointerOf, applyAutoZoom, updateZoom, setZooms } from '@rutba/studio/pointer';
 import { composeIntro } from '@rutba/studio/intro';
@@ -295,9 +297,9 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
   return (
     <div className="vd-inspector">
       <div className="vd-insp-head">
-        <span className={`vd-insp-kind k-${clip.type}`}><Icon name={clip.caption ? 'captions' : { video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape', icon: 'star', pointer: 'pointer' }[clip.type] || 'file'} size={14} /></span>
+        <span className={`vd-insp-kind k-${clip.type}`}><Icon name={clip.caption ? 'captions' : { video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape', icon: 'star', wordart: 'textbox', pointer: 'pointer' }[clip.type] || 'file'} size={14} /></span>
         <div className="vd-insp-title">
-          <strong>{clip.type === 'text' ? clip.text || t('Title') : clip.type === 'shape' && clip.preset ? t('Title background') : clip.type === 'icon' ? clip.label || kindName('icon') : clip.name || kindName(clip.type)}</strong>
+          <strong>{clip.type === 'text' || clip.type === 'wordart' ? clip.text || kindName(clip.type) : clip.type === 'shape' && clip.preset ? t('Title background') : clip.type === 'icon' ? clip.label || kindName('icon') : clip.name || kindName(clip.type)}</strong>
           <small>{kindName(clip.caption ? 'caption' : clip.type)}{selected.length > 1 ? `, ${t('{count} picked', { count: selected.length })}` : ''}</small>
         </div>
       </div>
@@ -345,7 +347,7 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
         </section>
       ) : null}
 
-      {['video', 'image', 'text', 'shape', 'icon'].includes(clip.type) && !clip.caption ? <PlacementProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
+      {['video', 'image', 'text', 'shape', 'icon', 'wordart'].includes(clip.type) && !clip.caption ? <PlacementProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
 
       {(() => {
         // A screen recording with its pointer, or the pointer itself: its look and the zoom on its clicks.
@@ -475,6 +477,21 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           <Row label={t('Animation out')}>
             <Select value={animationName(clip.exit)} onChange={(e) => set(t('Animation'), { exit: e.target.value === 'type' ? TEXT_ANIMATIONS.fade : TEXT_ANIMATIONS[e.target.value] })}>
               {ANIMATIONS().filter(([k]) => k !== 'type').map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </Select>
+          </Row>
+        </section>
+      ) : null}
+
+      {clip.type === 'wordart' ? (
+        <section className="vd-insp-section vd-wordart-props">
+          <h3>{t('Words')}</h3>
+          <textarea className="rw-input vd-text" dir="auto" rows={2} value={clip.text || ''} onChange={(e) => set(t('Typing'), { text: e.target.value }, `text-${clip.id}`)} />
+          <Row label={t('Size')}>
+            <Slider value={clip.sizeFrac || 0.09} min={0.03} max={0.3} step={0.005} onChange={(x) => set(t('Size'), { sizeFrac: x }, `size-${clip.id}`)} format={(x) => `${Math.round(x * 1000) / 10}`} />
+          </Row>
+          <Row label={t('Style')}>
+            <Select value={clip.preset || 'plain'} className="vd-wordart-style" onChange={(e) => set(t('Style'), { preset: e.target.value })}>
+              {Object.keys(WORDART_PRESETS).map((k) => <option key={k} value={k}>{WORDART_NAMES()[k] || k}</option>)}
             </Select>
           </Row>
         </section>

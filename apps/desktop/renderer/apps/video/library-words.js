@@ -5,6 +5,17 @@
 
 import { t } from '@rutba/office-ui';
 
+/** The word art styles, by the studio's preset keys. */
+export const WORDART_NAMES = () => ({
+  plain: t('Plain'),
+  outline: t('Outline'),
+  sticker: t('Sticker'),
+  gold: t('Gold'),
+  neon: t('Neon'),
+  extrude: t('3D'),
+  arch: t('Arch'),
+});
+
 export const SHAPE_GROUP_NAMES = () => ({
   'Boxes': t('Boxes'),
   'Rounds': t('Rounds'),

@@ -75,7 +75,7 @@ const FREEZE_SECONDS = 2;
 const FREEZE_LOOK = ['fit', 'turn', 'flipX', 'flipY', 'fx', 'fy', 'fw', 'fh', 'rot', 'opacity', 'crop', 'blend', 'insetShape'];
 
 /** A clip drawn in a box of its own, which a drag on the stage moves: a title, a shape, a picture in picture or a still not set to fill the frame. */
-export const standsInBox = (p) => p.type === 'text' || p.type === 'shape' || p.type === 'icon' || (p.type === 'video' && Boolean(p.fw)) || (p.type === 'image' && !p.fit);
+export const standsInBox = (p) => p.type === 'text' || p.type === 'shape' || p.type === 'icon' || p.type === 'wordart' || (p.type === 'video' && Boolean(p.fw)) || (p.type === 'image' && !p.fit);
 
 /** A clip with `change` made: a field set to undefined is taken off, so a still can stop filling the frame. */
 export function withChange(p, change) {
@@ -702,7 +702,7 @@ function VideoEditor({ app, shell, boot }) {
   // The library's shapes and icons at the playhead, and its sound effects, written once beside the project.
   const addGraphicHere = useCallback((patch) => {
     let ids = [];
-    edit(patch.type === 'icon' ? t('Add Icon') : t('Add Shape'), (d) => {
+    edit(patch.type === 'icon' ? t('Add Icon') : patch.type === 'wordart' ? t('Add Word Art') : t('Add Shape'), (d) => {
       const r = addGraphic(d, patch, { at: timeRef.current });
       ids = r.ids;
       return r.doc;
@@ -1205,7 +1205,7 @@ function VideoEditor({ app, shell, boot }) {
 
   const onLane = (section, lane, change) => edit(t('Track'), (d) => ({ ...d, lanes: { ...d.lanes, [section]: { ...(d.lanes?.[section] || {}), [lane]: { ...((d.lanes?.[section] || {})[lane] || {}), ...change } } } }));
   const dragBase = useRef(null);
-  const kindName = (type) => ({ video: t('Video clip'), image: t('Picture'), sound: t('Sound clip'), text: t('Title'), shape: t('Shape'), icon: t('Icon'), caption: t('Caption'), pointer: t('Pointer') }[type] || t('Clip'));
+  const kindName = (type) => ({ video: t('Video clip'), image: t('Picture'), sound: t('Sound clip'), text: t('Title'), shape: t('Shape'), icon: t('Icon'), wordart: t('Word art'), caption: t('Caption'), pointer: t('Pointer') }[type] || t('Clip'));
   const reason = useMemo(() => unsupportedReason(), []);
   const name = path ? basename(path) : t('Untitled video');
 
