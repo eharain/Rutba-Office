@@ -135,12 +135,18 @@
 !include "nsDialogs.nsh"
 !include "WordFunc.nsh"
 
-; One box: ticked unless the app is in the list turned off before.
-!macro rutbaAppBox KEY LABEL X Y
+; One box. With a choice written before (by Office, or an earlier page):
+; ticked unless the app is in the list turned off. On a first install: an
+; Office app ticked, a further app (OPTIONAL 1) not.
+!macro rutbaAppBox KEY LABEL X Y OPTIONAL
   ${NSD_CreateCheckbox} ${X} ${Y} 46% 12u "${LABEL}"
   Pop $rutbaBox_${KEY}
-  ${WordFind} ",$rutbaAppsBefore," ",${KEY}," "E*" $0
-  ${If} ${Errors}
+  ${If} $rutbaAppsKnown == "1"
+    ${WordFind} ",$rutbaAppsBefore," ",${KEY}," "E*" $0
+    ${If} ${Errors}
+      ${NSD_Check} $rutbaBox_${KEY}
+    ${EndIf}
+  ${ElseIf} "${OPTIONAL}" == "0"
     ${NSD_Check} $rutbaBox_${KEY}
   ${EndIf}
   ClearErrors
@@ -175,29 +181,52 @@
   Var rutbaBox_image
   Var rutbaBox_video
   Var rutbaBox_recorder
+  Var rutbaBox_ai
+  Var rutbaAppsKnown
+  Var rutbaAddOns
+  Var rutbaAddOnsBefore
 
 Function rutbaAppsPageShow
   !insertmacro MUI_HEADER_TEXT "Choose apps" "The apps you want to see and to open your files."
+  StrCpy $rutbaAppsKnown "0"
   ReadRegStr $rutbaAppsBefore HKCU "Software\Rutba Office" "AppsOff"
+  ${IfNot} ${Errors}
+    StrCpy $rutbaAppsKnown "1"
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $rutbaAddOnsBefore HKCU "Software\Rutba Office" "AddOns"
   ClearErrors
   nsDialogs::Create 1018
   Pop $0
   ${If} $0 == error
     Abort
   ${EndIf}
-  ${NSD_CreateLabel} 0 0 100% 22u "Untick an app you do not want. It is not shown and does not open its kinds of file, and it can be turned on again at any time from Choose apps in Rutba Office."
+  ${NSD_CreateLabel} 0 0 100% 20u "Tick the apps and add-ons you want. Any of them can be added or taken away later, from Choose apps in Rutba Office."
   Pop $0
-  !insertmacro rutbaAppBox mail "Mail" 0 28u
-  !insertmacro rutbaAppBox calendar "Calendar" 0 42u
-  !insertmacro rutbaAppBox contacts "Contacts" 0 56u
-  !insertmacro rutbaAppBox word "Documents" 0 70u
-  !insertmacro rutbaAppBox sheets "Worksheets" 0 84u
-  !insertmacro rutbaAppBox slides "Presentations" 0 98u
-  !insertmacro rutbaAppBox pdf "PDF" 52% 28u
-  !insertmacro rutbaAppBox pictures "Pictures" 52% 42u
-  !insertmacro rutbaAppBox image "Image" 52% 56u
-  !insertmacro rutbaAppBox video "Video" 52% 70u
-  !insertmacro rutbaAppBox recorder "Recorder" 52% 84u
+  ${NSD_CreateLabel} 0 22u 46% 10u "Office apps"
+  Pop $0
+  !insertmacro rutbaAppBox mail "Mail" 0 34u 0
+  !insertmacro rutbaAppBox calendar "Calendar" 0 47u 0
+  !insertmacro rutbaAppBox contacts "Contacts" 0 60u 0
+  !insertmacro rutbaAppBox word "Documents" 0 73u 0
+  !insertmacro rutbaAppBox sheets "Worksheets" 0 86u 0
+  !insertmacro rutbaAppBox slides "Presentations" 0 99u 0
+  !insertmacro rutbaAppBox pdf "PDF" 0 112u 0
+  !insertmacro rutbaAppBox pictures "Pictures" 0 125u 0
+  ${NSD_CreateLabel} 52% 22u 46% 10u "More apps"
+  Pop $0
+  !insertmacro rutbaAppBox image "Image" 52% 34u 1
+  !insertmacro rutbaAppBox video "Video" 52% 47u 1
+  !insertmacro rutbaAppBox recorder "Recorder" 52% 60u 1
+  ${NSD_CreateLabel} 52% 80u 46% 10u "Add-ons"
+  Pop $0
+  ${NSD_CreateCheckbox} 52% 92u 46% 12u "AI Tools"
+  Pop $rutbaBox_ai
+  ${WordFind} ",$rutbaAddOnsBefore," ",ai," "E*" $0
+  ${IfNot} ${Errors}
+    ${NSD_Check} $rutbaBox_ai
+  ${EndIf}
+  ClearErrors
   nsDialogs::Show
 FunctionEnd
 
@@ -219,6 +248,11 @@ Function rutbaAppsPageLeave
     MessageBox MB_OK|MB_ICONEXCLAMATION "Choose one app at least."
     Abort
   ${EndIf}
+  StrCpy $rutbaAddOns ""
+  ${NSD_GetState} $rutbaBox_ai $1
+  ${If} $1 == ${BST_CHECKED}
+    StrCpy $rutbaAddOns "ai"
+  ${EndIf}
   StrCpy $rutbaAppsShown "1"
 FunctionEnd
 !macroend
@@ -227,6 +261,7 @@ FunctionEnd
   !ifndef BUILD_UNINSTALLER
   ${If} $rutbaAppsShown == "1"
     WriteRegStr HKCU "Software\Rutba Office" "AppsOff" "$rutbaAppsOff"
+    WriteRegStr HKCU "Software\Rutba Office" "AddOns" "$rutbaAddOns"
     WriteRegStr HKCU "Software\Rutba Office" "AppsChosenAt" "installer"
   ${EndIf}
   !endif
