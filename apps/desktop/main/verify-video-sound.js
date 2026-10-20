@@ -94,6 +94,16 @@ export async function verifyVideoSound(h, { dir }) {
     check('video sound: a picture clip fades from black at its start and to black at its end, as long as asked',
       shown && kept[0] === '1' && kept[1] === '0.5', JSON.stringify({ shown, kept }));
 
+    // The meter beside the time: dark while stopped, a level while the tone plays.
+    const idle = await js(`document.querySelector('.vd-meter')?.dataset.db ?? 'none'`);
+    await js(`document.querySelector('.vd-play')?.click(), 1`);
+    const moving = await ok(until(() => js(`(() => { const d = document.querySelector('.vd-meter')?.dataset.db; return d !== undefined && d !== '' && Number(d) > -60; })()`), 'the meter moving', 5000));
+    const level = await js(`document.querySelector('.vd-meter')?.dataset.db`);
+    await js(`document.querySelector('.vd-play')?.click(), 1`);
+    const stilled = await ok(until(() => js(`(document.querySelector('.vd-meter')?.dataset.db ?? 'x') === ''`), 'the meter at rest', 4000));
+    check('video sound: while the preview plays the meter beside the time shows the sound\'s level, and it rests when stopped',
+      idle === '' && moving && stilled, JSON.stringify({ idle, moving, level, stilled }));
+
     const complaints = await errorsIn(win);
     check('video sound: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

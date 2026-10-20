@@ -7285,4 +7285,6 @@ export default {
   'To black': 'سیاہ تک',
   'Together the fades are longer than the clip, so they meet in the middle: {a} s in, {b} s out.': 'دونوں فیڈ مل کر کلپ سے لمبے ہیں، اس لیے درمیان میں ملتے ہیں: {a} سیکنڈ اندر، {b} سیکنڈ باہر۔',
   'While this plays, the other sound is lowered: for a voice over music': 'جب یہ چلے تو دوسری آواز کم ہو جاتی ہے: موسیقی پر آواز کے لیے',
+  'Sound level': 'آواز کی سطح',
+  'Sound level {db} dB': 'آواز کی سطح {db} dB',
 };

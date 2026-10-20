@@ -7287,4 +7287,6 @@ export default {
   'To black': 'إلى الأسود',
   'Together the fades are longer than the clip, so they meet in the middle: {a} s in, {b} s out.': 'التلاشيان معًا أطول من المقطع، فيلتقيان في المنتصف: {a} ث دخولًا و{b} ث خروجًا.',
   'While this plays, the other sound is lowered: for a voice over music': 'أثناء تشغيله يُخفَض الصوت الآخر: لصوت فوق الموسيقى',
+  'Sound level': 'مستوى الصوت',
+  'Sound level {db} dB': 'مستوى الصوت {db} dB',
 };

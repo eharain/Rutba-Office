@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7277,
+  "count": 7279,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -33674,6 +33674,18 @@
       "message": "Sound clip",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Sound level",
+      "where": [
+        "apps/desktop/renderer/apps/video/meter.js"
+      ]
+    },
+    {
+      "message": "Sound level {db} dB",
+      "where": [
+        "apps/desktop/renderer/apps/video/meter.js"
       ]
     },
     {

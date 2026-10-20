@@ -16,6 +16,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Spacer, Chip, Empty, Button, Panel, Content, useToast, useCommands, useMenu, menuItems, formatBytes, basename, t, tn } from '@rutba/office-ui';
 import { History } from '@rutba/editing/history';
 import { timecode } from '@rutba/media/timeline';
+import { PlayMeter, METER_CSS } from './meter.js';
 import { buildPlan, startAudioPreview, soundLayers, clipFromSoundLayer, driveVideoElements, pauseVideoElements, unsupportedReason } from '@rutba/studio/host';
 import {
   emptyProject, normaliseProject, addMedia, splitAt, splitAll, trimStart, trimEnd, removeClips, closeGap, copyClips,
@@ -1160,6 +1161,7 @@ function VideoEditor({ app, shell, boot }) {
                 <Button icon="chevronRight" title={t('Next Frame')} onClick={() => stepFrames(1)} />
                 <Button icon="skipForward" title={t('Go to End')} onClick={() => { stop(); seek(duration); }} />
                 <span className="vd-time">{timecode(time)}</span>
+                <PlayMeter playback={playback} playing={playing} />
                 <span className="vd-scrub-wrap">
                   <input
                     className="vd-scrub"
@@ -1246,6 +1248,7 @@ function VideoEditor({ app, shell, boot }) {
       {brandOpen ? <BrandDialog shell={shell} brand={doc.intro?.brand || brand} onClose={() => setBrandOpen(false)} onSave={saveBrand} /> : null}
       {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} fast={exporting.fast} since={exporting.since} from={exporting.from} onCancel={() => exportAbort.current?.abort()} /> : null}
       <style>{CSS}</style>
+      <style>{METER_CSS}</style>
       {intro || brandOpen ? <style>{INTRO_CSS}</style> : null}
     </AppFrame>
   );

@@ -3310,18 +3310,6 @@ function envValueAt(pts, t) {
 }
 
 /**
- * Play a plan's audio OUT LOUD, aligned to a preview clock that enters the
- * timeline at `from` seconds. Same clip semantics as renderVideo — the same
- * normalization, one source + gain per clip, the same fade envelope — but
- * into the speakers instead of a recorded stream, and able to join
- * mid-timeline: a clip already underway starts at the right point inside its
- * buffer, at the gain its envelope would have reached by then.
- *
- * `audio` takes every shape renderVideo takes. Returns { stop } — idempotent,
- * call it when the preview pauses, scrubs or ends — or null when there is
- * nothing to play (no clips, or no AudioContext in this environment).
- */
-/**
  * Where the mix goes: straight to `target`, or, when a clip is turned up
  * above 0 dB, through a limiter first, so the loud clip is loud and the
  * mix still never clips. A mix with every clip at or under 0 dB keeps the
@@ -3339,6 +3327,18 @@ function mixOutput(ac, target, clips) {
     return limit;
 }
 
+/**
+ * Play a plan's audio OUT LOUD, aligned to a preview clock that enters the
+ * timeline at `from` seconds. Same clip semantics as renderVideo: the same
+ * normalization, one source + gain per clip, the same fade envelope, but
+ * into the speakers instead of a recorded stream, and able to join
+ * mid-timeline: a clip already underway starts at the right point inside its
+ * buffer, at the gain its envelope would have reached by then.
+ *
+ * `audio` takes every shape renderVideo takes. Returns { stop, level }: stop is idempotent,
+ * call it when the preview pauses, scrubs or ends; level is the mix's peak for a meter. Or null when there is
+ * nothing to play (no clips, or no AudioContext in this environment).
+ */
 export function startAudioPreview(audio, plan, from = 0) {
     const clips = normalizeAudioClips(audio, plan);
     if (!clips.length) return null;
@@ -3347,7 +3347,12 @@ export function startAudioPreview(audio, plan, from = 0) {
     if (ac.state === 'suspended') { try { ac.resume(); } catch { /* stays silent */ } }
 
     const master = ac.createGain();
-    master.connect(mixOutput(ac, ac.destination, clips));
+    // The level the window's meter reads, between the mix and its output.
+    const analyser = ac.createAnalyser();
+    analyser.fftSize = 1024;
+    master.connect(analyser);
+    analyser.connect(mixOutput(ac, ac.destination, clips));
+    const samples = new Float32Array(analyser.fftSize);
     const sources = [];
     // A breath after "now", so ramps written below are never in the past.
     const t0 = ac.currentTime + 0.03;
@@ -3418,6 +3423,14 @@ export function startAudioPreview(audio, plan, from = 0) {
             stopped = true;
             for (const s of sources) { try { s.stop(); } catch { /* not started or already done */ } }
             try { master.disconnect(); } catch { /* context died */ }
+        },
+        /** The mix's peak just now, in dBFS (-Infinity for silence), for a meter. */
+        level() {
+            if (stopped) return -Infinity;
+            analyser.getFloatTimeDomainData(samples);
+            let peak = 0;
+            for (let i = 0; i < samples.length; i++) { const v = Math.abs(samples[i]); if (v > peak) peak = v; }
+            return peak > 0 ? 20 * Math.log10(peak) : -Infinity;
         },
     };
 }
