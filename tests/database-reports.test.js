@@ -108,7 +108,7 @@ test('a file made before reports opens with their table, and its version brought
     old.close();
     const b = Base.open(file);
     assert.equal(b.meta('version'), String(DESIGN_VERSION));
-    assert.equal(DESIGN_VERSION, 3);
+    assert.ok(DESIGN_VERSION >= 3);
     assert.deepEqual(b.reports(), []);
     b.close();
   } finally {

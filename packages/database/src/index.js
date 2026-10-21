@@ -5,4 +5,5 @@ export { designToSql, criterionSql, joinsFor, splitNamedExpression } from './que
 export { expressionSql, fieldsNamed, FUNCTION_NAMES } from './expression.js';
 export { wizardForm, labelFor, shownField, valueFromControl, GRID } from './form-design.js';
 export { wizardReport, reportData, total } from './report-design.js';
-export { TEMPLATE_IDS, templateTables, buildTemplate } from './templates.js';
+export { TEMPLATE_IDS, templateTables, buildTemplate, buildFromSpec } from './templates.js';
+export { documentData, wizardDocument, evaluate, PAPERS, BLOCKS } from './document-design.js';

@@ -196,9 +196,12 @@ export function buildFromSpec(base, t) {
       totals: r.totals || [],
     });
   }
+  // Print templates: an invoice, a receipt, a payslip (document-design.js).
+  for (const d of t.documents || []) base.saveDocument(d);
   return {
     tables: t.tables.map((x) => x.name),
     queries: Object.keys(t.queries || {}),
     reports: (t.reports || []).map((r) => r.name),
+    documents: (t.documents || []).map((d) => d.name),
   };
 }
