@@ -1,0 +1,15 @@
+{
+  "name": "@rutba/database",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "The database app's file: one SQLite database, its data in ordinary tables and its design (field types, relationships, the history of its changes) in tables of its own, every design change a numbered step applied in place.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./base": "./src/base.js",
+    "./types": "./src/types.js",
+    "./import": "./src/import.js"
+  },
+  "sideEffects": false
+}
