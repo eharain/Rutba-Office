@@ -8,7 +8,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import { FIELD_TYPES, q, columnSql, toStored } from './types.js';
 import { designToSql } from './query-design.js';
-import { wizardForm } from './form-design.js';
+import { wizardForm, shownField } from './form-design.js';
+import { wizardReport, reportData } from './report-design.js';
 
 const DESIGN = `
 CREATE TABLE IF NOT EXISTS rutba_meta (key TEXT PRIMARY KEY, value TEXT);
@@ -20,10 +21,14 @@ CREATE TABLE IF NOT EXISTS rutba_relations (id INTEGER PRIMARY KEY, from_tbl TEX
 CREATE TABLE IF NOT EXISTS rutba_steps (n INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, label TEXT NOT NULL, detail TEXT);
 CREATE TABLE IF NOT EXISTS rutba_queries (name TEXT PRIMARY KEY, design TEXT NOT NULL, position INTEGER);
 CREATE TABLE IF NOT EXISTS rutba_forms (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
+CREATE TABLE IF NOT EXISTS rutba_reports (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
 `;
 
-/** The version of the design tables this build writes: 2 keeps saved queries and forms. A file of version 1 is given their tables as it opens. */
-export const DESIGN_VERSION = 2;
+/**
+ * The version of the design tables this build writes: 2 keeps saved queries
+ * and forms, 3 reports. An older file is given the tables it lacks as it opens.
+ */
+export const DESIGN_VERSION = 3;
 
 const RESERVED = /^(rutba_|sqlite_)/i;
 
@@ -448,6 +453,71 @@ export class Base {
     const layout = wizardForm(table, (t) => this.fields(t), this.relationships(), { name: n });
     this.saveForm(layout);
     return layout;
+  }
+
+  /** The reports: [{ name, layout }], in their order. */
+  reports() {
+    return this.db.prepare('SELECT name, layout FROM rutba_reports ORDER BY position, name').all().map((r) => ({ name: r.name, layout: JSON.parse(r.layout) }));
+  }
+
+  /** A report kept (made, or replaced), its source checked. */
+  saveReport(layout) {
+    const n = checkName(layout?.name, 'report');
+    const src = layout.source || {};
+    if (src.table && !this.tables().some((t) => t.name === src.table)) throw new Error(`The report's table, ${src.table}, is not in this database.`);
+    if (src.query && !this.queries().some((x) => x.name === src.query)) throw new Error(`The report's query, ${src.query}, is not in this database.`);
+    const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_reports').get().p;
+    return this._step(`Report ${n} kept`, { report: n }, () => {
+      this.db.prepare('INSERT INTO rutba_reports (name, layout, position) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET layout = excluded.layout').run(n, JSON.stringify({ ...layout, name: n }), at);
+      return n;
+    });
+  }
+
+  removeReport(name) {
+    return this._step(`Report ${name} removed`, { report: name }, () => this.db.prepare('DELETE FROM rutba_reports WHERE name = ?').run(name).changes > 0);
+  }
+
+  /** A report for a table or a saved query as the wizard makes it, kept under a name of its own. */
+  makeReport({ table = null, query = null, name = null } = {}) {
+    const taken = new Set(this.reports().map((r) => r.name.toLowerCase()));
+    const want = name || table || query;
+    let n = want;
+    for (let i = 2; taken.has(n.toLowerCase()); i++) n = `${want} ${i}`;
+    const layout = table
+      ? wizardReport({ table, fields: this.fields(table), relationships: this.relationships(), name: n })
+      : wizardReport({ query, columns: this.runQuery({ name: query, limit: 1 }).columns, name: n });
+    this.saveReport(layout);
+    return layout;
+  }
+
+  /**
+   * A report's data, ready to draw: its records grouped with their totals,
+   * a field that points at another table's record shown as that record's
+   * words. `layout` is a report's, or `name` names a kept one. `fields` are
+   * the source's fields with their types, for grouping, sorting and showing.
+   */
+  reportData({ name = null, layout = null } = {}) {
+    const l = layout || this.reports().find((r) => r.name === name)?.layout;
+    if (!l) throw new Error(`There is no report called ${name}.`);
+    let records;
+    let fields;
+    const shown = {};
+    if (l.source?.table) {
+      fields = this.fields(l.source.table).map((f) => ({ name: f.name, type: f.type }));
+      records = this.rows(l.source.table, { limit: 1_000_000 });
+      for (const r of this.relationships().filter((x) => x.from.table === l.source.table)) {
+        const show = shownField(this.fields(r.to.table));
+        shown[r.from.field] = new Map(this.lookup({ table: r.to.table, field: r.to.field, show, limit: 1_000_000 }).map((o) => [o.value, o.text]));
+      }
+    } else {
+      const out = this.runQuery({ name: l.source?.query, limit: 1_000_000 });
+      records = out.rows;
+      fields = out.columns.map((c) => ({ name: c, type: null }));
+    }
+    const shownAs = (field, value) => (shown[field]?.has(value) ? shown[field].get(value) : value);
+    // A pointing field is shown as words, not as the number it holds.
+    for (const f of fields) if (shown[f.name]) f.type = 'text';
+    return { layout: l, fields, ...reportData(l, records, shownAs) };
   }
 
   /** The choices for a lookup: each record of `table` by its `field`, shown as `show`, at most `limit`. */

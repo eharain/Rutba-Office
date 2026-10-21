@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7486,
+  "count": 7499,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -430,6 +430,12 @@
       ]
     },
     {
+      "message": "(no grouping)",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
+      ]
+    },
+    {
       "message": "(no name)",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
@@ -455,6 +461,7 @@
       "message": "(none)",
       "where": [
         "apps/desktop/renderer/apps/base/forms.js",
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/word/list-dialog.js",
         "apps/desktop/renderer/apps/word/mailings.js",
@@ -471,7 +478,8 @@
     {
       "message": "(not sorted)",
       "where": [
-        "apps/desktop/renderer/apps/base/queries.js"
+        "apps/desktop/renderer/apps/base/queries.js",
+        "apps/desktop/renderer/apps/base/reports.js"
       ]
     },
     {
@@ -1348,6 +1356,12 @@
     },
     {
       "message": "A relationship lets many records in one table point at one record in another, and keeps them from pointing at nothing.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "A report of",
       "where": [
         "apps/desktop/renderer/apps/base.js"
       ]
@@ -4477,6 +4491,7 @@
       "message": "Average",
       "where": [
         "apps/desktop/renderer/apps/base/queries.js",
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -8692,6 +8707,7 @@
       "message": "Count",
       "where": [
         "apps/desktop/renderer/apps/base/queries.js",
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -10103,6 +10119,12 @@
       "message": "Delete this reply",
       "where": [
         "apps/desktop/renderer/apps/slides/comments.js"
+      ]
+    },
+    {
+      "message": "Delete this report",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
       ]
     },
     {
@@ -15119,6 +15141,12 @@
       ]
     },
     {
+      "message": "Grand total",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
+      ]
+    },
+    {
       "message": "Graphite",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -15320,6 +15348,12 @@
       "where": [
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Group by",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
       ]
     },
     {
@@ -18086,6 +18120,12 @@
       ]
     },
     {
+      "message": "Its records on a page, grouped by the first field that points at another table, with the amounts added up for each group and for the whole. Print it, or save it as a PDF.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Its sums agree, so its figures go in as read.",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
@@ -18676,6 +18716,12 @@
       ]
     },
     {
+      "message": "Largest",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
+      ]
+    },
+    {
       "message": "Largest above",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -18684,6 +18730,7 @@
     {
       "message": "Largest first",
       "where": [
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/pictures/library.js"
       ]
     },
@@ -22182,6 +22229,12 @@
       ]
     },
     {
+      "message": "New Report",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "New Script",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -22631,6 +22684,7 @@
     {
       "message": "No",
       "where": [
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -25386,6 +25440,12 @@
       ]
     },
     {
+      "message": "PDF (.pdf)",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
+      ]
+    },
+    {
       "message": "PDF Document (.pdf)",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js",
@@ -27276,6 +27336,7 @@
     {
       "message": "Print",
       "where": [
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -29622,6 +29683,7 @@
     {
       "message": "Report",
       "where": [
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/registry-words.js",
         "apps/desktop/renderer/shared-words.js",
         "apps/desktop/renderer/template-gallery.js"
@@ -29631,6 +29693,12 @@
       "message": "Report Type",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Reports",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -31165,6 +31233,7 @@
     {
       "message": "Save as PDF",
       "where": [
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/word/mailings.js"
       ]
     },
@@ -31322,6 +31391,12 @@
       "message": "Saved a redacted copy as {name}: {count} taken away.",
       "where": [
         "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Saved as {name}",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
       ]
     },
     {
@@ -34319,6 +34394,12 @@
       ]
     },
     {
+      "message": "Smallest",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
+      ]
+    },
+    {
       "message": "Smallest (96 dots per inch)",
       "where": [
         "apps/desktop/renderer/apps/pdf/export.js"
@@ -34540,6 +34621,7 @@
     {
       "message": "Sort by",
       "where": [
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/word/references.js"
@@ -35745,6 +35827,7 @@
       "message": "Sum",
       "where": [
         "apps/desktop/renderer/apps/base/queries.js",
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -36096,6 +36179,7 @@
     {
       "message": "Table or query",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -39718,6 +39802,12 @@
       ]
     },
     {
+      "message": "This report is not in the database.",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
+      ]
+    },
+    {
       "message": "This row's height (cm, at least)",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -40175,6 +40265,7 @@
     {
       "message": "Title",
       "where": [
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -40453,6 +40544,7 @@
       "message": "Total",
       "where": [
         "apps/desktop/renderer/apps/base/queries.js",
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
@@ -43209,6 +43301,7 @@
     {
       "message": "Yes",
       "where": [
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -46339,7 +46432,8 @@
       "plural": "{count} records",
       "where": [
         "apps/desktop/renderer/apps/base.js",
-        "apps/desktop/renderer/apps/base/forms.js"
+        "apps/desktop/renderer/apps/base/forms.js",
+        "apps/desktop/renderer/apps/base/reports.js"
       ]
     },
     {

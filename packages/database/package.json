@@ -11,7 +11,8 @@
     "./types": "./src/types.js",
     "./import": "./src/import.js",
     "./query-design": "./src/query-design.js",
-    "./form-design": "./src/form-design.js"
+    "./form-design": "./src/form-design.js",
+    "./report-design": "./src/report-design.js"
   },
   "sideEffects": false
 }

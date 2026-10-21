@@ -11,6 +11,7 @@ import { AppFrame, useAppMenu, pickOpen, useFileDrop } from '../shell.js';
 import { BASE_CSS } from './base/css.js';
 import { QueryDesigner, QUERY_CSS } from './base/queries.js';
 import { FormView, FORM_CSS } from './base/forms.js';
+import { ReportView, REPORT_CSS } from './base/reports.js';
 
 export const TYPE_NAMES = () => ({
   autonumber: t('AutoNumber'),
@@ -385,10 +386,12 @@ export default function Databases({ app, shell, boot }) {
   const toast = useToast();
   const [db, setDb] = useState(null);
   const [table, setTable] = useState(null);
-  const [view, setView] = useState('data'); // data | design | relations | sql | query | form
-  // The query or form open: its name, or null for a new query.
+  const [view, setView] = useState('data'); // data | design | relations | sql | query | form | report
+  // The query, form or report open: its name, or null for a new query.
   const [item, setItem] = useState(null);
   const [formTable, setFormTable] = useState(null);
+  // The New Report box's source: 'table:<name>' or 'query:<name>', null while it is shut.
+  const [reportSource, setReportSource] = useState(null);
   const [busy, setBusy] = useState(false);
   const [naming, setNaming] = useState(null);
 
@@ -560,6 +563,20 @@ export default function Databases({ app, shell, boot }) {
               </li>
             ))}
           </ul>
+          <div className="bs-side-head">
+            <h2>{t('Reports')}</h2>
+            <Button icon="plus" label="" title={t('New Report')} className="bs-new-report" disabled={!db.tables.length} onClick={() => setReportSource(`table:${table || db.tables[0]?.name || ''}`)} />
+          </div>
+          <ul className="bs-tables bs-reports">
+            {(db.reports || []).map((n) => (
+              <li key={n}>
+                <button type="button" className={`bs-table${view === 'report' && item === n ? ' on' : ''}`} data-report={n} onClick={() => { setItem(n); setView('report'); }}>
+                  <Icon name="print" size={14} />
+                  <span>{n}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
           <div className="bs-side-foot">
             <Button icon="import" label={t('Import')} className="bs-import" onClick={importDialog} />
             <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('Relationships')}</span></button>
@@ -586,6 +603,8 @@ export default function Databases({ app, shell, boot }) {
             <QueryDesigner key={item || 'new'} shell={shell} db={db} name={item} onSaved={(s, n) => { show(s); setItem(n); }} toast={toast} />
           ) : view === 'form' && item ? (
             <FormView key={`${item}-${db.steps}`} shell={shell} db={db} name={item} onChanged={refresh} toast={toast} />
+          ) : view === 'report' && item ? (
+            <ReportView key={item} shell={shell} db={db} name={item} onChanged={show} onRemoved={(s) => { show(s); setItem(null); setView('data'); }} toast={toast} />
           ) : (
             <Empty icon="sheets" title={t('No table chosen')}>{t('Make a table, or import one from a file.')}</Empty>
           )}
@@ -612,13 +631,36 @@ export default function Databases({ app, shell, boot }) {
           <p className="bs-hint">{t('A label and a box for each field, a list for each field that points at another table, and the records that point at this one below.')}</p>
         </Dialog>
       ) : null}
+      {reportSource !== null ? (
+        <Dialog title={t('New Report')} onClose={() => setReportSource(null)} actions={<><Button label={t('Cancel')} onClick={() => setReportSource(null)} /><Button primary label={t('Make')} className="bs-make-report" disabled={!reportSource.split(':')[1]} onClick={async () => {
+          const [kind, ...rest] = reportSource.split(':');
+          const source = rest.join(':');
+          try {
+            const made = await shell.base.makeReport({ id: db.id, [kind]: source });
+            show(made.summary);
+            setItem(made.layout.name);
+            setView('report');
+            setReportSource(null);
+          } catch (e) {
+            toast(e.message, { tone: 'bad', ms: 7000 });
+          }
+        }} /></>}>
+          <label className="bs-field"><span>{t('A report of')}</span>
+            <Select className="rw-select bs-report-source" aria-label={t('Table or query')} value={reportSource} onChange={(e) => setReportSource(e.target.value)}>
+              <optgroup label={t('Tables')}>{db.tables.map((x) => <option key={x.name} value={`table:${x.name}`}>{x.name}</option>)}</optgroup>
+              {(db.queries || []).length ? <optgroup label={t('Queries')}>{db.queries.map((n) => <option key={n} value={`query:${n}`}>{n}</option>)}</optgroup> : null}
+            </Select>
+          </label>
+          <p className="bs-hint">{t('Its records on a page, grouped by the first field that points at another table, with the amounts added up for each group and for the whole. Print it, or save it as a PDF.')}</p>
+        </Dialog>
+      ) : null}
       {naming !== null ? (
         <Dialog title={t('New Table')} onClose={() => setNaming(null)} actions={<><Button label={t('Cancel')} onClick={() => setNaming(null)} /><Button primary label={t('Make')} className="bs-make-table" disabled={!String(naming).trim()} onClick={makeTable} /></>}>
           <label className="bs-field"><span>{t('Name')}</span><Input className="rw-input bs-table-name" aria-label={t('Name')} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') makeTable(); }} /></label>
           <p className="bs-hint">{t('It starts with an ID that numbers each record; add its fields in its design.')}</p>
         </Dialog>
       ) : null}
-      <style>{BASE_CSS + QUERY_CSS + FORM_CSS}</style>
+      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS}</style>
     </AppFrame>
   );
 }

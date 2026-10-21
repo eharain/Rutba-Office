@@ -40,6 +40,7 @@ export function createBaseService() {
       relationships: base.relationships(),
       queries: base.queries().map((x) => x.name),
       forms: base.forms().map((x) => x.name),
+      reports: base.reports().map((x) => x.name),
       steps: base.steps().length,
     };
   };
@@ -115,6 +116,11 @@ export function createBaseService() {
     saveForm: ({ id, layout }) => { get(id).base.saveForm(layout); return summary(id); },
     removeForm: ({ id, name }) => { get(id).base.removeForm(name); return summary(id); },
     makeForm: ({ id, table, name = null }) => ({ layout: get(id).base.makeForm(table, { name }), summary: summary(id) }),
+    reports: ({ id }) => get(id).base.reports(),
+    saveReport: ({ id, layout }) => { get(id).base.saveReport(layout); return summary(id); },
+    removeReport: ({ id, name }) => { get(id).base.removeReport(name); return summary(id); },
+    makeReport: ({ id, table = null, query = null, name = null }) => ({ layout: get(id).base.makeReport({ table, query, name }), summary: summary(id) }),
+    reportData: ({ id, name = null, layout = null }) => get(id).base.reportData({ name, layout }),
     lookup: ({ id, table, field, show }) => get(id).base.lookup({ table, field, show }),
 
     /** The person's own SELECT, read-only: { columns, rows }, at most `limit` rows. */

@@ -365,6 +365,11 @@ export const METHODS = {
     'saveForm',     // ({ id, layout }) -> summary
     'removeForm',   // ({ id, name }) -> summary
     'makeForm',     // ({ id, table, name? }) -> { layout, summary }   the form wizard's form, kept
+    'reports',      // ({ id }) -> [{ name, layout }]
+    'saveReport',   // ({ id, layout }) -> summary
+    'removeReport', // ({ id, name }) -> summary
+    'makeReport',   // ({ id, table? | query?, name? }) -> { layout, summary }   the report wizard's report, kept
+    'reportData',   // ({ id, name? | layout? }) -> { layout, groups, totals, count }   grouped, with totals
     'lookup',       // ({ id, table, field, show }) -> [{ value, text }]   a lookup list's choices
     'saveAs',       // ({ id, file }) -> summary   a copy at file, then the one open
   ],
