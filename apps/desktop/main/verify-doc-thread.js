@@ -24,20 +24,34 @@ export async function verifyDocThread({ open, check, until, errorsIn }, { dir })
     const win = await open('word', file);
     const js = (code) => win.webContents.executeJavaScript(code);
     await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="0"]'))`), 'the document', 20000);
-    const measured = await js(`(async () => {
+    // The Recent list is asked for from another window than the document's:
+    // the Word window is busy drawing its 240 pages and answers its own
+    // calls late, which is that window's turn, not the main process's.
+    const home = await open('home');
+    const ask = (code) => home.webContents.executeJavaScript(code);
+    // Settled first: a window still starting answers late whatever the main process does.
+    await ask(`window.rutbaOffice.app.recent().then(() => true)`);
+    const started = await js(`(async () => {
       const all = await window.rutbaOffice.doc.sessions({});
       const id = all.filter((s) => s.kind === 'doc').pop().id;
-      let laidOut = 0;
-      const t0 = performance.now();
+      const t0 = Date.now();
       // Seconds of layout on the thread, not awaited yet.
-      const pages = window.rutbaOffice.print.summary({ id, options: {} }).then((s) => { laidOut = performance.now() - t0; return s.pages; });
+      window.__pages = window.rutbaOffice.print.summary({ id, options: {} }).then((s) => ({ pages: s.pages, at: Date.now() }));
+      return t0;
+    })()`);
+    const answer = await ask(`(async () => {
       const r0 = performance.now();
       await window.rutbaOffice.app.recent();
-      const recentMs = performance.now() - r0;
-      const whileBusy = laidOut === 0;
-      const count = await pages;
-      return { recentMs: Math.round(recentMs), layoutMs: Math.round(laidOut), whileBusy, pages: count };
+      return { recentMs: performance.now() - r0, at: Date.now() };
     })()`);
+    const laid = await js(`window.__pages`);
+    const measured = {
+      recentMs: Math.round(answer.recentMs),
+      layoutMs: laid.at - started,
+      // Answered before the last page was laid out.
+      whileBusy: answer.at < laid.at,
+      pages: laid.pages,
+    };
     check(`documents: while the document service lays out 240 pages on its own thread, the main process answers another window's request in under ${ANSWER_MS} ms`,
       measured.whileBusy && measured.recentMs < ANSWER_MS && measured.pages >= 200 && measured.layoutMs > measured.recentMs,
       JSON.stringify(measured));
