@@ -10,15 +10,19 @@
 // invoices are paid on time, late or not yet. The questions a wholesaler
 // asks are its saved queries; its reports print them.
 
-import { address, companies, money, person, phoneFor, PLACES } from './util.js';
+import { address, BUSINESS_ABOUT, BUSINESS_TABLE, businessRecord, companies, money, person, phoneFor, PLACES } from './util.js';
 
 const ref = (table) => ({ type: 'integer', points: table });
 const LINE = 'Round([Quantity] * [Unit Price] * (1 - Nz([Discount])), 2)';
+const VAT = 'Round(Round([Quantity] * [Unit Price] * (1 - Nz([Discount])), 2) * Nz([Tax Rate]), 2)';
+// A document query lists the last fortnight's: change the criteria to print others.
+const RECENT = (field) => ({ expr: `DateDiff("d", [${field}], Date())`, as: 'Days Ago', criteria: ['Between 0 And 14'], show: false });
 
 export const spec = {
   // Where a value below nought is right: stock going out, an order already late.
   negative: { 'Stock Movements': ['Quantity'], 'Orders to ship': ['Days Left'] },
   tables: [
+    BUSINESS_TABLE,
     { name: 'Companies', fields: [
       { name: 'Name', type: 'text', required: true }, { name: 'Kind', type: 'text', default: 'Customer' },
       { name: 'Address', type: 'text' }, { name: 'City', type: 'text' }, { name: 'Postcode', type: 'text' }, { name: 'Country', type: 'text' },
@@ -33,13 +37,8 @@ export const spec = {
       { name: 'First Name', type: 'text' }, { name: 'Last Name', type: 'text', required: true }, { name: 'Job Title', type: 'text' },
       { name: 'E-mail', type: 'text' }, { name: 'Phone', type: 'text' }, { name: 'Hired', type: 'date' },
     ] },
-    { name: 'Categories', fields: [{ name: 'Name', type: 'text', required: true, unique: true }, { name: 'Description', type: 'text' }] },
-    { name: 'Products', fields: [
-      { name: 'Code', type: 'text', unique: true }, { name: 'Name', type: 'text', required: true }, { name: 'Category', ...ref('Categories') },
-      { name: 'Supplier', ...ref('Companies') }, { name: 'Unit', type: 'text' }, { name: 'Cost Price', type: 'currency' }, { name: 'List Price', type: 'currency' },
-      { name: 'Units in Stock', type: 'integer', default: 0 }, { name: 'Reorder Level', type: 'integer', default: 10 },
-      { name: 'Reorder Quantity', type: 'integer', default: 40 }, { name: 'Discontinued', type: 'yesno' },
-    ] },
+    // Orders come before Products: a query joins two tables by the first relationship between them,
+    // so an order's Companies record is its customer, not its products' supplier.
     { name: 'Orders', fields: [
       { name: 'Customer', ...ref('Companies'), required: true }, { name: 'Employee', ...ref('Employees') }, { name: 'Order Date', type: 'date' },
       { name: 'Required Date', type: 'date' }, { name: 'Shipped Date', type: 'date' }, { name: 'Shipper', ...ref('Companies') },
@@ -48,9 +47,17 @@ export const spec = {
     { name: 'Order Lines', fields: [
       { name: 'Order', ...ref('Orders'), required: true }, { name: 'Product', ...ref('Products'), required: true },
       { name: 'Quantity', type: 'integer', default: 1 }, { name: 'Unit Price', type: 'currency' }, { name: 'Discount', type: 'number', default: 0 },
+      { name: 'Tax Rate', type: 'number', default: 0 },
+    ] },
+    { name: 'Categories', fields: [{ name: 'Name', type: 'text', required: true, unique: true }, { name: 'Description', type: 'text' }, { name: 'Tax Rate', type: 'number', default: 0 }] },
+    { name: 'Products', fields: [
+      { name: 'Code', type: 'text', unique: true }, { name: 'Name', type: 'text', required: true }, { name: 'Category', ...ref('Categories') },
+      { name: 'Supplier', ...ref('Companies') }, { name: 'Unit', type: 'text' }, { name: 'Cost Price', type: 'currency' }, { name: 'List Price', type: 'currency' },
+      { name: 'Units in Stock', type: 'integer', default: 0 }, { name: 'Reorder Level', type: 'integer', default: 10 },
+      { name: 'Reorder Quantity', type: 'integer', default: 40 }, { name: 'Discontinued', type: 'yesno' },
     ] },
     { name: 'Purchase Orders', fields: [
-      { name: 'Supplier', ...ref('Companies'), required: true }, { name: 'Employee', ...ref('Employees') }, { name: 'Ordered On', type: 'date' },
+      { name: 'Number', type: 'text', unique: true }, { name: 'Supplier', ...ref('Companies'), required: true }, { name: 'Employee', ...ref('Employees') }, { name: 'Ordered On', type: 'date' },
       { name: 'Expected', type: 'date' }, { name: 'Received On', type: 'date' }, { name: 'Status', type: 'text', default: 'Submitted' },
     ] },
     { name: 'Purchase Lines', fields: [
@@ -62,8 +69,8 @@ export const spec = {
       { name: 'Quantity', type: 'integer' }, { name: 'Reference', type: 'text' },
     ] },
     { name: 'Invoices', fields: [
-      { name: 'Order', ...ref('Orders'), required: true }, { name: 'Invoice Date', type: 'date' }, { name: 'Due Date', type: 'date' },
-      { name: 'Amount', type: 'currency' }, { name: 'Paid On', type: 'date' },
+      { name: 'Number', type: 'text', unique: true }, { name: 'Order', ...ref('Orders'), required: true }, { name: 'Invoice Date', type: 'date' }, { name: 'Due Date', type: 'date' },
+      { name: 'Net', type: 'currency' }, { name: 'Tax', type: 'currency' }, { name: 'Amount', type: 'currency' }, { name: 'Paid On', type: 'date' },
     ] },
   ],
   queries: {
@@ -119,7 +126,57 @@ export const spec = {
       { table: 'Purchase Orders', field: 'Ordered On' }, { table: 'Purchase Orders', field: 'Expected', sort: 'asc' },
       { table: 'Purchase Orders', field: 'Status', criteria: ['Submitted'] },
     ] },
+    'Invoice print': { tables: ['Invoices', 'Orders', 'Companies', 'Order Lines', 'Products'], columns: [
+      { table: 'Invoices', field: 'Number', as: 'Invoice No', sort: 'asc' }, { table: 'Invoices', field: 'Invoice Date' }, { table: 'Invoices', field: 'Due Date' },
+      { table: 'Companies', field: 'Name', as: 'Customer' }, { table: 'Companies', field: 'Address' }, { table: 'Companies', field: 'City' },
+      { table: 'Companies', field: 'Postcode' }, { table: 'Companies', field: 'Country' }, { table: 'Orders', field: 'ID', as: 'Order' },
+      { table: 'Orders', field: 'Shipping Fee', as: 'Delivery' }, { table: 'Invoices', field: 'Net', as: 'Invoice Net' }, { table: 'Invoices', field: 'Tax', as: 'Invoice VAT' },
+      { table: 'Invoices', field: 'Amount', as: 'Invoice Total' }, { table: 'Products', field: 'Code', sort: 'asc' }, { table: 'Products', field: 'Name', as: 'Product' },
+      { table: 'Products', field: 'Unit' }, { table: 'Order Lines', field: 'Quantity' }, { table: 'Order Lines', field: 'Unit Price' }, { table: 'Order Lines', field: 'Discount' },
+      { expr: LINE, as: 'Net' }, { table: 'Order Lines', field: 'Tax Rate', as: 'VAT Rate' }, { expr: VAT, as: 'VAT' }, { expr: `${LINE} + ${VAT}`, as: 'Gross' },
+      RECENT('Invoice Date'),
+    ] },
+    'Delivery note print': { tables: ['Orders', 'Companies', 'Order Lines', 'Products'], columns: [
+      { expr: '"DN-" & [Orders].[ID]', as: 'Delivery Note', sort: 'asc' }, { table: 'Orders', field: 'ID', as: 'Order' }, { table: 'Orders', field: 'Shipped Date' },
+      { table: 'Companies', field: 'Name', as: 'Customer' }, { table: 'Companies', field: 'Address' }, { table: 'Companies', field: 'City' },
+      { table: 'Companies', field: 'Postcode' }, { table: 'Companies', field: 'Country' }, { table: 'Products', field: 'Code', sort: 'asc' },
+      { table: 'Products', field: 'Name', as: 'Product' }, { table: 'Products', field: 'Unit' }, { table: 'Order Lines', field: 'Quantity' },
+      RECENT('Shipped Date'),
+    ] },
+    'Purchase order print': { tables: ['Purchase Lines', 'Products', 'Purchase Orders', 'Companies'], columns: [
+      { table: 'Purchase Orders', field: 'Number', as: 'PO Number', sort: 'asc' }, { table: 'Purchase Orders', field: 'Ordered On' }, { table: 'Purchase Orders', field: 'Expected' },
+      { table: 'Companies', field: 'Name', as: 'Supplier' }, { table: 'Companies', field: 'Address' }, { table: 'Companies', field: 'City' },
+      { table: 'Companies', field: 'Postcode' }, { table: 'Companies', field: 'Country' }, { table: 'Products', field: 'Code', sort: 'asc' },
+      { table: 'Products', field: 'Name', as: 'Product' }, { table: 'Products', field: 'Unit' }, { table: 'Purchase Lines', field: 'Quantity' },
+      { table: 'Purchase Lines', field: 'Unit Cost' }, { expr: 'Round([Quantity] * [Unit Cost], 2)', as: 'Line Total' },
+      { table: 'Purchase Orders', field: 'Status', criteria: ['Submitted'], show: false },
+    ] },
+    'Statement print': { tables: ['Invoices', 'Orders', 'Companies'], columns: [
+      { table: 'Companies', field: 'Name', as: 'Customer', sort: 'asc' }, { table: 'Companies', field: 'Address' }, { table: 'Companies', field: 'City' },
+      { table: 'Companies', field: 'Postcode' }, { table: 'Companies', field: 'Country' }, { table: 'Invoices', field: 'Number', as: 'Invoice No' },
+      { table: 'Invoices', field: 'Invoice Date', sort: 'asc' }, { table: 'Invoices', field: 'Due Date' }, { table: 'Invoices', field: 'Amount' },
+      { expr: 'IIf(DateDiff("d", [Due Date], Date()) > 0, DateDiff("d", [Due Date], Date()), 0)', as: 'Days Overdue' },
+      { table: 'Invoices', field: 'Paid On', criteria: ['Is Null'], show: false },
+    ] },
   },
+  documents: [
+    { name: 'Invoice', kind: 'invoice', query: 'Invoice print', key: 'Invoice No',
+      header: ['Invoice No', 'Invoice Date', 'Due Date', 'Customer', 'Address', 'City', 'Postcode', 'Country', 'Order'],
+      lines: ['Code', 'Product', 'Unit', { field: 'Quantity', type: 'integer' }, { field: 'Unit Price', type: 'currency' }, { field: 'Discount', type: 'number' }, { field: 'Net', type: 'currency' }, { field: 'VAT Rate', type: 'number' }, { field: 'VAT', type: 'currency' }],
+      totals: [{ field: 'Net', fn: 'sum', label: 'Goods' }, { field: 'Delivery', fn: 'max', label: 'Delivery' }, { field: 'Invoice VAT', fn: 'max', label: 'VAT' }, { field: 'Invoice Total', fn: 'max', label: 'Total due' }] },
+    { name: 'Delivery note', kind: 'delivery note', query: 'Delivery note print', key: 'Delivery Note',
+      header: ['Delivery Note', 'Order', 'Shipped Date', 'Customer', 'Address', 'City', 'Postcode', 'Country'],
+      lines: ['Code', 'Product', 'Unit', { field: 'Quantity', type: 'integer' }],
+      totals: [{ field: 'Quantity', fn: 'sum', label: 'Units' }] },
+    { name: 'Purchase order', kind: 'purchase order', query: 'Purchase order print', key: 'PO Number',
+      header: ['PO Number', 'Ordered On', 'Expected', 'Supplier', 'Address', 'City', 'Postcode', 'Country'],
+      lines: ['Code', 'Product', 'Unit', { field: 'Quantity', type: 'integer' }, { field: 'Unit Cost', type: 'currency' }, { field: 'Line Total', type: 'currency' }],
+      totals: [{ field: 'Line Total', fn: 'sum', label: 'Total' }] },
+    { name: 'Statement', kind: 'statement', query: 'Statement print', key: 'Customer',
+      header: ['Customer', 'Address', 'City', 'Postcode', 'Country'],
+      lines: ['Invoice No', { field: 'Invoice Date', type: 'date' }, { field: 'Due Date', type: 'date' }, { field: 'Days Overdue', type: 'integer' }, { field: 'Amount', type: 'currency' }],
+      totals: [{ field: 'Amount', fn: 'sum', label: 'Balance owing' }] },
+  ],
   reports: [
     { name: 'Product catalogue', query: 'Product list', group: 'Category', columns: ['Code', 'Product', 'Unit', { field: 'List Price', type: 'currency' }] },
     { name: 'Monthly sales', query: 'Sales by month', columns: ['Month', { field: 'Units', type: 'integer' }, { field: 'Sales', type: 'currency' }], totals: [{ field: 'Sales', fn: 'sum' }, { field: 'Units', fn: 'sum' }] },
@@ -140,6 +197,7 @@ export const about = {
   ],
   suits: ['A distributor or importer', 'A cash and carry', 'A builders\' merchant or parts supplier', 'A wine merchant selling to the trade', 'An online shop that sells to businesses', 'A manufacturer\'s sales office'],
   tables: {
+    Business: BUSINESS_ABOUT,
     Companies: { about: 'Every business you deal with: customers, suppliers and the carriers who deliver for you.', fields: {
       Name: 'The company\'s name.', Kind: 'Customer, Supplier or Shipper.', Address: 'The street address.', City: 'The town or city.',
       Postcode: 'The postcode or ZIP code.', Country: 'The country.', Phone: 'The main phone number.', 'E-mail': 'Where orders or invoices go.',
@@ -154,7 +212,7 @@ export const about = {
       'First Name': 'Their first name.', 'Last Name': 'Their family name.', 'Job Title': 'Their job.', 'E-mail': 'Their work e-mail address.',
       Phone: 'Their work phone number.', Hired: 'The day they joined.',
     } },
-    Categories: { about: 'The groups your products are sold in.', fields: { Name: 'The group\'s name. Each name is used once.', Description: 'What the group holds.' } },
+    Categories: { about: 'The groups your products are sold in.', fields: { Name: 'The group\'s name. Each name is used once.', Description: 'What the group holds.', 'Tax Rate': 'The VAT rate its products are sold at, as a fraction: 0.2 is twenty percent, 0 for food that carries none.' } },
     Products: { about: 'What you sell, one record for each line in the catalogue.', fields: {
       Code: 'Your own product code. Each code is used once.', Name: 'The product as it appears on the catalogue and invoices.',
       Category: 'The group it is sold in.', Supplier: 'Who you buy it from.', Unit: 'How it is sold, such as a 10 kg sack or a box of 100.',
@@ -171,9 +229,10 @@ export const about = {
     'Order Lines': { about: 'The products on each order.', fields: {
       Order: 'The order the line belongs to.', Product: 'What was ordered.', Quantity: 'How many units.',
       'Unit Price': 'The price of one unit on this order, kept so a later price change does not alter it.', Discount: 'The discount as a fraction: 0.05 is five percent.',
+      'Tax Rate': 'The VAT rate of the line, taken from its product\'s group when the order was taken.',
     } },
     'Purchase Orders': { about: 'Orders you place with your suppliers.', fields: {
-      Supplier: 'Who you ordered from.', Employee: 'Who placed the order.', 'Ordered On': 'The day it was sent.',
+      Number: 'The purchase order\'s number, printed on it and quoted by the supplier: PO-2026-0042.', Supplier: 'Who you ordered from.', Employee: 'Who placed the order.', 'Ordered On': 'The day it was sent.',
       Expected: 'When the goods should arrive.', 'Received On': 'The day they arrived; empty until then.', Status: 'Submitted or Received.',
     } },
     'Purchase Lines': { about: 'The products on each purchase order.', fields: {
@@ -184,8 +243,8 @@ export const about = {
       Quantity: 'How many: above nought coming in, below nought going out.', Reference: 'The order or purchase order it came from, or Stock count.',
     } },
     Invoices: { about: 'An invoice for each shipped order.', fields: {
-      Order: 'The order invoiced.', 'Invoice Date': 'The day it was raised, the day the order shipped.', 'Due Date': 'When payment is due, from the customer\'s payment days.',
-      Amount: 'What the invoice comes to, delivery included.', 'Paid On': 'The day it was paid; empty while it is owed.',
+      Number: 'The invoice\'s number, given in date order and once only: INV-2026-0042, a new run each year.', Order: 'The order invoiced.', 'Invoice Date': 'The day it was raised, the day the order shipped.', 'Due Date': 'When payment is due, from the customer\'s payment days.',
+      Net: 'The goods after discounts, and delivery, before VAT.', Tax: 'The VAT on the goods and the delivery.', Amount: 'What the invoice comes to: net and VAT together.', 'Paid On': 'The day it was paid; empty while it is owed.',
     } },
   },
   queries: {
@@ -200,6 +259,10 @@ export const about = {
     'Stock value': 'Units in stock and their value at cost, by product group.',
     'Product list': 'The products you still sell, by group and code, with their list prices.',
     'Purchases on order': 'Purchase orders sent and not yet received, by the day they are expected.',
+    'Invoice print': 'Every line of the last fortnight\'s invoices with the invoice\'s own details beside it: what the Invoice document prints. Change the hidden Days Ago criteria to print older ones.',
+    'Delivery note print': 'Every line of the orders shipped in the last fortnight, with where they went: what the Delivery note prints.',
+    'Purchase order print': 'Every line of the purchase orders not yet received, with the supplier\'s address: what the Purchase order prints.',
+    'Statement print': 'Each customer\'s unpaid invoices with their address: what the Statement prints, one page a customer.',
   },
   reports: {
     'Product catalogue': 'The price list: every product you still sell by group, with its unit and list price.',
@@ -207,8 +270,18 @@ export const about = {
     'Orders by customer': 'Each customer\'s orders, the newest first, with a total for each customer.',
     'Invoices due': 'Unpaid invoices by customer with their due dates, days overdue and a total owed: the list for chasing payment.',
     'Stock to reorder': 'What to order, on a page for each supplier.',
+    Invoice: 'Each invoice as it is listed for printing: its lines with VAT, then the goods, delivery, VAT and the total due.',
+    'Delivery note': 'Each shipped order\'s delivery note as it is listed for printing: what was sent, without prices, for the customer to check and sign.',
+    'Purchase order': 'Each open purchase order as it is listed for printing, with its total.',
+    Statement: 'Each customer\'s statement as it is listed for printing: the invoices they owe and the balance.',
   },
-  empty: 'Start with Categories and Companies (your suppliers and carriers first, then your customers), then Employees and Products. Orders, purchase orders, stock movements and invoices come in as you trade. If you already hold stock, enter it as one Received movement per product and set Units in Stock to match.',
+  documents: {
+    Invoice: 'The tax invoice sent when an order ships: the business\'s details at the head, the customer\'s address, each line with its VAT rate, and the goods, delivery, VAT and total due. Numbered INV-2026-0042.',
+    'Delivery note': 'Goes in the box with a shipped order: what was sent and how many, without prices, for the customer to check and sign.',
+    'Purchase order': 'Sent to a supplier: what to send, at what cost, and when it is expected. Numbered PO-2026-0042.',
+    Statement: 'Sent to a customer each month: every invoice they have not paid, how overdue each is, and the balance owing.',
+  },
+  empty: 'Start with Business, your own name, address and payment details, which every document prints. Then Categories and Companies (your suppliers and carriers first, then your customers), then Employees and Products. Orders, purchase orders, stock movements and invoices come in as you trade. If you already hold stock, enter it as one Received movement per product and set Units in Stock to match.',
   adapt: [
     'Sell in more than one currency: add a Currency field to Companies and a rate to Orders, and a calculated column for the amount in your own currency.',
     'Keep several warehouses: add a Warehouses table, point Stock Movements at it, and group the stock queries by warehouse.',
@@ -238,6 +311,12 @@ export function fill(base, { r, cal, days = 540 }) {
   const insert = (table, values) => base.insert(table, values);
   const counts = {};
   const add = (table, values) => { counts[table] = (counts[table] || 0) + 1; return insert(table, values); };
+
+  add('Business', businessRecord({
+    name: 'Northbank Trading', domain: 'northbank.example', phone: '020 7946 0100',
+    address: { Address: '14 Quarry Road', City: 'London', Postcode: 'E14 9QR', Country: 'United Kingdom' },
+    footer: 'Thank you for your order. Goods remain ours until paid for in full. Shortages or damage to be reported within 48 hours of delivery.',
+  }));
 
   // Staff.
   const roles = ['Managing Director', 'Sales Manager', 'Sales Representative', 'Sales Representative', 'Sales Representative', 'Sales Representative', 'Purchasing Officer', 'Warehouse Lead', 'Accounts Clerk'];
@@ -276,13 +355,15 @@ export function fill(base, { r, cal, days = 540 }) {
   // Categories and products.
   const products = [];
   RANGE.forEach(([cat, desc, items], ci) => {
-    const catId = add('Categories', { Name: cat, Description: desc });
+    // Food carries no VAT; kitchen and cleaning supplies carry the standard rate.
+    const rate = cat === 'Household' ? 0.2 : 0;
+    const catId = add('Categories', { Name: cat, Description: desc, 'Tax Rate': rate });
     const supplierOf = suppliers[ci % suppliers.length];
     const second = suppliers[(ci + 5) % suppliers.length];
     items.forEach(([name, unit, cost], k) => {
       const list = money(cost * (1.35 + r.next() * 0.25));
       const level = r.int(8, 24);
-      const p = { code: `${cat.slice(0, 2).toUpperCase()}${String(101 + k).padStart(3, '0')}`, name, unit, cost, list, level, qty: level * 6, stock: 0, held: 0, supplier: k % 3 === 2 ? second : supplierOf, demand: 0.4 + r.next() * 1.6, discontinued: false };
+      const p = { code: `${cat.slice(0, 2).toUpperCase()}${String(101 + k).padStart(3, '0')}`, name, unit, cost, list, rate, level, qty: level * 6, stock: 0, held: 0, supplier: k % 3 === 2 ? second : supplierOf, demand: 0.4 + r.next() * 1.6, discontinued: false };
       p.id = add('Products', { Code: p.code, Name: name, Category: catId, Supplier: p.supplier, Unit: unit, 'Cost Price': cost, 'List Price': list, 'Units in Stock': 0, 'Reorder Level': level, 'Reorder Quantity': p.qty });
       products.push(p);
     });
@@ -296,12 +377,20 @@ export function fill(base, { r, cal, days = 540 }) {
   let start = -days;
   while (cal.at(start).getDate() !== 1) start++;
 
-  // Opening stock, received before the first order.
-  const opening = add('Purchase Orders', { Supplier: suppliers[0], Employee: buyer, 'Ordered On': cal.day(start - 20), Expected: cal.day(start - 6), 'Received On': cal.day(start - 6), Status: 'Received' });
-  for (const p of products) {
-    const n = p.qty * 2;
-    add('Purchase Lines', { 'Purchase Order': opening, Product: p.id, Quantity: n, 'Unit Cost': p.cost });
-    move(p, cal.day(start - 6), 'Received', n, `PO ${opening}`);
+  // Purchase orders numbered by the year they are placed in: PO-2026-0042.
+  const poCount = {};
+  const poNumber = (d) => { const y = cal.at(d).getFullYear(); poCount[y] = (poCount[y] || 0) + 1; return `PO-${y}-${String(poCount[y]).padStart(4, '0')}`; };
+
+  // Opening stock, received before the first order: one purchase order to each supplier.
+  for (const supplier of suppliers) {
+    const mine = products.filter((p) => p.supplier === supplier);
+    if (!mine.length) continue;
+    const opening = add('Purchase Orders', { Number: poNumber(start - 20), Supplier: supplier, Employee: buyer, 'Ordered On': cal.day(start - 20), Expected: cal.day(start - 6), 'Received On': cal.day(start - 6), Status: 'Received' });
+    for (const p of mine) {
+      const n = p.qty * 2;
+      add('Purchase Lines', { 'Purchase Order': opening, Product: p.id, Quantity: n, 'Unit Cost': p.cost });
+      move(p, cal.day(start - 6), 'Received', n, `PO ${opening}`);
+    }
   }
 
   const pending = []; // purchase orders not yet in: { id, at, lines }
@@ -339,17 +428,21 @@ export function fill(base, { r, cal, days = 540 }) {
         Customer: c.id, Employee: c.rep, 'Order Date': date, 'Required Date': cal.day(cal.workday(d + 7)), 'Shipped Date': shipped,
         Shipper: r.pick(shippers), 'Shipping Fee': fee, Status: cancelled ? 'Cancelled' : shipped ? 'Shipped' : 'New',
       });
-      let total = fee;
+      // Net and VAT as the invoice prints them: each line rounded, then added up; delivery at the standard rate.
+      let net = fee;
+      let vat = money(fee * 0.2);
       for (const { p, qty } of lines) {
         const discount = c.discount || (qty >= 20 ? 0.05 : 0);
-        add('Order Lines', { Order: order, Product: p.id, Quantity: qty, 'Unit Price': p.list, Discount: discount });
-        total += money(qty * p.list * (1 - discount));
+        add('Order Lines', { Order: order, Product: p.id, Quantity: qty, 'Unit Price': p.list, Discount: discount, 'Tax Rate': p.rate });
+        const lineNet = money(qty * p.list * (1 - discount));
+        net += lineNet;
+        vat += money(lineNet * p.rate);
         p.held -= qty;
         if (shipped) move(p, shipped, 'Sold', -qty, `Order ${order}`);
         // An order not shipped yet keeps its goods set aside.
         else if (!cancelled) p.held += qty;
       }
-      if (shipped) invoices.push({ order, date: shipped, offset: d + shipIn, amount: money(total), days: c.days, slow: c.size === 'small' && r.chance(0.25) });
+      if (shipped) invoices.push({ order, date: shipped, offset: cal.workday(d + shipIn), net: money(net), vat: money(vat), days: c.days, slow: c.size === 'small' && r.chance(0.25) });
     }
 
     // Each Monday and Thursday the buyer orders what is at or below its reorder level.
@@ -362,19 +455,23 @@ export function fill(base, { r, cal, days = 540 }) {
       }
       for (const [supplier, lines] of bySupplier) {
         const lead = r.int(5, 12);
-        const id = add('Purchase Orders', { Supplier: supplier, Employee: buyer, 'Ordered On': date, Expected: cal.day(cal.workday(d + lead)), Status: 'Submitted' });
+        const id = add('Purchase Orders', { Number: poNumber(d), Supplier: supplier, Employee: buyer, 'Ordered On': date, Expected: cal.day(cal.workday(d + lead)), Status: 'Submitted' });
         for (const l of lines) add('Purchase Lines', { 'Purchase Order': id, Product: l.p.id, Quantity: l.n, 'Unit Cost': l.p.cost });
         pending.push({ id, at: cal.workday(d + lead), lines });
       }
     }
   }
 
-  // Invoices for what shipped: most paid in time, some late, the newest not yet.
+  // Invoices for what shipped, numbered in date order a year at a time: most paid in time, some late, the newest not yet.
+  invoices.sort((a, b) => a.offset - b.offset || a.order - b.order);
+  const invCount = {};
   for (const inv of invoices) {
+    const y = cal.at(inv.offset).getFullYear();
+    invCount[y] = (invCount[y] || 0) + 1;
     const due = inv.offset + inv.days;
     const paidAt = inv.offset + (inv.slow ? inv.days + r.int(5, 40) : r.int(3, inv.days));
     const paid = paidAt <= 0 ? cal.day(paidAt) : null;
-    add('Invoices', { Order: inv.order, 'Invoice Date': inv.date, 'Due Date': cal.day(due), Amount: inv.amount, 'Paid On': paid });
+    add('Invoices', { Number: `INV-${y}-${String(invCount[y]).padStart(4, '0')}`, Order: inv.order, 'Invoice Date': cal.day(inv.offset), 'Due Date': cal.day(due), Net: inv.net, Tax: inv.vat, Amount: money(inv.net + inv.vat), 'Paid On': paid });
     if (paid) base.update('Orders', inv.order, { Status: 'Closed' });
   }
 

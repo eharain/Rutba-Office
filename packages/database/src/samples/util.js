@@ -119,3 +119,39 @@ export function companies(r, n, tails = COMPANY_B) {
 
 /** Money rounded to cents, as a till rounds it. */
 export const money = (n) => Math.round(n * 100) / 100;
+
+/**
+ * The business's own details, one record, printed at the head and foot of
+ * every document it sends: invoices, receipts, statements, letters. The
+ * tax, company and bank details in a sample are placeholders of zeros and
+ * Xs, never a number that could be someone's.
+ */
+export const BUSINESS_TABLE = { name: 'Business', fields: [
+  { name: 'Name', type: 'text', required: true }, { name: 'Address', type: 'text' }, { name: 'City', type: 'text' },
+  { name: 'Postcode', type: 'text' }, { name: 'Country', type: 'text' }, { name: 'Phone', type: 'text' }, { name: 'E-mail', type: 'text' },
+  { name: 'Website', type: 'text' }, { name: 'Tax Number', type: 'text' }, { name: 'Company Number', type: 'text' },
+  { name: 'Bank Details', type: 'text' }, { name: 'Payment Terms', type: 'text' }, { name: 'Tax Rate', type: 'number', default: 0.2 },
+  { name: 'Currency', type: 'text', default: 'GBP' }, { name: 'Document Footer', type: 'longtext' },
+] };
+
+/** What `about` says of the Business table: the same words in every sample. */
+export const BUSINESS_ABOUT = { about: 'The business\'s own details, in one record. Every document it prints, an invoice, a receipt, a statement or a letter, takes its name, address and payment details from here, so they are changed in one place.', fields: {
+  Name: 'The name printed at the top of every document.', Address: 'The street address.', City: 'The town or city.', Postcode: 'The postcode or ZIP code.',
+  Country: 'The country.', Phone: 'The phone number customers call.', 'E-mail': 'The address customers write to.', Website: 'The website, if there is one.',
+  'Tax Number': 'The VAT or sales tax registration number, printed on invoices. The sample has a placeholder.',
+  'Company Number': 'The registered company number, where the business is a company. The sample has a placeholder.',
+  'Bank Details': 'Where customers pay by transfer: the bank, account name and number. The sample has a placeholder.',
+  'Payment Terms': 'The words printed under an invoice\'s total, such as "Payment within 30 days".',
+  'Tax Rate': 'The usual rate of VAT or sales tax as a fraction: 0.2 is twenty percent. Lines may carry a rate of their own.',
+  Currency: 'The currency the business trades in, as its three-letter code.',
+  'Document Footer': 'A line or two at the foot of every document: thanks, opening hours, returns policy.',
+} };
+
+/** The Business record of a sample: its own name and address, and placeholders where real numbers would go. */
+export function businessRecord({ name, domain, address: a, phone, website = true, terms = 'Payment within 30 days of the invoice date.', taxRate = 0.2, currency = 'GBP', footer = '' }) {
+  return {
+    Name: name, ...a, Phone: phone, 'E-mail': `hello@${domain}`, Website: website ? `www.${domain}` : null,
+    'Tax Number': 'XX 000 0000 00', 'Company Number': '00000000', 'Bank Details': `${name}, sort code 00-00-00, account 00000000`,
+    'Payment Terms': terms, 'Tax Rate': taxRate, Currency: currency, 'Document Footer': footer,
+  };
+}

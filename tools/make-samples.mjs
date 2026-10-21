@@ -71,6 +71,18 @@ export function describe(id, { base, counts = {} }) {
         totals: design.columns.some((c) => c.total),
       };
     }),
+    documents: (spec.documents || []).map((d) => ({
+      name: d.name,
+      kind: d.kind,
+      about: about.documents?.[d.name] || '',
+      query: d.query,
+      key: d.key || null,
+      header: d.header || [],
+      lines: (d.lines || []).map((c) => (typeof c === 'string' ? c : c.field)),
+      totals: (d.totals || []).map((t) => t.label || t.field),
+      ...(d.body ? { body: d.body } : {}),
+      ...(d.footer ? { footer: d.footer } : {}),
+    })),
     reports: spec.reports.map((r) => ({
       name: r.name,
       title: r.title || r.name,
@@ -165,6 +177,24 @@ export function markdown(samples, made) {
       w(`From ${q.tables.join(', ')}. Shows ${q.columns.join(', ')}.`);
       if (q.calculated.length) w(`Calculated: ${q.calculated.map((c) => `${c.as} is \`${c.expr}\``).join('; ')}.`);
       if (q.criteria.length) w(`Only where ${q.criteria.map((c) => `\`${c}\``).join(' and ')}.`);
+    }
+    if (s.documents.length) {
+      w();
+      w('### Documents it prints');
+      for (const d of s.documents) {
+        w();
+        w(`#### ${d.name}`);
+        w();
+        w(`${d.kind[0].toUpperCase()}${d.kind.slice(1)}. ${d.about}`);
+        w();
+        if (d.body) {
+          w(`Filled from the query ${d.query}, one for each record. The words, with the places filled from the record in brackets:`);
+          w();
+          for (const line of d.body.split('\n')) w(`> ${line}`);
+        } else {
+          w(`From the query ${d.query}, one for each ${d.key}${d.header.length ? `: at the head ${d.header.join(', ')}` : ''}; lines of ${d.lines.join(', ')}${d.totals.length ? `; totals ${d.totals.join(', ')}` : ''}.`);
+        }
+      }
     }
     w();
     w('### Reports');

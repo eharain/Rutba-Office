@@ -6,6 +6,8 @@
 // ranges kept for fiction). Answers the problems found, in words; none is a
 // sample ready to ship.
 
+import { DOCUMENT_KINDS } from './index.js';
+
 const MAIL = /^[^@\s]+@([a-z0-9-]+\.)*example(\.(com|org|net))?$/i;
 const PHONE = [/^07700 900\d{3}$/, /^020 7946 0\d{3}$/, /^\(\d{3}\) 555-01\d{2}$/];
 
@@ -66,6 +68,34 @@ export function checkSample(base, spec) {
     for (const t of layout.totals || []) {
       if (!have.has(t.field)) problems.push(`The report ${name} totals ${t.field}, which its source does not have.`);
       else if (data.count && data.totals[`${t.fn}:${t.field}`] == null) problems.push(`The report ${name}'s ${t.fn} of ${t.field} comes to nothing.`);
+    }
+  }
+
+  // The documents it prints: each from a query that answers something, with
+  // every field it places there, and a letter's [Field] places filled by its
+  // query or by the Business record ([Business].[Name]).
+  const business = new Set(base.tables().some((t) => t.name === 'Business') ? base.fields('Business').map((f) => f.name) : []);
+  for (const d of spec.documents || []) {
+    if (!DOCUMENT_KINDS.includes(d.kind)) problems.push(`The document ${d.name} is of a kind Data Files does not print: ${d.kind}.`);
+    let out;
+    try {
+      out = base.runQuery({ name: d.query, limit: 1_000_000 });
+    } catch (err) {
+      problems.push(`The document ${d.name}'s query ${d.query} does not run: ${err.message}`);
+      continue;
+    }
+    if (!out.count) problems.push(`The document ${d.name} has nothing to print: ${d.query} answers nothing.`);
+    const have = new Set(out.columns);
+    const named = [d.key, ...(d.header || []), ...(d.lines || []).map((c) => (typeof c === 'string' ? c : c.field)), ...(d.totals || []).map((t) => t.field)].filter(Boolean);
+    for (const f of named) if (!have.has(f)) problems.push(`The document ${d.name} places ${f}, which ${d.query} does not have.`);
+    if (['letter', 'agreement'].includes(d.kind)) {
+      if (!d.body || d.body.length < 200) problems.push(`The ${d.kind} ${d.name} has no body of words.`);
+      for (const m of String(d.body || '').matchAll(/\[([^\]]+)\](?:\.\[([^\]]+)\])?/g)) {
+        const ok = m[2] ? m[1] === 'Business' && business.has(m[2]) : have.has(m[1]);
+        if (!ok) problems.push(`The ${d.kind} ${d.name} has a place for ${m[0]}, which nothing fills.`);
+      }
+    } else if (!d.key || !(d.lines || []).length) {
+      problems.push(`The document ${d.name} wants a key (one per document) and lines.`);
     }
   }
   return problems;
