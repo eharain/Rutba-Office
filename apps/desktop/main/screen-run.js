@@ -51,6 +51,8 @@ const READY_IN = {
   mail: '.ml-row, .ml-list, .ml-compose-cta',
   calendar: '.rw-app',
   contacts: '.rw-app',
+  talk: '.tk-signin, .tk-contact',
+  base: '.bs-start, .bs-app',
 };
 
 /**

@@ -51,20 +51,29 @@ function accept(req, socket) {
 
 /* ── the stand-in introducer: the protocol, for two people ─────────────── */
 
-export function standInIntroducer({ page = null } = {}) {
+/**
+ * The stand-in introducer. For the checks, two people and nothing else. For
+ * the screenshots (screen-features.js), more: `people` added to Amira and
+ * Ben by their token, `contacts` already made ([id, id] pairs), the
+ * `presence` of those not connected ({ id: 'online' | 'busy' | 'away' }),
+ * and a `history` of messages ({ from, to, text, at }) handed to whoever
+ * signs in, theirs as copies from another device.
+ */
+export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [] } = {}) {
   const PEOPLE = {
     amira: { id: 'u-amira', name: 'Amira Khan', email: 'amira@example.com' },
     ben: { id: 'u-ben', name: 'Ben Ortiz', email: 'ben@example.com' },
+    ...people,
   };
   const online = new Map(); // id -> conn
   const presence = new Map();
-  const contacts = new Set(); // 'a|b' sorted
+  const contacts = new Set(made.map(([a, b]) => [a, b].sort().join('|'))); // 'a|b' sorted
   const requests = new Map();
   const calls = new Map();
   const pair = (a, b) => [a, b].sort().join('|');
   const isContact = (a, b) => contacts.has(pair(a, b));
   const to = (id, msg) => online.get(id)?.send(JSON.stringify(msg));
-  const view = (p) => ({ ...p, presence: online.has(p.id) ? (presence.get(p.id) || 'online') === 'hidden' ? 'offline' : presence.get(p.id) || 'online' : 'offline' });
+  const view = (p) => ({ ...p, presence: online.has(p.id) ? (presence.get(p.id) || 'online') === 'hidden' ? 'offline' : presence.get(p.id) || 'online' : shown[p.id] || 'offline' });
   const contactsOf = (id) => Object.values(PEOPLE).filter((p) => p.id !== id && isContact(p.id, id)).map(view);
   const tellContacts = (id) => { for (const c of contactsOf(id)) to(c.id, { type: 'presence', id, presence: view(Object.values(PEOPLE).find((p) => p.id === id)).presence }); };
 
@@ -78,7 +87,10 @@ export function standInIntroducer({ page = null } = {}) {
   const options = { expireNext: false };
   /** A JWT-shaped token's claims, as the stand-in sign-in issues them; null for a plain test token. */
   const claimsOf = (token) => { try { return JSON.parse(Buffer.from(String(token).split('.')[1], 'base64url').toString('utf8')); } catch { return null; } };
+  const sockets = new Set();
   server.on('upgrade', (req, socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
     const conn = accept(req, socket);
     conn.socket = socket;
     let me = null;
@@ -97,6 +109,12 @@ export function standInIntroducer({ page = null } = {}) {
         online.set(me.id, conn);
         presence.set(me.id, msg.presence || 'online');
         conn.send(JSON.stringify({ type: 'welcome', me, contacts: contactsOf(me.id), requests: { incoming: [...requests.values()].filter((r) => r.toEmail === me.email).map((r) => ({ id: r.id, from: r.from, note: r.note, at: r.at })), outgoing: [] }, blocked: [], relays: [] }));
+        // The history: messages to this person, and their own as copies from another device.
+        history.forEach((h, i) => {
+          const message = { id: `h-${i + 1}`, from: h.from, to: h.to, text: h.text, at: h.at };
+          if (h.to === me.id) conn.send(JSON.stringify({ type: 'messages', messages: [message] }));
+          else if (h.from === me.id) conn.send(JSON.stringify({ type: 'msg.copy', message }));
+        });
         tellContacts(me.id);
         return;
       }
@@ -151,7 +169,8 @@ export function standInIntroducer({ page = null } = {}) {
     /** One person's connection ended from this side, as a server restart would. */
     drop: (id) => online.get(id)?.socket?.end(),
     online: (id) => online.has(id),
-    close: () => new Promise((resolve) => { for (const c of online.values()) { try { c.onclose = null; } catch { /* gone */ } } server.closeAllConnections?.(); server.close(() => resolve()); }),
+    // Its WebSockets are cut too: an upgraded socket is not the server's to wait for, and Talk keeps one open.
+    close: () => new Promise((resolve) => { for (const c of online.values()) { try { c.onclose = null; } catch { /* gone */ } } for (const s of sockets) s.destroy(); server.closeAllConnections?.(); server.close(() => resolve()); }),
   };
 }
 

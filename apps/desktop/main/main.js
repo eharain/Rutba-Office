@@ -209,7 +209,8 @@ createShell({
           if (process.env.RUTBA_OFFICE_VERIFY_APPS) { (globalThis.__rutbaCheckOpened ||= []).push(url); return undefined; }
           return shell.openExternal(url);
         },
-        testServers: Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS),
+        // A test server and token: the window checks, and the screens build's Talk picture (a stand-in introducer).
+        testServers: Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_SCREENS_FEATURES),
       }),
       // Databases: each open database's SQLite file (base.js).
       base: createBaseService(),

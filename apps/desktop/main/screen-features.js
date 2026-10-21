@@ -21,6 +21,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/** The Talk picture's stand-in introducer, kept until its picture is taken. */
+let talkStandIn = null;
+
 /** Words selected in a PDF page's text layer, from one word to another. */
 const pdfSelect = (h, index, from, to) => h.js(`(() => {
   const layer = document.querySelector('.pdf-page[data-index="${index}"] .textLayer[data-ready]');
@@ -876,6 +879,59 @@ export const FEATURES = [
       await h.click('.st-dests-btn', 'Destinations');
       await h.until(`document.querySelectorAll('.lv-dest').length === 2`, 'the destinations', 6000);
       await h.wait(800);
+    },
+  },
+
+  /* ── Talk ──────────────────────────────────────────────────────────── */
+  {
+    // Talk's main picture: signed in to a stand-in introducer (the window
+    // checks' own, verify-talk.js) with six invented colleagues, some online,
+    // and a conversation from this morning open. Nothing reaches a real server.
+    name: 'talk-conversation',
+    app: 'talk',
+    asApp: 'talk',
+    async setup(h) {
+      const { standInIntroducer } = await import('./verify-talk.js');
+      const at = (minutesAgo) => Date.now() - minutesAgo * 60_000;
+      const me = 'u-amira';
+      talkStandIn = standInIntroducer({
+        people: {
+          grace: { id: 'u-grace', name: 'Grace Okafor', email: 'grace@example.com' },
+          tariq: { id: 'u-tariq', name: 'Tariq Mahmood', email: 'tariq@example.com' },
+          sofia: { id: 'u-sofia', name: 'Sofia Marchetti', email: 'sofia@example.com' },
+          hiroshi: { id: 'u-hiroshi', name: 'Hiroshi Tanaka', email: 'hiroshi@example.com' },
+          eleanor: { id: 'u-eleanor', name: 'Eleanor Price', email: 'eleanor@example.com' },
+        },
+        contacts: ['u-ben', 'u-grace', 'u-tariq', 'u-sofia', 'u-hiroshi', 'u-eleanor'].map((id) => [me, id]),
+        presence: { 'u-ben': 'online', 'u-grace': 'busy', 'u-tariq': 'away', 'u-hiroshi': 'online' },
+        history: [
+          { from: 'u-grace', to: me, text: 'Lunch at one on Thursday still good for you?', at: at(1440) },
+          { from: me, to: 'u-grace', text: 'Yes, see you there.', at: at(1430) },
+          { from: 'u-ben', to: me, text: 'Morning! Did the quarterly figures come through from finance?', at: at(96) },
+          { from: me, to: 'u-ben', text: 'They did, an hour ago. Freight is up 12% on last quarter.', at: at(92) },
+          { from: 'u-ben', to: me, text: 'Good news. Can you put the regional table into the board pack?', at: at(90) },
+          { from: me, to: 'u-ben', text: 'Already in. I have sent you the draft to look over.', at: at(41) },
+          { from: 'u-ben', to: me, text: 'Read it. Two small changes on page 3, otherwise ready to go.', at: at(18) },
+          { from: me, to: 'u-ben', text: 'Thanks, fixing them now. A quick call in ten minutes to go through the slides?', at: at(6) },
+          { from: 'u-ben', to: me, text: 'Perfect, call me then.', at: at(4) },
+        ],
+      });
+      const port = await talkStandIn.listen();
+      await h.until(`Boolean(document.querySelector('.tk-signin'))`, 'the sign-in', 8000);
+      await h.js(`document.querySelector('.tk-test')?.setAttribute('open', ''), 1`);
+      await h.field('.tk-server', `ws://127.0.0.1:${port}/ws`);
+      await h.field('.tk-token', 'amira');
+      await h.click('.tk-connect', 'Connect');
+      await h.until(`document.querySelectorAll('.tk-contact').length >= 6`, 'the contacts', 8000);
+      await h.click('.tk-contact[data-contact="u-ben"]', 'Ben');
+      await h.until(`document.querySelectorAll('.tk-bubble').length >= 7`, 'the conversation', 6000);
+      h.wc.sendInputEvent({ type: 'mouseMove', x: 1300, y: 860 });
+      await h.wait(1200);
+    },
+    async done() {
+      const going = talkStandIn;
+      talkStandIn = null;
+      await going?.close();
     },
   },
 
