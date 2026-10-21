@@ -3215,8 +3215,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // own path — and prove a picture survives both.
       await js(`document.querySelector('.sh')?.focus(), 'focused'`);
       await press(win.webContents, 'z', { modifiers: ['control'] });
-      await wait(400);
+      // Redo only once the undo has landed: under load a fixed pause was not
+      // always long enough, and a redo pressed too soon has nothing to redo.
+      await until(() => sessionFor('sheet')?.canRedo === true || null, 'the undo to land', 6000).catch(() => {});
       await press(win.webContents, 'y', { modifiers: ['control'] });
+      await until(() => sessionFor('sheet')?.canRedo === false || null, 'the redo to land', 6000).catch(() => {});
       await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="D6"]'))`), 'D6 to be drawn as the active cell', 6000).catch(() => {});
       const cell = await js(`(() => { const c = document.querySelector('.sh-cell[data-ref="D6"]'); return c ? { x: parseFloat(c.style.left), y: parseFloat(c.style.top) } : { x: NaN, y: NaN }; })()`);
       const readDrawn = `(() => { const d = [...document.querySelectorAll('.sh-drawing')].find((el) => el.querySelector('image')); return d ? { left: parseFloat(d.style.left), top: parseFloat(d.style.top), width: parseFloat(d.style.width), height: parseFloat(d.style.height), href: (d.querySelector('image').getAttribute('href') || d.querySelector('image').getAttribute('xlink:href') || '').slice(0, 15) } : false; })()`;

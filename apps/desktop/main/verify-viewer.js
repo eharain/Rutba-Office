@@ -277,6 +277,8 @@ export async function verifyViewer(h, { dir, wav }) {
     const win = await open('pictures', fixture.sideways);
     const js = (code) => win.webContents.executeJavaScript(code);
     await until(() => js(`Boolean(document.querySelector('.pv-image')) && document.querySelector('.pv-image').naturalWidth > 0`), 'the sideways picture', 8000);
+    // The details are read from the file apart from the picture, and under load arrive after it.
+    await until(() => js(`(document.querySelector('.pv-details')?.textContent || '').includes('quarter turn')`), 'the details', 6000).catch(() => {});
     const turned = await js(`(() => { const i = document.querySelector('.pv-image'); return { w: i.naturalWidth, h: i.naturalHeight, transform: i.style.transform, orientation: document.querySelector('.pv-details')?.textContent.includes('quarter turn') }; })()`);
     check('viewer: a phone\'s sideways photo is turned once — by the decoder, not again by the view', turned.w < turned.h && !/rotate\((?!0deg)/.test(turned.transform) && turned.orientation === true, JSON.stringify(turned));
 
