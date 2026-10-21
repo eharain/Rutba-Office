@@ -14,7 +14,7 @@ added from Choose apps whenever you want them.
 | **Calendar** | Meetings, kept on your own machine | Month, week, day and agenda; `.ics` in and out, repeats and time zones included; an invitation in a message answered from Mail, with a reply the organizer's calendar understands |
 | **Contacts** | The address book Mail completes from | `.vcf` and CSV in, vCards out; a sender kept from the reading pane in one click |
 | **Documents** | Documents that open the same everywhere, laid out on pages | `.docx` on an engine we own, opening and saving `.odt`, `.rtf` and web pages whole, reading `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
-| **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.xls` of every age, `.ods` and `.csv` |
+| **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.xls` of every age, `.ods` and `.csv`, and old files to save as `.xlsx`: Lotus 1-2-3, dBASE and FoxPro tables, Access databases (read only), SYLK and DIF |
 | **Presentations** | Slides that survive the round trip, shapes you move and recolour by hand | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen; reading `.ppt` and `.odp` |
 | **PDF** | Pages put in order, without redrawing them | Read, find and copy; reorder, rotate, delete, extract, insert, split and merge, each page copied into the new file exactly as it was; Recognise Text makes scanned pages searchable with an invisible text layer; pages drawn by pdf.js, offline |
 
