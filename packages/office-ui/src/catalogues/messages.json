@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7461,
+  "count": 7486,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -425,7 +425,8 @@
     {
       "message": "(new)",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/forms.js"
       ]
     },
     {
@@ -453,6 +454,7 @@
     {
       "message": "(none)",
       "where": [
+        "apps/desktop/renderer/apps/base/forms.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/word/list-dialog.js",
         "apps/desktop/renderer/apps/word/mailings.js",
@@ -464,6 +466,12 @@
       "message": "(not matched)",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "(not sorted)",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -960,6 +968,12 @@
       ]
     },
     {
+      "message": "A form for the records of",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "A formula here is numbers, cells like B2 or B2:B4, + - * / and brackets, and SUM, AVERAGE, COUNT, MAX, MIN, PRODUCT or ABS of them or of ABOVE, LEFT, BELOW or RIGHT — =SUM(ABOVE), say.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -982,6 +996,12 @@
       "message": "A kiosk always loops, so it is never left on its last slide",
       "where": [
         "apps/desktop/renderer/apps/slides/setup.js"
+      ]
+    },
+    {
+      "message": "A label and a box for each field, a list for each field that points at another table, and the records that point at this one below.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -2122,6 +2142,12 @@
       ]
     },
     {
+      "message": "Add Record",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
       "message": "Add Scene",
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
@@ -2253,6 +2279,18 @@
       "message": "Add a series",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Add a table",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
+      "message": "Add a table first",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -4050,6 +4088,12 @@
       ]
     },
     {
+      "message": "Ascending",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
       "message": "Ask",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
@@ -4432,6 +4476,7 @@
     {
       "message": "Average",
       "where": [
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -5791,6 +5836,7 @@
       "where": [
         "apps/desktop/renderer/apps-choice.js",
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
@@ -6699,6 +6745,12 @@
       "message": "Choose a date",
       "where": [
         "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Choose a field",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -8639,6 +8691,7 @@
     {
       "message": "Count",
       "where": [
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -8821,6 +8874,12 @@
       "message": "Creating…",
       "where": [
         "apps/desktop/renderer/apps/slides/album.js"
+      ]
+    },
+    {
+      "message": "Criteria",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -9757,6 +9816,7 @@
       "message": "Delete",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/forms.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
@@ -10238,6 +10298,12 @@
       "message": "Depth colour",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Descending",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -12946,6 +13012,7 @@
       "message": "Field",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/word/references-figures.js"
       ]
     },
@@ -13596,6 +13663,7 @@
     {
       "message": "First record",
       "where": [
+        "apps/desktop/renderer/apps/base/forms.js",
         "apps/desktop/renderer/apps/word/mailings.js"
       ]
     },
@@ -14264,6 +14332,12 @@
       "message": "Formatting restrictions",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "Forms",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -15244,6 +15318,7 @@
     {
       "message": "Group By",
       "where": [
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -18288,6 +18363,12 @@
       ]
     },
     {
+      "message": "Kept as {name}",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
       "message": "Kept for you, and used by every introduction you make.",
       "where": [
         "apps/desktop/renderer/apps/video/intro/brand.js"
@@ -18681,6 +18762,7 @@
     {
       "message": "Last record",
       "where": [
+        "apps/desktop/renderer/apps/base/forms.js",
         "apps/desktop/renderer/apps/word/mailings.js"
       ]
     },
@@ -20659,6 +20741,7 @@
     {
       "message": "Max",
       "where": [
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -21130,6 +21213,7 @@
     {
       "message": "Min",
       "where": [
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -21799,6 +21883,7 @@
       "message": "Name",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/mail/archive.js",
@@ -22055,6 +22140,12 @@
       ]
     },
     {
+      "message": "New Form",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "New Introduction Video",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -22073,9 +22164,21 @@
       ]
     },
     {
+      "message": "New Query",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "New Range",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "New Record",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
       ]
     },
     {
@@ -22231,6 +22334,12 @@
       "message": "New picture",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "New record",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
       ]
     },
     {
@@ -22455,6 +22564,7 @@
     {
       "message": "Next record",
       "where": [
+        "apps/desktop/renderer/apps/base/forms.js",
         "apps/desktop/renderer/apps/word/mailings.js"
       ]
     },
@@ -24937,6 +25047,12 @@
       ]
     },
     {
+      "message": "Or",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
       "message": "Or open an archive directly",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -27104,6 +27220,7 @@
     {
       "message": "Previous record",
       "where": [
+        "apps/desktop/renderer/apps/base/forms.js",
         "apps/desktop/renderer/apps/word/mailings.js"
       ]
     },
@@ -27696,6 +27813,12 @@
       ]
     },
     {
+      "message": "Queries",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Queries & Connections",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
@@ -28256,6 +28379,12 @@
       ]
     },
     {
+      "message": "Record {at} of {count}",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
       "message": "Record {at} of {total}",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -28323,7 +28452,8 @@
     {
       "message": "Records",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/forms.js"
       ]
     },
     {
@@ -30555,6 +30685,7 @@
       "message": "Run",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/scripts.js"
       ]
     },
@@ -30776,7 +30907,8 @@
     {
       "message": "SQL",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -30880,6 +31012,7 @@
     {
       "message": "Save",
       "where": [
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
@@ -30924,6 +31057,7 @@
       "message": "Save As",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -30952,6 +31086,12 @@
       "message": "Save Picture As…",
       "where": [
         "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "Save Query",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -33058,6 +33198,7 @@
       "message": "Show",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -34336,6 +34477,7 @@
     {
       "message": "Sort",
       "where": [
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -35602,6 +35744,7 @@
     {
       "message": "Sum",
       "where": [
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -35990,6 +36133,7 @@
       "message": "Tables",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -36073,6 +36217,12 @@
       ]
     },
     {
+      "message": "Take this field out",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
       "message": "Take this step away",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -36082,6 +36232,12 @@
       "message": "Take {n}",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "Take {table} out of the query",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -39265,6 +39421,12 @@
       ]
     },
     {
+      "message": "This form is not in the database.",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
       "message": "This formula reads other sheets or names only",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -40290,6 +40452,7 @@
     {
       "message": "Total",
       "where": [
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
@@ -40308,6 +40471,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Totals",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -42436,6 +42605,7 @@
     {
       "message": "Where",
       "where": [
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/calendar.js"
       ]
     },
@@ -43813,6 +43983,12 @@
       "message": "e-mail messages",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "e.g. > 10, Like \"A*\"",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -46162,7 +46338,8 @@
       "message": "{count} record",
       "plural": "{count} records",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/forms.js"
       ]
     },
     {
@@ -46198,6 +46375,7 @@
       "plural": "{count} rows",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]

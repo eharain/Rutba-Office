@@ -38,6 +38,8 @@ export function createBaseService() {
       name: path.basename(file).replace(/\.[^.]+$/, ''),
       tables: base.tables().map((t) => ({ ...t, count: base.count(t.name) })),
       relationships: base.relationships(),
+      queries: base.queries().map((x) => x.name),
+      forms: base.forms().map((x) => x.name),
       steps: base.steps().length,
     };
   };
@@ -102,6 +104,18 @@ export function createBaseService() {
     addRelationship: ({ id, from, to, cascadeDelete = false }) => { get(id).base.addRelationship({ from, to, cascadeDelete }); return summary(id); },
     removeRelationship: ({ id, relation }) => { get(id).base.removeRelationship(relation); return summary(id); },
     steps: ({ id }) => get(id).base.steps(),
+
+    /* Queries built in the designer, and forms (2.10's Data Files). */
+    queries: ({ id }) => get(id).base.queries(),
+    saveQuery: ({ id, name, design }) => { get(id).base.saveQuery(name, design); return summary(id); },
+    removeQuery: ({ id, name }) => { get(id).base.removeQuery(name); return summary(id); },
+    runQuery: ({ id, name = null, design = null, limit = 5000 }) => get(id).base.runQuery({ name, design, limit }),
+    sqlOf: ({ id, design }) => get(id).base.sqlOf(design),
+    forms: ({ id }) => get(id).base.forms(),
+    saveForm: ({ id, layout }) => { get(id).base.saveForm(layout); return summary(id); },
+    removeForm: ({ id, name }) => { get(id).base.removeForm(name); return summary(id); },
+    makeForm: ({ id, table, name = null }) => ({ layout: get(id).base.makeForm(table, { name }), summary: summary(id) }),
+    lookup: ({ id, table, field, show }) => get(id).base.lookup({ table, field, show }),
 
     /** The person's own SELECT, read-only: { columns, rows }, at most `limit` rows. */
     query: ({ id, sql, limit = 5000 }) => {

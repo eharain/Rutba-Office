@@ -9,6 +9,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Icon, Input, Select, Content, Empty, Dialog, Spinner, useToast, t, tn } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, useFileDrop } from '../shell.js';
 import { BASE_CSS } from './base/css.js';
+import { QueryDesigner, QUERY_CSS } from './base/queries.js';
+import { FormView, FORM_CSS } from './base/forms.js';
 
 export const TYPE_NAMES = () => ({
   autonumber: t('AutoNumber'),
@@ -383,7 +385,10 @@ export default function Databases({ app, shell, boot }) {
   const toast = useToast();
   const [db, setDb] = useState(null);
   const [table, setTable] = useState(null);
-  const [view, setView] = useState('data'); // data | design | relations | sql
+  const [view, setView] = useState('data'); // data | design | relations | sql | query | form
+  // The query or form open: its name, or null for a new query.
+  const [item, setItem] = useState(null);
+  const [formTable, setFormTable] = useState(null);
   const [busy, setBusy] = useState(false);
   const [naming, setNaming] = useState(null);
 
@@ -527,6 +532,34 @@ export default function Databases({ app, shell, boot }) {
             ))}
             {db.tables.length ? null : <li className="bs-hint">{t('No tables yet: make one, or import one.')}</li>}
           </ul>
+          <div className="bs-side-head">
+            <h2>{t('Queries')}</h2>
+            <Button icon="plus" label="" title={t('New Query')} className="bs-new-query" onClick={() => { setItem(null); setView('query'); }} />
+          </div>
+          <ul className="bs-tables bs-queries">
+            {(db.queries || []).map((n) => (
+              <li key={n}>
+                <button type="button" className={`bs-table${view === 'query' && item === n ? ' on' : ''}`} data-query={n} onClick={() => { setItem(n); setView('query'); }}>
+                  <Icon name="filter" size={14} />
+                  <span>{n}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="bs-side-head">
+            <h2>{t('Forms')}</h2>
+            <Button icon="plus" label="" title={t('New Form')} className="bs-new-form" disabled={!db.tables.length} onClick={() => setFormTable(table || db.tables[0]?.name || '')} />
+          </div>
+          <ul className="bs-tables bs-forms">
+            {(db.forms || []).map((n) => (
+              <li key={n}>
+                <button type="button" className={`bs-table${view === 'form' && item === n ? ' on' : ''}`} data-form={n} onClick={() => { setItem(n); setView('form'); }}>
+                  <Icon name="textbox" size={14} />
+                  <span>{n}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
           <div className="bs-side-foot">
             <Button icon="import" label={t('Import')} className="bs-import" onClick={importDialog} />
             <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('Relationships')}</span></button>
@@ -549,19 +582,43 @@ export default function Databases({ app, shell, boot }) {
             <Relationships shell={shell} db={db} onChanged={show} toast={toast} />
           ) : view === 'sql' ? (
             <Sql shell={shell} db={db} />
+          ) : view === 'query' ? (
+            <QueryDesigner key={item || 'new'} shell={shell} db={db} name={item} onSaved={(s, n) => { show(s); setItem(n); }} toast={toast} />
+          ) : view === 'form' && item ? (
+            <FormView key={`${item}-${db.steps}`} shell={shell} db={db} name={item} onChanged={refresh} toast={toast} />
           ) : (
             <Empty icon="sheets" title={t('No table chosen')}>{t('Make a table, or import one from a file.')}</Empty>
           )}
           {busy ? <div className="bs-busy"><Spinner /></div> : null}
         </main>
       </div>
+      {formTable !== null ? (
+        <Dialog title={t('New Form')} onClose={() => setFormTable(null)} actions={<><Button label={t('Cancel')} onClick={() => setFormTable(null)} /><Button primary label={t('Make')} className="bs-make-form" disabled={!formTable} onClick={async () => {
+          try {
+            const made = await shell.base.makeForm({ id: db.id, table: formTable });
+            show(made.summary);
+            setItem(made.layout.name);
+            setView('form');
+            setFormTable(null);
+          } catch (e) {
+            toast(e.message, { tone: 'bad', ms: 7000 });
+          }
+        }} /></>}>
+          <label className="bs-field"><span>{t('A form for the records of')}</span>
+            <Select className="rw-select bs-form-table" aria-label={t('Table')} value={formTable} onChange={(e) => setFormTable(e.target.value)}>
+              {db.tables.map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}
+            </Select>
+          </label>
+          <p className="bs-hint">{t('A label and a box for each field, a list for each field that points at another table, and the records that point at this one below.')}</p>
+        </Dialog>
+      ) : null}
       {naming !== null ? (
         <Dialog title={t('New Table')} onClose={() => setNaming(null)} actions={<><Button label={t('Cancel')} onClick={() => setNaming(null)} /><Button primary label={t('Make')} className="bs-make-table" disabled={!String(naming).trim()} onClick={makeTable} /></>}>
           <label className="bs-field"><span>{t('Name')}</span><Input className="rw-input bs-table-name" aria-label={t('Name')} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') makeTable(); }} /></label>
           <p className="bs-hint">{t('It starts with an ID that numbers each record; add its fields in its design.')}</p>
         </Dialog>
       ) : null}
-      <style>{BASE_CSS}</style>
+      <style>{BASE_CSS + QUERY_CSS + FORM_CSS}</style>
     </AppFrame>
   );
 }

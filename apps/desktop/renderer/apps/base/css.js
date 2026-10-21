@@ -6,16 +6,17 @@ export const BASE_CSS = `
 
 .bs-app { flex: 1; width: 100%; height: 100%; display: flex; min-height: 0; min-width: 0; }
 .bs-app input[type='checkbox'], .bs-start input[type='checkbox'] { accent-color: var(--accent); }
-.bs-side { width: 236px; flex: none; display: flex; flex-direction: column; border-inline-end: 1px solid var(--line-soft); background: var(--sunken); min-height: 0; }
+/* Tables, queries and forms one after another, the pane scrolling as a whole; the foot stays at the foot. */
+.bs-side { width: 236px; flex: none; display: flex; flex-direction: column; border-inline-end: 1px solid var(--line-soft); background: var(--sunken); min-height: 0; overflow: auto; }
 .bs-side-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 4px 14px; }
 .bs-side h2 { margin: 0; font-size: 11.5px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-3); }
-.bs-tables { list-style: none; margin: 0; padding: 4px 8px; flex: 1; overflow: auto; display: grid; align-content: start; gap: 2px; }
+.bs-tables { list-style: none; margin: 0; padding: 4px 8px; flex: none; display: grid; align-content: start; gap: 2px; }
 .bs-table { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: var(--r-2); background: transparent; color: var(--ink); font: inherit; text-align: start; cursor: pointer; }
 .bs-table span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bs-table small { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
 .bs-table:hover { background: var(--wash); }
 .bs-table.on { background: var(--wash-strong); box-shadow: inset 3px 0 0 var(--accent); }
-.bs-side-foot { display: grid; gap: 2px; padding: 8px; border-top: 1px solid var(--line-soft); }
+.bs-side-foot { display: grid; gap: 2px; padding: 8px; border-top: 1px solid var(--line-soft); margin-top: auto; position: sticky; bottom: 0; background: var(--sunken); }
 .bs-side-foot .bs-import { justify-content: flex-start; margin-bottom: 4px; }
 
 .bs-main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; position: relative; min-height: 0; }

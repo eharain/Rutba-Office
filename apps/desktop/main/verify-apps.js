@@ -34,6 +34,7 @@ import { verifyMailSafety } from './verify-mail-safety.js';
 import { verifyTalk } from './verify-talk.js';
 import { verifyTalkSignIn } from './verify-talk-signin.js';
 import { verifyBase } from './verify-base.js';
+import { verifyBaseQueriesForms } from './verify-base-queries-forms.js';
 import { verifyVideoSound } from './verify-video-sound.js';
 import { verifyVideoLibrary, verifyVideoStarters } from './verify-video-library.js';
 import { verifyRecorderLive } from './verify-recorder-live.js';
@@ -5047,6 +5048,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('talk')) await verifyTalk({ open, check, until, wait, errorsIn });
     if (only.includes('talk-signin')) await verifyTalkSignIn({ open, check, until, wait });
     if (only.includes('base')) await verifyBase({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('base-qf')) await verifyBaseQueriesForms({ open, check, until, wait }, { dir });
     if (only.includes('video-sound')) await verifyVideoSound({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-library')) await verifyVideoLibrary({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-starters')) await verifyVideoStarters({ open, check, until, wait, errorsIn }, { dir });
@@ -5423,6 +5425,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('talk', () => verifyTalk({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkSignIn({ open, check, until, wait }));
   await part('base', () => verifyBase({ open, check, until, wait, errorsIn }, { dir }));
+  await part('base', () => verifyBaseQueriesForms({ open, check, until, wait }, { dir }));
   await part('video', () => verifyVideoSound({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifyVideoLibrary({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifyVideoStarters({ open, check, until, wait, errorsIn }, { dir }));

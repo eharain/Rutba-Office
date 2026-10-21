@@ -7,6 +7,8 @@
 
 import { DatabaseSync } from 'node:sqlite';
 import { FIELD_TYPES, q, columnSql, toStored } from './types.js';
+import { designToSql } from './query-design.js';
+import { wizardForm } from './form-design.js';
 
 const DESIGN = `
 CREATE TABLE IF NOT EXISTS rutba_meta (key TEXT PRIMARY KEY, value TEXT);
@@ -16,10 +18,12 @@ CREATE TABLE IF NOT EXISTS rutba_fields (tbl TEXT NOT NULL, name TEXT NOT NULL, 
 CREATE TABLE IF NOT EXISTS rutba_relations (id INTEGER PRIMARY KEY, from_tbl TEXT NOT NULL, from_field TEXT NOT NULL, to_tbl TEXT NOT NULL,
   to_field TEXT NOT NULL, cascade_update INTEGER NOT NULL DEFAULT 1, cascade_delete INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS rutba_steps (n INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, label TEXT NOT NULL, detail TEXT);
+CREATE TABLE IF NOT EXISTS rutba_queries (name TEXT PRIMARY KEY, design TEXT NOT NULL, position INTEGER);
+CREATE TABLE IF NOT EXISTS rutba_forms (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
 `;
 
-/** The version of the design tables this build writes. */
-export const DESIGN_VERSION = 1;
+/** The version of the design tables this build writes: 2 keeps saved queries and forms. A file of version 1 is given their tables as it opens. */
+export const DESIGN_VERSION = 2;
 
 const RESERVED = /^(rutba_|sqlite_)/i;
 
@@ -41,7 +45,7 @@ export class Base {
     db.exec('PRAGMA foreign_keys = ON');
     db.exec(DESIGN);
     const base = new Base(db);
-    if (!base.meta('version')) base.setMeta('version', String(DESIGN_VERSION));
+    if (Number(base.meta('version') || 0) < DESIGN_VERSION) base.setMeta('version', String(DESIGN_VERSION));
     return base;
   }
 
@@ -369,6 +373,87 @@ export class Base {
       if (/CHECK constraint failed/.test(m)) throw new Error('A value does not fit its field: too long, or not the kind the field takes.');
       throw err;
     }
+  }
+
+  /* ── saved queries and forms ───────────────────────────────────── */
+
+  /** The saved queries: [{ name, design }], in their order. */
+  queries() {
+    return this.db.prepare('SELECT name, design FROM rutba_queries ORDER BY position, name').all().map((r) => ({ name: r.name, design: JSON.parse(r.design) }));
+  }
+
+  /** A query kept under `name` (made, or replaced), after its design is checked by building its SQL. */
+  saveQuery(name, design) {
+    const n = checkName(name, 'query');
+    if (this.tables().some((t) => t.name.toLowerCase() === n.toLowerCase())) throw new Error(`${n} is a table's name already. Give the query another.`);
+    designToSql(design, this.relationships());
+    const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_queries').get().p;
+    return this._step(`Query ${n} kept`, { query: n }, () => {
+      this.db.prepare('INSERT INTO rutba_queries (name, design, position) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET design = excluded.design').run(n, JSON.stringify(design), at);
+      return n;
+    });
+  }
+
+  removeQuery(name) {
+    return this._step(`Query ${name} removed`, { query: name }, () => this.db.prepare('DELETE FROM rutba_queries WHERE name = ?').run(name).changes > 0);
+  }
+
+  /**
+   * A query's answer: a saved one by `name`, or a `design` as it stands in
+   * the designer. Answers { columns, rows, count, sql }, at most `limit` rows.
+   */
+  runQuery({ name = null, design = null, limit = 5000 } = {}) {
+    const d = design || this.queries().find((x) => x.name === name)?.design;
+    if (!d) throw new Error(`There is no query called ${name}.`);
+    const { sql, params, columns } = designToSql(d, this.relationships());
+    const out = this.query(sql, params);
+    return { columns: out.columns.length ? out.columns : columns, rows: out.rows.slice(0, limit), count: out.rows.length, sql };
+  }
+
+  /** The SQL a design stands for, its values shown in place of the parameters, for the SQL view. */
+  sqlOf(design) {
+    const { sql, params } = designToSql(design, this.relationships());
+    let i = 0;
+    return sql.replace(/\?/g, () => {
+      const v = params[i++];
+      return typeof v === 'number' ? String(v) : `'${String(v).replace(/'/g, "''")}'`;
+    });
+  }
+
+  /** The forms: [{ name, layout }], in their order. */
+  forms() {
+    return this.db.prepare('SELECT name, layout FROM rutba_forms ORDER BY position, name').all().map((r) => ({ name: r.name, layout: JSON.parse(r.layout) }));
+  }
+
+  /** A form kept (made, or replaced), its table checked. */
+  saveForm(layout) {
+    const n = checkName(layout?.name, 'form');
+    if (!this.tables().some((t) => t.name === layout.table)) throw new Error(`The form's table, ${layout.table}, is not in this database.`);
+    const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_forms').get().p;
+    return this._step(`Form ${n} kept`, { form: n }, () => {
+      this.db.prepare('INSERT INTO rutba_forms (name, layout, position) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET layout = excluded.layout').run(n, JSON.stringify({ ...layout, name: n }), at);
+      return n;
+    });
+  }
+
+  removeForm(name) {
+    return this._step(`Form ${name} removed`, { form: name }, () => this.db.prepare('DELETE FROM rutba_forms WHERE name = ?').run(name).changes > 0);
+  }
+
+  /** A form for `table` as the wizard makes it, kept under a name of its own. */
+  makeForm(table, { name = null } = {}) {
+    const taken = new Set(this.forms().map((f) => f.name.toLowerCase()));
+    let n = name || table;
+    for (let i = 2; taken.has(n.toLowerCase()); i++) n = `${name || table} ${i}`;
+    const layout = wizardForm(table, (t) => this.fields(t), this.relationships(), { name: n });
+    this.saveForm(layout);
+    return layout;
+  }
+
+  /** The choices for a lookup: each record of `table` by its `field`, shown as `show`, at most `limit`. */
+  lookup({ table, field, show, limit = 2000 }) {
+    const rows = this.db.prepare(`SELECT ${q(field)} AS value, ${q(show || field)} AS text FROM ${q(table)} ORDER BY ${q(show || field)} LIMIT ?`).all(limit);
+    return rows.map((r) => ({ value: r.value, text: r.text == null ? String(r.value) : String(r.text) }));
   }
 
   /**

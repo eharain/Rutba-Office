@@ -9,7 +9,9 @@
     ".": "./src/index.js",
     "./base": "./src/base.js",
     "./types": "./src/types.js",
-    "./import": "./src/import.js"
+    "./import": "./src/import.js",
+    "./query-design": "./src/query-design.js",
+    "./form-design": "./src/form-design.js"
   },
   "sideEffects": false
 }

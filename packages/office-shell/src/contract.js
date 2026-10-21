@@ -356,6 +356,16 @@ export const METHODS = {
     'steps',        // ({ id }) -> [{ n, at, label }]   the design's history
     'query',        // ({ id, sql, limit? }) -> { columns, rows, count }   SELECT only, read-only
     'importFile',   // ({ id, file }) -> { tables, notes, summary }   CSV, TSV and the old files, a table each
+    'queries',      // ({ id }) -> [{ name, design }]   the queries kept in the file
+    'saveQuery',    // ({ id, name, design }) -> summary   a designed query kept (made or replaced)
+    'removeQuery',  // ({ id, name }) -> summary
+    'runQuery',     // ({ id, name?, design?, limit? }) -> { columns, rows, count, sql }
+    'sqlOf',        // ({ id, design }) -> string   the SQL a design stands for, its values in place
+    'forms',        // ({ id }) -> [{ name, layout }]
+    'saveForm',     // ({ id, layout }) -> summary
+    'removeForm',   // ({ id, name }) -> summary
+    'makeForm',     // ({ id, table, name? }) -> { layout, summary }   the form wizard's form, kept
+    'lookup',       // ({ id, table, field, show }) -> [{ value, text }]   a lookup list's choices
     'saveAs',       // ({ id, file }) -> summary   a copy at file, then the one open
   ],
   // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).

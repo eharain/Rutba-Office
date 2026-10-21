@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Base, importRows, importSheets, inferType, columnSql } from '../packages/database/src/index.js';
+import { Base, importRows, importSheets, inferType, columnSql, DESIGN_VERSION } from '../packages/database/src/index.js';
 
 const fresh = () => Base.open(':memory:');
 
@@ -127,7 +127,7 @@ test('the file on disk is one SQLite file any tool reads, its design kept beside
   const again = Base.open(file);
   assert.deepEqual(again.tables(), [{ name: 'Items', caption: null }]);
   assert.equal(again.rows('Items')[0].Name, 'Tea');
-  assert.equal(again.meta('version'), '1');
+  assert.equal(again.meta('version'), String(DESIGN_VERSION));
   again.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
