@@ -7396,4 +7396,13 @@ export default {
   'pictures one after another, crossfading, with a title and an end card': 'ایک کے بعد ایک تصاویر، کراس فیڈ کے ساتھ، ایک عنوان اور اختتامی کارڈ سمیت',
   'quick cuts of ten pictures between a title and an end card': 'عنوان اور اختتامی کارڈ کے درمیان دس تصاویر کے تیز کٹ',
   'upright 9:16 for Reels, Shorts and TikTok, quick slides and a sticker': 'Reels، Shorts اور TikTok کے لیے عمودی 9:16، تیز سلائیڈز اور ایک اسٹیکر',
+  'A table was longer than a sheet can hold, so its first 1,048,575 rows are here.': { one: 'ایک جدول شیٹ کی گنجائش سے لمبا تھا، اس لیے اس کی پہلی 1,048,575 قطاریں یہاں ہیں۔', other: '{count} جدول شیٹ کی گنجائش سے لمبے تھے، اس لیے ان کی پہلی 1,048,575 قطاریں یہاں ہیں۔' },
+  'Its formula is kept as the value 1-2-3 last worked out.': { one: 'اس کا فارمولا اس قدر کے طور پر رکھا گیا ہے جو 1-2-3 نے آخری بار نکالی تھی۔', other: 'اس کے {count} فارمولے ان قدروں کے طور پر رکھے گئے ہیں جو 1-2-3 نے آخری بار نکالی تھیں۔' },
+  'The database has no tables to show.': 'ڈیٹا بیس میں دکھانے کے لیے کوئی جدول نہیں۔',
+  'The file has no cells.': 'فائل میں کوئی سیل نہیں۔',
+  'The memo file was not beside the table, so its memo fields are empty.': 'میمو فائل جدول کے ساتھ نہیں تھی، اس لیے اس کے میمو خانے خالی ہیں۔',
+  'The tables are here to work with; the database\'s forms, reports and code are not read.': 'جدول یہاں کام کے لیے موجود ہیں؛ ڈیٹا بیس کے فارم، رپورٹیں اور کوڈ نہیں پڑھے جاتے۔',
+  '{count} deleted record was left out.': { one: '{count} حذف شدہ ریکارڈ چھوڑ دیا گیا۔', other: '{count} حذف شدہ ریکارڈ چھوڑ دیے گئے۔' },
+  '{count} field holding pictures or files was left out.': { one: 'تصاویر یا فائلوں والا {count} خانہ چھوڑ دیا گیا۔', other: 'تصاویر یا فائلوں والے {count} خانے چھوڑ دیے گئے۔' },
+  '{count} formula was kept as its value: it uses {uses}, which the spreadsheet has no word for.': { one: '{count} فارمولا اپنی قدر کے طور پر رکھا گیا: اس میں {uses} ہے، جس کا اسپریڈشیٹ میں کوئی متبادل نہیں۔', other: '{count} فارمولے اپنی قدروں کے طور پر رکھے گئے: ان میں {uses} ہے، جس کا اسپریڈشیٹ میں کوئی متبادل نہیں۔' },
 };

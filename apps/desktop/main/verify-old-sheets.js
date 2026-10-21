@@ -120,7 +120,7 @@ export async function verifyOldSheets(h, { dir }) {
       /formula was kept as its value: it uses @CELL/.test(a.shown.said) && /Opened from WK1/.test(a.shown.said), a.shown.said);
     const b = await openAndRead(files.wk3, ['A1', 'A2'], 'A2');
     check('old sheets: a .wk3 opens with its sheets in their tabs, its 80-bit numbers read',
-      b.shown.tabs.length === 2 && b.shown.tabs[0].startsWith('A') && b.shown.tabs[1].startsWith('B') && b.shown.cells.A1 === 'North' && /1,?234\.5/.test(b.shown.cells.A2 || ''),
+      b.shown.tabs.filter((t) => t !== '+').length === 2 && b.shown.tabs[0].startsWith('A') && b.shown.tabs[1].startsWith('B') && b.shown.cells.A1 === 'North' && /1,?234\.5/.test(b.shown.cells.A2 || ''),
       JSON.stringify(b.shown));
     const c = await openAndRead(files.dbf, ['A1', 'C1', 'A2', 'C2', 'A3', 'C3', 'A4'], 'C3');
     check('old sheets: a dBASE table opens as its fields and records, its memos read from the .dbt beside it, the deleted record left out and said',

@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7388,
+  "count": 7397,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1481,6 +1481,13 @@
       "message": "A table row does not fit even on an empty page; the margins leave no body.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A table was longer than a sheet can hold, so its first 1,048,575 rows are here.",
+      "plural": "{count} tables were longer than a sheet can hold, so their first 1,048,575 rows are here.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -17869,6 +17876,13 @@
       "message": "Its column",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Its formula is kept as the value 1-2-3 last worked out.",
+      "plural": "Its {count} formulas are kept as the values 1-2-3 last worked out.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -36810,6 +36824,12 @@
       ]
     },
     {
+      "message": "The database has no tables to show.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "The deck's layouts in a pane — put this slide on one, or start a new slide from it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -36934,6 +36954,12 @@
       "message": "The file could not be read: {reason}",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
+      "message": "The file has no cells.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -37158,6 +37184,12 @@
       "message": "The marked words were found nowhere else in the file.",
       "where": [
         "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
+      "message": "The memo file was not beside the table, so its memo fields are empty.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -37871,6 +37903,12 @@
       "message": "The table could not be read: {reason}",
       "where": [
         "apps/desktop/renderer/apps/sheets/picture-data.js"
+      ]
+    },
+    {
+      "message": "The tables are here to work with; the database's forms, reports and code are not read.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -45168,6 +45206,13 @@
       ]
     },
     {
+      "message": "{count} deleted record was left out.",
+      "plural": "{count} deleted records were left out.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "{count} edit",
       "plural": "{count} edits",
       "where": [
@@ -45214,6 +45259,13 @@
       "plural": "{count} events in {name}.",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "{count} field holding pictures or files was left out.",
+      "plural": "{count} fields holding pictures or files were left out.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -45300,6 +45352,13 @@
       "plural": "{count} form values",
       "where": [
         "apps/desktop/renderer/apps/pdf/redact.js"
+      ]
+    },
+    {
+      "message": "{count} formula was kept as its value: it uses {uses}, which the spreadsheet has no word for.",
+      "plural": "{count} formulas were kept as their values: they use {uses}, which the spreadsheet has no word for.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {

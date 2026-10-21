@@ -37,7 +37,8 @@
     "./themes": "./src/themes.js"
   },
   "dependencies": {
-    "@rutba/ooxml": "*"
+    "@rutba/ooxml": "*",
+    "mdb-reader": "^3.2.0"
   },
   "sideEffects": false
 }

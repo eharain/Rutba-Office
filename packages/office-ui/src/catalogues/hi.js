@@ -7398,4 +7398,13 @@ export default {
   'pictures one after another, crossfading, with a title and an end card': 'एक के बाद एक चित्र, क्रॉसफ़ेड के साथ, एक शीर्षक और अंतिम कार्ड सहित',
   'quick cuts of ten pictures between a title and an end card': 'शीर्षक और अंतिम कार्ड के बीच दस चित्रों के तेज़ कट',
   'upright 9:16 for Reels, Shorts and TikTok, quick slides and a sticker': 'Reels, Shorts और TikTok के लिए खड़ा 9:16, तेज़ स्लाइड और एक स्टिकर',
+  'A table was longer than a sheet can hold, so its first 1,048,575 rows are here.': { one: 'एक तालिका शीट की क्षमता से लंबी थी, इसलिए उसकी पहली 1,048,575 पंक्तियाँ यहाँ हैं।', other: '{count} तालिकाएँ शीट की क्षमता से लंबी थीं, इसलिए उनकी पहली 1,048,575 पंक्तियाँ यहाँ हैं।' },
+  'Its formula is kept as the value 1-2-3 last worked out.': { one: 'इसका सूत्र उस मान के रूप में रखा गया है जो 1-2-3 ने आखिरी बार निकाला था।', other: 'इसके {count} सूत्र उन मानों के रूप में रखे गए हैं जो 1-2-3 ने आखिरी बार निकाले थे।' },
+  'The database has no tables to show.': 'डेटाबेस में दिखाने के लिए कोई तालिका नहीं है।',
+  'The file has no cells.': 'फ़ाइल में कोई सेल नहीं है।',
+  'The memo file was not beside the table, so its memo fields are empty.': 'मेमो फ़ाइल तालिका के साथ नहीं थी, इसलिए उसके मेमो फ़ील्ड खाली हैं।',
+  'The tables are here to work with; the database\'s forms, reports and code are not read.': 'तालिकाएँ यहाँ काम करने के लिए हैं; डेटाबेस के फ़ॉर्म, रिपोर्ट और कोड नहीं पढ़े जाते।',
+  '{count} deleted record was left out.': { one: '{count} हटाया गया रिकॉर्ड छोड़ दिया गया।', other: '{count} हटाए गए रिकॉर्ड छोड़ दिए गए।' },
+  '{count} field holding pictures or files was left out.': { one: 'चित्रों या फ़ाइलों वाला {count} फ़ील्ड छोड़ दिया गया।', other: 'चित्रों या फ़ाइलों वाले {count} फ़ील्ड छोड़ दिए गए।' },
+  '{count} formula was kept as its value: it uses {uses}, which the spreadsheet has no word for.': { one: '{count} सूत्र अपने मान के रूप में रखा गया: इसमें {uses} है, जिसका स्प्रेडशीट में कोई समकक्ष नहीं।', other: '{count} सूत्र अपने मानों के रूप में रखे गए: इनमें {uses} है, जिसका स्प्रेडशीट में कोई समकक्ष नहीं।' },
 };
