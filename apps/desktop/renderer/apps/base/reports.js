@@ -11,7 +11,7 @@ import { Button, Input, Select, t, tn } from '@rutba/office-ui';
 const FN_LABEL = { sum: () => t('Sum'), avg: () => t('Average'), count: () => t('Count'), min: () => t('Smallest'), max: () => t('Largest') };
 
 /** A value as the report shows it, by its field's type. */
-function shown(type, v) {
+export function shown(type, v) {
   if (v === null || v === undefined || v === '') return '';
   if (type === 'currency') return Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (type === 'number' || type === 'integer' || typeof v === 'number') return Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 });

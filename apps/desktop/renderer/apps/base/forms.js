@@ -6,8 +6,9 @@
 // starts a new one and deletes the one shown.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, t, tn } from '@rutba/office-ui';
+import { Button, Select, t, tn } from '@rutba/office-ui';
 import { valueFromControl } from '@rutba/database/form-design';
+import { usePrinter } from './documents.js';
 
 const LABEL_X = 16;
 
@@ -27,6 +28,22 @@ export function FormView({ shell, db, name, onChanged, toast }) {
   const [draft, setDraft] = useState({});
   const [lists, setLists] = useState({});
   const [related, setRelated] = useState({});
+  // The print templates for this form's table: the record shown printed, or saved as a PDF.
+  const templates = (db.documents || []).filter((d) => d.table === layout?.table);
+  const [template, setTemplate] = useState('');
+  const printer = usePrinter(shell, toast);
+  const printRecord = async (how) => {
+    const chosen = template || templates[0]?.name;
+    if (!chosen || !record) return;
+    const key = record[layout.controls.find((c) => c.kind === 'auto')?.field || 'ID'] ?? record._rowid;
+    try {
+      const data = await shell.base.documentData({ id: db.id, name: chosen, keys: [key] });
+      if (how === 'pdf') await printer.savePdf(data, `${chosen} ${key}`);
+      else await printer.print(data);
+    } catch (e) {
+      toast(e.message, { tone: 'bad', ms: 7000 });
+    }
+  };
 
   useEffect(() => {
     let live = true;
@@ -155,11 +172,23 @@ export function FormView({ shell, db, name, onChanged, toast }) {
         <Button icon="chevronRight" label="" title={t('Next record')} className="bs-nav-next" disabled={at >= count - 1} onClick={() => setAt(at + 1)} />
         <Button icon="skipForward" label="" title={t('Last record')} className="bs-nav-last" disabled={at >= count - 1} onClick={() => setAt(Math.max(0, count - 1))} />
         <span className="grow" />
+        {templates.length && !isNew ? (
+          <span className="bs-form-print">
+            {templates.length > 1 ? (
+              <Select className="rw-select bs-form-template" aria-label={t('Print template')} value={template || templates[0].name} onChange={(e) => setTemplate(e.target.value)}>
+                {templates.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+              </Select>
+            ) : null}
+            <Button icon="print" label={templates.length > 1 ? t('Print') : t('Print {name}', { name: templates[0].name })} className="bs-form-print-now" onClick={() => printRecord('print')} />
+            <Button icon="pdf" label="" title={t('Save as PDF')} className="bs-form-pdf" onClick={() => printRecord('pdf')} />
+          </span>
+        ) : null}
         {isNew
           ? <Button primary icon="plus" label={t('Add Record')} className="bs-nav-add" onClick={addRecord} />
           : <Button icon="plus" label={t('New Record')} className="bs-nav-new" onClick={() => setAt(count)} />}
         {isNew ? null : <Button icon="trash" label={t('Delete')} className="bs-nav-delete" onClick={remove} />}
       </div>
+      {printer.portal}
     </div>
   );
 }
@@ -183,6 +212,7 @@ export const FORM_CSS = `
 .bs-subform table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 .bs-subform th, .bs-subform td { text-align: start; padding: 4px 8px; border-bottom: 1px solid var(--line-soft); }
 .bs-form-bar { display: flex; align-items: center; gap: 4px; padding: 8px 16px; border-top: 1px solid var(--line-soft); background: var(--window); position: sticky; bottom: 0; }
+.bs-form-print { display: inline-flex; gap: 4px; align-items: center; margin-inline-end: 8px; }
 .bs-nav-place { min-width: 140px; text-align: center; font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .bs-form-empty { padding: 24px; color: var(--ink-3); }
 `;
