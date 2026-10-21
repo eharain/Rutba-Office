@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7548,
+  "count": 7576,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -5677,6 +5677,12 @@
       ]
     },
     {
+      "message": "Cafe or restaurant",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Calculate",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -6490,6 +6496,12 @@
       "message": "Characters",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Charity or club",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -7459,6 +7471,24 @@
       ]
     },
     {
+      "message": "Clients, bookings, stylists, services, retail stock and commission.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Clients, projects, time sheets, expenses and invoices.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Clinic",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Clip",
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
@@ -8311,6 +8341,12 @@
       "message": "Constitutional Provisions",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Consultancy or agency",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -9298,6 +9334,12 @@
     },
     {
       "message": "Customers and sales",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Customers, suppliers, products, orders, purchase orders, stock and invoices.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
       ]
@@ -11501,6 +11543,12 @@
       ]
     },
     {
+      "message": "Each comes with invented records to learn from, or empty for your own.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Each is set up as Add account does: a provider in the built-in list straight away; for any other domain, its own records are looked up when you press Add (its DNS, autoconfig and autodiscover addresses), and nothing else is asked.",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
@@ -12038,6 +12086,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/animate.js"
+      ]
+    },
+    {
+      "message": "Empty",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -20942,6 +20996,12 @@
       ]
     },
     {
+      "message": "Materials, bills of materials, work orders, finished stock and sales.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Math & Trig",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -21085,6 +21145,12 @@
       ]
     },
     {
+      "message": "Members, renewals, donations, campaigns, events and volunteers.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Members, their payments and the renewals coming due.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -21106,6 +21172,12 @@
       "message": "Mention someone",
       "where": [
         "apps/desktop/renderer/apps/slides/comments.js"
+      ]
+    },
+    {
+      "message": "Menu costing, orders, ingredients, suppliers, waste and the staff rota.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -25303,6 +25375,12 @@
       ]
     },
     {
+      "message": "Or a whole business, ready to use",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Or open an archive directly",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -26157,6 +26235,12 @@
       "message": "Path copied",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Patients, appointments, treatments, invoices and recalls.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -27741,6 +27825,12 @@
       ]
     },
     {
+      "message": "Products, the till, stock, deliveries, loyalty customers and running costs.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Products, their suppliers and stock movements, and what is running low.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -27797,9 +27887,21 @@
       ]
     },
     {
+      "message": "Properties, units, tenants, leases, rent due, repairs and inspections.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Properties: the selected control's title, tag, placeholder, locks and list",
       "where": [
         "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Property rentals",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -29712,6 +29814,18 @@
       ]
     },
     {
+      "message": "Repair jobs from booking in to collection, parts, quotes and warranty.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Repair shop",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Repeat",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
@@ -31302,6 +31416,12 @@
       ]
     },
     {
+      "message": "Salon",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Salutation",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -31317,6 +31437,12 @@
       "message": "Sample",
       "where": [
         "apps/desktop/renderer/apps/slides/design.js"
+      ]
+    },
+    {
+      "message": "Sample databases",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -31875,6 +32001,12 @@
       "message": "Scheduled for {when}",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "School or training centre",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -33490,6 +33622,12 @@
       "message": "Shipping",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Shop",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -35925,6 +36063,12 @@
       "message": "Structures",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
+      ]
+    },
+    {
+      "message": "Students, courses, classes, attendance, results and fees.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -43108,6 +43252,12 @@
       ]
     },
     {
+      "message": "Wholesale and trading",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Whoosh",
       "where": [
         "apps/desktop/renderer/apps/video/library.js"
@@ -43265,6 +43415,12 @@
       "message": "With Previous",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "With sample records",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -43515,6 +43671,12 @@
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/registry-words.js",
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "Workshop or maker",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -45862,6 +46024,12 @@
       "message": "{browser} (the default)",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "{business}, with its invented records",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {

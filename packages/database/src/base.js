@@ -45,6 +45,14 @@ function checkName(name, what) {
   return n;
 }
 
+// A sum of money in binary floating point comes out as 31.240000000000002;
+// fifteen significant digits, all a double holds for certain, make it 31.24.
+const clean = (v) => (typeof v === 'number' && !Number.isInteger(v) ? Number(v.toPrecision(15)) : v);
+function cleanRow(r) {
+  for (const k of Object.keys(r)) r[k] = clean(r[k]);
+  return r;
+}
+
 export class Base {
   /** Open (or make) the database at `file`; ':memory:' for one in memory. */
   static open(file) {
@@ -430,7 +438,8 @@ export class Base {
     if (!d) throw new Error(`There is no query called ${name}.`);
     const { sql, params, columns } = designToSql(d, this.relationships(), this._designFields());
     const out = this.query(sql, params);
-    return { columns: out.columns.length ? out.columns : columns, rows: out.rows.slice(0, limit), count: out.rows.length, sql };
+    const rows = out.rows.slice(0, limit).map(cleanRow);
+    return { columns: out.columns.length ? out.columns : columns, rows, count: out.rows.length, sql };
   }
 
   /** The SQL a design stands for, its values shown in place of the parameters, for the SQL view. */

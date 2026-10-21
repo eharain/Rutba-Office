@@ -23,6 +23,26 @@ const TEMPLATES = [
   { id: 'library', icon: 'list', name: () => t('Lending library'), line: () => t('Books, borrowers and loans, and what is out and when it is due back.') },
 ];
 
+/**
+ * The sample businesses the start screen offers, in the engine's order
+ * (packages/database/src/samples/index.js): each with its invented records
+ * to learn from, or empty to start a business of one's own from. The
+ * business's name is a made-up proper name, the same in every language.
+ */
+const SAMPLES = [
+  { id: 'trading', icon: 'globe', business: 'Northbank Trading', kind: () => t('Wholesale and trading'), line: () => t('Customers, suppliers, products, orders, purchase orders, stock and invoices.') },
+  { id: 'shop', icon: 'scanReceipt', business: 'Larkspur Corner Store', kind: () => t('Shop'), line: () => t('Products, the till, stock, deliveries, loyalty customers and running costs.') },
+  { id: 'clinic', icon: 'calendar', business: 'Cedar Lane Clinic', kind: () => t('Clinic'), line: () => t('Patients, appointments, treatments, invoices and recalls.') },
+  { id: 'salon', icon: 'scissors', business: 'Marigold Hair and Beauty', kind: () => t('Salon'), line: () => t('Clients, bookings, stylists, services, retail stock and commission.') },
+  { id: 'repairs', icon: 'settings', business: 'Ironbridge Repairs', kind: () => t('Repair shop'), line: () => t('Repair jobs from booking in to collection, parts, quotes and warranty.') },
+  { id: 'agency', icon: 'clock', business: 'Bramble Studio', kind: () => t('Consultancy or agency'), line: () => t('Clients, projects, time sheets, expenses and invoices.') },
+  { id: 'cafe', icon: 'sun', business: 'Little Fig Cafe', kind: () => t('Cafe or restaurant'), line: () => t('Menu costing, orders, ingredients, suppliers, waste and the staff rota.') },
+  { id: 'rentals', icon: 'home', business: 'Hollybrook Lettings', kind: () => t('Property rentals'), line: () => t('Properties, units, tenants, leases, rent due, repairs and inspections.') },
+  { id: 'school', icon: 'pen', business: 'Lantern Learning Centre', kind: () => t('School or training centre'), line: () => t('Students, courses, classes, attendance, results and fees.') },
+  { id: 'charity', icon: 'heart', business: 'Rowanmere Community Trust', kind: () => t('Charity or club'), line: () => t('Members, renewals, donations, campaigns, events and volunteers.') },
+  { id: 'workshop', icon: 'layers', business: 'Granite and Grain Woodworks', kind: () => t('Workshop or maker'), line: () => t('Materials, bills of materials, work orders, finished stock and sales.') },
+];
+
 export const TYPE_NAMES = () => ({
   autonumber: t('AutoNumber'),
   text: t('Short text'),
@@ -455,6 +475,23 @@ export default function Databases({ app, shell, boot }) {
     }
   }, [shell, show, toast]);
 
+  const fromSample = useCallback(async (sample, withData) => {
+    const name = withData ? sample.business : sample.kind();
+    const file = await shell.dialog.save({ title: t('New Database'), defaultPath: `${name}.rbase`, filters: [{ name: t('Rutba Database (.rbase)'), extensions: ['rbase'] }] });
+    if (!file) return;
+    setBusy(true);
+    try {
+      const s = await shell.base.createFromSample({ file: /\.rbase$/i.test(file) ? file : `${file}.rbase`, sample: sample.id, withData });
+      show(s);
+      setView('data');
+      shell.app.addRecent({ path: s.file, app: 'base' }).catch(() => {});
+    } catch (e) {
+      toast(e.message, { tone: 'bad', ms: 7000 });
+    } finally {
+      setBusy(false);
+    }
+  }, [shell, show, toast]);
+
   const openDialog = useCallback(async () => {
     const file = await pickOpen(shell, 'base');
     if (file) openFile(file);
@@ -543,6 +580,25 @@ export default function Databases({ app, shell, boot }) {
                     <span className="bs-template-icon"><Icon name={tpl.icon} size={18} /></span>
                     <span className="bs-template-words"><strong>{tpl.name()}</strong><small>{tpl.line()}</small></span>
                   </button>
+                ))}
+              </div>
+            </section>
+            <section className="bs-templates bs-samples" aria-label={t('Sample databases')}>
+              <h2>{t('Or a whole business, ready to use')}</h2>
+              <p className="bs-samples-note">{t('Each comes with invented records to learn from, or empty for your own.')}</p>
+              <div className="bs-template-grid">
+                {SAMPLES.map((s) => (
+                  <div key={s.id} className="bs-sample" data-sample={s.id} role="group" aria-label={s.kind()}>
+                    <span className="bs-template-icon"><Icon name={s.icon} size={18} /></span>
+                    <span className="bs-template-words">
+                      <strong>{s.kind()}</strong>
+                      <small>{s.line()}</small>
+                    </span>
+                    <span className="bs-sample-actions">
+                      <button type="button" className="bs-sample-data" disabled={busy} onClick={() => fromSample(s, true)} data-tip={t('{business}, with its invented records', { business: s.business })}>{t('With sample records')}</button>
+                      <button type="button" className="bs-sample-empty" disabled={busy} onClick={() => fromSample(s, false)}>{t('Empty')}</button>
+                    </span>
+                  </div>
                 ))}
               </div>
             </section>

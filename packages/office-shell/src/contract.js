@@ -338,6 +338,7 @@ export const METHODS = {
   base: [
     'create',       // ({ file }) -> summary   a new database at file
     'createFromTemplate', // ({ file, template }) -> summary   a new database from a ready-made one
+    'createFromSample', // ({ file, sample, withData }) -> summary   a new database from a sample business's, with its invented records or empty
     'open',         // ({ file }) -> summary   a .rbase, or any SQLite database
     'close',        // ({ id }) -> { closed }
     'summary',      // ({ id }) -> { id, file, name, tables: [{ name, caption, count }], relationships, steps }
