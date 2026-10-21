@@ -29,6 +29,7 @@ const GEOMETRY = {
   video: { width: 1400, height: 880, minWidth: 900, minHeight: 600 },
   recorder: { width: 1360, height: 860, minWidth: 980, minHeight: 600 },
   talk: { width: 1100, height: 760, minWidth: 760, minHeight: 520 },
+  base: { width: 1280, height: 820, minWidth: 820, minHeight: 540 },
   pdf: { width: 1280, height: 880, minWidth: 760, minHeight: 520 },
   calendar: { width: 1360, height: 860, minWidth: 900, minHeight: 560 },
   contacts: { width: 1180, height: 760, minWidth: 820, minHeight: 520 },

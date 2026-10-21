@@ -124,26 +124,38 @@
 
 ; Choose apps (owner, 2026-10-20: "since the number of applications have
 ; grown we should let users to choose what they wanted to install and what
-; not"). A page after the folder: a box for each app, all ticked, or ticked
-; as the person last chose (Office keeps HKCU\Software\Rutba Office\AppsOff
-; up to date). The apps left unticked are written to that value, and Office
-; takes the choice from it on its next start: their tiles go, and the kinds
-; of file they open are let go of. Nothing is left uninstalled: the apps
-; share one program, and any can be turned on again from Choose apps.
-; A silent install (an update) shows no page and leaves the choice as it was.
+; not"). A page after the folder: a box for each app, ticked as the person
+; last chose. Office writes the apps on now to HKCU\Software\Rutba Office
+; AppsOn, and those off to AppsOff, at every start and on every change in
+; Choose apps (owner, 2026-10-21: "the installer should always remember the
+; previous choices and currently enabled applications"), so the page opens
+; on exactly the apps in use. The apps ticked and unticked are written back
+; to the same values, and Office takes the choice from them on its next
+; start: their tiles go, and the kinds of file they open are let go of.
+; Nothing is left uninstalled: the apps share one program, and any can be
+; turned on again from Choose apps. A silent install (an update) shows no
+; page and leaves the choice as it was.
 
 !include "nsDialogs.nsh"
 !include "WordFunc.nsh"
 ; The page's words in Urdu, Arabic and Hindi, made from the catalogues (tools/make-installer-words.mjs).
 !include "${__FILEDIR__}\installer-words.nsh"
 
-; One box. With a choice written before (by Office, or an earlier page):
-; ticked unless the app is in the list turned off. On a first install: an
-; Office app ticked, a further app (OPTIONAL 1) not.
-!macro rutbaAppBox KEY LABEL X Y OPTIONAL
+; One box. With the apps on written before (AppsOn, by Office or an earlier
+; page): ticked when the app is one of them. With only the apps off (AppsOff,
+; from a copy older than AppsOn): ticked unless it is one of those, for an app
+; that copy knew of; an app newer than it (NEW 1) takes the first-install
+; choice. On a first install: an Office app ticked, a further app (OPTIONAL 1) not.
+!macro rutbaAppBox KEY LABEL X Y OPTIONAL NEW
   ${NSD_CreateCheckbox} ${X} ${Y} 46% 12u "${LABEL}"
   Pop $rutbaBox_${KEY}
-  ${If} $rutbaAppsKnown == "1"
+  ${If} $rutbaAppsOnKnown == "1"
+    ${WordFind} ",$rutbaAppsOnBefore," ",${KEY}," "E*" $0
+    ${IfNot} ${Errors}
+      ${NSD_Check} $rutbaBox_${KEY}
+    ${EndIf}
+  ${ElseIf} $rutbaAppsKnown == "1"
+  ${AndIf} "${NEW}" == "0"
     ${WordFind} ",$rutbaAppsBefore," ",${KEY}," "E*" $0
     ${If} ${Errors}
       ${NSD_Check} $rutbaBox_${KEY}
@@ -159,6 +171,7 @@
   ${If} $1 != ${BST_CHECKED}
     StrCpy $rutbaAppsOff "$rutbaAppsOff${KEY},"
   ${Else}
+    StrCpy $rutbaAppsOn "$rutbaAppsOn${KEY},"
     IntOp $2 $2 + 1
   ${EndIf}
 !macroend
@@ -172,6 +185,9 @@
   Var rutbaAppsShown
   Var rutbaAppsOff
   Var rutbaAppsBefore
+  Var rutbaAppsOn
+  Var rutbaAppsOnBefore
+  Var rutbaAppsOnKnown
   Var rutbaBox_mail
   Var rutbaBox_calendar
   Var rutbaBox_contacts
@@ -184,6 +200,7 @@
   Var rutbaBox_video
   Var rutbaBox_recorder
   Var rutbaBox_talk
+  Var rutbaBox_base
   Var rutbaBox_ai
   Var rutbaAppsKnown
   Var rutbaAddOns
@@ -199,6 +216,12 @@ Function rutbaAppsPageShow
     StrCpy $rutbaAppsKnown "1"
   ${EndIf}
   ClearErrors
+  StrCpy $rutbaAppsOnKnown "0"
+  ReadRegStr $rutbaAppsOnBefore HKCU "Software\Rutba Office" "AppsOn"
+  ${IfNot} ${Errors}
+    StrCpy $rutbaAppsOnKnown "1"
+  ${EndIf}
+  ClearErrors
   ReadRegStr $rutbaAddOnsBefore HKCU "Software\Rutba Office" "AddOns"
   ClearErrors
   nsDialogs::Create 1018
@@ -210,23 +233,25 @@ Function rutbaAppsPageShow
   Pop $0
   ${NSD_CreateLabel} 0 22u 46% 10u "$rutbaW_office"
   Pop $0
-  !insertmacro rutbaAppBox mail "$rutbaW_mail" 0 34u 0
-  !insertmacro rutbaAppBox calendar "$rutbaW_calendar" 0 47u 0
-  !insertmacro rutbaAppBox contacts "$rutbaW_contacts" 0 60u 0
-  !insertmacro rutbaAppBox word "$rutbaW_word" 0 73u 0
-  !insertmacro rutbaAppBox sheets "$rutbaW_sheets" 0 86u 0
-  !insertmacro rutbaAppBox slides "$rutbaW_slides" 0 99u 0
-  !insertmacro rutbaAppBox pdf "$rutbaW_pdf" 0 112u 0
-  !insertmacro rutbaAppBox pictures "$rutbaW_pictures" 0 125u 0
+  !insertmacro rutbaAppBox mail "$rutbaW_mail" 0 34u 0 0
+  !insertmacro rutbaAppBox calendar "$rutbaW_calendar" 0 47u 0 0
+  !insertmacro rutbaAppBox contacts "$rutbaW_contacts" 0 60u 0 0
+  !insertmacro rutbaAppBox word "$rutbaW_word" 0 73u 0 0
+  !insertmacro rutbaAppBox sheets "$rutbaW_sheets" 0 86u 0 0
+  !insertmacro rutbaAppBox slides "$rutbaW_slides" 0 99u 0 0
+  !insertmacro rutbaAppBox pdf "$rutbaW_pdf" 0 112u 0 0
+  !insertmacro rutbaAppBox pictures "$rutbaW_pictures" 0 125u 0 0
   ${NSD_CreateLabel} 52% 22u 46% 10u "$rutbaW_more"
   Pop $0
-  !insertmacro rutbaAppBox image "$rutbaW_image" 52% 34u 1
-  !insertmacro rutbaAppBox video "$rutbaW_video" 52% 47u 1
-  !insertmacro rutbaAppBox recorder "$rutbaW_recorder" 52% 60u 1
-  !insertmacro rutbaAppBox talk "$rutbaW_talk" 52% 73u 1
-  ${NSD_CreateLabel} 52% 93u 46% 10u "$rutbaW_addons"
+  !insertmacro rutbaAppBox image "$rutbaW_image" 52% 34u 1 0
+  !insertmacro rutbaAppBox video "$rutbaW_video" 52% 47u 1 0
+  !insertmacro rutbaAppBox recorder "$rutbaW_recorder" 52% 60u 1 0
+  !insertmacro rutbaAppBox talk "$rutbaW_talk" 52% 73u 1 0
+  ; New in 2.9: a 2.8 copy's AppsOff never listed it.
+  !insertmacro rutbaAppBox base "$rutbaW_base" 52% 86u 1 1
+  ${NSD_CreateLabel} 52% 106u 46% 10u "$rutbaW_addons"
   Pop $0
-  ${NSD_CreateCheckbox} 52% 105u 46% 12u "$rutbaW_ai"
+  ${NSD_CreateCheckbox} 52% 118u 46% 12u "$rutbaW_ai"
   Pop $rutbaBox_ai
   ${WordFind} ",$rutbaAddOnsBefore," ",ai," "E*" $0
   ${IfNot} ${Errors}
@@ -238,6 +263,7 @@ FunctionEnd
 
 Function rutbaAppsPageLeave
   StrCpy $rutbaAppsOff ""
+  StrCpy $rutbaAppsOn ""
   StrCpy $2 0
   !insertmacro rutbaAppRead mail
   !insertmacro rutbaAppRead calendar
@@ -251,6 +277,7 @@ Function rutbaAppsPageLeave
   !insertmacro rutbaAppRead video
   !insertmacro rutbaAppRead recorder
   !insertmacro rutbaAppRead talk
+  !insertmacro rutbaAppRead base
   ${If} $2 == 0
     MessageBox MB_OK|MB_ICONEXCLAMATION "$rutbaW_none"
     Abort
@@ -268,6 +295,7 @@ FunctionEnd
   !ifndef BUILD_UNINSTALLER
   ${If} $rutbaAppsShown == "1"
     WriteRegStr HKCU "Software\Rutba Office" "AppsOff" "$rutbaAppsOff"
+    WriteRegStr HKCU "Software\Rutba Office" "AppsOn" "$rutbaAppsOn"
     WriteRegStr HKCU "Software\Rutba Office" "AddOns" "$rutbaAddOns"
     WriteRegStr HKCU "Software\Rutba Office" "AppsChosenAt" "installer"
   ${EndIf}

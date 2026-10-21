@@ -24,6 +24,15 @@ test('the page has a box for every app, read when it is left, ticked on a first 
   }
 });
 
+test('the page opens on the apps on now: AppsOn read, and written back with AppsOff', () => {
+  assert.match(script, /ReadRegStr \$rutbaAppsOnBefore HKCU "Software\\Rutba Office" "AppsOn"/);
+  assert.match(script, /WriteRegStr HKCU "Software\\Rutba Office" "AppsOn" "\$rutbaAppsOn"/);
+  assert.match(script, /WriteRegStr HKCU "Software\\Rutba Office" "AppsOff" "\$rutbaAppsOff"/);
+  // Ticked from AppsOn when it is there, before the older AppsOff.
+  const box = script.slice(script.indexOf('!macro rutbaAppBox'), script.indexOf('!macroend', script.indexOf('!macro rutbaAppBox')));
+  assert.ok(box.indexOf('$rutbaAppsOnKnown') < box.indexOf('$rutbaAppsKnown'), 'AppsOn decides first');
+});
+
 test('every word on the page is in the catalogue, and the words file is what the catalogues make now', async () => {
   for (const [, en] of WORDS) assert.ok(messages.has(en), `"${en}" is in the message list`);
   const kept = fs.readFileSync(OUT, 'utf8').replace(/\r\n/g, '\n');

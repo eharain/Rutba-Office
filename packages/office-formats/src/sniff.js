@@ -75,6 +75,9 @@ export const KINDS = {
   dif: { app: 'sheets', label: 'Data Interchange Format', ext: '.dif', mime: 'application/x-dif', edit: false },
   dbf: { app: 'sheets', label: 'dBASE Table', ext: '.dbf', mime: 'application/x-dbf', edit: false },
   mdb: { app: 'sheets', label: 'Access Database', ext: '.mdb', mime: 'application/vnd.ms-access', edit: false },
+  // The database app's own file, and any other SQLite database (a SQLite file under either name).
+  rbase: { app: 'base', label: 'Rutba Database', ext: '.rbase', mime: 'application/vnd.rutba.database', edit: true },
+  sqlite: { app: 'base', label: 'SQLite Database', ext: '.sqlite', mime: 'application/vnd.sqlite3', edit: true },
 
   pptx: { app: 'slides', label: 'Presentation', ext: '.pptx', mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', edit: true },
   pptm: { app: 'slides', label: 'Macro-Enabled Presentation', ext: '.pptm', mime: 'application/vnd.ms-powerpoint.presentation.macroEnabled.12', edit: true },
@@ -154,6 +157,8 @@ const BY_EXT = (() => {
   add('.wk4', 'wk3');
   add('.sylk', 'slk');
   add('.accdb', 'mdb');
+  add('.sqlite3', 'sqlite');
+  add('.db', 'sqlite');
   return m;
 })();
 
@@ -359,6 +364,7 @@ export function sniff(input, name = '') {
 
   // The old spreadsheets by their first records: Lotus 1-2-3's BOF, and a
   // dBASE header where the name says .dbf (its header alone is too loose).
+  if (ascii(b, 0, 16) === 'SQLite format 3\u0000') return answer(byExt === 'rbase' ? 'rbase' : 'sqlite', 'magic');
   const lotus = lotusKind(b);
   if (lotus) return answer(lotus, 'magic');
   if (isAccess(b)) return answer('mdb', 'magic');

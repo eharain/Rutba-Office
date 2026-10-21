@@ -18,7 +18,7 @@ import { seedMail } from './seed-mail.js';
 import { samplePictures } from './sample-picture.js';
 import { consoleMessage } from './console-message.js';
 
-const ALL = ['home', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'recorder', 'talk', 'mail', 'calendar', 'contacts'];
+const ALL = ['home', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'recorder', 'talk', 'base', 'mail', 'calendar', 'contacts'];
 
 /** A PDF of three pages made here, for the PDF window to open: never a file from the machine. */
 function samplePdf() {

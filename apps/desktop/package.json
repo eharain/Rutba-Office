@@ -28,6 +28,7 @@
     "@rutba/barcode": "*",
     "@rutba/calendar": "*",
     "@rutba/contacts": "*",
+    "@rutba/database": "*",
     "@rutba/doc-view": "*",
     "@rutba/drawing": "*",
     "@rutba/editing": "*",

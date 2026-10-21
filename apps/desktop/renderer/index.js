@@ -27,6 +27,7 @@ const APP_LOADERS = {
   video: () => import('./apps/video/index.js'),
   recorder: () => import('./apps/recorder.js'),
   talk: () => import('./apps/talk.js'),
+  base: () => import('./apps/base.js'),
   pdf: () => import('./apps/pdf/index.js'),
   mail: () => import('./apps/mail.js'),
   calendar: () => import('./apps/calendar.js'),

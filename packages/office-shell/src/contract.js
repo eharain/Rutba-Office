@@ -334,6 +334,30 @@ export const METHODS = {
   ],
   // Recorder → Go Live: the destinations a person streams to (their keys kept in the
   // keystore and never handed back), and the program's pieces sent to every one.
+  // Databases: a database is one SQLite file, held here while a window has it open (apps/desktop/main/base.js).
+  base: [
+    'create',       // ({ file }) -> summary   a new database at file
+    'open',         // ({ file }) -> summary   a .rbase, or any SQLite database
+    'close',        // ({ id }) -> { closed }
+    'summary',      // ({ id }) -> { id, file, name, tables: [{ name, caption, count }], relationships, steps }
+    'fields',       // ({ id, table }) -> [field]
+    'rows',         // ({ id, table, offset?, limit?, order?, where? }) -> { rows, count }   a page of records
+    'insert',       // ({ id, table, values }) -> { rowid }
+    'update',       // ({ id, table, rowid, values }) -> { changed }
+    'remove',       // ({ id, table, rowids }) -> { removed }
+    'createTable',  // ({ id, name, fields }) -> summary
+    'addField',     // ({ id, table, field }) -> summary
+    'changeField',  // ({ id, table, name, change }) -> summary
+    'removeField',  // ({ id, table, name }) -> summary
+    'renameTable',  // ({ id, table, to }) -> summary
+    'dropTable',    // ({ id, table }) -> summary
+    'addRelationship',    // ({ id, from, to, cascadeDelete? }) -> summary
+    'removeRelationship', // ({ id, relation }) -> summary
+    'steps',        // ({ id }) -> [{ n, at, label }]   the design's history
+    'query',        // ({ id, sql, limit? }) -> { columns, rows, count }   SELECT only, read-only
+    'importFile',   // ({ id, file }) -> { tables, notes, summary }   CSV, TSV and the old files, a table each
+    'saveAs',       // ({ id, file }) -> summary   a copy at file, then the one open
+  ],
   // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).
   talk: [
     'state',        // () -> { phase, me, contacts, requests, blocked, relays, server, relay, presence, error }

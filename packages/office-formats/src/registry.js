@@ -25,7 +25,7 @@ export const SITE = {
   company: 'https://tech-style.co',
 };
 
-/** @typedef {'mail'|'word'|'sheets'|'slides'|'pdf'|'pictures'|'image'|'video'|'recorder'|'talk'|'calendar'|'contacts'} AppKey */
+/** @typedef {'mail'|'word'|'sheets'|'slides'|'pdf'|'pictures'|'image'|'video'|'recorder'|'talk'|'base'|'calendar'|'contacts'} AppKey */
 
 export const APPS = {
   mail: {
@@ -141,10 +141,20 @@ export const APPS = {
     accent: '#0891b2',
     icon: 'talk',
   },
+  // Tables, relationships, queries, forms and reports in one SQLite file
+  // (D-2026-10-20-17). "Databases" is a working name until the owner names it.
+  base: {
+    key: 'base',
+    name: 'Rutba Databases',
+    short: 'Databases',
+    tagline: 'Tables, relationships and queries in one file',
+    accent: '#8e2a52',
+    icon: 'base',
+  },
 };
 
 /** The apps in the launcher's order. */
-export const APP_ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'recorder', 'talk'];
+export const APP_ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'recorder', 'talk', 'base'];
 
 /**
  * Which apps a person wants (owner, 2026-10-20: "since the number of
@@ -167,9 +177,9 @@ export const APPS_CHOICE_KEY = 'apps.choice';
  */
 export const APP_GROUPS = [
   { id: 'office', apps: ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures'] },
-  { id: 'more', apps: ['image', 'video', 'recorder', 'talk'] },
+  { id: 'more', apps: ['image', 'video', 'recorder', 'talk', 'base'] },
 ];
-export const OFF_UNTIL_CHOSEN = ['image', 'video', 'recorder', 'talk'];
+export const OFF_UNTIL_CHOSEN = ['image', 'video', 'recorder', 'talk', 'base'];
 export const ADDONS = ['ai'];
 
 /** The add-ons added, from the stored choice. */
@@ -210,6 +220,7 @@ export const APP_EXTENSIONS = {
   mail: ['eml', 'emlx', 'msg', 'mbox', 'pst', 'ost', 'olm'],
   calendar: ['ics'],
   contacts: ['vcf', 'csv'],
+  base: ['rbase'],
 };
 
 /** Formats we can write. Everything else is read-only, and says so. */
@@ -265,6 +276,7 @@ const TITLES = {
   mail: 'Mail files',
   calendar: 'Calendars',
   contacts: 'Address books',
+  base: 'Databases',
 };
 
 /**
@@ -274,6 +286,8 @@ const TITLES = {
  */
 export const OLD_EXTENSIONS = {
   sheets: ['wk1', 'wks', 'wk3', 'wk4', 'slk', 'dif', 'dbf', 'mdb', 'accdb'],
+  // Any SQLite database opens in Databases; only its own .rbase is claimed.
+  base: ['sqlite', 'sqlite3', 'db'],
 };
 
 /** Electron `dialog.showOpenDialog` filters for one app, or for everything. */

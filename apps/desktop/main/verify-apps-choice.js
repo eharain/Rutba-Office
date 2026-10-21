@@ -6,6 +6,11 @@
 // leaving the tiles and the templates and one added joining them, AI Tools
 // added, the choice kept for the next window, and every app on again.
 
+import { APP_ORDER, APP_GROUPS, ADDONS, OFF_UNTIL_CHOSEN } from '@rutba/office-formats/registry';
+
+const OFFICE = APP_ORDER.length - OFF_UNTIL_CHOSEN.length;
+const GROUPS = APP_GROUPS.map((g) => `${g.id}:${g.apps.length}`).concat(`addons:${ADDONS.length}`).join(' ');
+
 export async function verifyAppsChoice(h) {
   const { open, check, until, wait, errorsIn } = h;
   const ok = (p) => p.then(() => true).catch(() => false);
@@ -23,7 +28,7 @@ export async function verifyAppsChoice(h) {
       card && all.length === 8 && all.includes('sheets') && all.includes('pictures') && !all.includes('image') && !all.includes('video') && !all.includes('recorder') && !all.includes('talk'), JSON.stringify({ card, all }));
 
     await js(`document.querySelector('.home-choose-btn')?.click(), 1`);
-    const shown = await ok(until(() => js(`document.querySelectorAll('.apps-chooser .apps-tile').length === 13`), 'Choose apps', 5000));
+    const shown = await ok(until(() => js(`document.querySelectorAll('.apps-chooser .apps-tile').length === ${APP_ORDER.length + ADDONS.length}`), 'Choose apps', 5000));
     const groups = await js(`[...document.querySelectorAll('.apps-chooser .apps-group')].map((g) => g.dataset.group + ':' + g.querySelectorAll('.apps-tile').length).join(' ')`);
     const onAtFirst = await js(`document.querySelectorAll('.apps-chooser .apps-tile.on').length`);
     await js(`(() => { for (const k of ['sheets', 'recorder', 'ai']) document.querySelector('.apps-chooser .apps-tile[data-app="' + k + '"]')?.click(); return 1; })()`);
@@ -36,7 +41,7 @@ export async function verifyAppsChoice(h) {
     const cardGone = await js(`!document.querySelector('.home-choose')`);
     const stored = await js(`window.rutbaOffice.store.get({ key: 'apps.choice', fallback: null })`);
     check('apps choice: Choose apps shows Office apps, More apps and Add-ons with the Office apps on; Worksheets off and Recorder and AI Tools added change the tiles and templates, and the card goes',
-      shown && groups === 'office:8 more:4 addons:1' && onAtFirst === 8 && /8 of 12/.test(count) && gone && after.length === 8 && !after.includes('sheets') && after.includes('recorder') && !after.includes('video')
+      shown && groups === GROUPS && onAtFirst === OFFICE && count.includes(`${OFFICE} of ${APP_ORDER.length}`) && gone && after.length === OFFICE && !after.includes('sheets') && after.includes('recorder') && !after.includes('video')
         && !templates.includes('sheets') && templates.includes('word') && !recordShown && cardGone
         && JSON.stringify(stored) === JSON.stringify({ off: ['sheets'], on: ['recorder'], addons: ['ai'] }),
       JSON.stringify({ shown, groups, onAtFirst, count, after, templates, recordShown, cardGone, stored }));
@@ -61,10 +66,10 @@ export async function verifyAppsChoice(h) {
     await until(() => js(`Boolean(document.querySelector('.apps-chooser'))`), 'Choose apps again', 4000).catch(() => {});
     await js(`document.querySelector('.apps-all')?.click(), 1`);
     await js(`document.querySelector('.apps-done')?.click(), 1`);
-    const back = await ok(until(() => js(`document.querySelectorAll('.home-card').length === 12`), 'every app back', 4000));
+    const back = await ok(until(() => js(`document.querySelectorAll('.home-card').length === ${APP_ORDER.length}`), 'every app back', 4000));
     const addonsKept = await js(`window.rutbaOffice.store.get({ key: 'apps.choice', fallback: null }).then((c) => c && c.addons)`);
     check('apps choice: a new launcher window keeps the choice without asking again, and All apps turns every app on, keeping the add-ons',
-      kept.length === 8 && !kept.includes('sheets') && kept.includes('recorder') && noCard && back && JSON.stringify(addonsKept) === '["ai"]', JSON.stringify({ kept, noCard, back, addonsKept }));
+      kept.length === OFFICE && !kept.includes('sheets') && kept.includes('recorder') && noCard && back && JSON.stringify(addonsKept) === '["ai"]', JSON.stringify({ kept, noCard, back, addonsKept }));
 
     const complaints = await errorsIn(home);
     check('apps choice: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
@@ -72,6 +77,6 @@ export async function verifyAppsChoice(h) {
     check('apps choice: the check ran to the end', false, err?.message || String(err));
   } finally {
     // Every app and add-on on for the checks that follow, as a check run starts (main.js).
-    await js?.(`window.rutbaOffice.store.set({ key: 'apps.choice', value: { off: [], on: ['image', 'video', 'recorder', 'talk'], addons: ['ai'] } }).then(() => 1)`).catch(() => {});
+    await js?.(`window.rutbaOffice.store.set({ key: 'apps.choice', value: { off: [], on: ${JSON.stringify(OFF_UNTIL_CHOSEN)}, addons: ['ai'] } }).then(() => 1)`).catch(() => {});
   }
 }

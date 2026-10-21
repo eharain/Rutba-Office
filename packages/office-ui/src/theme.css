@@ -145,6 +145,8 @@
 [data-app='video'] { --accent: #c2408f; }
 [data-app='recorder'] { --accent: #e03b4c; }
 [data-app='talk'] { --accent: #0891b2; }
+[data-app='base'] { --accent: #8e2a52; }
+:root:not([data-theme='dark']) [data-app='base'] { --accent-text: color-mix(in srgb, var(--accent) 80%, black); --accent-fill: color-mix(in srgb, var(--accent) 90%, black); }
 [data-app='pdf'] { --accent: #b3261e; }
 [data-app='home'] { --accent: #2b5fd9; }
 [data-app='calendar'] { --accent: #1a9f7a; }

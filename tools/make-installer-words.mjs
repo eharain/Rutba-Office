@@ -39,6 +39,7 @@ export const WORDS = [
   ['video', 'Video'],
   ['recorder', 'Recorder'],
   ['talk', 'Talk'],
+  ['base', 'Databases'],
 ];
 
 /** The languages, by the primary language of a Windows language id. */

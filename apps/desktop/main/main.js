@@ -41,6 +41,7 @@ import { createOcrService } from './ocr.js';
 import { createAiToolsService } from './ai-tools.js';
 import { createLiveService } from './live.js';
 import { createTalkService } from './talk.js';
+import { createBaseService } from './base.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -200,6 +201,8 @@ createShell({
       live: createLiveService({ stores }),
       // Talk: messages and calls with contacts, through the introducer (talk.js).
       talk: createTalkService({ stores, broadcast, dataDir: path.join(stores.dir, 'talk') }),
+      // Databases: each open database's SQLite file (base.js).
+      base: createBaseService(),
       oauth,
       mail: createMailService({
         stores,

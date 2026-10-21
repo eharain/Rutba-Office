@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7397,
+  "count": 7443,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -420,6 +420,12 @@
       "message": "(lowered to keep up with the upload)",
       "where": [
         "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
+      "message": "(new)",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -1315,6 +1321,12 @@
       ]
     },
     {
+      "message": "A relationship lets many records in one table point at one record in another, and keeps them from pointing at nothing.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "A report with a cover page, a table of contents and numbered sections",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
@@ -2027,6 +2039,12 @@
       "message": "Add Audio",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Add Field",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -4285,6 +4303,12 @@
       ]
     },
     {
+      "message": "AutoNumber",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "AutoSum",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
@@ -5753,6 +5777,7 @@
       "message": "Cancel",
       "where": [
         "apps/desktop/renderer/apps-choice.js",
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
@@ -8909,6 +8934,7 @@
     {
       "message": "Currency",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
@@ -9396,8 +9422,22 @@
       ]
     },
     {
+      "message": "Database",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Databases",
+      "where": [
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
       "message": "Date",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/parts.js",
@@ -9452,6 +9492,7 @@
     {
       "message": "Date and time",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -9565,6 +9606,12 @@
       "message": "Decrease list level",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Default",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -9690,6 +9737,7 @@
     {
       "message": "Delete",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
@@ -9778,6 +9826,12 @@
       "message": "Delete Point",
       "where": [
         "apps/desktop/renderer/apps/slides/points.js"
+      ]
+    },
+    {
+      "message": "Delete Table",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -10113,6 +10167,12 @@
       ]
     },
     {
+      "message": "Deleting one deletes its records here",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Delimiter",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -10188,6 +10248,7 @@
     {
       "message": "Design",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -11216,6 +11277,12 @@
       "message": "Each cell its own paragraph",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Each change is applied to the records at once, and kept in the database's history.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -12859,6 +12926,7 @@
     {
       "message": "Field",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/word/references-figures.js"
       ]
     },
@@ -12884,6 +12952,12 @@
       "message": "Field code",
       "where": [
         "apps/desktop/renderer/apps/word/references-figures.js"
+      ]
+    },
+    {
+      "message": "Field name",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -16355,6 +16429,7 @@
     {
       "message": "Import",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail.js",
@@ -16453,6 +16528,12 @@
       "message": "Imported, valid until {date}",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "Imported: {tables}",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -17833,6 +17914,12 @@
       "message": "It is shown as plain text, with its links and pictures left out: an encrypted message that is not signed by someone trusted could have been changed on the way to send its words elsewhere.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "It starts with an ID that numbers each record; add its fields in its design.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -19664,6 +19751,12 @@
       ]
     },
     {
+      "message": "Long text",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Longer than {minutes} minutes: the place it is going may not take it.",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
@@ -19990,6 +20083,12 @@
       ]
     },
     {
+      "message": "Make",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Make Check Box Fields",
       "where": [
         "apps/desktop/renderer/apps/pdf/found.js"
@@ -19999,6 +20098,12 @@
       "message": "Make Check Box Fields: the tick boxes become check boxes of the form, ticked as they were read, to fill and save",
       "where": [
         "apps/desktop/renderer/apps/pdf/found.js"
+      ]
+    },
+    {
+      "message": "Make a table, or import one from a file.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -21660,6 +21765,7 @@
     {
       "message": "Name",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/mail/archive.js",
@@ -21898,6 +22004,12 @@
       ]
     },
     {
+      "message": "New Database",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "New Document",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
@@ -21950,6 +22062,12 @@
       "message": "New Slideshow",
       "where": [
         "apps/desktop/renderer/apps/video/starters.js"
+      ]
+    },
+    {
+      "message": "New Table",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -22037,6 +22155,12 @@
       "message": "New event (Ctrl+N)",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "New field",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -23055,6 +23179,12 @@
       ]
     },
     {
+      "message": "No relationships yet.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "No repeated rows",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -23141,6 +23271,12 @@
       ]
     },
     {
+      "message": "No table chosen",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "No table of authorities entries found.",
       "where": [
         "apps/desktop/renderer/apps/word/references-toa.js"
@@ -23156,6 +23292,12 @@
       "message": "No table was found in this picture.",
       "where": [
         "apps/desktop/renderer/apps/sheets/picture-data.js"
+      ]
+    },
+    {
+      "message": "No tables yet: make one, or import one.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -23807,6 +23949,7 @@
     {
       "message": "Number",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/apps/pdf/found.js",
@@ -24369,6 +24512,7 @@
     {
       "message": "Open",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
@@ -25831,6 +25975,12 @@
       "message": "Photo album",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "Pick",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -27485,6 +27635,7 @@
     {
       "message": "Query",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -28094,6 +28245,18 @@
       ]
     },
     {
+      "message": "Records",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Records in",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Recover",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -28526,6 +28689,18 @@
       ]
     },
     {
+      "message": "Relate",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Relationships",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Relaxed",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -28786,9 +28961,21 @@
       ]
     },
     {
+      "message": "Remove the field and its data",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Remove the logo",
       "where": [
         "apps/desktop/renderer/apps/video/intro/brand.js"
+      ]
+    },
+    {
+      "message": "Remove the relationship",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -29244,6 +29431,12 @@
       "message": "Require a password to open this {noun}.",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Required",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -30285,6 +30478,7 @@
     {
       "message": "Run",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/sheets/scripts.js"
       ]
     },
@@ -30292,6 +30486,12 @@
       "message": "Run on this folder",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
+      ]
+    },
+    {
+      "message": "Run the query (Ctrl+Enter). It only reads: nothing in the database changes.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -30332,6 +30532,18 @@
     },
     {
       "message": "Rutba Contacts",
+      "where": [
+        "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Rutba Database (.rbase)",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Rutba Databases",
       "where": [
         "apps/desktop/renderer/registry-words.js"
       ]
@@ -30492,6 +30704,12 @@
       ]
     },
     {
+      "message": "SQL",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Safe Lists Only",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -30635,6 +30853,7 @@
     {
       "message": "Save As",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -32754,6 +32973,12 @@
       ]
     },
     {
+      "message": "Short text",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Shortcuts",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -33449,6 +33674,7 @@
     {
       "message": "Size",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/tools.js",
@@ -35527,6 +35753,7 @@
     {
       "message": "Table",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -35685,11 +35912,30 @@
     {
       "message": "Tables",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Tables and old files",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Tables of records you keep, related to each other, in one file on this computer.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Tables, relationships and queries in one file",
+      "where": [
+        "apps/desktop/renderer/registry-words.js"
       ]
     },
     {
@@ -39371,6 +39617,12 @@
       ]
     },
     {
+      "message": "This table has no fields to fill in yet. Add some in its design.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "This table has no grid to split a cell in.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -40517,6 +40769,7 @@
     {
       "message": "Type",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image/type-editor.js",
         "apps/desktop/renderer/apps/mail/archive.js",
@@ -40818,6 +41071,12 @@
       "message": "Union with limits",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
+      ]
+    },
+    {
+      "message": "Unique",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -42155,6 +42414,7 @@
     {
       "message": "Whole number",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -42698,6 +42958,12 @@
       "message": "Yes, Start Enforcing Protection — with an optional password",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "Yes/No",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -44038,6 +44304,12 @@
       "message": "placeholder source",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
+      ]
+    },
+    {
+      "message": "point at one in",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -45772,6 +46044,20 @@
       ]
     },
     {
+      "message": "{count} record",
+      "plural": "{count} records",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "{count} record deleted",
+      "plural": "{count} records deleted",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "{count} reference on other sheets or by name not drawn",
       "plural": "{count} references on other sheets or by name not drawn",
       "where": [
@@ -45796,6 +46082,7 @@
       "message": "{count} row",
       "plural": "{count} rows",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
@@ -46872,6 +47159,12 @@
       ]
     },
     {
+      "message": "{shown} of {count} rows",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "{size} in total",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js"
@@ -46900,6 +47193,12 @@
       "message": "{summary} of {field}",
       "where": [
         "apps/desktop/renderer/apps/sheets/pivot-fields.js"
+      ]
+    },
+    {
+      "message": "{table} ({count})",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
