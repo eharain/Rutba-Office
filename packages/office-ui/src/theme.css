@@ -526,7 +526,7 @@ textarea,
 .rw-gallery-items { display: flex; align-items: center; overflow: hidden; scrollbar-width: none; min-width: 0; }
 .rw-gallery-items::-webkit-scrollbar { display: none; }
 .rw-gallery-items > * { flex: none; }
-.rw-gallery-arrows { display: flex; flex-direction: column; flex: none; width: 24px; margin-inline-start: 3px; border-inline-start: 1px solid var(--line-soft); }
+.rw-gallery-arrows { display: flex; flex-direction: column; flex: none; width: 25px; margin-inline-start: 3px; border-inline-start: 1px solid var(--line-soft); }
 .rw-gallery-arrows > button { flex: 1; min-height: 24px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; position: relative; }
 .rw-gallery-arrows > button:first-child { border-start-end-radius: 5px; }
 .rw-gallery-arrows > button:last-child { border-end-end-radius: 5px; }

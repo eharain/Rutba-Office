@@ -21,10 +21,12 @@ export async function verifyMachine({ open, check, until }) {
   // The computer's clipboard can be out of reach for every program at once
   // (a locked screen, another desktop): said once, plainly, rather than as
   // four checks reading back nothing.
+  // Electron's clipboard here answers with a promise, so each call is
+  // awaited: compared unawaited, the probe failed on every run.
   let reachable = false;
   for (let i = 0; i < 10 && !reachable; i++) {
-    electronClipboard.writeText(`machine probe ${i}`);
-    reachable = electronClipboard.readText() === `machine probe ${i}`;
+    await electronClipboard.writeText(`machine probe ${i}`);
+    reachable = (await electronClipboard.readText()) === `machine probe ${i}`;
     if (!reachable) await new Promise((r) => setTimeout(r, 300));
   }
   if (!reachable) {

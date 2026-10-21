@@ -202,7 +202,7 @@ export async function verifyA11yAudit({ open, check, until, wait, press }, { dir
       check('a11y-audit: mail: Ctrl+click on a row checks that message and Shift+click checks the run to another, without opening it, so the small check box has an equivalent the size of the row',
         one && two && stillOpen, JSON.stringify({ one, two, stillOpen }));
       await js(`document.querySelector('.ml-bulk .ml-check')?.click(), 1`);
-      await audit('mail', win, [appMenu, byKey('a new message', 'N', '.rw-dialog', 'compose', true)]);
+      await audit('mail', win, [appMenu, byKey('a new message', 'N', '.ml-compose', 'compose', true)]);
     } catch (err) {
       check('a11y-audit: the mail audit ran', false, err.stack || err.message);
     } finally {
