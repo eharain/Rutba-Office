@@ -26,7 +26,7 @@ import { clickCount, pathPoints } from './slides/animate.js';
 import { motionPath } from '@rutba/presentation/timing';
 import { Markup } from './slides/markup.js';
 import { RichEditor } from './slides/rich-editor.js';
-import { withPlainText, resolveToggles } from './slides/rich-text.js';
+import { withPlainText, resolveToggles } from '@rutba/ooxml/rich-runs';
 import { DesignGallery, CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 import { CommentsPane, markerSpots, personColour, COMMENTS_CSS, useCommentsRead } from './slides/comments.js';
 import { SlideSizeDialog, SLIDE_SIZE_CSS, needsFitChoice } from './slides/slide-size.js';

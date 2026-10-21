@@ -9,7 +9,7 @@
 // method are left to the browser until they are done, then read back.
 
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
-import { plainOf, runPlain, lookOf, replaceRange, formatRange, formatRun, formatParagraphsIn, formatState, runsIn, RUN_KEYS, PARAGRAPH_KEYS } from './rich-text.js';
+import { plainOf, runPlain, lookOf, replaceRange, formatRange, formatRun, formatParagraphsIn, formatState, runsIn, RUN_KEYS, PARAGRAPH_KEYS } from '@rutba/ooxml/rich-runs';
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const WORD = /[\p{L}\p{N}_'’-]/u;

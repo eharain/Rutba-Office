@@ -64,6 +64,7 @@ import { verifyDeckShow } from './verify-deck-show.js';
 import { verifyDeckSymbol } from './verify-deck-symbol.js';
 import { verifyDeckRichText } from './verify-deck-rich-text.js';
 import { verifySheetOds } from './verify-sheet-ods.js';
+import { verifySheetRuns } from './verify-sheet-runs.js';
 import { verifyWindows } from './verify-windows.js';
 import { verifyDeckSetup } from './verify-deck-setup.js';
 import { verifyWordGridlines } from './verify-word-gridlines.js';
@@ -4924,6 +4925,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('decksymbol')) await verifyDeckSymbol({ open, check, until, wait, doc }, { dir });
     if (only.includes('deckrich')) await verifyDeckRichText({ open, check, until, wait, doc }, { dir });
     if (only.includes('sheetods')) await verifySheetOds({ check, doc }, { dir });
+    if (only.includes('sheetruns')) await verifySheetRuns({ open, check, until, wait, doc }, { dir });
     if (only.includes('windowing')) await verifyWindows({ open, check, until, wait }, { files });
     if (only.includes('setupshow')) await verifyDeckSetup({ open, check, until, wait, doc }, { dir });
     if (only.includes('gridlines')) await verifyWordGridlines({ open, check, until, wait }, { file: files.docx });
@@ -5342,6 +5344,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => verifyRotateFrameWord({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('sheets', () => verifyRotateFrameSheet({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetOds({ check, doc }, { dir }));
+  await part('sheets', () => verifySheetRuns({ open, check, until, wait, doc }, { dir }));
   await part('image', () => verifyRotateFrameImage({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifyVideoStage({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifyVideoTracks({ open, check, until, wait, errorsIn }, { dir }));

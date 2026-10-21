@@ -1712,6 +1712,30 @@ export default function Sheets({ app, shell, boot }) {
   };
 
   /** A cell, drawn where it sits — `dy` above it when its layer starts lower down. */
+  /** A cell's words: run by run, each in its own look, when they have looks of their own. */
+  const cellWords = (cell) => {
+    if (view.formulas && cell.formula) return cell.formula;
+    if (!cell.runs) return cell.text;
+    return cell.runs.map((r, i) => (
+      <span
+        key={i}
+        className="sh-run"
+        style={{
+          fontWeight: r.bold ? 700 : r.bold === false ? 400 : undefined,
+          fontStyle: r.italic ? 'italic' : undefined,
+          textDecoration: [r.underline ? 'underline' : '', r.strike ? 'line-through' : ''].filter(Boolean).join(' ') || undefined,
+          fontSize: r.sizePt ? `${r.sizePt}pt` : r.vertAlign ? '0.8em' : undefined,
+          fontFamily: r.family || undefined,
+          // A run's colour read as the cell's own is: kept on a fill, lifted at night when too dark to read.
+          color: r.colour ? cellInk({ fill: cell.style?.fill?.colour || null, font: r.colour, dark }).ink || undefined : undefined,
+          verticalAlign: r.vertAlign === 'superscript' ? 'super' : r.vertAlign === 'subscript' ? 'sub' : undefined,
+        }}
+      >
+        {r.text}
+      </span>
+    ));
+  };
+
   const cellNode = (cell, dy = 0, dx = 0) => {
     const spark = sparkAt.get(cell.row + ':' + cell.col);
     return (
@@ -1755,12 +1779,12 @@ export default function Sheets({ app, shell, boot }) {
           />
         ) : null}
         {cell.rotation
-          ? <span className="sh-rot" style={rotationStyle(cell.rotation)}>{view.formulas && cell.formula ? cell.formula : cell.text}</span>
+          ? <span className="sh-rot" style={rotationStyle(cell.rotation)}>{cellWords(cell)}</span>
           : model.rtl
             // Right to left the cell is mirrored with the grid and its words
             // turned back to read, their lines kept to the side they sit on.
-            ? <span className="sh-words" dir="auto" style={{ textAlign: cell.align === 'right' ? 'left' : cell.align === 'center' ? 'center' : 'right' }}>{view.formulas && cell.formula ? cell.formula : cell.text}</span>
-            : (view.formulas && cell.formula ? cell.formula : cell.text)}
+            ? <span className="sh-words" dir="auto" style={{ textAlign: cell.align === 'right' ? 'left' : cell.align === 'center' ? 'center' : 'right' }}>{cellWords(cell)}</span>
+            : cellWords(cell)}
       </div>
     );
   };

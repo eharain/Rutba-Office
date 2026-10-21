@@ -12,6 +12,7 @@
   "type": "module",
   "main": "src/index.js",
   "exports": {
+    "./rich-runs": "./src/rich-runs.js",
     ".": "./src/index.js",
     "./package": "./src/package.js",
     "./workbook": "./src/workbook.js",
@@ -34,7 +35,8 @@
     "./compare": "./src/compare.js",
     "./docfields": "./src/docfields.js",
     "./mailmerge-run": "./src/mailmerge-run.js",
-    "./labels": "./src/labels.js",
+    "./labels": "./src/labels.js"
+,
     "./protection": "./src/protection.js",
     "./blocks": "./src/blocks.js",
     "./forms": "./src/forms.js",

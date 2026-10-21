@@ -38,6 +38,8 @@ import {
   readStyles, readMergedCells, readDataValidations, readConditionalFormatting, unescXml,
   applyTint,
 } from './styles.js';
+import { readColourElement } from './styles.js';
+import { runsToParagraphs, paragraphsToRuns, withPlainText } from '@rutba/ooxml/rich-runs';
 import {
   SheetGeometry, MAX_ROWS, MAX_COLS,
   pixelsToCharWidth, pixelsToPoints, MIN_COL_WIDTH_PX, MIN_ROW_HEIGHT_PX,
@@ -1329,6 +1331,8 @@ export class SheetView {
           // An icon rule with showValue="0" shows the icon ALONE — the value
           // still calculates, copies and edits; only the paint hides it.
           text: cf?.hideValue ? '' : display.text,
+          // Words with looks of their own (a rich string): drawn run by run.
+          runs: cf?.hideValue ? null : this._displayRuns(row, col, display.text),
           // The file's own alignment wins over the format's default: a number
           // the author centred is centred, however it is formatted.
           align: rtl && (style?.align?.horizontal === 'left' || style?.align?.horizontal === 'right')
@@ -1874,11 +1878,64 @@ export class SheetView {
           for (const r of fillRows) this._setCell(r, col, shiftFormula(input, r - row, 0));
         });
     }
+    // Words with looks of their own keep them when the words change: each run
+    // round the change as it was, words typed in taking the look where they
+    // go (owner, 2026-10-21: "styled text does not reload same after save").
+    const kept = this._keptRuns(row, col, input);
+    if (kept) {
+      return this._edit('edit ' + ref(row, col), 'cell:' + this.activeSheet + '!' + ref(row, col), [{ row, col }], () => {
+        this._setCell(row, col, input);
+        this.workbook.setCellRuns(this.activeSheet, row, col, kept);
+      }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
+    }
     // Group by cell: retyping the same cell repeatedly is one undo, moving to
     // another cell starts a new one. That is Excel's behaviour and the reason
     // an undo does not walk back through every intermediate value.
     return this._edit('edit ' + ref(row, col), 'cell:' + this.activeSheet + '!' + ref(row, col),
       [{ row, col }], () => this._setCell(row, col, input));
+  }
+
+  /** A cell's runs as the file holds them, or null for plain words. */
+  _cellRuns(sheetName, row, col) {
+    try {
+      return this.workbook.cellRuns(sheetName, row, col);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The runs a cell's words are drawn in: only while they are still the
+   * words it shows, each with its colour as the sheet's theme makes it.
+   */
+  _displayRuns(row, col, text) {
+    if (!text) return null;
+    const runs = this._cellRuns(this.activeSheet, row, col);
+    if (!runs || runs.map((r) => r.text).join('') !== text) return null;
+    const theme = this.styles?.theme ?? [];
+    return runs.map((r) => ({
+      text: r.text,
+      bold: r.bold ?? null,
+      italic: r.italic ?? null,
+      underline: r.underline ? true : null,
+      strike: r.strike ?? null,
+      sizePt: r.size ?? null,
+      family: r.font ?? null,
+      colour: r.color ?? (r.colorXml ? readColourElement(r.colorXml, theme) : null),
+      vertAlign: r.vertAlign ?? null,
+    }));
+  }
+
+  /** The runs a rich cell's words take when they become `input`; null when it is not rich, or `input` is not words. */
+  _keptRuns(row, col, input) {
+    if (typeof input !== 'string' || input.startsWith('=')) return null;
+    const words = coerceInput(input);
+    if (typeof words !== 'string' || words === '') return null;
+    const runs = this._cellRuns(this.activeSheet, row, col);
+    if (!runs) return null;
+    const was = runs.map((r) => r.text).join('');
+    if (was === words || this.calc.getInput(this.activeSheet, row, col) !== was) return null;
+    return paragraphsToRuns(withPlainText(runsToParagraphs(runs), words));
   }
 
   /**
@@ -2162,6 +2219,8 @@ export class SheetView {
     for (const key of this.dirtyCells) {
       const [sheetName, cellRef] = key.split('!');
       const input = this.calc.getInput(sheetName, ...parseRefPair(cellRef));
+      const runs = typeof input === 'string' && input !== '' && !input.startsWith('=') ? this._cellRuns(sheetName, ...parseRefPair(cellRef)) : null;
+      if (runs && runs.map((r) => r.text).join('') === input) continue;
       this.workbook.setCell(sheetName, cellRef, input === '' ? null : input);
     }
     for (const key of this.styledCells) {
@@ -7444,6 +7503,23 @@ export class SheetView {
     }
     if (!Object.keys(resolved).length) return this;
 
+    // A rich cell's runs carry looks of their own, which a run keeps over the
+    // cell's: Bold on the cell makes every run bold, as Excel does.
+    const RUN_KEYS = { bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strike', fontName: 'font', fontSize: 'size', fontColour: 'color' };
+    const runDelta = Object.fromEntries(Object.entries(resolved).filter(([k]) => k in RUN_KEYS).map(([k, v]) => [RUN_KEYS[k], v]));
+    const rich = Object.keys(runDelta).length
+      ? cells.map((c) => ({ ...c, runs: this._cellRuns(this.activeSheet, c.row, c.col) })).filter((c) => c.runs && c.runs.map((r) => r.text).join('') === this.calc.getInput(this.activeSheet, c.row, c.col))
+      : [];
+    const lookOfRun = (r) => {
+      const out = { ...r };
+      for (const [k, v] of Object.entries(runDelta)) {
+        if (v === null || v === false || v === undefined || v === '') delete out[k];
+        else out[k] = v;
+      }
+      if ('color' in runDelta) delete out.colorXml;
+      return out;
+    };
+
     return this._edit('format', 'format:' + this.activeSheet + ':' + this.selection.toString(), cells, () => {
       let xml = this.pkg.text('xl/styles.xml');
       let touched = false;
@@ -7458,8 +7534,9 @@ export class SheetView {
         this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
         this._stylesDirty = true;
       }
+      for (const { row, col, runs } of rich) this.workbook.setCellRuns(this.activeSheet, row, col, runs.map(lookOfRun));
       return this;
-    }, { styles: true });
+    }, { styles: true, ...(rich.length ? { parts: [this.workbook.partNameFor(this.activeSheet)] } : {}) });
   }
 
   /**
@@ -7527,6 +7604,9 @@ export class SheetView {
     for (const key of this.dirtyCells) {
       const [sheetName, cellRef] = key.split('!');
       const input = this.calc.getInput(sheetName, ...parseRefPair(cellRef));
+      // Words the part already holds as runs, with their looks, stay as it has them.
+      const runs = typeof input === 'string' && input !== '' && !input.startsWith('=') ? this._cellRuns(sheetName, ...parseRefPair(cellRef)) : null;
+      if (runs && runs.map((r) => r.text).join('') === input) continue;
       this.workbook.setCell(sheetName, cellRef, input === '' ? null : input);
     }
 

@@ -1,4 +1,4 @@
-// The words of a text box as runs, edited a range at a time (owner,
+// Words as runs, edited a range at a time: a text box's (owner,
 // 2026-10-21: "the entire text box has single formatting and does not allow
 // formatting selected text separately; any change applies to entire text
 // box"). A box's text is paragraphs of runs, each run its words and their
@@ -204,7 +204,10 @@ export function replaceRange(paragraphs, start, end, text, look = null) {
   const before = head.runs.slice(0, head.index);
   const tail = cutAt(pb.runs || [], b.at);
   const after = tail.runs.slice(tail.index);
-  const typingLook = look ?? lookOf([...before].reverse().find(plainRun) || after.find(plainRun) || {});
+  // Words typed over others take the look of the first they replace, as a
+  // word processor's do; words put in between take the look before them.
+  const replaced = hi > lo ? runsIn(paragraphs, lo, hi).find(plainRun) : null;
+  const typingLook = look ?? lookOf(replaced || [...before].reverse().find(plainRun) || after.find(plainRun) || {});
   const { text: _t, plain: _p, runs: _r, ...paraProps } = pa;
   const lines = String(text).split('\n');
   const made = lines.map((line, i) => {
@@ -258,4 +261,30 @@ export function formatState(paragraphs, start, end, defaults = {}) {
     size: one('size') || defaults.size || null, color: one('color') || null, font: one('font') || '', highlight: one('highlight') || null, spacing: one('spacing') || 0,
     align: p.align || defaults.align || 'left', bullet: p.bullet?.type || null, level: p.level || 0, lineHeight: p.lineHeight || null, rtl: Boolean(p.rtl ?? defaults.rtl),
   };
+}
+
+/** A cell's runs, whose words may hold line breaks, as paragraphs: a line each. */
+export function runsToParagraphs(runs) {
+  const paragraphs = [{ runs: [] }];
+  for (const r of runs || []) {
+    String(r.text ?? '').split('\n').forEach((part, i) => {
+      if (i) paragraphs.push({ runs: [] });
+      paragraphs[paragraphs.length - 1].runs.push({ ...r, text: part });
+    });
+  }
+  return paragraphs.map((p) => ({ runs: tidy(p.runs) }));
+}
+
+/** Paragraphs back as one cell's runs, a line break between them. */
+export function paragraphsToRuns(paragraphs) {
+  const out = [];
+  (paragraphs || []).forEach((p, i) => {
+    const runs = (p.runs || []).filter((r) => !r.break).map((r) => ({ ...r, text: String(r.text ?? '') }));
+    if (i) {
+      if (runs.length) runs[0].text = `\n${runs[0].text}`;
+      else runs.push({ text: '\n' });
+    }
+    out.push(...runs);
+  });
+  return tidy(out);
 }

@@ -1,8 +1,8 @@
-// Presentations' box words as runs (slides/rich-text.js): a range formatted
+// Words as runs (ooxml rich-runs.js), as a text box holds them: a range formatted
 // on its own, words retyped with the runs round them kept, the ribbon's state.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { plainOf, formatRange, withPlainText, formatState, replaceRange, formatParagraphsIn } from '../apps/desktop/renderer/apps/slides/rich-text.js';
+import { plainOf, formatRange, withPlainText, formatState, replaceRange, formatParagraphsIn } from '../packages/ooxml/src/rich-runs.js';
 
 test("a box's words: a range formatted alone, retyping keeps the runs, the ribbon reads the words chosen", () => {
   const box = [

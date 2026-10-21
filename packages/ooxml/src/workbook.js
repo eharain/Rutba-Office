@@ -1330,10 +1330,69 @@ class SheetPart {
   }
 }
 
+/**
+ * The runs of a rich string (the inside of an <si> or an <is>), or null when
+ * it is one plain <t>. Words before the first run, which a file may carry,
+ * are a run with no look of their own.
+ */
+export function readRuns(body) {
+  if (!/<r>/.test(body)) return null;
+  const runs = [];
+  const lead = /^\s*<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/.exec(body);
+  if (lead) runs.push({ text: unesc(lead[1]) });
+  for (const m of body.matchAll(/<r>([\s\S]*?)<\/r>/g)) {
+    const pr = /<rPr>([\s\S]*?)<\/rPr>/.exec(m[1])?.[1] ?? '';
+    const text = [...m[1].matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((t) => unesc(t[1])).join('');
+    const run = { text };
+    const on = (tag) => {
+      const e = new RegExp('<' + tag + '(?:\\s[^>]*)?/?>').exec(pr);
+      return e ? !/\bval="(0|false)"/.test(e[0]) : false;
+    };
+    if (on('b')) run.bold = true;
+    if (on('i')) run.italic = true;
+    if (on('strike')) run.strike = true;
+    const u = /<u(?:\s+val="([^"]*)")?\s*\/?>/.exec(pr);
+    if (u && u[1] !== 'none') run.underline = u[1] && u[1] !== 'single' ? u[1] : true;
+    const sz = /<sz\s+val="([\d.]+)"/.exec(pr);
+    if (sz) run.size = Number(sz[1]);
+    const font = /<rFont\s+val="([^"]*)"/.exec(pr);
+    if (font) run.font = unesc(font[1]);
+    const color = /<color\b[^>]*\/>/.exec(pr);
+    if (color) {
+      const rgb = /\brgb="(?:[0-9A-Fa-f]{2})?([0-9A-Fa-f]{6})"/.exec(color[0]);
+      if (rgb && !/\btint=/.test(color[0])) run.color = '#' + rgb[1].toUpperCase();
+      else run.colorXml = color[0];
+    }
+    const va = /<vertAlign\s+val="([^"]*)"/.exec(pr);
+    if (va) run.vertAlign = va[1];
+    runs.push(run);
+  }
+  return runs.length ? runs : null;
+}
+
+/** One run as an <r>: its look in the schema's order, then its words. */
+function runXml(r) {
+  const pr = [
+    r.font ? '<rFont val="' + esc(r.font) + '"/>' : '',
+    r.bold ? '<b/>' : '',
+    r.italic ? '<i/>' : '',
+    r.strike ? '<strike/>' : '',
+    r.color ? '<color rgb="FF' + String(r.color).replace('#', '').toUpperCase() + '"/>' : (r.colorXml || ''),
+    r.size ? '<sz val="' + Number(r.size) + '"/>' : '',
+    r.underline ? (r.underline === true ? '<u/>' : '<u val="' + esc(r.underline) + '"/>') : '',
+    r.vertAlign ? '<vertAlign val="' + esc(r.vertAlign) + '"/>' : '',
+  ].join('');
+  return '<r>' + (pr ? '<rPr>' + pr + '</rPr>' : '') + '<t xml:space="preserve">' + esc(String(r.text ?? '')) + '</t></r>';
+}
+
 function renderCell(ref, value, style) {
   const s = style === null || style === undefined ? '' : ' s="' + esc(style) + '"';
   if (value === null || value === undefined || value === '') {
     return '<c r="' + ref + '"' + s + '/>';
+  }
+  // Words with looks of their own: an inline rich string, as Excel reads one.
+  if (typeof value === 'object' && Array.isArray(value.runs)) {
+    return '<c r="' + ref + '"' + s + ' t="inlineStr"><is>' + value.runs.map(runXml).join('') + '</is></c>';
   }
   if (typeof value === 'number' && Number.isFinite(value)) {
     return '<c r="' + ref + '"' + s + '><v>' + value + '</v></c>';
@@ -1891,10 +1950,46 @@ export class Workbook {
     if (!this.pkg.has(name)) return (this._sharedStrings = []);
     const xml = this.pkg.text(name);
     const out = [];
+    const runs = [];
     for (const m of xml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)) {
-      out.push([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => unesc(t[1])).join(''));
+      const body = m[1].replace(/<rPh\b[\s\S]*?<\/rPh>/g, '');
+      out.push([...body.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((t) => unesc(t[1])).join(''));
+      runs.push(readRuns(body));
     }
+    this._sharedRuns = runs;
     return (this._sharedStrings = out);
+  }
+
+  /**
+   * A cell's words as runs, each its words and their look, when its text is
+   * rich (a shared or inline string of <r> runs); null when it is plain.
+   * Run looks: bold, italic, underline, strike, font, size (pt), color
+   * ('#RRGGBB'), and the run's colour element as written (colorXml) for a
+   * theme colour, with vertAlign kept.
+   */
+  cellRuns(sheetName, row, col) {
+    const { part } = this._sheetPart(sheetName);
+    const cell = part.getCell(row, col);
+    if (!cell) return null;
+    if (/<f[\s>]/.test(cell.inner)) return null;
+    if (cell.type === 's') {
+      const v = /<v>([\s\S]*?)<\/v>/.exec(cell.inner);
+      if (!v) return null;
+      this.sharedStrings();
+      return this._sharedRuns?.[Number(v[1])] ?? null;
+    }
+    if (cell.type === 'inlineStr') {
+      const is = /<is>([\s\S]*?)<\/is>/.exec(cell.inner);
+      return is ? readRuns(is[1].replace(/<rPh\b[\s\S]*?<\/rPh>/g, '')) : null;
+    }
+    return null;
+  }
+
+  /** A cell's words written as runs (an inline rich string), its style kept. */
+  setCellRuns(sheetName, row, col, runs) {
+    const { part } = this._sheetPart(sheetName);
+    part.setCell(row, col, { runs });
+    return this;
   }
 
   /** Resolved display value, following shared-string indices. */
