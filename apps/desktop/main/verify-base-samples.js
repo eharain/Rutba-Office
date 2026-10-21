@@ -28,6 +28,26 @@ export async function verifyBaseSamples(h, { dir }) {
       JSON.stringify(offered.map((o) => o.id)) === JSON.stringify(SAMPLE_IDS) && offered.every((o) => o.data && o.empty),
       JSON.stringify(offered));
 
+    // A window of an ordinary height: the screen scrolls, from New Database at its top to the last sample at its foot.
+    const was = win.getSize();
+    win.setSize(1456, 910);
+    await wait(400);
+    const reach = await js(`(async () => {
+      const box = document.querySelector('.bs-start');
+      const frame = (n) => { const r = n.getBoundingClientRect(); const b = box.getBoundingClientRect(); return r.top >= b.top - 1 && r.bottom <= b.bottom + 1; };
+      box.scrollTop = 0;
+      await new Promise((r) => requestAnimationFrame(r));
+      const top = frame(document.querySelector('.bs-start-actions button'));
+      box.scrollTop = box.scrollHeight;
+      await new Promise((r) => requestAnimationFrame(r));
+      const cards = document.querySelectorAll('.bs-sample');
+      const bottom = frame(cards[cards.length - 1]);
+      return { top, bottom, scrolls: box.scrollHeight > box.clientHeight, height: box.clientHeight };
+    })()`);
+    win.setSize(...was);
+    check('base: in a window of an ordinary height the start screen scrolls, New Database in view at its top and the last sample at its foot',
+      reach.top && reach.bottom && reach.scrolls, JSON.stringify(reach));
+
     // The shop, with its records.
     const shop = sampleSpec('shop');
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: shopFile });

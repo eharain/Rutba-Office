@@ -1,7 +1,11 @@
 // Databases' look: a list of tables, a sheet of records, nothing more than is needed.
 
 export const BASE_CSS = `
-.bs-start { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px 16px; box-sizing: border-box; }
+/* Scrolls itself: the window's body does not, and twenty-five samples are taller than most screens. Centred by
+   auto margins rather than justify-content, which pushes a list taller than the window out of reach at both ends. */
+.bs-start { height: 100%; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 16px; box-sizing: border-box; }
+.bs-start > :first-child { margin-top: auto; }
+.bs-start > :last-child { margin-bottom: auto; }
 .bs-start > .rw-empty { flex: none; padding-bottom: 20px; }
 .bs-templates { width: min(760px, 100%); }
 .bs-templates h2 { margin: 0 0 10px; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); text-align: center; }
