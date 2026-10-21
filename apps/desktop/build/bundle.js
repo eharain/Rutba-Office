@@ -115,7 +115,19 @@ const preloadOptions = {
  */
 function whatsNew() {
   const { version } = JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8'));
-  const file = path.resolve(app, '..', '..', 'docs', 'releases', `v${version}.md`);
+  const dir = path.resolve(app, '..', '..', 'docs', 'releases');
+  let file = path.join(dir, `v${version}.md`);
+  // A development build (2.13.0-dev) shows the notes of the release it leads to once
+  // they are drafted, and until then the last release's.
+  const dev = /^(\d+)\.(\d+)\.(\d+)-/.exec(version);
+  if (dev && !fs.existsSync(file)) {
+    const want = path.join(dir, `v${dev[1]}.${dev[2]}.${dev[3]}.md`);
+    const num = (v) => v.split('.').map(Number);
+    const older = (a, b) => { const [x, y] = [num(a), num(b)]; for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] < y[i]; return false; };
+    const base = `${dev[1]}.${dev[2]}.${dev[3]}`;
+    const last = fs.readdirSync(dir).map((n) => /^v(\d+\.\d+\.\d+)\.md$/.exec(n)?.[1]).filter(Boolean).filter((v) => older(v, base)).sort((a, b) => (older(a, b) ? 1 : -1))[0];
+    file = fs.existsSync(want) ? want : last ? path.join(dir, `v${last}.md`) : file;
+  }
   const notes = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
   fs.writeFileSync(path.join(out, 'whatsnew.json'), JSON.stringify({ version, notes }));
 }

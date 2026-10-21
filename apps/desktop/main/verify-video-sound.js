@@ -66,8 +66,13 @@ export async function verifyVideoSound(h, { dir }) {
     await pickKind('sound');
     await until(() => js(`Boolean(document.querySelector('.vd-volume-db input'))`), 'the volume in decibels', 4000).catch(() => {});
     const before = await js(`document.querySelector('.vd-volume-db .vd-slider-value')?.textContent || ''`);
-    await setNumber('.vd-volume-db input', 6);
-    const louder = await ok(until(() => js(`(document.querySelector('.vd-volume-db .vd-slider-value')?.textContent || '') === '+6.0 dB'`), '+6 dB', 3000));
+    // Set once the panel has settled, and again if it redrew under the setting, as the switch below is.
+    await wait(400);
+    let louder = false;
+    for (let attempt = 0; attempt < 2 && !louder; attempt++) {
+      await setNumber('.vd-volume-db input', 6);
+      louder = await ok(until(() => js(`(document.querySelector('.vd-volume-db .vd-slider-value')?.textContent || '') === '+6.0 dB'`), '+6 dB', 3000));
+    }
     const duckBefore = await js(`(() => { const n = document.querySelectorAll('.vd-duck'); return { n: n.length, checked: n[0]?.checked, disabled: n[0]?.disabled }; })()`);
     // After the volume's own redraw: a click while the panel redraws can land on the box it replaces.
     await wait(400);
