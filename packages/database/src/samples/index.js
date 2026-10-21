@@ -33,40 +33,11 @@ export function sampleAbout(id) {
   return { ...s.about, summary };
 }
 
-/**
- * The kinds of document a sample prints. A letter or an agreement is a body
- * of words with [Field] places filled from its query's record; the others
- * are a document per record of a key (an invoice per invoice number) with a
- * head, lines and totals.
- */
-export const DOCUMENT_KINDS = ['invoice', 'receipt', 'quote', 'statement', 'delivery note', 'purchase order', 'job sheet', 'payslip', 'ticket', 'pass', 'certificate', 'letter', 'agreement'];
-const WORDS = new Set(['letter', 'agreement']);
-
-/**
- * A sample's design, as buildFromSpec takes it: its own reports, and for
- * each document it prints that is not a letter, a report of it grouped by
- * its key with its lines and totals, so it prints today as a plain list.
- * (Data Files' document layouts, a page each with a head and a totals
- * block, will print the same documents from the same queries.)
- */
-const designs = new WeakMap();
-function designOf(s) {
-  if (designs.has(s)) return designs.get(s);
-  const documents = s.spec.documents || [];
-  const reports = documents.filter((d) => !WORDS.has(d.kind)).map((d) => ({
-    name: d.name, title: d.title || d.name, query: d.query, group: d.key,
-    columns: d.lines, totals: (d.totals || []).map(({ field, fn }) => ({ field, fn })),
-  }));
-  const design = { ...s.spec, reports: [...(s.spec.reports || []), ...reports] };
-  designs.set(s, design);
-  return design;
-}
-
-/** A sample's design, as buildFromSpec takes it, its documents' reports with its own. */
+/** A sample's design, as buildFromSpec takes it: tables, queries, reports and print templates. */
 export function sampleSpec(id) {
   const s = SAMPLES[id];
   if (!s) throw new Error(`There is no sample database called ${id}.`);
-  return designOf(s);
+  return s.spec;
 }
 
 /**
@@ -82,7 +53,7 @@ export function buildSample(base, id, options = {}) {
 
 /** Make the sample module `s` ({ spec, fill }) in `base`, as buildSample does. */
 export function buildSampleFrom(base, s, { withData = true, today = new Date(), seed = 20261021 } = {}) {
-  const made = buildFromSpec(base, designOf(s));
+  const made = buildFromSpec(base, s.spec);
   if (!withData) return { ...made, records: {} };
   // Thousands of records in one transaction: one write to the disk, not one each.
   base.db.exec('BEGIN');

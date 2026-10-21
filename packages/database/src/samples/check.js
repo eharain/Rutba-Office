@@ -6,8 +6,6 @@
 // ranges kept for fiction). Answers the problems found, in words; none is a
 // sample ready to ship.
 
-import { DOCUMENT_KINDS } from './index.js';
-
 const MAIL = /^[^@\s]+@([a-z0-9-]+\.)*example(\.(com|org|net))?$/i;
 const PHONE = [/^07700 900\d{3}$/, /^020 7946 0\d{3}$/, /^\(\d{3}\) 555-01\d{2}$/];
 
@@ -71,32 +69,18 @@ export function checkSample(base, spec) {
     }
   }
 
-  // The documents it prints: each from a query that answers something, with
-  // every field it places there, and a letter's [Field] places filled by its
-  // query or by the Business record ([Business].[Name]).
-  const business = new Set(base.tables().some((t) => t.name === 'Business') ? base.fields('Business').map((f) => f.name) : []);
-  for (const d of spec.documents || []) {
-    if (!DOCUMENT_KINDS.includes(d.kind)) problems.push(`The document ${d.name} is of a kind Data Files does not print: ${d.kind}.`);
+  // The documents it prints, the print templates: each makes its documents
+  // from the records there are, every name in every block found.
+  for (const { name, layout } of base.documents()) {
     let out;
     try {
-      out = base.runQuery({ name: d.query, limit: 1_000_000 });
+      out = base.documentData({ name, limit: 50 });
     } catch (err) {
-      problems.push(`The document ${d.name}'s query ${d.query} does not run: ${err.message}`);
+      problems.push(`The print template ${name} cannot be made: ${err.message}`);
       continue;
     }
-    if (!out.count) problems.push(`The document ${d.name} has nothing to print: ${d.query} answers nothing.`);
-    const have = new Set(out.columns);
-    const named = [d.key, ...(d.header || []), ...(d.lines || []).map((c) => (typeof c === 'string' ? c : c.field)), ...(d.totals || []).map((t) => t.field)].filter(Boolean);
-    for (const f of named) if (!have.has(f)) problems.push(`The document ${d.name} places ${f}, which ${d.query} does not have.`);
-    if (['letter', 'agreement'].includes(d.kind)) {
-      if (!d.body || d.body.length < 200) problems.push(`The ${d.kind} ${d.name} has no body of words.`);
-      for (const m of String(d.body || '').matchAll(/\[([^\]]+)\](?:\.\[([^\]]+)\])?/g)) {
-        const ok = m[2] ? m[1] === 'Business' && business.has(m[2]) : have.has(m[1]);
-        if (!ok) problems.push(`The ${d.kind} ${d.name} has a place for ${m[0]}, which nothing fills.`);
-      }
-    } else if (!d.key || !(d.lines || []).length) {
-      problems.push(`The document ${d.name} wants a key (one per document) and lines.`);
-    }
+    if (!out.documents.length) problems.push(`The print template ${name} has nothing to print: ${layout.table} has no records.`);
+    if (layout.letterhead?.table && !out.letterhead) problems.push(`The print template ${name}'s letterhead, ${layout.letterhead.table}, has no record.`);
   }
   return problems;
 }
