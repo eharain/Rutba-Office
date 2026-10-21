@@ -85,8 +85,14 @@ const FUNCTIONS = {
   lcase: [1, 1, (a) => `LOWER(${a[0]})`],
   trim: [1, 1, (a) => `TRIM(${a[0]})`],
   format: [2, 2, (a) => {
-    const f = { yyyy: '%Y', 'yyyy-mm': '%Y-%m', 'yyyy-mm-dd': '%Y-%m-%d', mm: '%m', dd: '%d' }[literal(a[1])?.toLowerCase()];
-    if (!f) throw new Error('Format takes "yyyy", "yyyy-mm", "yyyy-mm-dd", "mm" or "dd" here.');
+    const pattern = literal(a[1]) ?? '';
+    // A number padded with noughts, as an invoice number is: Format([ID], "00000") is 00042.
+    if (/^0+$/.test(pattern)) return `printf('%0${pattern.length}d', ${a[0]})`;
+    // A number with its decimal places: Format([Amount], "0.00") is 12.50.
+    const places = /^0\.(0+)$/.exec(pattern);
+    if (places) return `printf('%.${places[1].length}f', ${a[0]})`;
+    const f = { yyyy: '%Y', 'yyyy-mm': '%Y-%m', 'yyyy-mm-dd': '%Y-%m-%d', mm: '%m', dd: '%d' }[pattern.toLowerCase()];
+    if (!f) throw new Error('Format takes "yyyy", "yyyy-mm", "yyyy-mm-dd", "mm", "dd", or noughts for a number: "00000", "0.00".');
     return `strftime('${f}', ${a[0]})`;
   }],
   datediff: [3, 3, (a) => {

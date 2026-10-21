@@ -10,6 +10,7 @@ import { FIELD_TYPES, q, columnSql, toStored } from './types.js';
 import { designToSql } from './query-design.js';
 import { wizardForm, shownField } from './form-design.js';
 import { wizardReport, reportData } from './report-design.js';
+import { wizardDocument, documentData, PAPERS, BLOCKS } from './document-design.js';
 
 const DESIGN = `
 CREATE TABLE IF NOT EXISTS rutba_meta (key TEXT PRIMARY KEY, value TEXT);
@@ -22,13 +23,15 @@ CREATE TABLE IF NOT EXISTS rutba_steps (n INTEGER PRIMARY KEY AUTOINCREMENT, at 
 CREATE TABLE IF NOT EXISTS rutba_queries (name TEXT PRIMARY KEY, design TEXT NOT NULL, position INTEGER);
 CREATE TABLE IF NOT EXISTS rutba_forms (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
 CREATE TABLE IF NOT EXISTS rutba_reports (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
+CREATE TABLE IF NOT EXISTS rutba_documents (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
 `;
 
 /**
  * The version of the design tables this build writes: 2 keeps saved queries
- * and forms, 3 reports. An older file is given the tables it lacks as it opens.
+ * and forms, 3 reports, 4 print templates. An older file is given the tables
+ * it lacks as it opens.
  */
-export const DESIGN_VERSION = 3;
+export const DESIGN_VERSION = 4;
 
 const RESERVED = /^(rutba_|sqlite_)/i;
 
@@ -550,6 +553,51 @@ export class Base {
     // A pointing field is shown as words, not as the number it holds.
     for (const f of fields) if (shown[f.name]) f.type = 'text';
     return { layout: l, fields, ...reportData(l, records, shownAs) };
+  }
+
+  /** The print templates (an invoice, a receipt, a payslip): [{ name, layout }], in their order. */
+  documents() {
+    if (!this.hasDesignTable('rutba_documents')) return [];
+    return this.db.prepare('SELECT name, layout FROM rutba_documents ORDER BY position, name').all().map((r) => ({ name: r.name, layout: JSON.parse(r.layout) }));
+  }
+
+  /** A print template kept (made, or replaced), its table, paper and blocks checked. */
+  saveDocument(layout) {
+    const n = checkName(layout?.name, 'print template');
+    if (!this.tables().some((t) => t.name === layout.table)) throw new Error(`The template's table, ${layout.table}, is not in this database.`);
+    if (layout.paper && !PAPERS.includes(layout.paper)) throw new Error(`A template prints on ${PAPERS.join(', ')}.`);
+    for (const b of layout.blocks || []) if (!BLOCKS.includes(b.type)) throw new Error(`A template has no block called ${b.type}.`);
+    if (layout.letterhead?.table && !this.tables().some((t) => t.name === layout.letterhead.table)) throw new Error(`The letterhead's table, ${layout.letterhead.table}, is not in this database.`);
+    const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_documents').get().p;
+    return this._step(`Print template ${n} kept`, { document: n }, () => {
+      this.db.prepare('INSERT INTO rutba_documents (name, layout, position) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET layout = excluded.layout').run(n, JSON.stringify({ ...layout, kind: 'document', name: n }), at);
+      return n;
+    });
+  }
+
+  removeDocument(name) {
+    return this._step(`Print template ${name} removed`, { document: name }, () => this.db.prepare('DELETE FROM rutba_documents WHERE name = ?').run(name).changes > 0);
+  }
+
+  /** A print template for `table` as the wizard makes it, kept under a name of its own. */
+  makeDocument({ table, name = null } = {}) {
+    const taken = new Set(this.documents().map((d) => d.name.toLowerCase()));
+    const want = name || table.replace(/s$/, '');
+    let n = want;
+    for (let i = 2; taken.has(n.toLowerCase()); i++) n = `${want} ${i}`;
+    const layout = wizardDocument({ table, fieldsOf: (t) => this.fields(t), relationships: this.relationships(), tables: this.tables().map((t) => t.name), name: n });
+    this.saveDocument(layout);
+    return layout;
+  }
+
+  /**
+   * A print template's documents, ready to draw: one for each record of its
+   * table, or each of `keys` (the one a person is looking at, or those chosen).
+   */
+  documentData({ name = null, layout = null, keys = null, limit = 1000 } = {}) {
+    const l = layout || this.documents().find((d) => d.name === name)?.layout;
+    if (!l) throw new Error(`There is no print template called ${name}.`);
+    return documentData(this, l, { keys, limit });
   }
 
   /** The choices for a lookup: each record of `table` by its `field`, shown as `show` (a field, or several), at most `limit`. */

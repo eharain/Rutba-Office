@@ -12,7 +12,8 @@
     "./import": "./src/import.js",
     "./query-design": "./src/query-design.js",
     "./form-design": "./src/form-design.js",
-    "./report-design": "./src/report-design.js"
+    "./report-design": "./src/report-design.js",
+    "./document-design": "./src/document-design.js"
   },
   "sideEffects": false
 }

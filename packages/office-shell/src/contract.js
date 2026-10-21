@@ -372,6 +372,11 @@ export const METHODS = {
     'removeReport', // ({ id, name }) -> summary
     'makeReport',   // ({ id, table? | query?, name? }) -> { layout, summary }   the report wizard's report, kept
     'reportData',   // ({ id, name? | layout? }) -> { layout, groups, totals, count }   grouped, with totals
+    'documents',    // ({ id }) -> [{ name, layout }]   the print templates
+    'saveDocument', // ({ id, layout }) -> summary
+    'removeDocument', // ({ id, name }) -> summary
+    'makeDocument', // ({ id, table, name? }) -> { layout, summary }   the wizard's print template, kept
+    'documentData', // ({ id, name? | layout?, keys?, limit? }) -> { layout, letterhead, documents }   one a record
     'lookup',       // ({ id, table, field, show }) -> [{ value, text }]   a lookup list's choices
     'saveAs',       // ({ id, file }) -> summary   a copy at file, then the one open
   ],

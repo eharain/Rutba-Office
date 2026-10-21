@@ -12,6 +12,7 @@ import { BASE_CSS } from './base/css.js';
 import { QueryDesigner, QUERY_CSS } from './base/queries.js';
 import { FormView, FORM_CSS } from './base/forms.js';
 import { ReportView, REPORT_CSS } from './base/reports.js';
+import { DocumentView, DOCUMENT_CSS } from './base/documents.js';
 
 /** The ready-made databases the start screen offers, in the engine's order (packages/database/src/templates.js). */
 const TEMPLATES = [
@@ -421,6 +422,8 @@ export default function Databases({ app, shell, boot }) {
   const [formTable, setFormTable] = useState(null);
   // The New Report box's source: 'table:<name>' or 'query:<name>', null while it is shut.
   const [reportSource, setReportSource] = useState(null);
+  // The New Print Template box's table, null while it is shut.
+  const [docTable, setDocTable] = useState(null);
   const [busy, setBusy] = useState(false);
   const [naming, setNaming] = useState(null);
 
@@ -669,6 +672,20 @@ export default function Databases({ app, shell, boot }) {
               </li>
             ))}
           </ul>
+          <div className="bs-side-head">
+            <h2>{t('Print templates')}</h2>
+            <Button icon="plus" label="" title={t('New Print Template')} className="bs-new-document" disabled={!db.tables.length} onClick={() => setDocTable(table || db.tables[0]?.name || '')} />
+          </div>
+          <ul className="bs-tables bs-documents">
+            {(db.documents || []).map((d) => (
+              <li key={d.name}>
+                <button type="button" className={`bs-table${view === 'document' && item === d.name ? ' on' : ''}`} data-document={d.name} onClick={() => { setItem(d.name); setView('document'); }}>
+                  <Icon name="file" size={14} />
+                  <span>{d.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
           <div className="bs-side-foot">
             <Button icon="import" label={t('Import')} className="bs-import" onClick={importDialog} />
             <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('Relationships')}</span></button>
@@ -695,6 +712,8 @@ export default function Databases({ app, shell, boot }) {
             <QueryDesigner key={item || 'new'} shell={shell} db={db} name={item} onSaved={(s, n) => { show(s); setItem(n); }} toast={toast} />
           ) : view === 'form' && item ? (
             <FormView key={`${item}-${db.steps}`} shell={shell} db={db} name={item} onChanged={refresh} toast={toast} />
+          ) : view === 'document' && item ? (
+            <DocumentView key={item} shell={shell} db={db} name={item} onChanged={show} onRemoved={(s) => { show(s); setItem(null); setView('data'); }} toast={toast} />
           ) : view === 'report' && item ? (
             <ReportView key={item} shell={shell} db={db} name={item} onChanged={show} onRemoved={(s) => { show(s); setItem(null); setView('data'); }} toast={toast} />
           ) : (
@@ -721,6 +740,26 @@ export default function Databases({ app, shell, boot }) {
             </Select>
           </label>
           <p className="bs-hint">{t('A label and a box for each field, a list for each field that points at another table, and the records that point at this one below.')}</p>
+        </Dialog>
+      ) : null}
+      {docTable !== null ? (
+        <Dialog title={t('New Print Template')} onClose={() => setDocTable(null)} actions={<><Button label={t('Cancel')} onClick={() => setDocTable(null)} /><Button primary label={t('Make')} className="bs-make-document" disabled={!docTable} onClick={async () => {
+          try {
+            const made = await shell.base.makeDocument({ id: db.id, table: docTable });
+            show(made.summary);
+            setItem(made.layout.name);
+            setView('document');
+            setDocTable(null);
+          } catch (e) {
+            toast(e.message, { tone: 'bad', ms: 7000 });
+          }
+        }} /></>}>
+          <label className="bs-field"><span>{t('A page for each record of')}</span>
+            <Select className="rw-select bs-document-table" aria-label={t('Table')} value={docTable} onChange={(e) => setDocTable(e.target.value)}>
+              {db.tables.map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}
+            </Select>
+          </label>
+          <p className="bs-hint">{t('An invoice, a receipt, a payslip or a letter: the record\'s fields at the top, its lines from a related table with their total, and your business\'s details as the letterhead when the database keeps them. Change any of it in Design.')}</p>
         </Dialog>
       ) : null}
       {reportSource !== null ? (
@@ -752,7 +791,7 @@ export default function Databases({ app, shell, boot }) {
           <p className="bs-hint">{t('It starts with an ID that numbers each record; add its fields in its design.')}</p>
         </Dialog>
       ) : null}
-      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS}</style>
+      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS}</style>
     </AppFrame>
   );
 }
