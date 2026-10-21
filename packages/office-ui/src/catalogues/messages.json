@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7513,
+  "count": 7517,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1136,6 +1136,12 @@
       "message": "A name turns",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "A name, a colon, then the expression: [Field] names, + - * /, & to join text, and Round, Nz, IIf, Year, Month, Format, DateDiff and more",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -12896,6 +12902,18 @@
       ]
     },
     {
+      "message": "Expression",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
+      "message": "Expression…",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
       "message": "Extend the selection",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -19513,6 +19531,12 @@
       "message": "Line Style: the pen's line for the borders it draws",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Line Total: [Quantity] * [Unit Price]",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {

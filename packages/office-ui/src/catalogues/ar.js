@@ -7523,4 +7523,8 @@ export default {
   'People and how to reach them, with a phone list to print.': 'الأشخاص وطرق التواصل معهم، مع قائمة هواتف للطباعة.',
   'Products, their suppliers and stock movements, and what is running low.': 'المنتجات ومورّدوها وحركات المخزون، وما يوشك على النفاد.',
   'Ready-made databases': 'قواعد بيانات جاهزة',
+  'A name, a colon, then the expression: [Field] names, + - * /, & to join text, and Round, Nz, IIf, Year, Month, Format, DateDiff and more': 'اسم، ثم نقطتان، ثم التعبير: أسماء [Field]، و+ - * /، و& لوصل النص، وRound وNz وIIf وYear وMonth وFormat وDateDiff وغيرها',
+  'Expression': 'تعبير',
+  'Expression…': 'تعبير…',
+  'Line Total: [Quantity] * [Unit Price]': 'إجمالي السطر: [Quantity] * [Unit Price]',
 };

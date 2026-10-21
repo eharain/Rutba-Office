@@ -78,6 +78,24 @@ export async function verifyBaseQueriesForms(h, { dir }) {
     const kept = await until(() => js(`Boolean(document.querySelector('.bs-queries [data-query="Totals"]'))`), 'the query in the list', 5000).then(() => true, () => false);
     check('base: Save As keeps the query in the file under its name, listed with the queries', kept, String(kept));
 
+    // A calculated column, typed as Access takes it in a Field cell.
+    await js(`__q.click('.bs-new-query')`);
+    await until(() => js(`Boolean(document.querySelector('.bs-q-add-table'))`), 'a new designer', 4000).catch(() => {});
+    await js(`__q.set('.bs-q-add-table', 'Orders')`);
+    await until(() => js(`document.querySelectorAll('.bs-q-field option').length >= 3`), 'the fields', 4000).catch(() => {});
+    await js(`__q.set(document.querySelectorAll('.bs-q-field')[0], 'Orders\\u0001Amount')`);
+    await wait(150);
+    await js(`__q.set(document.querySelectorAll('.bs-q-field')[1], '\\u0002expression')`);
+    await until(() => js(`Boolean(document.querySelector('.bs-q-expr'))`), 'the expression box', 4000).catch(() => {});
+    await js(`__q.set('.bs-q-expr', 'Double: [Amount] * 2')`);
+    await wait(150);
+    await js(`__q.click('.bs-q-run')`);
+    await until(() => js(`document.querySelectorAll('.bs-result tbody tr').length === 3`), 'the calculated answer', 5000).catch(() => {});
+    const calc = await js(`({ heads: [...document.querySelectorAll('.bs-result thead th')].map((c) => c.textContent), rows: [...document.querySelectorAll('.bs-result tbody tr')].map((r) => [...r.cells].map((c) => c.textContent)) })`);
+    check('base: Expression in a Field cell makes a calculated column named before its colon ("Double: [Amount] * 2"), and Run answers it',
+      calc.heads.includes('Double') && JSON.stringify(calc.rows.map((r) => r.slice(-2))) === JSON.stringify([['100', '200'], ['250', '500'], ['40', '80']]),
+      JSON.stringify(calc));
+
     // A form for Orders, by the wizard.
     await js(`__q.click('.bs-new-form')`);
     await until(() => js(`Boolean(document.querySelector('.bs-form-table'))`), 'the New Form box', 4000).catch(() => {});

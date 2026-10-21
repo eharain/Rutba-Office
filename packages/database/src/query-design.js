@@ -11,11 +11,28 @@
 //   tables: ['Customers', 'Orders'],
 //   columns: [{ table, field, show = true, sort: null | 'asc' | 'desc',
 //               total: null | 'group' | 'sum' | 'avg' | 'count' | 'min' | 'max' | 'where',
-//               criteria: ['> 10', ...] (one per Or row), as: null | 'Heading' }],
+//               criteria: ['> 10', ...] (one per Or row), as: null | 'Heading' }
+//             | { expr: '[Quantity] * [Unit Price]', as: 'Line Total', ...the same }],
 // }
+//
+// A column with `expr` is calculated, as Access writes one (expression.js):
+// its [Field] names are the query's tables' fields.
+
+import { expressionSql } from './expression.js';
 
 const q = (name) => `"${String(name).replace(/"/g, '""')}"`;
 const col = (c) => `${q(c.table)}.${q(c.field)}`;
+
+/**
+ * "Line Total: [Quantity] * [Unit Price]" as Access's designer takes it in a
+ * Field cell: { as, expr }. A cell with no name before a colon is the
+ * expression alone. A colon inside brackets or quotes is part of the text.
+ */
+export function splitNamedExpression(cell) {
+  const s = String(cell || '').trim();
+  const m = /^([^[\]"'#:]+?)\s*:\s*(.+)$/s.exec(s);
+  return m ? { as: m[1].trim(), expr: m[2].trim() } : { as: null, expr: s };
+}
 
 /** The aggregate each total names, in SQL. */
 const AGGREGATES = { sum: 'SUM', avg: 'AVG', count: 'COUNT', min: 'MIN', max: 'MAX' };
@@ -99,18 +116,38 @@ export function joinsFor(tables, relationships) {
  * The SQL a design stands for: { sql, params, columns } with `columns` the
  * headings of what it shows. `relationships` are the file's.
  */
-export function designToSql(design, relationships = []) {
+export function designToSql(design, relationships = [], { fieldsOf = null } = {}) {
   const tables = [...new Set(design.tables || [])];
-  const columns = (design.columns || []).filter((c) => c && c.table && c.field);
-  for (const c of columns) if (!tables.includes(c.table)) throw new Error(`${c.field} is from ${c.table}, which is not in the query.`);
+  const columns = (design.columns || []).filter((c) => c && ((c.table && c.field) || (typeof c.expr === 'string' && c.expr.trim())));
+  for (const c of columns) if (!c.expr && !tables.includes(c.table)) throw new Error(`${c.field} is from ${c.table}, which is not in the query.`);
+  // A [Field] in an expression: the one table of the query that has it.
+  const resolve = (table, field) => {
+    if (table) {
+      if (!tables.includes(table)) throw new Error(`[${table}].[${field}]: ${table} is not in the query.`);
+      if (fieldsOf && !fieldsOf(table).includes(field)) throw new Error(`${table} has no field called ${field}.`);
+      return `${q(table)}.${q(field)}`;
+    }
+    if (!fieldsOf) {
+      if (tables.length === 1) return `${q(tables[0])}.${q(field)}`;
+      throw new Error(`Say which table [${field}] is from: [Table].[${field}].`);
+    }
+    const having = tables.filter((t) => fieldsOf(t).includes(field));
+    if (!having.length) throw new Error(`No table in the query has a field called ${field}.`);
+    if (having.length > 1) throw new Error(`${having.join(' and ')} both have ${field}: write [${having[0]}].[${field}] to say which.`);
+    return `${q(having[0])}.${q(field)}`;
+  };
+  let n = 0;
+  const named = new Map(columns.filter((c) => c.expr).map((c) => [c, c.as || `Expr${++n}`]));
+  const colSql = (c) => (c.expr ? `(${expressionSql(c.expr, resolve)})` : col(c));
+  const nameOf = (c) => (c.expr ? named.get(c) : c.field);
   const totals = columns.some((c) => c.total);
   const shown = columns.filter((c) => c.show !== false && c.total !== 'where');
   if (!shown.length) throw new Error('Choose a field to show.');
   const params = [];
   const select = shown.map((c) => {
     const agg = totals ? AGGREGATES[c.total] : null;
-    const expr = agg ? `${agg}(${col(c)})` : col(c);
-    const heading = c.as || (agg ? `${c.total[0].toUpperCase()}${c.total.slice(1)} of ${c.field}` : c.field);
+    const expr = agg ? `${agg}(${colSql(c)})` : colSql(c);
+    const heading = (c.expr && !agg ? named.get(c) : c.as) || (agg ? `${c.total[0].toUpperCase()}${c.total.slice(1)} of ${nameOf(c)}` : nameOf(c));
     return { sql: `${expr} AS ${q(heading)}`, heading };
   });
   // Criteria: a row of cells joined by AND, the rows by OR. With totals, a
@@ -125,17 +162,17 @@ export function designToSql(design, relationships = []) {
     const wp = [];
     const hp = [];
     for (const c of columns) {
-      const one = criterionSql(totals && AGGREGATES[c.total] ? `${AGGREGATES[c.total]}(${col(c)})` : col(c), (c.criteria || [])[r] || '');
+      const one = criterionSql(totals && AGGREGATES[c.total] ? `${AGGREGATES[c.total]}(${colSql(c)})` : colSql(c), (c.criteria || [])[r] || '');
       if (!one) continue;
       if (totals && AGGREGATES[c.total]) { h.push(one.sql); hp.push(...one.params); } else { w.push(one.sql); wp.push(...one.params); }
     }
     if (w.length) { where.push(`(${w.join(' AND ')})`); params.push(...wp); }
     if (h.length) { having.push(`(${h.join(' AND ')})`); havingParams.push(...hp); }
   }
-  const group = totals ? columns.filter((c) => c.total === 'group').map(col) : [];
+  const group = totals ? columns.filter((c) => c.total === 'group').map(colSql) : [];
   const order = columns.filter((c) => c.sort === 'asc' || c.sort === 'desc').map((c) => {
     const s = shown.find((x) => x === c);
-    const target = s && totals && AGGREGATES[c.total] ? q(select[shown.indexOf(s)].heading) : col(c);
+    const target = s && totals && AGGREGATES[c.total] ? q(select[shown.indexOf(s)].heading) : colSql(c);
     return `${target} ${c.sort === 'desc' ? 'DESC' : 'ASC'}`;
   });
   const sql = [

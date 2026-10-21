@@ -406,7 +406,7 @@ export class Base {
   saveQuery(name, design) {
     const n = checkName(name, 'query');
     if (this.tables().some((t) => t.name.toLowerCase() === n.toLowerCase())) throw new Error(`${n} is a table's name already. Give the query another.`);
-    designToSql(design, this.relationships());
+    designToSql(design, this.relationships(), this._designFields());
     const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_queries').get().p;
     return this._step(`Query ${n} kept`, { query: n }, () => {
       this.db.prepare('INSERT INTO rutba_queries (name, design, position) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET design = excluded.design').run(n, JSON.stringify(design), at);
@@ -425,19 +425,27 @@ export class Base {
   runQuery({ name = null, design = null, limit = 5000 } = {}) {
     const d = design || this.queries().find((x) => x.name === name)?.design;
     if (!d) throw new Error(`There is no query called ${name}.`);
-    const { sql, params, columns } = designToSql(d, this.relationships());
+    const { sql, params, columns } = designToSql(d, this.relationships(), this._designFields());
     const out = this.query(sql, params);
     return { columns: out.columns.length ? out.columns : columns, rows: out.rows.slice(0, limit), count: out.rows.length, sql };
   }
 
   /** The SQL a design stands for, its values shown in place of the parameters, for the SQL view. */
   sqlOf(design) {
-    const { sql, params } = designToSql(design, this.relationships());
+    const { sql, params } = designToSql(design, this.relationships(), this._designFields());
     let i = 0;
-    return sql.replace(/\?/g, () => {
+    // A ? inside a quoted name or text (an expression's "Is it?") is not a parameter.
+    return sql.replace(/'(?:[^']|'')*'|"(?:[^"]|"")*"|\?/g, (m) => {
+      if (m !== '?') return m;
       const v = params[i++];
       return typeof v === 'number' ? String(v) : `'${String(v).replace(/'/g, "''")}'`;
     });
+  }
+
+  /** A query's tables' fields, for the [Field] names in its expressions. */
+  _designFields() {
+    const cache = new Map();
+    return { fieldsOf: (t) => { if (!cache.has(t)) cache.set(t, this.fields(t).map((f) => f.name)); return cache.get(t); } };
   }
 
   /** The forms: [{ name, layout }], in their order. */

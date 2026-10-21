@@ -2,21 +2,28 @@
 // the words Access uses, the sort and totals, and the answer as a table. The
 // design is kept in the file under a name; the SQL it stands for can be seen
 // (the SQL view still takes a query written by hand). The tables are joined
-// by their relationships, so a person never writes a join.
+// by their relationships, so a person never writes a join. A column can be
+// calculated instead, typed as Access takes it in a Field cell:
+// "Line Total: [Quantity] * [Unit Price]".
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Input, Select, Dialog, t, tn } from '@rutba/office-ui';
+import { splitNamedExpression } from '@rutba/database/query-design';
+
+/** The Field list's own choice that turns its cell into an expression box. */
+const EXPRESSION = '\u0002expression';
 
 const TOTALS = () => [['group', t('Group By')], ['sum', t('Sum')], ['avg', t('Average')], ['count', t('Count')], ['min', t('Min')], ['max', t('Max')], ['where', t('Where')]];
-const blank = () => ({ table: '', field: '', show: true, sort: '', total: 'group', criteria: ['', ''] });
+const blank = () => ({ table: '', field: '', exprText: null, show: true, sort: '', total: 'group', criteria: ['', ''] });
+/** A column in use: a field chosen, or an expression typed. */
+const used = (c) => Boolean((c.table && c.field) || (c.exprText !== null && c.exprText !== undefined && c.exprText.trim()));
 
 /** A design from what the designer holds, the empty columns left out. */
 function designOf(tables, columns, totals) {
   return {
     tables,
-    columns: columns.filter((c) => c.table && c.field).map((c) => ({
-      table: c.table,
-      field: c.field,
+    columns: columns.filter(used).map((c) => ({
+      ...(c.exprText !== null && c.exprText !== undefined ? splitNamedExpression(c.exprText) : { table: c.table, field: c.field }),
       show: c.show,
       sort: c.sort || null,
       total: totals ? c.total || 'group' : null,
@@ -49,7 +56,7 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
       const d = found.design;
       setTables(d.tables || []);
       setTotals((d.columns || []).some((c) => c.total));
-      setColumns([...(d.columns || []).map((c) => ({ ...blank(), ...c, sort: c.sort || '', total: c.total || 'group', criteria: [...(c.criteria || []), '', ''].slice(0, Math.max(2, (c.criteria || []).length)) })), blank()]);
+      setColumns([...(d.columns || []).map((c) => ({ ...blank(), ...c, exprText: c.expr ? (c.as ? `${c.as}: ${c.expr}` : c.expr) : null, sort: c.sort || '', total: c.total || 'group', criteria: [...(c.criteria || []), '', ''].slice(0, Math.max(2, (c.criteria || []).length)) })), blank()]);
     }).catch((e) => toast(e.message, { tone: 'bad' }));
     return () => { live = false; };
   }, [shell, db.id, name, toast]);
@@ -66,8 +73,9 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
   const design = useMemo(() => designOf(tables, columns, totals), [tables, columns, totals]);
   const setColumn = (i, patch) => setColumns((cs) => {
     const next = cs.map((c, k) => (k === i ? { ...c, ...patch } : c));
-    // A field chosen on the last line opens another below it.
-    return next[next.length - 1].field ? [...next, blank()] : next;
+    // A field chosen (or an expression begun) on the last line opens another below it.
+    const last = next[next.length - 1];
+    return last.field || last.exprText !== null ? [...next, blank()] : next;
   });
   const addTable = (table) => {
     if (!table || tables.includes(table)) return;
@@ -135,14 +143,23 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
             {columns.map((c, i) => (
               <tr key={i} data-column={i}>
                 <td>
-                  <Select className="rw-select bs-q-field" aria-label={t('Field')} value={c.table && c.field ? `${c.table}\u0001${c.field}` : ''} onChange={(e) => { const [tb, f] = e.target.value.split('\u0001'); setColumn(i, { table: tb || '', field: f || '' }); }}>
-                    <option value="">{tables.length ? t('Choose a field') : t('Add a table first')}</option>
-                    {tables.map((tb) => (
-                      <optgroup key={tb} label={tb}>
-                        {(fieldsOf[tb] || []).map((f) => <option key={f.name} value={`${tb}\u0001${f.name}`}>{f.name}</option>)}
-                      </optgroup>
-                    ))}
-                  </Select>
+                  {c.exprText !== null && c.exprText !== undefined ? (
+                    <Input className="rw-input bs-q-expr" aria-label={t('Expression')} autoFocus={!c.exprText} placeholder={t('Line Total: [Quantity] * [Unit Price]')} title={t('A name, a colon, then the expression: [Field] names, + - * /, & to join text, and Round, Nz, IIf, Year, Month, Format, DateDiff and more')} value={c.exprText} onChange={(e) => setColumn(i, { exprText: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} />
+                  ) : (
+                    <Select className="rw-select bs-q-field" aria-label={t('Field')} value={c.table && c.field ? `${c.table}\u0001${c.field}` : ''} onChange={(e) => {
+                      if (e.target.value === EXPRESSION) { setColumn(i, { table: '', field: '', exprText: '' }); return; }
+                      const [tb, f] = e.target.value.split('\u0001');
+                      setColumn(i, { table: tb || '', field: f || '' });
+                    }}>
+                      <option value="">{tables.length ? t('Choose a field') : t('Add a table first')}</option>
+                      {tables.map((tb) => (
+                        <optgroup key={tb} label={tb}>
+                          {(fieldsOf[tb] || []).map((f) => <option key={f.name} value={`${tb}\u0001${f.name}`}>{f.name}</option>)}
+                        </optgroup>
+                      ))}
+                      {tables.length ? <option value={EXPRESSION}>{t('Expression…')}</option> : null}
+                    </Select>
+                  )}
                 </td>
                 <td className="bs-q-center"><input type="checkbox" aria-label={t('Show')} checked={c.show} onChange={(e) => setColumn(i, { show: e.target.checked })} /></td>
                 <td>
@@ -164,7 +181,7 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
                     <Input className={`rw-input bs-q-criteria bs-q-row-${r}`} aria-label={r ? t('Or') : t('Criteria')} placeholder={r ? '' : t('e.g. > 10, Like "A*"')} value={c.criteria[r] || ''} onChange={(e) => setColumn(i, { criteria: c.criteria.map((x, k) => (k === r ? e.target.value : x)) })} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} />
                   </td>
                 ))}
-                <td>{c.field ? <Button icon="close" label="" title={t('Take this field out')} className="bs-q-remove" onClick={() => setColumns((cs) => cs.filter((_, k) => k !== i))} /> : null}</td>
+                <td>{used(c) || c.exprText !== null ? <Button icon="close" label="" title={t('Take this field out')} className="bs-q-remove" onClick={() => setColumns((cs) => cs.filter((_, k) => k !== i))} /> : null}</td>
               </tr>
             ))}
           </tbody>
@@ -211,6 +228,7 @@ export const QUERY_CSS = `
 .bs-q-grid td { padding: 4px 6px; border-bottom: 1px solid var(--line-soft); }
 .bs-q-grid .rw-select, .bs-q-grid .rw-input { width: 100%; }
 .bs-q-field { min-width: 180px; }
+.bs-q-expr { min-width: 260px; font-family: var(--mono, ui-monospace, monospace); font-size: 12.5px; }
 .bs-q-center { text-align: center; }
 .bs-q-sql-text { margin: 0 16px 8px; padding: 8px 10px; border-radius: var(--r-2); background: var(--sunken); font: 12.5px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
 `;

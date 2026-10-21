@@ -7521,4 +7521,8 @@ export default {
   'People and how to reach them, with a phone list to print.': 'لوگ اور ان سے رابطے کے طریقے، پرنٹ کرنے کے لیے فون فہرست کے ساتھ۔',
   'Products, their suppliers and stock movements, and what is running low.': 'مصنوعات، ان کے سپلائرز اور اسٹاک کی آمد و رفت، اور کیا کم ہو رہا ہے۔',
   'Ready-made databases': 'تیار شدہ ڈیٹابیس',
+  'A name, a colon, then the expression: [Field] names, + - * /, & to join text, and Round, Nz, IIf, Year, Month, Format, DateDiff and more': 'ایک نام، کولن، پھر اظہار: [Field] نام، + - * /، متن جوڑنے کے لیے &، اور Round، Nz، IIf، Year، Month، Format، DateDiff وغیرہ',
+  'Expression': 'اظہار',
+  'Expression…': 'اظہار…',
+  'Line Total: [Quantity] * [Unit Price]': 'کل رقم: [Quantity] * [Unit Price]',
 };

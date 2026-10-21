@@ -7523,4 +7523,8 @@ export default {
   'People and how to reach them, with a phone list to print.': 'लोग और उनसे संपर्क के तरीके, प्रिंट करने के लिए फ़ोन सूची के साथ।',
   'Products, their suppliers and stock movements, and what is running low.': 'उत्पाद, उनके आपूर्तिकर्ता और स्टॉक की आवाजाही, और क्या कम हो रहा है।',
   'Ready-made databases': 'तैयार डेटाबेस',
+  'A name, a colon, then the expression: [Field] names, + - * /, & to join text, and Round, Nz, IIf, Year, Month, Format, DateDiff and more': 'एक नाम, कोलन, फिर व्यंजक: [Field] नाम, + - * /, पाठ जोड़ने के लिए &, और Round, Nz, IIf, Year, Month, Format, DateDiff आदि',
+  'Expression': 'व्यंजक',
+  'Expression…': 'व्यंजक…',
+  'Line Total: [Quantity] * [Unit Price]': 'पंक्ति योग: [Quantity] * [Unit Price]',
 };
