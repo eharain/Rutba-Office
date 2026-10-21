@@ -181,10 +181,13 @@ export function documentData(base, layout, { keys = null, limit = 1000 } = {}) {
               else {
                 const v = read.value(child, l, c.field);
                 values[columns[i].name] = v.value;
+                // A field pointing at another table shows that record's words: the column is words, not the number it holds.
+                if (!c.type && v.type === 'text') columns[i].type = 'text';
               }
             }
             return values;
           });
+          for (const c of columns) c.align = ['currency', 'number', 'integer'].includes(c.type) ? 'right' : 'left';
           // The lines' sums, for the totals below: a column summed under its own name.
           for (const c of columns) {
             if (!['currency', 'number', 'integer'].includes(c.type) && !out.some((v) => typeof v[c.name] === 'number')) continue;

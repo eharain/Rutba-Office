@@ -16,7 +16,9 @@ export function shown(type, v, decimals = null) {
   if (v === null || v === undefined || v === '') return '';
   if (decimals !== null && decimals !== undefined && Number.isFinite(Number(v)) && type !== 'date' && type !== 'datetime' && type !== 'yesno') return Number(v).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   if (type === 'currency') return Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (type === 'number' || type === 'integer' || typeof v === 'number') return Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
+  // A whole number is shown as Access shows one, without thousands separators: a year is 2018, not 2,018.
+  if (type === 'integer') return Number(v).toLocaleString(undefined, { maximumFractionDigits: 0, useGrouping: false });
+  if (type === 'number' || typeof v === 'number') return Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
   if (type === 'yesno') return v ? t('Yes') : t('No');
   if (type === 'date') return new Date(`${String(v).slice(0, 10)}T00:00:00`).toLocaleDateString();
   if (type === 'datetime') return new Date(v).toLocaleString();

@@ -152,3 +152,18 @@ test('a file made before print templates opens with their table, its version bro
     for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
   }
 });
+
+test('a lines column naming a field that points at another table shows that record\'s words, as words', () => {
+  const b = shop();
+  try {
+    const lines = block(b.documentData({ name: 'Invoice' }).documents[0], 'lines');
+    const product = lines.columns.find((c) => c.name === 'Product');
+    assert.equal(product.type, 'text');
+    assert.equal(product.align, 'left');
+    assert.deepEqual(lines.rows.map((r) => r.Product), ['Screen repair', 'Phone case']);
+    // Quantity holds whole numbers and stays a number.
+    assert.equal(lines.columns.find((c) => c.name === 'Quantity').type, 'integer');
+  } finally {
+    b.close();
+  }
+});
