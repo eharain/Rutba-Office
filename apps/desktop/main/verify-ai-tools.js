@@ -9,8 +9,11 @@
 // as Node with the tools' entry (mcp/node.js), as the window says to start it,
 // spoken to on standard input and output. It makes a document. The badge says
 // one app is connected, and the window names it, says it is on this computer,
-// and logs its call. Turned off, the next call is refused and the badge goes.
-// Run alone with RUTBA_VERIFY_ONLY=ai-tools.
+// and logs its call. Other machines too (2026-10-21, D-2026-10-21-06): a call
+// with no key, or from a web page, is refused; with the key it is answered,
+// listed with its address and logged; a new key shuts the old one out; back
+// to this computer only, nothing listens. Turned off, the next call is
+// refused and the badge goes. Run alone with RUTBA_VERIFY_ONLY=ai-tools.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -88,6 +91,48 @@ export async function verifyAiTools(h) {
     check('ai tools: while an AI app is connected the badge says so, and a click on it names the app, says it is on this computer, and shows its last call and the log',
       badge && shown?.who === 'Check client 1.0' && shown?.where === 'This computer' && /create_document/.test(shown?.last || '') && shown?.log === 'create_document',
       `badge ${badge}; ${JSON.stringify(shown)}`);
+
+    // Other machines too, on a port the system gives the check rather than the usual one.
+    await js(`window.rutbaOffice.ai.setReach({ reach: 'local', port: 0 }).then(() => 1)`);
+    await js(`document.querySelector('.ai-reach input[value="remote"]')?.click(), 1`);
+    const listening = await until(async () => (await js(`window.rutbaOffice.ai.state()`)).remote?.listening || null, 'the tools listening', 8000).then(() => true, () => false);
+    const opened = listening ? await js(`window.rutbaOffice.ai.state()`) : null;
+    const shownRemote = await js(`({ urls: [...document.querySelectorAll('.ai-urls span')].map((n) => n.textContent), key: document.querySelector('.ai-key')?.textContent || '', warn: document.querySelector('.ai-warn')?.textContent || '' })`);
+    const url = `http://127.0.0.1:${opened?.remote?.port}/mcp`;
+    const post = (body, headers = {}) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...headers }, body: JSON.stringify(body) })
+      .then(async (r) => ({ status: r.status, session: r.headers.get('mcp-session-id'), body: await r.json().catch(() => null) }), (err) => ({ status: 0, error: err.cause?.code || err.message }));
+    const initBody = { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'Network client', version: '2.0' } } };
+    const keyless = await post(initBody);
+    const fromPage = await post(initBody, { authorization: `Bearer ${opened?.remote?.key}`, origin: 'https://example.com' });
+    check('ai tools: other machines too listens with a key the window keeps hidden, says the connection is not encrypted, and refuses a call with no key or from a web page',
+      Boolean(opened) && shownRemote.urls.some((u) => /:\d+\/mcp$/.test(u)) && /^\u2022+$/.test(shownRemote.key) && /not encrypted/.test(shownRemote.warn) && keyless.status === 401 && fromPage.status === 403,
+      JSON.stringify({ port: opened?.remote?.port, shownRemote, keyless: keyless.status, fromPage: fromPage.status }));
+
+    const auth = { authorization: `Bearer ${opened?.remote?.key}` };
+    const netInit = await post(initBody, auth);
+    const netCall = await post({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'list_folders', arguments: {} } }, { ...auth, 'mcp-session-id': netInit.session });
+    await wait(300);
+    const listed = await js(`window.rutbaOffice.ai.state().then((s) => ({ conn: s.connections.find((c) => c.client === 'Network client') || null, log: s.log[0] || null }))`);
+    check('ai tools: with the key an AI app on the network is answered, listed with its address, and its call logged with where it came from',
+      netInit.status === 200 && netInit.body?.result?.serverInfo?.name === 'rutba-office' && Boolean(netInit.session) && netCall.status === 200 && (netCall.body?.result?.content?.[0]?.text || '').includes(folder)
+        && listed.conn?.where === '127.0.0.1' && listed.log?.tool === 'list_folders' && listed.log?.where === '127.0.0.1',
+      JSON.stringify({ init: netInit.status, call: netCall.status, text: netCall.body?.result?.content?.[0]?.text?.slice(0, 80), listed }));
+
+    // A new key: the old one is refused at once.
+    const oldKey = opened?.remote?.key;
+    await js(`document.querySelector('.ai-key-new')?.click(), 1`);
+    const fresh = await until(async () => { const st = await js(`window.rutbaOffice.ai.state()`); return (st.remote?.key && st.remote.key !== oldKey && st.remote.listening) || null; }, 'a new key', 6000).then(() => true, () => false);
+    const renewed = fresh ? await js(`window.rutbaOffice.ai.state()`) : null;
+    const portNow = renewed?.remote?.port;
+    // At the port it listens on now: the check's is given by the system each time it starts.
+    const oldRefused = await fetch(`http://127.0.0.1:${portNow}/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${oldKey}` }, body: JSON.stringify(initBody) }).then((r) => r.status, () => 0);
+    // This computer only: nothing listens.
+    await js(`document.querySelector('.ai-reach input[value="local"]')?.click(), 1`);
+    await until(async () => (await js(`window.rutbaOffice.ai.state()`)).reach === 'local' || null, 'this computer only', 5000).catch(() => {});
+    const closed = await fetch(`http://127.0.0.1:${portNow}/mcp`, { method: 'POST', body: '{}' }).then((r) => `status ${r.status}`, (err) => err.cause?.code || 'refused');
+    check('ai tools: a new key shuts the old one out, and with this computer only nothing listens on the network',
+      Boolean(renewed) && oldRefused === 401 && /ECONNREFUSED|refused/.test(closed),
+      JSON.stringify({ renewed: Boolean(renewed), oldRefused, closed }));
 
     // Off: the next call is refused, and the badge goes.
     await js(`document.querySelector('.ai-mode input[value="off"]')?.click(), 1`);

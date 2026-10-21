@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7443,
+  "count": 7455,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1117,6 +1117,12 @@
       ]
     },
     {
+      "message": "A new key: the old one, and every connection made with it, stop working at once.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "A new list needs a name to be saved under.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -1660,6 +1666,12 @@
       ]
     },
     {
+      "message": "AI apps on this computer, and on other machines that have the key below, can use these tools while they are on.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "AI tools",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
@@ -1678,7 +1690,7 @@
       ]
     },
     {
-      "message": "AI tools on: {apps} connected from this computer. Click for the details.",
+      "message": "AI tools on: {apps} connected. Click for the details.",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
       ]
@@ -2559,6 +2571,7 @@
     {
       "message": "Address",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -15694,6 +15707,7 @@
     {
       "message": "Hide",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -18306,6 +18320,7 @@
     {
       "message": "Key",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/library-words.js"
       ]
@@ -19579,6 +19594,12 @@
       "message": "Listen",
       "where": [
         "apps/desktop/renderer/apps/video/library.js"
+      ]
+    },
+    {
+      "message": "Listening on port {port}.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -22028,6 +22049,12 @@
       ]
     },
     {
+      "message": "New Key",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "New Montage",
       "where": [
         "apps/desktop/renderer/apps/video/starters.js"
@@ -23837,6 +23864,18 @@
       ]
     },
     {
+      "message": "Nothing listens on the network.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "Nothing listens until the tools are turned on.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Nothing matched.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
@@ -24257,6 +24296,12 @@
       "message": "On a new paint layer",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "On another machine, an AI app that connects to an MCP server at an address takes these lines, the key with them.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -24998,6 +25043,12 @@
       ]
     },
     {
+      "message": "Other machines too",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Other parts",
       "where": [
         "apps/desktop/renderer/redact.js"
@@ -25179,6 +25230,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Over the network, with a key.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -26644,6 +26701,7 @@
     {
       "message": "Port",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
@@ -32987,6 +33045,7 @@
     {
       "message": "Show",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -37034,6 +37093,12 @@
       ]
     },
     {
+      "message": "The connection is not encrypted. Use it on a network you trust, or reach it through a secure tunnel. Anyone with the key can use the tools while they are on.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "The criteria range cannot sit inside the list",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -38972,6 +39037,7 @@
     {
       "message": "This computer only",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/dav-accounts.js"
       ]
     },
@@ -41527,6 +41593,7 @@
     {
       "message": "Use",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
@@ -42403,6 +42470,12 @@
       "message": "White, Eve",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
+      ]
+    },
+    {
+      "message": "Who can connect",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -43797,6 +43870,12 @@
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "from {where}",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {

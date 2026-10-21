@@ -382,10 +382,12 @@ export const METHODS = {
     'stop',             // () -> status
   ],
   ai: [
-    'state',        // () -> { mode: 'off' | 'session' | 'always', folders, connect: { command, args, env }, log, connections: [{ client, clientVersion, where, since, last, lastTool, pid }] }
+    'state',        // () -> { mode: 'off' | 'session' | 'always', folders, connect: { command, args, env }, log, connections: [{ client, clientVersion, where, since, last, lastTool, pid }], reach: 'local' | 'remote', remote: { port, key, addresses, listening, error } | null }
     'setMode',      // ({ mode }) -> state
     'addFolder',    // ({ path }) -> state
     'removeFolder', // ({ path }) -> state
+    'setReach',     // ({ reach: 'local' | 'remote', port? }) -> state   this computer only, or other machines too, with a key
+    'renewKey',     // () -> state   a new key; the old one stops working at once
   ],
   clipboard: [
     'writeText',    // ({ text }) -> void

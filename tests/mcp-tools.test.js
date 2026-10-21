@@ -157,16 +157,18 @@ test('a template, and a PDF made from pages of two', async () => {
   assert.match(pdfText(fs.readFileSync(path.join(work, 'both.pdf'))), /Page 2:\n[\s\S]*First file/);
 });
 
-test('no network: no file of the AI tools brings in a networking module or listens on a port (owner, D-2026-10-17-04: protected from remote connections)', () => {
+test('the network only by choice: one file of the AI tools listens, remote.js, and this computer only is the default (owner, D-2026-10-17-04 "protect it from remote connections", D-2026-10-21-06 "the user should have choice to open remote connections or local access only")', () => {
   const dir = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'apps', 'desktop', 'main', 'mcp');
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js'));
-  assert.ok(files.includes('node.js') && files.includes('tools.js') && files.includes('protocol.js'), files.join(','));
+  assert.ok(files.includes('node.js') && files.includes('tools.js') && files.includes('protocol.js') && files.includes('remote.js'), files.join(','));
   const NET = /(?:from\s+|require\(\s*|import\(\s*)['"](?:node:)?(?:net|http|https|http2|dgram|tls|dns)['"]/;
-  for (const f of files) {
+  for (const f of files.filter((name) => name !== 'remote.js')) {
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     assert.doesNotMatch(src, NET, `${f} brings in a networking module`);
     assert.doesNotMatch(src, /\.listen\s*\(/, `${f} listens on a port`);
   }
   const ai = fs.readFileSync(path.join(dir, '..', 'ai-tools.js'), 'utf8');
   assert.doesNotMatch(ai, NET, 'ai-tools.js brings in a networking module');
+  // Off the network unless the person chooses it.
+  assert.match(ai, /settings\.get\(REACH_KEY, 'local'\)/);
 });

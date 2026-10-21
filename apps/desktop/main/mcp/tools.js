@@ -377,9 +377,10 @@ export function createTools({ settings, dataDir, ocr = null, pictureToPng = null
 
   return {
     list: () => TOOL_LIST.map((t) => ({ ...t })),
-    async call(name, args = {}) {
+    /** One call; `ctx.where` is where it came from when not this computer (an address on the network). */
+    async call(name, args = {}, ctx = {}) {
       const started = Date.now();
-      const entry = { at: new Date(started).toISOString(), tool: String(name), paths: pathsOf(args) };
+      const entry = { at: new Date(started).toISOString(), tool: String(name), paths: pathsOf(args), ...(ctx.where ? { where: String(ctx.where).slice(0, 64) } : {}) };
       const done = (result) => {
         logCall(dataDir, { ...entry, ok: !result.isError, ms: Date.now() - started, ...(result.isError ? { error: result.content?.[0]?.text?.slice(0, 300) } : {}) });
         return result;

@@ -14,16 +14,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { renderPdf } from '@rutba/doc-view/export/pdf';
-import { openDocx } from '@rutba/doc-view/backends/ooxml';
-import { isPng } from '@rutba/ocr/png';
 import { createServer, serve } from './protocol.js';
-import { createTools } from './tools.js';
 import { writeConnection } from './access.js';
-import { unicodeFont } from '../system-fonts.js';
-import { createOcrService } from '../ocr.js';
-
-const INSTRUCTIONS = 'Rutba Office makes and reads documents (.docx), workbooks (.xlsx), presentations (.pptx) and PDFs on this computer, in the folders its user has given it, and never overwrites or deletes a file. The tools are off unless the user has turned them on in Rutba Office (app menu, AI Tools); a refusal says so.';
+import { makeTools, versionOf, INSTRUCTIONS } from './make-tools.js';
 
 /** Rutba Office's profile folder, where its settings are: as Electron names it for the app. */
 export function profileDir() {
@@ -31,15 +24,6 @@ export function profileDir() {
   if (process.platform === 'win32') return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Rutba Office');
   if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Application Support', 'Rutba Office');
   return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'Rutba Office');
-}
-
-/** The version this copy is, from the app's package. */
-function versionOf() {
-  try {
-    return JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version || '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
 }
 
 export async function main() {
@@ -59,20 +43,7 @@ export async function main() {
       return {};
     }
   };
-  let ocr = null;
-  const tools = createTools({
-    settings,
-    dataDir,
-    renderPdf,
-    openDocx,
-    unicodeFont,
-    ocr: { recognize: (args) => (ocr ||= createOcrService()).recognize(args) },
-    pictureToPng: async (file) => {
-      const bytes = new Uint8Array(fs.readFileSync(file));
-      if (!isPng(bytes)) throw new Error(`${path.basename(file)} is not a PNG picture. The AI tools read the words in PNG pictures; save it as a PNG first.`);
-      return bytes;
-    },
-  });
+  const tools = makeTools({ settings, dataDir });
   // Who is connected, for the AI Tools window and the badge in every window's
   // title bar: what the AI app says it is, from where, since when, its last call.
   const pid = process.pid;
