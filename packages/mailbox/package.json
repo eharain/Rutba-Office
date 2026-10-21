@@ -27,7 +27,9 @@
     "./smime-host": "./src/smime/host.js",
     "./export": "./src/legal-export.js",
     "./message-pdf": "./src/message-pdf.js",
-    "./rfc822": "./src/rfc822.js"
+    "./rfc822": "./src/rfc822.js",
+    "./managesieve": "./src/managesieve.js",
+    "./managesieve-standin": "./src/managesieve-standin.js"
   },
   "dependencies": {
     "@rutba/office-formats": "*",

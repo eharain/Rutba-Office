@@ -175,16 +175,48 @@ const fromDateInput = (value) => {
  * stays on — turning it off and on again is what starts that over, the same
  * as Outlook's own "once per sender while away".
  */
+/** Why an account's mail server cannot send the replies itself, in words. */
+export function sieveReason(code) {
+  switch (code) {
+    case 'no-vacation': return t('This mail server cannot send automatic replies itself.');
+    case 'no-tls': return t('This mail server offers no secure connection for its filters.');
+    case 'auth': return t('The mail server did not accept your sign-in for its filters.');
+    case 'oauth': return t('Not yet for accounts signed in with Google or Microsoft.');
+    case 'local': return t('An imported mailbox has no server.');
+    default: return t('The mail server could not be reached for its filters.');
+  }
+}
+
 export function OutOfOfficeDialog({ shell, accounts, accountId, onClose, onSaved, toast }) {
   const [id, setId] = useState(accountId || accounts[0]?.id || '');
   const account = accounts.find((a) => a.id === id) || null;
-  const blank = { enabled: false, start: '', end: '', subject: '', message: '', contactsOnly: false, sentTo: [] };
+  const blank = { enabled: false, start: '', end: '', subject: '', message: '', contactsOnly: false, sentTo: [], where: null };
   const [form, setForm] = useState({ ...blank, ...(account?.autoReply || {}) });
   const [saving, setSaving] = useState(false);
-  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  // What the account's mail server says: whether it can send the replies itself, and whether it is.
+  const [server, setServer] = useState(null);
+  // Changed by the person: the server's answer, arriving after, does not undo it.
+  const touched = useRef(false);
+  const set = (patch) => { touched.current = true; setForm((f) => ({ ...f, ...patch })); };
 
   useEffect(() => {
     setForm({ ...blank, ...((accounts.find((a) => a.id === id) || {}).autoReply || {}) });
+    setServer(null);
+    touched.current = false;
+    if (!id) return undefined;
+    let gone = false;
+    shell.mail.serverAutoReply({ accountId: id, action: 'state' }).then((r) => {
+      if (gone) return;
+      setServer(r);
+      // The server's, where it can: replies go out with this computer off.
+      setForm((f) => {
+        const where = f.where || (r.supported ? 'server' : 'office');
+        // Turned on from another computer: what the server holds is what is shown.
+        const fromServer = r.on && r.settings && !touched.current ? { enabled: true, subject: r.settings.subject || '', message: r.settings.message || '', start: r.settings.start || '', end: r.settings.end || '' } : {};
+        return { ...f, ...(where === 'server' ? fromServer : {}), where: r.supported ? where : 'office' };
+      });
+    }, () => { if (!gone) { setServer({ supported: false, reason: 'unreachable' }); setForm((f) => ({ ...f, where: 'office' })); } });
+    return () => { gone = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, accounts]);
 
@@ -198,16 +230,24 @@ export function OutOfOfficeDialog({ shell, accounts, accountId, onClose, onSaved
       // still sitting there.
       const wasOn = Boolean(account?.autoReply?.enabled);
       const sentTo = form.enabled && !wasOn ? [] : form.sentTo || [];
-      const patch = { enabled: form.enabled, start: form.start || null, end: form.end || null, subject: form.subject, message: form.message, contactsOnly: form.contactsOnly, sentTo };
+      const where = form.where === 'server' && server?.supported ? 'server' : 'office';
+      const patch = { enabled: form.enabled, start: form.start || null, end: form.end || null, subject: form.subject, message: form.message, contactsOnly: form.contactsOnly, sentTo, where };
+      if (where === 'server') {
+        const r = await shell.mail.serverAutoReply({ accountId: id, action: form.enabled ? 'on' : 'off', settings: { subject: form.subject, message: form.message, start: form.start || null, end: form.end || null } });
+        if (!r.supported) throw new Error(sieveReason(r.reason));
+      } else if (server?.on) {
+        // Moved to Rutba Office's own: the server's is turned off, so nobody hears twice.
+        await shell.mail.serverAutoReply({ accountId: id, action: 'off' });
+      }
       await shell.mail.updateAccount({ id, patch: { autoReply: patch } });
-      toast(patch.enabled ? t('Automatic replies are on') : t('Automatic replies are off'), { tone: 'good' });
+      toast(patch.enabled ? (where === 'server' ? t('Automatic replies are on at your mail server') : t('Automatic replies are on')) : t('Automatic replies are off'), { tone: 'good' });
       onSaved();
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     } finally {
       setSaving(false);
     }
-  }, [shell, id, form, account, onSaved, toast]);
+  }, [shell, id, form, account, server, onSaved, toast]);
 
   return (
     <Dialog
@@ -236,6 +276,21 @@ export function OutOfOfficeDialog({ shell, accounts, accountId, onClose, onSaved
         <span>{t('Send automatic replies')}</span>
       </label>
 
+      <fieldset className="ml-ooo-where" aria-label={t('Sent by')}>
+        <legend>{t('Sent by')}</legend>
+        <label className="ml-ooo-way" data-where="server">
+          <input type="radio" name="ml-ooo-where" checked={form.where === 'server'} disabled={!server?.supported} onChange={() => set({ where: 'server' })} />
+          <span>
+            <strong>{t('Your mail server')}</strong>
+            <small>{server === null ? t('Asking your mail server…') : server.supported ? t('Replies go out with this computer off too.') : sieveReason(server.reason)}</small>
+          </span>
+        </label>
+        <label className="ml-ooo-way" data-where="office">
+          <input type="radio" name="ml-ooo-where" checked={form.where !== 'server'} onChange={() => set({ where: 'office' })} />
+          <span><strong>{t('Rutba Office')}</strong><small>{t('While Rutba Office is running; one due while it is closed goes out the next time mail is fetched.')}</small></span>
+        </label>
+      </fieldset>
+
       <div className="ml-servers3" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <Field label={t('Start (optional)')}>
           <input type="datetime-local" className="rw-input" value={forDateInput(form.start)} onChange={(e) => set({ start: fromDateInput(e.target.value) })} />
@@ -244,9 +299,13 @@ export function OutOfOfficeDialog({ shell, accounts, accountId, onClose, onSaved
           <input type="datetime-local" className="rw-input" value={forDateInput(form.end)} onChange={(e) => set({ end: fromDateInput(e.target.value) })} />
         </Field>
       </div>
+      {form.where === 'server' ? (
+        <p className="rw-hint" style={{ marginTop: -4 }}>{t('Left blank, it starts the moment you save it and runs until you turn it off. Your mail server answers each sender once every four days.')}</p>
+      ) : (
       <p className="rw-hint" style={{ marginTop: -4 }}>
         {t('Left blank, it starts the moment you save it and runs until you turn it off. Replies go out while Rutba Office is running — one due while it is closed goes out the next time mail is fetched.')}
       </p>
+      )}
 
       <Field label={t('Subject')} hint={t('Leave blank for “Automatic reply: ” and the original subject.')}>
         <Input value={form.subject} onChange={(e) => set({ subject: e.target.value })} placeholder={t('Automatic reply: <original subject>')} />
@@ -262,8 +321,8 @@ export function OutOfOfficeDialog({ shell, accounts, accountId, onClose, onSaved
       </Field>
 
       <label className="ml-ooo-toggle ml-ooo-contacts">
-        <input type="checkbox" checked={form.contactsOnly} onChange={(e) => set({ contactsOnly: e.target.checked })} />
-        <span>{t('Only reply to people in my contacts')}</span>
+        <input type="checkbox" checked={form.contactsOnly && form.where !== 'server'} disabled={form.where === 'server'} onChange={(e) => set({ contactsOnly: e.target.checked })} />
+        <span>{form.where === 'server' ? t('Only reply to people in my contacts (Rutba Office’s own replies only)') : t('Only reply to people in my contacts')}</span>
       </label>
 
       <p className="rw-hint" style={{ marginBottom: 0 }}>

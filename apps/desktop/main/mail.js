@@ -25,6 +25,7 @@ import { unicodeFont } from './system-fonts.js';
 import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
 import { planAutoReplies, buildReply } from './mail-ooo.js';
+import { openSieve, turnOn as sieveOn, turnOff as sieveOff, readState as sieveState } from '@rutba/mailbox/managesieve';
 import { junkSettings, junkVerdict, learn as learnJunk, listSender as listJunkSender, listRecipient as listJunkRecipient, groupAddressOf, listEntry, tldEntry, JUNK_LEVELS, JUNK_REASONS, JUNK_ENCODINGS, ready as junkReady, MIN_LEARNED } from './mail-junk.js';
 
 // A check run never asks the network where a mail server is, and never opens
@@ -412,7 +413,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
 
     let autoReplied = 0;
     const account = accounts().find((a) => a.id === accountId);
-    if (account?.autoReply?.enabled) {
+    // Replies the mail server sends itself (D-2026-10-22-01) are not sent from here too.
+    if (account?.autoReply?.enabled && account.autoReply.where !== 'server') {
       const settings = account.autoReply;
       const plan = planAutoReplies(freshMessages, account, now(), {
         sentTo: settings.sentTo || [],
@@ -1296,6 +1298,38 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      * why `draft` can carry `inReplyTo`/`references`/`headers`: an out-of-office
      * answer is not a different code path, only a different draft.
      */
+    /**
+     * The mail server's own automatic reply (owner, 2026-10-22,
+     * D-2026-10-22-01), set over ManageSieve: 'state' says whether this
+     * account's server can and whether it is on; 'on' writes the reply with
+     * `settings` ({ subject, message, start, end }) and makes it active, the
+     * person's own filters still run after it; 'off' turns it off and gives
+     * their filters back. Answers { supported, on, settings?, reason? }.
+     */
+    serverAutoReply: async ({ accountId, action = 'state', settings = null }) => {
+      const account = find(accountId);
+      if (account.local) return { supported: false, reason: 'local' };
+      if (account.auth === 'oauth' || account.imap?.auth === 'oauth') return { supported: false, reason: 'oauth' };
+      const host = account.sieve?.host || account.imap?.host;
+      if (!host) return { supported: false, reason: 'no-server' };
+      let session;
+      try {
+        const { user, pass } = await credentialsFor(account);
+        // A check's own stand-in on this computer speaks without TLS; nothing else may.
+        session = await openSieve({ host, port: account.sieve?.port || 4190, user, pass, plain: Boolean(CHECK_RUN && account.sieve?.plain), timeoutMs: 10000 });
+      } catch (err) {
+        return { supported: false, reason: err.code || 'unreachable', detail: err.message };
+      }
+      try {
+        if (action === 'on') return { supported: true, on: true, previous: (await sieveOn(session, settings || {}, { addresses: [account.email] })).previous };
+        if (action === 'off') { await sieveOff(session); return { supported: true, on: false }; }
+        const state = await sieveState(session);
+        return { supported: true, on: state.on, settings: state.settings };
+      } finally {
+        await session.close();
+      }
+    },
+
     send: async ({ accountId, draft }) => {
       const account = find(accountId);
       // A check run's own fake transport never opens a connection, so it has

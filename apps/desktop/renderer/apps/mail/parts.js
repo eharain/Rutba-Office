@@ -620,6 +620,13 @@ select.rw-input { appearance: auto; }
 }
 .ml-ooo-toggle { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin: 10px 0; cursor: pointer; }
 .ml-ooo-toggle input { margin: 0; }
+.ml-ooo-where { display: grid; gap: 6px; margin: 4px 0 10px; padding: 0; border: 0; }
+.ml-ooo-where legend { padding: 0; margin-bottom: 4px; font-size: 12.5px; color: var(--ink-2); }
+.ml-ooo-way { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: var(--r-2); cursor: pointer; }
+.ml-ooo-way input { margin: 0; }
+.ml-ooo-way span { display: grid; }
+.ml-ooo-way small { color: var(--ink-3); font-size: 12px; }
+.ml-ooo-way:has(input:disabled) { opacity: 0.65; cursor: default; }
 
 /* an Outbox item's own actions -------------------------------------------- */
 .ml-outbox-actions { display: flex; gap: 6px; flex-wrap: wrap; }

@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7673,
+  "count": 7690,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -3530,6 +3530,12 @@
       ]
     },
     {
+      "message": "An imported mailbox has no server.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "An invitation from {name}.",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -4243,6 +4249,12 @@
       ]
     },
     {
+      "message": "Asking your mail server…",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "Ask…",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -4534,6 +4546,18 @@
     },
     {
       "message": "Automatic replies are on",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Automatic replies are on at the mail server for {address}.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Automatic replies are on at your mail server",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
@@ -9858,6 +9882,12 @@
       "message": "Day Accessed",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Day {n} of {count}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -19469,6 +19499,12 @@
       ]
     },
     {
+      "message": "Left blank, it starts the moment you save it and runs until you turn it off. Your mail server answers each sender once every four days.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "Left blank, nothing is added.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -24405,6 +24441,12 @@
       ]
     },
     {
+      "message": "Not yet for accounts signed in with Google or Microsoft.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "Note",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -25259,6 +25301,12 @@
     },
     {
       "message": "Only reply to people in my contacts",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Only reply to people in my contacts (Rutba Office’s own replies only)",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
@@ -30372,6 +30420,12 @@
       ]
     },
     {
+      "message": "Replies go out with this computer off too.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "Reply",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
@@ -31578,6 +31632,12 @@
       "message": "Rutba Mail",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Rutba Office",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -33377,6 +33437,12 @@
       "message": "Sent",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Sent by",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -38620,6 +38686,19 @@
       ]
     },
     {
+      "message": "The mail server could not be reached for its filters.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "The mail server did not accept your sign-in for its filters.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "The mail server did not answer",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
@@ -40523,6 +40602,18 @@
       "message": "This list has no subtotals to remove",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This mail server cannot send automatic replies itself.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "This mail server offers no secure connection for its filters.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -43714,6 +43805,12 @@
       ]
     },
     {
+      "message": "While Rutba Office is running; one due while it is closed goes out the next time mail is fetched.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "While this plays, the other sound is lowered: for a voice over music",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
@@ -44439,6 +44536,12 @@
       "message": "Your keys are kept in the protected store of this computer's account, never in a file. Certificates are checked against the authorities this computer trusts, offline; revocation is not checked.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "Your mail server",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {

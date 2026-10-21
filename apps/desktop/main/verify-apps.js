@@ -129,6 +129,8 @@ import { verifyGalleryFold } from './verify-gallery-fold.js';
 import { verifyVideoPane } from './verify-video-pane.js';
 import { verifyPolishPass } from './verify-polish-pass.js';
 import { verifyCalendarMonth } from './verify-calendar-month.js';
+import { verifyCalendarMultiDay } from './verify-calendar-multiday.js';
+import { verifyMailServerOoo } from './verify-mail-server-ooo.js';
 import { verifySheetDark } from './verify-sheet-dark.js';
 import { verifyPdfFindMark } from './verify-pdf-find-mark.js';
 import { verifyDarkPass } from './verify-dark-pass.js';
@@ -5032,6 +5034,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // `polish` runs the older polish checks above and the visual pass over every app.
     if (only.includes('polish')) await verifyPolishPass({ open, check, until, wait }, { dir });
     if (only.includes('calendar-month')) await verifyCalendarMonth({ open, check, until, wait }, { dir });
+    if (only.includes('calendar-multiday')) await verifyCalendarMultiDay({ open, check, until, wait }, { dir });
+    if (only.includes('mail-server-ooo')) await verifyMailServerOoo({ open, check, until, wait, errorsIn });
     if (only.includes('sheet-dark')) await verifySheetDark({ open, check, until, wait }, { dir });
     if (only.includes('pdf-find-mark')) await verifyPdfFindMark({ open, check, until, wait }, { dir });
     if (only.includes('dark-pass')) await verifyDarkPass({ open, check, until, wait }, { dir });
@@ -5426,6 +5430,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('look', () => verifyPanels({ open, check, until, wait }, { dir }), { machine: true });
   await part('theme', () => verifyPolishPass({ open, check, until, wait }, { dir }));
   await part('calendar', () => verifyCalendarMonth({ open, check, until, wait }, { dir }));
+  await part('calendar', () => verifyCalendarMultiDay({ open, check, until, wait }, { dir }));
   await part('sheets', () => verifySheetDark({ open, check, until, wait }, { dir }));
   await part('pdf', () => verifyPdfFindMark({ open, check, until, wait }, { dir }));
   await part('theme', () => verifyDarkPass({ open, check, until, wait }, { dir }));
@@ -7268,6 +7273,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // and a window opens on an Inbox before the seeded folder the others read.
   await verifyMailJunk({ open, check, until, wait, errorsIn });
   await part('mail', () => verifyMailLinks({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyMailServerOoo({ open, check, until, wait, errorsIn }));
   // AI Tools and S/MIME run inside Mail's section, so they are counted as its part.
   await part('mail', () => verifyAiTools({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailWindow({ open, check, until, wait, errorsIn }));

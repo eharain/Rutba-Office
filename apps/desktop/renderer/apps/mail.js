@@ -1698,12 +1698,21 @@ export default function Mail({ app, shell }) {
       {!unified && account?.autoReply?.enabled ? (
         <div className="ml-ooo-banner">
           <Icon name="info" size={14} />
-          <span>{t('Automatic replies are on for {address}.', { address: account.email })}</span>
+          <span>{account.autoReply.where === 'server' ? t('Automatic replies are on at the mail server for {address}.', { address: account.email }) : t('Automatic replies are on for {address}.', { address: account.email })}</span>
           <button
             type="button"
+            className="ml-ooo-off"
             onClick={async () => {
-              await shell.mail.updateAccount({ id: account.id, patch: { autoReply: { ...account.autoReply, enabled: false } } });
-              loadAccounts();
+              try {
+                if (account.autoReply.where === 'server') {
+                  const r = await shell.mail.serverAutoReply({ accountId: account.id, action: 'off' });
+                  if (!r.supported) throw new Error(t('The mail server could not be reached for its filters.'));
+                }
+                await shell.mail.updateAccount({ id: account.id, patch: { autoReply: { ...account.autoReply, enabled: false } } });
+                loadAccounts();
+              } catch (err) {
+                toast(err.message, { tone: 'bad', ms: 6000 });
+              }
             }}
           >
             {t('Turn off')}

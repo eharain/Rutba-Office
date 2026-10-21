@@ -170,6 +170,7 @@ export const METHODS = {
     'flag',         // ({ accountId, folder, uids, add, remove }) -> void
     'move',         // ({ accountId, folder, uids, to }) -> void
     'delete',       // ({ accountId, folder, uids }) -> void
+    'serverAutoReply', // ({ accountId, action: 'state' | 'on' | 'off', settings }) -> { supported, on, settings?, reason? }   the mail server's own out of office, over ManageSieve
     'send',         // ({ accountId, draft }) -> { messageId }
     'saveDraft',    // ({ accountId, draft }) -> { id }
     'import',       // ({ path, accountId }) -> { folders, messages }
