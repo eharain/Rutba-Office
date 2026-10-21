@@ -29,6 +29,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The templates are their own repository (Rutba-Office-Templates), taken as packages/templates.
+          submodules: true
       - uses: actions/setup-node@v5
         with:
           node-version: 22

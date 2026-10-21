@@ -7,5 +7,6 @@ export { wizardForm, labelFor, shownField, valueFromControl, GRID } from './form
 export { wizardReport, reportData, total } from './report-design.js';
 export { TEMPLATE_IDS, templateTables, buildTemplate, buildFromSpec } from './templates.js';
 export { documentData, wizardDocument, evaluate, PAPERS, BLOCKS } from './document-design.js';
-export { SAMPLE_IDS, buildSample, sampleSpec, sampleAbout } from './samples/index.js';
-export { checkSample } from './samples/check.js';
+export { buildSample, buildSampleFrom } from './samples.js';
+// The ready-made databases' content, from the templates' own repository.
+export { SAMPLE_IDS, sampleSpec, sampleAbout, checkSample } from '@rutba/templates/data-files';

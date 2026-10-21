@@ -15,5 +15,8 @@
     "./report-design": "./src/report-design.js",
     "./document-design": "./src/document-design.js"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "dependencies": {
+    "@rutba/templates": "*"
+  }
 }

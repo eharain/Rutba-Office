@@ -1,4 +1,4 @@
-// Data Files' sample databases (packages/database/src/samples): each one
+// Data Files' sample databases (packages/templates/data-files, built by packages/database/src/samples.js): each one
 // builds with its invented records and without them; with them, every table
 // has records, every query answers something, every report has records and
 // totals that come to a number, nothing is below nought where it should not

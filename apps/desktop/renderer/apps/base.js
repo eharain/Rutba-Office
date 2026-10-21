@@ -25,7 +25,7 @@ const TEMPLATES = [
 
 /**
  * The sample businesses the start screen offers, in the engine's order
- * (packages/database/src/samples/index.js): each with its invented records
+ * (packages/templates/data-files, the templates' own repository): each with its invented records
  * to learn from, or empty to start a business of one's own from. The
  * business's name is a made-up proper name, the same in every language.
  */

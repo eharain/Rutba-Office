@@ -1,0 +1,3 @@
+[submodule "packages/templates"]
+	path = packages/templates
+	url = https://github.com/eharain/Rutba-Office-Templates.git
