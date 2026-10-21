@@ -23,12 +23,49 @@ When the tools are first turned on, Rutba Office asks you to choose a folder
 for them. If you cancel, they stay off. Rutba Office never makes a folder for
 you. You can add more folders or remove any later.
 
-## Only this computer
+## This computer only, or other machines too
 
-The AI app starts the tools itself, and talks to them through standard input
-and output. Nothing listens on the network, so no other machine can connect.
-An engine test fails if any file of the tools brings in a networking module or
-opens a port.
+AI Tools has a **Who can connect** setting:
+
+| Setting | What it means |
+| :-- | :-- |
+| This computer only | The default. The AI app starts the tools itself, and talks to them through standard input and output. Nothing listens on the network, so no other machine can connect. |
+| Other machines too | While the tools are on, Rutba Office also answers AI apps on other machines over the network, at the address and port AI Tools shows, to whoever has the key it shows. |
+
+With other machines too:
+
+- **The key.** AI Tools keeps the key hidden until you choose Show. Copy puts it
+  on the clipboard. **New Key** makes a new one, and the old key, and every
+  connection made with it, stops working at once.
+- **What is refused.** A call with no key or the wrong key is refused, and an
+  address that keeps trying is turned away for a minute. A call from a web
+  page is refused, so a page open in your browser cannot reach the tools.
+- **On and off.** Every call asks again whether the tools are on and the
+  network is still chosen. Turning either off refuses the next call, and
+  nothing listens any more.
+- **Not encrypted.** The connection is plain HTTP. Use it on a network you
+  trust, or reach it through a secure tunnel.
+- **Seen.** Each AI app on the network is listed under Connected now with its
+  address, and the log says where each call came from.
+
+An AI app on another machine connects to an MCP server at an address. AI Tools
+shows the lines to add, with the address and the key:
+
+```json
+{
+  "mcpServers": {
+    "rutba-office": {
+      "type": "http",
+      "url": "http://192.168.1.20:47613/mcp",
+      "headers": { "Authorization": "Bearer <the key AI Tools shows>" }
+    }
+  }
+}
+```
+
+An engine test fails if any file of the tools other than the network server
+(`main/mcp/remote.js`) brings in a networking module or opens a port, or if
+this computer only stops being the default.
 
 ## What they can do
 
