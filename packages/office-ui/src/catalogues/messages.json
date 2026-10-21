@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7614,
+  "count": 7673,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -845,6 +845,12 @@
       ]
     },
     {
+      "message": "A code a phone camera reads: the link",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "A column is pivoted on another column's values",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -1190,7 +1196,7 @@
     {
       "message": "A note (optional)",
       "where": [
-        "apps/desktop/renderer/apps/talk.js"
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -1878,6 +1884,7 @@
         "apps/desktop/renderer/apps/mail/reader.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/talk.js",
+        "apps/desktop/renderer/apps/talk/invite.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -1927,6 +1934,12 @@
       "message": "Accept: this change, this slide's or every change",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Accept: {accept}",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -2300,7 +2313,7 @@
     {
       "message": "Add a contact",
       "where": [
-        "apps/desktop/renderer/apps/talk.js"
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -3499,6 +3512,18 @@
       ]
     },
     {
+      "message": "An email from Rutba",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "An email from {address}",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "An equation is edited in the equation editor — double-click it.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -4178,7 +4203,7 @@
     {
       "message": "Ask",
       "where": [
-        "apps/desktop/renderer/apps/talk.js"
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -4202,7 +4227,7 @@
     {
       "message": "Asked {email}. You can talk once they accept.",
       "where": [
-        "apps/desktop/renderer/apps/talk.js"
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -5981,7 +6006,7 @@
         "apps/desktop/renderer/apps/slides/setup.js",
         "apps/desktop/renderer/apps/slides/slide-size.js",
         "apps/desktop/renderer/apps/slides/zoom.js",
-        "apps/desktop/renderer/apps/talk.js",
+        "apps/desktop/renderer/apps/talk/invite.js",
         "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/intro/brand.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
@@ -8710,6 +8735,18 @@
       ]
     },
     {
+      "message": "Copy link",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Copy message",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "Copy of {name}",
       "where": [
         "apps/desktop/renderer/apps/slides/custom-shows.js"
@@ -8761,6 +8798,12 @@
       "message": "Copy the source to this document",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
+      ]
+    },
+    {
+      "message": "Copy their invitation link, to send it another way",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -10974,7 +11017,8 @@
         "apps/desktop/renderer/apps/image/type-editor.js",
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/recorder/live-dialog.js",
-        "apps/desktop/renderer/apps/talk.js"
+        "apps/desktop/renderer/apps/talk.js",
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -12085,7 +12129,7 @@
       "message": "Email address",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js",
-        "apps/desktop/renderer/apps/talk.js"
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -12098,6 +12142,18 @@
       "message": "Email, a small MP4",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "Emailed by Rutba",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Emailed from {address}",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -14999,6 +15055,18 @@
       ]
     },
     {
+      "message": "From no-reply@rutba.io, in your name, a few a day.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "From no-reply@rutba.io, in your name. {day} left today, {week} this week.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "From record",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -16042,6 +16110,12 @@
       ]
     },
     {
+      "message": "Hello,",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "Help",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
@@ -16231,6 +16305,12 @@
       "message": "Hide password",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Hide the code",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -16549,6 +16629,12 @@
       "message": "How many lines in a row may end in a hyphen — empty for no limit.",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "How they hear of it",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -18247,9 +18333,33 @@
       ]
     },
     {
+      "message": "Invitation",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Invitation link",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "Invite",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Invite with a link",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Invite with a link…",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -20488,6 +20598,7 @@
       "message": "Mail",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/talk/invite.js",
         "apps/desktop/renderer/registry-words.js"
       ]
     },
@@ -20592,6 +20703,12 @@
       "message": "Make Check Box Fields: the tick boxes become check boxes of the form, ticked as they were read, to fill and save",
       "where": [
         "apps/desktop/renderer/apps/pdf/found.js"
+      ]
+    },
+    {
+      "message": "Make a link",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -22286,6 +22403,12 @@
       ]
     },
     {
+      "message": "My email app",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "My own relay",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
@@ -23157,6 +23280,12 @@
       ]
     },
     {
+      "message": "No Rutba Office yet? The same link lets you accept with a free Rutba account, and Rutba Office is free to download: {join}",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "No Transform",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -23414,6 +23543,12 @@
       ]
     },
     {
+      "message": "No email",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "No errors found",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -23535,6 +23670,12 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "No links yet.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -24166,6 +24307,42 @@
       ]
     },
     {
+      "message": "Not emailed",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Not emailed by Rutba",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Not emailed: Rutba emailed this address in the last week",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Not emailed: Rutba’s limit for today or this week is reached",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Not emailed: this address asked for no invitations",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Not emailed: {address} could not send it",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "Not equal to",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -24194,6 +24371,7 @@
     {
       "message": "Not now",
       "where": [
+        "apps/desktop/renderer/apps/talk/invite.js",
         "apps/desktop/renderer/shell.js"
       ]
     },
@@ -25135,6 +25313,7 @@
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/talk/invite.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/word/compare.js",
@@ -25202,6 +25381,18 @@
       "message": "Open a second window first — Side by Side lays two of this app's windows next to each other.",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Open an invitation",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Open an invitation…",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -26347,6 +26538,12 @@
       ]
     },
     {
+      "message": "Paste the invitation link someone sent you, from an email or a chat.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "Paste — copy a shape first, then Ctrl+V",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -26640,6 +26837,12 @@
       "message": "Phone and online orders, collection and delivery, drivers, kitchen tickets and receipts.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Phone code",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -31490,6 +31693,12 @@
       ]
     },
     {
+      "message": "Rutba’s limit for today or this week is reached. Use your own address, or send a link.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "SAMPLE",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -33038,6 +33247,12 @@
       ]
     },
     {
+      "message": "Send a link to friends any way you like. Whoever opens it becomes your contact once they accept, with Rutba Office or, without it, a free Rutba account. Withdraw it when you are done.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "Send and receive",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -33079,6 +33294,12 @@
       "message": "Send invitation",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Send it with",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -33162,6 +33383,12 @@
       "message": "Sent by someone, by name or address",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Sent from your own account in Mail, a copy kept in Sent",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -34269,6 +34496,12 @@
       "message": "Sign in",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "Sign in to Talk to accept the invitation you opened.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -36962,6 +37195,24 @@
       ]
     },
     {
+      "message": "Talk could not do that. Try again in a moment.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Talk is not connected. Try again in a moment.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Talk with me on Rutba Talk",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "Talk with your contacts",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
@@ -37534,6 +37785,12 @@
       ]
     },
     {
+      "message": "That is as many as Talk takes for now. Try again later.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "That is more cells than a script may set at once",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -37577,6 +37834,12 @@
       ]
     },
     {
+      "message": "That is not an email address.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "That is not an embedded document.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -37592,6 +37855,12 @@
       "message": "That is too much for a QR Code at this level of error correction. Choose a lower level, or shorten the text.",
       "where": [
         "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
+      "message": "That is your own address.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -38301,6 +38570,19 @@
       ]
     },
     {
+      "message": "The link is copied. Paste it anywhere.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js",
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "The link is withdrawn: nobody can accept it now.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "The link on {cell}",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -38390,6 +38672,12 @@
       "message": "The message exactly as it came from the server, {size}.",
       "where": [
         "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "The message is copied, the link in it.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -39674,9 +39962,15 @@
       ]
     },
     {
+      "message": "They see it in Talk if they use it. You can send them the link yourself after.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "They see your name and your note, and become a contact when they accept. Nobody is told whether an address has an account.",
       "where": [
-        "apps/desktop/renderer/apps/talk.js"
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -39758,6 +40052,12 @@
       "message": "This PDF's cross-references are damaged, so a text layer cannot be added to it as it is. Save a copy first, then recognise the copy.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This Talk server does not take invitations yet.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -40133,6 +40433,12 @@
       "message": "This formula reads other sheets or names only",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "This invitation has ended.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -42631,6 +42937,12 @@
       ]
     },
     {
+      "message": "Used {uses} of {max} times; ends {when}",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "User name",
       "where": [
         "apps/desktop/renderer/apps/talk.js",
@@ -43668,6 +43980,12 @@
       ]
     },
     {
+      "message": "Withdraw",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "Without one, anyone can take the protection off. A password cannot be recovered if it is lost — keep it somewhere safe.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -44054,6 +44372,12 @@
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "You and {name} are contacts now.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -46168,6 +46492,12 @@
       ]
     },
     {
+      "message": "your account",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "your name and a line, in the brand's colours",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
@@ -47686,6 +48016,12 @@
       ]
     },
     {
+      "message": "{name} ({address}) would like to talk with you on Rutba Talk, the calls and messages of Rutba Office.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "{name} ({px} px)",
       "where": [
         "apps/desktop/renderer/qrcode.js"
@@ -47763,6 +48099,24 @@
       "message": "{name} holds no captions this editor can read.",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "{name} invites you to talk",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "{name} invites you to talk on Rutba Talk. Accept here, with Rutba Office or a free Rutba account: {url}",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "{name} is a contact already.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {
@@ -47855,6 +48209,12 @@
       "message": "{name} was damaged, and was read by finding its pages. Save it to keep a whole copy.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "{name} would like to talk with you on Rutba Talk",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
       ]
     },
     {

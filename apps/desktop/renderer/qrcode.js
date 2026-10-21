@@ -40,6 +40,12 @@ function pathOf(qr) {
   return d;
 }
 
+/** A text's code as one SVG path and the side of its square in modules, quiet zone and all; null when it will not fit. */
+export function qrPath(text, level = 'M') {
+  const { qr } = symbolOf(text, level);
+  return qr ? { d: pathOf(qr), side: qr.size + 8 } : null;
+}
+
 /**
  * The code as a PNG: whole pixels a module, so a phone and the checks read
  * it cleanly, with four modules of white round it; about `size` pixels

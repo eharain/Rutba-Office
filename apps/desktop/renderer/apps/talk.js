@@ -7,12 +7,15 @@
 //
 // Someone is a contact once both of you have said so: you ask by their
 // address, they accept. Only contacts can call or write to each other.
+// Asking also emails them, or a link goes to friends any way the person
+// likes (talk/invite.js).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Input, Select, Panel, Content, Empty, Dialog, Spinner, useToast, useMenu, formatWhen, t } from '@rutba/office-ui';
 import { AppFrame, useAppMenu } from '../shell.js';
 import { Call } from './talk/call.js';
 import { TALK_CSS } from './talk/css.js';
+import { AddContact, InviteLinks, OpenInvitation, Invitation, toldText } from './talk/invite.js';
 
 const PRESENCE = () => [['online', t('Available')], ['busy', t('Busy')], ['away', t('Away')], ['hidden', t('Appear offline')]];
 // The shapes of an address, shown in empty fields: examples, not words to translate.
@@ -78,7 +81,7 @@ function SignIn({ shell, state, toast }) {
 
 /* ── the people on the left ───────────────────────────────────────── */
 
-function People({ state, current, onPick, onAdd, onAnswerRequest }) {
+function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy }) {
   const { contacts, requests } = state;
   return (
     <div className="tk-people">
@@ -108,7 +111,12 @@ function People({ state, current, onPick, onAdd, onAnswerRequest }) {
         )) : <p className="tk-none">{t('No contacts yet. Add someone by their email address; once they accept, you can write and call.')}</p>}
         {requests.outgoing.length ? (
           <div className="tk-waiting">
-            {requests.outgoing.map((r) => <small key={r.id} data-asked={r.email}>{t('Asked {email}', { email: r.email })}</small>)}
+            {requests.outgoing.map((r) => (
+              <div key={r.id} className="tk-asked" data-asked={r.email} data-told={r.told ? `${r.told.by}:${r.told.sent ? 'sent' : r.told.reason || 'not'}` : ''}>
+                <small><strong>{t('Asked {email}', { email: r.email })}</strong>{r.told ? <span className="tk-told">{toldText(r.told)}</span> : null}</small>
+                {r.link ? <Button ghost icon="link" title={t('Copy their invitation link, to send it another way')} className="tk-asked-copy" onClick={() => onCopy(r.link)} /> : null}
+              </div>
+            ))}
           </div>
         ) : null}
       </section>
@@ -213,6 +221,10 @@ export default function Talk({ app, shell }) {
   const [current, setCurrent] = useState(null);
   const [history, setHistory] = useState([]);
   const [adding, setAdding] = useState(false);
+  const [linksOpen, setLinksOpen] = useState(false);
+  const [pasting, setPasting] = useState(false);
+  // An invitation this window was opened on (a rutba-office:// link), or one pasted.
+  const [invitation, setInvitation] = useState(() => new URLSearchParams(location.search).get('invite') || null);
   const [relaysOpen, setRelaysOpen] = useState(false);
   const [call, setCall] = useState(null);
   const [ringing, setRinging] = useState(null);
@@ -228,6 +240,13 @@ export default function Talk({ app, shell }) {
     shell.talk.resume().then(setState).catch(() => {});
     return shell.on('talk:state', setState);
   }, [shell]);
+  // A link opened while this window was already open comes here.
+  useEffect(() => shell.on('app:link', (q) => { if (q?.invite) setInvitation(q.invite); }), [shell]);
+  const endInvitation = useCallback(() => setInvitation(null), []);
+  const copyLink = useCallback(async (link) => {
+    await shell.clipboard.writeText({ text: link }).catch(() => {});
+    toast(t('The link is copied. Paste it anywhere.'), { tone: 'good', ms: 2500 });
+  }, [shell, toast]);
 
   const loadHistory = useCallback((id) => {
     if (!id) { setHistory([]); return; }
@@ -327,6 +346,7 @@ export default function Talk({ app, shell }) {
     >
       <style>{TALK_CSS}</style>
       {menu.node}
+      {invitation ? <Invitation shell={shell} link={invitation} online={state.phase === 'online'} toast={toast} onDone={endInvitation} onAccepted={(c) => c && setCurrent(c.id)} /> : null}
       {!signedIn ? <Content><SignIn shell={shell} state={state} toast={toast} /></Content> : (
         <>
           <Panel name="people" width={280} title={state.me?.name || t('Talk')}
@@ -336,7 +356,11 @@ export default function Talk({ app, shell }) {
               </Select>
             )}
           >
-            <People state={state} current={current} onPick={setCurrent} onAdd={() => setAdding(true)} onAnswerRequest={answerRequest} />
+            <People state={state} current={current} onPick={setCurrent} onAdd={() => setAdding(true)} onAnswerRequest={answerRequest} onCopy={copyLink} />
+            <div className="tk-invite-actions">
+              <Button ghost icon="link" label={t('Invite with a link…')} className="tk-links-btn" onClick={() => setLinksOpen(true)} />
+              <Button ghost label={t('Open an invitation…')} className="tk-paste-btn" onClick={() => setPasting(true)} />
+            </div>
             <div className="tk-foot">
               <Button ghost icon="settings" label={t('Relays…')} className="tk-relays-btn" onClick={() => setRelaysOpen(true)} />
               <Button ghost label={t('Sign out')} className="tk-signout" onClick={() => shell.talk.signOut().catch(() => {})} />
@@ -358,30 +382,11 @@ export default function Talk({ app, shell }) {
           <Button label={t('Decline')} className="tk-ring-decline" onClick={decline} />
         </div>
       ) : null}
-      {adding ? <AddContact shell={shell} toast={toast} onClose={() => setAdding(false)} /> : null}
+      {adding ? <AddContact shell={shell} state={state} toast={toast} onClose={() => setAdding(false)} /> : null}
+      {linksOpen ? <InviteLinks shell={shell} state={state} toast={toast} onClose={() => setLinksOpen(false)} /> : null}
+      {pasting ? <OpenInvitation onOpen={setInvitation} onClose={() => setPasting(false)} /> : null}
       {relaysOpen ? <RelaysDialog shell={shell} toast={toast} onClose={() => setRelaysOpen(false)} /> : null}
     </AppFrame>
-  );
-}
-
-function AddContact({ shell, toast, onClose }) {
-  const [email, setEmail] = useState('');
-  const [note, setNote] = useState('');
-  const ask = async () => {
-    try {
-      await shell.talk.send({ type: 'contact.request', email: email.trim(), note: note.trim() });
-      toast(t('Asked {email}. You can talk once they accept.', { email: email.trim() }), { tone: 'good', ms: 4000 });
-      onClose();
-    } catch (err) {
-      toast(err?.message || String(err), { tone: 'bad', ms: 5000 });
-    }
-  };
-  return (
-    <Dialog title={t('Add a contact')} width={440} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Ask')} className="tk-ask" disabled={!/^\S+@\S+\.\S+$/.test(email.trim())} onClick={ask} /></>}>
-      <p className="tk-lead">{t('They see your name and your note, and become a contact when they accept. Nobody is told whether an address has an account.')}</p>
-      <label className="tk-field"><span>{t('Email address')}</span><Input className="tk-email" value={email} autoFocus onChange={(e) => setEmail(e.target.value)} /></label>
-      <label className="tk-field"><span>{t('A note (optional)')}</span><Input className="tk-note" value={note} onChange={(e) => setNote(e.target.value)} /></label>
-    </Dialog>
   );
 }
 

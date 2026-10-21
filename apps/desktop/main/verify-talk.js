@@ -59,7 +59,7 @@ function accept(req, socket) {
  * and a `history` of messages ({ from, to, text, at }) handed to whoever
  * signs in, theirs as copies from another device.
  */
-export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [] } = {}) {
+export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [], mailPerDay = 10, mailPerWeek = 30 } = {}) {
   const PEOPLE = {
     amira: { id: 'u-amira', name: 'Amira Khan', email: 'amira@example.com' },
     ben: { id: 'u-ben', name: 'Ben Ortiz', email: 'ben@example.com' },
@@ -70,6 +70,19 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
   const contacts = new Set(made.map(([a, b]) => [a, b].sort().join('|'))); // 'a|b' sorted
   const requests = new Map();
   const calls = new Map();
+  // Invitations (D-2026-10-21-27): every request has a code, and links have their own.
+  const invites = new Map(); // code -> { code, kind, from, note, requestId?, uses, maxUses, created, expires }
+  const mailed = []; // the emails Rutba sent: { by, to, link, at }
+  const code = () => crypto.randomBytes(18).toString('base64url');
+  let base = '';
+  const linkOf = (c) => `${base}/i/${c}`;
+  const allowanceOf = (id) => {
+    const now = Date.now();
+    const mine = mailed.filter((m) => m.by === id);
+    return { day: { used: mine.filter((m) => now - m.at < 24 * 3600 * 1000).length, limit: mailPerDay }, week: { used: mine.filter((m) => now - m.at < 7 * 24 * 3600 * 1000).length, limit: mailPerWeek } };
+  };
+  const inviteView = (i) => ({ code: i.code, url: linkOf(i.code), note: i.note, created: i.created, expires: i.expires, uses: i.uses, maxUses: i.maxUses });
+  const linksOf = (id) => [...invites.values()].filter((i) => i.kind === 'link' && i.from.id === id).map(inviteView);
   const pair = (a, b) => [a, b].sort().join('|');
   const isContact = (a, b) => contacts.has(pair(a, b));
   const to = (id, msg) => online.get(id)?.send(JSON.stringify(msg));
@@ -79,6 +92,8 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
 
   // The other person's page is served from here too: 127.0.0.1 is a secure origin, as a camera needs.
   const server = http.createServer((req, res) => {
+    const invitation = /^\/i\/([\w-]+)$/.exec(req.url || '');
+    if (invitation) { const i = invites.get(invitation[1]); res.writeHead(i ? 200 : 404, { 'content-type': 'text/html; charset=utf-8' }); res.end(i ? `<p>${i.from.name} invites you</p>` : '<p>This invitation has ended.</p>'); return; }
     if (req.url === '/ben' && page) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(page(`ws://127.0.0.1:${server.address().port}/ws`)); return; }
     res.writeHead(404);
     res.end();
@@ -108,7 +123,7 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
         if (msg.type !== 'hello' || !me) { conn.send(JSON.stringify({ type: 'error', for: 'hello', code: 'token', message: 'That is not a sign-in token.' })); socket.end(); return; }
         online.set(me.id, conn);
         presence.set(me.id, msg.presence || 'online');
-        conn.send(JSON.stringify({ type: 'welcome', me, contacts: contactsOf(me.id), requests: { incoming: [...requests.values()].filter((r) => r.toEmail === me.email).map((r) => ({ id: r.id, from: r.from, note: r.note, at: r.at })), outgoing: [] }, blocked: [], relays: [] }));
+        conn.send(JSON.stringify({ type: 'welcome', me, contacts: contactsOf(me.id), requests: { incoming: [...requests.values()].filter((r) => r.toEmail === me.email).map((r) => ({ id: r.id, from: r.from, note: r.note, at: r.at })), outgoing: [...requests.values()].filter((r) => r.from.id === me.id).map((r) => ({ id: r.id, email: r.toEmail, note: r.note, at: r.at, link: linkOf(r.code) })) }, blocked: [], relays: [], invites: linksOf(me.id), mailAllowance: allowanceOf(me.id) }));
         // The history: messages to this person, and their own as copies from another device.
         history.forEach((h, i) => {
           const message = { id: `h-${i + 1}`, from: h.from, to: h.to, text: h.text, at: h.at };
@@ -121,10 +136,19 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
       const m = msg;
       if (m.type === 'presence') { presence.set(me.id, m.presence); tellContacts(me.id); return; }
       if (m.type === 'contact.request') {
+        if (String(m.email).toLowerCase() === me.email) { conn.send(JSON.stringify({ type: 'error', for: 'contact.request', code: 'yourself' })); return; }
         const them = Object.values(PEOPLE).find((p) => p.email === String(m.email).toLowerCase());
-        const r = { id: `req-${requests.size + 1}`, from: me, toEmail: String(m.email).toLowerCase(), note: m.note || '', at: Date.now() };
+        const r = { id: `req-${requests.size + 1}`, from: me, toEmail: String(m.email).toLowerCase(), note: m.note || '', at: Date.now(), code: code() };
         requests.set(r.id, r);
-        conn.send(JSON.stringify({ type: 'contact.request.sent', request: { id: r.id, email: r.toEmail, note: r.note, at: r.at } }));
+        invites.set(r.code, { code: r.code, kind: 'request', from: me, note: r.note, requestId: r.id, uses: 0, maxUses: 1, created: r.at, expires: r.at + 30 * 24 * 3600 * 1000 });
+        let mail;
+        if (m.notify === 'rutba') {
+          const a = allowanceOf(me.id);
+          const over = a.day.used >= a.day.limit || a.week.used >= a.week.limit;
+          if (!over) mailed.push({ by: me.id, to: r.toEmail, link: linkOf(r.code), at: Date.now() });
+          mail = { by: 'rutba', sent: !over, ...(over ? { reason: 'limit' } : {}), allowance: allowanceOf(me.id) };
+        }
+        conn.send(JSON.stringify({ type: 'contact.request.sent', ref: m.ref, request: { id: r.id, email: r.toEmail, note: r.note, at: r.at, link: linkOf(r.code) }, ...(mail ? { mail } : {}) }));
         if (them) to(them.id, { type: 'contact.requested', request: { id: r.id, from: me, note: r.note, at: r.at } });
         return;
       }
@@ -135,6 +159,33 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
         contacts.add(pair(me.id, r.from.id));
         to(me.id, { type: 'contact.added', contact: view(r.from), requestId: r.id });
         to(r.from.id, { type: 'contact.added', contact: view(me), requestId: r.id });
+        return;
+      }
+      if (m.type === 'mail.allowance') { conn.send(JSON.stringify({ type: 'mail.allowance', ref: m.ref, allowance: allowanceOf(me.id) })); return; }
+      if (m.type === 'invite.create') {
+        const at = Date.now();
+        const i = { code: code(), kind: 'link', from: me, note: String(m.note || ''), uses: 0, maxUses: 20, created: at, expires: at + 30 * 24 * 3600 * 1000 };
+        invites.set(i.code, i);
+        conn.send(JSON.stringify({ type: 'invite.created', ref: m.ref, invite: inviteView(i) }));
+        return;
+      }
+      if (m.type === 'invite.list') { conn.send(JSON.stringify({ type: 'invites', ref: m.ref, invites: linksOf(me.id) })); return; }
+      if (m.type === 'invite.revoke') {
+        const i = invites.get(m.code);
+        if (i?.kind === 'link' && i.from.id === me.id) invites.delete(m.code);
+        conn.send(JSON.stringify({ type: 'invite.revoked', ref: m.ref, code: m.code }));
+        return;
+      }
+      if (m.type === 'invite.peek' || m.type === 'invite.accept') {
+        const i = invites.get(m.code);
+        if (!i || i.uses >= i.maxUses || i.expires < Date.now()) { conn.send(JSON.stringify({ type: 'error', for: m.type, code: 'no-invite' })); return; }
+        if (i.from.id === me.id) { conn.send(JSON.stringify({ type: 'error', for: m.type, code: 'yourself' })); return; }
+        if (m.type === 'invite.peek') { conn.send(JSON.stringify({ type: 'invite.peeked', ref: m.ref, code: i.code, from: i.from, note: i.note, kind: i.kind })); return; }
+        i.uses += 1;
+        if (i.kind === 'request') { requests.delete(i.requestId); invites.delete(i.code); }
+        contacts.add(pair(me.id, i.from.id));
+        to(me.id, { type: 'contact.added', contact: view(i.from), requestId: i.requestId || null });
+        to(i.from.id, { type: 'contact.added', contact: view(me), requestId: i.requestId || null });
         return;
       }
       if (m.type === 'msg.send') {
@@ -165,7 +216,9 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
   });
   return {
     options,
-    listen: () => new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port))),
+    listen: () => new Promise((resolve) => server.listen(0, '127.0.0.1', () => { base = `http://127.0.0.1:${server.address().port}`; resolve(server.address().port); })),
+    /** The invitation emails Rutba sent. */
+    mailed: () => mailed.slice(),
     /** One person's connection ended from this side, as a server restart would. */
     drop: (id) => online.get(id)?.socket?.end(),
     online: (id) => online.has(id),

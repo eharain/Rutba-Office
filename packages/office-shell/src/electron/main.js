@@ -13,6 +13,7 @@ import { app, BrowserWindow, Menu, dialog, nativeTheme, shell as electronShell }
 import path from 'node:path';
 import fs from 'node:fs';
 import { createStores } from './store.js';
+import { LINK_SCHEME, parseLink } from '../links.js';
 import { registerSchemePrivileges, installProtocol, fileUrl, thumbUrl, holdBlob, releaseBlob, blobUrl, SCHEME } from './protocol.js';
 import { createThumbnailer } from './thumbs.js';
 import { mayServe } from './grants.js';
@@ -198,6 +199,8 @@ export function createShell({
 
   /** Files handed to us before the app was ready (double-click at cold start). */
   const pending = [];
+  /** Links handed to us before the app was ready (macOS). */
+  const pendingLinks = [];
 
   const gotLock = app.requestSingleInstanceLock();
   if (!gotLock) {
@@ -226,6 +229,31 @@ export function createShell({
     return flag ? flag.slice('--app='.length) : null;
   }
 
+  /**
+   * A rutba-office:// link Office was opened with: from a web page, an email
+   * or a chat. Only the shapes Office acts on are taken, so a page cannot
+   * use the link to reach anything else: today, a Talk invitation.
+   */
+  function argvLink(argv) {
+    for (const a of argv.slice(1)) {
+      const link = parseLink(a);
+      if (link) return link;
+    }
+    return null;
+  }
+
+  /** Talk opened on the invitation, or the Talk window already open told of it. */
+  function openLink(link) {
+    const open = windows.findByApp(link.app);
+    if (open) {
+      if (open.isMinimized()) open.restore();
+      open.focus();
+      sendEvent(open, 'app:link', link.query);
+      return;
+    }
+    windows.open({ app: link.app, query: link.query });
+  }
+
   function argvFiles(argv) {
     return argv
       .slice(1)
@@ -239,6 +267,15 @@ export function createShell({
       });
   }
 
+  // macOS delivers links through this event, before and after ready.
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    const link = parseLink(url);
+    if (!link) return;
+    if (windows) openLink(link);
+    else pendingLinks.push(link);
+  });
+
   // macOS delivers documents through this event, before and after ready.
   app.on('open-file', (event, p) => {
     event.preventDefault();
@@ -248,7 +285,9 @@ export function createShell({
 
   app.on('second-instance', (_e, argv) => {
     const files = argvFiles(argv);
+    const link = argvLink(argv);
     if (files.length) files.forEach(openPath);
+    else if (link) openLink(link);
     else if (argvApp(argv)) windows.open({ app: argvApp(argv), query: { start: '1' } });
     else {
       const win = BrowserWindow.getAllWindows()[0];
@@ -390,8 +429,14 @@ export function createShell({
       record('startup', err);
     }
 
+    // Links opened from now on come to this copy (the installer names it on macOS and Linux; Windows is told here).
+    if (app.isPackaged && process.platform === 'win32' && !process.env.RUTBA_OFFICE_VERIFY_APPS) {
+      try { app.setAsDefaultProtocolClient(LINK_SCHEME); } catch { /* links still open the copy the installer named */ }
+    }
     const startFiles = [...pending, ...argvFiles(process.argv)];
+    const startLinks = [...pendingLinks, ...[argvLink(process.argv)].filter(Boolean)];
     if (startFiles.length) startFiles.forEach(openPath);
+    else if (startLinks.length) startLinks.forEach(openLink);
     else windows.open(argvApp(process.argv) ? { app: argvApp(process.argv), query: { start: '1' } } : { app: 'home' });
   });
 

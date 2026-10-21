@@ -12,6 +12,15 @@
 // the one connection for every window, keeps your messages on this computer,
 // and hands each window what the introducer says.
 //
+// Inviting someone (owner, 2026-10-21, D-2026-10-21-27 and -28): asking an
+// address to be in contact also emails it, from the person's own Mail account
+// when they have one, else from Rutba (no-reply@rutba.io, with a daily and a
+// weekly limit the introducer keeps), and the person sees which it was. Or
+// they make an invitation link and send it over any channel of their own.
+// Either way the email or the link opens Talk on the invitation, or, for a
+// friend without Rutba Office, a page where a Rutba account is enough to
+// accept.
+//
 // Nothing connects until you sign in, and only to the introducer. Signing in
 // is Rutba's own, in the browser (talk-signin.js, workers/introducer
 // docs/SIGN-IN.md): the access token goes to the introducer, refreshed before
@@ -35,6 +44,13 @@ const OWN_RELAY_KEY = 'talk.ownRelay';
 const OWN_RELAY_SECRET = 'talk.ownRelay.credential';
 const RELAY_CHOICE_KEY = 'talk.relay';
 const PRESENCE_KEY = 'talk.presence';
+/** How each request was told to its person: { [requestId]: { by, from?, sent, reason? } }, the introducer knows only Rutba's. */
+const TOLD_KEY = 'talk.told';
+const TOLD_CAP = 500;
+/** How long an answer to a question put to the introducer is waited for. */
+const ASK_MS = 15000;
+/** Where a friend without Rutba Office gets it (D-2026-10-21-28). */
+export const DOWNLOAD_URL = 'https://office.rutba.io/download';
 const BACKOFF = [2, 4, 8, 15, 30];
 const HISTORY_CAP = 5000;
 
@@ -47,17 +63,58 @@ const HISTORY_CAP = 5000;
  * @param {(url: string) => Promise<void>|void} [o.openBrowser] opens the system browser, for the sign-in
  * @param {boolean} [o.testServers] whether the browser sign-in may be pointed at another introducer (the checks only)
  */
-export function createTalkService({ stores, broadcast, dataDir, connect = (url) => new WebSocket(url), openBrowser = null, testServers = false, fetchImpl = (...a) => fetch(...a) }) {
+export function createTalkService({ stores, broadcast, dataDir, connect = (url) => new WebSocket(url), openBrowser = null, testServers = false, fetchImpl = (...a) => fetch(...a), mail = null }) {
   const settings = stores.settings;
   const secrets = stores.secrets;
   let socket = null;
   let retry = 0;
   let retryTimer = null;
   let wanted = false;
-  let state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], error: '' };
+  let state = { phase: 'signed-out', me: null, contacts: [], requests: { incoming: [], outgoing: [] }, blocked: [], relays: [], invites: [], mailAllowance: null, error: '' };
 
   const tell = () => broadcast?.('talk:state', snapshot());
-  const snapshot = () => ({ ...state, server: settings.get(SERVER_KEY, DEFAULT_SERVER), relay: relayChoice(), presence: settings.get(PRESENCE_KEY, 'online') });
+  const snapshot = () => {
+    const told = settings.get(TOLD_KEY, {}) || {};
+    // Each request with how its person was told, as the asker sees it.
+    const outgoing = state.requests.outgoing.map((r) => ({ ...r, told: told[r.id] || null }));
+    return { ...state, requests: { ...state.requests, outgoing }, server: settings.get(SERVER_KEY, DEFAULT_SERVER), relay: relayChoice(), presence: settings.get(PRESENCE_KEY, 'online') };
+  };
+  const keepTold = (requestId, told) => {
+    const all = { ...(settings.get(TOLD_KEY, {}) || {}), [requestId]: { ...told, at: Date.now() } };
+    const ids = Object.keys(all).sort((a, b) => all[a].at - all[b].at);
+    for (const id of ids.slice(0, Math.max(0, ids.length - TOLD_CAP))) delete all[id];
+    settings.set(TOLD_KEY, all);
+  };
+
+  /* ── questions put to the introducer, and their answers ──────────── */
+
+  // Each waits for the answer that names its ref (or, for an answer that
+  // carries none, the first of its type), or for a refusal of what it sent.
+  const asking = [];
+  let refs = 0;
+  const answerOf = (msg) => {
+    const i = asking.findIndex((a) => (msg.type === 'error' ? a.sent === msg.for : a.match(msg)));
+    if (i < 0) return;
+    const [a] = asking.splice(i, 1);
+    clearTimeout(a.timer);
+    a.resolve(msg.type === 'error' ? { error: msg.code || 'server' } : msg);
+  };
+  /** Sends `msg` and answers with what the introducer said: the answer, or { error: code }. */
+  const ask = (msg, answer, match = null) => new Promise((resolve) => {
+    const ref = `r${++refs}`;
+    const a = { sent: msg.type, resolve, match: (m) => m.type === answer && (match ? match(m) : m.ref == null || m.ref === ref) };
+    a.timer = setTimeout(() => { const i = asking.indexOf(a); if (i >= 0) asking.splice(i, 1); resolve({ error: 'no-answer' }); }, ASK_MS);
+    a.timer.unref?.();
+    asking.push(a);
+    try {
+      send({ ...msg, ref });
+    } catch {
+      asking.splice(asking.indexOf(a), 1);
+      clearTimeout(a.timer);
+      resolve({ error: 'offline' });
+    }
+  });
+  const leaveAsking = () => { for (const a of asking.splice(0)) { clearTimeout(a.timer); a.resolve({ error: 'offline' }); } };
 
   /* ── the messages kept here, a file per contact ───────────────────── */
 
@@ -95,13 +152,45 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     return [...finders, ...turns].map(ice);
   };
 
+  /* ── an invitation from the person's own address ────────────────── */
+
+  /** The invitation emailed from one of the person's Mail accounts: how it went. */
+  const mailFromOwn = async ({ accountId, to, link, letter }) => {
+    const account = (await Promise.resolve(mail?.accounts?.() || [])).find((a) => a.id === accountId);
+    // An imported archive has no server to send through.
+    if (!account || account.local || !mail?.send) return { by: 'own', sent: false, reason: 'no-account' };
+    if (!link) return { by: 'own', from: account.email, sent: false, reason: 'no-link' };
+    const join = `${DOWNLOAD_URL}?invite=${encodeURIComponent(inviteCode(link) || '')}`;
+    const fill = (text) => String(text || '').replaceAll('{accept}', link).replaceAll('{join}', join);
+    const subject = fill(letter?.subject) || 'Talk with me on Rutba Talk';
+    const text = fill(letter?.text) || `I would like to talk with you on Rutba Talk.\n\nAccept: ${link}\n\nNo Rutba Office yet? Accept with a free Rutba account on that page, then get Rutba Office: ${join}\n`;
+    try {
+      await mail.send({ accountId, draft: { to, subject, text, html: letterHtml(text) } });
+      return { by: 'own', from: account.email, sent: true };
+    } catch (err) {
+      return { by: 'own', from: account.email, sent: false, reason: 'failed', detail: err?.message || String(err) };
+    }
+  };
+
   /* ── the connection ──────────────────────────────────────────────── */
 
   const handle = (msg) => {
     switch (msg.type) {
       case 'welcome':
         retry = 0;
-        state = { ...state, phase: 'online', me: msg.me, contacts: msg.contacts || [], requests: msg.requests || { incoming: [], outgoing: [] }, blocked: msg.blocked || [], relays: msg.relays || [], error: '' };
+        state = { ...state, phase: 'online', me: msg.me, contacts: msg.contacts || [], requests: msg.requests || { incoming: [], outgoing: [] }, blocked: msg.blocked || [], relays: msg.relays || [], invites: msg.invites || [], mailAllowance: msg.mailAllowance || null, error: '' };
+        break;
+      case 'mail.allowance':
+        state = { ...state, mailAllowance: msg.allowance || null };
+        break;
+      case 'invites':
+        state = { ...state, invites: msg.invites || [] };
+        break;
+      case 'invite.created':
+        if (msg.invite) state = { ...state, invites: [...state.invites.filter((i) => i.code !== msg.invite.code), msg.invite] };
+        break;
+      case 'invite.revoked':
+        state = { ...state, invites: state.invites.filter((i) => i.code !== msg.code) };
         break;
       case 'relays':
         state = { ...state, relays: msg.relays || [] };
@@ -127,6 +216,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
         state = { ...state, requests: { ...state.requests, incoming: [...state.requests.incoming.filter((r) => r.id !== msg.request.id), msg.request] } };
         break;
       case 'contact.request.sent':
+        if (msg.mail?.allowance) state = { ...state, mailAllowance: msg.mail.allowance };
         if (msg.request) state = { ...state, requests: { ...state.requests, outgoing: [...state.requests.outgoing.filter((r) => r.id !== msg.request.id), msg.request] } };
         if (msg.contact) handle({ type: 'contact.added', contact: msg.contact });
         break;
@@ -154,6 +244,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
       default:
         break;
     }
+    answerOf(msg);
     // Every window hears every message: a call's set-up goes to the window that holds the call.
     broadcast?.('talk:event', msg);
     tell();
@@ -230,6 +321,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     ws.onclose = () => {
       if (socket !== ws) return;
       socket = null;
+      leaveAsking();
       if (!wanted || state.phase === 'signed-out') { tell(); return; }
       state = { ...state, phase: 'offline' };
       tell();
@@ -328,6 +420,65 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
 
     history: ({ contactId, limit = 200 } = {}) => readHistory(contactId).slice(-limit),
 
+    /**
+     * Ask an address to be in contact, and tell them: `how` is 'own' (an
+     * email from the person's Mail account `accountId`, its words `letter`
+     * with {accept} and {join} where the links go), 'rutba' (Rutba emails
+     * them, within its limits) or 'none' (they see it in Talk if they use
+     * it). Answers { request, told } or { contact } when they were one
+     * already, or { error }.
+     */
+    invite: async ({ email, note = '', how = 'none', accountId = null, letter = null } = {}) => {
+      const address = String(email || '').trim();
+      const r = await ask({ type: 'contact.request', email: address, note: String(note || ''), notify: how === 'rutba' ? 'rutba' : 'none' }, 'contact.request.sent');
+      if (r.error) return { error: r.error };
+      if (r.contact) return { contact: r.contact };
+      const request = r.request;
+      let told = { by: 'none', sent: false };
+      if (how === 'rutba') {
+        // An introducer from before invitation emails says nothing of mail.
+        told = r.mail ? { by: 'rutba', sent: Boolean(r.mail.sent), reason: r.mail.reason || null } : { by: 'rutba', sent: false, reason: 'unsupported' };
+      } else if (how === 'own') {
+        told = await mailFromOwn({ accountId, to: address, link: request.link, letter });
+      }
+      keepTold(request.id, told);
+      tell();
+      return { request: { ...request, told }, told, allowance: state.mailAllowance };
+    },
+
+    /** How many emails Rutba will still send for this person, today and this week. */
+    allowance: async () => {
+      const r = await ask({ type: 'mail.allowance' }, 'mail.allowance');
+      return r.error ? { error: r.error } : r.allowance;
+    },
+
+    /** An invitation link to send over any channel: { invite } or { error }. */
+    inviteLink: async ({ note = '' } = {}) => {
+      const r = await ask({ type: 'invite.create', note: String(note || '').slice(0, 300) }, 'invite.created');
+      return r.error ? { error: r.error } : { invite: r.invite };
+    },
+
+    revokeInvite: async ({ code } = {}) => {
+      const r = await ask({ type: 'invite.revoke', code: String(code || '') }, 'invite.revoked', (m) => m.code === String(code || ''));
+      return r.error ? { error: r.error } : { revoked: true };
+    },
+
+    /** Who an invitation (a link, or its code) is from, before it is accepted. */
+    peekInvite: async ({ link } = {}) => {
+      const code = inviteCode(link);
+      if (!code) return { error: 'no-invite' };
+      const r = await ask({ type: 'invite.peek', code }, 'invite.peeked');
+      return r.error ? { error: r.error, code } : { code, from: r.from, note: r.note || '', kind: r.kind };
+    },
+
+    /** Accept an invitation: the two are contacts. { contact } or { error }. */
+    acceptInvite: async ({ link } = {}) => {
+      const code = inviteCode(link);
+      if (!code) return { error: 'no-invite' };
+      const r = await ask({ type: 'invite.accept', code }, 'contact.added', () => true);
+      return r.error ? { error: r.error } : { contact: r.contact };
+    },
+
     relays: () => ({ choice: relayChoice(), relays: state.relays.map(({ id, name, region, urls }) => ({ id, name, region, urls })), own: ownRelay() ? { ...ownRelay(), credential: ownRelay().credential ? '••••' : '' } : null, ice: iceServers() }),
 
     /** Rutba's relays automatically, one of them, or the person's own. */
@@ -345,4 +496,23 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     /** What a call is made with: the relays, and the person's own one to offer the other side. */
     callSetup: () => ({ iceServers: iceServers(), offerRelay: relayChoice() === 'own' && ownRelay() ? { urls: ownRelay().urls, username: ownRelay().username, credential: ownRelay().credential } : null }),
   };
+}
+
+/**
+ * An invitation's code from what someone has: the page's address
+ * (https://introducer.rutba.io/i/<code>, or a test introducer's), the
+ * rutba-office:// link, or the code itself.
+ */
+export function inviteCode(link) {
+  const text = String(link || '').trim();
+  const m = /^(?:https?:\/\/[^/\s]+\/i\/|rutba-office:\/\/talk\/invite\/)?([A-Za-z0-9_-]{8,128})\/?(?:[?#].*)?$/.exec(text);
+  return m ? m[1] : null;
+}
+
+const escapeHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+/** The letter as HTML too, its addresses as links: a mail of a bare link and nothing else reads as spam. */
+export function letterHtml(text) {
+  const paragraphs = String(text || '').split(/\n{2,}/).map((p) => escapeHtml(p).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>').replace(/\n/g, '<br>'));
+  return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;line-height:1.5">${paragraphs.map((p) => `<p>${p}</p>`).join('')}</div>`;
 }

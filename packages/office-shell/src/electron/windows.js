@@ -311,6 +311,16 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     return null;
   }
 
+  /** A window of this app already open (the most recently used), for a link meant for it. */
+  function findByApp(appKey) {
+    let best = null;
+    for (const [id, m] of meta) {
+      const w = BrowserWindow.fromId(id);
+      if (m.app === appKey && !m.presenter && w && !w.isDestroyed() && (!best || m.usedAt > best.usedAt)) best = { w, usedAt: m.usedAt };
+    }
+    return best?.w || null;
+  }
+
   function open({ app: appKey, file, query }) {
     if (file) {
       // A file opened is drawn from where it is, a share included (grants.js).
@@ -565,5 +575,5 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     });
   });
 
-  return { create, open, findByFile, setFile, setDirty, forceClose, infoFor, all, encodePath, GEOMETRY, arrange, listFor, focusById, hideWindow, unhide, displaysFor, fullscreen };
+  return { create, open, findByFile, findByApp, setFile, setDirty, forceClose, infoFor, all, encodePath, GEOMETRY, arrange, listFor, focusById, hideWindow, unhide, displaysFor, fullscreen };
 }

@@ -394,6 +394,12 @@ export const METHODS = {
     'relays',       // () -> { choice, relays, own, ice }
     'setRelay',     // ({ choice: 'auto' | id | 'own', own?: { urls, username, credential } }) -> { choice, ice }
     'callSetup',    // () -> { iceServers, offerRelay }   what a call is made with
+    'invite',       // ({ email, note, how: 'own' | 'rutba' | 'none', accountId?, letter? }) -> { request, told, allowance } | { contact } | { error }   asked, and told by email
+    'allowance',    // () -> { day: { used, limit }, week: { used, limit } } | { error }   what Rutba will still email for this person
+    'inviteLink',   // ({ note }) -> { invite: { code, url, note, created, expires, uses, maxUses } } | { error }
+    'revokeInvite', // ({ code }) -> { revoked } | { error }
+    'peekInvite',   // ({ link }) -> { code, from, note, kind } | { error }   who an invitation is from, by its link or code
+    'acceptInvite', // ({ link }) -> { contact } | { error }
   ],
   live: [
     'destinations',     // () -> [{ id, platform, name, url, on, hasKey, keyHint }]
@@ -445,6 +451,7 @@ export const EVENTS = [
   'live:status',      // { live, destinations }  Go Live's destinations as they connect, stream, drop and come back
   'app:open-file',    // { path }            OS asked us to open a document
   'app:command',      // { command, args }   menu / accelerator
+  'app:link',         // { invite }          a rutba-office:// link Office was opened with, for the window of its app already open
   'mail:progress',    // { accountId, folder, done, total, phase }
   'mail:archives',    // { id, closed } an archive opened in place or closed
   'mail:indexing',    // { id, state, done, total } how far an archive's indexing has got

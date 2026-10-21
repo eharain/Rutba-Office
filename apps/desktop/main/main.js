@@ -216,6 +216,8 @@ createShell({
         },
         // A test server and token: the window checks, and the screens build's Talk picture (a stand-in introducer).
         testServers: Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_SCREENS_FEATURES),
+        // An invitation emailed from the person's own address goes through Mail, a copy in Sent.
+        mail: { accounts: () => services?.mail?.accounts?.() || [], send: (args) => services.mail.send(args) },
       }),
       // Databases: each open database's SQLite file (base.js).
       base: createBaseService(),

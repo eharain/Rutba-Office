@@ -63,6 +63,24 @@ export const TALK_CSS = `
 .tk-relay { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-2); border: 1px solid var(--line-soft); cursor: pointer; }
 .tk-relay span { display: grid; }
 .tk-relay small { color: var(--ink-3); font-size: 12px; }
+
+.tk-asked { display: flex; align-items: center; gap: 4px; }
+.tk-asked small { flex: 1; min-width: 0; display: grid; }
+.tk-asked strong { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-told { font-size: 11.5px; }
+.tk-invite-actions { display: grid; justify-items: start; padding: 0 8px; }
+.tk-how { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; border: 0; }
+.tk-how legend { padding: 0; margin-bottom: 4px; font-size: 12.5px; color: var(--ink-2); }
+.tk-how .tk-relay:has(input:disabled) { opacity: 0.6; cursor: default; }
+.tk-link-make { display: flex; gap: 8px; margin-bottom: 12px; }
+.tk-link-make .tk-link-note { flex: 1; }
+.tk-link { display: grid; gap: 6px; padding: 10px; margin-top: 8px; border: 1px solid var(--line-soft); border-radius: var(--r-2); }
+.tk-link-row { display: flex; gap: 8px; }
+.tk-link-url { flex: 1; min-width: 0; font-family: var(--mono, monospace); font-size: 12px; }
+.tk-link-info { color: var(--ink-3); font-size: 12px; }
+.tk-share { display: flex; flex-wrap: wrap; gap: 4px; }
+.tk-qr { width: 168px; height: 168px; justify-self: start; border-radius: var(--r-2); }
+.tk-invitation { position: fixed; z-index: 70; top: 56px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; min-width: 380px; max-width: calc(100% - 32px); padding: 12px 14px; border-radius: 14px; background: var(--surface); color: var(--ink); border: 1px solid var(--line-soft); box-shadow: 0 12px 32px rgba(0,0,0,0.3); }
 .tk-own { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 4px 0 0 30px; }
 .tk-own .tk-own-urls { grid-column: 1 / -1; }
 .tk-statusbar { color: var(--ink-3); }

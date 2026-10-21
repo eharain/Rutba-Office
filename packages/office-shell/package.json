@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.js",
     "./contract": "./src/contract.js",
+    "./links": "./src/links.js",
     "./electron/main": "./src/electron/main.js",
     "./electron/clipboard": "./src/electron/clipboard.js",
     "./electron/shortcuts": "./src/electron/shortcuts.js",
