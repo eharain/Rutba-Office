@@ -24,20 +24,80 @@ const SAMPLES = { trading, shop, clinic, salon, repairs, agency, cafe, rentals, 
 /** The samples, in the order a window offers them. */
 export const SAMPLE_IDS = Object.keys(SAMPLES);
 
+/**
+ * The guide inside each sample, as Northwind's start-up form is: a Start
+ * Here table with the tutorial's tasks a step at a time, each step naming
+ * the table, form, query, report or print template to open, and a report
+ * to print it. It is there whether the sample is made with its records or
+ * empty, made from the sample's `about.tutorial`.
+ */
+const GUIDE = { name: 'Start Here', fields: [
+  { name: 'Order', type: 'integer' }, { name: 'Task', type: 'text', required: true }, { name: 'Step', type: 'integer' }, { name: 'What To Do', type: 'longtext' },
+] };
+const GUIDE_REPORT = { name: 'Start Here', title: 'Start here: the everyday tasks, step by step', table: 'Start Here', group: 'Task', sort: 'Order', columns: [{ field: 'Step', type: 'integer' }, 'What To Do'] };
+const GUIDE_ABOUT = { about: 'The guide to this database: the everyday tasks a step at a time, each step saying which table, form, query, report or print template to open. Open its report, Start Here, to read or print it. Delete the table when you no longer need it; nothing else uses it.', fields: {
+  Order: 'The order the steps are read in.', Task: 'The everyday task the step belongs to.', Step: 'The step\'s number within its task.', 'What To Do': 'What to open and what to do there.',
+} };
+
+/** A sample's own name as a web address: Northbank Trading is northbank-trading. */
+const slugOf = (name) => String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/** A summary written as one string holds its paragraphs between blank lines. */
+const paragraphs = (summary) => (Array.isArray(summary) ? summary : String(summary).split(/\n\s*\n/).map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean));
+
+const abouts = new WeakMap();
+/** A sample module's documentation, the guide's table and report described with its own. */
+function aboutOf(s) {
+  if (abouts.has(s)) return abouts.get(s);
+  const a = s.about;
+  const guided = Boolean(a.tutorial?.length);
+  const about = {
+    ...a,
+    summary: paragraphs(a.summary),
+    tables: guided ? { 'Start Here': GUIDE_ABOUT, ...a.tables } : a.tables,
+    reports: guided ? { ...a.reports, 'Start Here': 'The guide to this database printed: each everyday task and its steps, from the Start Here table.' } : a.reports,
+  };
+  abouts.set(s, about);
+  return about;
+}
+
+const designs = new WeakMap();
+/** A sample module's design: its own, with the guide first when it has a tutorial. */
+function designOf(s) {
+  if (designs.has(s)) return designs.get(s);
+  const guided = Boolean(s.about?.tutorial?.length);
+  const design = guided ? { ...s.spec, tables: [GUIDE, ...s.spec.tables], reports: [...(s.spec.reports || []), GUIDE_REPORT] } : s.spec;
+  designs.set(s, design);
+  return design;
+}
+
+/** The guide's steps for a sample module, as Start Here records. */
+function guideRows(s) {
+  const a = s.about;
+  const rows = [];
+  let order = 0;
+  const step = (task, n, text) => rows.push({ Order: ++order, Task: task, Step: n, 'What To Do': text });
+  const first = '0. About this database';
+  step(first, 1, `${a.name}: ${a.line} Everything in it is invented: the business, the people, the addresses and the figures. The dates count back from the day it was made.`);
+  step(first, 2, 'Every table has a form of the same name: open it from Forms to see one record at a time and to add one. Queries answer the questions the business asks; reports and print templates are what it prints.');
+  step(first, 3, `The full guide, with every table, field, query and report explained, is at https://office.rutba.io/samples/${slugOf(a.name)}`);
+  step(first, 4, 'Keep a copy before you change things: File, Save As makes one. Delete this Start Here table when you no longer need it.');
+  a.tutorial.forEach((t, i) => t.steps.forEach((text, j) => step(`${i + 1}. ${t.title}`, j + 1, text)));
+  return rows;
+}
+
 /** A sample's documentation: what the business is, each table, field, query and report in words. */
 export function sampleAbout(id) {
   const s = SAMPLES[id];
   if (!s) throw new Error(`There is no sample database called ${id}.`);
-  // A summary written as one string holds its paragraphs between blank lines.
-  const summary = Array.isArray(s.about.summary) ? s.about.summary : String(s.about.summary).split(/\n\s*\n/).map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  return { ...s.about, summary };
+  return aboutOf(s);
 }
 
 /** A sample's design, as buildFromSpec takes it: tables, queries, reports and print templates. */
 export function sampleSpec(id) {
   const s = SAMPLES[id];
   if (!s) throw new Error(`There is no sample database called ${id}.`);
-  return s.spec;
+  return designOf(s);
 }
 
 /**
@@ -53,14 +113,17 @@ export function buildSample(base, id, options = {}) {
 
 /** Make the sample module `s` ({ spec, fill }) in `base`, as buildSample does. */
 export function buildSampleFrom(base, s, { withData = true, today = new Date(), seed = 20261021 } = {}) {
-  const made = buildFromSpec(base, s.spec);
-  if (!withData) return { ...made, records: {} };
+  const made = buildFromSpec(base, designOf(s));
   // Thousands of records in one transaction: one write to the disk, not one each.
   base.db.exec('BEGIN');
   try {
-    const records = s.fill(writer(base), { r: random(seed), cal: calendar(today) });
+    const w = writer(base);
+    // The guide is there empty or not: it is how a person finds their way in.
+    const guide = s.about?.tutorial?.length ? guideRows(s) : [];
+    for (const row of guide) w.insert(GUIDE.name, row);
+    const records = withData ? s.fill(w, { r: random(seed), cal: calendar(today) }) : {};
     base.db.exec('COMMIT');
-    return { ...made, records };
+    return { ...made, records: guide.length && withData ? { [GUIDE.name]: guide.length, ...records } : records };
   } catch (err) {
     base.db.exec('ROLLBACK');
     throw err;

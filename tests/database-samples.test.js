@@ -3,8 +3,10 @@
 // has records, every query answers something, every report has records and
 // totals that come to a number, nothing is below nought where it should not
 // be, and every e-mail address and phone number is one kept for fiction
-// (check.js); the same day and seed make the same file; and every table,
-// field, query and report is described for the documentation.
+// (check.js); the same day and seed make the same file; each prints the
+// documents its business sends from its own Business record; and every
+// table, field, query, report and print template is described, with a
+// tutorial, notes and questions, for the documentation.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Base, SAMPLE_IDS, buildSample, sampleSpec, sampleAbout, checkSample } from '../packages/database/src/index.js';
@@ -44,9 +46,11 @@ for (const id of SAMPLE_IDS) {
   test(`${id}: empty, it has the whole design and no records, and every query runs`, () => {
     made(id, { withData: false }, (b, out) => {
       assert.deepEqual(out.records, {});
-      for (const t of b.tables()) assert.equal(b.count(t.name), 0, t.name);
+      // Only the guide has records: it is how a person finds their way in.
+      for (const t of b.tables().filter((x) => x.name !== 'Start Here')) assert.equal(b.count(t.name), 0, t.name);
+      assert.ok(b.count('Start Here') > 10, 'the guide is there, empty or not');
       for (const q of b.queries()) assert.equal(b.runQuery({ name: q.name }).count, 0, q.name);
-      for (const r of b.reports()) assert.equal(b.reportData({ name: r.name }).count, 0, r.name);
+      for (const r of b.reports().filter((x) => x.name !== 'Start Here')) assert.equal(b.reportData({ name: r.name }).count, 0, r.name);
       assert.ok(b.relationships().length >= 2);
     });
   });
@@ -55,6 +59,20 @@ for (const id of SAMPLE_IDS) {
     const today = new Date(2026, 9, 21, 12);
     const snapshot = () => made(id, { today, seed: 3 }, (b) => b.tables().map((t) => JSON.stringify(b.rows(t.name, { limit: 50 }))).join('\n'));
     assert.equal(snapshot(), snapshot());
+  });
+
+  test(`${id}: prints its documents with its own name at the head`, () => {
+    made(id, {}, (b) => {
+      assert.equal(b.count('Business'), 1, 'one Business record');
+      const docs = b.documents();
+      assert.ok(docs.length >= 2, 'the documents its business sends');
+      for (const { name, layout } of docs) {
+        assert.equal(layout.letterhead?.table, 'Business', `${name}: the Business record at the head`);
+        const out = b.documentData({ name, limit: 3 });
+        assert.ok(out.documents.length > 0, name);
+        assert.equal(out.letterhead.fields[0].value, sampleAbout(id).name, `${name}: the business's name first`);
+      }
+    });
   });
 
   test(`${id}: every table, field, query and report is described for the documentation`, () => {
@@ -69,6 +87,13 @@ for (const id of SAMPLE_IDS) {
     assert.deepEqual(Object.keys(about.tables).sort(), spec.tables.map((t) => t.name).sort(), 'nothing described that is not there');
     assert.deepEqual(Object.keys(about.queries).sort(), Object.keys(spec.queries).sort());
     assert.deepEqual(Object.keys(about.reports).sort(), spec.reports.map((r) => r.name).sort());
+    assert.deepEqual(Object.keys(about.documents || {}).sort(), (spec.documents || []).map((d) => d.name).sort(), 'every print template described');
+    // As Northwind's: a tutorial of everyday tasks naming what to open, things to know, and questions people ask.
+    assert.ok(about.tutorial.length >= 4 && about.tutorial.every((t) => t.title && t.steps.length >= 2), 'a tutorial');
+    assert.ok(about.notes.length >= 2, 'things you should know');
+    assert.ok(about.faq.length >= 4 && about.faq.every((f) => f.q && f.a), 'questions people ask');
+    const steps = about.tutorial.flatMap((t) => t.steps).join('\n');
+    for (const d of spec.documents || []) assert.ok(steps.includes(d.name), `the tutorial prints ${d.name}`);
     // The words go on the website as they are: plain ASCII punctuation, no long dashes.
     const words = JSON.stringify(about);
     assert.doesNotMatch(words, /[\u2013\u2014\u2018\u2019\u201c\u201d\u00a0\u200b]/);
