@@ -48,6 +48,7 @@ import { writeVCards } from '@rutba/contacts/vcard';
 import { Sheet, INK } from '@rutba/pdf';
 import { emptyProject, addMedia, setTransition, addTitle, addMarker, setRange } from '@rutba/studio/project';
 import { writeRvid } from '@rutba/studio/rvid';
+import { Base, buildTemplate } from '@rutba/database';
 // The second kind of capture: a feature, opened on a sample and put into the
 // state that shows it. The list and its setups live where they run, in the
 // application's main process; this reads the names and boot settings.
@@ -626,6 +627,51 @@ writeVideoProject(at('Our year.rvid'));
 writeVideoProject(at('Our year, final cut.rvid'), { range: { in: 2, out: 15 } });
 writeFeatureSamples(docsDir);
 
+/**
+ * Data Files' sample: the Membership template, filled with members of an
+ * invented walking club and their payments, so the window opens on a table
+ * of records beside the template's query, forms and report.
+ */
+function writeClubDatabase(file) {
+  for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
+  const b = Base.open(file);
+  try {
+    buildTemplate(b, 'membership');
+    const members = [
+      ['Imogen', 'Hartley', 'Standard', '2024-03-02', '2027-03-02', true],
+      ['Tariq', 'Mahmood', 'Family', '2023-09-14', '2026-11-14', true],
+      ['Grace', 'Okafor', 'Standard', '2025-01-20', '2027-01-20', true],
+      ['Hamza', 'Siddiqui', 'Student', '2025-10-01', '2026-10-31', true],
+      ['Eleanor', 'Price', 'Life', '2019-06-11', null, true],
+      ['Bilal', 'Qureshi', 'Standard', '2022-04-05', '2026-12-05', true],
+      ['Sofia', 'Marchetti', 'Family', '2024-07-22', '2027-07-22', true],
+      ['Owen', 'Davies', 'Standard', '2021-02-17', '2026-02-17', false],
+      ['Ayesha', 'Rahman', 'Student', '2025-09-08', '2026-11-08', true],
+      ['Callum', 'Fraser', 'Standard', '2023-11-30', '2026-11-30', true],
+      ['Nadia', 'Hussain', 'Family', '2024-12-03', '2026-12-03', true],
+      ['Rhys', 'Morgan', 'Standard', '2025-05-16', '2027-05-16', true],
+    ];
+    const fee = { Standard: 45, Family: 80, Student: 20, Life: 0 };
+    members.forEach(([first, last, type, joined, due, active], i) => {
+      b.insert('Members', {
+        'First Name': first,
+        'Last Name': last,
+        'E-mail': `${first}.${last}@example.com`.toLowerCase(),
+        Phone: `07700 900${String(100 + i * 7).padStart(3, '0')}`,
+        Address: `${3 + i * 4} ${['Mill Lane', 'Orchard Way', 'Church Street', 'Station Road', 'Beech Grove', 'Canal Walk'][i % 6]}`,
+        'Membership Type': type,
+        Joined: joined,
+        'Renewal Due': due,
+        Active: active,
+      });
+      if (fee[type]) b.insert('Payments', { Member: i + 1, 'Paid On': joined, Amount: fee[type], For: `${type} membership` });
+    });
+  } finally {
+    b.close();
+  }
+}
+writeClubDatabase(at('Walking club.rbase'));
+
 /** app -> the file it should open, or null for its empty state. */
 const PLAN = [
   ['home', null],
@@ -651,6 +697,8 @@ const PLAN = [
   ['video', at('Our year.rvid')],
   // Recorder's own picture is taken the feature way (recorder-studio, asApp), which needs a window picked first.
   ['recorder', null],
+  // Data Files on a sample of its own (writeClubDatabase above), never a real database.
+  ['base', at('Walking club.rbase')],
 ];
 
 /**
@@ -683,6 +731,7 @@ const SETTLE = {
   // recurrence rule across the week before it can draw the grid.
   calendar: 6500,
   contacts: 3000,
+  base: 3000,
 };
 
 function capture(app, file, profile) {
