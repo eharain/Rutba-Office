@@ -75,8 +75,8 @@ const FUNCTIONS = {
   year: [1, 1, (a) => `CAST(strftime('%Y', ${a[0]}) AS INTEGER)`],
   month: [1, 1, (a) => `CAST(strftime('%m', ${a[0]}) AS INTEGER)`],
   day: [1, 1, (a) => `CAST(strftime('%d', ${a[0]}) AS INTEGER)`],
-  date: [0, 0, () => `date('now', 'localtime')`],
-  now: [0, 0, () => `datetime('now', 'localtime')`],
+  date: [0, 0, (a, o) => (o.today ? text(String(o.today).slice(0, 10)) : `date('now', 'localtime')`)],
+  now: [0, 0, (a, o) => (o.today ? text(String(o.today).length > 10 ? String(o.today).replace(' ', 'T').slice(0, 19) : `${o.today}T12:00:00`) : `datetime('now', 'localtime')`)],
   len: [1, 1, (a) => `LENGTH(${a[0]})`],
   left: [2, 2, (a) => `SUBSTR(${a[0]}, 1, ${a[1]})`],
   right: [2, 2, (a) => `SUBSTR(${a[0]}, -(${a[1]}))`],
@@ -84,17 +84,8 @@ const FUNCTIONS = {
   ucase: [1, 1, (a) => `UPPER(${a[0]})`],
   lcase: [1, 1, (a) => `LOWER(${a[0]})`],
   trim: [1, 1, (a) => `TRIM(${a[0]})`],
-  format: [2, 2, (a) => {
-    const pattern = literal(a[1]) ?? '';
-    // A number padded with noughts, as an invoice number is: Format([ID], "00000") is 00042.
-    if (/^0+$/.test(pattern)) return `printf('%0${pattern.length}d', ${a[0]})`;
-    // A number with its decimal places: Format([Amount], "0.00") is 12.50.
-    const places = /^0\.(0+)$/.exec(pattern);
-    if (places) return `printf('%.${places[1].length}f', ${a[0]})`;
-    const f = { yyyy: '%Y', 'yyyy-mm': '%Y-%m', 'yyyy-mm-dd': '%Y-%m-%d', mm: '%m', dd: '%d' }[pattern.toLowerCase()];
-    if (!f) throw new Error('Format takes "yyyy", "yyyy-mm", "yyyy-mm-dd", "mm", "dd", or noughts for a number: "00000", "0.00".');
-    return `strftime('${f}', ${a[0]})`;
-  }],
+  format: [2, 2, (a) => formatSql(a[0], literal(a[1]) ?? '')],
+  weekday: [1, 1, (a) => `(CAST(strftime('%w', ${a[0]}) AS INTEGER) + 1)`],
   datediff: [3, 3, (a) => {
     const unit = literal(a[0])?.toLowerCase();
     const y = (d) => `CAST(strftime('%Y', ${d}) AS INTEGER)`;
@@ -105,7 +96,51 @@ const FUNCTIONS = {
     throw new Error('DateDiff counts "d" (days), "m" (months) or "yyyy" (years).');
   }],
 };
-export const FUNCTION_NAMES = ['Round', 'Nz', 'IIf', 'Abs', 'Year', 'Month', 'Day', 'Date', 'Now', 'Format', 'DateDiff', 'Len', 'Left', 'Right', 'Mid', 'UCase', 'LCase', 'Trim'];
+export const FUNCTION_NAMES = ['Round', 'Nz', 'IIf', 'Abs', 'Year', 'Month', 'Day', 'Weekday', 'Date', 'Now', 'Format', 'DateDiff', 'Len', 'Left', 'Right', 'Mid', 'UCase', 'LCase', 'Trim'];
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const caseOf = (key, names, short) => `CASE ${key} ${names.map((n, i) => `WHEN ${i + (names === MONTHS ? 1 : 0)} THEN '${short ? n.slice(0, 3) : n}'`).join(' ')} END`;
+
+/**
+ * Format(value, pattern) as SQL, as Access formats:
+ *   "00000"      a number padded with noughts (an invoice number: 00042)
+ *   "0.00"       a number with its decimal places
+ *   "#,##0.00"   with thousands separated (1,234.50); "#,##0" without decimals
+ *   dates by their parts: yyyy yy mmmm mmm mm m dddd ddd dd d hh h nn ss,
+ *   the rest kept as written ("d mmmm yyyy" is 21 October 2026,
+ *   "dd/mm/yyyy" is 21/10/2026, "ddd" is Wed). Month and day names are English.
+ */
+export function formatSql(v, pattern) {
+  if (/^0+$/.test(pattern)) return `printf('%0${pattern.length}d', ${v})`;
+  let m = /^0\.(0+)$/.exec(pattern);
+  if (m) return `printf('%.${m[1].length}f', ${v})`;
+  m = /^#,##0(?:\.(0+))?$/.exec(pattern);
+  if (m) {
+    const places = m[1] ? m[1].length : 0;
+    const r = `ROUND(${v}, ${places})`;
+    const whole = `printf('%,d', CAST(ABS(${r}) AS INTEGER))`;
+    const frac = places ? ` || SUBSTR(printf('%.${places}f', ABS(${r})), -${places + 1})` : '';
+    return `(CASE WHEN ${v} IS NULL THEN NULL ELSE (CASE WHEN ${r} < 0 THEN '-' ELSE '' END) || ${whole}${frac} END)`;
+  }
+  const parts = [];
+  const re = /yyyy|yy|mmmm|mmm|mm|m|dddd|ddd|dd|d|hh|h|nn|ss|[^ymdhns]+|[ymdhns]/gi;
+  let any = false;
+  for (const tok of String(pattern).match(re) || []) {
+    const k = tok.toLowerCase();
+    const piece = {
+      yyyy: `strftime('%Y', ${v})`, yy: `SUBSTR(strftime('%Y', ${v}), 3)`,
+      mmmm: caseOf(`CAST(strftime('%m', ${v}) AS INTEGER)`, MONTHS, false), mmm: caseOf(`CAST(strftime('%m', ${v}) AS INTEGER)`, MONTHS, true),
+      mm: `strftime('%m', ${v})`, m: `CAST(CAST(strftime('%m', ${v}) AS INTEGER) AS TEXT)`,
+      dddd: caseOf(`CAST(strftime('%w', ${v}) AS INTEGER)`, DAYS, false), ddd: caseOf(`CAST(strftime('%w', ${v}) AS INTEGER)`, DAYS, true),
+      dd: `strftime('%d', ${v})`, d: `CAST(CAST(strftime('%d', ${v}) AS INTEGER) AS TEXT)`,
+      hh: `strftime('%H', ${v})`, h: `CAST(CAST(strftime('%H', ${v}) AS INTEGER) AS TEXT)`, nn: `strftime('%M', ${v})`, ss: `strftime('%S', ${v})`,
+    }[k];
+    if (piece) { any = true; parts.push(piece); } else parts.push(text(tok));
+  }
+  if (!any) throw new Error('Format takes noughts for a number ("00000", "0.00", "#,##0.00") or a date\'s parts ("d mmmm yyyy", "dd/mm/yyyy", "ddd").');
+  return `(CASE WHEN ${v} IS NULL THEN NULL ELSE ${parts.join(' || ')} END)`;
+}
 
 /** The text of an SQL string literal this module wrote, or null. */
 function literal(sql) {
@@ -116,9 +151,11 @@ function literal(sql) {
 /**
  * An expression as SQL. `resolve(table, field)` answers the quoted column
  * for [Field] or [Table].[Field], or throws when the query has none (or, for
- * [Field] alone, more than one table has it).
+ * [Field] alone, more than one table has it). `options.today` (YYYY-MM-DD)
+ * is the day Date() and Now() answer, for a check of how a database looks
+ * on another day.
  */
-export function expressionSql(src, resolve) {
+export function expressionSql(src, resolve, options = {}) {
   const ts = tokens(src);
   if (!ts.length) throw new Error('The expression is empty.');
   let at = 0;
@@ -177,7 +214,7 @@ export function expressionSql(src, resolve) {
       expect(')');
       const [lo, hi, sql] = fn;
       if (args.length < lo || args.length > hi) throw new Error(`${t.v} takes ${lo === hi ? lo : `${lo} or ${hi}`} value${hi === 1 ? '' : 's'}.`);
-      return sql(args);
+      return sql(args, options);
     }
     throw new Error(`"${src}": "${t.v}" is not where a value goes.`);
   };

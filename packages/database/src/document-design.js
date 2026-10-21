@@ -44,7 +44,7 @@ export function evaluate(base, src, scope) {
     if (Object.hasOwn(scope, key)) return literal(scope[key]);
     if (!table && Object.hasOwn(scope, field)) return literal(scope[field]);
     throw new Error(`[${table ? `${table}].[` : ''}${field}] is not a field of this document.`);
-  });
+  }, { today: base.today });
   return base.query(`SELECT ${sql} AS v`).rows[0]?.v ?? null;
 }
 
@@ -172,7 +172,7 @@ export function documentData(base, layout, { keys = null, limit = 1000 } = {}) {
           const link = b.link || linkOf(base, child, table);
           const lines = base.rows(child, { where: { [link]: row[keyField] }, limit: 10000, order: b.sort || null });
           const types = read.typesOf(child);
-          const columns = (b.columns || []).map((c) => ({ name: c.as || c.field, label: c.label || c.as || c.field, type: c.type || (c.field ? types[c.field] : null) || null, align: null }));
+          const columns = (b.columns || []).map((c) => ({ name: c.as || c.field, label: c.label || c.as || c.field, type: c.type || (c.field ? types[c.field] : null) || null, align: null, decimals: c.decimals ?? null }));
           for (const c of columns) c.align = ['currency', 'number', 'integer'].includes(c.type) ? 'right' : 'left';
           const out = lines.map((l) => {
             const values = {};
@@ -196,7 +196,7 @@ export function documentData(base, layout, { keys = null, limit = 1000 } = {}) {
           const items = (b.rows || []).map((t) => {
             const v = evaluate(base, t.expr, scope);
             scope[t.label] = v;
-            return { label: t.label, value: v, type: t.type || 'currency', strong: Boolean(t.strong) };
+            return { label: t.label, value: v, type: t.type || 'currency', strong: Boolean(t.strong), decimals: t.decimals ?? null };
           });
           return { type: 'totals', rows: items };
         }

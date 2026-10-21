@@ -11,8 +11,10 @@ import { Button, Input, Select, t, tn } from '@rutba/office-ui';
 const FN_LABEL = { sum: () => t('Sum'), avg: () => t('Average'), count: () => t('Count'), min: () => t('Smallest'), max: () => t('Largest') };
 
 /** A value as the report shows it, by its field's type. */
-export function shown(type, v) {
+/** A value as a page shows it; `decimals`, when a column says, fixes a number's places. */
+export function shown(type, v, decimals = null) {
   if (v === null || v === undefined || v === '') return '';
+  if (decimals !== null && decimals !== undefined && Number.isFinite(Number(v)) && type !== 'date' && type !== 'datetime' && type !== 'yesno') return Number(v).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   if (type === 'currency') return Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (type === 'number' || type === 'integer' || typeof v === 'number') return Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
   if (type === 'yesno') return v ? t('Yes') : t('No');
@@ -35,7 +37,8 @@ function ReportPage({ data, today }) {
         return (
           <td key={c.field} className={c.align === 'right' ? 'r' : ''}>
             {i === 0 && !tt ? label : null}
-            {tt ? <><small>{FN_LABEL[tt.fn]?.()}</small> {shown(tt.fn === 'count' ? 'number' : typeOf[tt.field], v)}</> : null}
+            {/* An average shows two places unless its column says otherwise; a count none. */}
+            {tt ? <><small>{FN_LABEL[tt.fn]?.()}</small> {shown(tt.fn === 'count' ? 'number' : typeOf[tt.field], v, tt.fn === 'count' ? 0 : c.decimals ?? (tt.fn === 'avg' ? 2 : null))}</> : null}
           </td>
         );
       })}
@@ -57,7 +60,7 @@ function ReportPage({ data, today }) {
               <tr className="bs-report-group-head"><th colSpan={layout.columns.length}>{g.label === null || g.label === undefined || g.label === '' ? t('(none)') : shown(typeOf[layout.group], g.label)}</th></tr>
             ) : null}
             {g.rows.map((r, ri) => (
-              <tr key={ri}>{layout.columns.map((c) => <td key={c.field} className={c.align === 'right' ? 'r' : ''}>{shown(typeOf[c.field], r[c.field])}</td>)}</tr>
+              <tr key={ri}>{layout.columns.map((c) => <td key={c.field} className={c.align === 'right' ? 'r' : ''}>{shown(typeOf[c.field], r[c.field], c.decimals)}</td>)}</tr>
             ))}
             {layout.group ? totalRow(g.totals, t('Total'), 'bs-report-subtotal') : null}
           </tbody>

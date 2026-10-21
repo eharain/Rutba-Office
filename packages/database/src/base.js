@@ -82,6 +82,8 @@ export class Base {
 
   constructor(db) {
     this.db = db;
+    // The day Date() and Now() answer in this database's expressions; null is today.
+    this.today = null;
   }
 
   close() {
@@ -370,7 +372,8 @@ export class Base {
   /** Add a record; answers its rowid. Values as a person typed them are put into each field's type. */
   insert(table, values) {
     const fields = this._known(table).filter((f) => f.type !== 'autonumber' || values[f.name] != null);
-    const set = fields.filter((f) => Object.hasOwn(values, f.name) || f.type === 'yesno');
+    // A field not given takes its default from the table itself: a Yes/No that defaults to Yes is Yes.
+    const set = fields.filter((f) => Object.hasOwn(values, f.name) && values[f.name] !== undefined);
     const sql = set.length
       ? `INSERT INTO ${q(table)} (${set.map((f) => q(f.name)).join(', ')}) VALUES (${set.map(() => '?').join(', ')})`
       : `INSERT INTO ${q(table)} DEFAULT VALUES`;
@@ -433,18 +436,18 @@ export class Base {
    * A query's answer: a saved one by `name`, or a `design` as it stands in
    * the designer. Answers { columns, rows, count, sql }, at most `limit` rows.
    */
-  runQuery({ name = null, design = null, limit = 5000 } = {}) {
+  runQuery({ name = null, design = null, limit = 5000, today = this.today } = {}) {
     const d = design || this.queries().find((x) => x.name === name)?.design;
     if (!d) throw new Error(`There is no query called ${name}.`);
-    const { sql, params, columns } = designToSql(d, this.relationships(), this._designFields());
+    const { sql, params, columns } = designToSql(d, this.relationships(), { ...this._designFields(), today });
     const out = this.query(sql, params);
     const rows = out.rows.slice(0, limit).map(cleanRow);
     return { columns: out.columns.length ? out.columns : columns, rows, count: out.rows.length, sql };
   }
 
   /** The SQL a design stands for, its values shown in place of the parameters, for the SQL view. */
-  sqlOf(design) {
-    const { sql, params } = designToSql(design, this.relationships(), this._designFields());
+  sqlOf(design, { today = this.today } = {}) {
+    const { sql, params } = designToSql(design, this.relationships(), { ...this._designFields(), today });
     let i = 0;
     // A ? inside a quoted name or text (an expression's "Is it?") is not a parameter.
     return sql.replace(/'(?:[^']|'')*'|"(?:[^"]|"")*"|\?/g, (m) => {
@@ -531,7 +534,7 @@ export class Base {
    * words. `layout` is a report's, or `name` names a kept one. `fields` are
    * the source's fields with their types, for grouping, sorting and showing.
    */
-  reportData({ name = null, layout = null } = {}) {
+  reportData({ name = null, layout = null, today = this.today } = {}) {
     const l = layout || this.reports().find((r) => r.name === name)?.layout;
     if (!l) throw new Error(`There is no report called ${name}.`);
     let records;
@@ -545,7 +548,7 @@ export class Base {
         shown[r.from.field] = new Map(this.lookup({ table: r.to.table, field: r.to.field, show, limit: 1_000_000 }).map((o) => [o.value, o.text]));
       }
     } else {
-      const out = this.runQuery({ name: l.source?.query, limit: 1_000_000 });
+      const out = this.runQuery({ name: l.source?.query, limit: 1_000_000, today });
       records = out.rows;
       fields = out.columns.map((c) => ({ name: c, type: null }));
     }

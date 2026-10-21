@@ -188,7 +188,7 @@ export function buildFromSpec(base, t) {
       columns: r.columns.map((c) => {
         const col = typeof c === 'string' ? { field: c } : c;
         const type = col.type || types[col.field] || null;
-        return { field: col.field, label: col.label || label(col.field), align: ['currency', 'number', 'integer'].includes(type) ? 'right' : 'left', ...(type ? { type } : {}) };
+        return { field: col.field, label: col.label || label(col.field), align: ['currency', 'number', 'integer'].includes(type) ? 'right' : 'left', ...(type ? { type } : {}), ...(col.decimals !== undefined ? { decimals: col.decimals } : {}) };
       }),
       group: r.group || null,
       sort: r.sort || null,

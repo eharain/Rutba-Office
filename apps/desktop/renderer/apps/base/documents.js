@@ -20,7 +20,7 @@ const isRoll = (paper) => String(paper).startsWith('receipt');
 const TOTAL_SHAPE = '[Amount]';
 
 /** A value as a document shows it; empty shows as nothing. */
-const valueText = (type, v) => (v === null || v === undefined ? '' : type === 'autonumber' ? String(v) : shown(type, v));
+const valueText = (type, v, decimals = null) => (v === null || v === undefined ? '' : type === 'autonumber' ? String(v) : shown(type, v, decimals));
 const partsText = (parts) => parts.map((p, i) => (p.text !== undefined ? <React.Fragment key={i}>{p.text}</React.Fragment> : <React.Fragment key={i}>{valueText(p.type, p.value)}</React.Fragment>));
 
 /** One document: the letterhead, then its blocks. */
@@ -47,13 +47,13 @@ function DocumentPage({ layout, letterhead, doc }) {
             return (
               <table key={i} className="bs-doc-lines">
                 <thead><tr>{b.columns.map((c) => <th key={c.name} className={c.align === 'right' ? 'r' : ''}>{c.label}</th>)}</tr></thead>
-                <tbody>{b.rows.map((r, k) => <tr key={k}>{b.columns.map((c) => <td key={c.name} className={c.align === 'right' ? 'r' : ''}>{valueText(c.type, r[c.name])}</td>)}</tr>)}</tbody>
+                <tbody>{b.rows.map((r, k) => <tr key={k}>{b.columns.map((c) => <td key={c.name} className={c.align === 'right' ? 'r' : ''}>{valueText(c.type, r[c.name], c.decimals)}</td>)}</tr>)}</tbody>
               </table>
             );
           case 'totals':
             return (
               <table key={i} className="bs-doc-totals"><tbody>
-                {b.rows.map((r, k) => <tr key={k} className={r.strong ? 'strong' : ''}><th>{r.label}</th><td className="r">{valueText(r.type, r.value)}</td></tr>)}
+                {b.rows.map((r, k) => <tr key={k} className={r.strong ? 'strong' : ''}><th>{r.label}</th><td className="r">{valueText(r.type, r.value, r.decimals)}</td></tr>)}
               </tbody></table>
             );
           case 'text':

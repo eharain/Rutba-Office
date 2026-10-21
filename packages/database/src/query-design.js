@@ -116,7 +116,7 @@ export function joinsFor(tables, relationships) {
  * The SQL a design stands for: { sql, params, columns } with `columns` the
  * headings of what it shows. `relationships` are the file's.
  */
-export function designToSql(design, relationships = [], { fieldsOf = null } = {}) {
+export function designToSql(design, relationships = [], { fieldsOf = null, today = null } = {}) {
   const tables = [...new Set(design.tables || [])];
   const columns = (design.columns || []).filter((c) => c && ((c.table && c.field) || (typeof c.expr === 'string' && c.expr.trim())));
   for (const c of columns) if (!c.expr && !tables.includes(c.table)) throw new Error(`${c.field} is from ${c.table}, which is not in the query.`);
@@ -138,7 +138,7 @@ export function designToSql(design, relationships = [], { fieldsOf = null } = {}
   };
   let n = 0;
   const named = new Map(columns.filter((c) => c.expr).map((c) => [c, c.as || `Expr${++n}`]));
-  const colSql = (c) => (c.expr ? `(${expressionSql(c.expr, resolve)})` : col(c));
+  const colSql = (c) => (c.expr ? `(${expressionSql(c.expr, resolve, { today })})` : col(c));
   const nameOf = (c) => (c.expr ? named.get(c) : c.field);
   const totals = columns.some((c) => c.total);
   const shown = columns.filter((c) => c.show !== false && c.total !== 'where');

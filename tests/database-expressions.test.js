@@ -90,13 +90,49 @@ test('anything that is not an expression is refused in words, never run', () => 
     ['#21/10/2026#', /Write a date as #2026-10-21#/],
     ['(1 + 2', /a \) is missing/],
     ['[a] [b]', /\[b\] was not expected there/],
-    ['Format([d], "dddd")', /Format takes/],
+    ['Format([d], "%%")', /Format takes/],
   ]) assert.throws(() => expressionSql(src, resolve), why, src);
   // Text is written as SQL text, its quotes doubled: it can never close the literal early.
   assert.equal(expressionSql(`"it's" & "x"`, resolve), `(COALESCE('it''s', '') || COALESCE('x', ''))`);
   const b = shop();
   try {
     assert.match(b.sqlOf({ tables: ['Customers'], columns: [{ expr: '"Is it?"', as: 'Q' }, { table: 'Customers', field: 'Country', criteria: ['UK'] }] }), /\('Is it\?'\) AS "Q".*"Country" = 'UK'/s, 'a ? inside text is not taken for a parameter');
+  } finally {
+    b.close();
+  }
+});
+
+test('Format as invoices and letters write numbers and dates, Weekday, and Date() on a day of the check\'s choosing', () => {
+  const b = Base.open(':memory:');
+  try {
+    b.createTable({ name: 'T', fields: [{ name: 'D', type: 'date' }, { name: 'A', type: 'currency' }, { name: 'W', type: 'datetime' }] });
+    b.insert('T', { D: '2026-10-21', A: -1234567.5, W: '2026-10-21T09:05:00' });
+    b.insert('T', {});
+    const cols = [
+      ['Number', '"INV-" & Format([ID], "00000")'], ['Long', 'Format([D], "d mmmm yyyy")'], ['Slash', 'Format([D], "dd/mm/yyyy")'],
+      ['Short', 'Format([D], "ddd d mmm yy")'], ['Day', 'Format([D], "dddd")'], ['WD', 'Weekday([D])'], ['Money', 'Format([A], "#,##0.00")'],
+      ['Whole', 'Format([A], "#,##0")'], ['Two', 'Format([A], "0.00")'], ['Time', 'Format([W], "hh:nn")'], ['Today', 'Date()'], ['Ago', 'DateDiff("d", [D], Date())'],
+    ];
+    const rows = b.runQuery({ design: { tables: ['T'], columns: cols.map(([as, expr]) => ({ as, expr })) }, today: '2027-01-01' }).rows;
+    assert.deepEqual(rows[0], { Number: 'INV-00001', Long: '21 October 2026', Slash: '21/10/2026', Short: 'Wed 21 Oct 26', Day: 'Wednesday', WD: 4, Money: '-1,234,567.50', Whole: '-1,234,568', Two: '-1234567.50', Time: '09:05', Today: '2027-01-01', Ago: 72 });
+    assert.equal(rows[1].Long, null, 'an empty date formats as nothing');
+    assert.equal(rows[1].Number, 'INV-00002');
+    // The database's own day, for every query and report it runs.
+    b.today = '2026-12-25';
+    assert.equal(b.runQuery({ design: { tables: ['T'], columns: [{ expr: 'Format(Date(), "dddd d mmmm")', as: 'X' }] } }).rows[0].X, 'Friday 25 December');
+    assert.throws(() => b.runQuery({ design: { tables: ['T'], columns: [{ expr: 'Format([A], "€€")' }] } }), /Format takes noughts for a number/);
+  } finally {
+    b.close();
+  }
+});
+
+test('a Yes/No field left out of a new record takes its default, Yes as much as No', () => {
+  const b = Base.open(':memory:');
+  try {
+    b.createTable({ name: 'P', fields: [{ name: 'Name', type: 'text' }, { name: 'Active', type: 'yesno', default: true }, { name: 'Gone', type: 'yesno' }] });
+    b.insert('P', { Name: 'a' });
+    b.insert('P', { Name: 'b', Active: false });
+    assert.deepEqual(b.rows('P').map((r) => [r.Active, r.Gone]), [[1, 0], [0, 0]]);
   } finally {
     b.close();
   }
