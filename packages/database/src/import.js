@@ -36,7 +36,8 @@ export function inferType(values, dated = null) {
 function fieldNames(header, count) {
   const used = new Set();
   return Array.from({ length: count }, (_, i) => {
-    let base = String(header[i] ?? '').trim().replace(/"/g, "'").replace(/^(rutba_|sqlite_)/i, '').slice(0, 60) || `Field ${i + 1}`;
+    // A heading's line breaks and other control characters become spaces.
+    let base = String(header[i] ?? '').replace(/[\u0000-\u001f]+/g, ' ').trim().replace(/"/g, "'").replace(/^(rutba_|sqlite_)/i, '').slice(0, 60) || `Field ${i + 1}`;
     if (/^id$/i.test(base)) base = `${base} (imported)`;
     let name = base;
     for (let n = 2; used.has(name.toLowerCase()); n++) name = `${base} ${n}`;
@@ -56,7 +57,7 @@ export function importRows(base, name, rows, { dated = {} } = {}) {
   if (!width) throw new Error('There is nothing to import.');
   const names = fieldNames(header, width);
   const fields = names.map((n, c) => ({ name: n, ...inferType(records.map((r) => r?.[c] ?? null), dated[c] || null) }));
-  let table = String(name || 'Imported').replace(/"/g, "'").replace(/^(rutba_|sqlite_)/i, '').slice(0, 60) || 'Imported';
+  let table = String(name || 'Imported').replace(/[\u0000-\u001f]+/g, ' ').trim().replace(/"/g, "'").replace(/^(rutba_|sqlite_)/i, '').slice(0, 60) || 'Imported';
   const taken = new Set(base.tables().map((t) => t.name.toLowerCase()));
   for (let n = 2; taken.has(table.toLowerCase()); n++) table = `${String(name).slice(0, 56)} ${n}`;
   base.createTable({ name: table, fields });

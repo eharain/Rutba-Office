@@ -1,6 +1,9 @@
 // dBASE and FoxPro tables (.dbf), with their memo files (.dbt for dBASE,
 // .fpt for FoxPro): a header naming the fields, then fixed-length records,
-// each starting with a mark that says whether it was deleted. Read into the
+// each starting with a mark that says whether it was deleted. Three header
+// layouts: dBASE II's (16-byte fields, the records at byte 521), dBASE III
+// to V's and FoxPro's (32-byte fields), and dBASE 7's (48-byte fields, with
+// whole numbers and doubles of its own). Read into the
 // old spreadsheet readers' sheets (legacy-grid.js): a row of field names,
 // then a row a record, deleted records left out and counted in the notes.
 
@@ -9,7 +12,7 @@ import { Grid } from './legacy-grid.js';
 
 /** The versions a .dbf opens with: what wrote it, and whether it has memos. */
 const VERSIONS = {
-  0x02: 'FoxBASE', 0x03: 'dBASE III', 0x04: 'dBASE IV', 0x05: 'dBASE V', 0x30: 'Visual FoxPro', 0x31: 'Visual FoxPro',
+  0x02: 'FoxBASE', 0x03: 'dBASE III', 0x04: 'dBASE 7', 0x05: 'dBASE V', 0x8c: 'dBASE 7', 0x30: 'Visual FoxPro', 0x31: 'Visual FoxPro',
   0x32: 'Visual FoxPro', 0x43: 'dBASE IV', 0x63: 'dBASE IV', 0x83: 'dBASE III', 0x8b: 'dBASE IV', 0xcb: 'dBASE IV',
   0xf5: 'FoxPro', 0xfb: 'FoxBASE',
 };
@@ -22,32 +25,74 @@ const CODE_PAGES = {
   0x4d: 'gb18030', 0x4e: 'euc-kr', 0x4f: 'big5', 0x13: 'shift_jis', 0x7b: 'shift_jis', 0x7a: 'gb18030', 0x78: 'big5', 0x79: 'euc-kr',
 };
 
-/** Whether bytes look like a .dbf: a known version, a sane header, and records that fit. */
-export function isDbf(bytes) {
-  if (bytes.length < 33 || !VERSIONS[bytes[0]]) return false;
+/**
+ * How a .dbf is laid out, or null when it is not one: its records' count,
+ * where they start and how long each is, and where its field descriptors
+ * are (`at`, each `step` bytes, the name `name` bytes long, the type, length
+ * and decimals at `type`, `length` and `decimals` into each).
+ */
+function layoutOf(bytes) {
+  if (bytes.length < 33 || !VERSIONS[bytes[0]]) return null;
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const headerSize = v.getUint16(8, true);
-  const recordSize = v.getUint16(10, true);
+  const version = bytes[0];
+  // dBASE 7: a 68-byte header, 48-byte fields.
+  if ((version & 0x07) === 4 && version !== 0x8b) {
+    const headerSize = v.getUint16(8, true);
+    const recordSize = v.getUint16(10, true);
+    if (bytes.length < 68 || headerSize < 69 || headerSize > bytes.length || !recordSize) return null;
+    return { count: v.getUint32(4, true), headerSize, recordSize, at: 68, step: 48, name: 32, type: 32, length: 33, decimals: 34 };
+  }
   const month = bytes[2];
   const day = bytes[3];
-  return headerSize >= 33 && headerSize <= bytes.length && recordSize > 0 && month >= 1 && month <= 12 && day >= 1 && day <= 31;
+  const headerSize = v.getUint16(8, true);
+  const recordSize = v.getUint16(10, true);
+  if (headerSize >= 33 && headerSize <= bytes.length && recordSize > 0 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+    return { count: v.getUint32(4, true), headerSize, recordSize, at: 32, step: 32, name: 11, type: 11, length: 16, decimals: 17 };
+  }
+  // dBASE II: the count at 1, the record length at 6, 16-byte fields from 8, the records at 521.
+  if (version === 0x02 && bytes.length >= 521) {
+    const recordSize2 = v.getUint16(6, true);
+    const first = bytes[8];
+    const firstType = String.fromCharCode(bytes[19]);
+    if (recordSize2 > 0 && first >= 0x21 && first < 0x7f && 'CNL'.includes(firstType)) {
+      return { count: v.getUint16(1, true), headerSize: 521, recordSize: recordSize2, at: 8, step: 16, name: 11, type: 11, length: 12, decimals: 15, end: 520 };
+    }
+  }
+  return null;
+}
+
+/** Whether bytes look like a .dbf: a known version, a sane header, and records that fit. */
+export function isDbf(bytes) {
+  return Boolean(layoutOf(bytes));
 }
 
 /** The fields: { name, type, length, decimals, offset } from the descriptors after the header. */
-function fieldsOf(bytes, headerSize) {
+function fieldsOf(bytes, layout) {
   const out = [];
   let offset = 1;
-  for (let at = 32; at + 32 <= headerSize && bytes[at] !== 0x0d; at += 32) {
+  const last = layout.end ?? layout.headerSize;
+  for (let at = layout.at; at + layout.step <= last + 1 && bytes[at] !== 0x0d && bytes[at] !== 0; at += layout.step) {
     let end = at;
-    while (end < at + 11 && bytes[end] !== 0) end++;
+    while (end < at + layout.name && bytes[end] !== 0) end++;
     const name = String.fromCharCode(...bytes.subarray(at, end)).trim();
-    const type = String.fromCharCode(bytes[at + 11]);
-    const length = bytes[at + 16];
-    const decimals = bytes[at + 17];
+    const type = String.fromCharCode(bytes[at + layout.type]);
+    const length = bytes[at + layout.length];
+    const decimals = bytes[at + layout.decimals];
     out.push({ name, type, length, decimals, offset });
     offset += length;
   }
   return out;
+}
+
+/** dBASE 7's whole numbers: four bytes, most significant first, the sign bit turned over. */
+const level7Int = (raw) => (new DataView(raw.buffer, raw.byteOffset, 4).getUint32(0, false) ^ 0x80000000) | 0;
+
+/** dBASE 7's doubles: eight bytes, most significant first, ordered to sort as bytes do. */
+function level7Double(raw) {
+  const b = Uint8Array.from(raw.subarray(0, 8));
+  if (b[0] & 0x80) b[0] &= 0x7f;
+  else for (let i = 0; i < 8; i++) b[i] = ~b[i] & 0xff;
+  return new DataView(b.buffer).getFloat64(0, false);
 }
 
 /** A memo file's reader: block number to text (or bytes, for a picture or other binary). */
@@ -102,14 +147,14 @@ const serial = (y, m, d, ms = 0) => (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 
  * one sheet named after the table.
  */
 export function readDbf(bytes, { name = 'Table', memo = null, memoKind = null, codePage = null } = {}) {
-  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const version = bytes[0];
-  const count = v.getUint32(4, true);
-  const headerSize = v.getUint16(8, true);
-  const recordSize = v.getUint16(10, true);
-  const page = codePage || CODE_PAGES[bytes[29]] || 'cp437';
+  const layout = layoutOf(bytes);
+  if (!layout) throw new Error('This is not a dBASE or FoxPro table this suite can read.');
+  const { count, headerSize, recordSize } = layout;
+  const level7 = layout.step === 48;
+  const page = codePage || (layout.step === 16 ? null : CODE_PAGES[bytes[29]]) || 'cp437';
   const decode = (b) => decodeIn(page, b);
-  const fields = fieldsOf(bytes, headerSize).filter((f) => f.type !== '0');
+  const fields = fieldsOf(bytes, layout).filter((f) => f.type !== '0');
   const kind = memoKind || ((version & 0xf0) === 0x30 || version === 0xf5 ? 'fpt' : 'dbt');
   const memoText = memoReader(memo, kind, decode);
   const grid = new Grid(String(name).replace(/\.dbf$/i, '').slice(0, 31) || 'Table');
@@ -149,7 +194,9 @@ export function readDbf(bytes, { name = 'Table', memo = null, memoKind = null, c
           value = 'TY'.includes(ch) ? true : 'FN'.includes(ch) ? false : null;
           break;
         }
-        case 'I': value = new DataView(raw.buffer, raw.byteOffset, 4).getInt32(0, true); break;
+        case 'I': value = level7 ? level7Int(raw) : new DataView(raw.buffer, raw.byteOffset, 4).getInt32(0, true); break;
+        case '+': if (raw.length >= 4) value = level7Int(raw); break;
+        case 'O': if (raw.length >= 8) value = level7Double(raw); break;
         case 'B': {
           if ((version & 0xf0) === 0x30) value = new DataView(raw.buffer, raw.byteOffset, 8).getFloat64(0, true);
           break;
