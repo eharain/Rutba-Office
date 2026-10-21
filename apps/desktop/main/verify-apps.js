@@ -62,6 +62,7 @@ import { verifyWordRestrict } from './verify-word-restrict.js';
 import { verifyWordComments } from './verify-word-comments.js';
 import { verifyDeckShow } from './verify-deck-show.js';
 import { verifyDeckSymbol } from './verify-deck-symbol.js';
+import { verifyDeckRichText } from './verify-deck-rich-text.js';
 import { verifyWindows } from './verify-windows.js';
 import { verifyDeckSetup } from './verify-deck-setup.js';
 import { verifyWordGridlines } from './verify-word-gridlines.js';
@@ -2667,7 +2668,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // A double-click opens the editor over the cell; Enter commits its words.
       await js(`(() => { document.querySelector('.sl-cell-hit[data-row="0"][data-col="0"]')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true })); return 1; })()`);
       await until(() => js(`Boolean(document.querySelector('.sl-editor'))`), 'the cell editor', 4000);
-      await js(`(() => { const ta = document.querySelector('.sl-editor'); const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set; setter.call(ta, 'Sales'); ta.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+      // The words typed over what the cell held, as the editor takes typing.
+      await js(`(() => { const el = document.querySelector('.sl-editor'); el.focus(); document.execCommand('selectAll'); document.execCommand('insertText', false, 'Sales'); return 1; })()`);
       await js(`(() => { document.querySelector('.sl-editor')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); return 1; })()`);
       const typed = await until(() => (tableShape()?.table?.cells?.[0]?.[0]?.paragraphs || []).map((p) => p.plain).join('') === 'Sales', 'the cell to read Sales', 5000).catch(() => false);
       check('slides: a double-click opens an editor over the cell, and Enter commits its words',
@@ -4919,6 +4921,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordcomments')) await wordComments();
     if (only.includes('saveshow')) await verifyDeckShow({ open, check, until, wait }, { file: files.pptx });
     if (only.includes('decksymbol')) await verifyDeckSymbol({ open, check, until, wait, doc }, { dir });
+    if (only.includes('deckrich')) await verifyDeckRichText({ open, check, until, wait, doc }, { dir });
     if (only.includes('windowing')) await verifyWindows({ open, check, until, wait }, { files });
     if (only.includes('setupshow')) await verifyDeckSetup({ open, check, until, wait, doc }, { dir });
     if (only.includes('gridlines')) await verifyWordGridlines({ open, check, until, wait }, { file: files.docx });
@@ -5300,6 +5303,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => wordComments());
   await part('slides', () => verifyDeckShow({ open, check, until, wait }, { file: files.pptx }));
   await part('slides', () => verifyDeckSymbol({ open, check, until, wait, doc }, { dir }));
+  await part('slides', () => verifyDeckRichText({ open, check, until, wait, doc }, { dir }));
   await part('shell', () => verifyWindows({ open, check, until, wait }, { files }));
   await part('slides', () => verifyDeckSetup({ open, check, until, wait, doc }, { dir }));
   await part('word', () => verifyWordGridlines({ open, check, until, wait }, { file: files.docx }));

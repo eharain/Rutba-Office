@@ -25,6 +25,8 @@ import { describeTransition } from './slides/motion.js';
 import { clickCount, pathPoints } from './slides/animate.js';
 import { motionPath } from '@rutba/presentation/timing';
 import { Markup } from './slides/markup.js';
+import { RichEditor } from './slides/rich-editor.js';
+import { withPlainText, resolveToggles } from './slides/rich-text.js';
 import { DesignGallery, CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 import { CommentsPane, markerSpots, personColour, COMMENTS_CSS, useCommentsRead } from './slides/comments.js';
 import { SlideSizeDialog, SLIDE_SIZE_CSS, needsFitChoice } from './slides/slide-size.js';
@@ -131,6 +133,14 @@ export default function Slides({ app, shell, boot }) {
   // with the caret just past it.
   const lastCaret = useRef(null);
   const caretAfterOpen = useRef(null);
+  // The box editor (slides/rich-editor.js), and the look of the words
+  // chosen in it, which the ribbon shows while a box is being typed in.
+  const richEditor = useRef(null);
+  const [editFormat, setEditFormat] = useState(null);
+  useEffect(() => {
+    if (!editing) setEditFormat(null);
+    caretAfterOpen.current = null;
+  }, [editing]);
   const [symbolOpen, setSymbolOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
   const [albumOpen, setAlbumOpen] = useState(false);
@@ -875,13 +885,7 @@ export default function Slides({ app, shell, boot }) {
     async (shapeId, row, col, text) => {
       const shape = model?.slide?.shapes?.find((s) => s.id === shapeId);
       const before = shape?.table?.cells?.[row]?.[col]?.paragraphs || [];
-      const paragraphs = String(text).split('\n').map((line, i) => {
-        const src = before[Math.min(i, before.length - 1)] || {};
-        const { runs, plain, ...props } = src;
-        const look = (runs || []).find((r) => r.text && r.text !== '\n') || {};
-        const { text: _text, field: _field, break: _break, link: _link, ...runProps } = look;
-        return { ...props, runs: [{ ...runProps, text: line }] };
-      });
+      const paragraphs = (typeof text === 'string' ? withPlainText(before, text) : text).map(({ plain, ...p }) => p);
       const next = await apply({ op: 'setTableCell', slide: index, shape: shapeId, row, col, paragraphs });
       setEditing(null);
       return next;
@@ -896,19 +900,15 @@ export default function Slides({ app, shell, boot }) {
 
   const commitText = useCallback(
     async (shapeId, text) => {
-      // Each line keeps the paragraph it replaces — its level, bullet,
-      // alignment and spacing — and the look of that paragraph's first run;
-      // a line past the end takes the last paragraph's. Until 2026-09-21 the
-      // words came back plain: a bulleted list edited once lost its bullets
-      // and every bold word.
+      // The words as the box editor leaves them: paragraphs of runs, each
+      // run in its own look (owner, 2026-10-21: "the entire text box has
+      // single formatting and does not allow formatting selected text
+      // separately"). Plain text, from Insert Symbol or the thesaurus, goes
+      // in where it differs from the words there, so every run round the
+      // change keeps its look: until now each line came back in the look of
+      // its first run, and a bold word in a sentence lost its bold.
       const before = model?.slide?.shapes?.find((s) => s.id === shapeId)?.text?.paragraphs || [];
-      const paragraphs = String(text).split('\n').map((line, i) => {
-        const src = before[Math.min(i, before.length - 1)] || {};
-        const { runs, plain, ...props } = src;
-        const look = (runs || []).find((r) => r.text && r.text !== '\n') || {};
-        const { text: _text, field: _field, break: _break, link: _link, ...runProps } = look;
-        return { ...props, runs: [{ ...runProps, text: line }] };
-      });
+      const paragraphs = (typeof text === 'string' ? withPlainText(before, text) : text).map(({ plain, ...p }) => p);
       await apply({ op: 'setText', slide: index, shape: shapeId, paragraphs });
       setEditing(null);
     },
@@ -1309,7 +1309,7 @@ export default function Slides({ app, shell, boot }) {
   };
   // What the ribbon shows for the selected shape: its first run's look and
   // its first paragraph's alignment — the granularity the writer edits at.
-  const format = useMemo(() => {
+  const boxFormat = useMemo(() => {
     const p = selectedShape?.text?.paragraphs?.[0];
     const r = p?.runs?.[0] || {};
     return {
@@ -1323,6 +1323,10 @@ export default function Slides({ app, shell, boot }) {
       rtl: Boolean(p?.rtl ?? selectedShape?.textDefaults?.rtl),
     };
   }, [selectedShape]);
+  // While a box is typed in: the look of the words chosen in it.
+  const format = useMemo(() => (editing && editFormat
+    ? { ...boxFormat, ...editFormat, size: editFormat.size || boxFormat.size, font: editFormat.font ?? boxFormat.font, color: editFormat.color ?? boxFormat.color }
+    : boxFormat), [boxFormat, editing, editFormat]);
 
   /**
    * The ribbon's verbs beyond one engine operation: the show, the view
@@ -2101,6 +2105,10 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'insertSymbol': {
+        if (richEditor.current && arg) {
+          richEditor.current.insert(arg);
+          return;
+        }
         const at = lastCaret.current;
         if (!at || at.slide !== index || !arg) return;
         const text = at.text.slice(0, at.start) + arg + at.text.slice(at.end);
@@ -2281,6 +2289,11 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'format': {
+        // Words being typed in a box or a table cell: the look goes to the words chosen there.
+        if (richEditor.current) {
+          richEditor.current.format(arg);
+          return;
+        }
         if (!selectedShape?.text) return toast(t('Click a text box first.'), { ms: 3500 });
         // Slide Master view: a placeholder's look is a text style — the
         // master's title or body style, or the placeholder's own list style —
@@ -2308,6 +2321,9 @@ export default function Slides({ app, shell, boot }) {
           : mode === 'title' ? s.replace(/(^|\s)(\S)/g, (m, sp, ch) => sp + ch.toUpperCase())
           : mode === 'sentence' ? (first ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s.toLowerCase())
           : s;
+        // Bold on a box whose words are partly bold makes all of them bold, as
+        // PowerPoint does, rather than turning each run the other way.
+        const toggled = resolveToggles(arg, selectedShape.text.paragraphs.flatMap((p) => p.runs || []).filter((r) => r.text && r.text !== '\n'));
         const paragraphs = selectedShape.text.paragraphs.map((p) => {
           const { plain, ...rest } = p;
           // Bullets, numbering, the list level (a step from the paragraph's
@@ -2331,10 +2347,10 @@ export default function Slides({ app, shell, boot }) {
             runs: (p.runs || []).map((r, ri) => ({
               ...r,
               text: arg.case && r.text && r.text !== '\n' ? recase(r.text, arg.case, ri === 0) : r.text,
-              bold: arg.bold === 'toggle' ? !r.bold : arg.bold ?? r.bold,
-              italic: arg.italic === 'toggle' ? !r.italic : arg.italic ?? r.italic,
-              underline: arg.underline === 'toggle' ? !r.underline : arg.underline ?? r.underline,
-              strike: arg.strike === 'toggle' ? !r.strike : arg.strike ?? r.strike,
+              bold: toggled.bold ?? r.bold,
+              italic: toggled.italic ?? r.italic,
+              underline: toggled.underline ?? r.underline,
+              strike: toggled.strike ?? r.strike,
               spacing: 'spacing' in arg ? (arg.spacing || undefined) : r.spacing,
               highlight: 'highlight' in arg ? (arg.highlight || undefined) : r.highlight,
               size: arg.size ?? r.size,
@@ -3244,66 +3260,62 @@ export default function Slides({ app, shell, boot }) {
                         );
                       })
                     : null}
-                  {editing ? (
-                    <textarea
-                      // A fresh editor for each box, cell and reopening: a
-                      // textarea already typed in ignores a new defaultValue,
-                      // so Tab into the next cell showed the last cell's words
-                      // and saved them there.
-                      key={`${editing.id}|${editing.row ?? ''}|${editing.col ?? ''}|${editing.rev ?? 0}`}
-                      className="sl-editor"
-                      // A box whose words read right to left is typed that way.
-                      dir={editing.row == null && slide.shapes.find((x) => x.id === editing.id)?.text?.paragraphs?.some((p) => p.rtl) ? 'rtl' : undefined}
-                      autoFocus
-                      defaultValue={editing.text}
-                      ref={(el) => {
-                        if (el && caretAfterOpen.current != null) {
-                          el.setSelectionRange(caretAfterOpen.current, caretAfterOpen.current);
-                          caretAfterOpen.current = null;
-                        }
-                      }}
-                      onSelect={(e) => rememberCaret(e.target)}
-                      onKeyUp={(e) => rememberCaret(e.target)}
-                      style={(() => {
-                        const s = slide.shapes.find((x) => x.id === editing.id);
-                        if (editing.row != null) {
-                          const box = s?.table?.cells?.[editing.row]?.[editing.col]?.box;
-                          return box ? { left: box.x, top: box.y, width: box.w, height: box.h } : {};
-                        }
-                        // The words are typed where they stand: a turned shape's editor turns with it.
-                        return s?.geometry ? { left: s.geometry.x, top: s.geometry.y, width: s.geometry.w, height: s.geometry.h, transform: s.geometry.rot ? `rotate(${s.geometry.rot}deg)` : undefined } : {};
-                      })()}
-                      onBlur={(e) => { rememberCaret(e.target); return editing.row != null ? commitTableCell(editing.id, editing.row, editing.col, e.target.value) : commitText(editing.id, e.target.value); }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') { setEditing(null); return; }
-                        if (editing.row == null) {
-                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) commitText(editing.id, e.target.value);
-                          return;
-                        }
-                        // A table cell: Enter commits (Shift+Enter is a new
-                        // line), Tab commits and moves on to the next cell —
-                        // PowerPoint's own keys.
-                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitTableCell(editing.id, editing.row, editing.col, e.target.value); return; }
-                        if (e.key === 'Tab') {
-                          e.preventDefault();
-                          const s = slide.shapes.find((x) => x.id === editing.id);
-                          const cols = s?.table?.cols || 1;
-                          const rows = s?.table?.rows || 1;
-                          let row = editing.row;
-                          let col = editing.col + (e.shiftKey ? -1 : 1);
-                          if (col >= cols) { col = 0; row += 1; }
-                          if (col < 0) { col = cols - 1; row -= 1; }
-                          const value = e.target.value;
-                          commitTableCell(editing.id, editing.row, editing.col, value).then((next) => {
-                            if (row < 0 || row >= rows) return;
-                            const ns = next?.model?.slide?.shapes?.find((x) => x.id === editing.id);
-                            const cell = ns?.table?.cells?.[row]?.[col];
-                            setEditing({ id: editing.id, row, col, text: (cell?.paragraphs || []).map((p) => p.plain).join('\n') });
-                          });
-                        }
-                      }}
-                    />
-                  ) : null}
+                  {editing ? (() => {
+                    const s = slide.shapes.find((x) => x.id === editing.id);
+                    const cell = editing.row != null ? s?.table?.cells?.[editing.row]?.[editing.col] : null;
+                    const box = editing.row != null ? cell?.box : s?.geometry;
+                    const look = s?.textDefaults || {};
+                    const commit = (paragraphs) => (editing.row != null ? commitTableCell(editing.id, editing.row, editing.col, paragraphs) : commitText(editing.id, paragraphs));
+                    return (
+                      <>
+                        {/* The box's own words hidden while they are typed over; its fill and outline stay. */}
+                        {editing.row == null ? <style>{`.sl-svg g[data-shape="${String(editing.id).replace(/[^\w-]/g, '')}"] :is(text, foreignObject) { visibility: hidden; }`}</style> : null}
+                        <RichEditor
+                          // A fresh editor for each box, cell and reopening.
+                          key={`${editing.id}|${editing.row ?? ''}|${editing.col ?? ''}|${editing.rev ?? 0}`}
+                          ref={richEditor}
+                          className="sl-editor sl-rich"
+                          paragraphs={(editing.row != null ? cell?.paragraphs : s?.text?.paragraphs) || []}
+                          base={{ size: look.size || 18, font: look.font || null, color: look.color || null, align: look.align, rtl: look.rtl }}
+                          caret={caretAfterOpen.current}
+                          // A box whose words read right to left is typed that way.
+                          dir={editing.row == null && s?.text?.paragraphs?.some((p) => p.rtl) ? 'rtl' : undefined}
+                          anchor={editing.row == null ? s?.text?.anchor || 'top' : cell?.anchor || 'top'}
+                          // The words are typed where they stand: a turned shape's editor turns with it.
+                          style={box ? { left: box.x, top: box.y, width: box.w, minHeight: box.h, transform: editing.row == null && s?.geometry?.rot ? `rotate(${s.geometry.rot}deg)` : undefined } : {}}
+                          onCaret={(c) => { lastCaret.current = { id: editing.id, row: editing.row ?? null, col: editing.col ?? null, slide: index, ...c }; }}
+                          onFormat={setEditFormat}
+                          onCancel={() => setEditing(null)}
+                          onCommit={commit}
+                          onKey={(e, { commit: done }) => {
+                            if (editing.row == null) {
+                              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); done(); }
+                              return;
+                            }
+                            // A table cell: Enter commits (Shift+Enter is a new
+                            // line), Tab commits and moves on to the next cell:
+                            // PowerPoint's own keys.
+                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); done(); return; }
+                            if (e.key === 'Tab') {
+                              e.preventDefault();
+                              const cols = s?.table?.cols || 1;
+                              const rows = s?.table?.rows || 1;
+                              let row = editing.row;
+                              let col = editing.col + (e.shiftKey ? -1 : 1);
+                              if (col >= cols) { col = 0; row += 1; }
+                              if (col < 0) { col = cols - 1; row -= 1; }
+                              commitTableCell(editing.id, editing.row, editing.col, richEditor.current?.paragraphs || []).then((next) => {
+                                if (row < 0 || row >= rows) return;
+                                const ns = next?.model?.slide?.shapes?.find((x) => x.id === editing.id);
+                                const nextCell = ns?.table?.cells?.[row]?.[col];
+                                setEditing({ id: editing.id, row, col, text: (nextCell?.paragraphs || []).map((p) => p.plain).join('\n') });
+                              });
+                            }
+                          }}
+                        />
+                      </>
+                    );
+                  })() : null}
                 </div>
                 </div>
               ) : (
@@ -4414,6 +4426,13 @@ const CSS = `
   position: absolute; border: 2px solid var(--accent); border-radius: 3px; padding: 4px 6px;
   font: inherit; font-size: 15px; background: #fff; color: #111; resize: none; outline: none; z-index: 5;
 }
+/* The box editor: the words in their own look, over the box's fill, the box's insets round them. */
+.sl-editor.sl-rich {
+  box-sizing: border-box; padding: 3.6px 7.2px; border: 1px dashed var(--accent); border-radius: 0;
+  background: transparent; color: #1a1a1a; line-height: 1.2; cursor: text; overflow: visible; overflow-wrap: break-word;
+}
+.sl-rich > div { margin: 0; }
+.sl-rich > div[data-bullet]::before { content: attr(data-bullet); display: inline-block; min-width: 1.1em; margin-inline-end: 0.25em; }
 .sl-notes {
   border-top: 1px solid var(--line); background: var(--chrome); padding: 9px 18px;
   font-size: 12.5px; color: var(--ink-2); max-height: 110px; overflow: auto; white-space: pre-wrap;

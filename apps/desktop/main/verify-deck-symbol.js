@@ -1,10 +1,10 @@
-// Presentations: Insert → Symbol puts its character where the caret was.
+// Presentations: Insert → Symbol puts its character where the caret is.
 //
-// A ribbon press takes the focus from the box being edited — which commits
-// the words and closes the editor — so the check does the same: it opens a
-// text box, puts the caret after its second character, lets the box go as a
-// press of the ribbon would, presses Symbol, picks a character, and reads the
-// slide's words in the engine and the reopened editor's caret.
+// The box stays open while the ribbon and the Symbol dialog are used, as in
+// PowerPoint: the check opens a text box, puts the caret after its second
+// character, presses Symbol on the Insert tab, picks a character, reads the
+// editor's words and caret, then leaves the box and reads the slide's words
+// in the engine.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,8 +36,8 @@ export async function verifyDeckSymbol(h, { dir }) {
       return 'opened';
     })()`);
     await until(() => js(`Boolean(document.querySelector('.sl-editor'))`), 'the editor', 4000).catch(() => {});
-    await js(`(() => { const el = document.querySelector('.sl-editor'); el.focus(); el.setSelectionRange(2, 2); el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'ArrowRight' })); el.blur(); return 1; })()`);
-    await until(() => js(`!document.querySelector('.sl-editor')`), 'the editor to close', 3000).catch(() => {});
+    await js(`(() => { const el = document.querySelector('.sl-editor'); el.focus(); const t = document.createTreeWalker(el, NodeFilter.SHOW_TEXT).nextNode(); const r = document.createRange(); r.setStart(t, 2); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return 1; })()`);
+    await wait(150);
 
     await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
     await wait(250);
@@ -47,14 +47,15 @@ export async function verifyDeckSymbol(h, { dir }) {
     await js(`(() => { [...document.querySelectorAll('.rw-dialog .ml-filter')].find((n) => n.textContent.trim() === 'Currency')?.click(); return 1; })()`);
     await until(() => js(`[...document.querySelectorAll('.wd-symbol')].some((n) => n.textContent === '€')`), 'the currency symbols', 3000).catch(() => {});
     const picked = await js(`(() => { const b = [...document.querySelectorAll('.wd-symbol')].find((n) => n.textContent === '€'); if (!b) return 'no euro'; b.click(); return 'picked'; })()`);
+    await until(() => js(`document.querySelector('.sl-editor')?.innerText.trim() === 'Pr€ice'`), 'the euro in the editor', 4000).catch(() => {});
+    const caret = await js(`(() => { const el = document.querySelector('.sl-editor'); const s = getSelection(); return el ? { value: el.innerText.trim(), at: s.anchorOffset } : null; })()`);
+    // Leaving the box keeps its words.
+    await js(`(() => { document.querySelector('.sl-editor')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); return 1; })()`);
     const landed = await until(() => titleText() === 'Pr€ice', 'the euro in the title', 5000).then(() => true).catch(() => false);
-    await until(() => js(`Boolean(document.querySelector('.sl-editor'))`), 'the editor to reopen', 3000).catch(() => {});
-    const caret = await js(`(() => { const el = document.querySelector('.sl-editor'); return el ? { value: el.value, at: el.selectionStart } : null; })()`);
-    check('presentations: Insert → Symbol puts its character where the caret stood in the box, and the box reopens with the caret just past it',
+    check('presentations: Insert → Symbol puts its character where the caret stands in the box being typed in, the caret just past it, and leaving the box keeps it',
       opened === 'opened' && pressed === 'clicked' && picked === 'picked' && landed === true && caret?.value === 'Pr€ice' && caret?.at === 3,
       JSON.stringify({ opened, pressed, picked, text: titleText(), caret }));
     check('presentations: the Symbol dialog lays its characters in a grid in this window too', grid === 'grid', `display ${grid}`);
-    await js(`(() => { document.querySelector('.sl-editor')?.blur(); return 1; })()`);
   } catch (err) {
     check('presentations: the Symbol checks ran', false, err.message);
   }

@@ -201,7 +201,7 @@ export async function verifyRotateFrameDeck(h, { dir }) {
     const mid = await centreOnScreen('Box');
     await mouse.click(mid, { count: 2 });
     await until(() => js(`Boolean(document.querySelector('.sl-editor'))`), 'the editor', 3000).catch(() => null);
-    const editor = await js(`(() => { const e = document.querySelector('.sl-editor'); return e ? { value: e.value, turn: e.style.transform } : null; })()`);
+    const editor = await js(`(() => { const e = document.querySelector('.sl-editor'); return e ? { value: e.innerText.trim(), turn: e.style.transform } : null; })()`);
     await shoot(win, wait, 'rotate-frame-deck-editing.png');
     check('rotate-frame-deck: a double-click on the turned box\'s words opens them for typing, the editor turned with the box',
       editor?.value === 'Turn me' && /rotate\(30deg\)/.test(editor?.turn || ''), JSON.stringify(editor));
