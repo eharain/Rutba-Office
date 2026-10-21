@@ -535,9 +535,13 @@ export class Base {
     return { layout: l, fields, ...reportData(l, records, shownAs) };
   }
 
-  /** The choices for a lookup: each record of `table` by its `field`, shown as `show`, at most `limit`. */
+  /** The choices for a lookup: each record of `table` by its `field`, shown as `show` (a field, or several), at most `limit`. */
   lookup({ table, field, show, limit = 2000 }) {
-    const rows = this.db.prepare(`SELECT ${q(field)} AS value, ${q(show || field)} AS text FROM ${q(table)} ORDER BY ${q(show || field)} LIMIT ?`).all(limit);
+    // Two fields or more (a first and a last name) are shown together, a space between, and listed by the last.
+    const shown = Array.isArray(show) && show.length ? show : [show || field];
+    const text = shown.length > 1 ? `TRIM(${shown.map((f) => `COALESCE(${q(f)}, '')`).join(" || ' ' || ")})` : q(shown[0]);
+    const order = shown.length > 1 ? `${q(shown[shown.length - 1])}, ${text}` : text;
+    const rows = this.db.prepare(`SELECT ${q(field)} AS value, ${text} AS text FROM ${q(table)} ORDER BY ${order} LIMIT ?`).all(limit);
     return rows.map((r) => ({ value: r.value, text: r.text == null ? String(r.value) : String(r.text) }));
   }
 

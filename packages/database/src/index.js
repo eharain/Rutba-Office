@@ -4,3 +4,4 @@ export { importRows, importSheets, inferType } from './import.js';
 export { designToSql, criterionSql, joinsFor } from './query-design.js';
 export { wizardForm, labelFor, shownField, valueFromControl, GRID } from './form-design.js';
 export { wizardReport, reportData, total } from './report-design.js';
+export { TEMPLATE_IDS, templateTables, buildTemplate } from './templates.js';

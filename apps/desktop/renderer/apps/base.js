@@ -13,6 +13,15 @@ import { QueryDesigner, QUERY_CSS } from './base/queries.js';
 import { FormView, FORM_CSS } from './base/forms.js';
 import { ReportView, REPORT_CSS } from './base/reports.js';
 
+/** The ready-made databases the start screen offers, in the engine's order (packages/database/src/templates.js). */
+const TEMPLATES = [
+  { id: 'contacts', icon: 'contacts', name: () => t('Contacts'), line: () => t('People and how to reach them, with a phone list to print.') },
+  { id: 'inventory', icon: 'archive', name: () => t('Inventory'), line: () => t('Products, their suppliers and stock movements, and what is running low.') },
+  { id: 'membership', icon: 'star', name: () => t('Membership'), line: () => t('Members, their payments and the renewals coming due.') },
+  { id: 'crm', icon: 'chartColumn', name: () => t('Customers and sales'), line: () => t('Companies, their people, open opportunities and each call or meeting.') },
+  { id: 'library', icon: 'list', name: () => t('Lending library'), line: () => t('Books, borrowers and loans, and what is out and when it is due back.') },
+];
+
 export const TYPE_NAMES = () => ({
   autonumber: t('AutoNumber'),
   text: t('Short text'),
@@ -427,6 +436,22 @@ export default function Databases({ app, shell, boot }) {
     }
   }, [shell, show, toast]);
 
+  const fromTemplate = useCallback(async (tpl) => {
+    const file = await shell.dialog.save({ title: t('New Database'), defaultPath: `${tpl.name()}.rbase`, filters: [{ name: t('Rutba Database (.rbase)'), extensions: ['rbase'] }] });
+    if (!file) return;
+    setBusy(true);
+    try {
+      const s = await shell.base.createFromTemplate({ file: /\.rbase$/i.test(file) ? file : `${file}.rbase`, template: tpl.id });
+      show(s);
+      setView('data');
+      shell.app.addRecent({ path: s.file, app: 'base' }).catch(() => {});
+    } catch (e) {
+      toast(e.message, { tone: 'bad', ms: 7000 });
+    } finally {
+      setBusy(false);
+    }
+  }, [shell, show, toast]);
+
   const openDialog = useCallback(async () => {
     const file = await pickOpen(shell, 'base');
     if (file) openFile(file);
@@ -507,6 +532,17 @@ export default function Databases({ app, shell, boot }) {
             >
               {t('Tables of records you keep, related to each other, in one file on this computer.')}
             </Empty>
+            <section className="bs-templates" aria-label={t('Ready-made databases')}>
+              <h2>{t('Or start from a ready-made one')}</h2>
+              <div className="bs-template-grid">
+                {TEMPLATES.map((tpl) => (
+                  <button key={tpl.id} type="button" className="bs-template" data-template={tpl.id} disabled={busy} onClick={() => fromTemplate(tpl)}>
+                    <span className="bs-template-icon"><Icon name={tpl.icon} size={18} /></span>
+                    <span className="bs-template-words"><strong>{tpl.name()}</strong><small>{tpl.line()}</small></span>
+                  </button>
+                ))}
+              </div>
+            </section>
           </div>
         </Content>
         <style>{BASE_CSS}</style>

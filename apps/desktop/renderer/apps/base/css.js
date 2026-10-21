@@ -1,7 +1,19 @@
 // Databases' look: a list of tables, a sheet of records, nothing more than is needed.
 
 export const BASE_CSS = `
-.bs-start { height: 100%; display: grid; place-items: center; }
+.bs-start { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px 16px; box-sizing: border-box; }
+.bs-start > .rw-empty { flex: none; padding-bottom: 20px; }
+.bs-templates { width: min(760px, 100%); }
+.bs-templates h2 { margin: 0 0 10px; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); text-align: center; }
+.bs-template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.bs-template { display: flex; align-items: flex-start; gap: 10px; padding: 12px; text-align: start; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-3, 8px); cursor: pointer; }
+.bs-template:hover { border-color: var(--accent); box-shadow: var(--shadow-1); }
+.bs-template:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bs-template:disabled { opacity: .6; cursor: default; }
+.bs-template-icon { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-2); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.bs-template-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bs-template-words strong { font-size: 13.5px; font-weight: 600; }
+.bs-template-words small { font-size: 12px; color: var(--ink-2); line-height: 1.35; }
 .bs-start-actions { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 14px; }
 
 .bs-app { flex: 1; width: 100%; height: 100%; display: flex; min-height: 0; min-width: 0; }

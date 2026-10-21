@@ -337,6 +337,7 @@ export const METHODS = {
   // Databases: a database is one SQLite file, held here while a window has it open (apps/desktop/main/base.js).
   base: [
     'create',       // ({ file }) -> summary   a new database at file
+    'createFromTemplate', // ({ file, template }) -> summary   a new database from a ready-made one
     'open',         // ({ file }) -> summary   a .rbase, or any SQLite database
     'close',        // ({ id }) -> { closed }
     'summary',      // ({ id }) -> { id, file, name, tables: [{ name, caption, count }], relationships, steps }

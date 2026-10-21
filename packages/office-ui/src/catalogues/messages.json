@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7502,
+  "count": 7513,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -5142,6 +5142,12 @@
       ]
     },
     {
+      "message": "Books, borrowers and loans, and what is out and when it is due back.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Borders",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -8029,6 +8035,12 @@
       ]
     },
     {
+      "message": "Companies, their people, open opportunities and each call or meeting.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Company",
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
@@ -8246,6 +8258,7 @@
     {
       "message": "Contacts",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
@@ -9205,6 +9218,12 @@
       "message": "Custom watermark…",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Customers and sales",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -17922,6 +17941,12 @@
       ]
     },
     {
+      "message": "Inventory",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Inverse",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -19141,6 +19166,12 @@
       "message": "Legal — 8.5 × 14 in",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Lending library",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -20913,6 +20944,18 @@
       "message": "Meeting minutes",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "Members, their payments and the renewals coming due.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Membership",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -25131,6 +25174,12 @@
       ]
     },
     {
+      "message": "Or start from a ready-made one",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Orange",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -26089,6 +26138,12 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/parts.js",
         "apps/desktop/renderer/apps/video/library-words.js"
+      ]
+    },
+    {
+      "message": "People and how to reach them, with a phone list to print.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -27516,6 +27571,12 @@
       ]
     },
     {
+      "message": "Products, their suppliers and stock movements, and what is running low.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Program",
       "where": [
         "apps/desktop/renderer/apps/recorder.js"
@@ -28207,6 +28268,12 @@
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
+      "message": "Ready-made databases",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {

@@ -29,8 +29,16 @@ export function labelFor(name) {
   return words.map((w, i) => (/^[A-Z0-9:]+$/.test(w) && w.length > 1 ? w : i ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1).toLowerCase())).join(' ');
 }
 
-/** The field a table's records are best known by: its first text field, else its first field. */
+/**
+ * The field a table's records are best known by: its first text field, else
+ * its first field. A person's First Name and Last Name are both, as a list of
+ * two, so a borrower is Amira Haddad and not Amira.
+ */
 export function shownField(fields) {
+  const named = (re) => fields.find((f) => f.type === 'text' && re.test(f.name))?.name;
+  const first = named(/^(first|given)[ _]?name$/i);
+  const last = named(/^(last|family)[ _]?name$|^surname$/i);
+  if (first && last) return [first, last];
   return (fields.find((f) => f.type === 'text') || fields.find((f) => f.type !== 'autonumber') || fields[0])?.name;
 }
 
