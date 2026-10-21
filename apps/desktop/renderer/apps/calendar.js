@@ -514,7 +514,38 @@ export default function Calendar({ app, shell, boot }) {
         byDay.get(k).push(s);
       }
     }
-    const dayList = (d) => (byDay.get(isoDate(d)) || []).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start);
+    const order = (a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start;
+    // An event over several days keeps one row through each week it crosses, its pieces joined from day to day as
+    // one bar: the rows are given out a week at a time, longest first, each the lowest free on all its days there.
+    const lanes = new Map(); // week index -> Map(slot -> lane)
+    for (let w = 0; w < 6; w++) {
+      const weekFirst = days[w * 7];
+      const weekLast = days[w * 7 + 6];
+      const spanning = visible.filter((sl) => { const { first, last } = slotDays(sl); return last > first && first <= weekLast && last >= weekFirst; })
+        .sort((a, b) => slotDays(a).first - slotDays(b).first || (slotDays(b).last - slotDays(b).first) - (slotDays(a).last - slotDays(a).first) || order(a, b));
+      const taken = []; // lane -> Set of day indexes in the week
+      const mine = new Map();
+      for (const sl of spanning) {
+        const { first, last } = slotDays(sl);
+        const from = Math.max(0, Math.round((first - weekFirst) / DAY));
+        const to = Math.min(6, Math.round((last - weekFirst) / DAY));
+        let lane = 0;
+        while (taken[lane] && [...Array(to - from + 1).keys()].some((k) => taken[lane].has(from + k))) lane++;
+        taken[lane] ||= new Set();
+        for (let k = from; k <= to; k++) taken[lane].add(k);
+        mine.set(sl, lane);
+      }
+      lanes.set(w, mine);
+    }
+    /** A day's chips: its events over several days in their rows (an empty row kept where one does not reach), then the rest. */
+    const dayList = (d, index) => {
+      const all = (byDay.get(isoDate(d)) || []).slice().sort(order);
+      const mine = lanes.get(Math.floor(index / 7));
+      const rows = [];
+      for (const sl of all) if (mine.has(sl)) rows[mine.get(sl)] = sl;
+      const spans = Array.from({ length: rows.length }, (_, i) => rows[i] || null);
+      return [...spans, ...all.filter((sl) => !mine.has(sl))];
+    };
     // Until the first measure, a guess; the measure comes before the first paint.
     const fit = monthFit || { all: 3, withMore: 2 };
     const peekDay = peek ? days.find((d) => isoDate(d) === peek.day) : null;
@@ -522,8 +553,8 @@ export default function Calendar({ app, shell, boot }) {
       <div className="cal-month" ref={monthRef}>
         <div className="cal-month-head">{DAYS.map((d) => <div key={d}>{d}</div>)}</div>
         <div className="cal-month-grid" data-fit={monthFit ? `${monthFit.all}/${monthFit.withMore}` : ''}>
-          {days.map((d) => {
-            const list = dayList(d);
+          {days.map((d, index) => {
+            const list = dayList(d, index);
             const shown = list.length > fit.all ? list.slice(0, fit.withMore) : list;
             const more = list.length > shown.length ? (
               <button
@@ -556,7 +587,17 @@ export default function Calendar({ app, shell, boot }) {
                   {hijri ? <span className="cal-day-h">{hijriLabel(d)}</span> : <span />}
                   <div className="cal-day-n">{d.getDate() === 1 ? `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}` : d.getDate()}</div>
                 </div>
-                {shown.map((s, i) => chip(s, `${s.id}-${s.original}-${i}`))}
+                {shown.map((s, i) => {
+                  if (!s) return <span key={`gap-${i}`} className="cal-chip-gap" aria-hidden="true" />;
+                  const { first, last } = slotDays(s);
+                  if (last <= first) return chip(s, `${s.id}-${s.original}-${i}`);
+                  // A piece of the bar: joined to the day before and after within the week, its words where it starts.
+                  const column = index % 7;
+                  const before = d > first && column > 0;
+                  const after = d < last && column < 6;
+                  const lead = !before;
+                  return chip(s, `${s.id}-${s.original}-${i}`, ` span${before ? ' from-before' : ''}${after ? ' to-after' : ''}${lead ? '' : ' quiet'}`);
+                })}
                 {more}
               </div>
             );
@@ -593,7 +634,7 @@ export default function Calendar({ app, shell, boot }) {
               </button>
               <button type="button" className="cal-peek-x" aria-label={t('Close')} onClick={() => setPeek(null)}><Icon name="close" size={14} /></button>
             </div>
-            <div className="cal-peek-list">{dayList(peekDay).map((s, i) => chip(s, `${s.id}-${s.original}-${i}`))}</div>
+            <div className="cal-peek-list">{(byDay.get(isoDate(peekDay)) || []).slice().sort(order).map((s, i) => chip(s, `${s.id}-${s.original}-${i}`))}</div>
           </div>
         ) : null}
       </div>
@@ -684,9 +725,15 @@ export default function Calendar({ app, shell, boot }) {
   const agendaView = () => {
     const groups = new Map();
     for (const s of visible) {
-      const k = isoDate(slotDays(s).first);
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k).push(s);
+      const { first, last } = slotDays(s);
+      const count = Math.round((last - first) / DAY) + 1;
+      for (let n = 0, d = first; d <= last; n++, d = addDays(d, 1)) {
+        // Only the days inside the thirty: an event begun last week shows from today.
+        if (d < range.from || d >= range.to) continue;
+        const k = isoDate(d);
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(count > 1 ? { ...s, dayOf: { n: n + 1, count } } : s);
+      }
     }
     const keys = [...groups.keys()].sort();
     return (
@@ -699,7 +746,7 @@ export default function Calendar({ app, shell, boot }) {
               <div className="cal-agenda-list">
                 {groups.get(k).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start).map((s, i) => (
                   <button type="button" key={`${s.id}-${i}`} className="cal-agenda-item" style={{ '--c': s.colour }} onClick={() => openSlot(s)}>
-                    <span className="t">{s.allDay ? t('all day') : `${clock(s.start)} – ${clock(s.end)}`}</span>
+                    <span className="t">{s.dayOf ? t('Day {n} of {count}', s.dayOf) : s.allDay ? t('all day') : `${clock(s.start)} – ${clock(s.end)}`}</span>
                     <span className="s">{s.summary}</span>
                     {s.location ? <span className="l">{s.location}</span> : null}
                   </button>
@@ -989,6 +1036,11 @@ const CSS = `
 .cal-chip .t { color: var(--ink-3); flex: none; }
 .cal-chip.allday .t { color: white; }
 .cal-chip .s { overflow: hidden; text-overflow: ellipsis; }
+/* An event over several days: its pieces reach the cell's edges and join as one bar; only the first piece in a week has words. */
+.cal-chip.span.from-before { margin-left: -4px; border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; padding-left: 9px; }
+.cal-chip.span.to-after { margin-right: -4px; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.cal-chip.span.quiet .s, .cal-chip.span.quiet .t { visibility: hidden; }
+.cal-chip-gap { flex: none; height: 16px; }
 /* At the foot of the day, under the events it did not have room for. */
 .cal-more, .cal-probe-more { flex: none; margin-top: auto; align-self: flex-start; border: 0; border-radius: 3px; background: none; font: inherit; font-size: 11px; line-height: 14px; font-weight: 600; color: var(--accent-text); text-align: left; padding: 0 5px; cursor: pointer; }
 .cal-more:hover { background: var(--hover); }
