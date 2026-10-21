@@ -14,7 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clipboard } from 'electron';
+import { clipboard } from '@rutba/office-shell/electron/clipboard';
 import pdfWriter from '@rutba/pdf';
 import pdfReader from '@rutba/pdf/reader';
 import pdfForms from '@rutba/pdf/forms';
@@ -55,7 +55,7 @@ export async function verifyPdfFields(h, { dir }) {
   scannedPdf(file, ['invoice-eng.png', 'form-eng.png']);
   const truth = JSON.parse(fs.readFileSync(fixture('invoice-eng.json'), 'utf8')).fields;
   const formTruth = JSON.parse(fs.readFileSync(fixture('form-eng.json'), 'utf8')).checkboxes;
-  const keptText = await clipboard.readText();
+  const keptText = await clipboard().readText();
 
   const win = await open('pdf', file);
   const wc = win.webContents;
@@ -116,10 +116,10 @@ export async function verifyPdfFields(h, { dir }) {
       Boolean(mark) && mark.x > 0.7 && mark.y > 0.38 && mark.y < 0.46 && mark.w < 0.2, JSON.stringify(mark));
 
     // Copy as a Row: the sheet's columns, tab apart.
-    await clipboard.writeText('');
+    await clipboard().writeText('');
     await js(`document.querySelector('[data-role="found-card"][data-kind="invoice"] [data-role="found-copy-row"]')?.click(), 1`);
-    await until(async () => (await clipboard.readText()).length > 0, 'the row copied', 4000).catch(() => {});
-    const row = (await clipboard.readText()).split('\t');
+    await until(async () => (await clipboard().readText()).length > 0, 'the row copied', 4000).catch(() => {});
+    const row = (await clipboard().readText()).split('\t');
     check('pdf-fields: Copy as a Row puts the invoice on the clipboard as one row of date, supplier, number, subtotal, tax, total and currency',
       row.length === 7 && row[0] === truth.date && row[2] === truth.number && row[5] === truth.total.toFixed(2) && row[6] === truth.currency, JSON.stringify(row));
 
@@ -160,7 +160,7 @@ export async function verifyPdfFields(h, { dir }) {
     const errors = await errorsIn(win);
     check('pdf-fields: no error was shown', !errors.length, errors.join(' | '));
   } finally {
-    await clipboard.writeText(keptText || '');
+    await clipboard().writeText(keptText || '');
     await js(`localStorage.removeItem('rutba-ocr-languages'), 1`).catch(() => {});
   }
 }

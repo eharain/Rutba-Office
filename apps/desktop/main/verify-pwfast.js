@@ -239,12 +239,20 @@ export async function verifyPwFast(h, { dir }) {
           await until(() => sjs(`Boolean(document.querySelector('.pw-info-close'))`), 'Info again', 5000).catch(() => {});
           await click(sjs, '.pw-info-close');
           await sjs(`[...document.querySelectorAll('.rw-btn')].find((b) => (b.dataset.tip || b.title || '').startsWith('Save'))?.click()`);
-          saved = await until(() => isEncryptedPackage(fs.readFileSync(book)), 'the encrypted save', 20000).catch(() => false);
+          // While keys are timed, only the file's first eight bytes are read (an encrypted
+          // workbook is a compound file): reading and parsing the whole of it here, on the
+          // main process the keys pass through, held the last key past its budget.
+          saved = await until(async () => {
+            const fh = await fs.promises.open(book, 'r');
+            try { const head = Buffer.alloc(8); await fh.read(head, 0, 8, 0); return head.readUInt32LE(0) === 0xe011cfd0; } finally { await fh.close(); }
+          }, 'the encrypted save', 20000).catch(() => false);
         })();
       }
       return !saved;
     }, { gap: 60 });
     await saving;
+    // The keys done: now the whole file, checked as an encrypted package.
+    saved = saved === true && isEncryptedPackage(fs.readFileSync(book));
     let opens = false;
     try {
       opens = (await host.decrypt(fs.readFileSync(book), ENCRYPT)).bytes.length > 0;

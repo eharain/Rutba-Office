@@ -8,7 +8,7 @@
 // Every handler receives the calling window, because almost everything an
 // office app asks for is about *this* document window, not about the app.
 
-import { app, BrowserWindow, dialog, shell, nativeTheme, clipboard, desktopCapturer, screen, nativeImage, session, globalShortcut, Tray, Menu } from 'electron';
+import { app, BrowserWindow, dialog, shell, nativeTheme, desktopCapturer, screen, nativeImage, session, Tray, Menu } from 'electron';
 import fsp from 'node:fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,7 +20,8 @@ import { runsWhenOpened } from '../runs.js';
 import { writeWhole } from '../write-whole.js';
 import { grantPlace } from './grants.js';
 import { speakAs, t } from './words.js';
-import { readHTML, readImage, writeImage, writeParts } from './clipboard.js';
+import { readHTML, readImage, writeImage, writeParts, readText, writeText } from './clipboard.js';
+import { shortcuts } from './shortcuts.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -426,13 +427,13 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     // Every call answers once the clipboard has taken or given its part, so a
     // window that awaits a write can read it back at once.
     writeText: async ({ text }) => {
-      await clipboard.writeText(text ?? '');
+      await writeText(text ?? '');
     },
-    readText: () => clipboard.readText(),
+    readText: () => readText(),
     write: async ({ text, html }) => {
       await writeParts({ text: text ?? '', html });
     },
-    read: async () => ({ text: await clipboard.readText(), html: await readHTML() }),
+    read: async () => ({ text: await readText(), html: await readHTML() }),
     // Image: Copy puts the picture on the clipboard, Paste takes one off it.
     writeImage: async ({ bytes }) => {
       const picture = nativeImage.createFromBuffer(Buffer.from(bytes || []));
@@ -505,8 +506,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     const h = held;
     held = null;
     if (!h) return;
+    for (const k of Object.values(KEYS)) { try { shortcuts().unregister(k); } catch { /* not ours */ } }
     if (!CHECK) {
-      for (const k of Object.values(KEYS)) { try { globalShortcut.unregister(k); } catch { /* not ours */ } }
       try { h.tray?.destroy(); } catch { /* gone */ }
       if (h.minimised && !h.win.isDestroyed()) { h.win.restore(); h.win.focus(); }
     }
@@ -632,7 +633,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     pictureKey: ({ on = false }, win) => {
       const release = () => {
         if (!pictureHeld) return;
-        if (!CHECK) { try { globalShortcut.unregister(PICTURE_KEY); } catch { /* not ours */ } }
+        try { shortcuts().unregister(PICTURE_KEY); } catch { /* not ours */ }
         if (!pictureHeld.win.isDestroyed()) pictureHeld.win.removeListener('closed', pictureHeld.onClosed);
         pictureHeld = null;
         if (CHECK) globalThis.__rutbaPictureKey = null;
@@ -644,8 +645,9 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       const onClosed = () => release();
       win.once('closed', onClosed);
       pictureHeld = { win, onClosed };
-      if (CHECK) globalThis.__rutbaPictureKey = { press: () => { send(); return true; } };
-      else { try { globalShortcut.register(PICTURE_KEY, send); } catch { /* taken by another program */ } }
+      try { shortcuts().register(PICTURE_KEY, send); } catch { /* taken by another program */ }
+      // A check presses the key through the stand-in shortcuts it was given.
+      if (CHECK) globalThis.__rutbaPictureKey = { press: () => Boolean(shortcuts().press?.(PICTURE_KEY)) };
       return { key: SHOWN_PICTURE_KEY };
     },
     controls: ({ on = false, paused = false, minimise = false }, win) => {
@@ -663,12 +665,13 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       const onClosed = () => releaseControls();
       win.once('closed', onClosed);
       held = { win, tray: null, minimised: false, onClosed };
+      try { shortcuts().register(KEYS.stop, () => send('stop')); } catch { /* taken by another program */ }
+      try { shortcuts().register(KEYS.pause, () => send('pause')); } catch { /* taken by another program */ }
       if (CHECK) {
-        globalThis.__rutbaCaptureControls = { on: true, keys: SHOWN_KEYS, press: (command) => { send(command); return true; } };
+        // No tray and nothing minimised under the checks; the keys are pressed through the stand-in shortcuts.
+        globalThis.__rutbaCaptureControls = { on: true, keys: SHOWN_KEYS, press: (command) => Boolean(shortcuts().press?.(KEYS[command])) };
         return { stop: SHOWN_KEYS.stop, pause: SHOWN_KEYS.pause, tray: false };
       }
-      try { globalShortcut.register(KEYS.stop, () => send('stop')); } catch { /* taken by another program */ }
-      try { globalShortcut.register(KEYS.pause, () => send('pause')); } catch { /* taken by another program */ }
       try {
         if (iconPath) {
           speakAs(stores);

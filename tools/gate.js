@@ -1,38 +1,42 @@
-// Everything, in the order that finds problems soonest.
+// Everything before a release, in lanes so that what can run side by side does.
 //
 //   npm run gate
 //   npm run gate -- --record     and write what it counted into the release
 //                                note and the README (a full run that passed)
-//   npm run gate -- --apps word,mail   the window checks of those apps only
-//   npm run gate -- --changed    the window checks of the apps changed since
+//   npm run gate -- --apps word,mail   the window checks of those chunks only
+//   npm run gate -- --changed    the window checks of the chunks changed since
 //                                the last release tag (all of them when what
 //                                every app shares has changed)
 //   npm run gate -- --resume     carry on from the last run on this commit:
-//                                the passes and the apps that passed are not
-//                                run again, and --record adds the runs up
+//                                what passed is not run again, and --record
+//                                adds the runs up
+//   npm run gate -- --jobs 3     how many check processes side by side
+//                                (otherwise from the processors and memory)
+//   npm run gate -- --serial     one process, every check in turn, as before
 //
-// Five passes, each answering a question the one before it cannot:
+// The order (owner, 2026-10-21: "splitting this long running gate into
+// smaller chunks is very important so that lighter or non locking parts can
+// be run in parallel"):
 //
-//   test          do the engines do what they say? no windows.
-//   test:perf     does a large file still open, recalculate and save in
-//                 seconds? run alone, after the suite: a budget timed while
-//                 the rest of the suite shares the cores measures the machine
-//                 (on a four-core laptop a recalculation of 13 s of its own
-//                 CPU took 20 to 23 s beside the suite).
-//   verify:edit   do keystrokes reach the document? two real windows.
-//   verify:apps   does each app open, change and save a real file? every window.
-//   smoke         does every window paint without logging anything?
+//   build         the windows bundled once, for every check process below.
+//   test:perf     the performance budgets, alone, while the machine is still:
+//                 a budget timed beside other work measures the machine.
+//   side by side  the engine tests, the editing checks and a window check
+//                 process a chunk (an app, or a part of what every app shares:
+//                 shell, look, access, languages), as many at once as the
+//                 processors and memory allow, the longest chunk first. Each
+//                 process has a clipboard and global shortcuts of its own
+//                 (machine-fakes.js), so none touches another's or the
+//                 person's; each logs to .gate/logs/<chunk>.log.
+//   machine       alone: the parts that need the computer to themselves (its
+//                 own clipboard and keys, checked through the system adapters,
+//                 timing budgets, drags, native copies).
+//   smoke         every window paints without logging anything.
 //
-// Unit tests first because they take seconds and catch most of it. The window
-// runs are slower, need a display, and are the only ones that can prove the
-// thing a person actually came for.
-//
-// Nothing here is optional before a release. A suite that cannot save is not a
-// suite, and the only way to know it still saves is to have watched it. With
-// --record the gate puts its own counts on the record: a Gate section in
-// docs/releases/v<version>.md saying where and when it ran and what each
-// pass counted, and the README's counts brought to the same numbers, so a
-// release says the gate ran rather than leaving it to be believed.
+// Nothing here is optional before a release. With --record the gate puts its
+// own counts on the record: a Gate section in docs/releases/v<version>.md
+// saying where and when it ran and what each pass counted, and the README's
+// counts brought to the same numbers.
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -48,7 +52,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * verify:apps names each part's app; 'shell' is what every app shares. A run
  * can be limited to some apps, and picks up after the apps that passed.
  */
-export const VERIFY_APPS = ['shell', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'recorder', 'talk', 'pdf', 'mail', 'calendar', 'contacts'];
+export const VERIFY_APPS = ['shell', 'look', 'access', 'languages', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'recorder', 'talk', 'pdf', 'mail', 'calendar', 'contacts'];
 
 /** The apps a changed file touches; 'shell' means every app. */
 export function appsForPath(file) {
@@ -60,7 +64,7 @@ export function appsForPath(file) {
     return VERIFY_APPS.includes(key) ? [key] : ['shell'];
   }
   const check = /^apps\/desktop\/main\/verify-([a-z]+)/.exec(f)?.[1];
-  if (check) return [{ word: 'word', sheet: 'sheets', deck: 'slides', slide: 'slides', mail: 'mail', video: 'video', recorder: 'recorder', talk: 'talk', pdf: 'pdf', picture: 'pictures', pictures: 'pictures', image: 'image', calendar: 'calendar', contacts: 'contacts' }[check] || 'shell'];
+  if (check) return [{ word: 'word', sheet: 'sheets', deck: 'slides', slide: 'slides', mail: 'mail', video: 'video', recorder: 'recorder', talk: 'talk', pdf: 'pdf', picture: 'pictures', pictures: 'pictures', image: 'image', calendar: 'calendar', contacts: 'contacts', ribbon: 'look', polish: 'look', dark: 'look', gallery: 'look', soon: 'look', panels: 'look', icons: 'look', a11y: 'access', keyboard: 'access', high: 'access', screen: 'access', dialog: 'access', lost: 'access', accessibility: 'access', urdu: 'languages', spelling: 'languages' }[check] || 'shell'];
   const service = /^apps\/desktop\/main\/([a-z]+)/.exec(f)?.[1];
   if (service) return [{ mail: 'mail', live: 'recorder', talk: 'talk', pdf: 'pdf', calendar: 'calendar', contacts: 'contacts', dav: 'calendar' }[service] || 'shell'];
   const pkg = /^packages\/([a-z-]+)\//.exec(f)?.[1];
@@ -83,7 +87,6 @@ export function appsForChanges(files) {
 const git = (...args) => { try { return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return ''; } };
 const STATE_DIR = path.join(ROOT, '.gate');
 const STATE = path.join(STATE_DIR, 'state.json');
-const PARTS = path.join(STATE_DIR, 'parts.json');
 /** What the last run on this commit, with this working tree, left to do. */
 function readState(head, tree) {
   try {
@@ -94,13 +97,6 @@ function readState(head, tree) {
   }
 }
 
-const PASSES = [
-  ['test', 'the engines', 'npm', ['test']],
-  ['test:perf', 'the performance budgets, run alone', 'npm', ['run', 'test:perf']],
-  ['verify:edit', 'typing reaches the document', 'npm', ['run', 'verify:edit']],
-  ['verify:apps', 'each app opens, changes and saves', 'npm', ['run', 'verify:apps']],
-  ['smoke', 'every window paints', 'npm', ['run', 'smoke']],
-];
 
 /** What each pass counted, read from the lines it ends with. */
 export function countsOf(name, output) {
@@ -187,25 +183,28 @@ export function withReadmeCounts(readme, counts) {
 const argv = process.argv.slice(2);
 const valueOf = (flag) => { const i = argv.indexOf(flag); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('-') ? argv[i + 1] : null; };
 const appsArg = valueOf('--apps');
-const only = argv.filter((a, i) => !a.startsWith('-') && argv[i - 1] !== '--apps');
+const jobsArg = valueOf('--jobs');
+const only = argv.filter((a, i) => !a.startsWith('-') && argv[i - 1] !== '--apps' && argv[i - 1] !== '--jobs');
 const quiet = argv.includes('--quiet');
 const record = argv.includes('--record');
 const resume = argv.includes('--resume');
 const changed = argv.includes('--changed');
+const serial = argv.includes('--serial');
 
-function run(command, args, env = {}) {
+/** Run a command; its output shown as it comes (unless quiet, or sent to `log`), and the end of it kept. */
+function run(command, args, env = {}, { log = null, cwd = ROOT } = {}) {
   return new Promise((resolve) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32', env: { ...process.env, ...env } });
-    // Shown as it comes (unless quiet), and the end of it kept: the counts
-    // are in the last lines, and a quiet run shows the tail of a failure.
+    const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32', env: { ...process.env, ...env } });
+    const file = log ? fs.createWriteStream(log) : null;
     let tail = '';
     const keep = (to) => (chunk) => {
-      if (!quiet) to.write(chunk);
+      if (file) file.write(chunk);
+      else if (!quiet) to.write(chunk);
       tail = (tail + chunk).slice(-200000);
     };
     child.stdout.on('data', keep(process.stdout));
     child.stderr.on('data', keep(process.stderr));
-    child.on('exit', (code) => resolve({ code: code ?? 1, tail }));
+    child.on('exit', (code) => { file?.end(); resolve({ code: code ?? 1, tail }); });
   });
 }
 
@@ -223,13 +222,11 @@ async function busyShare(ms) {
 }
 
 /**
- * The budgets are run alone, and alone means the machine has settled: the
- * engine tests before them write thousands of files that the virus scanner
- * goes on reading for a while, which held the main thread past its budget in
- * two of three gates for 2.2.0, where the same budgets passed on their own
- * every time. So before them the gate waits, up to two minutes, until the
- * processors have been under a quarter busy for three seconds running, and
- * says how long it waited and how busy the machine still was.
+ * The budgets are run alone, and alone means the machine has settled: files
+ * written just before are still being read by the virus scanner for a while,
+ * which held the main thread past its budget in two of three gates for 2.2.0.
+ * So the gate waits, up to two minutes, until the processors have been under
+ * a quarter busy for three seconds running.
  */
 async function settle(limitMs = 120_000) {
   const started = Date.now();
@@ -244,6 +241,48 @@ async function settle(limitMs = 120_000) {
   if (!quiet) console.log(`The machine settled for the budgets: waited ${waited} s, the processors ${Math.round(share * 100)}% busy.`);
 }
 
+/* ── the lanes ─────────────────────────────────────────────────────── */
+
+const TIMING = path.join(STATE_DIR, 'timing.json');
+const LOGS = path.join(STATE_DIR, 'logs');
+const PARTS_DIR = path.join(STATE_DIR, 'parts');
+/** A chunk's length the first time, before a run has measured it, in seconds. */
+const FIRST_GUESS = { shell: 900, look: 700, word: 420, sheets: 400, slides: 350, access: 300, mail: 300, video: 300, languages: 200, pdf: 150, image: 150, recorder: 90, pictures: 60, talk: 40, calendar: 40, contacts: 20 };
+
+/** The chunks in the order they start: the longest first, so the last to finish is a short one. */
+export function longestFirst(chunks, timing = {}) {
+  const len = (c) => timing[c] ?? FIRST_GUESS[c] ?? 120;
+  return [...chunks].sort((a, b) => len(b) - len(a) || chunks.indexOf(a) - chunks.indexOf(b));
+}
+
+/**
+ * How many check processes run side by side: one to each two and a half
+ * processors (a check process mostly waits on its windows) and to each 1.5 GB
+ * of free memory, at least one and at most four.
+ */
+export function jobsFor({ cpus = os.cpus().length, freeGb = os.freemem() / 2 ** 30 } = {}) {
+  return Math.max(1, Math.min(4, Math.floor(cpus / 2.5), Math.floor(freeGb / 1.5)));
+}
+
+/** Run `tasks` (functions answering promises), at most `limit` at once, in their order. */
+export async function pool(tasks, limit) {
+  const results = new Array(tasks.length);
+  let next = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= tasks.length) return;
+      results[i] = await tasks[i]();
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, tasks.length)) }, worker));
+  return results;
+}
+
+const readJson = (file) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; } };
+const secs = (ms) => (ms / 1000).toFixed(1);
+const say = (line) => { if (!quiet) console.log(line); };
+
 async function main() {
   const results = [];
   const counts = {};
@@ -256,89 +295,157 @@ async function main() {
     const since = git('describe', '--tags', '--abbrev=0');
     const files = [...git('diff', '--name-only', `${since}..HEAD`).split('\n'), ...git('diff', '--name-only').split('\n')].filter(Boolean);
     wanted = appsForChanges(files);
-    if (!quiet) console.log(`Changed since ${since}: ${files.length} files; the window checks of ${wanted.join(', ') || 'no app'}.`);
+    say(`Changed since ${since}: ${files.length} files; the window checks of ${wanted.join(', ') || 'no app'}.`);
   }
   const partial = wanted.length < VERIFY_APPS.length || only.length > 0;
+  const want = (name) => !only.length || only.includes(name);
 
   // The record of runs on this commit: started afresh unless resuming.
   const head = git('rev-parse', 'HEAD');
   const tree = git('status', '--porcelain', '--untracked-files=no');
-  fs.mkdirSync(STATE_DIR, { recursive: true });
-  const state = (resume && readState(head, tree)) || { head, tree, passes: {}, apps: {} };
+  for (const d of [STATE_DIR, LOGS, PARTS_DIR]) fs.mkdirSync(d, { recursive: true });
+  const state = (resume && readState(head, tree)) || { head, tree, passes: {}, apps: {}, machine: null };
+  state.apps ||= {};
   const save = () => fs.writeFileSync(STATE, JSON.stringify(state, null, 2));
-  if (resume && !state.passes.test && !Object.keys(state.apps).length && !quiet) console.log('Nothing to resume on this commit: a run from the start.');
+  if (resume && !state.passes.test && !Object.keys(state.apps).length) say('Nothing to resume on this commit: a run from the start.');
+  const timing = readJson(TIMING) || {};
+  const jobs = Math.max(1, Number(jobsArg) || jobsFor());
 
-  for (const [name, what, command, args] of PASSES) {
-    if (only.length && !only.includes(name)) continue;
-    let env = {};
-    if (name === 'verify:apps') {
-      const left = wanted.filter((a) => !(resume && state.apps[a]?.ok));
-      if (!left.length) {
-        if (!quiet) console.log(`\nverify:apps: every app asked for passed in the run before (${wanted.join(', ')}).`);
-        results.push({ name, what, ok: true, seconds: '0.0', resumed: true });
-        continue;
-      }
-      try { fs.rmSync(PARTS, { force: true }); } catch { /* none */ }
-      env = { RUTBA_VERIFY_PARTS: PARTS, ...(left.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: left.join(',') } : {}) };
-      if (!quiet && left.length < VERIFY_APPS.length) console.log(`\nverify:apps for ${left.join(', ')}${resume ? ' (the rest passed in the run before)' : ''}.`);
-    } else if (resume && state.passes[name]?.ok) {
-      if (!quiet) console.log(`\n${name}: passed in the run before on this commit.`);
+  /** A pass of its own (test, test:perf, verify:edit, smoke), its counts kept on the state. */
+  const pass = async (name, what, command, args, { log = null, env = {} } = {}) => {
+    if (resume && state.passes[name]?.ok) {
+      say(`${name}: passed in the run before on this commit.`);
       results.push({ name, what, ok: true, seconds: '0.0', resumed: true });
       if (state.passes[name].counts) counts[name] = state.passes[name].counts;
-      continue;
+      return true;
     }
-    if (name === 'test:perf') await settle();
-
     const started = Date.now();
-    if (!quiet) console.log(`\n\u001b[1m── ${name} — ${what} ─────────────────────────────\u001b[0m\n`);
-    const out = await run(command, args, env);
-    const { tail } = out;
-    const counted = countsOf(name, tail);
+    if (!log) say(`\n\u001b[1m── ${name}: ${what} ─────────────────────────────\u001b[0m\n`);
+    else say(`  [${name}] started`);
+    const out = await run(command, args, env, { log });
+    const counted = countsOf(name, out.tail);
     // A pass that counts and ended without its count did not finish, whatever it exited with.
     const code = out.code === 0 && name !== 'test' && name !== 'test:perf' && !counted ? 1 : out.code;
-    if (code !== out.code && !quiet) console.log(`\n${name} ended without saying what it counted: it did not finish.`);
-    const seconds = ((Date.now() - started) / 1000).toFixed(1);
-    results.push({ name, what, ok: code === 0, seconds });
+    if (code !== out.code) say(`${name} ended without saying what it counted: it did not finish.`);
+    results.push({ name, what, ok: code === 0, seconds: secs(Date.now() - started), log });
     if (counted) counts[name] = counted;
-    if (name === 'verify:apps') {
-      // Each app's own counts; an app with a check that failed is run again on --resume.
-      let parts = null;
-      try { parts = JSON.parse(fs.readFileSync(PARTS, 'utf8')).apps; } catch { /* the run ended before writing them */ }
-      const asked = env.RUTBA_VERIFY_APPS ? env.RUTBA_VERIFY_APPS.split(',') : VERIFY_APPS;
-      if (parts) for (const a of asked) {
-        const p = parts[a] || { passed: 0, of: 0, failed: [] };
-        state.apps[a] = { ok: p.failed.length === 0, passed: p.passed, of: p.of, failed: p.failed };
-      }
-      const apps = Object.entries(state.apps);
-      if (apps.length) counts[name] = { passed: apps.reduce((n, [, v]) => n + v.passed, 0), of: apps.reduce((n, [, v]) => n + v.of, 0) };
-      if (!quiet && parts) console.log(VERIFY_APPS.filter((a) => state.apps[a]).map((a) => `  ${state.apps[a].ok ? 'ok  ' : 'FAIL'} ${a.padEnd(9)} ${state.apps[a].passed}/${state.apps[a].of}`).join('\n'));
-    } else {
-      state.passes[name] = { ok: code === 0, counts: counted || null };
-    }
+    state.passes[name] = { ok: code === 0, counts: counted || null };
     save();
+    if (log) say(`  [${name}] ${code === 0 ? 'ok  ' : 'FAIL'} in ${secs(Date.now() - started)} s${counted?.of ? `, ${counted.passed}/${counted.of}` : counted?.tests ? `, ${counted.passed}/${counted.tests}` : ''}${code === 0 ? '' : ` (${path.relative(ROOT, log)})`}`);
+    if (code !== 0) failed = true;
+    return code === 0;
+  };
 
-    if (code !== 0) {
-      failed = true;
-      if (quiet && tail) console.log(tail.slice(-4000));
-      // The later passes are slower and mostly re-report the same fault, so a
-      // failure stops here rather than spending four minutes confirming it.
-      break;
+  /** One run of window checks: a chunk in the parallel lane, or the machine lane. Its counts from its parts file. */
+  const windowRun = async (label, env) => {
+    const partsFile = path.join(PARTS_DIR, `${label}.json`);
+    try { fs.rmSync(partsFile, { force: true }); } catch { /* none */ }
+    const log = path.join(LOGS, `${label}.log`);
+    const started = Date.now();
+    say(`  [${label}] started`);
+    const out = await run('node', [path.join('apps', 'desktop', 'build', 'verify-apps-run.js')], { ...env, RUTBA_VERIFY_PARTS: partsFile }, { log });
+    const seconds = (Date.now() - started) / 1000;
+    const parts = readJson(partsFile)?.apps || null;
+    const sum = parts ? Object.values(parts).reduce((t, p) => ({ passed: t.passed + p.passed, of: t.of + p.of, failed: [...t.failed, ...p.failed] }), { passed: 0, of: 0, failed: [] }) : null;
+    const ok = out.code === 0 && Boolean(sum) && sum.failed.length === 0;
+    say(`  [${label}] ${ok ? 'ok  ' : 'FAIL'} ${sum ? `${sum.passed}/${sum.of}` : 'ended without its count'} in ${seconds.toFixed(0)} s${ok ? '' : ` (${path.relative(ROOT, log)})`}`);
+    if (sum && !ok) for (const f of sum.failed.slice(0, 8)) say(`         FAIL ${f}`);
+    return { ok, seconds, sum: sum || { passed: 0, of: 0, failed: ['the run ended before it counted'] }, parts };
+  };
+
+  // 1. The windows' bundle, once: every check process below loads the same one.
+  if (want('verify:edit') || want('verify:apps') || want('smoke')) {
+    say('\n\u001b[1m── build: the windows, bundled once ─────────────────\u001b[0m');
+    const b = await run('npm', ['run', 'build'], {}, { log: path.join(LOGS, 'build.log') });
+    if (b.code !== 0) {
+      console.log(b.tail.slice(-4000));
+      console.log('\n\u001b[31mThe gate is closed.\u001b[0m The windows did not build.');
+      process.exit(1);
     }
   }
+
+  // 2. The budgets, alone, while the machine is otherwise still.
+  if (want('test:perf')) {
+    if (!(resume && state.passes['test:perf']?.ok)) await settle();
+    await pass('test:perf', 'the performance budgets, run alone', 'npm', ['run', 'test:perf']);
+  }
+
+  const lanes = serial ? null : { parallel: [], machine: null };
+  if (serial) {
+    // The run as it was: one process, every check in turn.
+    if (want('test')) await pass('test', 'the engines', 'npm', ['test']);
+    if (want('verify:edit') && !failed) await pass('verify:edit', 'typing reaches the document', 'node', [path.join('apps', 'desktop', 'build', 'verify-edit-run.js')]);
+    if (want('verify:apps') && !failed) {
+      const left = wanted.filter((a) => !(resume && state.apps[a]?.ok));
+      const r = await windowRun('serial', left.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: left.join(',') } : {});
+      for (const [a, p] of Object.entries(r.parts || {})) state.apps[a] = { ok: p.failed.length === 0, passed: p.passed, of: p.of, failed: p.failed, seconds: p.seconds };
+      state.machine = { ok: true, passed: 0, of: 0, failed: [] };
+      results.push({ name: 'verify:apps', what: 'each app opens, changes and saves', ok: r.ok, seconds: r.seconds.toFixed(1) });
+      if (!r.ok) failed = true;
+      save();
+    }
+  } else {
+    // 3. Side by side: the engine tests, the editing checks and a check
+    // process a chunk, each with a clipboard and shortcuts of its own.
+    const chunks = longestFirst(wanted.filter((a) => !(resume && state.apps[a]?.ok)), timing);
+    say(`\n\u001b[1m── side by side: ${jobs} at once ─────────────────────────\u001b[0m`);
+    say(`  ${[want('test') ? 'the engine tests' : null, want('verify:edit') ? 'the editing checks' : null, want('verify:apps') ? `the window checks of ${chunks.length ? chunks.join(', ') : 'no chunk left'}` : null].filter(Boolean).join(', ')}; the logs are in ${path.relative(ROOT, LOGS)}`);
+    const started = Date.now();
+    const tasks = [];
+    if (want('test')) tasks.push(() => pass('test', 'the engines', 'npm', ['test'], { log: path.join(LOGS, 'test.log') }));
+    if (want('verify:apps')) {
+      for (const c of chunks) {
+        tasks.push(async () => {
+          const r = await windowRun(c, { RUTBA_VERIFY_LANE: 'parallel', RUTBA_VERIFY_APPS: c });
+          const p = r.parts?.[c] || { passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: r.seconds };
+          state.apps[c] = { ok: r.ok, passed: p.passed, of: p.of, failed: p.failed, seconds: Math.round(r.seconds) };
+          if (r.ok) timing[c] = Math.round(r.seconds);
+          save();
+          return r.ok;
+        });
+      }
+    }
+    if (want('verify:edit')) tasks.push(() => pass('verify:edit', 'typing reaches the document', 'node', [path.join('apps', 'desktop', 'build', 'verify-edit-run.js')], { log: path.join(LOGS, 'verify-edit.log') }));
+    await pool(tasks, jobs);
+    say(`  side by side: ${secs(Date.now() - started)} s`);
+
+    // 4. The machine lane, alone: the computer's own clipboard and shortcuts,
+    // timing budgets, drags and native copies, with nothing else running.
+    if (want('verify:apps')) {
+      if (resume && state.machine?.ok) say('  [machine] passed in the run before on this commit');
+      else {
+        say(`\n\u001b[1m── machine: the computer's own clipboard and keys, alone ──\u001b[0m`);
+        const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}) });
+        state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds) };
+        save();
+      }
+      const appsOk = wanted.every((a) => state.apps[a]?.ok) && state.machine?.ok;
+      if (!appsOk) failed = true;
+      const all = [...Object.values(state.apps), state.machine].filter(Boolean);
+      results.push({ name: 'verify:apps', what: 'each app opens, changes and saves', ok: appsOk, seconds: secs(Date.now() - started) });
+      say(VERIFY_APPS.filter((a) => state.apps[a]).map((a) => `  ${state.apps[a].ok ? 'ok  ' : 'FAIL'} ${a.padEnd(10)} ${state.apps[a].passed}/${state.apps[a].of}${state.apps[a].seconds ? `  ${state.apps[a].seconds} s` : ''}`).join('\n'));
+      if (state.machine) say(`  ${state.machine.ok ? 'ok  ' : 'FAIL'} ${'machine'.padEnd(10)} ${state.machine.passed}/${state.machine.of}${state.machine.seconds ? `  ${state.machine.seconds} s` : ''}`);
+      if (all.length) counts['verify:apps'] = { passed: all.reduce((n, v) => n + v.passed, 0), of: all.reduce((n, v) => n + v.of, 0) };
+    }
+    fs.writeFileSync(TIMING, JSON.stringify(timing, null, 2));
+  }
+
+  // 5. Every window painted, once the rest has passed.
+  if (want('smoke') && !failed) await pass('smoke', 'every window paints', 'npm', ['run', 'smoke']);
 
   console.log('\n────────────────────────────────────────────────');
   for (const r of results) {
-    console.log(`${r.ok ? '\u001b[32mok  \u001b[0m' : '\u001b[31mFAIL\u001b[0m'} ${r.name.padEnd(13)} ${r.what.padEnd(38)} ${r.seconds}s`);
+    console.log(`${r.ok ? '\u001b[32mok  \u001b[0m' : '\u001b[31mFAIL\u001b[0m'} ${r.name.padEnd(13)} ${r.what.padEnd(38)} ${r.seconds}s${r.resumed ? ' (before)' : ''}`);
   }
-  const total = results.reduce((s, r) => s + Number(r.seconds), 0).toFixed(1);
   console.log(
     failed
-      ? `\n\u001b[31mThe gate is closed.\u001b[0m Fix the pass above and run it again${Object.values(state.apps).some((a) => a.ok) ? ', or with --resume to check again only what failed' : ''}.`
-      : `\n\u001b[32mThe gate is open.\u001b[0m ${results.length} passes in ${total}s${partial ? `, for ${only.length ? only.join(', ') : wanted.join(', ')} only` : ''}.`
+      ? `\n\u001b[31mThe gate is closed.\u001b[0m Fix what failed and run it again, or with --resume to check again only what failed.`
+      : `\n\u001b[32mThe gate is open.\u001b[0m ${results.length} passes${partial ? `, for ${only.length ? only.join(', ') : wanted.join(', ')} only` : ''}.`
   );
 
-  // On the record only when every pass and every app passed on this commit, in one run or resumed.
-  const whole = !partial && PASSES.every(([name]) => name === 'verify:apps' || state.passes[name]?.ok) && VERIFY_APPS.every((a) => state.apps[a]?.ok);
+  // On the record only when every pass and every chunk passed on this commit, in one run or resumed.
+  const whole = !partial && ['test', 'test:perf', 'verify:edit', 'smoke'].every((name) => state.passes[name]?.ok)
+    && VERIFY_APPS.every((a) => state.apps[a]?.ok) && state.machine?.ok;
   if (record) {
     if (failed || !whole) {
       console.log('Nothing recorded: only a full run that passed is put on the record.');

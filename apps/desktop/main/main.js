@@ -9,6 +9,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app as electron, BrowserWindow } from 'electron';
 import { createShell, holdBlob, releaseBlob, blobUrl, broadcast } from '@rutba/office-shell/electron/main';
+import { useClipboard, memoryClipboard } from '@rutba/office-shell/electron/clipboard';
+import { useShortcuts } from '@rutba/office-shell/electron/shortcuts';
+import { fakeShortcuts } from '@rutba/office-shell/electron/machine-fakes';
+
+// A check run keeps to a clipboard and global shortcuts of its own, so the
+// gate's check processes can run side by side and none touches the person's;
+// the gate's machine lane alone uses the computer's, to check them.
+const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE || process.env.RUTBA_SCREENS_FEATURES);
+if (CHECK_RUN && process.env.RUTBA_VERIFY_LANE !== 'machine') {
+  useClipboard(memoryClipboard());
+  useShortcuts(fakeShortcuts());
+}
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { fileAssociations, APPS, APPS_CHOICE_KEY, OFF_UNTIL_CHOSEN } from '@rutba/office-formats/registry';
 import { createDocumentHost } from './doc-host.js';

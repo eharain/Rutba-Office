@@ -123,6 +123,7 @@ import { verifyKeyboardPass } from './verify-keyboard-pass.js';
 import { verifyScreenReader } from './verify-screen-reader.js';
 import { verifyHighContrast } from './verify-high-contrast.js';
 import { verifyPanels } from './verify-panels.js';
+import { verifyMachine } from './verify-machine.js';
 import { verifyImageBatch } from './verify-image-batch.js';
 import { verifyPersonalTemplates } from './verify-personal-templates.js';
 import { verifyTemplates, makeTemplateThumbs } from './verify-templates.js';
@@ -669,8 +670,13 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The app whose part is running: each check is counted under it (see part()).
   let currentApp = 'shell';
+  // How long each check took since the one before it, so the gate knows each
+  // chunk's length and starts the longest first.
+  let lastAt = Date.now();
   const check = (name, ok, detail = '') => {
-    results.push({ name, ok, detail, app: currentApp });
+    const now = Date.now();
+    results.push({ name, ok, detail, app: currentApp, seconds: (now - lastAt) / 1000 });
+    lastAt = now;
     lastCheck = name;
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
   };
@@ -779,16 +785,27 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
    * reads to say which apps passed and to pick up where a run stopped.
    */
   const appsOnly = (process.env.RUTBA_VERIFY_APPS || '').split(',').map((a) => a.trim()).filter(Boolean);
-  const runs = (app) => !appsOnly.length || appsOnly.includes(app);
+  /*
+   * The gate's lanes. 'parallel': the run is one of several side by side,
+   * with a clipboard and global shortcuts of its own (machine-fakes.js), and
+   * leaves out the parts marked { machine: true }. 'machine': only those
+   * parts, run alone, with the computer's own clipboard and shortcuts and
+   * nothing else on the processors (timing budgets, drags, native copies).
+   * Unset, everything runs, as before.
+   */
+  const lane = process.env.RUTBA_VERIFY_LANE || 'all';
+  const wanted = (app) => !appsOnly.length || appsOnly.includes(app);
+  const runs = (app) => lane !== 'machine' && wanted(app);
   // The full run keeps itself alive with the windows its first sections open,
   // which a run of some apps does not open: a hidden window does it instead,
   // or the last block's windows closing would end the application mid-run.
-  if (appsOnly.length) {
+  if (appsOnly.length || lane === 'machine') {
     const { BrowserWindow } = await import('electron');
     new BrowserWindow({ show: false, width: 200, height: 200 });
   }
-  const part = async (app, run) => {
-    if (!runs(app)) return;
+  const part = async (app, run, { machine = false } = {}) => {
+    if (machine ? lane === 'parallel' : lane === 'machine') return;
+    if (!wanted(app)) return;
     const outer = currentApp;
     currentApp = app;
     try {
@@ -820,13 +837,14 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (process.env.RUTBA_VERIFY_PARTS) {
       const byApp = {};
       for (const r of results) {
-        const a = (byApp[r.app] ||= { passed: 0, of: 0, failed: [] });
+        const a = (byApp[r.app] ||= { passed: 0, of: 0, failed: [], seconds: 0 });
         a.of += 1;
+        a.seconds = Math.round((a.seconds + (r.seconds || 0)) * 10) / 10;
         if (r.ok) a.passed += 1;
         else a.failed.push(r.name);
       }
       try {
-        fs.writeFileSync(process.env.RUTBA_VERIFY_PARTS, JSON.stringify({ apps: byApp, only: appsOnly }, null, 2));
+        fs.writeFileSync(process.env.RUTBA_VERIFY_PARTS, JSON.stringify({ apps: byApp, only: appsOnly, lane }, null, 2));
       } catch (err) {
         console.log(`     [parts] not written: ${err.message}`);
       }
@@ -5107,6 +5125,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('views')) await sheetViews();
     if (only.includes('protect')) await sheetProtect();
     if (only.includes('pwfast')) await verifyPwFast({ open, check, until, wait, capture: shotTo }, { dir });
+    if (only.includes('machine')) await verifyMachine({ open, check, until });
     if (only.includes('layoutviews')) await sheetLayoutViews();
     if (only.includes('analysis')) await sheetAnalysis();
     if (only.includes('slicers')) await sheetSlicers();
@@ -5257,8 +5276,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('slides', () => verifyDeckMaster({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
   await part('slides', () => verifyDeckComments({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
   await part('slides', () => verifyDeckMath({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
-  await part('shell', () => verifyAccessibility({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
-  await part('shell', () => verifySpelling({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await part('access', () => verifyAccessibility({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await part('languages', () => verifySpelling({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
   await part('sheets', () => sheetFill());
   await part('word', () => wordPictures());
   await part('word', () => wordLook());
@@ -5287,7 +5306,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('slides', () => verifyDeckAction({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckAlbum({ open, check, until, wait, doc }, { dir }));
   await part('shell', () => verifyScreenshot({ open, check, until, wait, doc }, { dir }));
-  await part('shell', () => verifyIcons({ open, check, until, wait, doc }, { dir }));
+  await part('look', () => verifyIcons({ open, check, until, wait, doc }, { dir }));
   await part('word', () => verifyWordImmersive({ open, check, until, wait }, { dir }));
   await part('word', () => verifyWordTheme({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckTrigger({ open, check, until, wait, doc }, { dir }));
@@ -5296,11 +5315,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => verifyWordDefineList({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('pictures', () => verifyPictureTiles({ open, check, until, wait, errorsIn }, { dir }));
   await part('shell', () => verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await part('shell', () => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('shell', () => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }), { machine: true });
   await part('shell', () => verifyDocThread({ open, check, until, errorsIn }, { dir }));
-  await part('shell', () => verifyUrdu({ open, check, until, wait, errorsIn }, { dir, files }));
-  await part('shell', () => verifyArabic({ open, check, until, wait, errorsIn }, { dir, files }));
-  await part('shell', () => verifyHindi({ open, check, until, wait, errorsIn }, { dir, files }));
+  await part('languages', () => verifyUrdu({ open, check, until, wait, errorsIn }, { dir, files }));
+  await part('languages', () => verifyArabic({ open, check, until, wait, errorsIn }, { dir, files }));
+  await part('languages', () => verifyHindi({ open, check, until, wait, errorsIn }, { dir, files }));
   await part('pictures', () => verifyPictureRotate({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('image', () => verifyImageEdits({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('image', () => verifyImageLayers({ open, check, until, wait, errorsIn, doc }, { dir }));
@@ -5327,20 +5346,20 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('shell', () => verifyReceiptRow({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('mail', () => verifyMailInvoice({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyPdfFields({ open, check, until, wait, errorsIn }, { dir }));
-  await part('shell', () => verifyRibbon({ open, check, until, wait }, { dir, files }));
-  await part('shell', () => verifySoon({ open, check, until, wait, doc, sessionFor }, { dir }));
-  await part('shell', () => verifyGalleryFold({ open, check, until, wait }, { dir }));
+  await part('look', () => verifyRibbon({ open, check, until, wait }, { dir, files }));
+  await part('look', () => verifySoon({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('look', () => verifyGalleryFold({ open, check, until, wait }, { dir }));
   await part('video', () => verifyVideoPane({ open, check, until, wait }, { dir }));
-  await part('shell', () => verifyPanels({ open, check, until, wait }, { dir }));
-  await part('shell', () => verifyPolishPass({ open, check, until, wait }, { dir }));
+  await part('look', () => verifyPanels({ open, check, until, wait }, { dir }), { machine: true });
+  await part('look', () => verifyPolishPass({ open, check, until, wait }, { dir }));
   await part('calendar', () => verifyCalendarMonth({ open, check, until, wait }, { dir }));
   await part('sheets', () => verifySheetDark({ open, check, until, wait }, { dir }));
   await part('pdf', () => verifyPdfFindMark({ open, check, until, wait }, { dir }));
-  await part('shell', () => verifyDarkPass({ open, check, until, wait }, { dir }));
-  await part('shell', () => verifyA11yAudit({ open, check, until, wait, press }, { dir }));
-  await part('shell', () => verifyKeyboardPass({ open, check, until, wait, press }, { dir }));
-  await part('shell', () => verifyScreenReader({ open, check, until, wait, press }, { dir }));
-  await part('shell', () => verifyHighContrast({ open, check, until, wait, press }, { dir }));
+  await part('look', () => verifyDarkPass({ open, check, until, wait }, { dir }));
+  await part('access', () => verifyA11yAudit({ open, check, until, wait, press }, { dir }));
+  await part('access', () => verifyKeyboardPass({ open, check, until, wait, press }, { dir }));
+  await part('access', () => verifyScreenReader({ open, check, until, wait, press }, { dir }));
+  await part('access', () => verifyHighContrast({ open, check, until, wait, press }, { dir }));
   await part('image', () => verifyImageBatch({ open, check, until, wait, errorsIn }, { dir }));
   await part('shell', () => verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir }));
   await part('shell', () => verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows }));
@@ -5348,8 +5367,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => verifyWordWatermarkPicture({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('slides', () => verifyDeckWordArtTransform({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordMergeTracked({ open, check, until, doc, sessionFor }, { dir }));
-  await part('shell', () => verifyLostMouseup({ open, check, until }, { dir }));
-  await part('shell', () => verifyDialogFocus({ open, check, until, wait, press }, { dir }));
+  await part('access', () => verifyLostMouseup({ open, check, until }, { dir }));
+  await part('access', () => verifyDialogFocus({ open, check, until, wait, press }, { dir }));
   await part('shell', () => verifyOpenProgram({ open, check, until }, { dir }));
   await part('pictures', () => verifyPicturesMarks({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('slides', () => verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
@@ -5458,7 +5477,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('sheets', () => sheetComments());
   await part('sheets', () => sheetViews());
   await part('sheets', () => sheetProtect());
-  await part('shell', () => verifyPwFast({ open, check, until, wait, capture: shotTo }, { dir }));
+  await part('shell', () => verifyPwFast({ open, check, until, wait, capture: shotTo }, { dir }), { machine: true });
+  // The computer's own clipboard and global shortcuts, which every other part reaches through stand-ins.
+  await part('shell', () => verifyMachine({ open, check, until }), { machine: true });
   await part('sheets', () => sheetLayoutViews());
   await part('sheets', () => sheetAnalysis());
   await part('sheets', () => sheetSlicers());
@@ -7161,8 +7182,6 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // and a window opens on an Inbox before the seeded folder the others read.
   await verifyMailJunk({ open, check, until, wait, errorsIn });
   await part('mail', () => verifyMailLinks({ open, check, until, wait, errorsIn }));
-  // After the sections that read the seeded Inbox: it adds two messages of its own.
-  await part('mail', () => verifyMailSafety({ open, check, until, wait, errorsIn }, { dir }));
   // AI Tools and S/MIME run inside Mail's section, so they are counted as its part.
   await part('mail', () => verifyAiTools({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailWindow({ open, check, until, wait, errorsIn }));
@@ -7177,6 +7196,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
   }
+  // Mail's Safety switch copies through the message frame itself, which only the
+  // computer's clipboard sees: after the sections that read the seeded Inbox
+  // (it adds two messages of its own), and in the machine lane.
+  await part('mail', () => verifyMailSafety({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
 
   /* ── OpenDocument goes out as OpenDocument ───────────────────────────── */
   if (runs('shell')) {

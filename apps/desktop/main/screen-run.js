@@ -15,8 +15,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { app, BrowserWindow, clipboard } from 'electron';
-import { readImage, writeImage } from '@rutba/office-shell/electron/clipboard';
+import { app, BrowserWindow } from 'electron';
+import { readImage, writeImage, readText, writeText } from '@rutba/office-shell/electron/clipboard';
 import { consoleMessage } from './console-message.js';
 import { FEATURES } from './screen-features.js';
 
@@ -198,7 +198,7 @@ export async function runFeatureScreens({ windows, outDir, samples, doc, stores,
   }
   // Copy Text puts what it read on the clipboard, which is the person's:
   // what was on it goes back at the end.
-  const held = { text: await clipboard.readText(), image: await readImage() };
+  const held = { text: await readText(), image: await readImage() };
   const lines = [];
   // The first window stays to the end: closing the last window quits the
   // application, and a run of thirty would end after its first.
@@ -259,7 +259,7 @@ export async function runFeatureScreens({ windows, outDir, samples, doc, stores,
     await wait(300);
   }
   if (!held.image.isEmpty()) await writeImage(held.image);
-  else await clipboard.writeText(held.text);
+  else await writeText(held.text);
   const report = lines.join('\n');
   fs.writeFileSync(path.join(outDir, 'report.txt'), `${report}\n`);
   return lines.every((l) => !l.startsWith('FAIL'));

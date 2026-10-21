@@ -9,8 +9,8 @@
 // enhance moves the levels. Run alone with RUTBA_VERIFY_ONLY=image-edits.
 import fs from 'node:fs';
 import path from 'node:path';
-import { clipboard, nativeImage } from 'electron';
-import { readImage, writeImage } from '@rutba/office-shell/electron/clipboard';
+import { nativeImage } from 'electron';
+import { clipboard, readImage, writeImage } from '@rutba/office-shell/electron/clipboard';
 import { probeImage } from '@rutba/imaging/probe';
 import { straightenRect } from '@rutba/imaging/pipeline';
 
@@ -43,7 +43,7 @@ export function noisyPicture(width, height, seed = 11) {
  */
 export async function verifyImageEdits({ open, check, until, wait, press, errorsIn }, { dir }) {
   const root = path.join(dir, 'image-edits');
-  const keptText = await clipboard.readText();
+  const keptText = await clipboard().readText();
   try {
     fs.mkdirSync(root, { recursive: true });
     const file = path.join(root, 'scene.png');
@@ -220,7 +220,7 @@ export async function verifyImageEdits({ open, check, until, wait, press, errors
       JSON.stringify({ result: await result(), want, alphaAtCorners: corners, ops: await ops() }));
 
     // Copy: the result on the clipboard, at its size.
-    clipboard.clear();
+    clipboard().clear();
     await click('Copy');
     await until(async () => !(await readImage()).isEmpty(), 'the picture on the clipboard', 8000).catch(() => {});
     const copied = (await readImage()).getSize();
@@ -300,6 +300,6 @@ export async function verifyImageEdits({ open, check, until, wait, press, errors
   } catch (err) {
     check('image: the quick-edit checks ran', false, err?.message || String(err));
   } finally {
-    await clipboard.writeText(keptText || '');
+    await clipboard().writeText(keptText || '');
   }
 }

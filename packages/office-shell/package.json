@@ -10,6 +10,8 @@
     "./contract": "./src/contract.js",
     "./electron/main": "./src/electron/main.js",
     "./electron/clipboard": "./src/electron/clipboard.js",
+    "./electron/shortcuts": "./src/electron/shortcuts.js",
+    "./electron/machine-fakes": "./src/electron/machine-fakes.js",
     "./electron/preload": "./src/electron/preload.cjs",
     "./client": "./src/client.js",
     "./runs": "./src/runs.js"

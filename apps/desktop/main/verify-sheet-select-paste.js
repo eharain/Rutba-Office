@@ -10,7 +10,7 @@
 // stop. Run alone with RUTBA_VERIFY_ONLY=sheetpaste.
 import fs from 'node:fs';
 import path from 'node:path';
-import { clipboard } from 'electron';
+import { clipboard } from '@rutba/office-shell/electron/clipboard';
 import { readHTML } from '@rutba/office-shell/electron/clipboard';
 import { buildXlsx } from '@rutba/ooxml/build';
 
@@ -53,10 +53,10 @@ export async function verifySheetSelectPaste({ open, check, until, wait, press, 
     check('sheets: a drag with the mouse from A1 to B3 selects the range', range() === '0,0,2,1', range());
 
     // Ctrl+C: words and a table on the system clipboard.
-    clipboard.clear();
+    clipboard().clear();
     await press(wc, 'C', { modifiers: ['control'] });
-    await until(async () => (await clipboard.readText()) !== '', 'the clipboard', 4000).catch(() => {});
-    const words = await clipboard.readText();
+    await until(async () => (await clipboard().readText()) !== '', 'the clipboard', 4000).catch(() => {});
+    const words = await clipboard().readText();
     const table = await readHTML();
     check('sheets: Ctrl+C puts the cells on the system clipboard, as words and as a table', words.replace(/\r/g, '') === 'Item\tQty\nInk\t4\nPaper\t6' && /<table>[\s\S]*Paper[\s\S]*<\/table>/.test(table), JSON.stringify(words) + ' ' + table.slice(0, 80));
 

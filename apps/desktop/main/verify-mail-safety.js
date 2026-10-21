@@ -16,8 +16,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { clipboard } from 'electron';
-import { readImage, writeParts } from '@rutba/office-shell/electron/clipboard';
+import { clipboard, readImage, writeParts } from '@rutba/office-shell/electron/clipboard';
 
 // A 24 by 16 red picture.
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAIAAACDRijCAAAAGklEQVR4nGO4o6FBFcQwatCoQaMGjRpEGQIA3r3CEG0ftIUAAAAASUVORK5CYII=';
@@ -117,8 +116,8 @@ export async function verifyMailSafety(h, { dir }) {
     await js(`document.querySelector('.ml-safety')?.click(), 1`);
     const off = await ok(until(() => js(`document.querySelector('.ml-safety')?.classList.contains('off')`), 'Safety off', 3000));
     // The person's clipboard, put back at the end.
-    kept = await clipboard.readText().catch(() => '');
-    await clipboard.writeText('before');
+    kept = await clipboard().readText().catch(() => '');
+    await clipboard().writeText('before');
     // The system clipboard is the whole machine's: another program holding it
     // open as the copy lands leaves it as it was. A copy that did not land is
     // made once more, and the toast says whether Mail did its part.
@@ -131,8 +130,8 @@ export async function verifyMailSafety(h, { dir }) {
       }
       return { landed: false, toast: await toasts() };
     };
-    const link = await copyTo(60, 'Copy Link', async () => (await clipboard.readText()) === 'https://safety.example/report');
-    const copiedLink = await clipboard.readText();
+    const link = await copyTo(60, 'Copy Link', async () => (await clipboard().readText()) === 'https://safety.example/report');
+    const copiedLink = await clipboard().readText();
     await writeParts({ text: '' });
     const picture = await copyTo(200, 'Copy Picture', async () => !(await readImage()).isEmpty());
     const pictureCopied = picture.landed;
@@ -162,7 +161,7 @@ export async function verifyMailSafety(h, { dir }) {
     check('mail safety: the check ran to the end', false, err?.message || String(err));
   } finally {
     try { win?.webContents.debugger.detach(); } catch { /* not attached */ }
-    if (kept != null) await clipboard.writeText(kept).catch(() => {});
+    if (kept != null) await clipboard().writeText(kept).catch(() => {});
     if (Array.isArray(globalThis.__rutbaCheckDialogAnswers)) globalThis.__rutbaCheckDialogAnswers.length = 0;
   }
 }

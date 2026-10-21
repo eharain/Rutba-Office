@@ -43,34 +43,53 @@ npm run gate -- --record
 ```
 
 Run on Windows, on the release commit, with nothing else running against
-the same profile. It runs the engine suite, the performance budgets alone
-after it (`npm run test:perf`; timed beside the suite they measure the
-machine), the editing checks, every application check and the smoke
-captures. With `--record`, a full run that
-passes writes its own counts into the note's **Gate** section (where it
-ran, when, and what each pass counted) and into the README's counts, so the
-release says the gate ran rather than leaving it to be believed. Commit
-those two files with the version bump.
+the same profile. It runs in lanes, so that what can run side by side does:
+
+1. **build**: the windows bundled once, for every check process after it.
+2. **test:perf**: the performance budgets, alone, while the machine is
+   still (timed beside other work they measure the machine).
+3. **side by side**: the engine suite, the editing checks and a window
+   check process a chunk, as many at once as the processors and memory
+   allow (`--jobs` to say), the longest chunk first. A chunk is an app, or
+   a part of what every app shares: `shell`, `look` (the ribbon, galleries,
+   polish, dark theme, icons), `access` (accessibility, keyboard, screen
+   reader, high contrast) and `languages` (Urdu, Arabic, Hindi, spelling).
+   Each process has a clipboard and global shortcuts of its own
+   (`machine-fakes.js`), so no process touches another's or the person's,
+   and each logs to `.gate/logs/<chunk>.log`.
+4. **machine**: alone, the parts that need the computer to themselves,
+   marked `{ machine: true }` in verify-apps.js: the computer's own
+   clipboard and global shortcuts checked through the system adapters
+   (`verify-machine.js`), timing budgets, drags, and copies a page makes
+   itself (Mail's message frame).
+5. **smoke**: every window paints without logging anything.
+
+With `--record`, a full run that passes writes its own counts into the
+note's **Gate** section (where it ran, when, and what each pass counted) and
+into the README's counts, so the release says the gate ran rather than
+leaving it to be believed. Commit those two files with the version bump.
+`--serial` runs the window checks as one process in turn, as before.
 
 A check that fails because of the machine (a stand-in camera, a font the
 system lacks) is run again on its own; if it passes alone it is named in
 the release commit's message. A check that fails twice is a fault, and the
 release waits for it.
 
-The application checks are counted by app (`shell` is what every app
-shares), and the gate keeps a record of its last run in `.gate/`:
+The gate keeps a record of its last run in `.gate/` (each chunk's counts
+and how long it took, which orders the next run):
 
 ```
 npm run gate -- --resume              carry on: what passed on this commit is not run again
-npm run gate -- --apps mail,pdf       the window checks of those apps only
-npm run gate -- --changed             the apps changed since the last release tag
+npm run gate -- --apps mail,pdf       the window checks of those chunks only
+npm run gate -- --changed             the chunks changed since the last release tag
+RUTBA_VERIFY_LANE=machine npm run verify:apps    the machine lane alone
 ```
 
-After a failure, fix it and run `--resume`: only the passes and the apps
+After a failure, fix it and run `--resume`: only the passes and the chunks
 that did not pass run again, and `--record` adds the runs up. The record
 holds only while the commit and the working tree stay the same; a commit
 starts it afresh. `--apps` and `--changed` are for working days, and a run
-limited to some apps is never put on the record.
+limited to some chunks is never put on the record.
 
 The fuzzer is run over the readers before a minor release, and its count
 goes in the note:

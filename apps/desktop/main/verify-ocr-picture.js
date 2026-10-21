@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clipboard } from 'electron';
+import { clipboard } from '@rutba/office-shell/electron/clipboard';
 
 const fixture = (name) => fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.resolve('@rutba/ocr')));
 
@@ -64,7 +64,7 @@ export async function verifyOcrPicture(h, { dir }) {
   fs.copyFileSync(fixture('hin.png'), other);
   fs.copyFileSync(fixture('urd-naskh.png'), urdu);
   const truth = fs.readFileSync(fixture('eng-serif.txt'), 'utf8');
-  const kept = await clipboard.readText();
+  const kept = await clipboard().readText();
 
   try {
     // ── Pictures ──
@@ -72,10 +72,10 @@ export async function verifyOcrPicture(h, { dir }) {
     const d = driver(win, { until, wait });
     await until(() => d.js(`Boolean(document.querySelector('.pv-image')?.complete && document.querySelector('.pv-image').naturalWidth)`), 'the picture shown', 15000).catch(() => {});
     await d.js(`localStorage.setItem('rutba-ocr-languages', '["eng"]'), 1`);
-    await clipboard.writeText('');
+    await clipboard().writeText('');
     const pressed = await d.role('copy-text');
     const ready = await until(() => d.js(`document.querySelector('[data-role="ocr-bar"]')?.dataset.state === 'ready'`), 'the words read', 30000).then(() => true).catch(() => false);
-    const copied = await clipboard.readText();
+    const copied = await clipboard().readText();
     const first = await d.layer('.pv-image');
     await d.capture('ocr-picture-01-pictures.png');
     check('ocr-picture: Copy Text in Pictures reads the picture and puts all its words on the clipboard, in order', pressed === 'clicked' && ready
@@ -112,10 +112,10 @@ export async function verifyOcrPicture(h, { dir }) {
     const img = await open('image', letter);
     const e = driver(img, { until, wait });
     await until(() => e.js(`(document.querySelector('.im-canvas')?.width || 0) > 100`), 'the picture drawn', 15000).catch(() => {});
-    await clipboard.writeText('');
+    await clipboard().writeText('');
     const ipressed = await e.role('copy-text');
     const iready = await until(() => e.js(`document.querySelector('[data-role="ocr-bar"]')?.dataset.state === 'ready'`), 'the words read in Image', 30000).then(() => true).catch(() => false);
-    const icopied = await clipboard.readText();
+    const icopied = await clipboard().readText();
     const ilayer = await e.layer('.im-canvas');
     const ione = await e.selectLine(1);
     await e.capture('ocr-picture-04-image.png');
@@ -135,10 +135,10 @@ export async function verifyOcrPicture(h, { dir }) {
     await u.js(`(() => { for (const n of document.querySelectorAll('[data-role="ocr-languages"] .ocr-lang')) { const box = n.querySelector('input'); if (box.checked !== (n.dataset.code === 'urd')) box.click(); } return 1; })()`);
     const note = await u.js(`document.querySelector('[data-role="ocr-urdu-note"]')?.textContent || ''`);
     await u.role('ocr-languages-ok');
-    await clipboard.writeText('');
+    await clipboard().writeText('');
     await u.role('copy-text');
     const uready = await until(() => u.js(`document.querySelector('[data-role="ocr-bar"]')?.dataset.state === 'ready'`), 'the Urdu words read', 30000).then(() => true).catch(() => false);
-    const ucopied = await clipboard.readText();
+    const ucopied = await clipboard().readText();
     const ulayer = await u.layer('.im-canvas');
     await u.capture('ocr-picture-05-urdu.png');
     check('ocr-picture: an Urdu picture read in Urdu (marked beta) copies Urdu words, its lines right to left', uready && /کمپیوٹر/.test(ucopied) && /beta/i.test(note)
@@ -148,6 +148,6 @@ export async function verifyOcrPicture(h, { dir }) {
     check('ocr-picture: no error was shown', !errors.length, errors.join(' | '));
     await u.js(`localStorage.removeItem('rutba-ocr-languages'), 1`).catch(() => {});
   } finally {
-    await clipboard.writeText(kept || '');
+    await clipboard().writeText(kept || '');
   }
 }

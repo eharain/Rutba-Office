@@ -11,7 +11,7 @@
 // Checking the DOM would only prove the browser did what browsers do; checking
 // the model proves the edit reached the thing that saves the file.
 
-import { clipboard } from 'electron';
+import { clipboard } from '@rutba/office-shell/electron/clipboard';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -302,7 +302,7 @@ export async function verifyEditing({ windows, doc }) {
 
     // Paste over a selection replaces it — the clipboard's words where the
     // selected ones were, nothing of the old ones left.
-    await clipboard.writeText('Pasted');
+    await clipboard().writeText('Pasted');
     await word.webContents.executeJavaScript(`(() => {
       const page = document.querySelector('.wd-page');
       const block = page.querySelector('[data-block="0"]');

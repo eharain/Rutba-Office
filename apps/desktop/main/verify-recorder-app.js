@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
+import { shortcuts } from '@rutba/office-shell/electron/shortcuts';
 import { buildDocx } from '@rutba/ooxml/build';
 import { probeMedia } from '@rutba/media/probe';
 
@@ -134,10 +135,11 @@ export async function verifyRecorderApp(h, { dir }) {
     await pick('st-shot-timer', '0');
     await wait(300);
     // The key (Ctrl+Shift+F8) takes one too, with the window minimised as well as in front.
-    const keyHeld = Boolean(globalThis.__rutbaPictureKey);
+    // Held through the shortcuts adapter (a stand-in under the checks), and pressed there.
+    const keyHeld = Boolean(shortcuts().isRegistered('CommandOrControl+Shift+F8'));
     win.minimize();
     await wait(300);
-    globalThis.__rutbaPictureKey?.press();
+    shortcuts().press?.('CommandOrControl+Shift+F8');
     const byKey = await ok(until(() => pictures().length >= 4, 'the picture by the key', 6000));
     win.restore();
     const keyTip = await js(`(() => { const b = document.querySelector('.st-shoot'); return (b?.title || b?.dataset.tip || b?.getAttribute('aria-label') || ''); })()`);

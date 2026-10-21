@@ -32,3 +32,20 @@ test('gate by app: the shell, the shared packages and the main process name ever
   assert.deepEqual(appsForChanges(['apps/desktop/renderer/apps/mail/reader.js', 'packages/ooxml/src/x.js']), ['word', 'sheets', 'slides', 'mail']);
   assert.deepEqual(appsForChanges(['docs/a.md']), []);
 });
+
+test('the gate in lanes: the longest chunk starts first, a first guess where none was measured', async () => {
+  const { longestFirst, jobsFor, pool } = await import('../tools/gate.js');
+  assert.deepEqual(longestFirst(['contacts', 'word', 'shell', 'talk'], {}), ['shell', 'word', 'talk', 'contacts']);
+  assert.deepEqual(longestFirst(['contacts', 'word'], { contacts: 900, word: 100 }), ['contacts', 'word']);
+  // A process to each two and a half processors and each 1.5 GB free, one to four.
+  assert.equal(jobsFor({ cpus: 16, freeGb: 32 }), 4);
+  assert.equal(jobsFor({ cpus: 8, freeGb: 32 }), 3);
+  assert.equal(jobsFor({ cpus: 16, freeGb: 3.2 }), 2);
+  assert.equal(jobsFor({ cpus: 2, freeGb: 1 }), 1);
+  // At most `limit` at once, every task run, the answers in order.
+  let now = 0;
+  let most = 0;
+  const task = (v) => async () => { now++; most = Math.max(most, now); await new Promise((r) => setTimeout(r, 5)); now--; return v; };
+  assert.deepEqual(await pool([1, 2, 3, 4, 5].map(task), 2), [1, 2, 3, 4, 5]);
+  assert.equal(most, 2);
+});

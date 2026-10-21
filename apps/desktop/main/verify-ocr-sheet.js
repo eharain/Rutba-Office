@@ -11,8 +11,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clipboard, nativeImage } from 'electron';
-import { readImage, writeImage, writeParts } from '@rutba/office-shell/electron/clipboard';
+import { nativeImage } from 'electron';
+import { clipboard, readImage, writeImage, writeParts } from '@rutba/office-shell/electron/clipboard';
 import { buildXlsx } from '@rutba/ooxml/build';
 
 const fixture = (name) => fileURLToPath(new URL(`../test/fixtures/${name}`, import.meta.resolve('@rutba/ocr')));
@@ -34,7 +34,7 @@ export async function verifyOcrSheet(h, { dir }) {
   const ruled = path.join(root, 'invoice-table.png');
   fs.copyFileSync(fixture('table-ruled.png'), ruled);
   const truth = JSON.parse(fs.readFileSync(fixture('table.json'), 'utf8'));
-  const keptText = await clipboard.readText();
+  const keptText = await clipboard().readText();
   const keptImage = await readImage();
 
   const win = await open('sheets', book);
@@ -128,6 +128,6 @@ export async function verifyOcrSheet(h, { dir }) {
     await js(`localStorage.removeItem('rutba-ocr-languages'), 1`).catch(() => {});
   } finally {
     if (keptImage && !keptImage.isEmpty()) await writeParts({ text: keptText || '', image: keptImage });
-    else await clipboard.writeText(keptText || '');
+    else await clipboard().writeText(keptText || '');
   }
 }
