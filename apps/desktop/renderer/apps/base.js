@@ -425,6 +425,11 @@ export default function Databases({ app, shell, boot }) {
   // The New Print Template box's table, null while it is shut.
   const [docTable, setDocTable] = useState(null);
   const [busy, setBusy] = useState(false);
+  // The ready-made databases that need a newer Office: id -> the version wanted.
+  const [needs, setNeeds] = useState({});
+  useEffect(() => {
+    shell.base.readyMade().then((r) => setNeeds(Object.fromEntries([...r.templates, ...r.samples].filter((x) => x.needs).map((x) => [x.id, x.needs])))).catch(() => {});
+  }, [shell]);
   const [naming, setNaming] = useState(null);
 
   const show = useCallback((summary) => {
@@ -576,7 +581,7 @@ export default function Databases({ app, shell, boot }) {
               <h2>{t('Or start from a ready-made one')}</h2>
               <div className="bs-template-grid">
                 {TEMPLATES.map((tpl) => (
-                  <button key={tpl.id} type="button" className="bs-template" data-template={tpl.id} disabled={busy} onClick={() => fromTemplate(tpl)}>
+                  <button key={tpl.id} type="button" className={`bs-template${needs[tpl.id] ? ' needs' : ''}`} data-template={tpl.id} data-needs={needs[tpl.id] || undefined} disabled={busy} data-tip={needs[tpl.id] ? t('Needs Rutba Office {version} or newer. Check for updates.', { version: needs[tpl.id] }) : undefined} onClick={() => (needs[tpl.id] ? shell.update.check({ manual: true }).catch(() => {}) : fromTemplate(tpl))}>
                     <span className="bs-template-icon"><Icon name={tpl.icon} size={18} /></span>
                     <span className="bs-template-words"><strong>{tpl.name()}</strong><small>{tpl.line()}</small></span>
                   </button>
@@ -588,16 +593,22 @@ export default function Databases({ app, shell, boot }) {
               <p className="bs-samples-note">{t('Each comes with invented records to learn from, or empty for your own.')}</p>
               <div className="bs-template-grid">
                 {SAMPLES.map((s) => (
-                  <div key={s.id} className="bs-sample" data-sample={s.id} role="group" aria-label={s.kind()}>
+                  <div key={s.id} className={`bs-sample${needs[s.id] ? ' needs' : ''}`} data-sample={s.id} data-needs={needs[s.id] || undefined} role="group" aria-label={s.kind()}>
                     <span className="bs-template-icon"><Icon name={s.icon} size={18} /></span>
                     <span className="bs-template-words">
                       <strong>{s.kind()}</strong>
                       <small>{s.line()}</small>
                     </span>
-                    <span className="bs-sample-actions">
-                      <button type="button" className="bs-sample-data" disabled={busy} onClick={() => fromSample(s, true)} data-tip={t('{business}, with its invented records', { business: s.business })}>{t('With sample records')}</button>
-                      <button type="button" className="bs-sample-empty" disabled={busy} onClick={() => fromSample(s, false)}>{t('Empty')}</button>
-                    </span>
+                    {needs[s.id] ? (
+                      <span className="bs-sample-actions">
+                        <button type="button" className="bs-sample-update" onClick={() => shell.update.check({ manual: true }).catch(() => {})}>{t('Needs Rutba Office {version}', { version: needs[s.id] })}</button>
+                      </span>
+                    ) : (
+                      <span className="bs-sample-actions">
+                        <button type="button" className="bs-sample-data" disabled={busy} onClick={() => fromSample(s, true)} data-tip={t('{business}, with its invented records', { business: s.business })}>{t('With sample records')}</button>
+                        <button type="button" className="bs-sample-empty" disabled={busy} onClick={() => fromSample(s, false)}>{t('Empty')}</button>
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>

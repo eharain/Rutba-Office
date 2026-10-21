@@ -19,6 +19,8 @@ export const BASE_CSS = `
 .bs-sample { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; padding: 12px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-3, 8px); }
 .bs-sample > .bs-template-words { flex: 1 1 0; }
 .bs-sample-actions { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+.bs-template.needs .bs-template-icon, .bs-sample.needs .bs-template-icon { opacity: .45; filter: grayscale(.6); }
+.bs-sample-update { font-size: 12px; color: var(--accent-text); }
 .bs-sample-actions button { font: inherit; font-size: 12px; min-height: 26px; padding: 3px 10px; border-radius: var(--r-2); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
 .bs-sample-actions .bs-sample-data { border-color: var(--accent); color: var(--accent); }
 .bs-sample-actions button:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }

@@ -95,6 +95,7 @@ import { redactAction, inspectAction, deckReviewAction, reviewSummary } from './
 import * as deckCompare from '@rutba/presentation/compare';
 import { createProofing } from './proofing.js';
 import { TEMPLATES as GALLERY, CATEGORIES as GALLERY_CATEGORIES, templateById, templateForLegacy, readTemplate, thumbPath } from '@rutba/templates';
+import { needsFor } from '@rutba/templates/versions';
 
 let seq = 0;
 const KIND_FOR_APP = { word: 'doc', sheets: 'sheet', slides: 'deck' };
@@ -3165,7 +3166,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
      */
     gallery: ({ app = null } = {}) => ({
       categories: GALLERY_CATEGORIES,
-      templates: GALLERY.filter((t) => !app || t.app === app).map((t) => ({ id: t.id, app: t.app, name: t.name, description: t.description, categories: t.categories, thumbnail: galleryThumb(t) })),
+      // A template a newer Office is needed for is listed with the version it needs, to be offered as an update.
+      templates: GALLERY.filter((t) => !app || t.app === app).map((t) => ({ id: t.id, app: t.app, name: t.name, description: t.description, categories: t.categories, thumbnail: galleryThumb(t), needs: needsFor(process.env.RUTBA_APP_VERSION, t) })),
     }),
 
     open: (args, win) => openNow(openSteps(args, win)),

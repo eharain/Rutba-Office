@@ -38,6 +38,7 @@ import { verifyBaseQueriesForms } from './verify-base-queries-forms.js';
 import { verifyBaseReports } from './verify-base-reports.js';
 import { verifyBaseTemplates } from './verify-base-templates.js';
 import { verifyBaseDocuments } from './verify-base-documents.js';
+import { verifyTemplateVersions } from './verify-template-versions.js';
 import { verifyBaseSamples } from './verify-base-samples.js';
 import { verifyVideoSound } from './verify-video-sound.js';
 import { verifyVideoLibrary, verifyVideoStarters } from './verify-video-library.js';
@@ -5090,6 +5091,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('base-reports')) await verifyBaseReports({ open, check, until, wait }, { dir });
     if (only.includes('base-templates')) await verifyBaseTemplates({ open, check, until, wait }, { dir });
     if (only.includes('base-documents')) await verifyBaseDocuments({ open, check, until, wait }, { dir });
+    if (only.includes('template-versions')) await verifyTemplateVersions({ open, check, until, wait });
     if (only.includes('base-samples')) await verifyBaseSamples({ open, check, until, wait }, { dir });
     if (only.includes('video-sound')) await verifyVideoSound({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-library')) await verifyVideoLibrary({ open, check, until, wait, errorsIn }, { dir });
@@ -5473,6 +5475,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('base', () => verifyBaseTemplates({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseDocuments({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseSamples({ open, check, until, wait }, { dir }));
+  await part('base', () => verifyTemplateVersions({ open, check, until, wait }));
   await part('video', () => verifyVideoSound({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifyVideoLibrary({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifyVideoStarters({ open, check, until, wait, errorsIn }, { dir }));

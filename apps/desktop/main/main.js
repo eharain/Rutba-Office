@@ -81,6 +81,11 @@ async function renameRecent({ stores, doc, path: from, name }) {
   return stores.recent.rename({ path: from, to });
 }
 
+// This Office's version, for every thread to read: a template says the oldest Office it
+// needs (Rutba-Office-Templates' manifest), and the document worker lists the gallery.
+// A check may stand in another (RUTBA_OFFICE_VERSION) to see what an older Office shows.
+process.env.RUTBA_APP_VERSION = process.env.RUTBA_OFFICE_VERSION || electron.getVersion();
+
 // A screenshot build asks for a device scale of its own (`RUTBA_SCREEN_SCALE=2`),
 // so a capture is crisp at twice the window's size whatever display it ran on.
 if (process.env.RUTBA_SCREEN_SCALE) electron.commandLine.appendSwitch('force-device-scale-factor', process.env.RUTBA_SCREEN_SCALE);

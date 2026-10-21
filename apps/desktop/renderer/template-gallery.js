@@ -191,10 +191,11 @@ export function TemplateGallery({ shell, app = null, onClose }) {
                   <button
                     key={tpl.id}
                     type="button"
-                    className="tg-card"
+                    className={`tg-card${tpl.needs ? ' needs' : ''}`}
                     data-template={tpl.id}
-                    data-tip={`${t(tpl.name)}: ${t(tpl.description)}`}
-                    onClick={() => open({ app: tpl.app, query: { template: tpl.id } })}
+                    data-needs={tpl.needs || undefined}
+                    data-tip={tpl.needs ? t('{name} needs Rutba Office {version} or newer. Check for updates.', { name: t(tpl.name), version: tpl.needs }) : `${t(tpl.name)}: ${t(tpl.description)}`}
+                    onClick={() => (tpl.needs ? shell.update.check({ manual: true }).catch(() => {}) : open({ app: tpl.app, query: { template: tpl.id } }))}
                   >
                     <span className={`tg-thumb ${tpl.app}`}>
                       {tpl.thumbnail ? <img src={tpl.thumbnail} alt="" draggable={false} /> : <BlankPicture app={tpl.app} />}
@@ -203,6 +204,7 @@ export function TemplateGallery({ shell, app = null, onClose }) {
                       <span className="tpl-glyph" data-app={tpl.app}><Icon name={tpl.app} size={12} /></span>
                       {t(tpl.name)}
                     </span>
+                    {tpl.needs ? <span className="tg-needs">{t('Needs Rutba Office {version}', { version: tpl.needs })}</span> : null}
                   </button>
                 ))}
                 {ownShown.map((p) => (
@@ -280,6 +282,8 @@ const CSS = `
 }
 .tg-card:hover .tg-thumb, .tg-card:focus-visible .tg-thumb { border-color: var(--accent-line); box-shadow: var(--shadow-2); transform: translateY(-1px); }
 .tg-card:focus-visible { outline: none; }
+.tg-card.needs .tg-thumb { opacity: .45; filter: grayscale(.6); }
+.tg-needs { display: block; font-size: 11px; color: var(--accent-text); margin-top: 2px; }
 .tg-card:focus-visible .tg-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tg-thumb img { max-width: calc(100% - 22px); max-height: calc(100% - 22px); object-fit: contain; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18), 0 4px 14px rgba(0, 0, 0, 0.08); background: #fff; }
 .tg-thumb.word img { max-height: calc(100% - 16px); }

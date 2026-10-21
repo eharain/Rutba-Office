@@ -7586,4 +7586,7 @@ export default {
   'Members, renewals, donations, campaigns, events and volunteers.': 'सदस्य, नवीनीकरण, दान, अभियान, कार्यक्रम और स्वयंसेवक।',
   'Workshop or maker': 'वर्कशॉप या कारीगर',
   'Materials, bills of materials, work orders, finished stock and sales.': 'सामग्री, सामग्री सूचियाँ, कार्य ऑर्डर, तैयार माल का स्टॉक और बिक्री।',
+  'Needs Rutba Office {version}': 'Rutba Office {version} चाहिए',
+  'Needs Rutba Office {version} or newer. Check for updates.': 'Rutba Office {version} या नया चाहिए। अपडेट देखें।',
+  '{name} needs Rutba Office {version} or newer. Check for updates.': '{name} के लिए Rutba Office {version} या नया चाहिए। अपडेट देखें।',
 };

@@ -7586,4 +7586,7 @@ export default {
   'Members, renewals, donations, campaigns, events and volunteers.': 'الأعضاء والتجديدات والتبرعات والحملات والفعاليات والمتطوعون.',
   'Workshop or maker': 'ورشة أو صانع',
   'Materials, bills of materials, work orders, finished stock and sales.': 'المواد وقوائم المواد وأوامر العمل ومخزون المنتجات الجاهزة والمبيعات.',
+  'Needs Rutba Office {version}': 'يحتاج Rutba Office {version}',
+  'Needs Rutba Office {version} or newer. Check for updates.': 'يحتاج Rutba Office {version} أو أحدث. ابحث عن التحديثات.',
+  '{name} needs Rutba Office {version} or newer. Check for updates.': 'يحتاج {name} إلى Rutba Office {version} أو أحدث. ابحث عن التحديثات.',
 };

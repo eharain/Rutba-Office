@@ -11,6 +11,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Base, importRows, importSheets, buildTemplate, buildSample } from '@rutba/database';
+import { TEMPLATE_IDS, SAMPLE_IDS, templateNeeds, sampleNeeds } from '@rutba/templates/data-files';
+import { needsFor } from '@rutba/templates/versions';
+import { readManifest } from '@rutba/templates/manifest';
 import { parseDelimited } from '@rutba/ooxml/mailmerge';
 import { legacySheetKind, readLegacySheets } from '@rutba/office-formats/legacy-sheets';
 import MDBReader from 'mdb-reader';
@@ -93,6 +96,24 @@ export function createBaseService() {
       }
       fs.mkdirSync(path.dirname(file), { recursive: true });
       return summary(hold(file, win));
+    },
+
+    /**
+     * The ready-made databases this Office has, and which need a newer one:
+     * { set, office, templates: [{ id, needs }], samples: [{ id, needs }] },
+     * `needs` the version wanted, or null when this Office can make it.
+     */
+    readyMade: () => {
+      const office = process.env.RUTBA_APP_VERSION;
+      const manifest = (() => { try { return readManifest(); } catch { return {}; } })();
+      const part = manifest.parts?.dataFiles || {};
+      const whole = needsFor(office, part) || needsFor(office, manifest);
+      return {
+        set: manifest.set || null,
+        office,
+        templates: TEMPLATE_IDS.map((id) => ({ id, needs: whole || needsFor(office, { minOffice: templateNeeds(id) }) })),
+        samples: SAMPLE_IDS.map((id) => ({ id, needs: whole || needsFor(office, { minOffice: sampleNeeds(id) }) })),
+      };
     },
 
     /** A new database at `file` made from a template: its tables, relationships, queries, forms and reports. */
