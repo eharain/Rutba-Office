@@ -7509,4 +7509,7 @@ export default {
   'Saved as {name}': '{name} नाम से सहेजा गया',
   'Smallest': 'सबसे छोटा',
   'This report is not in the database.': 'यह रिपोर्ट डेटाबेस में नहीं है।',
+  'Data Files databases': 'डेटा फ़ाइल्स डेटाबेस',
+  'Tables and queries': 'तालिकाएँ और क्वेरी',
+  '{name} has more than one table or query. The records of the one you choose are the recipients, its fields the merge fields.': '{name} में एक से अधिक तालिका या क्वेरी हैं। आप जिसे चुनें उसके रिकॉर्ड प्राप्तकर्ता होंगे, और उसके फ़ील्ड मर्ज फ़ील्ड।',
 };

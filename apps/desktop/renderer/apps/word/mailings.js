@@ -18,8 +18,9 @@ import {
 import { PrintDialog } from '../../print.js';
 
 const SOURCE_FILTERS = [
-  { name: t('Recipient lists'), extensions: ['xlsx', 'xlsm', 'csv', 'tsv', 'txt'] },
+  { name: t('Recipient lists'), extensions: ['xlsx', 'xlsm', 'rbase', 'csv', 'tsv', 'txt'] },
   { name: t('Excel workbooks'), extensions: ['xlsx', 'xlsm'] },
+  { name: t('Data Files databases'), extensions: ['rbase'] },
   { name: t('Comma or tab separated'), extensions: ['csv', 'tsv', 'txt'] },
 ];
 
@@ -186,10 +187,10 @@ export function useMailings({ shell, doc, model, apply, toast, extra = null }) {
   const refresh = useCallback(() => apply({ op: 'mergeRefresh' }), [apply]);
   const call = useCallback((action, args = {}) => shell.doc.mailMerge({ id: doc.id, action, ...args }), [shell, doc]);
 
-  /** Use an Existing List, once a file is chosen: a workbook with several sheets asks which. */
+  /** Use an Existing List, once a file is chosen: a workbook with several sheets, or a database with several tables and queries, asks which. */
   const useList = useCallback(async ({ path, sheet = null }) => {
     try {
-      if (!sheet && /\.xls[xm]$/i.test(path)) {
+      if (!sheet && /\.(xls[xm]|rbase)$/i.test(path)) {
         const peek = await call('sheets', { path });
         if ((peek.sheets || []).length > 1) {
           setDialog({ name: 'table', path, peek });
@@ -393,6 +394,7 @@ function RecordStepper({ at, total, onGo }) {
 
 function SelectTableDialog({ peek, path, onClose, onPick }) {
   const [sheet, setSheet] = useState(peek.sheet || peek.sheets[0]);
+  const database = /\.rbase$/i.test(path);
   return (
     <Dialog
       title={t('Select Table')}
@@ -400,11 +402,13 @@ function SelectTableDialog({ peek, path, onClose, onPick }) {
       onClose={onClose}
       actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} onClick={() => onPick(sheet)} /></>}
     >
-      <p className="wd-mm-lead">{t('{name} has more than one sheet. The first row of the one you choose names the fields.', { name: path.split(/[\\/]/).pop() })}</p>
-      <div className="wd-mm-pick" role="listbox" aria-label={t('Sheets')}>
+      <p className="wd-mm-lead">{database
+        ? t('{name} has more than one table or query. The records of the one you choose are the recipients, its fields the merge fields.', { name: path.split(/[\\/]/).pop() })
+        : t('{name} has more than one sheet. The first row of the one you choose names the fields.', { name: path.split(/[\\/]/).pop() })}</p>
+      <div className="wd-mm-pick" role="listbox" aria-label={database ? t('Tables and queries') : t('Sheets')}>
         {peek.sheets.map((s) => (
-          <button key={s} type="button" role="option" aria-selected={s === sheet} className={s === sheet ? 'on' : ''} onClick={() => setSheet(s)} onDoubleClick={() => onPick(s)}>
-            <Icon name="sheets" size={14} /> <span>{s}</span>
+          <button key={s} type="button" role="option" aria-selected={s === sheet} className={s === sheet ? 'on' : ''} data-sheet={s} onClick={() => setSheet(s)} onDoubleClick={() => onPick(s)}>
+            <Icon name={database ? 'table' : 'sheets'} size={14} /> <span>{s}</span>
           </button>
         ))}
       </div>

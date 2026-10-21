@@ -226,6 +226,7 @@ import { verifyDrawingDelete } from './verify-drawing-delete.js';
 import { verifySheetPointing } from './verify-sheet-pointing.js';
 import { verifySheetRtl } from './verify-sheet-rtl.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
+import { verifyWordMailMergeDatabase } from './verify-word-mailmerge-database.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
 import { verifyEvaluate } from './verify-evaluate.js';
@@ -5115,6 +5116,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
+    if (only.includes('mailmerge-db')) await verifyWordMailMergeDatabase({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('labels')) await wordLabels();
     if (only.includes('track')) await wordTrack();
     if (only.includes('equations')) await wordEquations();
@@ -5479,6 +5481,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await part('word', () => wordMailMerge());
+  await part('word', () => verifyWordMailMergeDatabase({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('word', () => wordLabels());
   await part('word', () => wordTrack());
   await part('word', () => wordEquations());

@@ -7509,4 +7509,7 @@ export default {
   'Saved as {name}': 'حُفظ باسم {name}',
   'Smallest': 'الأصغر',
   'This report is not in the database.': 'هذا التقرير غير موجود في قاعدة البيانات.',
+  'Data Files databases': 'قواعد بيانات Data Files',
+  'Tables and queries': 'الجداول والاستعلامات',
+  '{name} has more than one table or query. The records of the one you choose are the recipients, its fields the merge fields.': 'يحتوي {name} على أكثر من جدول أو استعلام. سجلات ما تختاره هي المستلمون، وحقوله هي حقول الدمج.',
 };

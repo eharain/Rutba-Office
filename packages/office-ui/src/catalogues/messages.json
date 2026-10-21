@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7499,
+  "count": 7502,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -9465,6 +9465,12 @@
       "where": [
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Data Files databases",
+      "where": [
+        "apps/desktop/renderer/apps/word/mailings.js"
       ]
     },
     {
@@ -36232,6 +36238,12 @@
       ]
     },
     {
+      "message": "Tables and queries",
+      "where": [
+        "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
       "message": "Tables of records you keep, related to each other, in one file on this computer.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -47031,6 +47043,12 @@
     },
     {
       "message": "{name} has more than one sheet. The first row of the one you choose names the fields.",
+      "where": [
+        "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "{name} has more than one table or query. The records of the one you choose are the recipients, its fields the merge fields.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
       ]

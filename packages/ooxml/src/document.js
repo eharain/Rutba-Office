@@ -1693,6 +1693,11 @@ export class Document {
           dataType = 'native';
           connect = 'Provider=Microsoft.ACE.OLEDB.12.0;User ID=Admin;Data Source=' + winPath + ';Mode=Read;Extended Properties="HDR=YES;IMEX=1;";';
           query = 'SELECT * FROM `' + (src.sheet || 'Sheet1') + '$` ';
+        } else if (src.kind === 'rbase') {
+          // A Data Files database's table or query, named as Word names an Access file's: no $.
+          dataType = 'native';
+          connect = 'Data Source=' + winPath + ';Mode=Read;';
+          query = 'SELECT * FROM `' + (src.sheet || '') + '` ';
         } else {
           dataType = 'textFile';
           query = 'SELECT * FROM ' + winPath;

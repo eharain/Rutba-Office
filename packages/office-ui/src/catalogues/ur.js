@@ -7507,4 +7507,7 @@ export default {
   'Saved as {name}': '{name} کے نام سے محفوظ',
   'Smallest': 'سب سے چھوٹا',
   'This report is not in the database.': 'یہ رپورٹ ڈیٹابیس میں نہیں ہے۔',
+  'Data Files databases': 'ڈیٹا فائلز ڈیٹابیس',
+  'Tables and queries': 'ٹیبلز اور کوئریز',
+  '{name} has more than one table or query. The records of the one you choose are the recipients, its fields the merge fields.': '{name} میں ایک سے زیادہ ٹیبل یا کوئری ہیں۔ جسے آپ منتخب کریں اس کے ریکارڈز وصول کنندگان ہوں گے، اور اس کی فیلڈز مرج فیلڈز۔',
 };

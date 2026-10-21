@@ -54,6 +54,21 @@ export class Base {
     return base;
   }
 
+  /**
+   * The database at `file` to read and nothing else, as a mail merge reads
+   * it: its design left as it is, and any change refused by SQLite itself.
+   */
+  static read(file) {
+    const db = new DatabaseSync(file);
+    db.exec('PRAGMA query_only = ON');
+    return new Base(db);
+  }
+
+  /** Whether the file has the design table `name` (a file made before queries has no rutba_queries). */
+  hasDesignTable(name) {
+    return Boolean(this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
+  }
+
   constructor(db) {
     this.db = db;
   }
