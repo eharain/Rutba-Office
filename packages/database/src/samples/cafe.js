@@ -3,7 +3,9 @@
 // (so every dish has a food cost), the ingredients and who supplies them,
 // deliveries in and the bills for them, the till's orders and their lines,
 // the staff and their rota, what was thrown away, and the cash-up sheet
-// filled in at each day's close.
+// filled in at each day's close. It prints a till receipt for each bill
+// (VAT within the menu prices), a purchase order for each order to a
+// supplier, and a weekly payslip for each person from the rota.
 //
 // Its records come from fourteen months of trading, run a day at a time:
 // busier at weekends, in summer and on sunny days, breakfast until half past
@@ -14,7 +16,7 @@
 // sheets, the rota, the deliveries and the waste go back the whole fourteen
 // months. The rota runs two weeks ahead.
 
-import { money, person, phoneFor, random } from './util.js';
+import { BUSINESS_ABOUT, BUSINESS_TABLE, businessRecord, money, person, phoneFor, random } from './util.js';
 
 const ref = (table) => ({ type: 'integer', points: table });
 const LINE = 'Round([Quantity] * [Unit Price], 2)';
@@ -27,22 +29,29 @@ const DAY_NAME = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
   .reduceRight((rest, name, i) => `IIf(${DAY_NO} = ${i}, "${name}", ${rest})`, '"Sunday"');
 const WEEK_NO = '(DateDiff("d", #2024-01-01#, [Date]) - DateDiff("d", #2024-01-01#, [Date]) Mod 7) / 7';
 const TAKINGS = '[Card Takings] + [Cash Takings]';
+// The VAT within a line's tax-inclusive price, as the till works it out.
+const VAT_IN = 'Round([Price] - [Price] / (1 + [Tax Rate]), 2)';
+// The day of the week a shift starts on, for the payslip.
+const SHIFT_DAY_NO = 'DateDiff("d", #2024-01-01#, [Start]) Mod 7';
+const SHIFT_DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  .reduceRight((rest, name, i) => `IIf(${SHIFT_DAY_NO} = ${i}, "${name}", ${rest})`, '"Sunday"');
 
 export const spec = {
   // Where a value below nought is right: cash short in the till, a bill already past its day.
   negative: { 'Cash over or short': ['Over or Short'], 'Bills to pay': ['Days to Pay'] },
   tables: [
+    BUSINESS_TABLE,
     { name: 'Menu Categories', fields: [
       { name: 'Name', type: 'text', required: true, unique: true }, { name: 'Served', type: 'text' }, { name: 'Sort Order', type: 'integer' },
     ] },
     { name: 'Menu Items', fields: [
       { name: 'Name', type: 'text', required: true, unique: true }, { name: 'Category', ...ref('Menu Categories'), required: true },
       { name: 'Price', type: 'currency' }, { name: 'Takeaway', type: 'yesno' }, { name: 'Baked Here', type: 'yesno' },
-      { name: 'Diet', type: 'text' }, { name: 'Active', type: 'yesno', default: true },
+      { name: 'Diet', type: 'text' }, { name: 'Takeaway VAT Rate', type: 'number', default: 0.2 }, { name: 'Active', type: 'yesno', default: true },
     ] },
     { name: 'Suppliers', fields: [
-      { name: 'Name', type: 'text', required: true }, { name: 'Supplies', type: 'text' }, { name: 'Contact', type: 'text' },
-      { name: 'Phone', type: 'text' }, { name: 'E-mail', type: 'text' }, { name: 'Delivers On', type: 'text' },
+      { name: 'Name', type: 'text', required: true }, { name: 'Supplies', type: 'text' }, { name: 'Address', type: 'text' },
+      { name: 'City', type: 'text' }, { name: 'Postcode', type: 'text' }, { name: 'Contact', type: 'text' }, { name: 'Phone', type: 'text' }, { name: 'E-mail', type: 'text' }, { name: 'Delivers On', type: 'text' },
       { name: 'Payment Days', type: 'integer', default: 30 },
     ] },
     { name: 'Ingredients', fields: [
@@ -59,22 +68,29 @@ export const spec = {
       { name: 'First Name', type: 'text' }, { name: 'Last Name', type: 'text', required: true }, { name: 'Role', type: 'text' },
       { name: 'Hourly Rate', type: 'currency' }, { name: 'Phone', type: 'text' }, { name: 'E-mail', type: 'text' }, { name: 'Started', type: 'date' },
     ] },
+    // A payslip for each person for each week, made from the week's shifts once it has been worked.
+    { name: 'Payslips', fields: [
+      { name: 'Number', type: 'text', unique: true }, { name: 'Staff', ...ref('Staff'), required: true }, { name: 'Week Beginning', type: 'date' },
+      { name: 'Week Ending', type: 'date' }, { name: 'Pay Date', type: 'date' }, { name: 'Hours', type: 'number' },
+      { name: 'Hourly Rate', type: 'currency' }, { name: 'Gross Pay', type: 'currency' },
+    ] },
     { name: 'Shifts', fields: [
       { name: 'Staff', ...ref('Staff'), required: true }, { name: 'Start', type: 'datetime' }, { name: 'End', type: 'datetime' },
       { name: 'Break Minutes', type: 'integer', default: 0 }, { name: 'Paid Hours', type: 'number' },
-      { name: 'Station', type: 'text' }, { name: 'Status', type: 'text', default: 'Rota' },
+      { name: 'Station', type: 'text' }, { name: 'Status', type: 'text', default: 'Rota' }, { name: 'Payslip', ...ref('Payslips') },
     ] },
     { name: 'Orders', fields: [
-      { name: 'When', type: 'datetime' }, { name: 'Service', type: 'text', default: 'Dine in' }, { name: 'Table No', type: 'integer' },
+      { name: 'Number', type: 'text', unique: true }, { name: 'When', type: 'datetime' }, { name: 'Service', type: 'text', default: 'Dine in' }, { name: 'Table No', type: 'integer' },
       { name: 'Covers', type: 'integer', default: 0 }, { name: 'Staff', ...ref('Staff'), required: true },
-      { name: 'Payment', type: 'text', default: 'Card' }, { name: 'Total', type: 'currency' }, { name: 'Voided', type: 'yesno' },
+      { name: 'Payment', type: 'text', default: 'Card' }, { name: 'Net', type: 'currency' }, { name: 'Tax', type: 'currency' },
+      { name: 'Total', type: 'currency' }, { name: 'Voided', type: 'yesno' },
     ] },
     { name: 'Order Lines', fields: [
       { name: 'Order', ...ref('Orders'), required: true }, { name: 'Menu Item', ...ref('Menu Items'), required: true },
-      { name: 'Quantity', type: 'integer', default: 1 }, { name: 'Unit Price', type: 'currency' },
+      { name: 'Quantity', type: 'integer', default: 1 }, { name: 'Unit Price', type: 'currency' }, { name: 'Tax Rate', type: 'number', default: 0.2 },
     ] },
     { name: 'Purchases', fields: [
-      { name: 'Supplier', ...ref('Suppliers'), required: true }, { name: 'Ordered On', type: 'date' }, { name: 'Due On', type: 'date' },
+      { name: 'Number', type: 'text', unique: true }, { name: 'Supplier', ...ref('Suppliers'), required: true }, { name: 'Ordered On', type: 'date' }, { name: 'Due On', type: 'date' },
       { name: 'Received On', type: 'date' }, { name: 'Invoice Number', type: 'text' }, { name: 'Paid On', type: 'date' },
     ] },
     { name: 'Purchase Lines', fields: [
@@ -88,7 +104,7 @@ export const spec = {
     { name: 'Cash Ups', fields: [
       { name: 'Date', type: 'date', required: true, unique: true }, { name: 'Closed By', ...ref('Staff') }, { name: 'Weather', type: 'text' },
       { name: 'Orders', type: 'integer' }, { name: 'Covers', type: 'integer' }, { name: 'Card Takings', type: 'currency' },
-      { name: 'Cash Takings', type: 'currency' }, { name: 'Cash Counted', type: 'currency' }, { name: 'Wage Cost', type: 'currency' },
+      { name: 'Cash Takings', type: 'currency' }, { name: 'VAT', type: 'currency' }, { name: 'Cash Counted', type: 'currency' }, { name: 'Wage Cost', type: 'currency' },
       { name: 'Notes', type: 'longtext' },
     ] },
   ],
@@ -152,6 +168,7 @@ export const spec = {
     'Takings by month': { tables: ['Cash Ups'], columns: [
       { expr: 'Format([Date], "yyyy-mm")', as: 'Month', total: 'group', sort: 'asc' }, { table: 'Cash Ups', field: 'Date', as: 'Days Open', total: 'count' },
       { table: 'Cash Ups', field: 'Orders', as: 'Orders', total: 'sum' }, { expr: TAKINGS, as: 'Takings', total: 'sum' },
+      { table: 'Cash Ups', field: 'VAT', as: 'VAT', total: 'sum' }, { expr: `Round(${TAKINGS} - [VAT], 2)`, as: 'Takings less VAT', total: 'sum' },
       { table: 'Cash Ups', field: 'Wage Cost', as: 'Wages', total: 'sum' },
       { expr: `Round(${TAKINGS} - [Wage Cost], 2)`, as: 'Left After Wages', total: 'sum' },
     ] },
@@ -222,12 +239,69 @@ export const spec = {
       { expr: 'Round([In Stock] * [Cost per Unit], 2)', as: 'Value at Cost', total: 'sum' },
     ] },
   },
+  // The print templates: one document for each record of the table named, its lines from the records pointing at it.
+  documents: [
+    { name: 'Receipt', table: 'Orders', paper: 'receipt-80',
+      letterhead: { table: 'Business', fields: ['Name', 'Address', 'City', 'Postcode', 'Phone', 'Tax Number'] },
+      blocks: [
+        { type: 'heading', text: 'Receipt {Number}' },
+        { type: 'fields', columns: 2, items: [{ field: 'When', label: 'Date and time' }, { field: 'Service' }, { field: 'Table No', label: 'Table' }, { field: 'Payment', label: 'Paid by' }] },
+        { type: 'lines', table: 'Order Lines', columns: [
+          { field: 'Quantity', label: 'Qty', type: 'integer' }, { field: 'Menu Item.Name', label: 'Item' }, { field: 'Unit Price', label: 'Each', type: 'currency' },
+          { expr: LINE, as: 'Price', type: 'currency' }, { expr: 'Round([Tax Rate] * 100, 0)', as: 'VAT %', type: 'integer' },
+          { expr: VAT_IN, as: 'VAT', type: 'currency' },
+        ] },
+        { type: 'totals', rows: [
+          { label: 'Total', expr: '[Total]', strong: true }, { label: 'Net of VAT', expr: '[Net]' }, { label: 'VAT included', expr: '[Tax]' },
+        ] },
+        { type: 'text', text: 'You were served by {Staff.First Name}. Please keep this receipt as your proof of purchase.' },
+        { type: 'text', text: 'VAT number {Business.Tax Number}. {Business.Document Footer}', small: true },
+      ] },
+    { name: 'Purchase order', table: 'Purchases', paper: 'a4',
+      letterhead: { table: 'Business', fields: ['Name', 'Address', 'City', 'Postcode', 'Phone', 'E-mail'] },
+      blocks: [
+        { type: 'heading', text: 'Purchase order {Number}' },
+        { type: 'fields', columns: 2, items: [
+          { field: 'Supplier.Name', label: 'To' }, { field: 'Number', label: 'Order number' }, { field: 'Supplier.Address', label: 'Address' },
+          { field: 'Ordered On', label: 'Order date' }, { field: 'Supplier.City', label: 'City' }, { field: 'Due On', label: 'Deliver on' },
+          { field: 'Supplier.Postcode', label: 'Postcode' }, { field: 'Supplier.Contact', label: 'For the attention of' },
+        ] },
+        { type: 'lines', table: 'Purchase Lines', columns: [
+          { field: 'Ingredient.Name', label: 'Ingredient' }, { field: 'Ingredient.Bought As', label: 'Comes as' }, { field: 'Quantity', type: 'number' },
+          { field: 'Ingredient.Unit', label: 'Unit' }, { field: 'Unit Cost', label: 'Price per unit', type: 'currency' },
+          { expr: 'Round([Quantity] * [Unit Cost], 2)', as: 'Amount', type: 'currency' },
+        ] },
+        { type: 'totals', rows: [{ label: 'Order total', expr: '[Amount]', strong: true }] },
+        { type: 'text', text: 'Please deliver to {Business.Name}, {Business.Address}, {Business.City} {Business.Postcode} on {Due On}, before 7 in the morning if you can. Quote {Number} on your delivery note and your invoice. Prices are those we last paid; tell us before delivery if any has changed.' },
+        { type: 'text', text: 'Questions about this order: {Business.Phone} or {Business.E-mail}.', small: true },
+        { type: 'signatures', labels: ['Ordered by', 'Received by'] },
+      ] },
+    { name: 'Payslip', table: 'Payslips', paper: 'a4',
+      letterhead: { table: 'Business', fields: ['Name', 'Address', 'City', 'Postcode', 'Company Number'] },
+      blocks: [
+        { type: 'heading', text: 'Payslip {Number}' },
+        { type: 'fields', columns: 2, items: [
+          { field: 'Staff', label: 'Employee' }, { field: 'Week Beginning', label: 'Week beginning' }, { field: 'Staff.Role', label: 'Role' },
+          { field: 'Week Ending', label: 'Week ending' }, { field: 'Hourly Rate', label: 'Hourly rate' }, { field: 'Pay Date', label: 'Paid on' },
+        ] },
+        { type: 'lines', table: 'Shifts', sort: 'Start', columns: [
+          { expr: 'Format([Start], "yyyy-mm-dd")', as: 'Date', type: 'date' }, { expr: SHIFT_DAY, as: 'Day' }, { expr: 'Mid([Start], 12, 5)', as: 'From' }, { expr: 'Mid([End], 12, 5)', as: 'To' },
+          { field: 'Break Minutes', label: 'Break (min)', type: 'integer' }, { field: 'Station' }, { field: 'Status' },
+          { field: 'Paid Hours', label: 'Hours', type: 'number' }, { field: 'Payslip.Hourly Rate', as: 'Rate', type: 'currency' },
+          { expr: 'Round([Paid Hours] * [Rate], 2)', as: 'Pay', type: 'currency' },
+        ] },
+        { type: 'totals', rows: [
+          { label: 'Hours paid', expr: '[Hours]', type: 'number' }, { label: 'Gross pay', expr: '[Gross Pay]', strong: true },
+        ] },
+        { type: 'text', text: 'Gross pay for the hours on the rota, holiday included at the usual rate and sick days unpaid here. Tax, National Insurance, pension and any other deductions are worked out by the payroll and shown on the payroll\'s own statement of net pay.', small: true },
+      ] },
+  ],
   reports: [
     { name: 'Menu costing sheet', query: 'Menu costing', group: 'Category', columns: ['Menu Item', { field: 'Price', type: 'currency' }, { field: 'Food Cost', type: 'currency' }, { field: 'Food Cost %', type: 'number' }, { field: 'Gross Profit', type: 'currency' }, { field: 'Gross Margin %', type: 'number' }], totals: [{ field: 'Food Cost %', fn: 'avg' }, { field: 'Gross Profit', fn: 'avg' }] },
     { name: 'Recipe cards', query: 'Recipe card', group: 'Menu Item', columns: [{ field: 'Line', type: 'integer' }, 'Ingredient', { field: 'Quantity', type: 'number' }, 'Unit', { field: 'Line Cost', type: 'currency' }], totals: [{ field: 'Line Cost', fn: 'sum' }] },
     { name: 'Price list', title: 'Menu', query: 'Menu', group: 'Category', columns: ['Menu Item', 'Diet', { field: 'Price', type: 'currency' }] },
     { name: 'Weekly takings and wages', query: 'Takings and wages by week', columns: [{ field: 'Week Beginning', type: 'date' }, { field: 'Days Open', type: 'integer' }, { field: 'Orders', type: 'integer' }, { field: 'Covers', type: 'integer' }, { field: 'Takings', type: 'currency' }, { field: 'Wages', type: 'currency' }, { field: 'Left After Wages', type: 'currency' }, { field: 'Average Day Wage %', type: 'number' }], totals: [{ field: 'Takings', fn: 'sum' }, { field: 'Wages', fn: 'sum' }, { field: 'Left After Wages', fn: 'sum' }] },
-    { name: 'Monthly takings', query: 'Takings by month', columns: ['Month', { field: 'Days Open', type: 'integer' }, { field: 'Orders', type: 'integer' }, { field: 'Takings', type: 'currency' }, { field: 'Wages', type: 'currency' }, { field: 'Left After Wages', type: 'currency' }], totals: [{ field: 'Takings', fn: 'sum' }, { field: 'Wages', fn: 'sum' }, { field: 'Left After Wages', fn: 'sum' }] },
+    { name: 'Monthly takings', query: 'Takings by month', columns: ['Month', { field: 'Days Open', type: 'integer' }, { field: 'Orders', type: 'integer' }, { field: 'Takings', type: 'currency' }, { field: 'VAT', type: 'currency' }, { field: 'Takings less VAT', type: 'currency' }, { field: 'Wages', type: 'currency' }, { field: 'Left After Wages', type: 'currency' }], totals: [{ field: 'Takings', fn: 'sum' }, { field: 'VAT', fn: 'sum' }, { field: 'Takings less VAT', fn: 'sum' }, { field: 'Wages', fn: 'sum' }, { field: 'Left After Wages', fn: 'sum' }] },
     { name: 'Rota', title: 'Rota for the next 7 days', query: 'Rota for the next 7 days', group: 'Day', columns: ['From', 'To', 'Name', 'Station', { field: 'Paid Hours', type: 'number' }, 'Status'], totals: [{ field: 'Paid Hours', fn: 'sum' }] },
     { name: 'Order list for suppliers', query: 'Ingredients to order', group: 'Supplier', columns: ['Ingredient', 'Unit', { field: 'In Stock', type: 'number' }, { field: 'On Order', type: 'number' }, { field: 'Reorder Level', type: 'number' }, { field: 'Order', type: 'number' }, 'Bought As', { field: 'Estimated Cost', type: 'currency' }], totals: [{ field: 'Estimated Cost', fn: 'sum' }] },
     { name: 'Waste report', query: 'Waste in the last 30 days', group: 'Reason', columns: [{ field: 'Date', type: 'date' }, 'Ingredient', { field: 'Quantity', type: 'number' }, 'Unit', { field: 'Cost', type: 'currency' }, 'Recorded By'], totals: [{ field: 'Cost', fn: 'sum' }] },
@@ -244,6 +318,8 @@ export const about = {
     `Little Fig Cafe is an invented all-day cafe with about thirty seats and a takeaway counter. It opens every day but Christmas Day, from half past seven (half past eight at weekends) until half past four. Breakfast is served until half past eleven and lunch until half past three; coffee, cold drinks and cakes all day. Its head baker makes the cakes on site each morning. Eight people work there, and six invented suppliers deliver coffee, dairy, produce, meat and fish, bread and dry goods, each on its own days.`,
     `The records cover the last fourteen months: a cash-up sheet for every day the cafe opened, the rota as it was worked, every delivery and its bill, and what was thrown away. The till's orders are here line by line for the last eight weeks, about six thousand of them; older days are in their cash-up sheets. Trade is busier at weekends, in July and August and on sunny days, and quieter in January. The rota runs two weeks ahead. The records stop at the start of today: this morning's deliveries are not booked in yet and this morning's orders to suppliers are not placed, so the order list shows what to ask for.`,
     `Every dish has a recipe in its ingredients' own units, so its food cost comes from the ingredients' current prices. Prices are pounds, as a cafe in the UK would charge them, but nothing in the design depends on the currency.`,
+    `The menu prices include VAT, as a cafe's prices to the public do. The sample keeps the VAT simple and says so: everything eaten in, every drink and any hot food taken away carries the standard rate of 20%, and cold food taken away (the cakes and bakes, the cold bagel and rolls) carries none. The real rules have more cases than that, such as hot food kept warm, cold drinks and snacks, so set each dish's Takeaway VAT Rate to what applies to you. Each line of a bill keeps the rate it was sold at, each bill keeps its VAT, and each day's cash-up keeps the day's VAT for the return.`,
+    `It prints three documents: a till receipt for every bill, numbered RCP-2026-00042; a purchase order for every order to a supplier, numbered PO-2026-0042, made each morning from the order list; and a weekly payslip for each person, numbered PAY-2026-0042, from the shifts on the rota. The payslip shows hours, rate and gross pay only: tax, National Insurance, pension and other deductions are left for the payroll to work out.`,
   ].join('\n\n'),
   suits: [
     'A coffee shop or kiosk',
@@ -254,6 +330,7 @@ export const about = {
     'A tea room or farm shop cafe',
   ],
   tables: {
+    Business: BUSINESS_ABOUT,
     'Menu Categories': { about: 'The sections of the menu, such as breakfast or cakes. Enter these first.', fields: {
       'Name': 'The section as the menu heads it.',
       'Served': 'When the section is served, such as All day or Until 11:30, printed on the menu.',
@@ -266,11 +343,15 @@ export const about = {
       'Takeaway': 'Yes when it can be taken away as well as eaten in.',
       'Baked Here': 'Yes for what the cafe bakes itself, such as cakes and pancakes.',
       'Diet': 'Short marks for the menu: V for vegetarian, VG for vegan, GF for gluten free.',
+      'Takeaway VAT Rate': 'The VAT rate when it is taken away, as a fraction: 0.2 for drinks and hot food, 0 for cold food such as cakes. Eaten in, everything carries the standard rate.',
       'Active': 'No for a dish taken off the menu. It stays for the orders that sold it, and drops out of the menu and the costing.',
     } },
     'Suppliers': { about: 'The firms the cafe buys from, one record each.', fields: {
       'Name': 'The supplier\'s trading name.',
       'Supplies': 'What the cafe buys from them, in a few words.',
+      'Address': 'Their street address, printed on the purchase order.',
+      'City': 'Their town or city.',
+      'Postcode': 'Their postcode.',
       'Contact': 'The person to speak to when ordering.',
       'Phone': 'The number to call an order through.',
       'E-mail': 'Where to send an order in writing.',
@@ -304,6 +385,16 @@ export const about = {
       'E-mail': 'Where the rota is sent.',
       'Started': 'The day they started.',
     } },
+    'Payslips': { about: 'One payslip per person per week, Monday to Sunday, made once the week has been worked. Its lines are the week\'s shifts.', fields: {
+      'Number': 'The payslip\'s number, given in date order with a new run each year: PAY-2026-0042.',
+      'Staff': 'Who it pays.',
+      'Week Beginning': 'The Monday the week starts.',
+      'Week Ending': 'The Sunday it ends.',
+      'Pay Date': 'The day the money goes out: the Friday after the week ends.',
+      'Hours': 'The hours paid that week, holiday included, added up from the shifts.',
+      'Hourly Rate': 'The rate paid that week, kept so a later pay rise leaves old payslips as they were.',
+      'Gross Pay': 'Pay before any deduction: each shift\'s hours times the rate, rounded to the penny, added up. Tax, National Insurance and pension are left for the payroll.',
+    } },
     'Shifts': { about: 'The rota: one record per person per shift, planned ahead and kept once worked.', fields: {
       'Staff': 'Who works the shift.',
       'Start': 'The day and time the shift starts.',
@@ -312,24 +403,30 @@ export const about = {
       'Paid Hours': 'The hours paid: from start to end less the break, or nought for a day off sick.',
       'Station': 'Where they work that shift: Barista, Kitchen, Floor, Bakery or Manager.',
       'Status': 'Rota for a shift still to come, Worked, Holiday (paid, not worked) or Sick.',
+      'Payslip': 'The payslip the shift is paid on; empty until its week is over and paid.',
     } },
-    'Orders': { about: 'One record per bill rung up on the till: a table\'s meal or a takeaway.', fields: {
+    'Orders': { about: 'One record per bill rung up on the till: a table\'s meal or a takeaway. Each prints as a receipt.', fields: {
+      'Number': 'The receipt number, given in order through the day with a new run each year: RCP-2026-00042. A voided bill keeps its number.',
       'When': 'The day and time it was rung up.',
       'Service': 'Dine in or Takeaway.',
       'Table No': 'The table it was served at; empty for a takeaway.',
       'Covers': 'How many people sat down to it; nought for a takeaway.',
       'Staff': 'Who took the order.',
       'Payment': 'Card or Cash.',
-      'Total': 'What the bill came to: the sum of its lines.',
+      'Net': 'The bill less the VAT within it.',
+      'Tax': 'The VAT within the bill: each line\'s VAT worked out from its price and rate, rounded to the penny, then added up.',
+      'Total': 'What the bill came to, VAT included: the sum of its lines.',
       'Voided': 'Yes for a bill cancelled before it was paid. It stays on record and is left out of the takings.',
     } },
     'Order Lines': { about: 'What was on each bill: one line per dish, with how many.', fields: {
       'Order': 'The bill this line is on.',
       'Menu Item': 'The dish or drink sold.',
       'Quantity': 'How many.',
-      'Unit Price': 'The price of one when it was sold, kept so a later price change leaves old bills as they were.',
+      'Unit Price': 'The price of one when it was sold, VAT included, kept so a later price change leaves old bills as they were.',
+      'Tax Rate': 'The VAT rate within the price, as a fraction: the standard 0.2 eaten in, the dish\'s Takeaway VAT Rate taken away.',
     } },
-    'Purchases': { about: 'One record per order to a supplier, from the day it was placed to the day its bill was paid.', fields: {
+    'Purchases': { about: 'One record per order to a supplier, from the day it was placed to the day its bill was paid. Each prints as a purchase order.', fields: {
+      'Number': 'The purchase order\'s number, given in date order with a new run each year: PO-2026-0042. The supplier quotes it on the delivery note.',
       'Supplier': 'Who it was ordered from.',
       'Ordered On': 'The day the order went in.',
       'Due On': 'The day the delivery is expected.',
@@ -358,6 +455,7 @@ export const about = {
       'Covers': 'How many people sat down.',
       'Card Takings': 'Taken by card, from the till\'s end of day reading.',
       'Cash Takings': 'Taken in cash, from the same reading.',
+      'VAT': 'The VAT within the day\'s takings, from the same reading, for the VAT return.',
       'Cash Counted': 'The cash actually in the drawer, less the float. A difference from Cash Takings is the till over or short.',
       'Wage Cost': 'What the day\'s shifts cost in wages, from the rota: hours worked or on holiday times each person\'s rate.',
       'Notes': 'Anything worth remembering about the day: something ran out, the card machine went down, the till was out.',
@@ -372,7 +470,7 @@ export const about = {
     'Sales by day of the week': 'Bills, covers, takings and the average bill for each day of the week over the last eight weeks, for planning who works when.',
     'Average spend by service': 'For the last 30 days, how many bills were eaten in and how many taken away, what each brought in and the average bill for each.',
     'Takings and wages by week': 'Each week\'s takings from the cash-up sheets against the wages on the rota, what was left after wages, and the average day\'s wages as a share of its takings. The week starts on Monday; the newest week comes first.',
-    'Takings by month': 'Takings and wages for each month, oldest first, to see the seasons and compare with the same month last year.',
+    'Takings by month': 'Takings, the VAT within them and the takings less VAT, and wages, for each month, oldest first: to see the seasons, compare with the same month last year, and fill in the VAT return.',
     'Takings by weather': 'The average day\'s takings and covers in the warmer months (May to September) by the weather noted on the cash-up sheet.',
     'Cash over or short': 'The days the cash counted at close did not match the till\'s cash reading, and by how much, with who closed up.',
     'Hours and wages by staff, last 28 days': 'Each person\'s shifts, hours and wages over the last four weeks, with holiday paid in and sick days left out. Use it for the payroll and to keep hours fair.',
@@ -390,15 +488,85 @@ export const about = {
     'Recipe cards': 'A card for each dish listing its ingredients, the quantity of each and its cost, with the dish\'s total food cost. For the kitchen wall and for training.',
     'Price list': 'The menu by section with prices and diet marks, ready to check against the printed menu.',
     'Weekly takings and wages': 'One line a week: days open, bills, covers, takings, wages, what was left after wages and the wage share, with the totals. For the owner\'s weekly look at the business.',
-    'Monthly takings': 'Takings and wages month by month with the totals, for the accountant or the bank.',
+    'Monthly takings': 'Takings, VAT, takings less VAT and wages month by month with the totals, for the accountant, the VAT return or the bank.',
     'Rota': 'The coming week\'s shifts, a section for each day with its total hours, to pin up in the back.',
     'Order list for suppliers': 'What to order today, a section for each supplier with its delivery days, the quantities and the estimated cost. For whoever phones the orders in.',
     'Waste report': 'The last 30 days of waste grouped by reason, with the cost of each and in all. For the weekly kitchen meeting.',
     'Bills to pay': 'Unpaid supplier bills grouped by supplier, with their invoice numbers, the days left to pay and the total owed to each.',
   },
-  empty: `Start with Suppliers, then Ingredients with each one's unit, cost per unit, supplier and reorder level. Then Menu Categories, then Menu Items, then the Recipe Lines for each dish, numbering each recipe's lines from 1; Menu costing works as soon as a dish has its recipe. Add your Staff and plan the Shifts for the coming week. From then on, day to day: a Purchase and its lines when you order from a supplier, its Received On when it arrives and its Paid On when the bill is paid; the Waste sheet as things are thrown away; and a Cash Up at each close. If your till keeps its own records, the Cash Ups alone give the weekly and monthly figures; enter Orders and Order Lines only if you want best sellers and the busy hours here too. Keep In Stock up to date from a stock count, as Data Files does not take sales off it by itself.`,
+  documents: {
+    Receipt: 'The till receipt for a bill, on an 80 mm roll: the cafe\'s name, address and VAT number, the receipt number, time, eat in or take away and the table, each item with its price and VAT rate, then the total, the net and the VAT within it, and how it was paid. Numbered RCP-2026-00042. Every bill on record prints, voided ones too, so choose the bill to print.',
+    'Purchase order': 'The order sent to a supplier each morning from the order list: what to send, how much, at the last price paid, and the day to deliver, with the cafe\'s address to deliver to. Numbered PO-2026-0042, which the supplier quotes on the delivery note and the bill. Every purchase prints, delivered ones too, so choose the ones placed today.',
+    Payslip: 'The weekly payslip for one person: the week, the hourly rate, each shift worked or on holiday with its hours and pay, and the gross pay. Numbered PAY-2026-0042. It shows gross pay only; tax, National Insurance, pension and other deductions are for the payroll to work out, and its statement of net pay goes with this one.',
+  },
+  tutorial: [
+    { title: 'Ring up a bill and print the receipt', steps: [
+      'Open the Orders form and press New. Type the next receipt number in Number, one on from the last (RCP-2026-00042 after RCP-2026-00041), and the date and time in When.',
+      'Set Service to Dine in or Takeaway. For a table, type the Table No and the Covers; for a takeaway leave Table No empty and Covers at nought. Choose who took it in Staff and how it was paid in Payment.',
+      'In the Order Lines below, choose each dish in Menu Item, type the Quantity and its menu price in Unit Price. Set Tax Rate to 0.2 eaten in, or the dish\'s Takeaway VAT Rate (on the Menu Items form) when it is taken away.',
+      'Type the bill\'s Total, the VAT within it in Tax and the rest in Net. A form does not add the lines up by itself, so check the Total against the lines.',
+      'Open the print template Receipt from Print templates, choose the bill, and press Print. The receipt prints the stored Total, Net and VAT under the lines.',
+    ] },
+    { title: 'Order from the suppliers in the morning', steps: [
+      'Run the query Ingredients to order, or print the report Order list for suppliers: what is at or below its reorder level with nothing on order, a section for each supplier with its delivery days and the usual amount.',
+      'For each supplier on the list, open the Purchases form and press New. Type the next number in Number (PO-2026-0042), choose the Supplier, type today in Ordered On and the next delivery day in Due On.',
+      'In the Purchase Lines below, choose each Ingredient and type the Quantity in its unit and the Unit Cost from the last bill.',
+      'Open the Ingredients form and type the same amount in On Order for each ingredient ordered, so it leaves the order list.',
+      'Open the print template Purchase order from Print templates, choose today\'s purchases, and print them or press Save as PDF and e-mail each to the address on its Suppliers record.',
+    ] },
+    { title: 'Book in a delivery and pay the bill', steps: [
+      'When the delivery comes, open the Purchases form, find it by its Number (the query Deliveries due lists the ones expected), and type today in Received On and the supplier\'s bill number in Invoice Number.',
+      'Check the goods against the printed purchase order and sign it. Open the Ingredients form and add what came to In Stock for each line, and set its On Order back to nought.',
+      'Each week, run the query Bills to pay or print the report Bills to pay: the bills not yet paid, with the days left to pay; below nought is overdue.',
+      'When you pay one, type the day in Paid On on the Purchases form, and it leaves the list.',
+    ] },
+    { title: 'Plan the rota and pay the week', steps: [
+      'Open the Shifts form and press New for each shift in the coming weeks: choose the Staff, type Start and End, the Break Minutes, the Paid Hours (end less start less the break) and the Station, and leave Status at Rota. Print the report Rota to pin up.',
+      'After each day, change each shift\'s Status to Worked, Holiday or Sick, and its End if someone stayed on. A sick day has Paid Hours of nought.',
+      'When the week is over (Monday to Sunday), run the query Hours and wages by staff, last 28 days to see the hours. Open the Payslips form and press New for each person: the next Number (PAY-2026-0042), the Staff, the Week Beginning and Week Ending, the Pay Date, their Hourly Rate, and the week\'s Hours and Gross Pay.',
+      'Open the Shifts form as a datasheet and set Payslip to the new payslip on each of that person\'s shifts in the week: they are the payslip\'s lines.',
+      'Open the print template Payslip from Print templates, choose the week\'s payslips, and print them. Give them out with the payroll\'s statement of net pay, which has the tax and deductions.',
+    ] },
+    { title: 'Cash up at close', steps: [
+      'Take the till\'s end of day reading. Open the Cash Ups form and press New: the Date, who closed in Closed By, the Weather, the Orders and Covers, Card Takings, Cash Takings and the VAT from the reading.',
+      'Count the cash in the drawer less the float and type it in Cash Counted. Type the day\'s Wage Cost from the rota, and anything worth remembering in Notes.',
+      'Run the query Cash over or short now and then: the days the cash counted did not match the reading.',
+      'On Monday, print the report Weekly takings and wages to see last week\'s takings against the wages.',
+    ] },
+    { title: 'Cost the menu when a price goes up', steps: [
+      'When a supplier\'s bill shows a new price, open the Ingredients form and change Cost per Unit. Every dish that uses it costs more at once.',
+      'Print the report Menu costing sheet: each dish\'s price, food cost and margin by section. Most cafes aim to keep the food cost under about 30% of the price.',
+      'To change a price, open the Menu Items form and change Price. Old bills keep the price they were sold at, so past takings do not change.',
+      'For a new dish, press New on the Menu Items form, then add its Recipe Lines from Line 1, one ingredient each. Print the report Recipe cards for the kitchen.',
+    ] },
+    { title: 'Close the month', steps: [
+      'Print the report Monthly takings: each month\'s takings, the VAT within them, the takings less VAT and the wages. Add the VAT of the three months of your VAT quarter for the return.',
+      'Count the stock in each store, put the counts in In Stock on the Ingredients form, and run the query Stock value by storage for the accounts.',
+      'Print the report Waste report for the kitchen meeting, and run Waste by ingredient, last 90 days to see what to order less of.',
+      'Run Spend by supplier by month to see what each supplier was paid.',
+    ] },
+  ],
+  notes: [
+    'The till\'s bills, Orders and Order Lines, go back eight weeks; the Cash Ups go back the whole fourteen months and are where the weekly and monthly figures come from. If your till keeps its own records you can skip Orders and keep only the cash-ups.',
+    'Nothing here takes sales off the stock by itself. In Stock is what the last count, the deliveries and the waste sheet say, so count the stock now and then and correct it.',
+    'A bill\'s Total, Net and Tax, and a payslip\'s Hours and Gross Pay, are stored figures, typed when the record is made, not added up from the lines by the form. The sample\'s own are exactly the sums of their lines, rounded line by line as a till rounds them.',
+    'The VAT is kept simple: 20% on everything eaten in, on drinks and on hot food taken away; nought on cold food taken away. Set each dish\'s Takeaway VAT Rate to what the rules say for you, and have your VAT checked by an accountant.',
+    'A print template prints every record of its table unless you choose some: Receipt prints every bill (voided ones too), Purchase order every purchase, Payslip every payslip. Choose the ones you want before pressing Print.',
+    'The records stop at the start of today: this morning\'s deliveries are not booked in and this morning\'s orders not yet placed, so the order list shows what to ask for today. The rota runs two weeks ahead, and the week now running has no payslips yet.',
+    'The VAT number, company number and bank details on the Business record are placeholders of noughts and Xs. Put in your own before printing anything for real.',
+  ],
+  faq: [
+    { q: 'How do I reprint a customer\'s receipt from last week?', a: 'Find the bill on the Orders form by its time in When or its Number, then open the print template Receipt, choose that bill and press Print. Bills older than eight weeks are not in the sample; in your own file every bill you keep can be reprinted.' },
+    { q: 'Why does a carrot cake have VAT eaten in but none taken away?', a: 'In the UK, food eaten on the premises carries the standard rate, while cold food taken away is zero-rated. Each line of a bill keeps the rate it was sold at in Tax Rate, from the dish\'s Takeaway VAT Rate when it went out the door. The real rules have more cases; the sample keeps to these two.' },
+    { q: 'Where are tax and National Insurance on the payslip?', a: 'They are not worked out here. The payslip shows the hours from the rota, the rate and the gross pay; the payroll works out tax, National Insurance and pension from the gross pay and gives its own statement of net pay. You can add a Payslip Deductions table pointing at Payslips if you want them here.' },
+    { q: 'I placed an order but the ingredient is still on Ingredients to order. Why?', a: 'The list leaves out what has something On Order. Type the amount ordered in On Order on the Ingredients form, and set it back to nought when the delivery is booked in.' },
+    { q: 'If I put a price up, do last month\'s takings change?', a: 'No. Each bill line keeps its own Unit Price, so old bills and their totals stay as they were. Menu costing uses today\'s price and today\'s ingredient costs.' },
+    { q: 'How do I find the VAT for my quarter\'s return?', a: 'Print the report Monthly takings and add up the VAT column for the three months of the quarter. It comes from the VAT on each day\'s cash-up, which is the till\'s reading.' },
+    { q: 'Can I start with my own menu and keep the design?', a: 'Yes. Make the sample empty, fill in Business with your own details, then follow the order under starting empty: suppliers and ingredients first, then the menu and its recipes, then your staff.' },
+  ],
+  empty: `Start with Business: your own name, address, VAT number and the footer your receipts carry. Then Suppliers, then Ingredients with each one's unit, cost per unit, supplier and reorder level. Then Menu Categories, then Menu Items, then the Recipe Lines for each dish, numbering each recipe's lines from 1; Menu costing works as soon as a dish has its recipe. Add your Staff and plan the Shifts for the coming week. From then on, day to day: a Purchase and its lines when you order from a supplier, its Received On when it arrives and its Paid On when the bill is paid; the Waste sheet as things are thrown away; and a Cash Up at each close. If your till keeps its own records, the Cash Ups alone give the weekly and monthly figures; enter Orders and Order Lines only if you want best sellers and the busy hours here too. Keep In Stock up to date from a stock count, as Data Files does not take sales off it by itself.`,
   adapt: [
-    'If you charge VAT, add a VAT Rate field to Menu Items and change the costing\'s food cost percentage to divide by [Price] / (1 + [VAT Rate]), so it is measured against what the cafe keeps.',
+    'Measure the food cost against what the cafe keeps rather than what the customer pays: in a copy of Menu costing, divide by [Price] / 1.2 in place of [Price], so the VAT within the price is left out.',
     'Add a Packaging Cost field to Menu Items for the cup, lid or box a takeaway goes out in, and add it to the food cost in a copy of Menu costing to see what a takeaway really costs.',
     'Add yes/no allergen fields to Ingredients (gluten, milk, eggs, nuts and the rest) and a query that lists the dishes using any ingredient marked Yes, for the allergen folder.',
     'A bakery can add a Bakes table (date, dish, made, left over at close) to see how much of each cake to make on each day of the week.',
@@ -420,6 +588,7 @@ const SUPPLIERS = [
   ['dry', 'Larkspur Dry Goods', 'Flour, sugar, chocolate, nuts, oils, tins and bottled drinks', [4], 30, 'LDG'],
 ];
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const TRADE_ESTATES = ['Canal Walk Trading Estate', 'Quarry Road Industrial Park', 'Riverside Drive Works', 'Mill Lane Business Centre', 'Station Road Yard'];
 
 // The ingredients: [key, name, unit, cost per unit, supplier, storage, bought as, pack size in units].
 const INGREDIENTS = [
@@ -533,6 +702,13 @@ const MENU = [
   ['Egg and cress roll', 'Lunch', 'lunch', 5.9, true, false, 'V', 5, {}, [['eggs', 2], ['ciabatta', 1], ['salad', 0.01], ['butter', 0.01]], 'retired'],
 ];
 const RETIRED_BEFORE = -150; // the two old dishes came off the menu about five months ago
+
+// VAT, kept simple: everything eaten in, every drink and hot food taken away
+// carry the standard rate; cold food taken away (cakes, cold rolls and
+// bagels) carries none. The menu's prices include it.
+const COLD_TO_TAKE_AWAY = new Set(['Smoked salmon bagel', 'Chicken and avocado ciabatta', 'Egg and cress roll']);
+const STANDARD_RATE = 0.2;
+const takeawayRate = (it) => (it.pool === 'cake' || COLD_TO_TAKE_AWAY.has(it.name) ? 0 : STANDARD_RATE);
 
 // The staff: [role, hourly rate, station, [weekdays, from, to, break minutes, 'summer' for Jun to Aug only]...].
 // Hours are in decimals: 15.5 is half past three.
@@ -662,13 +838,31 @@ export function fill(base, { r, cal, days = 425, orderDays = 56, ahead = 14 }) {
   const counts = {};
   const add = (table, values) => { counts[table] = (counts[table] || 0) + 1; return base.insert(table, values); };
 
-  // Suppliers.
+  add('Business', businessRecord({
+    name: 'Little Fig Cafe', domain: 'littlefig.example', phone: '020 7946 0418',
+    address: { Address: '27 Orchard Way', City: 'London', Postcode: 'N16 7QR', Country: 'United Kingdom' },
+    terms: 'Paid in full at the till.',
+    footer: 'Thank you for coming in. Open every day but Christmas Day, 7:30 to 4:30 (8:30 at weekends). Prices include VAT. Please tell us about any allergy before you order.',
+  }));
+
+  // Document numbers, given in date order with a new run each year: RCP-2026-00042.
+  const runs = {};
+  const numbered = (prefix, d, width) => {
+    const y = cal.at(d).getFullYear();
+    const k = `${prefix}${y}`;
+    runs[k] = (runs[k] || 0) + 1;
+    return `${prefix}-${y}-${String(runs[k]).padStart(width, '0')}`;
+  };
+
+  // Suppliers, all in or near London.
   const suppliers = new Map();
   for (const [key, name, supplies, deliver, terms, prefix, standing] of SUPPLIERS) {
     const domain = `${name.toLowerCase().replace(/[^a-z]+/g, '')}.example`;
     const c = person(r, { domain });
     const id = add('Suppliers', {
-      Name: name, Supplies: supplies, Contact: `${c['First Name']} ${c['Last Name']}`, Phone: phoneFor(r, 'United Kingdom'),
+      Name: name, Supplies: supplies, Address: `Unit ${r.int(1, 30)}, ${r.pick(TRADE_ESTATES)}`, City: 'London',
+      Postcode: `${r.pick(['E9', 'E15', 'N17', 'N18', 'NW10', 'SE16'])} ${r.int(1, 9)}${r.pick(['AB', 'DF', 'GH', 'JL', 'NP', 'RT', 'WX'])}`,
+      Contact: `${c['First Name']} ${c['Last Name']}`, Phone: phoneFor(r, 'United Kingdom'),
       'E-mail': `orders@${domain}`, 'Delivers On': deliver.length === 7 ? 'Every day' : deliver.map((w) => WEEKDAYS[w]).join(', '), 'Payment Days': terms,
     });
     // The longest wait between two deliveries, which sets how much to keep in.
@@ -713,8 +907,10 @@ export function fill(base, { r, cal, days = 425, orderDays = 56, ahead = 14 }) {
     ingredients.set(key, ing);
   }
   for (const it of items) {
+    it.takeRate = takeawayRate(it);
     it.id = add('Menu Items', {
-      Name: it.name, Category: categories.get(it.cat), Price: it.price, Takeaway: it.takeaway, 'Baked Here': it.baked, Diet: it.diet, Active: !it.retired,
+      Name: it.name, Category: categories.get(it.cat), Price: it.price, Takeaway: it.takeaway, 'Baked Here': it.baked, Diet: it.diet,
+      'Takeaway VAT Rate': it.takeRate, Active: !it.retired,
     });
     it.recipe.forEach(([k, q], i) => add('Recipe Lines', { 'Menu Item': it.id, Line: i + 1, Ingredient: ingredients.get(k).id, Quantity: q }));
     it.uses = it.recipe.map(([k, q]) => ({ ing: ingredients.get(k), q }));
@@ -734,6 +930,23 @@ export function fill(base, { r, cal, days = 425, orderDays = 56, ahead = 14 }) {
   const nextDelivery = (s, d) => { let e = d + 1; while (!s.deliver.includes(cal.weekday(e)) || closed(e)) e++; return e; };
   const lastOpenBefore = (e) => { let d = e - 1; while (closed(d)) d--; return d; };
 
+  // A payslip for each person for each week (Monday to Sunday) once the week is over,
+  // paid on the Friday after; its hours and gross pay are added up from the shifts.
+  const payslips = new Map();
+  const payslipFor = (s, d) => {
+    const monday = d - ((cal.weekday(d) + 6) % 7);
+    if (monday + 6 >= 0) return null; // the week is not over yet
+    const k = `${s.id}|${monday}`;
+    if (!payslips.has(k)) {
+      const id = add('Payslips', {
+        Number: numbered('PAY', monday + 11, 4), Staff: s.id, 'Week Beginning': cal.day(monday), 'Week Ending': cal.day(monday + 6),
+        'Pay Date': cal.day(monday + 11), 'Hourly Rate': s.rate, Hours: 0, 'Gross Pay': 0,
+      });
+      payslips.set(k, { id, hours: 0, gross: 0 });
+    }
+    return payslips.get(k);
+  };
+
   // A day's shifts: who is on, from when to when, and whether they worked it.
   const shiftsFor = (d) => {
     const wd = cal.weekday(d);
@@ -750,8 +963,11 @@ export function fill(base, { r, cal, days = 425, orderDays = 56, ahead = 14 }) {
         const paid = status === 'Sick' ? 0 : r3(end - from - brk / 60);
         const [fh, fm] = clock(from);
         const [th, tm] = clock(end);
-        add('Shifts', { Staff: s.id, Start: cal.time(d, fh, fm), End: cal.time(d, th, tm), 'Break Minutes': brk, 'Paid Hours': paid, Station: s.station, Status: status });
-        out.push({ s, from, to: end, status, wage: status === 'Worked' || status === 'Holiday' ? money(paid * s.rate) : 0 });
+        const wage = status === 'Worked' || status === 'Holiday' ? money(paid * s.rate) : 0;
+        const slip = payslipFor(s, d);
+        if (slip) { slip.hours = r3(slip.hours + paid); slip.gross = money(slip.gross + wage); }
+        add('Shifts', { Staff: s.id, Start: cal.time(d, fh, fm), End: cal.time(d, th, tm), 'Break Minutes': brk, 'Paid Hours': paid, Station: s.station, Status: status, Payslip: slip ? slip.id : null });
+        out.push({ s, from, to: end, status, wage });
       }
     }
     return out;
@@ -792,7 +1008,7 @@ export function fill(base, { r, cal, days = 425, orderDays = 56, ahead = 14 }) {
         lines.push({ ing, n });
       }
       if (!lines.length) continue;
-      const id = add('Purchases', { Supplier: s.id, 'Ordered On': date, 'Due On': cal.day(e) });
+      const id = add('Purchases', { Number: numbered('PO', d, 4), Supplier: s.id, 'Ordered On': date, 'Due On': cal.day(e) });
       // Prices crept up through the year: older deliveries cost a little less.
       for (const l of lines) l.ing.onOrder = l.n;
       for (const l of lines) add('Purchase Lines', { Purchase: id, Ingredient: l.ing.id, Quantity: l.n, 'Unit Cost': Math.round(l.ing.cost * (1 + 0.05 * Math.min(0, e) / 365) * 10000) / 10000 });
@@ -815,6 +1031,7 @@ export function fill(base, { r, cal, days = 425, orderDays = 56, ahead = 14 }) {
     let cash = 0;
     let orders = 0;
     let covers = 0;
+    let vat = 0;
     for (const o of dayOrders(r, { month, wd, weather, pools: poolCache.get(key) })) {
       const voided = r.chance(0.004);
       const lines = new Map();
@@ -833,22 +1050,33 @@ export function fill(base, { r, cal, days = 425, orderDays = 56, ahead = 14 }) {
         lines.set(it, (lines.get(it) || 0) + 1);
       }
       if (!lines.size) continue;
+      // Each line's VAT is worked out within its price and rounded, then added up, as the till does.
       let total = 0;
-      for (const [it, q] of lines) total += money(q * it.price);
+      let tax = 0;
+      for (const [it, q] of lines) {
+        const gross = money(q * it.price);
+        const rate = o.takeaway ? it.takeRate : STANDARD_RATE;
+        total += gross;
+        tax += money(gross - gross / (1 + rate));
+      }
       total = money(total);
+      tax = money(tax);
+      // Every bill rung up takes the next receipt number, a voided one too.
+      const number = numbered('RCP', d, 5);
       const payment = r.chance(cardDown ? 0.4 : 0.86) ? 'Card' : 'Cash';
       if (!voided) {
         if (payment === 'Card') card += total; else cash += total;
         orders++;
         covers += o.covers;
+        vat += tax;
       }
       if (d < -orderDays) continue; // older till records are summed in the cash-up only
       const t = o.h + o.m / 60;
       const order = add('Orders', {
-        When: cal.time(d, o.h, o.m), Service: o.takeaway ? 'Takeaway' : 'Dine in', 'Table No': o.takeaway ? null : r.int(1, 10),
-        Covers: o.covers, Staff: servedBy(t), Payment: payment, Total: total, Voided: voided,
+        Number: number, When: cal.time(d, o.h, o.m), Service: o.takeaway ? 'Takeaway' : 'Dine in', 'Table No': o.takeaway ? null : r.int(1, 10),
+        Covers: o.covers, Staff: servedBy(t), Payment: payment, Net: money(total - tax), Tax: tax, Total: total, Voided: voided,
       });
-      for (const [it, q] of lines) add('Order Lines', { Order: order, 'Menu Item': it.id, Quantity: q, 'Unit Price': it.price });
+      for (const [it, q] of lines) add('Order Lines', { Order: order, 'Menu Item': it.id, Quantity: q, 'Unit Price': it.price, 'Tax Rate': o.takeaway ? it.takeRate : STANDARD_RATE });
     }
 
     for (const ing of ingredients.values()) ing.stock = r3(ing.stock);
@@ -873,13 +1101,14 @@ export function fill(base, { r, cal, days = 425, orderDays = 56, ahead = 14 }) {
     if (short > 0) notes.push(`Till over by ${short.toFixed(2)}.`);
     const closer = [...on].sort((a, b) => b.to - a.to)[0] || shifts[0];
     add('Cash Ups', {
-      Date: date, 'Closed By': closer.s.id, Weather: weather, Orders: orders, Covers: covers, 'Card Takings': money(card), 'Cash Takings': money(cash),
+      Date: date, 'Closed By': closer.s.id, Weather: weather, Orders: orders, Covers: covers, 'Card Takings': money(card), 'Cash Takings': money(cash), VAT: money(vat),
       'Cash Counted': money(Math.max(0, cash + short)), 'Wage Cost': money(shifts.reduce((n, x) => n + x.wage, 0)), Notes: notes.join(' ') || null,
     });
   }
 
   // The rota ahead: today and the next two weeks.
   for (let d = 0; d <= ahead; d++) if (!closed(d)) shiftsFor(d);
+  for (const slip of payslips.values()) base.update('Payslips', slip.id, { Hours: slip.hours, 'Gross Pay': slip.gross });
 
   // Bills: paid around their due day, a few late, the newest not yet.
   for (const b of bills) {

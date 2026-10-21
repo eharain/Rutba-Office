@@ -15,16 +15,28 @@
 // stock goes down as it is sold and used at the basin until the weekly order
 // brings it back. The questions a salon owner asks at the desk and at the
 // month's end are its saved queries; its reports print them.
+//
+// Prices are shown to clients with VAT in them, as a salon's menu is, so a
+// receipt shows the VAT within each line. The salon prints what a salon
+// gives out: a receipt at the desk for each visit, gift vouchers, a
+// commission statement for each stylist each month, and a letter
+// confirming each appointment.
 
-import { companies, FIRST, LAST, money } from './util.js';
+import { BUSINESS_ABOUT, BUSINESS_TABLE, businessRecord, companies, FIRST, LAST, money } from './util.js';
 
 const ref = (table) => ({ type: 'integer', points: table });
 const CLIENT = '[Clients].[First Name] & " " & [Clients].[Last Name]';
 const STYLIST = '[Staff].[First Name] & " " & [Staff].[Last Name]';
 const WHEN = 'Left([Start], 10) & " " & Mid([Start], 12, 5)';
+// A date as the desk writes it: 24/10/2026.
+const UK_DATE = (f) => `Format([${f}], "dd") & "/" & Format([${f}], "mm") & "/" & Format([${f}], "yyyy")`;
+// A receipt line's amount, and the VAT within it: prices are shown with VAT in.
+const AMOUNT = 'Round([Quantity] * [Unit Price], 2)';
+const VAT_IN = `Round(${AMOUNT} - ${AMOUNT} / (1 + [Tax Rate]), 2)`;
 
 export const spec = {
   tables: [
+    BUSINESS_TABLE,
     { name: 'Suppliers', fields: [
       { name: 'Name', type: 'text', required: true }, { name: 'Contact', type: 'text' }, { name: 'Phone', type: 'text' },
       { name: 'E-mail', type: 'text' }, { name: 'Account Number', type: 'text' }, { name: 'Lead Days', type: 'integer', default: 3 },
@@ -39,7 +51,7 @@ export const spec = {
     { name: 'Services', fields: [
       { name: 'Name', type: 'text', required: true, unique: true }, { name: 'Category', type: 'text' }, { name: 'Minutes', type: 'integer' },
       { name: 'Junior Price', type: 'currency' }, { name: 'Stylist Price', type: 'currency' }, { name: 'Senior Price', type: 'currency' },
-      { name: 'Patch Test', type: 'yesno' }, { name: 'Active', type: 'yesno', default: true },
+      { name: 'Patch Test', type: 'yesno' }, { name: 'Tax Rate', type: 'number', default: 0.2 }, { name: 'Active', type: 'yesno', default: true },
     ] },
     { name: 'Clients', fields: [
       { name: 'First Name', type: 'text' }, { name: 'Last Name', type: 'text', required: true }, { name: 'Phone', type: 'text' },
@@ -61,14 +73,14 @@ export const spec = {
     { name: 'Products', fields: [
       { name: 'Name', type: 'text', required: true }, { name: 'Kind', type: 'text', default: 'Retail' }, { name: 'Category', type: 'text' },
       { name: 'Supplier', ...ref('Suppliers') }, { name: 'Size', type: 'text' }, { name: 'Cost Price', type: 'currency' },
-      { name: 'Sale Price', type: 'currency' }, { name: 'In Stock', type: 'integer', default: 0 },
+      { name: 'Sale Price', type: 'currency' }, { name: 'Tax Rate', type: 'number', default: 0.2 }, { name: 'In Stock', type: 'integer', default: 0 },
       { name: 'Reorder Level', type: 'integer', default: 4 }, { name: 'Reorder Quantity', type: 'integer', default: 12 },
       { name: 'Active', type: 'yesno', default: true },
     ] },
     { name: 'Product Sales', fields: [
       { name: 'Date', type: 'date' }, { name: 'Staff', ...ref('Staff') }, { name: 'Client', ...ref('Clients') },
       { name: 'Product', ...ref('Products'), required: true }, { name: 'Quantity', type: 'integer', default: 1 },
-      { name: 'Unit Price', type: 'currency' },
+      { name: 'Unit Price', type: 'currency' }, { name: 'Receipt', ...ref('Receipts') },
     ] },
     { name: 'Stock Deliveries', fields: [
       { name: 'Supplier', ...ref('Suppliers'), required: true }, { name: 'Product', ...ref('Products'), required: true },
@@ -79,6 +91,27 @@ export const spec = {
       { name: 'Code', type: 'text', required: true, unique: true }, { name: 'Sold On', type: 'date' }, { name: 'Bought By', type: 'text' },
       { name: 'For', type: 'text' }, { name: 'Value', type: 'currency' }, { name: 'Expires', type: 'date' },
       { name: 'Redeemed On', type: 'date' }, { name: 'Booking', ...ref('Bookings') },
+    ] },
+    // The till's record of each visit paid for: its own copy of what was charged, kept as it was
+    // printed, so a receipt reprinted next year says what the client was given on the day.
+    { name: 'Receipts', fields: [
+      { name: 'Number', type: 'text', unique: true }, { name: 'Booking', ...ref('Bookings') }, { name: 'Taken', type: 'datetime' },
+      { name: 'Net', type: 'currency' }, { name: 'VAT', type: 'currency' }, { name: 'Total', type: 'currency' },
+      { name: 'Deposit Paid', type: 'currency', default: 0 }, { name: 'Voucher', type: 'currency', default: 0 }, { name: 'Voucher Code', type: 'text' },
+      { name: 'Paid Today', type: 'currency' }, { name: 'Paid By', type: 'text' },
+    ] },
+    { name: 'Receipt Lines', fields: [
+      { name: 'Receipt', ...ref('Receipts'), required: true }, { name: 'Kind', type: 'text', default: 'Service' }, { name: 'Item', type: 'text' },
+      { name: 'Quantity', type: 'integer', default: 1 }, { name: 'Unit Price', type: 'currency' }, { name: 'Tax Rate', type: 'number', default: 0.2 },
+    ] },
+    // A statement for each person on commission each month, its lines the takings by kind of work.
+    { name: 'Commission Statements', fields: [
+      { name: 'Number', type: 'text', unique: true }, { name: 'Staff', ...ref('Staff'), required: true }, { name: 'Month', type: 'text' },
+      { name: 'Prepared On', type: 'date' }, { name: 'Commission Due', type: 'currency' }, { name: 'Paid On', type: 'date' },
+    ] },
+    { name: 'Commission Lines', fields: [
+      { name: 'Statement', ...ref('Commission Statements'), required: true }, { name: 'Line', type: 'integer' }, { name: 'Work', type: 'text' },
+      { name: 'Done', type: 'integer' }, { name: 'Takings', type: 'currency' }, { name: 'Rate', type: 'number' }, { name: 'Commission', type: 'currency' },
     ] },
   ],
   queries: {
@@ -189,7 +222,87 @@ export const spec = {
       { table: 'Services', field: 'Minutes' }, { table: 'Services', field: 'Junior Price' }, { table: 'Services', field: 'Stylist Price' },
       { table: 'Services', field: 'Senior Price' }, { table: 'Services', field: 'Active', criteria: ['Yes'], show: false },
     ] },
+    'VAT by month': { tables: ['Receipts'], columns: [
+      { expr: 'Format([Taken], "yyyy-mm")', as: 'Month', total: 'group', sort: 'asc' },
+      { table: 'Receipts', field: 'ID', as: 'Receipts', total: 'count' },
+      { table: 'Receipts', field: 'Total', as: 'Takings', total: 'sum' },
+      { table: 'Receipts', field: 'Net', as: 'Net', total: 'sum' },
+      { table: 'Receipts', field: 'VAT', as: 'VAT', total: 'sum' },
+    ] },
+    'Receipts last 7 days': { tables: ['Receipts', 'Bookings', 'Clients', 'Staff'], columns: [
+      { table: 'Receipts', field: 'Number', sort: 'asc' }, { expr: WHEN.replace(/Start/g, 'Taken'), as: 'Taken At' },
+      { expr: CLIENT, as: 'Client' }, { expr: STYLIST, as: 'Stylist' }, { table: 'Receipts', field: 'Total' },
+      { table: 'Receipts', field: 'Paid Today' }, { table: 'Receipts', field: 'Paid By' },
+      { expr: 'DateDiff("d", [Taken], Date())', as: 'Days Ago', criteria: ['Between 0 And 7'], show: false },
+    ] },
   },
+  documents: [
+    // The till receipt handed over at the desk, on the 80 mm roll. Prices have VAT in them; the VAT is shown within.
+    { name: 'Receipt', table: 'Receipts', paper: 'receipt-80', letterhead: { table: 'Business', fields: ['Name', 'Address', 'City', 'Postcode', 'Phone', 'Website', 'Tax Number'] }, blocks: [
+      { type: 'heading', text: 'Receipt {Number}' },
+      { type: 'fields', columns: 1, items: [
+        { field: 'Taken', label: 'Date' }, { field: 'Booking.Client', label: 'Client' }, { field: 'Booking.Staff', label: 'Stylist' },
+      ] },
+      { type: 'lines', table: 'Receipt Lines', columns: [
+        { field: 'Item' }, { field: 'Quantity', label: 'Qty', type: 'integer' }, { field: 'Unit Price', label: 'Price', type: 'currency' },
+        { expr: AMOUNT, as: 'Amount', type: 'currency' }, { expr: 'Nz([Tax Rate]) * 100', as: 'VAT %', type: 'number' },
+        { expr: VAT_IN, as: 'VAT In', label: 'VAT', type: 'currency' },
+      ] },
+      { type: 'totals', rows: [
+        { label: 'Total', expr: '[Amount]', strong: true }, { label: 'Of which VAT', expr: '[VAT In]' },
+        { label: 'Less deposit paid', expr: '[Deposit Paid]' }, { label: 'Less gift voucher', expr: '[Voucher]' },
+        { label: 'Paid today', expr: '[Total] - [Deposit Paid] - [Voucher]', strong: true },
+      ] },
+      { type: 'text', text: 'Paid by {Paid By}. VAT number {Business.Tax Number}.', small: true },
+      { type: 'text', text: '{Business.Document Footer}', small: true },
+    ] },
+    // The gift voucher, printed on A5 card and put in an envelope.
+    { name: 'Gift voucher', table: 'Gift Vouchers', paper: 'a5', letterhead: { table: 'Business', fields: ['Name', 'Address', 'City', 'Postcode', 'Phone', 'Website'] }, blocks: [
+      { type: 'heading', text: 'Gift voucher' },
+      { type: 'text', text: 'For {For}, from {Bought By}.' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Value', label: 'Worth' }, { field: 'Code', label: 'Voucher number' },
+        { field: 'Sold On', label: 'Issued' }, { field: 'Expires', label: 'Use by' },
+      ] },
+      { type: 'text', text: 'To spend on any service or product at {Business.Name}. Call {Business.Phone} or book at {Business.Website}, and give the voucher number when you book.' },
+      { type: 'spacer', size: 12 },
+      { type: 'text', text: 'Terms. Valid until the use-by date shown, twelve months from the day it was bought. To be used in full at one visit; it cannot be exchanged for cash and no change is given. Please bring the voucher with you. A lost voucher can be replaced only if we can find its number in our records.', small: true },
+    ] },
+    // A statement for each person on commission for each month, given out with their pay.
+    { name: 'Commission statement', table: 'Commission Statements', paper: 'a4', letterhead: { table: 'Business', fields: ['Name', 'Address', 'City', 'Postcode', 'Phone'] }, blocks: [
+      { type: 'heading', text: 'Commission statement {Number}' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Staff', label: 'For' }, { field: 'Month', label: 'Month' },
+        { field: 'Staff.Role', label: 'Role' }, { field: 'Prepared On', label: 'Prepared' },
+        { field: 'Staff.Level', label: 'Level' }, { field: 'Paid On', label: 'Paid with wages on' },
+      ] },
+      { type: 'lines', table: 'Commission Lines', sort: 'Line', columns: [
+        { field: 'Work' }, { field: 'Done', label: 'Done', type: 'integer' }, { field: 'Takings', type: 'currency' },
+        { expr: 'Nz([Rate]) * 100', as: 'Rate %', type: 'number' }, { field: 'Commission', type: 'currency' },
+      ] },
+      { type: 'totals', rows: [
+        { label: 'Takings', expr: '[Takings]' }, { label: 'Commission due', expr: '[Commission]', strong: true },
+      ] },
+      { type: 'text', text: 'Commission is worked out on what clients paid, VAT included, for completed appointments and retail you sold in the month. It is paid with your wages and taxed with them. If anything here looks wrong, please speak to the owner within 14 days.', small: true },
+    ] },
+    // The letter (or e-mail) confirming an appointment: every booking prints one; choose the ones to send.
+    { name: 'Appointment confirmation', table: 'Bookings', paper: 'a4', letterhead: { table: 'Business', fields: ['Name', 'Address', 'City', 'Postcode', 'Phone', 'E-mail', 'Website'] }, blocks: [
+      { type: 'heading', text: 'Your appointment' },
+      { type: 'text', text: 'Dear {Client.First Name},' },
+      { type: 'text', text: 'Thank you for booking with us. This is to confirm your appointment, booked on {Booked On}.' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Start', label: 'Date and time' }, { field: 'Staff.First Name', label: 'With' },
+        { field: 'Minutes', label: 'Time set aside (minutes)' }, { field: 'Deposit', label: 'Deposit paid' },
+      ] },
+      { type: 'lines', table: 'Booking Services', columns: [{ field: 'Service.Name', label: 'Service' }, { field: 'Price', type: 'currency' }] },
+      { type: 'totals', rows: [{ label: 'Price for the visit', expr: '[Price]' }, { label: 'Less deposit paid', expr: 'Nz([Deposit])' }, { label: 'To pay on the day', expr: '[Price] - Nz([Deposit])', strong: true }] },
+      { type: 'text', text: 'Prices include VAT. If you would like a different service on the day, the price may change; your stylist will tell you before starting.' },
+      { type: 'text', text: 'Colour, tints and lash lifts need a skin test in the six months before. If you have not had one with us in that time, please call in for a quick test at least 48 hours before your appointment. It takes five minutes.' },
+      { type: 'text', text: 'Our cancellation policy. If you need to move or cancel, please tell us at least 48 hours before, by phone on {Business.Phone} or by e-mail to {Business.E-mail}, and any deposit is refunded or moved to your new booking. With less notice, or if you do not come, we keep the deposit and may ask for one when you next book. If you are running late, please call: we will do what we can in the time left, or offer you another appointment.' },
+      { type: 'text', text: 'We look forward to seeing you.' },
+      { type: 'text', text: 'With best wishes, the team at {Business.Name}' },
+    ] },
+  ],
   reports: [
     { name: 'The column', title: 'The column: the next 7 days by stylist', query: 'Bookings next 7 days', group: 'Stylist', sort: 'When', columns: ['When', 'Client', 'Phone', { field: 'Minutes', type: 'integer' }, { field: 'Deposit', type: 'currency' }], totals: [{ field: 'Minutes', fn: 'sum' }] },
     { name: 'Commission statement', title: 'Commission statement: last month', query: 'Service commission last month', group: 'Stylist', columns: [{ field: 'Day', type: 'date' }, 'Client', 'Service', { field: 'Price', type: 'currency' }, { field: 'Commission', type: 'currency' }], totals: [{ field: 'Price', fn: 'sum' }, { field: 'Commission', fn: 'sum' }] },
@@ -198,6 +311,8 @@ export const spec = {
     { name: 'Products to order', query: 'Products to order', group: 'Supplier', columns: ['Product', 'Kind', 'Size', { field: 'In Stock', type: 'integer' }, { field: 'Reorder Level', type: 'integer' }, { field: 'Reorder Quantity', type: 'integer' }, { field: 'Order Cost', type: 'currency' }], totals: [{ field: 'Order Cost', fn: 'sum' }] },
     { name: 'Clients to win back', query: 'Clients to win back', columns: ['Client', 'Phone', 'E-mail', { field: 'Last Visit', type: 'date' }, { field: 'Visits', type: 'integer' }, { field: 'Days Since', type: 'integer' }], totals: [{ field: 'Client', fn: 'count' }] },
     { name: 'Price list', query: 'Service menu', group: 'Category', columns: ['Service', { field: 'Minutes', type: 'integer' }, { field: 'Junior Price', type: 'currency' }, { field: 'Stylist Price', type: 'currency' }, { field: 'Senior Price', type: 'currency' }] },
+    { name: 'VAT by month', title: 'VAT on takings by month', query: 'VAT by month', columns: ['Month', { field: 'Receipts', type: 'integer' }, { field: 'Takings', type: 'currency' }, { field: 'Net', type: 'currency' }, { field: 'VAT', type: 'currency' }], totals: [{ field: 'Takings', fn: 'sum' }, { field: 'Net', fn: 'sum' }, { field: 'VAT', fn: 'sum' }] },
+    { name: 'Till roll', title: 'Receipts: the last 7 days', query: 'Receipts last 7 days', columns: ['Number', 'Taken At', 'Client', 'Stylist', { field: 'Total', type: 'currency' }, { field: 'Paid Today', type: 'currency' }, 'Paid By'], totals: [{ field: 'Total', fn: 'sum' }, { field: 'Paid Today', fn: 'sum' }] },
   ],
 };
 
@@ -209,9 +324,11 @@ export const about = {
     'For a salon, barber or beauty room that takes bookings, pays its team commission and sells a little retail over the desk. Marigold Hair and Beauty is an invented high-street salon with four stylists, a beauty therapist and a junior. It opens Tuesday to Saturday, with a late night until eight on Thursday.',
     'The records cover the last thirteen months of the appointment book and the next six weeks. Clients come back on their own rhythm, a gents cut every few weeks and a root tint every six or so, and some stop coming. One stylist left about five months ago and most of her clients moved to the stylist who replaced her. December is the busiest month and January the quietest. A few clients cancel late or do not turn up, and the salon keeps their deposit.',
     'Every service done is kept with the price charged, which depends on whether a junior, a stylist or a senior stylist did it, and new clients have 20 per cent off their first visit. Colour work and lash lifts need a patch test in the six months before. Retail and back-bar products are counted in and out as they are sold or used, and a weekly order goes in on Tuesday for whatever has run low. Two lines have been on back order with the supplier for the last few weeks. Gift vouchers are sold, mostly in December and before Mothering Sunday, and redeemed against bookings.',
+    'The salon is registered for VAT, and its prices, like any salon\'s menu, have VAT in them. Each visit paid for at the desk has a numbered receipt that lists the services and any products bought at the same time, with the VAT within each line, the deposit already paid and any gift voucher used. It prints the gift voucher itself, a commission statement for each stylist each month, and a letter confirming an appointment.',
   ].join('\n\n'),
   suits: ['A barber shop', 'A nail bar', 'A beauty or brow and lash studio', 'A massage or spa room', 'A dog groomer', 'A mobile hairdresser'],
   tables: {
+    Business: BUSINESS_ABOUT,
     'Suppliers': { about: 'The wholesalers the salon buys its products from.', fields: {
       'Name': 'The supplier\'s trading name.', 'Contact': 'The person the salon deals with there.', 'Phone': 'Their order line.',
       'E-mail': 'Where orders and queries go.', 'Account Number': 'The salon\'s account number with the supplier, quoted when ordering.',
@@ -229,7 +346,9 @@ export const about = {
       'Name': 'The service as it appears on the menu.', 'Category': 'The heading it sits under: Cut and Finish, Colour, Treatments, Nails, Brows and Lashes, Skin and Body.',
       'Minutes': 'The time to book for it, processing included.', 'Junior Price': 'The price with the junior. Empty where the junior does not do it.',
       'Stylist Price': 'The price with a stylist, and the price for beauty services.', 'Senior Price': 'The price with a senior stylist or the owner.',
-      'Patch Test': 'Yes where a skin test is needed in the six months before, such as colour and lash lifts.', 'Active': 'No takes a service off the menu without losing its history.',
+      'Patch Test': 'Yes where a skin test is needed in the six months before, such as colour and lash lifts.',
+      'Tax Rate': 'The VAT within the price, as a fraction: 0.2 is twenty per cent. Copied onto the receipt line when the visit is paid for.',
+      'Active': 'No takes a service off the menu without losing its history.',
     } },
     'Clients': { about: 'One record per client, with what the salon needs to know before they sit down.', fields: {
       'First Name': 'Their first name.', 'Last Name': 'Their family name.', 'Phone': 'Their mobile, for reminders and running-late calls.',
@@ -253,13 +372,15 @@ export const about = {
     'Products': { about: 'Everything the salon stocks: retail products sold to clients and back-bar products used in services.', fields: {
       'Name': 'The product, described plainly.', 'Kind': 'Retail (sold) or Back bar (used at the basin and in treatments).',
       'Category': 'Shampoo, Colour, Nails and so on.', 'Supplier': 'Who it is ordered from.', 'Size': 'The size of one unit.',
-      'Cost Price': 'What one unit costs the salon.', 'Sale Price': 'The retail price; empty for back-bar products.',
+      'Cost Price': 'What one unit costs the salon.', 'Sale Price': 'The retail price, VAT included; empty for back-bar products.',
+      'Tax Rate': 'The VAT within the sale price, as a fraction: 0.2 is twenty per cent.',
       'In Stock': 'Units on the shelf now.', 'Reorder Level': 'At or below this many, it goes on the next order.',
       'Reorder Quantity': 'How many to order at a time.', 'Active': 'No for a product no longer stocked.',
     } },
     'Product Sales': { about: 'Retail sold at the desk, one record per product per sale.', fields: {
       'Date': 'The day of the sale.', 'Staff': 'Who sold it, for retail commission.', 'Client': 'Who bought it.',
       'Product': 'What was sold.', 'Quantity': 'How many.', 'Unit Price': 'The price of one, as charged.',
+      'Receipt': 'The receipt it was rung up on, with the services of the same visit.',
     } },
     'Stock Deliveries': { about: 'What came in from suppliers, one record per product per delivery.', fields: {
       'Supplier': 'Who delivered it.', 'Product': 'What came in.', 'Received': 'The day it arrived.',
@@ -269,6 +390,32 @@ export const about = {
       'Code': 'The number printed on the voucher.', 'Sold On': 'The day it was bought.', 'Bought By': 'Who paid for it.',
       'For': 'Who it is for.', 'Value': 'What it is worth.', 'Expires': 'A year after it was sold.',
       'Redeemed On': 'The day it was used, empty until then.', 'Booking': 'The appointment it paid for.',
+    } },
+    'Receipts': { about: 'The till\'s record of each visit paid for at the desk, one per completed appointment. It keeps what was charged as it was printed, so a receipt printed again later says what the client was given on the day.', fields: {
+      'Number': 'The receipt number, given in the order receipts are taken, a new run each year: RCP-2026-00042.',
+      'Booking': 'The appointment paid for. The client and stylist printed on the receipt come from it.', 'Taken': 'The day and time the payment was taken.',
+      'Net': 'The total less the VAT within it.', 'VAT': 'The VAT within the total: each line\'s VAT rounded to the penny, then added up.',
+      'Total': 'Everything on the receipt, VAT included: the services and any products.',
+      'Deposit Paid': 'The deposit taken when the appointment was booked, which comes off the bill.',
+      'Voucher': 'The value of a gift voucher used to pay, nought when none was.', 'Voucher Code': 'The number of the gift voucher used.',
+      'Paid Today': 'What the client paid at the desk: the total less the deposit and any voucher.',
+      'Paid By': 'How it was paid: Card, Cash, Gift voucher, or a voucher and card or cash for the rest.',
+    } },
+    'Receipt Lines': { about: 'What is on each receipt: a line for each service done and each product bought at the visit.', fields: {
+      'Receipt': 'The receipt the line is on.', 'Kind': 'Service or Retail.',
+      'Item': 'The service or product as printed, with the size of a product and a note of the first-visit offer.',
+      'Quantity': 'How many: one for a service.', 'Unit Price': 'The price of one, VAT included, as charged.',
+      'Tax Rate': 'The VAT within the price, as a fraction, from the service or product.',
+    } },
+    'Commission Statements': { about: 'A statement for each person on commission for each month, made on the first of the next month and paid with the wages on the 7th.', fields: {
+      'Number': 'The statement number, a new run each year: COM-2026-0042.', 'Staff': 'Who it is for.', 'Month': 'The month it covers, as 2026-09.',
+      'Prepared On': 'The day it was made.', 'Commission Due': 'The commission on all its lines added up.',
+      'Paid On': 'The day it was paid with the wages; empty until then.',
+    } },
+    'Commission Lines': { about: 'The lines of each commission statement: the services done by kind, and the retail sold.', fields: {
+      'Statement': 'The statement the line is on.', 'Line': 'Its place on the statement.', 'Work': 'Which kind of work: a heading of the service menu, such as Colour, or Retail products sold.',
+      'Done': 'How many services were done, or products sold.', 'Takings': 'What clients paid for them, VAT included.',
+      'Rate': 'The commission rate for that kind of work, as a fraction.', 'Commission': 'The commission earned: each service\'s or sale\'s rounded to the penny, then added up.',
     } },
   },
   queries: {
@@ -287,6 +434,8 @@ export const about = {
     'New clients by source': 'New clients over the last year by how they heard of the salon.',
     'Retail best sellers': 'Retail products over the last year, by the profit they made.',
     'Service menu': 'The services on offer, by category, with the price at each level.',
+    'VAT by month': 'For each month, how many receipts were given, the takings, and the net and VAT within them: the figures for the VAT return, three months at a time.',
+    'Receipts last 7 days': 'Every receipt of the last week, with the client, the stylist, the total and what was paid at the desk and how. Use it to find a receipt to print again.',
   },
   reports: {
     'The column': 'The appointment book for the next seven days, a section for each stylist, with times and phone numbers. Print it for the desk.',
@@ -296,8 +445,70 @@ export const about = {
     'Products to order': 'The order list for the week, a section for each supplier, with the cost of each line.',
     'Clients to win back': 'A call or mailing list of lapsed clients who agreed to marketing.',
     'Price list': 'The service menu, printed by category, with the junior, stylist and senior prices.',
+    'VAT by month': 'Takings, net and VAT month by month, with the totals, for the bookkeeper.',
+    'Till roll': 'The last seven days of receipts, with the total taken and the total paid at the desk, to check against the card machine and the cash.',
   },
-  empty: 'Start with Suppliers, then Staff with their level and commission rates, then the Services menu with a price for each level. Add your Products next, with their supplier and reorder level. Clients can be added as they book. Then make Bookings and add the services for each in Booking Services, changing the price where you charge something different. Record Product Sales and Stock Deliveries as they happen, and Gift Vouchers when you sell them.',
+  documents: {
+    'Receipt': 'The till receipt for a visit, on an 80 mm roll: the salon\'s name, address and VAT number, the client and stylist, each service and product with the VAT within it, the total, the deposit and any voucher taken off, and what was paid today. Numbered RCP-2026-00042.',
+    'Gift voucher': 'The voucher a buyer takes away, on A5 card: who it is for and from, what it is worth, its number and use-by date, and the terms.',
+    'Commission statement': 'Given to each stylist and therapist on commission with their pay: the month\'s services by kind and the retail they sold, the takings, the rate and the commission due. Numbered COM-2026-0042.',
+    'Appointment confirmation': 'A letter or e-mail confirming an appointment: the day and time, who with, the services and their prices, the deposit, and the skin test and cancellation policy. Every booking has one; print or send the one on screen, or choose the week\'s new bookings. Have the cancellation words checked against the consumer rules of your own country.',
+  },
+  tutorial: [
+    { title: 'Book an appointment and confirm it', steps: [
+      'Open the Clients form. Look the client up; for someone new, press New and fill in their name, mobile, e-mail and Heard Of Us, and tick Marketing Consent only if they agree.',
+      'Open the Bookings form and press New. Choose the client in Client and the stylist in Staff, type the day and time in Start, and set Booked On to today and Booked Via to Phone, Online or In salon.',
+      'In Booking Services at the foot of the form, add each service. Type the Price from the stylist\'s column of the menu (the Price list report has it), taking 20 per cent off for a first visit. Add the minutes of the services together in Minutes.',
+      'If you take a deposit, type it in Deposit. Then open the print template Appointment confirmation from Print templates, choose the booking, and press Print or Save as PDF to send it.',
+    ] },
+    { title: 'Check tomorrow\'s column and the skin tests', steps: [
+      'Run the query Bookings next 7 days, or print the report The column, which puts each stylist\'s week on its own page.',
+      'Run Patch tests due. Call each client on it to come in for a skin test at least 48 hours before their colour or lash appointment, and when they have had it, type the day in Patch Test Date on the Clients form.',
+    ] },
+    { title: 'Take payment at the end of a visit', steps: [
+      'On the Bookings form, set Status to Completed and Paid By to Card, Cash or Gift voucher.',
+      'Open the Receipts form and press New. Type the next number in Number (the Receipts last 7 days query shows the latest), choose the booking, and type the time in Taken.',
+      'In Receipt Lines below, add a line for each service and each product sold, with Kind, Item, Quantity, Unit Price and Tax Rate 0.2. For each product, also add a record to Product Sales with the same receipt, so the stock and the retail commission are counted.',
+      'Type the Total, the VAT (each line\'s price less the price divided by 1.2), Net, any Deposit Paid and Voucher, and Paid Today. Open the print template Receipt, choose the receipt and press Print.',
+    ] },
+    { title: 'Sell a gift voucher and take it as payment', steps: [
+      'Open the Gift Vouchers form and press New. Type the next Code, today in Sold On, who is paying in Bought By, who it is for in For, the Value, and a date a year ahead in Expires.',
+      'Open the print template Gift voucher, choose the voucher, and print it on card.',
+      'When it is used, type the day in Redeemed On and choose the booking in Booking. On that visit\'s receipt, type the voucher\'s value in Voucher and its code in Voucher Code.',
+      'Run Vouchers outstanding to see what the salon still owes in services, soonest to expire first.',
+    ] },
+    { title: 'Order stock on Tuesday', steps: [
+      'Print the report Products to order. It lists every product at or below its reorder level, a page for each supplier, with the cost of the order.',
+      'Send each supplier its page. When the goods arrive, add a record to Stock Deliveries for each product, with the supplier\'s invoice number, and add the quantity to In Stock on the Products form.',
+    ] },
+    { title: 'Pay the month\'s commission', steps: [
+      'On the first of the month, print the reports Commission statement and Retail commission to see last month\'s services and retail by person.',
+      'Open the Commission Statements form and press New for each person on commission. Type the Number, choose them in Staff, and type the month (2026-09) in Month and today in Prepared On.',
+      'In Commission Lines below, add a line for each kind of work with what was done, the takings, the rate and the commission, and put the total in Commission Due.',
+      'Open the print template Commission statement, choose the statement, and print it to go with their pay. Type the pay day in Paid On.',
+    ] },
+    { title: 'Do the VAT return', steps: [
+      'Print the report VAT by month. Add up the three months of the VAT quarter: the VAT column is the output tax on takings, and the Net column the sales before VAT.',
+      'Gift vouchers sold are not in it: VAT is due when a voucher is spent, and that is in the receipt it was spent on.',
+    ] },
+  ],
+  notes: [
+    'Prices are VAT inclusive. A receipt shows the VAT within each line, worked out as the price less the price divided by one plus the rate, rounded to the penny; the receipt\'s VAT is those added up. Change the 0.2 in Services and Products if your rate is different, or make it 0 if you are not registered for VAT.',
+    'The services of a visit are kept twice on purpose: in Booking Services, as booked, and in Receipt Lines, as charged and printed. A receipt should not change after it is handed over, so the till keeps its own copy.',
+    'Every booking, past or to come, can print an Appointment confirmation. Choose the booking you want before printing; printing them all gives thousands of letters.',
+    'Commission is worked out on takings with VAT in them, as many salons pay it. To pay it on takings before VAT, divide the price by 1.2 in the commission queries.',
+    'The owner takes no commission, so she has no statements. Staff who have left keep their records with Active set to No.',
+    'Stock is not counted by Data Files on its own: In Stock goes down as products are sold or used at the basin and up as deliveries arrive. In the sample this was worked out while the records were made; in your own salon, change In Stock when you add a sale or a delivery, or count the shelf each week.',
+  ],
+  faq: [
+    { q: 'How do I print a receipt again for a client?', a: 'Run Receipts last 7 days, or open the Receipts form and find the number. Then open the print template Receipt, choose that receipt and print it. It prints exactly as it did on the day.' },
+    { q: 'Where does the VAT number on the receipt come from?', a: 'From the Business table, with the salon\'s name, address and phone. Change it there once and every receipt, voucher, statement and letter takes the new details.' },
+    { q: 'A client cancelled with less than 48 hours\' notice. What do I do?', a: 'Set the booking\'s Status to Cancelled and type the day in Cancelled On. Leave Deposit Refunded unticked, so the deposit is kept. No-shows by client counts late cancellations and no-shows together.' },
+    { q: 'How do I pay part of a bill with a gift voucher?', a: 'In the sample a voucher is used in full on one visit. Type its value in Voucher on the receipt and the rest in Paid Today, with Paid By as Gift voucher and card. To let a balance stay on a voucher, add a Balance field to Gift Vouchers.' },
+    { q: 'Why does the commission statement for a stylist not match the takings report?', a: 'Takings by stylist last month counts services only; the statement adds the retail they sold, at the retail rate. Both use completed appointments only.' },
+    { q: 'How do I start with my own salon instead of Marigold?', a: 'Open the sample empty and fill in Business first. Then add your suppliers, staff, service menu and products, in that order, before any client or booking.' },
+  ],
+  empty: 'Start with Business, your own name, address, VAT number and the words at the foot of a receipt. Then Suppliers, then Staff with their level and commission rates, then the Services menu with a price for each level. Add your Products next, with their supplier and reorder level. Clients can be added as they book. Then make Bookings and add the services for each in Booking Services, changing the price where you charge something different. Record Product Sales and Stock Deliveries as they happen, and Gift Vouchers when you sell them. Each visit paid for gets a record in Receipts with its Receipt Lines, and at the end of each month a record in Commission Statements, with its lines, for each person on commission.',
   adapt: [
     'A barber can drop the beauty services, keep Junior and Senior prices and add a Walk-in choice to Booked Via.',
     'A dog groomer can rename Clients to Owners and add a Pets table pointing at it (name, breed, size, temperament), then make each booking point at a pet.',
@@ -306,6 +517,8 @@ export const about = {
     'For a nail bar or brow studio, add a Station or Room field to Bookings to show which chair or room each appointment uses.',
     'Change the patch test rule from six months to another period by editing 180 in the Patch tests due query.',
     'Add a Tips field to Bookings and a query that totals tips by stylist each month.',
+    'To sell products over the counter without a booking, add a Client field to Receipts and leave Booking empty; the Receipt template can then print {Client} instead of {Booking.Client}.',
+    'Give receipts for gift vouchers too: add a Receipts record with one line, Kind Voucher and Tax Rate 0, since VAT on a voucher is paid when it is spent.',
   ],
 };
 
@@ -415,6 +628,14 @@ export function fill(base, { r, cal, days = 395, ahead = 42 }) {
   };
   const nameOf = (male) => ({ first: r.pick(male === undefined ? FIRST : male ? MALE : FEMALE), last: r.pick(LAST) });
 
+  // The salon's own details, printed at the head of its receipts, vouchers, statements and letters.
+  add('Business', businessRecord({
+    name: 'Marigold Hair and Beauty', domain: 'marigoldhair.example', phone: '020 7946 0418',
+    address: { Address: '27 Market Square', City: 'London', Postcode: 'N16 7QR', Country: 'United Kingdom' },
+    terms: 'Payment at the end of each visit, by card or cash.',
+    footer: 'Open Tuesday to Saturday, until 8pm on Thursday. Please give us 48 hours notice to move or cancel an appointment. Unopened products can be returned within 14 days with this receipt. Thank you for coming in.',
+  }));
+
   // Suppliers: colour, hair care, beauty, sundries.
   const suppliers = companies(r, 4, ['Salon Supplies', 'Beauty Wholesale', 'Hair Trade', 'Professional']).map((name, i) => {
     const n = nameOf();
@@ -466,8 +687,8 @@ export function fill(base, { r, cal, days = 395, ahead = 42 }) {
   const services = new Map();
   for (const [cat, items] of MENU) {
     for (const [name, minutes, junior, stylist, senior, patch = false] of items) {
-      const id = add('Services', { Name: name, Category: cat, Minutes: minutes, 'Junior Price': junior, 'Stylist Price': stylist, 'Senior Price': senior, 'Patch Test': patch });
-      services.set(name, { id, name, minutes, prices: { Junior: junior, Stylist: stylist, Senior: senior, Therapist: stylist }, patch, hair: !['Nails', 'Brows and Lashes', 'Skin and Body'].includes(cat) });
+      const id = add('Services', { Name: name, Category: cat, Minutes: minutes, 'Junior Price': junior, 'Stylist Price': stylist, 'Senior Price': senior, 'Patch Test': patch, 'Tax Rate': 0.2 });
+      services.set(name, { id, name, category: cat, minutes, prices: { Junior: junior, Stylist: stylist, Senior: senior, Therapist: stylist }, patch, hair: !['Nails', 'Brows and Lashes', 'Skin and Body'].includes(cat) });
     }
   }
   const S = (name) => services.get(name);
@@ -477,8 +698,8 @@ export function fill(base, { r, cal, days = 395, ahead = 42 }) {
   const byName = new Map();
   for (const [kind, cat, si, items] of STOCK) {
     for (const [name, size, cost, price, level, qty, demand] of items) {
-      const p = { name, kind, cost, price, level, qty, demand, supplier: suppliers[si], stock: 0, use: 0, pending: false };
-      p.id = add('Products', { Name: name, Kind: kind, Category: cat, Supplier: p.supplier.id, Size: size, 'Cost Price': cost, 'Sale Price': price, 'In Stock': 0, 'Reorder Level': level, 'Reorder Quantity': qty });
+      const p = { name, size, kind, cost, price, level, qty, demand, supplier: suppliers[si], stock: 0, use: 0, pending: false };
+      p.id = add('Products', { Name: name, Kind: kind, Category: cat, Supplier: p.supplier.id, Size: size, 'Cost Price': cost, 'Sale Price': price, 'Tax Rate': 0.2, 'In Stock': 0, 'Reorder Level': level, 'Reorder Quantity': qty });
       products.push(p);
       byName.set(name, p);
     }
@@ -572,6 +793,50 @@ export function fill(base, { r, cal, days = 395, ahead = 42 }) {
   let voucherNo = 1000 + r.int(0, 400);
   const BOOKING_NOTES = ['Running ten minutes late, called ahead', 'Wedding on Saturday', 'Wants to go a little shorter this time', 'Bringing a photo of the colour she wants', 'First time with us, allow a consultation'];
 
+  // Receipts numbered by the year they are taken in, RCP-2026-00042, and what each person
+  // on commission earns in each month by kind of work, for the month's statement.
+  const receiptCount = {};
+  const earned = new Map();
+  const earn = (s, month, work, done, takings, rate) => {
+    const key = `${s.id}|${month}`;
+    if (!earned.has(key)) earned.set(key, { s, month, work: new Map() });
+    const w = earned.get(key).work;
+    if (!w.has(work)) w.set(work, { done: 0, takings: 0, commission: 0, rate });
+    const x = w.get(work);
+    x.done += done;
+    x.takings += takings;
+    // Each service's or sale's commission rounded to the penny, then added up, as the commission queries do.
+    x.commission += money(takings * rate);
+  };
+  const receipt = (v, d, date) => {
+    const y = date.slice(0, 4);
+    receiptCount[y] = (receiptCount[y] || 0) + 1;
+    const lines = [...v.lines, ...v.retail.map(({ p, q }) => ({ Kind: 'Retail', Item: `${p.name}, ${p.size}`, Quantity: q, 'Unit Price': p.price, 'Tax Rate': 0.2 }))];
+    // The VAT within each line rounded to the penny, then added up, as the receipt prints it.
+    let total = 0;
+    let vat = 0;
+    for (const l of lines) {
+      const amount = money(l.Quantity * l['Unit Price']);
+      total += amount;
+      vat += money(amount - amount / (1 + l['Tax Rate']));
+    }
+    total = money(total);
+    vat = money(vat);
+    const voucher = v.voucher ? v.voucher.Value : 0;
+    const paidToday = money(total - v.deposit - voucher);
+    const paidBy = v.voucher ? (paidToday > 0 ? `Gift voucher and ${r.weighted([['card', 8], ['cash', 1.4]])}` : 'Gift voucher') : v.paidBy;
+    const [hh, mm] = hhmm(v.at);
+    const id = add('Receipts', {
+      Number: `RCP-${y}-${pad(receiptCount[y], 5)}`, Booking: v.booking, Taken: cal.time(d, hh, mm), Net: money(total - vat), VAT: vat, Total: total,
+      'Deposit Paid': v.deposit, Voucher: voucher, 'Voucher Code': v.voucher ? v.voucher.Code : null, 'Paid Today': paidToday, 'Paid By': paidBy,
+    });
+    for (const { category, ...l } of lines) add('Receipt Lines', { Receipt: id, ...l });
+    for (const { p, q } of v.retail) add('Product Sales', { Date: date, Staff: v.s.id, Client: v.c.id, Product: p.id, Quantity: q, 'Unit Price': p.price, Receipt: id });
+    const month = date.slice(0, 7);
+    if (v.s.svc > 0) for (const l of v.lines) earn(v.s, month, l.category, 1, l['Unit Price'], v.s.svc);
+    if (v.s.retail > 0) for (const { p, q } of v.retail) earn(v.s, month, 'Retail', q, money(q * p.price), v.s.retail);
+  };
+
   for (let d = -days; d <= ahead; d++) {
     const date = cal.day(d);
     const at = cal.at(d);
@@ -635,6 +900,7 @@ export function fill(base, { r, cal, days = 395, ahead = 42 }) {
     const season = month === 11 ? 1.35 : month === 0 ? 0.75 : month === 1 ? 0.9 : month === 7 ? 0.88 : 1;
     // A day still to come is only partly booked yet: most of next week, little of six weeks out.
     const bookedSoFar = d > 0 ? Math.exp(-d / 16) : 1;
+    const visits = [];
     for (const s of team) {
       if (!s.days.includes(wd) || d < s.from || d >= s.to || s.off.has(d)) continue;
       const busy = Math.min(0.85, s.busy * season * bookedSoFar);
@@ -671,20 +937,23 @@ export function fill(base, { r, cal, days = 395, ahead = 42 }) {
           c.retested = true;
         }
 
-        const price = (x) => money((x.prices[s.level] ?? x.prices.Stylist) * (c.fresh ? 0.8 : 1));
-        const bill = money(done.reduce((n, x) => n + price(x), 0));
+        const firstVisit = c.fresh;
+        const prices = done.map((x) => money((x.prices[s.level] ?? x.prices.Stylist) * (firstVisit ? 0.8 : 1)));
+        const bill = money(prices.reduce((n, x) => n + x, 0));
         let status = 'Booked';
         let cancelledOn = null;
         if (d < 0) status = r.weighted([['Completed', 92.5], ['Cancelled', 5], ['No-show', c.unreliable ? 12 : 1.6]]);
         else if (r.chance(0.025)) status = 'Cancelled';
         if (status === 'Cancelled') cancelledOn = r.int(bookedOn, Math.min(d, 0));
         // A deposit for new clients and long appointments, and for anyone who has missed one before.
-        const deposit = bill >= 80 ? 20 : isNew || c.missed ? 10 : 0;
+        // Never more than the bill: a child's cut or a fringe trim takes none.
+        const deposit = bill >= 80 ? 20 : (isNew || c.missed) && bill >= 15 ? 10 : 0;
         const late = status === 'No-show' || (status === 'Cancelled' && d - cancelledOn < 2);
         let paidBy = null;
         let voucher = null;
         if (status === 'Completed') {
-          const i = voucherQueue.findIndex((x) => x.at <= d && x.v.expires >= d && x.v.Value <= bill);
+          // A voucher is spent in full, so only on a bill it does not exceed once the deposit is off.
+          const i = voucherQueue.findIndex((x) => x.at <= d && x.v.expires >= d && x.v.Value <= bill - deposit);
           if (i >= 0) { voucher = voucherQueue.splice(i, 1)[0].v; paidBy = 'Gift voucher'; } else paidBy = r.weighted([['Card', 8], ['Cash', 1.4]]);
         }
         const [hh, mm] = hhmm(t);
@@ -694,8 +963,12 @@ export function fill(base, { r, cal, days = 395, ahead = 42 }) {
           Deposit: deposit, 'Deposit Refunded': status === 'Cancelled' && deposit > 0 && !late, 'Cancelled On': cancelledOn === null ? null : cal.day(cancelledOn),
           'Paid By': paidBy, Notes: r.chance(isNew ? 0.2 : 0.015) ? (isNew ? BOOKING_NOTES[4] : r.pick(BOOKING_NOTES.slice(0, 4))) : null,
         });
-        for (const x of done) add('Booking Services', { Booking: booking, Service: x.id, Price: price(x) });
+        done.forEach((x, i) => add('Booking Services', { Booking: booking, Service: x.id, Price: prices[i] }));
         if (voucher) { voucher['Redeemed On'] = date; voucher.Booking = booking; }
+        // A visit paid for at the desk: its receipt is written when the day is done, in time order.
+        const visit = status === 'Completed' ? { booking, at: t + minutes, s, c, deposit, voucher, paidBy, retail: [],
+          lines: done.map((x, i) => ({ Kind: 'Service', Item: firstVisit ? `${x.name} (first visit, 20 per cent off)` : x.name, Quantity: 1, 'Unit Price': prices[i], 'Tax Rate': 0.2, category: x.category })) } : null;
+        if (visit) visits.push(visit);
 
         c.last = d;
         if (status === 'No-show') c.missed = true;
@@ -717,7 +990,7 @@ export function fill(base, { r, cal, days = 395, ahead = 42 }) {
             const items = r.chance(0.2) ? 2 : 1;
             for (const p of pool.length ? [...new Set(Array.from({ length: items }, () => r.weighted(pool.map((x) => [x, x.demand + (x === giftSet && month === 11 ? 3 : 0)]))))] : []) {
               const q = Math.min(p.stock, r.chance(0.1) ? 2 : 1);
-              add('Product Sales', { Date: date, Staff: s.id, Client: c.id, Product: p.id, Quantity: q, 'Unit Price': p.price });
+              visit.retail.push({ p, q });
               p.stock -= q;
             }
           }
@@ -727,6 +1000,9 @@ export function fill(base, { r, cal, days = 395, ahead = 42 }) {
         t += minutes;
       }
     }
+    // The day's receipts, numbered in the order they were taken at the desk.
+    visits.sort((a, b) => a.at - b.at || a.booking - b.booking);
+    for (const v of visits) receipt(v, d, date);
   }
 
   // Vouchers in the order they were sold.
@@ -734,6 +1010,33 @@ export function fill(base, { r, cal, days = 395, ahead = 42 }) {
     const { expires, ...values } = v;
     add('Gift Vouchers', values);
   }
+  // Commission statements: made on the first of the month for the month before, for each person on
+  // commission who worked in it, and paid with the wages on the 7th. The first, part month is left out.
+  const firsts = [];
+  for (let d = -days; d <= 0; d++) if (cal.at(d).getDate() === 1) firsts.push(d);
+  const WORK = [...MENU.map(([cat]) => cat), 'Retail'];
+  const statementCount = {};
+  for (let i = 0; i + 1 < firsts.length; i++) {
+    const month = cal.day(firsts[i]).slice(0, 7);
+    const made = firsts[i + 1];
+    for (const s of team) {
+      const e = earned.get(`${s.id}|${month}`);
+      if (!e) continue;
+      const y = cal.at(made).getFullYear();
+      statementCount[y] = (statementCount[y] || 0) + 1;
+      const lines = WORK.filter((w) => e.work.has(w)).map((w) => ({ w, ...e.work.get(w) }));
+      const due = money(lines.reduce((n, l) => n + money(l.commission), 0));
+      const id = add('Commission Statements', {
+        Number: `COM-${y}-${pad(statementCount[y], 4)}`, Staff: s.id, Month: month, 'Prepared On': cal.day(made),
+        'Commission Due': due, 'Paid On': made + 6 <= 0 ? cal.day(made + 6) : null,
+      });
+      lines.forEach((l, k) => add('Commission Lines', {
+        Statement: id, Line: k + 1, Work: l.w === 'Retail' ? 'Retail products sold' : l.w,
+        Done: l.done, Takings: money(l.takings), Rate: l.rate, Commission: money(l.commission),
+      }));
+    }
+  }
+
   // Each client's latest patch test, and the stock as it stands.
   for (const c of allClients) if (c.retested) base.update('Clients', c.id, { 'Patch Test Date': cal.day(c.patch) });
   for (const p of products) base.update('Products', p.id, { 'In Stock': p.stock });

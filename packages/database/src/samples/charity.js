@@ -15,8 +15,17 @@
 // bookings taken weeks ahead; volunteers turn up on their usual day. Every
 // payment in is also written in the Income table, as a treasurer's cash book
 // keeps it, so income can be counted by source and month in one query.
+//
+// It prints what a small charity sends out: a receipt and thank-you letter
+// for each gift, a reminder when a membership is due, a membership card, a
+// ticket for each booking, a certificate of thanks for each volunteer's year,
+// and the schedule of gifts that goes with each tax claim. Gifts, memberships
+// and bookings carry numbers given in date order, a new run each year
+// (RCP-2026-0042, MEM-2026-0042, TKT-2026-0042), and the cash book quotes them.
+// Certificates are made once a year, for the volunteer year to 31 March, so
+// the shifts go back far enough to count the whole of the last one.
 
-import { FIRST, LAST, money, phoneFor } from './util.js';
+import { BUSINESS_ABOUT, BUSINESS_TABLE, businessRecord, FIRST, LAST, money, phoneFor } from './util.js';
 
 const ref = (table) => ({ type: 'integer', points: table });
 const NAME = '[First Name] & " " & [Last Name]';
@@ -24,11 +33,14 @@ const NAME = '[First Name] & " " & [Last Name]';
 const CLAIM = 'Round([Amount] * 0.25, 2)';
 const AHEAD = (field) => `DateDiff("d", Date(), [${field}])`;
 const AGO = (field) => `DateDiff("d", [${field}], Date())`;
+// Every print template is headed by the trust's own details.
+const LETTERHEAD = { table: 'Business', fields: ['Name', 'Address', 'City', 'Postcode', 'Phone', 'E-mail', 'Website'] };
 
 export const spec = {
   // Where a value below nought is right: a grant report already late.
   negative: { 'Grant reports due': ['Days Left'] },
   tables: [
+    BUSINESS_TABLE,
     { name: 'People', fields: [
       { name: 'First Name', type: 'text' }, { name: 'Last Name', type: 'text', required: true },
       { name: 'Address', type: 'text' }, { name: 'City', type: 'text' }, { name: 'Postcode', type: 'text' }, { name: 'Country', type: 'text', default: 'United Kingdom' },
@@ -41,7 +53,7 @@ export const spec = {
       { name: 'Description', type: 'text' },
     ] },
     { name: 'Memberships', fields: [
-      { name: 'Person', ...ref('People'), required: true }, { name: 'Membership Type', ...ref('Membership Types'), required: true },
+      { name: 'Number', type: 'text', unique: true }, { name: 'Person', ...ref('People'), required: true }, { name: 'Membership Type', ...ref('Membership Types'), required: true },
       { name: 'Starts', type: 'date' }, { name: 'Ends', type: 'date' }, { name: 'Amount', type: 'currency' }, { name: 'Paid On', type: 'date' },
       { name: 'Method', type: 'text' }, { name: 'Renewed', type: 'yesno' },
     ] },
@@ -54,7 +66,7 @@ export const spec = {
       { name: 'Amount Claimed', type: 'currency' }, { name: 'Received On', type: 'date' }, { name: 'Amount Received', type: 'currency' },
     ] },
     { name: 'Donations', fields: [
-      { name: 'Person', ...ref('People'), required: true }, { name: 'Campaign', ...ref('Campaigns'), required: true },
+      { name: 'Number', type: 'text', unique: true }, { name: 'Person', ...ref('People'), required: true }, { name: 'Campaign', ...ref('Campaigns'), required: true },
       { name: 'Gift Date', type: 'date' }, { name: 'Amount', type: 'currency' }, { name: 'Method', type: 'text' },
       { name: 'Regular', type: 'yesno' }, { name: 'Claimable', type: 'yesno' }, { name: 'Tax Claim', ...ref('Tax Claims') },
     ] },
@@ -64,7 +76,7 @@ export const spec = {
       { name: 'Costs', type: 'currency', default: 0 }, { name: 'Status', type: 'text', default: 'Planned' },
     ] },
     { name: 'Event Bookings', fields: [
-      { name: 'Event', ...ref('Events'), required: true }, { name: 'Person', ...ref('People'), required: true },
+      { name: 'Number', type: 'text', unique: true }, { name: 'Event', ...ref('Events'), required: true }, { name: 'Person', ...ref('People'), required: true },
       { name: 'Booked On', type: 'date' }, { name: 'Tickets', type: 'integer', default: 1 }, { name: 'Amount Paid', type: 'currency', default: 0 },
       { name: 'Cancelled', type: 'yesno' }, { name: 'Attended', type: 'yesno' },
     ] },
@@ -75,6 +87,11 @@ export const spec = {
     { name: 'Volunteer Shifts', fields: [
       { name: 'Person', ...ref('People'), required: true }, { name: 'Role', ...ref('Volunteer Roles'), required: true },
       { name: 'Shift Date', type: 'date' }, { name: 'Start Time', type: 'text' }, { name: 'Hours', type: 'number' },
+    ] },
+    { name: 'Volunteer Certificates', fields: [
+      { name: 'Number', type: 'text', unique: true }, { name: 'Person', ...ref('People'), required: true }, { name: 'Main Role', ...ref('Volunteer Roles') },
+      { name: 'Year Starting', type: 'date' }, { name: 'Year Ending', type: 'date' }, { name: 'Shifts', type: 'integer' }, { name: 'Hours', type: 'number' },
+      { name: 'Roles', type: 'text' }, { name: 'Presented On', type: 'date' },
     ] },
     { name: 'Funders', fields: [
       { name: 'Name', type: 'text', required: true, unique: true }, { name: 'Kind', type: 'text' }, { name: 'Contact Name', type: 'text' },
@@ -213,11 +230,108 @@ export const spec = {
       { table: 'People', field: 'Contact by Post', criteria: ['Yes'], show: false },
     ] },
   },
+  documents: [
+    // The thank-you letter that is also the receipt, one for each gift.
+    { name: 'Donation receipt', table: 'Donations', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Thank you for your gift' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Person', label: 'To' }, { field: 'Number', label: 'Receipt' },
+        { field: 'Person.Address', label: 'Address' }, { field: 'Gift Date', label: 'Received on' },
+        { field: 'Person.City', label: 'Town' }, { field: 'Campaign', label: 'Given to' },
+        { field: 'Person.Postcode', label: 'Postcode' }, { field: 'Claimable', label: 'Tax declaration' },
+      ] },
+      { type: 'text', text: 'Dear {Person.First Name},' },
+      { type: 'text', text: 'Thank you for your gift of {Amount}, which reached us on {Gift Date}. It goes to the {Campaign}: {Campaign.Description}.' },
+      { type: 'totals', rows: [
+        { label: 'Your gift', expr: '[Amount]' },
+        { label: 'Tax we can claim back on it', expr: `IIf([Claimable] = 1, ${CLAIM}, 0)` },
+        { label: 'What your gift is worth to us', expr: '[Your gift] + [Tax we can claim back on it]', strong: true },
+      ] },
+      { type: 'text', text: 'Where Tax declaration says Yes, you have told us that you pay enough UK income tax for us to claim tax back on your gifts. We will put this one in our next claim, which adds a quarter to it at no cost to you; please tell us if your tax changes. Where it says No, we cannot claim on this gift. If you do pay UK income tax, a short declaration lets us claim on this gift and on your future ones: ask us for the form.' },
+      { type: 'text', text: 'Please keep this letter as your receipt. Our newsletter tells you how the money is spent; let us know whether you would like it by post or by e-mail.' },
+      { type: 'text', text: 'With warm thanks,' },
+      { type: 'spacer', size: 24 },
+      { type: 'signatures', labels: ['Treasurer'] },
+      { type: 'text', text: 'Registered charity number {Business.Company Number}. {Business.Document Footer}', small: true },
+    ] },
+    // A short reminder to a member whose year is ending.
+    { name: 'Renewal reminder', table: 'Memberships', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Your membership is due for renewal' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Person', label: 'To' }, { field: 'Number', label: 'Membership no' },
+        { field: 'Person.Address', label: 'Address' }, { field: 'Membership Type', label: 'Membership' },
+        { field: 'Person.City', label: 'Town' }, { field: 'Ends', label: 'Ends on' },
+        { field: 'Person.Postcode', label: 'Postcode' }, { field: 'Membership Type.Fee', label: 'Fee for next year' },
+      ] },
+      { type: 'text', text: 'Dear {Person.First Name},' },
+      { type: 'text', text: 'Your {Membership Type} membership of {Business.Name} comes to an end on {Ends}. We hope you will stay with us for another year. The fee for the year ahead is {Membership Type.Fee}.' },
+      { type: 'text', text: 'Your fee last year was paid by: {Method}. If you pay by standing order, your membership renews itself on the day and there is nothing you need to do, unless your bank details have changed. Otherwise you can pay by card or cash at the hall office, or by bank transfer to {Business.Bank Details}, quoting your membership number, {Number}.' },
+      { type: 'text', text: 'Members pay members\' rates for events and the junior sessions, and have a vote at the annual general meeting. Your fee also helps to keep the hall warm and open for everyone who uses it.' },
+      { type: 'text', text: 'If you have renewed since this letter was printed, thank you, and please ignore it. If you would rather not renew, you need do nothing, though we would be glad to know why: write to {Business.E-mail} or call {Business.Phone}.' },
+      { type: 'text', text: 'With best wishes,' },
+      { type: 'spacer', size: 24 },
+      { type: 'signatures', labels: ['Membership Secretary'] },
+      { type: 'text', text: 'Registered charity number {Business.Company Number}. {Business.Document Footer}', small: true },
+    ] },
+    // A card to carry, for members' rates at events.
+    { name: 'Membership card', table: 'Memberships', paper: 'receipt-58', letterhead: { table: 'Business', fields: ['Name', 'Phone'] }, blocks: [
+      { type: 'heading', text: 'Membership card' },
+      { type: 'fields', columns: 1, items: [
+        { field: 'Person', label: 'Member' }, { field: 'Number', label: 'Membership no' }, { field: 'Membership Type', label: 'Membership' },
+        { field: 'Starts', label: 'Valid from' }, { field: 'Ends', label: 'Valid until' },
+      ] },
+      { type: 'text', text: 'Show this card for members\' rates at events. A life membership has no end date.', small: true },
+      { type: 'text', text: 'If found, please return to {Business.Name}, {Business.Address}, {Business.City} {Business.Postcode}.', small: true },
+    ] },
+    // The ticket for each booking, checked at the door.
+    { name: 'Event ticket', table: 'Event Bookings', paper: 'a5', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: '{Event}' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Number', label: 'Ticket' }, { field: 'Event.Event Date', label: 'Date' },
+        { field: 'Person', label: 'Name' }, { field: 'Event.Start Time', label: 'Starts' },
+        { field: 'Tickets', label: 'Admits' }, { field: 'Event.Venue', label: 'Venue' },
+        { field: 'Amount Paid', label: 'Paid' }, { field: 'Booked On', label: 'Booked on' },
+        { field: 'Cancelled', label: 'Cancelled' },
+      ] },
+      { type: 'text', text: 'Please bring this ticket, printed or on your phone, and give the number at the door. Tickets are refunded only if the event is cancelled.' },
+      { type: 'text', text: '{Business.Name}, {Business.Address}, {Business.City} {Business.Postcode}. Registered charity number {Business.Company Number}.', small: true },
+    ] },
+    // A certificate of thanks for each volunteer's year.
+    { name: 'Volunteer certificate', table: 'Volunteer Certificates', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Certificate of thanks' },
+      { type: 'text', text: 'This certificate is presented to' },
+      { type: 'heading', text: '{Person}' },
+      { type: 'text', text: 'in thanks for the {Hours} hours given as a volunteer with {Business.Name}, over {Shifts} shifts, in the year from {Year Starting} to {Year Ending}.' },
+      { type: 'fields', columns: 2, items: [{ field: 'Roles', label: 'Roles' }, { field: 'Number', label: 'Certificate' }, { field: 'Main Role', label: 'Most hours in' }, { field: 'Presented On', label: 'Presented on' }] },
+      { type: 'text', text: 'Our work depends on people who give their time freely. Thank you for yours.' },
+      { type: 'spacer', size: 32 },
+      { type: 'signatures', labels: ['Chair of trustees', 'Volunteer coordinator'] },
+    ] },
+    // The list of gifts sent with each tax claim, as the tax office asks for one.
+    { name: 'Tax claim schedule', table: 'Tax Claims', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Tax claim schedule {Reference}' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Reference', label: 'Claim' }, { field: 'Business.Company Number', label: 'Charity number' },
+        { field: 'Gifts Up To', label: 'Gifts up to' }, { field: 'Business.Tax Number', label: 'Tax office reference' },
+        { field: 'Submitted On', label: 'Submitted on' }, { field: 'Received On', label: 'Paid on' },
+      ] },
+      { type: 'lines', table: 'Donations', link: 'Tax Claim', sort: 'Gift Date', columns: [
+        { field: 'Gift Date', label: 'Date' }, { field: 'Number', label: 'Receipt' }, { field: 'Person.First Name', label: 'First name' },
+        { field: 'Person.Last Name', label: 'Last name' }, { field: 'Person.Address', label: 'House and street' }, { field: 'Person.Postcode', label: 'Postcode' },
+        { field: 'Amount', type: 'currency' }, { expr: CLAIM, as: 'Tax Back', label: 'Tax back', type: 'currency' },
+      ] },
+      { type: 'totals', rows: [
+        { label: 'Gifts', expr: '[Amount]' }, { label: 'Tax back on them', expr: '[Tax Back]' },
+        { label: 'Amount claimed', expr: '[Amount Claimed]', strong: true },
+      ] },
+      { type: 'text', text: 'Every gift listed was made by a person who had a tax declaration in place on the day of the gift. Keep this schedule, with the declarations, as long as the tax office asks.', small: true },
+    ] },
+  ],
   reports: [
     { name: 'Membership list', query: 'Current members', group: 'Type', columns: ['Member', { field: 'Starts', type: 'date' }, { field: 'Ends', type: 'date' }, 'E-mail', 'Phone'], totals: [{ field: 'Member', fn: 'count' }] },
     { name: 'Renewal reminders', query: 'Renewals due', sort: 'Ends', columns: ['Member', 'Address', 'City', 'Postcode', 'Type', { field: 'Ends', type: 'date' }, { field: 'Renewal Fee', type: 'currency' }], totals: [{ field: 'Renewal Fee', fn: 'sum' }] },
     { name: 'Donations by campaign', query: 'Appeals against target', columns: ['Campaign', { field: 'Opens', type: 'date' }, { field: 'Closes', type: 'date' }, { field: 'Target', type: 'currency' }, { field: 'Gifts', type: 'integer' }, { field: 'Given', type: 'currency' }], totals: [{ field: 'Given', fn: 'sum' }, { field: 'Gifts', fn: 'sum' }] },
-    { name: 'Claim schedule', title: 'Tax claim schedule', query: 'Gifts to claim', sort: 'Gift Date', columns: ['First Name', 'Last Name', 'Address', 'Postcode', { field: 'Gift Date', type: 'date' }, { field: 'Amount', type: 'currency' }, { field: 'Claim Value', type: 'currency' }], totals: [{ field: 'Amount', fn: 'sum' }, { field: 'Claim Value', fn: 'sum' }] },
+    { name: 'Claim schedule', title: 'Gifts for the next tax claim', query: 'Gifts to claim', sort: 'Gift Date', columns: ['First Name', 'Last Name', 'Address', 'Postcode', { field: 'Gift Date', type: 'date' }, { field: 'Amount', type: 'currency' }, { field: 'Claim Value', type: 'currency' }], totals: [{ field: 'Amount', fn: 'sum' }, { field: 'Claim Value', fn: 'sum' }] },
     { name: 'Volunteer hours', query: 'Volunteer hours by month', group: 'Month', columns: ['Role', { field: 'Hours', type: 'number' }, { field: 'Value', type: 'currency' }], totals: [{ field: 'Hours', fn: 'sum' }, { field: 'Value', fn: 'sum' }] },
     { name: 'Event guest list', query: 'Guests booked', group: 'Event', columns: ['Guest', { field: 'Tickets', type: 'integer' }, { field: 'Amount Paid', type: 'currency' }, 'Phone'], totals: [{ field: 'Tickets', fn: 'sum' }, { field: 'Amount Paid', fn: 'sum' }] },
     { name: 'Income by month', query: 'Income by source by month', group: 'Month', columns: ['Source', { field: 'Payments', type: 'integer' }, { field: 'Received', type: 'currency' }], totals: [{ field: 'Received', fn: 'sum' }] },
@@ -243,6 +357,12 @@ export const about = {
     'A small animal rescue or food bank run by volunteers',
   ],
   tables: {
+    Business: { about: BUSINESS_ABOUT.about, fields: {
+      ...BUSINESS_ABOUT.fields,
+      'Tax Number': 'The reference the tax office gives the trust for its tax claims on gifts, printed on nothing but kept here with the rest. The sample has a placeholder.',
+      'Company Number': 'The charity\'s registered number, printed at the foot of every letter, as a charity must. The sample has a placeholder of zeros.',
+      'Tax Rate': 'The rate of VAT the trust charges: nought, as a small charity that is not registered for VAT. Change it if yours is.',
+    } },
     'People': { about: 'One record per person the trust knows: members, donors, event guests and volunteers are all here, once each. What someone is to the trust comes from their other records (a membership, a gift, a shift).', fields: {
       'First Name': 'The given name, used on letters and lists.',
       'Last Name': 'The family name; lists are sorted by it.',
@@ -267,6 +387,7 @@ export const about = {
       'Description': 'Who the membership is for.',
     } },
     'Memberships': { about: 'One record for each year of membership paid. A renewal is a new record starting the day after the last one ends, so a member\'s history stays.', fields: {
+      'Number': 'The membership number, printed on the card and quoted when paying: MEM-2026-0042. Given in the order fees are paid, a new run each year, and used once.',
       'Person': 'The member.',
       'Membership Type': 'The kind of membership.',
       'Starts': 'The first day of the membership.',
@@ -292,6 +413,7 @@ export const about = {
       'Amount Received': 'What was paid.',
     } },
     'Donations': { about: 'One record per gift, whether one-off or a monthly standing order.', fields: {
+      'Number': 'The receipt number, printed on the thank-you letter: RCP-2026-0042. Given in the order gifts arrive, a new run each year, and used once.',
       'Person': 'Who gave it.',
       'Campaign': 'The appeal or fund it was given to.',
       'Gift Date': 'The day it was received.',
@@ -312,6 +434,7 @@ export const about = {
       'Status': 'Planned, Held or Cancelled.',
     } },
     'Event Bookings': { about: 'One record per booking: a person and the tickets they took for one event.', fields: {
+      'Number': 'The ticket number, printed on the ticket and checked at the door: TKT-2026-0042. Given in the order bookings are taken, a new run each year.',
       'Event': 'The event booked.',
       'Person': 'Who booked.',
       'Booked On': 'The day the booking was made and paid.',
@@ -332,6 +455,17 @@ export const about = {
       'Shift Date': 'The day of the shift.',
       'Start Time': 'When it starts.',
       'Hours': 'How long it lasts, in hours.',
+    } },
+    'Volunteer Certificates': { about: 'One record for each volunteer thanked with a certificate for a volunteer year, which runs to 31 March as the accounts do. Made once a year from Volunteer Shifts, for everyone who gave six hours or more, and handed out at the annual general meeting.', fields: {
+      'Number': 'The certificate\'s number: VC-2026-0007, a new run each year.',
+      'Person': 'The volunteer.',
+      'Main Role': 'The role they gave most hours to.',
+      'Year Starting': 'The first day of the volunteer year, 1 April.',
+      'Year Ending': 'The last day of the volunteer year, 31 March.',
+      'Shifts': 'How many shifts they did in the year.',
+      'Hours': 'The hours they gave in the year, added up from their shifts.',
+      'Roles': 'Every role they did in the year, the most hours first.',
+      'Presented On': 'The day the certificate was handed over; empty until the AGM.',
     } },
     'Funders': { about: 'The trusts, foundations and councils the trust applies to for grants.', fields: {
       'Name': 'The funder.',
@@ -359,7 +493,7 @@ export const about = {
       'Description': 'What it was for, such as the appeal or event.',
       'Amount': 'How much.',
       'Method': 'How it was paid.',
-      'Reference': 'The record it came from, such as Gift 123 or Booking 45, so it can be traced.',
+      'Reference': 'The record it came from, so it can be traced: a receipt, membership or ticket number, a tax claim\'s reference, or the event or funder.',
     } },
   },
   queries: {
@@ -394,7 +528,16 @@ export const about = {
     'Income by month': 'Income by source for each month with the month\'s total. For the treasurer.',
     'Grant reports': 'Grant reports still to write, with the amount and the date each is due.',
   },
-  empty: 'Start with the lookup tables: Membership Types (your fees), Campaigns (at least a General Fund for gifts given to nothing in particular), Volunteer Roles and Funders. Then enter People as you meet them, with what they have agreed to be contacted by. After that, record Memberships, Donations, Events and their Bookings, Volunteer Shifts and Grants as they happen, and write each payment received in Income too. Make a Tax Claim when you send one and set each gift\'s Tax Claim to it.',
+  documents: {
+    'Donation receipt': 'The thank-you letter for a gift, which is also its receipt: the amount, the day it came, the appeal it goes to, whether the giver has a tax declaration, and what the tax claim adds to it. Every gift has one; print those of the last week or two by choosing them, and leave out standing orders, which are thanked once a year.',
+    'Renewal reminder': 'A short letter to a member whose membership is ending: the fee for next year, how to pay, and what membership gives. Choose the memberships in the Renewals due query to print; a life membership has no end and needs no reminder.',
+    'Membership card': 'A small card for each membership, to show for members\' rates: the member, the membership number, the kind of membership and the dates it is good for. Print it for a new or renewed membership.',
+    'Event ticket': 'Sent or handed to each guest when they book: the event, when and where, how many it admits, what was paid, and a ticket number to check at the door. A cancelled booking prints with Cancelled: Yes.',
+    'Volunteer certificate': 'A certificate of thanks for each volunteer, with the hours and shifts they gave in the volunteer year and the roles they did. Handed out at the annual general meeting, and useful to a volunteer for a job or college application.',
+    'Tax claim schedule': 'The list of gifts that goes with each claim to the tax office: each giver\'s name, house and postcode, the date and amount of each gift and the tax back on it, with the totals. The form your tax office wants may differ: check what it asks for in your own country.',
+  },
+
+  empty: 'Start with Business: the trust\'s own name, address and charity number, which every letter, card and ticket prints. Then the lookup tables: Membership Types (your fees), Campaigns (at least a General Fund for gifts given to nothing in particular), Volunteer Roles and Funders. Then enter People as you meet them, with what they have agreed to be contacted by. After that, record Memberships, Donations, Events and their Bookings, Volunteer Shifts and Grants as they happen, and write each payment received in Income too. Make a Tax Claim when you send one and set each gift\'s Tax Claim to it. Volunteer Certificates come once a year, after the volunteer year ends on 31 March.',
   adapt: [
     'If your country has no scheme for claiming tax on gifts, leave Tax Declaration empty and delete the Tax Claims table, the Gifts to claim query and the Claim schedule report.',
     'If your scheme pays a different share than a quarter, change the 0.25 in the Claim Value column of the Gifts to claim query.',
@@ -404,6 +547,74 @@ export const about = {
     'For a parent teacher association, rename Memberships to Families and add a field for the children\'s classes.',
     'Add a Gift in Memory Of field to Donations if people often give in memory of someone.',
     'Add a Safeguarding Check date to People, and a query of volunteers whose check is over three years old.',
+  ],
+  tutorial: [
+    { title: 'Record a gift and send the thank-you letter', steps: [
+      'Open the People form and find the giver by name. For someone new, press New and type their name, address and phone, tick what they have agreed to be contacted by, and tick Tax Declaration with its Declaration Date if they have signed one.',
+      'Open the Donations form and press New. Type the next receipt number in Number, one on from the last (RCP-2026-0042 after RCP-2026-0041). Choose the giver in Person and the appeal in Campaign (General Fund when they named none), then type the Gift Date, Amount and Method.',
+      'Tick Claimable if the giver had a tax declaration on the day of the gift. Tick Regular only for a monthly standing order.',
+      'Open the Income form, press New and write the same money in the cash book: Received On, Source Donations, the appeal in Description, the Amount, the Method, and the receipt number in Reference.',
+      'Open the print template Donation receipt from Print templates, choose the gift, and press Print or Save as PDF.',
+    ] },
+    { title: 'Send renewal reminders and renew a membership', steps: [
+      'Each week, run the query Renewals due: memberships ending in the next 30 days that have not been renewed. The report Renewal reminders prints the same list.',
+      'Open the print template Renewal reminder from Print templates, choose the memberships in that list, and press Print.',
+      'When the fee comes in, open the Memberships form, find the old membership and tick Renewed.',
+      'Press New for the new year: choose the Person and Membership Type, set Starts to the day after the old Ends and Ends a year on, type the Amount, Paid On and Method, and the next membership number in Number (MEM-2026-0042).',
+      'Write the fee in the Income form with Source Membership and the membership number in Reference.',
+      'Open the print template Membership card, choose the new membership, and print the card to post or hand over.',
+    ] },
+    { title: 'Take a booking for an event and print the ticket', steps: [
+      'Open the Events form and find the event, or press New and type its Name, Event Date, Start Time, Venue, Capacity and Ticket Price. Status stays Planned until it is held.',
+      'Open the Event Bookings form and press New. Type the next ticket number in Number (TKT-2026-0042), choose the Event and the Person, and type Booked On, Tickets and Amount Paid.',
+      'Write the money in the Income form with Source Events and the ticket number in Reference.',
+      'Open the print template Event ticket, choose the booking, and press Print or Save as PDF to e-mail it.',
+      'On the night, print the report Event guest list for the door and tick Attended on each booking that came. Afterwards set the event\'s Status to Held and type its Costs.',
+    ] },
+    { title: 'Make the quarterly tax claim', steps: [
+      'Run the query Gifts to claim: claimable gifts not yet in a claim, with each giver\'s house and postcode. Print the report Claim schedule to check them.',
+      'Open the Tax Claims form and press New. Type the Reference (TC-007), the last gift date covered in Gifts Up To, today in Submitted On, and the report\'s total Claim Value in Amount Claimed.',
+      'Open the Donations form as a datasheet, and set Tax Claim to the new claim on each gift in the schedule, so they leave Gifts to claim.',
+      'Open the print template Tax claim schedule, choose the new claim, and print it or save it as a PDF to keep with the claim.',
+      'When the money arrives, type Received On and Amount Received on the claim, and write it in the Income form with Source Tax claims.',
+    ] },
+    { title: 'Keep the volunteer rota and thank volunteers at the year end', steps: [
+      'Open the Volunteer Shifts form and press New for each turn on the rota: the Person, the Role, the Shift Date, Start Time and Hours.',
+      'Run the query Volunteer rota for the next fortnight and pin it on the noticeboard.',
+      'After 31 March, run the query Volunteers to see each person\'s hours. Open the Volunteer Certificates form and press New for each one who gave their time: the Number, Person, Main Role, the year\'s dates, Shifts, Hours and Roles.',
+      'Open the print template Volunteer certificate, choose the certificates, and print them for the annual general meeting. Type Presented On when they are handed over.',
+    ] },
+    { title: 'Report to the trustees each month', steps: [
+      'Print the report Income by month for the treasurer\'s report: income by source with each month\'s total.',
+      'Print the report Donations by campaign to show each appeal against its target.',
+      'Print the report Membership list for the number of members of each type, and the report Grant reports for reports owed to funders.',
+      'Run the query Lapsed members and share it with whoever makes the friendly calls.',
+    ] },
+    { title: 'Apply for a grant and report on it', steps: [
+      'Open the Funders form and press New for a funder you have not applied to before.',
+      'Open the Grants form and press New: choose the Funder, type the Purpose, Applied On and Amount Asked. Status stays Applied.',
+      'When the funder decides, type Decided On and set Status to Awarded or Declined; for an award, type Amount Awarded, Paid On when it arrives, Period Ends and Report Due, and write the money in Income with Source Grants.',
+      'Run the query Grant reports due each month. When a report is sent, type Report Sent and set Status to Completed.',
+    ] },
+  ],
+  notes: [
+    'Every payment in is written twice: once where it belongs (a gift in Donations, a fee in Memberships, a booking in Event Bookings) and once in Income, the cash book. The income queries and reports read only Income, so a payment left out of it is missing from the treasurer\'s figures.',
+    'Receipt, membership, ticket and certificate numbers are typed, one on from the last, with a new run each year. The sample gave them in date order; Data Files does not fill them in for you.',
+    'A renewal is a new Memberships record, not a change to the old one. Tick Renewed on the old one, or the member stays in Renewals due and later in Lapsed members.',
+    'Claimable is set from the declaration in place on the day of the gift. Where your scheme lets a new declaration cover earlier gifts, as the UK\'s does for four years, tick Claimable on those gifts too.',
+    'The claim of a quarter of each gift is written in three places: the Gifts to claim query, the Donation receipt and the Tax claim schedule. Change all three if your scheme pays a different share.',
+    'A print template prints every record of its table unless you choose some, so choose the gifts, memberships or bookings you mean before pressing Print.',
+    'The trust is not registered for VAT, so Tax Rate in Business is nought and no document shows VAT. Company Number holds the charity number, printed at the foot of each letter.',
+    'The volunteer shifts go back further than the other records, so the whole of the last volunteer year (to 31 March) is there to count for the certificates.',
+  ],
+  faq: [
+    { q: 'How do I print thank-you letters for last week\'s gifts only?', a: 'Open the print template Donation receipt, choose the gifts in the list (sort it by Gift Date), and press Print. Or open the gift in the Donations form and print the letter from there.' },
+    { q: 'A member has paid but still shows in Renewals due. Why?', a: 'The old membership has not been ticked Renewed. Open it in the Memberships form, tick Renewed, and check the new year\'s membership has been entered.' },
+    { q: 'Our country has no scheme for claiming tax on gifts. Can we still use this?', a: 'Yes. Leave Tax Declaration and Claimable unticked, and do not use the Tax Claims table, the Gifts to claim query or the Tax claim schedule. The Donation receipt will show nought for the tax line; take that row out of the template if you like.' },
+    { q: 'How do I see how much an appeal has raised?', a: 'Run the query Appeals against target, or print the report Donations by campaign: each appeal with its target, the number of gifts and the total given.' },
+    { q: 'Where do the standing orders come from?', a: 'Each monthly gift is a Donations record with Regular ticked, entered from the bank statement. The query Regular givers shows who has given in the last 45 days, so someone missing from it may have stopped.' },
+    { q: 'How do we change the trust\'s address or charity number on every letter?', a: 'Open the Business form and change it there. Every print template takes its letterhead and footer from that one record.' },
+    { q: 'How do I count volunteer hours for a funder?', a: 'Print the report Volunteer hours: the hours and their value at each role\'s hourly rate, by month and role. Change a role\'s Hour Value in Volunteer Roles if the funder uses another rate.' },
   ],
 };
 
@@ -484,9 +695,24 @@ export function fill(base, { r, cal, days = 540 }) {
   /** The last day of a membership of `months` months starting on day `start`. */
   const endOf = (start, months) => { const a = cal.at(start); return offsetOf(new Date(a.getFullYear(), a.getMonth() + months, a.getDate() - 1)); };
   const income = (d, source, description, amount, method, reference) => {
-    if (d < -days || d > 0 || !amount) return;
-    add('Income', { 'Received On': cal.day(d), Source: source, Description: description, Amount: money(amount), Method: method, Reference: reference });
+    if (d < -days || d > 0 || !amount) return null;
+    return add('Income', { 'Received On': cal.day(d), Source: source, Description: description, Amount: money(amount), Method: method, Reference: reference });
   };
+  // Numbers given in date order, a new run each year: RCP-2026-0042.
+  const numbers = (prefix) => {
+    const count = {};
+    return (d) => { const y = cal.at(d).getFullYear(); count[y] = (count[y] || 0) + 1; return `${prefix}-${y}-${String(count[y]).padStart(4, '0')}`; };
+  };
+  const receiptNo = numbers('RCP');
+  const ticketNo = numbers('TKT');
+
+  // A charity number, not a company number, and no VAT: placeholders of zeros where real numbers would go.
+  add('Business', { ...businessRecord({
+    name: 'Rowanmere Community Trust', domain: 'rowanmere.example', phone: '020 7946 0418',
+    address: { Address: 'Rowanmere Hall, 41 Burnside Avenue', City: 'Glasgow', Postcode: 'G42 7QR', Country: 'United Kingdom' },
+    terms: 'Membership fees and tickets are paid when booked. Tickets are refunded only if the event is cancelled.', taxRate: 0,
+    footer: 'Rowanmere Community Trust is a registered charity in Scotland. The hall office is open Tuesday and Thursday, 10:00 to 14:00. Thank you for your support.',
+  }), 'Company Number': 'SC000000', 'Tax Number': 'XX00000' });
 
   // People: invented names, each once, at invented addresses around Glasgow.
   const taken = new Set();
@@ -543,10 +769,11 @@ export function fill(base, { r, cal, days = 540 }) {
   const pay = () => r.weighted([['Standing order', 4], ['Card', 4], ['Cash', 2], ['Bank transfer', 2]]);
   const members = [];
   const isMember = new Set();
+  const paidFees = []; // { id, paid, line }: numbered in the order they were paid once all are in
   const join = (p, type, start, paid, method = pay()) => {
     const end = type.months ? endOf(start, type.months) : null;
     const id = add('Memberships', { Person: p.id, 'Membership Type': type.id, Starts: cal.day(start), Ends: end == null ? null : cal.day(end), Amount: type.fee, 'Paid On': cal.day(paid), Method: method, Renewed: false });
-    income(paid, 'Membership', `${type.name} membership`, type.fee, method, `Membership ${id}`);
+    paidFees.push({ id, paid, line: income(paid, 'Membership', `${type.name} membership`, type.fee, method, null) });
     if (!isMember.has(p)) { isMember.add(p); members.push(p); }
     if (end == null) return;
     // A standing order renews on the day; others renew around the reminder, or never.
@@ -638,8 +865,9 @@ export function fill(base, { r, cal, days = 540 }) {
 
     const gift = (p, campaign, amount, method, isRegular, label) => {
       const ok = claimable(p, d);
-      const id = add('Donations', { Person: p.id, Campaign: campaign, 'Gift Date': cal.day(d), Amount: amount, Method: method, Regular: isRegular, Claimable: ok });
-      income(d, 'Donations', label, amount, method, `Gift ${id}`);
+      const number = receiptNo(d);
+      const id = add('Donations', { Number: number, Person: p.id, Campaign: campaign, 'Gift Date': cal.day(d), Amount: amount, Method: method, Regular: isRegular, Claimable: ok });
+      income(d, 'Donations', label, amount, method, number);
       if (ok) unclaimed.push({ id, d, amount });
     };
     // Standing orders on their day of the month.
@@ -661,8 +889,9 @@ export function fill(base, { r, cal, days = 540 }) {
       const p = r.chance(0.18) ? newPerson(d, { declare: 0.3 }) : known()();
       const dropped = e.status === 'Cancelled' || r.chance(0.04);
       const paid = dropped ? 0 : money(tickets * e.price);
-      const id = add('Event Bookings', { Event: e.id, Person: p.id, 'Booked On': cal.day(d), Tickets: tickets, 'Amount Paid': paid, Cancelled: dropped, Attended: !dropped && e.status === 'Held' && r.chance(0.92) });
-      income(d, 'Events', `${e.name} tickets`, paid, r.weighted([['Card', 3], ['Online', 4], ['Cash', 3]]), `Booking ${id}`);
+      const number = ticketNo(d);
+      add('Event Bookings', { Number: number, Event: e.id, Person: p.id, 'Booked On': cal.day(d), Tickets: tickets, 'Amount Paid': paid, Cancelled: dropped, Attended: !dropped && e.status === 'Held' && r.chance(0.92) });
+      income(d, 'Events', `${e.name} tickets`, paid, r.weighted([['Card', 3], ['Online', 4], ['Cash', 3]]), number);
     }
     // The bucket at the door on the night.
     for (const e of events) if (e.d === d && e.status === 'Held') income(d, 'Collections', `${e.name} collection`, r.int(20, Math.max(40, Math.round(e.capacity * 1.2))), 'Cash', `Event ${e.id}`);
@@ -682,20 +911,37 @@ export function fill(base, { r, cal, days = 540 }) {
     }
   }
 
+  // The volunteer year runs to 31 March, as the trust's accounts do: the last one ended is the one thanked with certificates.
+  let yearEnd = -1;
+  while (!(cal.at(yearEnd).getMonth() === 2 && cal.at(yearEnd).getDate() === 31)) yearEnd--;
+  const yearStart = offsetOf(new Date(cal.at(yearEnd).getFullYear() - 1, 3, 1));
+  // The volunteers' sign-in sheets go back far enough to count that whole year.
+  const shiftsFrom = Math.min(-days, yearStart);
+  const given = new Map(); // person -> { p, hours, shifts, roles: Map(role -> hours) } in the volunteer year
+  const shift = (v, role, d, start, hours) => {
+    add('Volunteer Shifts', { Person: v.p.id, Role: role.id, 'Shift Date': cal.day(d), 'Start Time': start, Hours: hours });
+    if (d < yearStart || d > yearEnd) return;
+    if (!given.has(v.p)) given.set(v.p, { p: v.p, hours: 0, shifts: 0, roles: new Map() });
+    const g = given.get(v.p);
+    g.hours += hours;
+    g.shifts++;
+    g.roles.set(role, (g.roles.get(role) || 0) + hours);
+  };
+
   // Volunteers: each has a role and a usual day, comes most weeks, and is on the rota for the next three weeks.
   const volunteers = [];
   for (const role of roles.filter((x) => x.day != null)) {
     for (let i = 0; i < role.n; i++) {
       const p = r.chance(0.75) ? r.pick(members.filter((x) => !volunteers.some((v) => v.p === x))) : newPerson(-r.int(60, days), { declare: 0.4 });
-      volunteers.push({ p, role, from: Math.max(p.joined, r.chance(0.75) ? -days : -r.int(60, days)), to: r.chance(0.12) ? -r.int(30, 300) : 99, come: 0.65 + r.next() * 0.3, hours: r.pick([2, 2.5, 3, 3, 4]) });
+      volunteers.push({ p, role, from: Math.max(p.joined, r.chance(0.75) ? shiftsFrom : -r.int(60, days)), to: r.chance(0.12) ? -r.int(30, 300) : 99, come: 0.65 + r.next() * 0.3, hours: r.pick([2, 2.5, 3, 3, 4]) });
     }
   }
-  for (let d = -days; d <= 21; d++) {
+  for (let d = shiftsFrom; d <= 21; d++) {
     const wd = cal.weekday(d);
     for (const v of volunteers) {
       if (v.role.day !== wd || d < v.from || d > v.to) continue;
       if (d <= 0 ? !r.chance(v.come) : !r.chance(0.85)) continue;
-      add('Volunteer Shifts', { Person: v.p.id, Role: v.role.id, 'Shift Date': cal.day(d), 'Start Time': v.role.start, Hours: v.hours });
+      shift(v, v.role, d, v.role.start, v.hours);
     }
   }
   // Stewards at each event held or coming in the next three weeks.
@@ -704,8 +950,22 @@ export function fill(base, { r, cal, days = 540 }) {
     if (e.status === 'Cancelled' || e.d > 21) continue;
     const able = volunteers.filter((v) => e.d >= v.from && e.d <= v.to);
     for (const v of r.some(able, Math.min(able.length, e.capacity >= 100 ? r.int(4, 7) : r.int(2, 4)))) {
-      add('Volunteer Shifts', { Person: v.p.id, Role: steward.id, 'Shift Date': cal.day(e.d), 'Start Time': e.start < '12:00' ? '09:00' : e.start < '18:00' ? '13:00' : '18:00', Hours: r.pick([3, 4, 4, 5]) });
+      shift(v, steward, e.d, e.start < '12:00' ? '09:00' : e.start < '18:00' ? '13:00' : '18:00', r.pick([3, 4, 4, 5]));
     }
+  }
+
+  // A certificate for everyone who gave six hours or more in the volunteer year, handed out at the AGM that follows it.
+  const agm = events.find((e) => e.name === 'Annual General Meeting' && e.d > yearEnd && e.d <= 0);
+  const certYear = cal.at(yearEnd).getFullYear();
+  let certNo = 0;
+  for (const g of given.values()) {
+    if (g.hours < 6) continue;
+    const roleList = [...g.roles.entries()].sort((a, b) => b[1] - a[1]);
+    add('Volunteer Certificates', {
+      Number: `VC-${certYear}-${String(++certNo).padStart(4, '0')}`, Person: g.p.id, 'Main Role': roleList[0][0].id,
+      'Year Starting': cal.day(yearStart), 'Year Ending': cal.day(yearEnd), Shifts: g.shifts, Hours: g.hours,
+      Roles: roleList.map(([role]) => role.name).join(', '), 'Presented On': agm ? cal.day(agm.d) : null,
+    });
   }
 
   // Grants: applications, decisions, money in, and the reports funders want.
@@ -718,6 +978,15 @@ export function fill(base, { r, cal, days = 540 }) {
       'Report Sent': sent == null ? null : cal.day(sent),
     });
     if (outcome === 'Awarded') income(paid, 'Grants', `${FUNDERS[f][0]}: ${purpose}`, awarded, 'Bank transfer', `Grant from ${FUNDERS[f][0]}`);
+  }
+
+  // Membership numbers in the order the fees were paid, a year at a time, and the cash book quoting them.
+  const memberNo = numbers('MEM');
+  paidFees.sort((a, b) => a.paid - b.paid || a.id - b.id);
+  for (const m of paidFees) {
+    const number = memberNo(m.paid);
+    base.update('Memberships', m.id, { Number: number });
+    if (m.line) base.update('Income', m.line, { Reference: number });
   }
   return counts;
 }

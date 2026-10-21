@@ -15,8 +15,14 @@
 // few do not come; the clinic charges a fee for some of those. Insurers pay
 // in their own time, one of them slowly. The notes are invented and kept to
 // plain, everyday words.
+//
+// What it prints: an invoice for each visit (to the patient, or to the
+// insurer with the policy reference), a receipt for each payment, a letter
+// confirming each appointment, a recall letter, and a statement of claims
+// for each insurer. Medical care is exempt from VAT, so the Business record
+// carries a rate of nought and the invoices say so.
 
-import { money, person } from './util.js';
+import { BUSINESS_ABOUT, BUSINESS_TABLE, businessRecord, money, person } from './util.js';
 
 const ref = (table) => ({ type: 'integer', points: table });
 const PATIENT = '[Patients].[First Name] & " " & [Patients].[Last Name]';
@@ -25,14 +31,16 @@ const AHEAD = `DateDiff("d", Date(), ${DAY})`;
 const AGO = `DateDiff("d", ${DAY}, Date())`;
 const OWED_BY = `IIf([Bill To] = "Insurer", [Insurers].[Name], ${PATIENT})`;
 const WEEKDAY = `DateDiff("d", #2024-01-01#, ${DAY}) Mod 7`;
+const LETTERHEAD = { table: 'Business', fields: ['Name', 'Address', 'City', 'Postcode', 'Phone', 'E-mail', 'Website'] };
 
 export const spec = {
   // Where a value below nought is right: an invoice not due yet is "overdue" by minus some days.
   negative: { 'Unpaid invoices': ['Days Overdue'] },
   tables: [
+    BUSINESS_TABLE,
     { name: 'Insurers', fields: [
       { name: 'Name', type: 'text', required: true, unique: true }, { name: 'Kind', type: 'text', default: 'Insurer' },
-      { name: 'Phone', type: 'text' }, { name: 'E-mail', type: 'text' }, { name: 'Payment Days', type: 'integer', default: 30 },
+      { name: 'Address', type: 'text' }, { name: 'City', type: 'text' }, { name: 'Postcode', type: 'text' }, { name: 'Phone', type: 'text' }, { name: 'E-mail', type: 'text' }, { name: 'Payment Days', type: 'integer', default: 30 },
       { name: 'Notes', type: 'longtext' },
     ] },
     { name: 'Patients', fields: [
@@ -62,13 +70,18 @@ export const spec = {
       { name: 'Appointment', ...ref('Appointments'), required: true }, { name: 'Written', type: 'datetime' },
       { name: 'Reason', type: 'text' }, { name: 'Note', type: 'longtext' }, { name: 'Plan', type: 'text' },
     ] },
+    // An invoice keeps the name and address it was sent to, and points at the insurer when one is
+    // billed, so each insurer's statement lists its own claims.
     { name: 'Invoices', fields: [
-      { name: 'Appointment', ...ref('Appointments'), required: true }, { name: 'Invoice Date', type: 'date' }, { name: 'Due Date', type: 'date' },
-      { name: 'Bill To', type: 'text', default: 'Patient' }, { name: 'For', type: 'text', default: 'Visit' }, { name: 'Amount', type: 'currency' },
+      { name: 'Number', type: 'text', unique: true }, { name: 'Appointment', ...ref('Appointments'), required: true },
+      { name: 'Invoice Date', type: 'date' }, { name: 'Due Date', type: 'date' },
+      { name: 'Bill To', type: 'text', default: 'Patient' }, { name: 'Insurer', ...ref('Insurers') }, { name: 'Bill To Name', type: 'text' },
+      { name: 'Bill To Address', type: 'text' }, { name: 'Bill To City', type: 'text' }, { name: 'Bill To Postcode', type: 'text' },
+      { name: 'Policy Reference', type: 'text' }, { name: 'For', type: 'text', default: 'Visit' }, { name: 'Amount', type: 'currency' },
       { name: 'Amount Paid', type: 'currency', default: 0 }, { name: 'Paid On', type: 'date' },
     ] },
     { name: 'Payments', fields: [
-      { name: 'Invoice', ...ref('Invoices'), required: true }, { name: 'Paid On', type: 'date' }, { name: 'Amount', type: 'currency' },
+      { name: 'Number', type: 'text', unique: true }, { name: 'Invoice', ...ref('Invoices'), required: true }, { name: 'Paid On', type: 'date' }, { name: 'Amount', type: 'currency' },
       { name: 'Method', type: 'text' }, { name: 'Reference', type: 'text' },
     ] },
     { name: 'Recalls', fields: [
@@ -108,7 +121,7 @@ export const spec = {
       { expr: AGO, as: 'Days Ago', criteria: ['Between 0 And 90', 'Between 0 And 90'], show: false },
     ] },
     'Unpaid invoices': { tables: ['Invoices', 'Appointments', 'Patients', 'Insurers'], columns: [
-      { table: 'Invoices', field: 'ID', as: 'Invoice' }, { expr: OWED_BY, as: 'Owed By', sort: 'asc' }, { table: 'Invoices', field: 'Bill To' },
+      { table: 'Invoices', field: 'Number', as: 'Invoice' }, { expr: OWED_BY, as: 'Owed By', sort: 'asc' }, { table: 'Invoices', field: 'Bill To' },
       { expr: PATIENT, as: 'Patient' }, { table: 'Invoices', field: 'For' }, { table: 'Invoices', field: 'Invoice Date' },
       { table: 'Invoices', field: 'Due Date', sort: 'asc' }, { table: 'Invoices', field: 'Amount' }, { table: 'Invoices', field: 'Amount Paid', as: 'Paid So Far' },
       { expr: 'Round([Amount] - Nz([Amount Paid]), 2)', as: 'Balance' }, { expr: 'DateDiff("d", [Due Date], Date())', as: 'Days Overdue' },
@@ -187,6 +200,103 @@ export const spec = {
       { table: 'Visit Notes', field: 'Reason' }, { table: 'Visit Notes', field: 'Plan' },
     ] },
   },
+  // The print templates: one document for each record of the table named.
+  documents: [
+    { name: 'Invoice', table: 'Invoices', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Invoice {Number}' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Bill To Name', label: 'Invoice to' }, { field: 'Number', label: 'Invoice number' },
+        { field: 'Bill To Address', label: 'Address' }, { field: 'Invoice Date', label: 'Date' },
+        { field: 'Bill To City', label: 'Town' }, { field: 'Due Date', label: 'Payment due' },
+        { field: 'Bill To Postcode', label: 'Postcode' }, { field: 'For', label: 'Charge for' },
+      ] },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Appointment.Patient', label: 'Patient' }, { field: 'Appointment.Service.Name', label: 'Service' },
+        { field: 'Appointment.Patient.Patient No', label: 'Patient number' }, { field: 'Appointment.Start', label: 'Appointment' },
+        { field: 'Appointment.Patient.Date of Birth', label: 'Date of birth' }, { field: 'Appointment.Practitioner.Known As', label: 'Seen by' },
+        { field: 'Policy Reference', label: 'Policy reference' }, { field: 'Appointment.Service.Minutes', label: 'Minutes' },
+      ] },
+      { type: 'text', text: 'Payments received against this invoice:', small: true },
+      { type: 'lines', table: 'Payments', link: 'Invoice', sort: 'Paid On', columns: [
+        { field: 'Number', label: 'Receipt' }, { field: 'Paid On', label: 'Paid on' }, { field: 'Method' }, { field: 'Reference' },
+        { field: 'Amount', as: 'Received', type: 'currency' },
+      ] },
+      { type: 'totals', rows: [
+        { label: 'Fee', expr: '[Amount]' }, { label: 'VAT', expr: 'Round([Amount] * Nz([Business].[Tax Rate]), 2)' },
+        { label: 'Total', expr: '[Fee] + [VAT]' }, { label: 'Paid', expr: '[Received]' },
+        { label: 'Balance due', expr: 'Round([Total] - [Received], 2)', strong: true },
+      ] },
+      { type: 'text', text: 'Medical care given at the clinic is exempt from VAT, so no VAT is charged. {Business.Payment Terms} Please pay by card at the desk, or by transfer to {Business.Bank Details}, quoting {Number}.', small: true },
+      { type: 'text', text: '{Business.Document Footer}', small: true },
+    ] },
+    { name: 'Payment receipt', table: 'Payments', paper: 'a5', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Receipt {Number}' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Invoice.Bill To Name', label: 'Received from' }, { field: 'Paid On', label: 'Date' },
+        { field: 'Invoice', label: 'For invoice' }, { field: 'Method', label: 'Paid by' },
+        { field: 'Invoice.Appointment.Patient', label: 'Patient' }, { field: 'Reference', label: 'Reference' },
+        { field: 'Invoice.Appointment.Service.Name', label: 'Service' }, { field: 'Invoice.Appointment.Start', label: 'Appointment' },
+      ] },
+      { type: 'totals', rows: [{ label: 'Amount received', expr: '[Amount]', strong: true }] },
+      { type: 'fields', columns: 2, items: [{ field: 'Invoice.Amount', label: 'Invoice total' }, { field: 'Invoice.Amount Paid', label: 'Paid to date' }] },
+      { type: 'text', text: 'Thank you. Medical care is exempt from VAT, so this receipt shows none.', small: true },
+      { type: 'text', text: '{Business.Document Footer}', small: true },
+    ] },
+    { name: 'Appointment letter', table: 'Appointments', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Your appointment' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Patient', label: 'To' }, { field: 'Patient.Patient No', label: 'Patient number' },
+        { field: 'Patient.Address', label: 'Address' }, { field: 'Booked On', label: 'Booked on' },
+        { field: 'Patient.City', label: 'Town' }, { field: 'Patient.Postcode', label: 'Postcode' },
+      ] },
+      { type: 'text', text: 'Dear {Patient.First Name},' },
+      { type: 'text', text: 'Thank you for booking with us. This letter confirms your appointment.' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Start', label: 'Date and time' }, { field: 'Service.Name', label: 'Appointment for' },
+        { field: 'Practitioner.Known As', label: 'With' }, { field: 'Service.Minutes', label: 'Length in minutes' },
+        { field: 'Patient.Insurer', label: 'Paid by' }, { field: 'Patient.Policy Reference', label: 'Policy reference' },
+      ] },
+      { type: 'text', text: 'Where: {Business.Name}, {Business.Address}, {Business.City} {Business.Postcode}. Please come to reception five minutes before your time. The front door has step-free access and every treatment room is on the ground floor.' },
+      { type: 'text', text: 'If your insurer is paying, please check that your policy covers this appointment and bring your policy reference with you. If you pay for yourself, the fee of {Service.Price} is paid at the desk on the day, by card or cash.' },
+      { type: 'text', text: 'If you need to cancel or move the appointment, please ring us on {Business.Phone} or write to {Business.E-mail} at least 24 hours before. We may charge half the fee for an appointment that is missed, or cancelled with less notice, because we cannot offer the time to someone else.' },
+      { type: 'text', text: 'We look forward to seeing you.' },
+      { type: 'text', text: 'Yours sincerely,' },
+      { type: 'spacer', size: 24 },
+      { type: 'text', text: 'Reception, {Business.Name}' },
+    ] },
+    { name: 'Recall letter', table: 'Recalls', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'A reminder from {Business.Name}' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Patient', label: 'To' }, { field: 'Patient.Patient No', label: 'Patient number' },
+        { field: 'Patient.Address', label: 'Address' }, { field: 'Patient.City', label: 'Town' }, { field: 'Patient.Postcode', label: 'Postcode' },
+      ] },
+      { type: 'text', text: 'Dear {Patient.First Name},' },
+      { type: 'text', text: 'This is a friendly reminder that you are due to come back and see us for your {Service.Name}, around {Due Date}. It takes about {Service.Minutes} minutes.' },
+      { type: 'text', text: 'To book a time that suits you, ring us on {Business.Phone}, write to {Business.E-mail}, or book online at {Business.Website}.' },
+      { type: 'text', text: 'If you have already booked, or have had this done elsewhere, please ignore this letter, or tell us and we will update our records. If you would rather not have reminders from us, just let us know.' },
+      { type: 'text', text: 'With best wishes,' },
+      { type: 'spacer', size: 24 },
+      { type: 'text', text: 'The team at {Business.Name}' },
+    ] },
+    { name: 'Insurer statement', table: 'Insurers', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Statement of claims' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Name', label: 'Insurer' }, { field: 'Payment Days', label: 'Terms (days)' },
+        { field: 'Address', label: 'Address' }, { field: 'E-mail', label: 'Claims e-mail' },
+        { field: 'City', label: 'Town' }, { field: 'Postcode', label: 'Postcode' },
+      ] },
+      { type: 'lines', table: 'Invoices', link: 'Insurer', sort: 'Invoice Date', columns: [
+        { field: 'Number', label: 'Invoice' }, { field: 'Invoice Date', label: 'Date' }, { field: 'Appointment.Patient', label: 'Patient' },
+        { field: 'Policy Reference', label: 'Policy' }, { field: 'Appointment.Service.Name', label: 'Service' }, { field: 'Due Date', label: 'Due' },
+        { field: 'Amount', label: 'Claimed', type: 'currency' }, { field: 'Amount Paid', label: 'Paid', type: 'currency' },
+        { expr: 'IIf(Nz([Paid On], "") = "", Round([Amount] - Nz([Amount Paid]), 2), 0)', as: 'Owing', type: 'currency' },
+      ] },
+      { type: 'totals', rows: [
+        { label: 'Claimed', expr: '[Amount]' }, { label: 'Paid', expr: '[Amount Paid]' }, { label: 'Balance owing', expr: '[Owing]', strong: true },
+      ] },
+      { type: 'text', text: 'Please pay the balance owing to {Business.Bank Details}, quoting each invoice number, and send the remittance list to {Business.E-mail}. If you have paid since this statement was made, thank you.', small: true },
+    ] },
+  ],
   reports: [
     { name: 'Day sheet', title: 'Day sheets for the week ahead', query: 'Day sheet', group: 'Sheet', columns: ['Time', 'Patient', 'Patient No', 'Phone', 'Service', { field: 'Minutes', type: 'integer' }, 'Paid By'], totals: [{ field: 'Patient', fn: 'count' }, { field: 'Minutes', fn: 'sum' }] },
     { name: 'Invoices due', query: 'Unpaid invoices', group: 'Owed By', columns: ['Invoice', 'Patient', 'For', { field: 'Invoice Date', type: 'date' }, { field: 'Due Date', type: 'date' }, { field: 'Days Overdue', type: 'integer' }, { field: 'Balance', type: 'currency' }], totals: [{ field: 'Balance', fn: 'sum' }] },
@@ -205,6 +315,7 @@ export const about = {
     'For a small clinic that books appointments, writes a short note at each visit and bills patients or their insurers. Cedar Lane Clinic is invented: two doctors, a practice nurse and two physiotherapists, with a reception desk that takes bookings by phone and online.',
     'The records cover the year up to the day the file is made, and the weeks after it. Patients book a few days ahead. Some cancel and a few do not turn up, and the clinic charges a fee for some of those. A physiotherapy assessment leads to a course of weekly sessions, a health check sets a recall for a year later, and the doctors are busier in winter while the nurse is busiest in the autumn when flu vaccinations are given.',
     'Each visit has an invoice, made out to the patient or, when the policy covers the service, to the insurer. Most patients pay at the desk; insurers pay within their terms, one of them slowly, so there is always something to chase. The saved queries answer what a practice manager asks each day and each month: who is booked this week, how full each diary is, who missed an appointment, who owes what, what came in, and which patients are due to be recalled.',
+    'It prints what the desk sends out: invoices numbered INV-2026-0042 (to an insurer with the patient\'s policy reference, or to the patient), receipts for payments, a letter confirming each appointment, a recall letter, and a statement of claims for each insurer. Medical care is exempt from VAT, so no VAT is charged and the invoices say so.',
     'Every patient and every note in it is made up. The notes are short and ordinary on purpose; a real clinic keeps its own wording and its own rules on who may read them.',
   ].join('\n\n'),
   suits: [
@@ -217,11 +328,15 @@ export const about = {
     'A counselling or talking therapy practice',
   ],
   tables: {
+    Business: BUSINESS_ABOUT,
     Insurers: {
       about: 'The health insurers whose policies the clinic accepts, and one record called Self-pay for patients who pay for themselves. Every patient points at one of these, so a patient list can always say who pays.',
       fields: {
         Name: 'The insurer as it appears on claims and on the patient list. The Self-pay record stands for no insurer.',
         Kind: 'Insurer for a real insurer, Self-pay for the record that stands for paying yourself. Queries use it to tell the two apart.',
+        Address: 'The street address claims and statements are posted to.',
+        City: 'The town or city of the claims address.',
+        Postcode: 'The postcode of the claims address.',
         Phone: 'The claims line the reception desk rings about a claim.',
         'E-mail': 'Where claims and questions about them are sent.',
         'Payment Days': 'How many days the insurer takes to pay a claim under its agreement with the clinic. An invoice to the insurer falls due this many days after the visit.',
@@ -297,12 +412,19 @@ export const about = {
       },
     },
     Invoices: {
-      about: 'What the clinic charges, one invoice per visit, and for a missed appointment or a late cancellation when a fee is charged.',
+      about: 'What the clinic charges, one invoice per visit, and for a missed appointment or a late cancellation when a fee is charged. Each invoice keeps the name and address it was made out to, so a reprint reads as the one that was sent.',
       fields: {
+        Number: 'The invoice\'s number, given in date order and once only, a new run each year: INV-2026-0042. Quote it on claims and payments.',
         Appointment: 'The appointment the invoice is for.',
         'Invoice Date': 'The day the invoice was raised: the day of the visit, or of the missed or cancelled appointment.',
         'Due Date': 'When payment is due: 14 days for patients, the insurer\'s payment days for claims.',
         'Bill To': 'Patient or Insurer. An insurer is billed when the patient is insured and the service is one insurers pay for.',
+        Insurer: 'The insurer the claim is made to. Empty when the patient is billed. The insurer\'s statement lists the invoices that point at it.',
+        'Bill To Name': 'Who the invoice is made out to: the insurer\'s name, or the patient\'s.',
+        'Bill To Address': 'The street address the invoice went to.',
+        'Bill To City': 'The town or city the invoice went to.',
+        'Bill To Postcode': 'The postcode the invoice went to.',
+        'Policy Reference': 'The patient\'s policy reference, copied on to a claim so the insurer can match it. Empty on an invoice to the patient.',
         For: 'Visit, Missed appointment or Late cancellation.',
         Amount: 'The amount charged.',
         'Amount Paid': 'How much has been paid so far, the sum of the payments against it.',
@@ -310,8 +432,9 @@ export const about = {
       },
     },
     Payments: {
-      about: 'Money received against invoices. An invoice can have more than one payment when a patient pays in parts.',
+      about: 'Money received against invoices. An invoice can have more than one payment when a patient pays in parts. Each payment has a receipt.',
       fields: {
+        Number: 'The receipt\'s number, given in date order, a new run each year: RCP-2026-0042.',
         Invoice: 'The invoice the payment is for.',
         'Paid On': 'The day the money came in.',
         Amount: 'How much was paid.',
@@ -358,7 +481,69 @@ export const about = {
     'Recall letters': 'The names and addresses of patients to send a recall letter to, grouped by what they are recalled for. Print it, or use it for a mail merge.',
     'Patient list': 'Patients grouped by insurer, with patient number, date of birth, phone and policy reference, and a count for each insurer.',
   },
-  empty: 'Start with Insurers: add a Self-pay record first (Kind Self-pay), then each insurer you accept with its payment days. Then add your Practitioners with their hours, then your Services with their minutes and prices. Once those are in, register Patients, pointing each at an insurer or at Self-pay, and book Appointments. Write a Visit Note after each attended appointment, raise an Invoice for it, and record Payments as they arrive, updating the invoice\'s Amount Paid and Paid On. Add Recalls as visits call for them.',
+  documents: {
+    Invoice: 'The invoice for a visit, a missed appointment or a late cancellation, made out to the insurer with the patient\'s policy reference, or to the patient. It shows the visit, any payments received, and the balance due, and says that medical care is exempt from VAT. Numbered INV-2026-0042.',
+    'Payment receipt': 'Given to a patient who pays at the desk, or sent when a transfer arrives: who paid, how much, for which invoice and visit. Numbered RCP-2026-0042.',
+    'Appointment letter': 'Sent when an appointment is booked: the date and time, who it is with, where to come, who pays, and how to cancel or move it. Every appointment can print one, past ones too, so print it from the Appointments form for the one on screen.',
+    'Recall letter': 'A short, friendly letter asking a patient back for a check that is due, with how to book. Print it for the patients in the Recall letters to send query, from the Recalls form. Have the wording checked against the rules where you work.',
+    'Insurer statement': 'Sent to each insurer: every claim made to it, what it has paid and the balance owing. The Self-pay record prints an empty one, which can be left out.',
+  },
+  tutorial: [
+    { title: 'Book an appointment and send the letter', steps: [
+      'Open the Patients form and find the patient with the search box, or press New and fill in their name, date of birth, address, phone, Insurer and Policy Reference.',
+      'Open the Diary next 14 days query to see whose diary has room.',
+      'Open the Appointments form and press New. Choose the Patient, the Practitioner and the Service, type the Start date and time, and set Booked On to today and Booked Via to Phone, Online or At the desk. Status stays Booked.',
+      'Open the print template Appointment letter from Print templates, choose the appointment you just made, and press Print, or Save as PDF to e-mail it.',
+    ] },
+    { title: 'Run the day', steps: [
+      'Print the Day sheet report in the morning: a page for each practitioner and day of the week ahead.',
+      'As each patient arrives and is seen, open their appointment in the Appointments form and set Status to Attended. If they do not come, set it to No-show.',
+      'After the visit the practitioner opens the Visit Notes form, presses New, chooses the appointment and writes the Reason, the Note and the Plan.',
+      'If the patient cancels, set Status to Cancelled and type the Cancelled On date. The No-shows and late cancellations query lists those with a day or less of notice.',
+    ] },
+    { title: 'Invoice a visit and take payment', steps: [
+      'Open the Invoices form and press New. Type the next Number (INV, the year, and the next number in the run), choose the Appointment, and type the Invoice Date.',
+      'For an insured patient on a service insurers pay for, set Bill To to Insurer, choose the Insurer, and copy the insurer\'s name and address and the patient\'s Policy Reference into the Bill To fields. Otherwise set Bill To to Patient and copy the patient\'s name and address. Set Due Date 14 days on for a patient, or the insurer\'s Payment Days on.',
+      'Type the Amount from the service\'s Price, or half of it for a missed appointment or a late cancellation, and set For to match.',
+      'When the patient pays, open the Payments form, press New, give it the next RCP number, choose the Invoice, and type Paid On, Amount and Method. Then add the amount to the invoice\'s Amount Paid, and type Paid On on the invoice once it is paid in full.',
+      'Print the Payment receipt template for that payment, and the Invoice template for the invoice when it is sent.',
+    ] },
+    { title: 'Chase what is owed', steps: [
+      'Open the Money owed query: the unpaid balance for each insurer and each patient, the largest first.',
+      'Print the Invoices due report for the list with days overdue.',
+      'Once a month, print the Insurer statement template for each insurer and send it with a covering note.',
+      'When an insurer pays, record one payment for each invoice on its remittance list, Method Insurer, with the remittance reference in Reference.',
+    ] },
+    { title: 'Send the recall letters', steps: [
+      'Each Monday, open the Recall letters to send query: open recalls due in the next 30 days for patients who agree to letters.',
+      'Open the Recalls form, find each of those recalls, and print the Recall letter template for it.',
+      'Type today\'s date in Sent On on each recall you sent a letter for.',
+      'When the patient books, type the date in Booked On. The Recalls due query lists the ones still open, including patients who do not want letters, for a phone call instead.',
+    ] },
+    { title: 'Look at the month', steps: [
+      'Print the Takings by month report for money received from patients and from insurers.',
+      'Open the Fees by service query to see which services earn the most, and Takings by practitioner if practitioners are paid a share.',
+      'Open the Busy days and Busy hours queries to plan staff hours, and New patients by month to see how the list is growing.',
+    ] },
+  ],
+  notes: [
+    'An invoice\'s Amount Paid and Paid On are not worked out by themselves: when you add a payment, add its amount to the invoice\'s Amount Paid, and type Paid On when the invoice is paid in full. The unpaid invoice queries read those two fields.',
+    'The Bill To fields are copied on to each invoice when it is made, so a patient who moves house, or an insurer that changes its address, does not change invoices already sent.',
+    'Medical care is exempt from VAT, so Business has a Tax Rate of nought and the invoice\'s VAT row comes to nothing. A clinic that also sells things VAT is charged on would put its rate in Business and keep those sales on invoices of their own.',
+    'Visit Notes holds short notes in everyday words. A real clinic decides who may open that table, and keeps clinical records under the rules where it works.',
+    'Each print template prints every record of its table: every appointment has a letter, every insurer a statement. Print the one on screen from its form, or choose the records to print.',
+    'The Self-pay record in Insurers stands for patients who pay for themselves. Do not delete it: every patient must point at an insurer or at Self-pay.',
+  ],
+  faq: [
+    { q: 'Why does the invoice show no VAT?', a: 'Medical care is exempt from VAT in the UK, so the clinic charges none and is not registered. The invoice says so in its small print. If your services are taxed, put the rate in Business, Tax Rate, and the invoice adds it.' },
+    { q: 'How do I bill an insurer instead of the patient?', a: 'On the invoice, set Bill To to Insurer, choose the Insurer, copy the insurer\'s claims address into the Bill To fields and the patient\'s Policy Reference into Policy Reference. The claim then appears on that insurer\'s statement.' },
+    { q: 'A patient paid half now and half later. How do I record it?', a: 'Add two records in Payments, each pointing at the same invoice, each with its own receipt number. Add both to the invoice\'s Amount Paid; type Paid On on the invoice only when the second arrives.' },
+    { q: 'How do I print last month\'s invoices?', a: 'Open the Invoices form, choose the invoices dated last month (sort by Invoice Date), and print the Invoice template for those chosen.' },
+    { q: 'Can I change what the appointment letter says?', a: 'Yes. Open the Appointment letter template from Print templates and edit its text blocks. Words in curly brackets, such as {Start} or {Business.Phone}, are filled from the appointment and from the Business record.' },
+    { q: 'How do I stop sending recall letters to someone?', a: 'Untick Reminders on their record in Patients. The Recall letters to send query leaves them out, and Recalls due still lists them so reception can ring instead.' },
+    { q: 'What is the cancellation fee?', a: 'The sample charges half the fee for some missed appointments and cancellations with a day or less of notice, as an invoice with For set to Missed appointment or Late cancellation. Set your own rule and put it in the Business record\'s Document Footer, which every document prints.' },
+  ],
+  empty: 'Start with Business: the clinic\'s name, address, phone and bank details, which every invoice, receipt and letter prints. Then Insurers: add a Self-pay record first (Kind Self-pay), then each insurer you accept with its payment days. Then add your Practitioners with their hours, then your Services with their minutes and prices. Once those are in, register Patients, pointing each at an insurer or at Self-pay, and book Appointments. Write a Visit Note after each attended appointment, raise an Invoice for it, and record Payments as they arrive, updating the invoice\'s Amount Paid and Paid On. Add Recalls as visits call for them.',
   adapt: [
     'For a dental surgery, rename Services to Treatments and add check-ups, scale and polish, fillings and crowns with their minutes and fees, then add a Tooth field to Visit Notes.',
     'For a vet, add a Pets table pointing at the owner in Patients, with species and breed, and point Appointments at the pet instead of the owner.',
@@ -397,12 +582,12 @@ const SERVICES = [
   ['Sports massage', 'Physiotherapy', 'Physiotherapist', 45, 65, false, null],
 ];
 
-/** Invented insurers: [name, short code for policy references, payment days, notes]. The last pays slowly. */
+/** Invented insurers: [name, short code for policy references, payment days, notes, claims address]. The last pays slowly. */
 const INSURERS = [
-  ['Kestrel Health Cover', 'KHC', 30, 'Covers consultations, tests and physiotherapy. Wants the policy reference on every claim.'],
-  ['Alder Medical Assurance', 'AMA', 28, 'Physiotherapy limited to ten sessions a year on most policies.'],
-  ['Granite Health Plan', 'GHP', 30, 'Pays by bank transfer each week with a remittance list.'],
-  ['Lantern Care Insurance', 'LCI', 45, 'Often slow to pay; chase claims older than 45 days by phone.'],
+  ['Kestrel Health Cover', 'KHC', 30, 'Covers consultations, tests and physiotherapy. Wants the policy reference on every claim.', ['Claims Office, 40 Canal Walk', 'Leeds', 'LS1 4AB']],
+  ['Alder Medical Assurance', 'AMA', 28, 'Physiotherapy limited to ten sessions a year on most policies.', ['PO Box 7100, 12 Market Square', 'Manchester', 'M2 6DE']],
+  ['Granite Health Plan', 'GHP', 30, 'Pays by bank transfer each week with a remittance list.', ['Granite House, 9 Riverside Drive', 'Cardiff', 'CF10 3FG']],
+  ['Lantern Care Insurance', 'LCI', 45, 'Often slow to pay; chase claims older than 45 days by phone.', ['Claims Team, 221 Station Road', 'Birmingham', 'B4 7HJ']],
 ];
 
 // What each kind of visit is for, and what the note says. Ordinary complaints only.
@@ -444,11 +629,23 @@ export function fill(base, { r, cal, days = 365 }) {
   const monthOf = (d) => dayOf(d).m;
   const closed = (d) => dayOf(d).closed;
 
+  // The clinic's own details, printed at the head of every invoice, receipt and letter. Medical
+  // care is exempt from VAT, so its rate is nought and it has no VAT number.
+  add('Business', {
+    ...businessRecord({
+      name: 'Cedar Lane Clinic', domain: 'cedarlane.example', phone: '020 7946 0150', taxRate: 0,
+      address: { Address: '2 Cedar Lane', City: 'Bristol', Postcode: 'BS6 5AB', Country: 'United Kingdom' },
+      terms: 'Patients pay at the desk on the day or within 14 days of the invoice. Insurers pay within the days agreed with the clinic.',
+      footer: 'Please give us 24 hours notice to cancel or move an appointment; a missed appointment or a late cancellation may be charged at half the fee. Open Monday to Friday from 8 am, and Saturday mornings.',
+    }),
+    'Tax Number': 'Not registered for VAT: medical care is exempt',
+  });
+
   // Insurers, with Self-pay first so it is easy to find.
   const selfPay = { id: add('Insurers', { Name: 'Self-pay', Kind: 'Self-pay', 'Payment Days': 14, Notes: 'Patients who pay for themselves, at the desk or within 14 days.' }), real: false, days: 14 };
-  const insurers = INSURERS.map(([name, code, payDays, notes], i) => ({
-    id: add('Insurers', { Name: name, Kind: 'Insurer', Phone: `020 7946 0${pad(310 + i * 7, 3)}`, 'E-mail': `claims@${name.toLowerCase().replace(/[^a-z]+/g, '')}.example`, 'Payment Days': payDays, Notes: notes }),
-    code, days: payDays, real: true, slow: i === INSURERS.length - 1,
+  const insurers = INSURERS.map(([name, code, payDays, notes, [street, city, postcode]], i) => ({
+    id: add('Insurers', { Name: name, Kind: 'Insurer', Address: street, City: city, Postcode: postcode, Phone: `020 7946 0${pad(310 + i * 7, 3)}`, 'E-mail': `claims@${name.toLowerCase().replace(/[^a-z]+/g, '')}.example`, 'Payment Days': payDays, Notes: notes }),
+    name, street, city, postcode, code, days: payDays, real: true, slow: i === INSURERS.length - 1,
   }));
 
   // Practitioners, with the quarter hours each can be booked on each weekday.
@@ -507,12 +704,15 @@ export function fill(base, { r, cal, days = 365 }) {
     const born = registered - age * 365 - r.int(0, 364);
     const ins = r.chance(0.55) ? r.weighted([[insurers[0], 4], [insurers[1], 3], [insurers[2], 2], [insurers[3], 2]]) : selfPay;
     const town = r.weighted(TOWNS);
-    const pat = { born, ins, reminders: r.chance(0.8), recalls: new Map() };
+    const pat = { born, ins, reminders: r.chance(0.8), recalls: new Map(), name: `${p['First Name']} ${p['Last Name']}`, city: town };
+    // The address is kept on the patient too, for the invoices made out to them.
+    pat.street = `${r.int(1, 180)} ${r.pick(STREETS)}`;
+    pat.postcode = `BS${r.int(1, 49)} ${r.int(1, 9)}${r.pick(['AB', 'DE', 'FG', 'HJ', 'NP', 'QR', 'TU', 'WX'])}`;
     pat.id = add('Patients', {
       'Patient No': `CL-${pad(++patientNo, 5)}`, 'First Name': p['First Name'], 'Last Name': p['Last Name'], 'Date of Birth': cal.day(born),
-      Address: `${r.int(1, 180)} ${r.pick(STREETS)}`, City: town, Postcode: `BS${r.int(1, 49)} ${r.int(1, 9)}${r.pick(['AB', 'DE', 'FG', 'HJ', 'NP', 'QR', 'TU', 'WX'])}`,
+      Address: pat.street, City: town, Postcode: pat.postcode,
       Phone: phone(), 'E-mail': r.chance(0.85) ? p['E-mail'] : null,
-      Insurer: ins.id, 'Policy Reference': ins.real ? `${ins.code}-POL-${r.int(10000, 99999)}` : null, Registered: cal.day(registered),
+      Insurer: ins.id, 'Policy Reference': (pat.policy = ins.real ? `${ins.code}-POL-${r.int(10000, 99999)}` : null), Registered: cal.day(registered),
       Reminders: pat.reminders, Notes: r.chance(0.06) ? r.pick(PATIENT_NOTES) : null,
     });
     patients.push(pat);
@@ -802,19 +1002,31 @@ export function fill(base, { r, cal, days = 365 }) {
   }
   notes.sort((x, y) => x.a.id - y.a.id);
   for (const n of notes) add('Visit Notes', { Appointment: n.a.id, Written: n.written, Reason: n.reason, Note: n.note, Plan: n.plan });
+  // Invoices and receipts are numbered in date order, a new run each year: INV-2026-0042, RCP-2026-0042.
+  const runs = {};
+  const numbered = (prefix, d) => {
+    const key = `${prefix}${cal.at(d).getFullYear()}`;
+    runs[key] = (runs[key] || 0) + 1;
+    return `${prefix}-${cal.at(d).getFullYear()}-${pad(runs[key], 4)}`;
+  };
   invoices.sort((x, y) => x.d - y.d || x.a.id - y.a.id);
   const payments = [];
   for (const inv of invoices) {
     const paid = money(inv.payments.reduce((t, x) => t + x.amount, 0));
     const last = inv.payments.length ? Math.max(...inv.payments.map((x) => x.d)) : null;
+    // Made out to the insurer, with the patient's policy reference, or to the patient at home.
+    const pat = inv.a.pat;
+    const ins = inv.billTo === 'Insurer' ? pat.ins : null;
     inv.id = add('Invoices', {
-      Appointment: inv.a.id, 'Invoice Date': cal.day(inv.d), 'Due Date': cal.day(inv.due), 'Bill To': inv.billTo, For: inv.kind,
-      Amount: inv.amount, 'Amount Paid': paid, 'Paid On': paid >= inv.amount && last != null ? cal.day(last) : null,
+      Number: numbered('INV', inv.d), Appointment: inv.a.id, 'Invoice Date': cal.day(inv.d), 'Due Date': cal.day(inv.due), 'Bill To': inv.billTo,
+      Insurer: ins ? ins.id : null, 'Bill To Name': ins ? ins.name : pat.name, 'Bill To Address': ins ? ins.street : pat.street,
+      'Bill To City': ins ? ins.city : pat.city, 'Bill To Postcode': ins ? ins.postcode : pat.postcode, 'Policy Reference': ins ? pat.policy : null,
+      For: inv.kind, Amount: inv.amount, 'Amount Paid': paid, 'Paid On': paid >= inv.amount && last != null ? cal.day(last) : null,
     });
     for (const x of inv.payments) payments.push({ ...x, inv });
   }
   payments.sort((x, y) => x.d - y.d || x.inv.id - y.inv.id);
-  for (const x of payments) add('Payments', { Invoice: x.inv.id, 'Paid On': cal.day(x.d), Amount: x.amount, Method: x.method, Reference: x.reference });
+  for (const x of payments) add('Payments', { Number: numbered('RCP', x.d), Invoice: x.inv.id, 'Paid On': cal.day(x.d), Amount: x.amount, Method: x.method, Reference: x.reference });
   recalls.sort((x, y) => x.made - y.made || x.due - y.due);
   for (const x of recalls) {
     add('Recalls', {

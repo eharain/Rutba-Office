@@ -17,11 +17,28 @@
 // Christmas; designers' kitchens slow in August and December; the workshop
 // shuts over Christmas and January catches up late. The file is made first
 // thing in the morning, before the day's work.
+//
+// It prints what a workshop sends out: a quote for made-to-order work, the
+// VAT invoice on delivery, a delivery note for the van, a purchase order to
+// a merchant, a monthly statement for trade accounts, and a works order
+// sheet for the bench with the materials the job takes.
 
-import { address, companies, money, person, phoneFor } from './util.js';
+import { address, BUSINESS_ABOUT, BUSINESS_TABLE, businessRecord, companies, money, person, phoneFor } from './util.js';
 
 const ref = (table) => ({ type: 'integer', points: table });
 const LINE = 'Round([Quantity] * [Unit Price] * (1 - Nz([Discount])), 2)';
+// The VAT on one line of a quote or invoice, at the line's own rate.
+const VAT_LINE = `Round(${LINE} * Nz([Tax Rate]), 2)`;
+// VAT on everything the workshop sells, delivery too.
+const STANDARD_RATE = 0.2;
+// What the head of every document the workshop sends out shows.
+const LETTERHEAD = { table: 'Business', fields: ['Name', 'Address', 'City', 'Postcode', 'Phone', 'E-mail', 'Website', 'Tax Number'] };
+// A quote's or an invoice's totals from its lines: each line's VAT rounded
+// and added up, then the VAT on delivery, exactly as the fill stores them.
+const TOTALS = (last) => [
+  { label: 'Goods', expr: '[Net]' }, { label: 'Delivery', expr: 'Nz([Delivery Fee])' }, { label: 'Net total', expr: '[Goods] + [Delivery]' },
+  { label: 'VAT', expr: '[VAT] + Round([Delivery] * [Business].[Tax Rate], 2)' }, { label: last, expr: '[Net total] + [VAT]', strong: true },
+];
 // The labour rate the margin queries cost a product's minutes at: about the
 // makers' average hourly cost with holiday and insurance on top.
 const RATE = 21;
@@ -35,20 +52,24 @@ export const spec = {
     'Orders to deliver': ['Days Left'], 'Unpaid invoices': ['Days Overdue'], 'Materials to reorder': ['Free Stock'],
   },
   tables: [
+    BUSINESS_TABLE,
     { name: 'Suppliers', fields: [
       { name: 'Name', type: 'text', required: true }, { name: 'Supplies', type: 'text' }, { name: 'Contact', type: 'text' },
-      { name: 'Phone', type: 'text' }, { name: 'E-mail', type: 'text' }, { name: 'City', type: 'text' },
-      { name: 'Lead Days', type: 'integer', default: 5 }, { name: 'Minimum Order', type: 'currency', default: 0 },
+      { name: 'Phone', type: 'text' }, { name: 'E-mail', type: 'text' }, { name: 'Address', type: 'text' }, { name: 'City', type: 'text' },
+      { name: 'Postcode', type: 'text' }, { name: 'Lead Days', type: 'integer', default: 5 }, { name: 'Minimum Order', type: 'currency', default: 0 },
+    ] },
+    // Material Purchases comes before Materials: a query joins two tables by
+    // the first relationship between them, so a purchase order's supplier is
+    // the one it was sent to, not the usual supplier of its materials.
+    { name: 'Material Purchases', fields: [
+      { name: 'Number', type: 'text', unique: true }, { name: 'Supplier', ...ref('Suppliers'), required: true }, { name: 'Ordered On', type: 'date' },
+      { name: 'Expected', type: 'date' }, { name: 'Received On', type: 'date' }, { name: 'Status', type: 'text', default: 'Ordered' },
     ] },
     { name: 'Materials', fields: [
       { name: 'Code', type: 'text', unique: true }, { name: 'Name', type: 'text', required: true }, { name: 'Kind', type: 'text' },
       { name: 'Unit', type: 'text' }, { name: 'Unit Cost', type: 'currency' }, { name: 'Supplier', ...ref('Suppliers') },
       { name: 'In Stock', type: 'number', default: 0 }, { name: 'On Order', type: 'number', default: 0 }, { name: 'Allocated', type: 'number', default: 0 },
       { name: 'Reorder Level', type: 'number', default: 0 }, { name: 'Reorder Quantity', type: 'number', default: 0 },
-    ] },
-    { name: 'Material Purchases', fields: [
-      { name: 'Supplier', ...ref('Suppliers'), required: true }, { name: 'Ordered On', type: 'date' }, { name: 'Expected', type: 'date' },
-      { name: 'Received On', type: 'date' }, { name: 'Status', type: 'text', default: 'Ordered' },
     ] },
     { name: 'Purchase Lines', fields: [
       { name: 'Purchase', ...ref('Material Purchases'), required: true }, { name: 'Material', ...ref('Materials'), required: true },
@@ -62,7 +83,7 @@ export const spec = {
       { name: 'Code', type: 'text', unique: true }, { name: 'Name', type: 'text', required: true }, { name: 'Category', type: 'text' },
       { name: 'Price', type: 'currency' }, { name: 'Material Cost', type: 'currency' }, { name: 'Labour Minutes', type: 'integer' },
       { name: 'Made to Order', type: 'yesno' }, { name: 'In Stock', type: 'integer', default: 0 }, { name: 'Stock Level', type: 'integer', default: 0 },
-      { name: 'Batch Size', type: 'integer', default: 1 }, { name: 'Active', type: 'yesno', default: true },
+      { name: 'Batch Size', type: 'integer', default: 1 }, { name: 'Tax Rate', type: 'number', default: STANDARD_RATE }, { name: 'Active', type: 'yesno', default: true },
     ] },
     { name: 'Bill of Materials', fields: [
       { name: 'Product', ...ref('Products'), required: true }, { name: 'Material', ...ref('Materials'), required: true }, { name: 'Quantity', type: 'number' },
@@ -79,11 +100,25 @@ export const spec = {
     { name: 'Sales Orders', fields: [
       { name: 'Customer', ...ref('Customers'), required: true }, { name: 'Order Date', type: 'date' }, { name: 'Delivery Due', type: 'date' },
       { name: 'Delivered On', type: 'date' }, { name: 'Status', type: 'text', default: 'Open' }, { name: 'Delivery Fee', type: 'currency', default: 0 },
+      { name: 'Invoice No', type: 'text', unique: true }, { name: 'Invoice Date', type: 'date' }, { name: 'Net', type: 'currency' }, { name: 'VAT', type: 'currency' },
       { name: 'Invoice Amount', type: 'currency' }, { name: 'Invoice Due', type: 'date' }, { name: 'Paid On', type: 'date' }, { name: 'Notes', type: 'longtext' },
     ] },
     { name: 'Sales Lines', fields: [
       { name: 'Order', ...ref('Sales Orders'), required: true }, { name: 'Product', ...ref('Products'), required: true },
       { name: 'Quantity', type: 'integer', default: 1 }, { name: 'Unit Price', type: 'currency' }, { name: 'Discount', type: 'number', default: 0 },
+      { name: 'Tax Rate', type: 'number', default: STANDARD_RATE },
+    ] },
+    // A quote for made-to-order work; accepted, it becomes a sales order.
+    { name: 'Quotes', fields: [
+      { name: 'Number', type: 'text', unique: true }, { name: 'Customer', ...ref('Customers'), required: true }, { name: 'Quote Date', type: 'date' },
+      { name: 'Valid Until', type: 'date' }, { name: 'Status', type: 'text', default: 'Sent' }, { name: 'Delivery Fee', type: 'currency', default: 0 },
+      { name: 'Net', type: 'currency' }, { name: 'VAT', type: 'currency' }, { name: 'Total', type: 'currency' },
+      { name: 'Sales Order', ...ref('Sales Orders') }, { name: 'Notes', type: 'longtext' },
+    ] },
+    { name: 'Quote Lines', fields: [
+      { name: 'Quote', ...ref('Quotes'), required: true }, { name: 'Product', ...ref('Products'), required: true },
+      { name: 'Quantity', type: 'integer', default: 1 }, { name: 'Unit Price', type: 'currency' }, { name: 'Discount', type: 'number', default: 0 },
+      { name: 'Tax Rate', type: 'number', default: STANDARD_RATE },
     ] },
     // Time Sheets comes before Work Orders so that a query with both and
     // Makers joins a maker to the hours they booked, not to the work order's
@@ -93,9 +128,15 @@ export const spec = {
       { name: 'Worked On', type: 'date' }, { name: 'Hours', type: 'number' },
     ] },
     { name: 'Work Orders', fields: [
-      { name: 'Product', ...ref('Products'), required: true }, { name: 'Quantity', type: 'integer', default: 1 }, { name: 'Maker', ...ref('Makers') },
-      { name: 'Sales Order', ...ref('Sales Orders') }, { name: 'Planned Start', type: 'date' }, { name: 'Due Date', type: 'date' },
+      { name: 'Number', type: 'text', unique: true }, { name: 'Product', ...ref('Products'), required: true }, { name: 'Quantity', type: 'integer', default: 1 },
+      { name: 'Maker', ...ref('Makers') }, { name: 'Sales Order', ...ref('Sales Orders') }, { name: 'Planned Start', type: 'date' }, { name: 'Due Date', type: 'date' },
       { name: 'Started', type: 'date' }, { name: 'Finished', type: 'date' }, { name: 'Status', type: 'text', default: 'Planned' },
+      { name: 'Standard Hours', type: 'number' }, { name: 'Instructions', type: 'longtext' },
+    ] },
+    // A work order's materials, copied from the bill of materials when it is
+    // planned: the list printed on the works order for the bench.
+    { name: 'Work Order Materials', fields: [
+      { name: 'Work Order', ...ref('Work Orders'), required: true }, { name: 'Material', ...ref('Materials'), required: true }, { name: 'Needed', type: 'number' },
     ] },
     { name: 'Stock Movements', fields: [
       { name: 'Product', ...ref('Products'), required: true }, { name: 'When', type: 'date' }, { name: 'Kind', type: 'text' },
@@ -137,7 +178,7 @@ export const spec = {
       { expr: '[In Stock] + [On Order] - [Allocated] - [Reorder Level]', as: 'Above Reorder Level', criteria: ['<= 0'], show: false },
     ] },
     'Purchases on order': { tables: ['Material Purchases', 'Suppliers', 'Purchase Lines'], columns: [
-      { table: 'Material Purchases', field: 'ID', as: 'Purchase', total: 'group' }, { table: 'Suppliers', field: 'Name', as: 'Supplier', total: 'group' },
+      { table: 'Material Purchases', field: 'Number', as: 'Purchase', total: 'group' }, { table: 'Suppliers', field: 'Name', as: 'Supplier', total: 'group' },
       { table: 'Material Purchases', field: 'Ordered On', total: 'group' }, { table: 'Material Purchases', field: 'Expected', total: 'group', sort: 'asc' },
       { expr: 'Round([Quantity] * [Unit Cost], 2)', as: 'Value', total: 'sum' },
       { table: 'Material Purchases', field: 'Status', total: 'where', criteria: ['Ordered'] },
@@ -183,7 +224,7 @@ export const spec = {
       { expr: 'DateDiff("d", [Delivered On], Date())', as: 'Days Ago', criteria: ['Between 0 And 365'], show: false },
     ] },
     'Unpaid invoices': { tables: ['Sales Orders', 'Customers'], columns: [
-      { table: 'Sales Orders', field: 'ID', as: 'Order' }, { table: 'Customers', field: 'Name', as: 'Customer' }, { table: 'Customers', field: 'Kind' },
+      { table: 'Sales Orders', field: 'Invoice No' }, { table: 'Sales Orders', field: 'ID', as: 'Order' }, { table: 'Customers', field: 'Name', as: 'Customer' }, { table: 'Customers', field: 'Kind' },
       { table: 'Sales Orders', field: 'Delivered On' }, { table: 'Sales Orders', field: 'Invoice Due', sort: 'asc' }, { table: 'Sales Orders', field: 'Invoice Amount' },
       { expr: 'DateDiff("d", [Invoice Due], Date())', as: 'Days Overdue' },
       { table: 'Sales Orders', field: 'Status', criteria: ['Delivered'], show: false }, { table: 'Sales Orders', field: 'Paid On', criteria: ['Is Null'], show: false },
@@ -209,7 +250,129 @@ export const spec = {
       { table: 'Sales Orders', field: 'ID', as: 'Order Lines', total: 'count' }, { expr: LINE, as: 'Sales', total: 'sum', sort: 'desc' },
       { table: 'Sales Orders', field: 'Status', total: 'where', criteria: ['Delivered'] },
     ] },
+    'Quotes awaiting an answer': { tables: ['Quotes', 'Customers'], columns: [
+      { table: 'Quotes', field: 'Number', as: 'Quote No' }, { table: 'Customers', field: 'Name', as: 'Customer' }, { table: 'Customers', field: 'Kind' },
+      { table: 'Quotes', field: 'Quote Date', sort: 'asc' }, { table: 'Quotes', field: 'Valid Until' },
+      { expr: 'DateDiff("d", Date(), [Valid Until])', as: 'Days Left' }, { table: 'Quotes', field: 'Total' },
+      { table: 'Quotes', field: 'Status', criteria: ['Sent'], show: false },
+    ] },
+    'Quote results by month': { tables: ['Quotes'], columns: [
+      { expr: 'Format([Quote Date], "yyyy-mm")', as: 'Month', total: 'group', sort: 'asc' }, { table: 'Quotes', field: 'Status', total: 'group', sort: 'asc' },
+      { table: 'Quotes', field: 'ID', as: 'Quotes', total: 'count' }, { table: 'Quotes', field: 'Net', as: 'Value', total: 'sum' },
+    ] },
   },
+  // The print templates: one document for each record of a table, its lines
+  // from the records that point at it, the workshop's details at the head.
+  documents: [
+    { name: 'Quote', table: 'Quotes', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Quotation {Number}' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Customer.Name', label: 'Prepared for' }, { field: 'Number', label: 'Quote number' },
+        { field: 'Customer.Contact', label: 'For the attention of' }, { field: 'Quote Date', label: 'Date' },
+        { field: 'Customer.Address', label: 'Address' }, { field: 'Valid Until', label: 'Prices held until' },
+        { field: 'Customer.City', label: 'Town' }, { field: 'Customer.Postcode', label: 'Postcode' },
+      ] },
+      { type: 'text', text: 'Thank you for asking us to quote. Notes: {Notes}' },
+      { type: 'lines', table: 'Quote Lines', columns: [
+        { field: 'Product.Code', label: 'Code' }, { field: 'Product.Name', label: 'Description' }, { field: 'Quantity', label: 'Qty', type: 'integer' },
+        { field: 'Unit Price', label: 'Each', type: 'currency' }, { expr: 'Round(Nz([Discount]) * 100, 0)', as: 'Discount %', type: 'integer' },
+        { expr: LINE, as: 'Net', type: 'currency' }, { expr: 'Round([Tax Rate] * 100, 0)', as: 'VAT %', type: 'integer' },
+        { expr: VAT_LINE, as: 'VAT', type: 'currency' },
+      ] },
+      { type: 'totals', rows: TOTALS('Total') },
+      { type: 'text', text: 'Each piece is made to order in our workshop from solid timber, so no two are quite alike. The price includes finishing and, where shown, delivery and carrying in; it holds until {Valid Until}. To go ahead, sign below and send this back, or reply to us by e-mail quoting {Number}, and we will confirm a delivery date. Made-to-order pieces are made for you and are not returnable unless faulty.' },
+      { type: 'text', text: '{Business.Document Footer}', small: true },
+      { type: 'spacer', size: 24 },
+      { type: 'signatures', labels: ['Accepted for the customer', 'For the workshop'] },
+    ] },
+    { name: 'Invoice', table: 'Sales Orders', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'VAT invoice {Invoice No}' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Customer.Name', label: 'Invoice to' }, { field: 'Invoice No', label: 'Invoice number' },
+        { field: 'Customer.Contact', label: 'For the attention of' }, { field: 'Invoice Date', label: 'Invoice date (tax point)' },
+        { field: 'Customer.Address', label: 'Address' }, { field: 'ID', label: 'Our order' },
+        { field: 'Customer.City', label: 'Town' }, { field: 'Delivered On', label: 'Delivered' },
+        { field: 'Customer.Postcode', label: 'Postcode' }, { field: 'Invoice Due', label: 'Payment due' },
+      ] },
+      { type: 'lines', table: 'Sales Lines', columns: [
+        { field: 'Product.Code', label: 'Code' }, { field: 'Product.Name', label: 'Description' }, { field: 'Quantity', label: 'Qty', type: 'integer' },
+        { field: 'Unit Price', label: 'Each', type: 'currency' }, { expr: 'Round(Nz([Discount]) * 100, 0)', as: 'Trade discount %', type: 'integer' },
+        { expr: LINE, as: 'Net', type: 'currency' }, { expr: 'Round([Tax Rate] * 100, 0)', as: 'VAT %', type: 'integer' },
+        { expr: VAT_LINE, as: 'VAT', type: 'currency' },
+      ] },
+      { type: 'totals', rows: TOTALS('Total due') },
+      { type: 'text', text: '{Business.Payment Terms} Please quote {Invoice No} with your payment. By bank transfer to {Business.Bank Details}. VAT number {Business.Tax Number}.', small: true },
+      { type: 'text', text: '{Business.Document Footer}', small: true },
+    ] },
+    { name: 'Delivery note', table: 'Sales Orders', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Delivery note DN-{ID}' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Customer.Name', label: 'Deliver to' }, { field: 'ID', label: 'Our order' },
+        { field: 'Customer.Contact', label: 'Contact' }, { field: 'Order Date', label: 'Ordered' },
+        { field: 'Customer.Address', label: 'Address' }, { field: 'Delivery Due', label: 'Due' },
+        { field: 'Customer.City', label: 'Town' }, { field: 'Delivered On', label: 'Delivered' },
+        { field: 'Customer.Postcode', label: 'Postcode' }, { field: 'Customer.Phone', label: 'Phone' },
+      ] },
+      { type: 'text', text: 'Notes: {Notes}' },
+      { type: 'lines', table: 'Sales Lines', columns: [
+        { field: 'Product.Code', label: 'Code' }, { field: 'Product.Name', label: 'Description' }, { field: 'Quantity', label: 'Pieces', type: 'integer' },
+      ] },
+      { type: 'totals', rows: [{ label: 'Pieces in all', expr: '[Quantity]', type: 'integer', strong: true }] },
+      { type: 'text', text: 'Please check every piece before you sign. Solid timber marks easily in transit: tell us within 48 hours of any damage, with a photograph, and we will put it right. Wax and oil finishes need a few days to harden fully, so keep hot dishes and wet glasses off them for the first week.' },
+      { type: 'spacer', size: 24 },
+      { type: 'signatures', labels: ['Received in good order by', 'Delivered by'] },
+    ] },
+    { name: 'Purchase order', table: 'Material Purchases', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Purchase order {Number}' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Supplier.Name', label: 'To' }, { field: 'Number', label: 'Order number' },
+        { field: 'Supplier.Contact', label: 'For the attention of' }, { field: 'Ordered On', label: 'Date' },
+        { field: 'Supplier.Address', label: 'Address' }, { field: 'Expected', label: 'Deliver by' },
+        { field: 'Supplier.City', label: 'Town' }, { field: 'Supplier.Postcode', label: 'Postcode' },
+      ] },
+      { type: 'lines', table: 'Purchase Lines', columns: [
+        { field: 'Material.Code', label: 'Our code' }, { field: 'Material.Name', label: 'Description' }, { field: 'Material.Unit', label: 'Unit' },
+        { field: 'Quantity', type: 'number' }, { field: 'Unit Cost', label: 'Price', type: 'currency' },
+        { expr: 'Round([Quantity] * [Unit Cost], 2)', as: 'Amount', type: 'currency' },
+      ] },
+      { type: 'totals', rows: [{ label: 'Total before VAT', expr: '[Amount]', strong: true }] },
+      { type: 'text', text: 'Please deliver to {Business.Address}, {Business.City} {Business.Postcode}, on a weekday between 8 and 4. Timber to be dry, straight and free of shakes; we may refuse boards that are not. Quote {Number} on your delivery note and your invoice.' },
+      { type: 'spacer', size: 16 },
+      { type: 'signatures', labels: ['Ordered by'] },
+    ] },
+    { name: 'Statement', table: 'Customers', paper: 'a4', letterhead: LETTERHEAD, blocks: [
+      { type: 'heading', text: 'Statement of account' },
+      { type: 'fields', columns: 2, items: [
+        { field: 'Name', label: 'Account' }, { field: 'Kind', label: 'Account type' },
+        { field: 'Contact', label: 'For the attention of' }, { field: 'Payment Days', label: 'Days to pay' },
+        { field: 'Address' }, { field: 'City', label: 'Town' }, { field: 'Postcode' },
+      ] },
+      { type: 'lines', table: 'Sales Orders', sort: 'Order Date', columns: [
+        { field: 'Invoice No', label: 'Invoice' }, { field: 'Invoice Date', label: 'Date' }, { field: 'Invoice Due', label: 'Due' },
+        { field: 'Invoice Amount', label: 'Amount', type: 'currency' }, { field: 'Paid On', label: 'Paid' },
+        { expr: 'IIf(Nz([Paid On], "") = "", Nz([Invoice Amount]), 0)', as: 'Owing', type: 'currency' },
+      ] },
+      { type: 'totals', rows: [{ label: 'Statement date', expr: 'Date()', type: 'date' }, { label: 'Balance owing', expr: '[Owing]', strong: true }] },
+      { type: 'text', text: 'An invoice with no date paid is still owed. {Business.Payment Terms} If you have paid in the last few days, thank you, and please ignore this. Bank transfer to {Business.Bank Details}.', small: true },
+    ] },
+    { name: 'Works order', table: 'Work Orders', paper: 'a4', letterhead: { table: 'Business', fields: ['Name'] }, blocks: [
+      { type: 'heading', text: 'Works order {Number}' },
+      { type: 'fields', columns: 3, items: [
+        { field: 'Product.Code', label: 'Code' }, { field: 'Product.Name', label: 'Make' }, { field: 'Quantity', label: 'How many' },
+        { field: 'Maker', label: 'Given to' }, { field: 'Planned Start', label: 'Start' }, { field: 'Due Date', label: 'Finish by' },
+        { field: 'Sales Order.ID', label: 'For order' }, { field: 'Sales Order.Customer.Name', label: 'Customer' }, { field: 'Standard Hours', label: 'Standard hours' },
+        { field: 'Status' }, { field: 'Started' }, { field: 'Finished' },
+      ] },
+      { type: 'text', text: 'Instructions: {Instructions}' },
+      { type: 'lines', table: 'Work Order Materials', columns: [
+        { field: 'Material.Code', label: 'Code' }, { field: 'Material.Name', label: 'Material' }, { field: 'Material.Unit', label: 'Unit' },
+        { field: 'Needed', label: 'Take from stock', type: 'number' },
+      ] },
+      { type: 'text', text: 'Take the materials listed from the racks before you start, and tell the workshop lead of anything short or not up to grade. Book your hours to {Number} on the time sheet each day. When the last piece is finished and checked, sign below and put it on the finished goods shelf with this sheet.', small: true },
+      { type: 'spacer', size: 16 },
+      { type: 'signatures', labels: ['Made by', 'Checked by'] },
+    ] },
+  ],
   reports: [
     { name: 'Costed bill of materials', query: 'Costed bill of materials', group: 'Product', columns: ['Material', { field: 'Quantity', type: 'number' }, 'Unit', { field: 'Unit Cost', type: 'currency' }, { field: 'Line Cost', type: 'currency' }], totals: [{ field: 'Line Cost', fn: 'sum' }] },
     { name: 'Product margins', query: 'Product margins', columns: ['Code', 'Product', { field: 'Price', type: 'currency' }, { field: 'Material Cost', type: 'currency' }, { field: 'Labour Cost', type: 'currency' }, { field: 'Margin', type: 'currency' }, { field: 'Margin %', type: 'number' }] },
@@ -218,7 +381,8 @@ export const spec = {
     { name: 'Reorder list', query: 'Materials to reorder', group: 'Supplier', columns: ['Code', 'Material', 'Unit', { field: 'Free Stock', type: 'number' }, { field: 'Reorder Level', type: 'number' }, { field: 'Reorder Quantity', type: 'number' }] },
     { name: 'Delivery schedule', query: 'Orders to deliver', columns: ['Order', 'Customer', 'Kind', { field: 'Order Date', type: 'date' }, { field: 'Delivery Due', type: 'date' }, { field: 'Days Left', type: 'integer' }, { field: 'Goods', type: 'currency' }], totals: [{ field: 'Goods', fn: 'sum' }] },
     { name: 'Monthly sales', query: 'Sales by month', columns: ['Month', { field: 'Items', type: 'integer' }, { field: 'Sales', type: 'currency' }], totals: [{ field: 'Items', fn: 'sum' }, { field: 'Sales', fn: 'sum' }] },
-    { name: 'Invoices due', query: 'Unpaid invoices', group: 'Customer', columns: ['Order', { field: 'Delivered On', type: 'date' }, { field: 'Invoice Due', type: 'date' }, { field: 'Days Overdue', type: 'integer' }, { field: 'Invoice Amount', type: 'currency' }], totals: [{ field: 'Invoice Amount', fn: 'sum' }] },
+    { name: 'Quotes to chase', query: 'Quotes awaiting an answer', columns: ['Quote No', 'Customer', 'Kind', { field: 'Quote Date', type: 'date' }, { field: 'Valid Until', type: 'date' }, { field: 'Days Left', type: 'integer' }, { field: 'Total', type: 'currency' }], totals: [{ field: 'Total', fn: 'sum' }] },
+    { name: 'Invoices due', query: 'Unpaid invoices', group: 'Customer', columns: ['Invoice No', 'Order', { field: 'Delivered On', type: 'date' }, { field: 'Invoice Due', type: 'date' }, { field: 'Days Overdue', type: 'integer' }, { field: 'Invoice Amount', type: 'currency' }], totals: [{ field: 'Invoice Amount', fn: 'sum' }] },
     { name: 'Hours by maker', query: 'Maker hours by month', group: 'Maker', columns: ['Month', { field: 'Hours', type: 'number' }, { field: 'Cost', type: 'currency' }], totals: [{ field: 'Hours', fn: 'sum' }, { field: 'Cost', fn: 'sum' }] },
   ],
 };
@@ -226,18 +390,21 @@ export const spec = {
 export const about = {
   name: 'Granite and Grain Woodworks',
   kind: 'Workshop or maker',
-  line: 'Materials, bills of materials, work orders, makers\' hours, orders and deliveries for a small furniture workshop.',
+  line: 'Materials, bills of materials, work orders, makers\' hours, quotes, orders, deliveries and VAT invoices for a small furniture workshop.',
   summary: [
     'Granite and Grain Woodworks is an invented workshop of five makers in a unit on an industrial estate. They build dining tables, chairs, stools, benches, shelves, bookcases and chopping boards from oak, ash, walnut and beech, and make kitchen doors, drawer fronts and worktops to measure. About ten gift and homeware shops buy boards, coasters and shelves at a trade discount, interior designers order kitchens and furniture for their clients, and members of the public buy from the workshop\'s showroom and website.',
     'Every product has a bill of materials: the timber, sheet, fittings, finish and packing that one of it takes. Small goods, chairs and shelves are made in batches to keep a stock on the shelf. Tables, bookcases, worktops and kitchen doors are made to order, so each order line of them gets a work order of its own. Planning a work order sets its materials aside, starting it takes them from stock, and the makers book their hours to it each day until it is finished.',
     'The records cover fifteen months up to the morning the file is made, with orders already taken for the weeks ahead. Shops order more boards before Christmas, kitchens slow in August, the workshop closes between Christmas and New Year, and timber prices went up part way through. Some deliveries are late, most of them in January after the break or when a maker was off sick, and a few trade customers pay late. The buyer orders twice a week for the work starting in the next fortnight, so a job further off can show as a shortage until it comes closer.',
+    'Made-to-order work is quoted first: a quote for a kitchen or a table is sent, and when the customer says yes it becomes a sales order, linked back to its quote. About half of the quotes for one-off pieces come to nothing, and a few are always waiting for an answer. Every delivery is invoiced the same day with VAT at twenty percent on the goods and the delivery, and prices in the records are before VAT.',
+    'The workshop prints six documents from the file: the quote, the VAT invoice, the delivery note that goes in the van, the purchase order sent to a merchant, a statement for each account, and the works order sheet that goes on the bench with the list of materials the job takes.',
     'Use it to see how a bill of materials, stock and production fit together, or start from it empty for a workshop of your own.',
   ],
   suits: ['A cabinet maker or joiner', 'A bakery\'s production side', 'A print shop', 'A sign maker', 'A soap or candle maker', 'A garment or textile maker', 'An electronics assembler', 'A metal fabricator'],
   tables: {
+    Business: BUSINESS_ABOUT,
     Suppliers: { about: 'The merchants the workshop buys its materials from.', fields: {
-      Name: 'The supplier\'s name.', Supplies: 'What you buy from them, such as Timber or Fittings and fixings.', Contact: 'The person you order from.',
-      Phone: 'Their phone number.', 'E-mail': 'Where orders go.', City: 'Where they are.',
+      Name: 'The supplier\'s name.', Supplies: 'What you buy from them, such as Timber or Fittings and fixings.', Contact: 'The person you order from, printed on the purchase order.',
+      Phone: 'Their phone number.', 'E-mail': 'Where orders go.', Address: 'Their street address, printed on the purchase order.', City: 'Where they are.', Postcode: 'Their postcode.',
       'Lead Days': 'How many days an order usually takes to arrive, used to judge when to order.',
       'Minimum Order': 'The smallest order they deliver without a charge. The buyer waits until enough is needed from them, unless work would be held up or the order has waited a fortnight.',
     } },
@@ -251,8 +418,8 @@ export const about = {
       'Reorder Level': 'When the free stock (in stock, plus on order, less allocated) falls to this or below, the material goes on the reorder list.',
       'Reorder Quantity': 'How much you usually order at a time.',
     } },
-    'Material Purchases': { about: 'Each order placed with a supplier.', fields: {
-      Supplier: 'Who it was ordered from.', 'Ordered On': 'The day it was placed.', Expected: 'When the supplier said it would come.',
+    'Material Purchases': { about: 'Each order placed with a supplier. The Purchase order print template prints one, with its lines.', fields: {
+      Number: 'The purchase order\'s number, given in date order with a new run each year: PO-2026-0042. The supplier quotes it on the delivery note and invoice.', Supplier: 'Who it was ordered from.', 'Ordered On': 'The day it was placed.', Expected: 'When the supplier said it would come.',
       'Received On': 'The day it arrived; empty until then.', Status: 'Ordered until it arrives, then Received.',
     } },
     'Purchase Lines': { about: 'What was ordered on each purchase.', fields: {
@@ -272,7 +439,7 @@ export const about = {
       'Made to Order': 'Ticked for products made for each order (tables, bookcases, worktops, kitchen doors); left clear for products kept on the shelf.',
       'In Stock': 'Finished pieces on the shelf, including made-to-order pieces finished and waiting for delivery.',
       'Stock Level': 'How many to keep on the shelf beyond what is already ordered. A batch is planned when stock and work in hand fall short of it.',
-      'Batch Size': 'How many are made at once.', Active: 'Untick a product you no longer make; it stays in the old orders.',
+      'Batch Size': 'How many are made at once.', 'Tax Rate': 'The VAT rate it is sold at, as a fraction: 0.2 is twenty percent. Copied to each quote and order line when it is sold.', Active: 'Untick a product you no longer make; it stays in the old orders.',
     } },
     'Bill of Materials': { about: 'What one of each product is made from: one record per material in it.', fields: {
       Product: 'The product.', Material: 'A material it takes.', Quantity: 'How much of the material one product uses, in the material\'s unit, waste included.',
@@ -292,7 +459,11 @@ export const about = {
     'Sales Orders': { about: 'Each order a customer places.', fields: {
       Customer: 'Who ordered.', 'Order Date': 'The day the order was taken.', 'Delivery Due': 'The day you promised to deliver.',
       'Delivered On': 'The day it was delivered; empty until then.', Status: 'Open, Delivered or Cancelled.',
-      'Delivery Fee': 'What was charged for delivery; nought when collected.', 'Invoice Amount': 'The invoice total, goods after discount plus delivery, set on delivery.',
+      'Delivery Fee': 'What was charged for delivery, before VAT; nought when collected.',
+      'Invoice No': 'The VAT invoice\'s number, given on delivery in date order with a new run each year: INV-2026-0042. Empty until the order is delivered.',
+      'Invoice Date': 'The day the invoice was raised, the delivery day. It is the tax point for VAT.',
+      Net: 'The goods after discount and the delivery fee, before VAT.', VAT: 'The VAT on the invoice: each line\'s VAT rounded to the penny and added up, with the VAT on delivery.',
+      'Invoice Amount': 'What the invoice comes to: net and VAT together, set on delivery.',
       'Invoice Due': 'The day payment is due, the delivery day plus the customer\'s payment days.', 'Paid On': 'The day it was paid; empty while it is owed.',
       Notes: 'Anything to remember about the order.',
     } },
@@ -300,15 +471,32 @@ export const about = {
       Order: 'The order the line belongs to.', Product: 'What was ordered.', Quantity: 'How many.',
       'Unit Price': 'The price of one at the time, kept so a later price change does not alter old orders.',
       Discount: 'The discount given, as a fraction: 0.1 is ten percent off.',
+      'Tax Rate': 'The VAT rate of the line, taken from the product when the order was taken.',
+    } },
+    Quotes: { about: 'A price given before an order, for made-to-order work: kitchens, tables, bookcases and worktops. When the customer accepts, the order is taken and the quote points at it. The Quote print template prints one.', fields: {
+      Number: 'The quote\'s number, in date order with a new run each year: QUO-2026-0042.', Customer: 'Who it is for. A member of the public who asks for a quote is added to Customers there and then.',
+      'Quote Date': 'The day it was sent.', 'Valid Until': 'The last day its prices hold, thirty days on.',
+      Status: 'Sent (waiting for an answer), Accepted, Declined, or Expired (no answer before Valid Until).',
+      'Delivery Fee': 'What delivery would cost, before VAT.', Net: 'The goods after discount and the delivery, before VAT.', VAT: 'The VAT on the quote, worked out as an invoice works it out.',
+      Total: 'What the quote comes to with VAT.', 'Sales Order': 'The order it became, once accepted; empty otherwise.', Notes: 'What the customer asked for: the finish, the colour, anything measured on site.',
+    } },
+    'Quote Lines': { about: 'The products on each quote.', fields: {
+      Quote: 'The quote the line belongs to.', Product: 'What is quoted for.', Quantity: 'How many.', 'Unit Price': 'The price of one before VAT and discount.',
+      Discount: 'The trade discount, as a fraction: 0.1 is ten percent off.', 'Tax Rate': 'The VAT rate of the line, from the product.',
     } },
     'Time Sheets': { about: 'The hours each maker booked to each work order, one record per maker, work order and day.', fields: {
       Maker: 'Who did the work.', 'Work Order': 'What they worked on.', 'Worked On': 'The day.', Hours: 'Hours worked on it that day, in quarter hours.',
     } },
-    'Work Orders': { about: 'A job to make a quantity of one product, either for a customer\'s order or to fill the shelf.', fields: {
-      Product: 'What is to be made.', Quantity: 'How many.', Maker: 'The maker the job is given to.',
+    'Work Orders': { about: 'A job to make a quantity of one product, either for a customer\'s order or to fill the shelf. The Works order print template prints its sheet for the bench.', fields: {
+      Number: 'The works order\'s number, in the order work orders were raised, with a new run each year: WO-2026-0042. The makers book their hours to it.', Product: 'What is to be made.', Quantity: 'How many.', Maker: 'The maker the job is given to.',
       'Sales Order': 'The order it is made for; empty for a batch made for stock.', 'Planned Start': 'When work is planned to begin.',
       'Due Date': 'When it must be finished: two working days before the delivery for an order.', Started: 'The day work began and the materials were taken.',
       Finished: 'The day the last piece was finished.', Status: 'Planned, In progress, Done or Cancelled.',
+      'Standard Hours': 'How long the job should take at a normal pace: the quantity times the product\'s labour minutes, in hours.',
+      Instructions: 'What the maker needs to know: the customer\'s wishes and finish for order work, or that it is a batch for the shelf.',
+    } },
+    'Work Order Materials': { about: 'The materials a work order takes, copied from the product\'s bill of materials when the work order is planned, so a later change to the bill does not alter a job already planned. The works order sheet lists them.', fields: {
+      'Work Order': 'The work order.', Material: 'A material the job takes.', Needed: 'How much of it the whole job takes: the work order\'s quantity times the bill of materials.',
     } },
     'Stock Movements': { about: 'Every change to the stock of finished goods.', fields: {
       Product: 'The product.', When: 'The day it happened.',
@@ -329,11 +517,13 @@ export const about = {
     'Maker hours, last 4 weeks': 'The hours each maker booked over the last four weeks, to see who is busy and who has time.',
     'Orders to deliver': 'Open orders due in the next 14 days, and any already late, the soonest first, with what the goods come to.',
     'Late deliveries': 'Orders delivered after the promised day in the last year, with how many days late.',
-    'Unpaid invoices': 'Orders delivered and not yet paid, the oldest due date first, with the days overdue. Below nought means it is not due yet.',
+    'Unpaid invoices': 'Invoices for orders delivered and not yet paid, the oldest due date first, with the days overdue. Below nought means it is not due yet.',
     'Finished goods in stock': 'Products on the shelf, with what they are worth at cost and at price.',
     'Sales by month': 'Goods delivered in each month, after discounts and without delivery fees.',
     'Sales by product': 'What each product has sold, the biggest seller first.',
     'Sales by customer': 'What each customer has bought, the biggest first, with how many order lines.',
+    'Quotes awaiting an answer': 'Quotes sent and not yet accepted or declined, the oldest first, with the days left before their prices run out. Ring these customers.',
+    'Quote results by month': 'How many quotes were sent each month and what became of them, with their value before VAT: how many turn into work.',
   },
   reports: {
     'Costed bill of materials': 'A page for each product listing its materials and their cost, with the total material cost.',
@@ -343,15 +533,92 @@ export const about = {
     'Reorder list': 'Materials at or below their reorder level, by supplier, with how much to order.',
     'Delivery schedule': 'Orders to deliver in the next two weeks and those late, for planning the van.',
     'Monthly sales': 'Sales for each month, with a total.',
-    'Invoices due': 'What each customer owes, with the due dates and days overdue, for chasing payment.',
+    'Invoices due': 'What each customer owes, invoice by invoice, with the due dates and days overdue, for chasing payment.',
+    'Quotes to chase': 'The quotes waiting for an answer, with what they are worth, for a phone round on Friday afternoon.',
     'Hours by maker': 'Each maker\'s booked hours and their cost month by month, with totals.',
   },
-  empty: 'Start with Suppliers, then Materials with their units, costs and reorder levels, then Products, and then the Bill of Materials for each product. Fill in each product\'s Material Cost from the Costed bill of materials query. Add your Makers and Customers. After that, Sales Orders and their lines come in as you trade, Work Orders are raised for them, and the makers book Time Sheets as they work. Keep In Stock, On Order and Allocated up to date as deliveries arrive and work starts, or count once a month and correct them.',
+  documents: {
+    Quote: 'The quotation sent for made-to-order work: the customer\'s name and address, each piece with its price, trade discount and VAT, the delivery, the total, how long the prices hold, and a place to sign to accept. One prints for each record in Quotes.',
+    Invoice: 'The VAT invoice that goes with a delivery: the invoice number and tax point, each line with its discount and VAT rate, the goods, delivery, VAT and total due, and how to pay. It prints from Sales Orders, so an order not yet delivered prints without a number: print the one on screen, or those chosen.',
+    'Delivery note': 'Goes in the van with an order: what is being delivered, without prices, where to, a phone number for the driver, and two places to sign. Print it the day before the delivery.',
+    'Purchase order': 'Sent to a timber merchant or a fittings supplier: what to send, at what price, and when it is wanted, with the workshop\'s delivery address.',
+    Statement: 'Sent to each trade account at the start of the month: every invoice with what was paid and when, and the balance owing. It prints one for every customer, so choose the trade accounts with something owing.',
+    'Works order': 'The sheet for the bench: what to make and how many, for whom, when to start and finish, the standard hours, the customer\'s wishes, and the list of materials to take from stock, with places to sign when it is made and checked.',
+  },
+  tutorial: [
+    { title: 'Quote for a made-to-order piece', steps: [
+      'Open the Customers form. If the customer is new, press New and type their Name, Kind (Public or Designer), address, phone and e-mail.',
+      'Open the Quotes form and press New. Choose the customer in Customer, type the Quote Date and a Valid Until thirty days on, set Status to Sent and write what they asked for in Notes.',
+      'In Quote Lines, add each product with its Quantity, Unit Price from the product, any trade Discount, and the Tax Rate 0.2.',
+      'Work out Net, VAT and Total on the quote as the lines add up (the Quote print template shows the figures), and type them in.',
+      'Open Print templates, choose Quote, pick the quote and press Print or Save as PDF. Send it to the customer.',
+    ] },
+    { title: 'Turn an accepted quote into an order and plan the work', steps: [
+      'Open the Sales Orders form and press New. Choose the customer, type the Order Date and the Delivery Due you agreed, and copy the quote\'s Notes.',
+      'In Sales Lines, add the same products, quantities, prices, discount and tax rate as the quote.',
+      'Open the quote in the Quotes form, set Status to Accepted and choose the new order in Sales Order.',
+      'Open the Work Orders form and press New for each made-to-order line: the Product, the Quantity, the Maker, the Sales Order, the Planned Start and Due Date, Standard Hours and the Instructions. Set Status to Planned.',
+      'Add the job\'s materials in Work Order Materials, one record per line of the product\'s bill of materials (the Costed bill of materials query lists them), with Needed set to the quantity times the bill. Add the same amounts to Allocated on each material.',
+      'Open Print templates, choose Works order, pick the work order and press Print. Give the sheet to the maker.',
+    ] },
+    { title: 'Run the workshop week', steps: [
+      'On Monday open the Production plan report: each maker\'s open work orders in the order they start.',
+      'When a maker starts a job, open it in the Work Orders form, type Started and set Status to In progress. Take its materials from stock: lower In Stock and Allocated on each material, and add a Used record in Material Movements with the work order\'s number as Reference.',
+      'Each evening the makers add their hours in the Time Sheets form: Maker, Work Order, Worked On and Hours.',
+      'When a job is done, type Finished, set Status to Done, add one Made record per job in Stock Movements, and raise In Stock on the product.',
+      'On Friday open Maker hours, last 4 weeks to see who has time, and Work order costs to compare hours booked with standard hours.',
+    ] },
+    { title: 'Order timber and fittings', steps: [
+      'On Monday and Thursday open the Reorder list report and the Shortages for buying report.',
+      'Open the Material Purchases form and press New. Type the next Number (PO-2026-0043 after PO-2026-0042), choose the Supplier, type Ordered On and Expected, and set Status to Ordered.',
+      'In Purchase Lines, add each material with its Quantity and Unit Cost. Raise On Order on each material by the quantity.',
+      'Open Print templates, choose Purchase order, pick it and press Print or Save as PDF to send to the supplier.',
+      'When the delivery comes, type Received On, set Status to Received, add a Received record in Material Movements for each line, and move the quantities from On Order to In Stock.',
+    ] },
+    { title: 'Deliver an order and invoice it', steps: [
+      'Open the Delivery schedule report to see what goes out in the next two weeks.',
+      'The day before, open Print templates, choose Delivery note, pick the order and press Print. It goes in the van; the customer signs one copy.',
+      'On the day, open the order in the Sales Orders form. Type Delivered On, set Status to Delivered, type the next Invoice No, the Invoice Date, Net, VAT, Invoice Amount and Invoice Due (the delivery day plus the customer\'s Payment Days).',
+      'Add a Delivered record in Stock Movements for each line and lower In Stock on each product.',
+      'Open Print templates, choose Invoice, pick the order and press Print or Save as PDF. E-mail it to the customer.',
+    ] },
+    { title: 'Take a payment and send statements', steps: [
+      'When money comes in, open the order in the Sales Orders form and type Paid On.',
+      'At the start of each month open the Invoices due report: every unpaid invoice by customer, with days overdue.',
+      'Open Print templates, choose Statement, choose the trade customers who owe something and press Print or Save as PDF. Send each its statement.',
+      'Ring anyone more than a fortnight overdue. The Unpaid invoices query shows the oldest first.',
+    ] },
+    { title: 'Chase quotes and see how many are won', steps: [
+      'On Friday open the Quotes to chase report: quotes still waiting, with the days left on each.',
+      'Ring the customer. If they say yes, take the order as above; if no, open the quote in the Quotes form and set Status to Declined.',
+      'A quote past its Valid Until with no answer is set to Expired.',
+      'At the end of the month open the Quote results by month query to see how many quotes became work.',
+    ] },
+  ],
+  notes: [
+    'Prices in Products, quotes and orders are before VAT. Everything the workshop sells is at the standard rate, 0.2, and delivery carries VAT too. A shop that shows prices with VAT in its showroom adds a fifth to these.',
+    'An invoice is the sales order itself once it is delivered: its Invoice No, Invoice Date, Net, VAT and Invoice Amount are filled in on the day. So the Invoice print template prints from Sales Orders, and an order not yet delivered prints with no number. Print the one on screen, or choose those to print.',
+    'Net and VAT are worked out the way the invoice shows them: each line rounded to the penny, its VAT rounded to the penny, then added up, and the VAT on delivery added. Work them out the same way when you type them, or the invoice and the record will differ by a penny.',
+    'Stock and materials are not counted by the database on its own. In Stock, On Order and Allocated are typed figures, kept right by the Material Movements and Stock Movements records you add. Count once a month and correct them with a Counted or Adjusted movement.',
+    'A work order\'s materials are copied into Work Order Materials when it is planned. Changing a product\'s bill of materials afterwards changes new work orders, not ones already planned.',
+    'The Statement print template prints one for every customer, including members of the public who paid on delivery. Choose the trade accounts you want before printing.',
+    'Document numbers run in date order with a new run each year. When you type a new one, look at the last number used in that table and add one.',
+  ],
+  faq: [
+    { q: 'How do I print an invoice I sent last month?', a: 'Open Print templates, choose Invoice, and pick the order by its number or customer. Every order prints, whatever its date. To find the order, look the invoice number up in the Unpaid invoices query or the Sales Orders table.' },
+    { q: 'Why is there no Invoices table?', a: 'The workshop invoices each order once, on delivery, so the invoice\'s fields sit on the sales order and its lines are the order\'s lines. If you invoice in parts, add an Invoices table pointing at Sales Orders, with lines of its own.' },
+    { q: 'How do I give a designer their trade discount?', a: 'Set Trade Discount on the customer (0.1 for ten percent), and copy it to Discount on each quote and order line. The invoice shows the discount on each line.' },
+    { q: 'Where do I see how long a job really took?', a: 'The Work order costs query lists work orders finished in the last 90 days with the standard hours beside the hours booked on time sheets, and what the labour cost.' },
+    { q: 'What does Allocated mean on a material?', a: 'It is what is set aside for work orders that are planned but not started. Free stock is In Stock plus On Order less Allocated; when that falls to the Reorder Level the material shows on the Reorder list.' },
+    { q: 'Can I take a deposit on a commission?', a: 'Not as the sample stands. Add Deposit and Deposit Paid On fields to Sales Orders, and take the deposit off the balance on the invoice with a total row in the Invoice print template.' },
+    { q: 'How do I start my own workshop from this?', a: 'Make the sample empty, fill in the Business record with your own name, address and VAT number, then add your suppliers, materials, products and bills of materials, as Starting empty describes.' },
+  ],
+  empty: 'Start with Business: your own name, address, VAT number and bank details, which every document prints. Then Suppliers, then Materials with their units, costs and reorder levels, then Products, and then the Bill of Materials for each product. Fill in each product\'s Material Cost from the Costed bill of materials query. Add your Makers and Customers. After that, Sales Orders and their lines come in as you trade, Work Orders are raised for them, and the makers book Time Sheets as they work. Keep In Stock, On Order and Allocated up to date as deliveries arrive and work starts, or count once a month and correct them.',
   adapt: [
     'For a bakery or candle maker, change the units to kilogram and gram, make Quantity in Bill of Materials hold small amounts, and add a Batch Yield field to Products for how many one batch makes.',
     'Record finishes and options: add Finish and Size fields to Sales Lines for made-to-order pieces, and copy them to the work order.',
     'Track offcuts and waste: add a Waste Percent field to Bill of Materials and use it in the Costed bill of materials query.',
-    'Add VAT or sales tax: add a Tax Rate field to Products and a calculated column in the sales queries for the tax in each line.',
+    'Sell abroad without VAT: give the customer a Tax Rate of their own, and copy it to the order lines instead of the product\'s for exports.',
     'Take deposits on commissions: add Deposit and Deposit Paid On fields to Sales Orders, and a query for orders waiting for one.',
     'Plan by machine as well as maker: add a Machines table and a Machine field to Work Orders, then group the production plan by it.',
     'Keep batch or lot numbers for traceability: add a Batch field to Material Movements and Stock Movements.',
@@ -479,13 +746,21 @@ export function fill(base, { r, cal, days = 455 }) {
   // Calendar days for a number of working days.
   const calendarDays = (workdays) => Math.ceil(workdays * 7 / 5);
 
+  add('Business', businessRecord({
+    name: 'Granite and Grain Woodworks', domain: 'granitegrain.example', phone: '07700 900300',
+    address: { Address: 'Unit 7, Quarry Road Trading Estate', City: 'Leeds', Postcode: 'LS12 4DE', Country: 'United Kingdom' },
+    terms: 'Trade accounts: payment within the days agreed on your account, from the invoice date. Showroom and website orders: payment on delivery.',
+    footer: 'Handmade in Leeds. Showroom open Tuesday to Saturday, 10 till 4. Goods remain ours until paid for in full. Oiled timber likes a fresh coat of oil once or twice a year.',
+  }));
+
   // Suppliers.
   const suppliers = new Map();
   for (const [key, name, supplies, lead, minimum] of SUPPLIERS) {
     const contact = person(r, { domain: `${slug(name)}.example` });
+    const a = place(r, SUPPLIER_TOWNS);
     const id = add('Suppliers', {
       Name: name, Supplies: supplies, Contact: `${contact['First Name']} ${contact['Last Name']}`, Phone: phoneFor(r, 'United Kingdom'),
-      'E-mail': `orders@${slug(name)}.example`, City: r.pick(['Leeds', 'Bristol', 'Birmingham', 'Manchester', 'Glasgow', 'Sheffield']), 'Lead Days': lead, 'Minimum Order': minimum,
+      'E-mail': `orders@${slug(name)}.example`, ...a, 'Lead Days': lead, 'Minimum Order': minimum,
     });
     suppliers.set(key, { id, key, lead, minimum, waiting: null });
   }
@@ -506,8 +781,8 @@ export function fill(base, { r, cal, days = 455 }) {
   // Products and their bills of materials.
   const products = new Map();
   for (const [code, name, category, price, minutes, mto, level, batch, easy, bom] of PRODUCTS) {
-    const p = { code, name, price, minutes, mto, level, batch, easy, active: true, stock: 0, wanted: 0, building: 0, bom: bom.map(([c, q]) => ({ m: materials.get(c), q })) };
-    p.id = add('Products', { Code: code, Name: name, Category: category, Price: price, 'Labour Minutes': minutes, 'Made to Order': mto, 'Stock Level': level, 'Batch Size': batch, Active: true });
+    const p = { code, name, category, price, minutes, mto, level, batch, easy, rate: STANDARD_RATE, active: true, stock: 0, wanted: 0, building: 0, bom: bom.map(([c, q]) => ({ m: materials.get(c), q })) };
+    p.id = add('Products', { Code: code, Name: name, Category: category, Price: price, 'Labour Minutes': minutes, 'Made to Order': mto, 'Stock Level': level, 'Batch Size': batch, 'Tax Rate': p.rate, Active: true });
     for (const { m, q } of p.bom) add('Bill of Materials', { Product: p.id, Material: m.id, Quantity: q });
     products.set(code, p);
   }
@@ -533,6 +808,7 @@ export function fill(base, { r, cal, days = 455 }) {
   const allBacklog = () => makers.reduce((n, m) => n + backlog(m), 0);
 
   // Plan a work order: give it to the least busy maker who can make it, set its materials aside.
+  const workOrders = []; // { id, d }: numbered at the end, in the order they were raised
   const plan = (p, qty, d, order = null, deliveryDue = null) => {
     const hours = qty * p.minutes / 60;
     // Work for an order is planned to finish a little before it is due; a batch for the shelf as soon as can be.
@@ -542,9 +818,21 @@ export function fill(base, { r, cal, days = 455 }) {
     const length = calendarDays(hours * maker.pace / HOURS_A_DAY);
     const start = nextOpen(Math.max(latest, d + 1 + calendarDays(backlog(maker, latest) / HOURS_A_DAY)));
     const due = deliveryDue != null ? lastOpen(deliveryDue - 2) : nextOpen(start + length + 3);
-    const id = add('Work Orders', { Product: p.id, Quantity: qty, Maker: maker.id, 'Sales Order': order ? order.id : null, 'Planned Start': cal.day(start), 'Due Date': cal.day(due), Status: 'Planned' });
+    // What the maker is told: the customer's wishes for order work, or that it is for the shelf.
+    const finish = /painted/.test(p.name) ? 'primed, then two coats of paint' : 'two coats of oil';
+    const instructions = order
+      ? `${order.note ? `${order.note} ` : ''}For order ${order.id}, ${order.customer.name}, to be delivered by ${cal.day(deliveryDue)}. Finish: ${finish}.`
+      : `A batch of ${qty} for the shelf. Finish: ${finish}, as the sample in the showroom.`;
+    const id = add('Work Orders', {
+      Product: p.id, Quantity: qty, Maker: maker.id, 'Sales Order': order ? order.id : null, 'Planned Start': cal.day(start), 'Due Date': cal.day(due),
+      Status: 'Planned', 'Standard Hours': money(hours), Instructions: instructions,
+    });
     const wo = { id, p, qty, maker, start, due, order, status: 'Planned', remaining: Math.max(0.25, quarter(hours * maker.pace * (0.85 + r.next() * 0.35))) };
-    for (const { m, q } of p.bom) m.allocated = money(m.allocated + qty * q);
+    workOrders.push({ id, d });
+    for (const { m, q } of p.bom) {
+      add('Work Order Materials', { 'Work Order': id, Material: m.id, Needed: money(qty * q) });
+      m.allocated = money(m.allocated + qty * q);
+    }
     if (!p.mto) p.building += qty;
     maker.queue.push(wo);
     return wo;
@@ -607,7 +895,7 @@ export function fill(base, { r, cal, days = 455 }) {
       Name: name, Kind: kind, Contact: `${c['First Name']} ${c['Last Name']}`, Phone: phoneFor(r, 'United Kingdom'), 'E-mail': `accounts@${slug(name)}.example`,
       ...a, 'Payment Days': terms, 'Trade Discount': discount,
     });
-    return { id, kind, terms, discount, slow: r.chance(0.25), weight: 0.5 + r.next() * 1.5 };
+    return { id, name, kind, terms, discount, slow: r.chance(0.25), weight: 0.5 + r.next() * 1.5 };
   };
   const shops = shopNames.map((n) => business(n, 'Shop', 30, 0.3));
   const designers = designerNames.map((n) => business(n, 'Designer', r.pick([14, 14, 30]), 0.1));
@@ -616,7 +904,8 @@ export function fill(base, { r, cal, days = 455 }) {
     if (public_.length > 20 && r.chance(0.15)) return r.pick(public_);
     const p = person(r);
     const a = place(r, LOCAL_TOWNS);
-    const c = { id: add('Customers', { Name: `${p['First Name']} ${p['Last Name']}`, Kind: 'Public', Phone: phoneFor(r, 'United Kingdom'), 'E-mail': p['E-mail'], ...a, 'Payment Days': 0, 'Trade Discount': 0 }), kind: 'Public', terms: 0, discount: 0, slow: false };
+    const name = `${p['First Name']} ${p['Last Name']}`;
+    const c = { id: add('Customers', { Name: name, Kind: 'Public', Phone: phoneFor(r, 'United Kingdom'), 'E-mail': p['E-mail'], ...a, 'Payment Days': 0, 'Trade Discount': 0 }), name, kind: 'Public', terms: 0, discount: 0, slow: false };
     public_.push(c);
     return c;
   };
@@ -633,16 +922,22 @@ export function fill(base, { r, cal, days = 455 }) {
     return out;
   };
 
+  // Quotes are kept here and written at the end, numbered in date order.
+  const quotes = [];
+  const addQuote = (d, customer, lines, fee, note, status, order = null) => quotes.push({ d, customer, lines: lines.map((l) => ({ ...l })), fee, note, status, order });
+
   const open = []; // orders not yet delivered or cancelled
   const take = (d, customer, lines, dueIn, fee, note = null) => {
     const madeHours = lines.filter((l) => l.p.mto).reduce((n, l) => n + l.qty * l.p.minutes / 60, 0);
     // A made-to-order promise allows for the work already in the workshop.
     const quote = madeHours ? calendarDays((allBacklog() + madeHours) / 30) + 7 : 0;
     const due = nextOpen(d + Math.max(dueIn, quote));
-    const o = { customer, lines, due, fee, wos: [], cancelAt: null };
+    const o = { customer, lines, due, fee, note, wos: [], cancelAt: null };
     o.id = add('Sales Orders', { Customer: customer.id, 'Order Date': cal.day(d), 'Delivery Due': cal.day(due), Status: 'Open', 'Delivery Fee': fee, Notes: note });
+    // Made-to-order work is quoted first, a few days to a fortnight before the order.
+    if (customer.kind !== 'Shop' && lines.some((l) => l.p.mto)) addQuote(lastOpen(d - r.int(2, 14)), customer, lines, fee, note, 'Accepted', o.id);
     for (const l of lines) {
-      add('Sales Lines', { Order: o.id, Product: l.p.id, Quantity: l.qty, 'Unit Price': l.p.price, Discount: customer.discount });
+      add('Sales Lines', { Order: o.id, Product: l.p.id, Quantity: l.qty, 'Unit Price': l.p.price, Discount: customer.discount, 'Tax Rate': l.p.rate });
       if (l.p.mto) o.wos.push(plan(l.p, l.qty, d, o, due));
       else l.p.wanted += l.qty;
     }
@@ -658,12 +953,42 @@ export function fill(base, { r, cal, days = 455 }) {
     take(d, r.pick(designers), lines, r.int(28, 42), 45, oak ? 'Solid oak kitchen, oiled.' : `Painted shaker kitchen, colour ${r.pick(['sage', 'off white', 'navy', 'charcoal', 'stone', 'putty'])}.`);
   };
 
+  // A quote that did not become an order: declined after a few days, left to
+  // run out after thirty, or still waiting for an answer today.
+  const lost = (d) => {
+    const designer = r.chance(0.4);
+    const c = designer ? r.pick(designers) : member();
+    const oak = r.chance(0.3);
+    const lines = designer
+      ? [{ p: products.get(oak ? 'KI-DOAK' : 'KI-DSHP'), qty: r.int(10, 24) }, { p: products.get(oak ? 'KI-FOAK' : 'KI-FSHP'), qty: r.int(3, 9) }]
+      : choose(PUBLIC_MADE, 1);
+    const declined = r.chance(0.55);
+    const answered = declined ? d + r.int(3, 21) : d + 30;
+    const status = answered > 0 ? 'Sent' : declined ? 'Declined' : 'Expired';
+    addQuote(d, c, lines, designer ? 45 : r.pick([0, 45, 65]), designer ? (oak ? 'Solid oak kitchen, oiled.' : 'Painted shaker kitchen, colour to be chosen.') : null, status);
+  };
+
   // The order book the records start with: orders taken in the weeks before.
   for (let k = 0; k < 6; k++) kitchen(-days - r.int(3, 20), r.chance(0.3), r.chance(0.3));
   for (let k = 0; k < 5; k++) take(-days - r.int(3, 20), member(), choose(PUBLIC_MADE, 1), r.int(35, 56), r.pick([0, 45, 65]));
   for (let k = 0; k < 3; k++) take(-days - r.int(1, 6), r.pick(shops), choose(SHOP_RANGE, r.int(2, 5)), r.int(10, 14), 15);
 
   const pending = []; // purchases on their way: { id, at, lines }
+
+  // Document numbers given in date order, a new run each year: INV-2026-0042.
+  const runs = {};
+  const numbered = (prefix, d) => { const k = `${prefix}-${cal.at(d).getFullYear()}`; runs[k] = (runs[k] || 0) + 1; return `${k}-${String(runs[k]).padStart(4, '0')}`; };
+  // Net and VAT as the invoice prints them: each line rounded, its VAT rounded, then added up; delivery at the standard rate.
+  const priced = (lines, discount, fee) => {
+    let net = fee;
+    let vat = money(fee * STANDARD_RATE);
+    for (const l of lines) {
+      const lineNet = money(l.qty * l.p.price * (1 - discount));
+      net += lineNet;
+      vat += money(lineNet * l.p.rate);
+    }
+    return { net: money(net), vat: money(vat) };
+  };
   const invoices = [];
 
   // The file is made first thing in the morning: today has its orders from
@@ -703,15 +1028,17 @@ export function fill(base, { r, cal, days = 455 }) {
       // The van goes out with what is ready and due within five days, the soonest due first.
       for (const o of open.filter((x) => !x.cancelled && d >= x.due - 5).sort((a, b) => a.due - b.due)) {
         if (o.wos.some((w) => w.status !== 'Done') || o.lines.some((l) => l.p.stock < l.qty)) continue;
-        let goods = 0;
         for (const l of o.lines) {
           moveStock(l.p, d, 'Delivered', -l.qty, `SO ${o.id}`);
           if (!l.p.mto) l.p.wanted -= l.qty;
-          goods += money(l.qty * l.p.price * (1 - o.customer.discount));
         }
         o.delivered = true;
-        const amount = money(goods + o.fee);
-        update('Sales Orders', o.id, { 'Delivered On': cal.day(d), Status: 'Delivered', 'Invoice Amount': amount, 'Invoice Due': cal.day(d + o.customer.terms) });
+        // The VAT invoice goes with the delivery, numbered in date order a year at a time.
+        const { net, vat } = priced(o.lines, o.customer.discount, o.fee);
+        update('Sales Orders', o.id, {
+          'Delivered On': cal.day(d), Status: 'Delivered', 'Invoice No': numbered('INV', d), 'Invoice Date': cal.day(d),
+          Net: net, VAT: vat, 'Invoice Amount': money(net + vat), 'Invoice Due': cal.day(d + o.customer.terms),
+        });
         invoices.push({ o, d });
       }
       for (let i = open.length - 1; i >= 0; i--) if (open[i].delivered || open[i].cancelled) open.splice(i, 1);
@@ -729,6 +1056,9 @@ export function fill(base, { r, cal, days = 455 }) {
       const kitchenSeason = [1.2, 1.15, 1.15, 1.1, 1, 1, 0.9, 0.6, 1, 1.1, 1, 0.5][month];
       for (let k = 0, n = count(r, 0.2 * kitchenSeason); k < n; k++) kitchen(d, r.chance(0.3), r.chance(0.3));
       for (let k = 0, n = count(r, 0.08); k < n; k++) take(d, r.pick(designers), choose(DESIGNER_FURNITURE, r.int(1, 2)), r.int(28, 49), 45);
+      // Quotes that came to nothing, or have no answer yet: a designer's client
+      // went elsewhere, a member of the public found it too dear.
+      for (let k = 0, n = count(r, 0.3 * kitchenSeason); k < n; k++) lost(d);
     }
     const publicSeason = [1.1, 0.9, 1.1, 1.1, 1.1, 1, 0.8, 0.8, 1, 1.1, 1.4, 1.3][month];
     for (let k = 0, n = count(r, 0.5 * publicSeason * (isWeekend(d) ? 0.6 : 1)); k < n; k++) {
@@ -788,7 +1118,7 @@ export function fill(base, { r, cal, days = 455 }) {
         if (value < s.minimum && !lines.some((l) => l.short) && d - s.waiting < 14) continue;
         s.waiting = null;
         const at = nextOpen(d + s.lead + r.int(0, 3));
-        const id = add('Material Purchases', { Supplier: s.id, 'Ordered On': cal.day(d), Expected: cal.day(nextOpen(d + s.lead)), Status: 'Ordered' });
+        const id = add('Material Purchases', { Number: numbered('PO', d), Supplier: s.id, 'Ordered On': cal.day(d), Expected: cal.day(nextOpen(d + s.lead)), Status: 'Ordered' });
         for (const l of lines) { add('Purchase Lines', { Purchase: id, Material: l.m.id, Quantity: l.n, 'Unit Cost': l.m.cost }); l.m.onOrder = money(l.m.onOrder + l.n); }
         pending.push({ id, at, lines });
       }
@@ -803,7 +1133,7 @@ export function fill(base, { r, cal, days = 455 }) {
     while (!workday(d) || ![1, 4].includes(cal.weekday(d))) d--;
     const low = [...materials.values()].sort((a, b) => (a.stock + a.onOrder - a.allocated) / a.level - (b.stock + b.onOrder - b.allocated) / b.level);
     const s = low[0].supplier;
-    const id = add('Material Purchases', { Supplier: s.id, 'Ordered On': cal.day(d), Expected: cal.day(nextOpen(d + s.lead)), Status: 'Ordered' });
+    const id = add('Material Purchases', { Number: numbered('PO', d), Supplier: s.id, 'Ordered On': cal.day(d), Expected: cal.day(nextOpen(d + s.lead)), Status: 'Ordered' });
     for (const m of low.filter((x) => x.supplier === s).slice(0, 3)) {
       add('Purchase Lines', { Purchase: id, Material: m.id, Quantity: m.qty, 'Unit Cost': m.cost });
       m.onOrder = money(m.onOrder + m.qty);
@@ -825,6 +1155,23 @@ export function fill(base, { r, cal, days = 455 }) {
     if (at <= 0) update('Sales Orders', o.id, { 'Paid On': cal.day(at) });
   }
 
+  // Always a few quotes waiting for an answer, sent in the last few days.
+  while (quotes.filter((x) => x.status === 'Sent').length < 3) lost(-r.int(1, 3));
+
+  // Quotes, numbered in date order: QUO-2026-0042.
+  quotes.sort((a, b) => a.d - b.d);
+  for (const x of quotes) {
+    const { net, vat } = priced(x.lines, x.customer.discount, x.fee);
+    const id = add('Quotes', {
+      Number: numbered('QUO', x.d), Customer: x.customer.id, 'Quote Date': cal.day(x.d), 'Valid Until': cal.day(x.d + 30), Status: x.status,
+      'Delivery Fee': x.fee, Net: net, VAT: vat, Total: money(net + vat), 'Sales Order': x.order, Notes: x.note,
+    });
+    for (const l of x.lines) add('Quote Lines', { Quote: id, Product: l.p.id, Quantity: l.qty, 'Unit Price': l.p.price, Discount: x.customer.discount, 'Tax Rate': l.p.rate });
+  }
+  // Works orders, numbered in the order they were raised: WO-2026-0042.
+  workOrders.sort((a, b) => a.d - b.d || a.id - b.id);
+  for (const w of workOrders) update('Work Orders', w.id, { Number: numbered('WO', w.d) });
+
   for (const m of materials.values()) update('Materials', m.id, { 'Unit Cost': m.cost, 'In Stock': m.stock, 'On Order': m.onOrder, Allocated: m.allocated });
   for (const p of products.values()) {
     const cost = money(p.bom.reduce((t, { m, q }) => t + money(q * m.cost), 0));
@@ -842,6 +1189,7 @@ function count(r, rate) {
 // Towns the trade customers are in, and the towns near the workshop the
 // public buy from, each with the letters its postcodes start with.
 const TRADE_TOWNS = [['Leeds', ['LS']], ['Manchester', ['M']], ['Bristol', ['BS']], ['London', ['N', 'SE', 'EC', 'W']], ['Birmingham', ['B']], ['Cardiff', ['CF']], ['Glasgow', ['G']]];
+const SUPPLIER_TOWNS = [['Leeds', ['LS']], ['Sheffield', ['S']], ['Bristol', ['BS']], ['Birmingham', ['B']], ['Manchester', ['M']], ['Glasgow', ['G']]];
 const LOCAL_TOWNS = [['Leeds', ['LS']], ['Harrogate', ['HG']], ['York', ['YO']], ['Wakefield', ['WF']], ['Bradford', ['BD']], ['Huddersfield', ['HD']]];
 
 /** An invented street address in one of `towns`, with a postcode that fits the town. */
