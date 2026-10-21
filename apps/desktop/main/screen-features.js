@@ -23,6 +23,8 @@ import { fileURLToPath } from 'node:url';
 
 /** The Talk picture's stand-in introducer, kept until its picture is taken. */
 let talkStandIn = null;
+// The stand-in mail server for Out of office's pictures (@rutba/mailbox/managesieve-standin).
+let sieveStandIn = null;
 
 /** Words selected in a PDF page's text layer, from one word to another. */
 const pdfSelect = (h, index, from, to) => h.js(`(() => {
@@ -935,6 +937,57 @@ export const FEATURES = [
     },
   },
 
+  /* ── Mail: Out of office at the mail server (2.14) ─────────────────── */
+  {
+    name: 'mail-out-of-office',
+    app: 'mail',
+    async before({ mail }) {
+      ({ account: oooAccount } = await oooServer(mail, 'amira@harbourlane.example', 'Amira Khan'));
+    },
+    async setup(h) {
+      await oooOpen(h, oooAccount);
+      await h.js(`(() => { const d = document.querySelector('.rw-dialog[aria-label="Automatic replies"]'); d.querySelector('.ml-ooo-enabled input').click(); return 1; })()`);
+      await h.field('.rw-dialog[aria-label="Automatic replies"] .rw-field input:not([type])', 'Away until Monday');
+      await h.js(`(() => { const el = document.querySelector('.ml-ooo-message'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, ${JSON.stringify(OOO_WORDS)}); el.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+      await h.wait(800);
+    },
+    async done() { await oooDone(); },
+  },
+  {
+    name: 'mail-out-of-office-on',
+    app: 'mail',
+    async before({ mail }) {
+      // A person of its own: the pictures share a profile, and Amira's account is the dialog's.
+      const { account, port } = await oooServer(mail, 'ben@harbourlane.example', 'Ben Ortiz');
+      oooAccount = account;
+      // On at the server, as Save leaves it.
+      const { openSieve, turnOn } = await import('@rutba/mailbox/managesieve');
+      const session = await openSieve({ host: '127.0.0.1', port, user: 'ben@harbourlane.example', pass: 'screens', plain: true });
+      await turnOn(session, { subject: 'Away until Monday', message: OOO_WORDS }, { addresses: ['ben@harbourlane.example'] });
+      await session.close();
+      await mail.updateAccount({ id: account.id, patch: { autoReply: { enabled: true, where: 'server', subject: 'Away until Monday', message: OOO_WORDS, start: null, end: null, contactsOnly: false, sentTo: [] } } });
+    },
+    async setup(h) {
+      await h.until(`document.querySelectorAll('.ml-accounts button').length > 0`, 'the sidebar', 10000);
+      await h.js(`(() => { const b = [...document.querySelectorAll('.ml-accounts button')].find((n) => n.textContent.trim().startsWith('Ben Ortiz')); b?.click(); return Boolean(b); })()`);
+      await h.until(`/at the mail server/.test(document.querySelector('.ml-ooo-banner')?.textContent || '')`, 'the banner', 8000);
+      await h.wait(800);
+    },
+    async done() { await oooDone(); },
+  },
+  {
+    name: 'mail-out-of-office-office',
+    app: 'mail',
+    async before({ mail }) {
+      // An imported mailbox has no server: Rutba Office sends the replies, and the dialog says why.
+      oooAccount = await mail.addAccount({ account: { email: 'archive@harbourlane.example', name: 'Harbour Lane archive', local: true } });
+    },
+    async setup(h) {
+      await oooOpen(h, oooAccount, { server: false });
+      await h.wait(800);
+    },
+  },
+
   /* ── The launcher ──────────────────────────────────────────────────── */
   {
     name: 'home-templates',
@@ -1053,3 +1106,41 @@ export const FEATURES = [
     },
   },
 ];
+
+/* ── Out of office's pictures: a stand-in mail server and an account on it ── */
+
+const OOO_WORDS = 'Thank you for your message. I am at the Harrogate trade fair until Monday 27 October and will answer when I am back. For anything urgent, please call Grace Okafor on 020 7946 0123.';
+let oooAccount = null;
+
+/** A stand-in mail server with the person's own filters on it, and an account whose filters it holds. */
+async function oooServer(mail, email, name) {
+  const { standInSieve } = await import('@rutba/mailbox/managesieve-standin');
+  await oooDone();
+  sieveStandIn = standInSieve({ user: email, pass: 'screens', scripts: { 'my-filters': 'require "fileinto";\r\nif header :contains "subject" "invoice" { fileinto "Invoices"; }\r\n' } });
+  sieveStandIn.setActive('my-filters');
+  const port = await sieveStandIn.listen();
+  const account = await mail.addAccount({ account: { email, name, imap: { host: 'mail.harbourlane.example', port: 993, secure: true }, smtp: { host: 'mail.harbourlane.example', port: 587 } }, password: 'screens' });
+  await mail.updateAccount({ id: account.id, patch: { sieve: { host: '127.0.0.1', port, plain: true } } });
+  return { account, port };
+}
+
+async function oooDone() {
+  const going = sieveStandIn;
+  sieveStandIn = null;
+  await going?.close().catch(() => {});
+}
+
+/** The account chosen in the sidebar and its Automatic replies open, the server asked (or not, for one that has none). */
+async function oooOpen(h, account, { server = true } = {}) {
+  await h.until(`document.querySelectorAll('.ml-accounts button').length > 0`, 'the sidebar', 10000);
+  await h.js(`(() => { const b = [...document.querySelectorAll('.ml-accounts button')].find((n) => n.textContent.trim().startsWith(${JSON.stringify(account.name)})); b?.click(); return Boolean(b); })()`);
+  await h.tab('Folder');
+  await h.until(`Boolean([...document.querySelectorAll('button')].find((b) => /Out of office/.test(b.textContent) && !b.disabled))`, 'Out of office', 6000);
+  await h.js(`[...document.querySelectorAll('button')].find((b) => /Out of office/.test(b.textContent) && !b.disabled).click(), 1`);
+  const scope = `document.querySelector('.rw-dialog[aria-label="Automatic replies"]')`;
+  await h.until(`Boolean(${scope})`, 'Automatic replies', 6000);
+  await h.js(`(() => { const s = ${scope}.querySelector('.ml-signature-account'); if (!s) return 0; Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, ${JSON.stringify(account.id)}); s.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+  await h.until(server
+    ? `Boolean(${scope}.querySelector('[data-where="server"] input:checked')) && !/Asking/.test(${scope}.querySelector('[data-where="server"]').textContent)`
+    : `Boolean(${scope}.querySelector('[data-where="office"] input:checked')) && /no server/.test(${scope}.querySelector('[data-where="server"]').textContent)`, 'the mail server asked', 10000);
+}

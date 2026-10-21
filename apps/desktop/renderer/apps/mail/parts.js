@@ -609,10 +609,12 @@ select.rw-input { appearance: auto; }
 }
 
 /* the automatic-reply banner and its settings toggle ---------------------- */
+/* Floats over the foot of the window: the window's body sets its panes side by side, and a bar in it took a column. */
 .ml-ooo-banner {
-  display: flex; align-items: center; gap: 10px; padding: 8px 16px;
-  background: var(--accent-soft); color: var(--ink); font-size: 12.5px;
-  border-bottom: 1px solid var(--line);
+  position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: center; gap: 10px; padding: 8px 16px; max-width: calc(100% - 32px);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface)); color: var(--ink); font-size: 12.5px;
+  border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
 }
 .ml-ooo-banner button {
   border: 0; background: none; color: var(--accent-text); font: inherit; font-weight: 600;
