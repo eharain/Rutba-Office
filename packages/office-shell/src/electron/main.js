@@ -249,7 +249,7 @@ export function createShell({
   app.on('second-instance', (_e, argv) => {
     const files = argvFiles(argv);
     if (files.length) files.forEach(openPath);
-    else if (argvApp(argv)) windows.open({ app: argvApp(argv) });
+    else if (argvApp(argv)) windows.open({ app: argvApp(argv), query: { start: '1' } });
     else {
       const win = BrowserWindow.getAllWindows()[0];
       if (win) {
@@ -392,7 +392,7 @@ export function createShell({
 
     const startFiles = [...pending, ...argvFiles(process.argv)];
     if (startFiles.length) startFiles.forEach(openPath);
-    else windows.open({ app: argvApp(process.argv) || 'home' });
+    else windows.open(argvApp(process.argv) ? { app: argvApp(process.argv), query: { start: '1' } } : { app: 'home' });
   });
 
   return { app, get windows() { return windows; }, get stores() { return stores; }, openPath, fileUrl, holdBlob };

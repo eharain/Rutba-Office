@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7579,
+  "count": 7581,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -4981,7 +4981,8 @@
     {
       "message": "Blank",
       "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/start-page.js"
       ]
     },
     {
@@ -13367,6 +13368,12 @@
       "message": "Files you have opened",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Files you open in {app} appear here.",
+      "where": [
+        "apps/desktop/renderer/start-page.js"
       ]
     },
     {
@@ -21782,7 +21789,8 @@
     {
       "message": "More templates",
       "where": [
-        "apps/desktop/renderer/apps/home.js"
+        "apps/desktop/renderer/apps/home.js",
+        "apps/desktop/renderer/start-page.js"
       ]
     },
     {
@@ -22400,6 +22408,7 @@
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shell.js",
+        "apps/desktop/renderer/start-page.js",
         "apps/desktop/renderer/template-gallery.js",
         "packages/office-shell/src/electron/main.js"
       ]
@@ -24345,7 +24354,8 @@
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
-        "apps/desktop/renderer/apps/pictures.js"
+        "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/start-page.js"
       ]
     },
     {
@@ -25028,7 +25038,8 @@
         "apps/desktop/renderer/apps/word/compare.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/shell.js"
+        "apps/desktop/renderer/shell.js",
+        "apps/desktop/renderer/start-page.js"
       ]
     },
     {
@@ -25321,6 +25332,7 @@
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/shell.js",
+        "apps/desktop/renderer/start-page.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
@@ -28602,7 +28614,8 @@
     {
       "message": "Recent",
       "where": [
-        "apps/desktop/renderer/apps/home.js"
+        "apps/desktop/renderer/apps/home.js",
+        "apps/desktop/renderer/start-page.js"
       ]
     },
     {
@@ -29527,7 +29540,8 @@
     {
       "message": "Remove from the list",
       "where": [
-        "apps/desktop/renderer/apps/home.js"
+        "apps/desktop/renderer/apps/home.js",
+        "apps/desktop/renderer/start-page.js"
       ]
     },
     {
@@ -29675,6 +29689,12 @@
       "plural": "Remove {count} duplicates",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Remove {name} from the list",
+      "where": [
+        "apps/desktop/renderer/start-page.js"
       ]
     },
     {
@@ -32234,7 +32254,8 @@
     {
       "message": "Search recent files",
       "where": [
-        "apps/desktop/renderer/apps/home.js"
+        "apps/desktop/renderer/apps/home.js",
+        "apps/desktop/renderer/start-page.js"
       ]
     },
     {

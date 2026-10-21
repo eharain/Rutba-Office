@@ -39,6 +39,7 @@ import { verifyBaseReports } from './verify-base-reports.js';
 import { verifyBaseTemplates } from './verify-base-templates.js';
 import { verifyBaseDocuments } from './verify-base-documents.js';
 import { verifyTemplateVersions } from './verify-template-versions.js';
+import { verifyStartPage } from './verify-start-page.js';
 import { verifyBaseSamples } from './verify-base-samples.js';
 import { verifyVideoSound } from './verify-video-sound.js';
 import { verifyVideoLibrary, verifyVideoStarters } from './verify-video-library.js';
@@ -724,8 +725,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     };
   };
 
-  const open = async (app, file) => {
-    const win = windows.create({ app, file: file || null });
+  // `query`, when a check wants the window opened as the launcher or the taskbar opens it ({ start: '1' }).
+  const open = async (app, file, query = null) => {
+    const win = windows.create({ app, file: file || null, query });
     answersFirst(win.webContents);
     // A window that throws during render paints nothing and reports nothing, so
     // every check against it fails with a description of an empty page rather
@@ -5092,6 +5094,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('base-templates')) await verifyBaseTemplates({ open, check, until, wait }, { dir });
     if (only.includes('base-documents')) await verifyBaseDocuments({ open, check, until, wait }, { dir });
     if (only.includes('template-versions')) await verifyTemplateVersions({ open, check, until, wait });
+    if (only.includes('start-page')) await verifyStartPage({ open, check, until, wait }, { dir });
     if (only.includes('base-samples')) await verifyBaseSamples({ open, check, until, wait }, { dir });
     if (only.includes('video-sound')) await verifyVideoSound({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-library')) await verifyVideoLibrary({ open, check, until, wait, errorsIn }, { dir });
@@ -5535,6 +5538,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => wordCards());
   await part('word', () => wordRuler());
   await part('word', () => wordColumns());
+  await part('word', () => verifyStartPage({ open, check, until, wait }, { dir }));
   await part('shell', () => updatePrompt());
   await part('shell', () => launcherRecent());
   await part('shell', () => launcherDrop());

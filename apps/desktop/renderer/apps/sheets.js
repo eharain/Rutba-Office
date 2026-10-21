@@ -14,6 +14,7 @@ import { useRedaction } from '../redact.js';
 import { InspectDialog } from '../inspect.js';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, useTheme, menuItems, Input, t, tn } from '@rutba/office-ui';
 import { cellInk, edgeInk } from '@rutba/office-ui/contrast';
+import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
@@ -416,7 +417,11 @@ export default function Sheets({ app, shell, boot }) {
     [shell, toast]
   );
 
+  // The entry page: New, the starter templates and this app's recent files.
+  const [startPage] = useState(wantsStart);
   useEffect(() => {
+    // Opened as the app with nothing asked of it: the entry page, and no document yet.
+    if (startPage) return undefined;
     const params = new URLSearchParams(location.search);
     const template = params.get('template');
     // A template of one's own from File → New: a new workbook made from it.
@@ -2606,6 +2611,15 @@ export default function Sheets({ app, shell, boot }) {
     version: model,
   }), [model]);
   const redaction = useRedaction({ app: 'sheets', shell, doc, toast, adapter: redactAdapter });
+
+  if (startPage) {
+    return (
+      <AppFrame app={app} shell={shell} title={t('Worksheets')} menu={appMenu}>
+        <StartPage shell={shell} app="sheets" />
+        <style>{START_PAGE_CSS}</style>
+      </AppFrame>
+    );
+  }
 
   if (error) {
     return (

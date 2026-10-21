@@ -12,6 +12,7 @@
 // through the engine's transport (media.js), so a web host could give the
 // same window its own.
 
+import { RecentFiles } from '../../start-page.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Spacer, Chip, Empty, Button, Icon, Panel, Content, useToast, useCommands, useMenu, menuItems, formatBytes, basename, t, tn } from '@rutba/office-ui';
 import { History } from '@rutba/editing/history';
@@ -1411,6 +1412,7 @@ function VideoEditor({ app, shell, boot }) {
                         ))}
                       </span>
                     )}
+                    {intro ? null : <RecentFiles shell={shell} app="video" open={false} embedded />}
                   </Empty>
                 </div>
               )}

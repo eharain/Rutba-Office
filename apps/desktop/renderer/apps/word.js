@@ -15,6 +15,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, menuItems, formatWhen, t, tn } from '@rutba/office-ui';
+import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows } from '../shell.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
@@ -413,7 +414,11 @@ export default function Word({ app, shell, boot }) {
 
   /* ── opening and saving ──────────────────────────────────────────────── */
 
+  // The entry page: New, the starter templates and this app's recent files.
+  const [startPage] = useState(wantsStart);
   useEffect(() => {
+    // Opened as the app with nothing asked of it: the entry page, and no document yet.
+    if (startPage) return undefined;
     const template = new URLSearchParams(location.search).get('template');
     // A template of one's own from File → New: a new document made from it.
     const templateFile = new URLSearchParams(location.search).get('templateFile');
@@ -2471,6 +2476,15 @@ export default function Word({ app, shell, boot }) {
 
   const align = (value) => apply({ op: 'setParagraphFormat', delta: { align: value } });
   const setStyle = (style) => apply({ op: 'setParagraphFormat', delta: { style: style || null } });
+
+  if (startPage) {
+    return (
+      <AppFrame app={app} shell={shell} title={APPS.word.short} menu={appMenu}>
+        <StartPage shell={shell} app="word" />
+        <style>{START_PAGE_CSS}</style>
+      </AppFrame>
+    );
+  }
 
   if (error) {
     return (

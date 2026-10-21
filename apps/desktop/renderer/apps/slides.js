@@ -11,6 +11,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, useWheelZoom, menuItems, t, tn, language } from '@rutba/office-ui';
+import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
@@ -698,7 +699,11 @@ export default function Slides({ app, shell, boot }) {
   }, [shell, apply, index]);
 
 
+  // The entry page: New, the starter templates and this app's recent files.
+  const [startPage] = useState(wantsStart);
   useEffect(() => {
+    // Opened as the app with nothing asked of it: the entry page, and no document yet.
+    if (startPage) return undefined;
     const template = new URLSearchParams(location.search).get('template');
     // A template of one's own from File → New: a new deck made from it.
     const templateFile = new URLSearchParams(location.search).get('templateFile');
@@ -2620,6 +2625,15 @@ export default function Slides({ app, shell, boot }) {
   // formatting memo, so a file the engine refused made React throw
   // "rendered fewer hooks than expected" and the person got a blank window
   // instead of the reason — for a truncated deck, twenty seconds of nothing.
+  if (startPage) {
+    return (
+      <AppFrame app={app} shell={shell} title={APPS.slides.short} menu={appMenu}>
+        <StartPage shell={shell} app="slides" />
+        <style>{START_PAGE_CSS}</style>
+      </AppFrame>
+    );
+  }
+
   if (error) {
     return (
       <AppFrame app={app} shell={shell} title={APPS.slides.short} menu={appMenu}>

@@ -12,6 +12,7 @@ import { BASE_CSS } from './base/css.js';
 import { QueryDesigner, QUERY_CSS } from './base/queries.js';
 import { FormView, FORM_CSS } from './base/forms.js';
 import { ReportView, REPORT_CSS } from './base/reports.js';
+import { RecentFiles } from '../start-page.js';
 import { DocumentView, DOCUMENT_CSS } from './base/documents.js';
 
 /** The ready-made databases the start screen offers, in the engine's order (packages/database/src/templates.js). */
@@ -577,6 +578,7 @@ export default function Databases({ app, shell, boot }) {
             >
               {t('Tables of records you keep, related to each other, in one file on this computer.')}
             </Empty>
+            <RecentFiles shell={shell} app="base" onOpen={openFile} open={false} embedded />
             <section className="bs-templates" aria-label={t('Ready-made databases')}>
               <h2>{t('Or start from a ready-made one')}</h2>
               <div className="bs-template-grid">

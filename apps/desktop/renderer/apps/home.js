@@ -82,7 +82,8 @@ export default function Home({ app, shell }) {
 
   useEffect(() => shell.on('update:state', setUpdate), [shell]);
 
-  const openApp = useCallback((key) => shell.win.create({ app: key }), [shell]);
+  // Opened as the app: those with an entry page show it (New, the starters, their recent files).
+  const openApp = useCallback((key) => shell.win.create({ app: key, query: { start: '1' } }), [shell]);
 
   const newDocument = useCallback(
     async (template) => {

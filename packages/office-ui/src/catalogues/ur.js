@@ -7587,4 +7587,6 @@ export default {
   'Needs Rutba Office {version}': 'Rutba Office {version} درکار ہے',
   'Needs Rutba Office {version} or newer. Check for updates.': 'Rutba Office {version} یا نیا درکار ہے۔ اپڈیٹس دیکھیں۔',
   '{name} needs Rutba Office {version} or newer. Check for updates.': '{name} کے لیے Rutba Office {version} یا نیا درکار ہے۔ اپڈیٹس دیکھیں۔',
+  'Files you open in {app} appear here.': '{app} میں کھولی گئی فائلیں یہاں نظر آتی ہیں۔',
+  'Remove {name} from the list': '{name} کو فہرست سے ہٹائیں',
 };

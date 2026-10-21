@@ -12,6 +12,7 @@
 // rest) are worked on the pixels by @rutba/imaging's pixels.js, in the image
 // worker, so a slider never makes the window stutter.
 
+import { RecentFiles } from '../start-page.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ribbon, Group, Rows, Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Select, Dialog, Input, useToast, useCommands, formatBytes, basename, t, tn } from '@rutba/office-ui';
 import { OPS, DEFAULT_ADJUSTMENTS, toCanvasPlan, isIdentity, constrainCrop, markToOperation, spotToOperation, spotInTarget, resizeTo } from '@rutba/imaging/pipeline';
@@ -2255,6 +2256,7 @@ export default function ImageTool({ app, shell, boot }) {
           )}
         >
           {busy ? null : t('Open a picture, paste one, or drop one onto this window. Nothing is changed until you export.')}
+          {busy ? null : <RecentFiles shell={shell} app="image" open={false} embedded />}
         </Empty>
       ) : (
         <>

@@ -36,6 +36,7 @@
 // While there is unsaved work, a copy is kept in the recovery folder for
 // the launcher to offer back after a crash, as Video and Image do.
 
+import { RecentFiles } from '../../start-page.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ribbon, Group, Rows, Button, Spacer, Chip, Empty, Spinner, Dialog, Input, ZoomSlider, useToast, useCommands, useMenu, useWheelZoom,
@@ -1538,7 +1539,7 @@ export default function PdfApp({ app, shell, boot }) {
             {failed}
           </Empty>
         ) : (
-          <div className="pdf-empty" style={{ flex: 1, display: 'grid', placeItems: 'center' }}>
+          <div className="pdf-empty" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'auto', padding: '24px 16px' }}>
             <Empty
               icon="pdf"
               title={busy || t('No PDF open')}
@@ -1551,6 +1552,7 @@ export default function PdfApp({ app, shell, boot }) {
             >
               {busy ? null : t('Open a PDF to read it, or to rotate, move, delete, extract and insert pages. Merge Files combines several into one. Your file is changed only when you save over it.')}
             </Empty>
+            {busy ? null : <RecentFiles shell={shell} app="pdf" open={false} embedded />}
           </div>
         )
       ) : (

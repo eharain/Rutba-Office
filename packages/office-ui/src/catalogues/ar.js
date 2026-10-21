@@ -7589,4 +7589,6 @@ export default {
   'Needs Rutba Office {version}': 'يحتاج Rutba Office {version}',
   'Needs Rutba Office {version} or newer. Check for updates.': 'يحتاج Rutba Office {version} أو أحدث. ابحث عن التحديثات.',
   '{name} needs Rutba Office {version} or newer. Check for updates.': 'يحتاج {name} إلى Rutba Office {version} أو أحدث. ابحث عن التحديثات.',
+  'Files you open in {app} appear here.': 'تظهر هنا الملفات التي تفتحها في {app}.',
+  'Remove {name} from the list': 'إزالة {name} من القائمة',
 };
