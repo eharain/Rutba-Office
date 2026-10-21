@@ -52,7 +52,8 @@ export function calendar(today = new Date()) {
   };
   const time = (offset, hour, minute = 0) => `${day(offset)}T${pad(hour)}:${pad(minute)}:00`;
   const weekday = (offset) => at(offset).getDay();
-  return { day, workday, time, weekday, iso, at };
+  // The hour it is made at, for a till that has only taken money up to now.
+  return { day, workday, time, weekday, iso, at, hour: today.getHours() };
 }
 
 /** First names from many places, and family names, for invented people. */

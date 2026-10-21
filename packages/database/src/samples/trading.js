@@ -16,6 +16,8 @@ const ref = (table) => ({ type: 'integer', points: table });
 const LINE = 'Round([Quantity] * [Unit Price] * (1 - Nz([Discount])), 2)';
 
 export const spec = {
+  // Where a value below nought is right: stock going out, an order already late.
+  negative: { 'Stock Movements': ['Quantity'], 'Orders to ship': ['Days Left'] },
   tables: [
     { name: 'Companies', fields: [
       { name: 'Name', type: 'text', required: true }, { name: 'Kind', type: 'text', default: 'Customer' },
@@ -101,7 +103,8 @@ export const spec = {
     'Unpaid invoices': { tables: ['Invoices', 'Orders', 'Companies'], columns: [
       { table: 'Invoices', field: 'ID', as: 'Invoice' }, { table: 'Companies', field: 'Name', as: 'Customer' }, { table: 'Invoices', field: 'Invoice Date' },
       { table: 'Invoices', field: 'Due Date', sort: 'asc' }, { table: 'Invoices', field: 'Amount' },
-      { expr: 'DateDiff("d", [Due Date], Date())', as: 'Days Overdue' }, { table: 'Invoices', field: 'Paid On', criteria: ['Is Null'], show: false },
+      { expr: 'IIf(DateDiff("d", [Due Date], Date()) > 0, DateDiff("d", [Due Date], Date()), 0)', as: 'Days Overdue' },
+      { table: 'Invoices', field: 'Paid On', criteria: ['Is Null'], show: false },
     ] },
     'Stock value': { tables: ['Products', 'Categories'], columns: [
       { table: 'Categories', field: 'Name', as: 'Category', total: 'group', sort: 'asc' }, { table: 'Products', field: 'Units in Stock', as: 'Units', total: 'sum' },
@@ -123,6 +126,96 @@ export const spec = {
     { name: 'Orders by customer', query: 'Order totals', group: 'Customer', sort: 'Order Date', desc: true, columns: ['Order', { field: 'Order Date', type: 'date' }, 'Status', { field: 'Goods', type: 'currency' }], totals: [{ field: 'Goods', fn: 'sum' }] },
     { name: 'Invoices due', query: 'Unpaid invoices', group: 'Customer', columns: ['Invoice', { field: 'Invoice Date', type: 'date' }, { field: 'Due Date', type: 'date' }, { field: 'Days Overdue', type: 'integer' }, { field: 'Amount', type: 'currency' }], totals: [{ field: 'Amount', fn: 'sum' }] },
     { name: 'Stock to reorder', query: 'Products to reorder', group: 'Supplier', columns: ['Code', 'Product', { field: 'Units in Stock', type: 'integer' }, { field: 'Reorder Level', type: 'integer' }, { field: 'Reorder Quantity', type: 'integer' }] },
+  ],
+};
+
+export const about = {
+  name: 'Northbank Trading',
+  kind: 'Wholesale and trading',
+  line: 'Customers, suppliers, products, orders, purchase orders, stock and invoices for a wholesaler.',
+  summary: [
+    'Northbank Trading is an invented wholesaler of specialty foods and supplies for the trade: teas and coffee, spices, rice and grains, dried fruit and nuts, oils, sauces, baking goods and kitchen supplies. It sells to shops, delis, cafes, restaurants and hotels in ten countries, and buys from a dozen suppliers.',
+    'The sample holds eighteen months of trading, made up a day at a time. Customers order more as the year ends. Each order is cut to what is on the shelf, so stock never goes below nought, and it goes down as orders ship. Twice a week the buyer raises purchase orders for whatever has fallen to its reorder level, and those arrive some days later. Every shipped order is invoiced; most invoices are paid on time, some late, and the newest are not yet due.',
+    'Customers, suppliers and carriers share one Companies table, told apart by their Kind, so a company that both buys from you and sells to you is entered once.',
+  ],
+  suits: ['A distributor or importer', 'A cash and carry', 'A builders\' merchant or parts supplier', 'A wine merchant selling to the trade', 'An online shop that sells to businesses', 'A manufacturer\'s sales office'],
+  tables: {
+    Companies: { about: 'Every business you deal with: customers, suppliers and the carriers who deliver for you.', fields: {
+      Name: 'The company\'s name.', Kind: 'Customer, Supplier or Shipper.', Address: 'The street address.', City: 'The town or city.',
+      Postcode: 'The postcode or ZIP code.', Country: 'The country.', Phone: 'The main phone number.', 'E-mail': 'Where orders or invoices go.',
+      'Payment Days': 'How many days after the invoice payment is due: 30 means thirty days.', 'Credit Limit': 'The most a customer may owe at once.',
+      Notes: 'Anything worth remembering about the company.',
+    } },
+    Contacts: { about: 'The people at each company.', fields: {
+      Company: 'The company they work for.', 'First Name': 'Their first name.', 'Last Name': 'Their family name.',
+      'Job Title': 'Their job, such as Buyer or Account Manager.', 'E-mail': 'Their e-mail address.', Phone: 'Their phone number.',
+    } },
+    Employees: { about: 'Your own staff: sales, buying, the warehouse and accounts.', fields: {
+      'First Name': 'Their first name.', 'Last Name': 'Their family name.', 'Job Title': 'Their job.', 'E-mail': 'Their work e-mail address.',
+      Phone: 'Their work phone number.', Hired: 'The day they joined.',
+    } },
+    Categories: { about: 'The groups your products are sold in.', fields: { Name: 'The group\'s name. Each name is used once.', Description: 'What the group holds.' } },
+    Products: { about: 'What you sell, one record for each line in the catalogue.', fields: {
+      Code: 'Your own product code. Each code is used once.', Name: 'The product as it appears on the catalogue and invoices.',
+      Category: 'The group it is sold in.', Supplier: 'Who you buy it from.', Unit: 'How it is sold, such as a 10 kg sack or a box of 100.',
+      'Cost Price': 'What one unit costs you.', 'List Price': 'What one unit sells for before any discount.',
+      'Units in Stock': 'How many units are in the warehouse now.', 'Reorder Level': 'When stock falls to this level, the product is ordered again.',
+      'Reorder Quantity': 'How many to order each time.', Discontinued: 'Ticked for a product you no longer sell; old orders keep it.',
+    } },
+    Orders: { about: 'Customers\' orders, one record each.', fields: {
+      Customer: 'Who ordered.', Employee: 'The sales person who took it.', 'Order Date': 'The day it was placed.',
+      'Required Date': 'When the customer needs it.', 'Shipped Date': 'The day it left the warehouse; empty until then.',
+      Shipper: 'The carrier taking it.', 'Shipping Fee': 'What the customer pays for delivery.',
+      Status: 'New (not shipped yet), Shipped, Closed (shipped and paid) or Cancelled.', Notes: 'Delivery instructions or anything else.',
+    } },
+    'Order Lines': { about: 'The products on each order.', fields: {
+      Order: 'The order the line belongs to.', Product: 'What was ordered.', Quantity: 'How many units.',
+      'Unit Price': 'The price of one unit on this order, kept so a later price change does not alter it.', Discount: 'The discount as a fraction: 0.05 is five percent.',
+    } },
+    'Purchase Orders': { about: 'Orders you place with your suppliers.', fields: {
+      Supplier: 'Who you ordered from.', Employee: 'Who placed the order.', 'Ordered On': 'The day it was sent.',
+      Expected: 'When the goods should arrive.', 'Received On': 'The day they arrived; empty until then.', Status: 'Submitted or Received.',
+    } },
+    'Purchase Lines': { about: 'The products on each purchase order.', fields: {
+      'Purchase Order': 'The purchase order the line belongs to.', Product: 'What was ordered.', Quantity: 'How many units.', 'Unit Cost': 'What one unit costs on this order.',
+    } },
+    'Stock Movements': { about: 'Every change to stock: goods received, goods sold and corrections from a stock count. Added up, they give what is on the shelf.', fields: {
+      Product: 'The product that moved.', When: 'The day it moved.', Kind: 'Received, Sold or Adjusted.',
+      Quantity: 'How many: above nought coming in, below nought going out.', Reference: 'The order or purchase order it came from, or Stock count.',
+    } },
+    Invoices: { about: 'An invoice for each shipped order.', fields: {
+      Order: 'The order invoiced.', 'Invoice Date': 'The day it was raised, the day the order shipped.', 'Due Date': 'When payment is due, from the customer\'s payment days.',
+      Amount: 'What the invoice comes to, delivery included.', 'Paid On': 'The day it was paid; empty while it is owed.',
+    } },
+  },
+  queries: {
+    'Order totals': 'Every order with its customer, status and the value of its goods after discounts, the newest first.',
+    'Sales by month': 'Sales and units for each month, cancelled orders left out.',
+    'Sales by category': 'What each product group has sold, the biggest first.',
+    'Sales by employee': 'What each sales person has sold.',
+    'Top customers': 'Customers by what they have bought, with their country.',
+    'Products to reorder': 'Products at or below their reorder level, by supplier, with how many to order. Discontinued lines are left out.',
+    'Orders to ship': 'Orders not shipped yet, oldest first, with the days left before the customer needs them.',
+    'Unpaid invoices': 'Invoices not yet paid, by due date, with how many days each is overdue (nought when it is not due yet).',
+    'Stock value': 'Units in stock and their value at cost, by product group.',
+    'Product list': 'The products you still sell, by group and code, with their list prices.',
+    'Purchases on order': 'Purchase orders sent and not yet received, by the day they are expected.',
+  },
+  reports: {
+    'Product catalogue': 'The price list: every product you still sell by group, with its unit and list price.',
+    'Monthly sales': 'One line a month with units and sales, and the totals.',
+    'Orders by customer': 'Each customer\'s orders, the newest first, with a total for each customer.',
+    'Invoices due': 'Unpaid invoices by customer with their due dates, days overdue and a total owed: the list for chasing payment.',
+    'Stock to reorder': 'What to order, on a page for each supplier.',
+  },
+  empty: 'Start with Categories and Companies (your suppliers and carriers first, then your customers), then Employees and Products. Orders, purchase orders, stock movements and invoices come in as you trade. If you already hold stock, enter it as one Received movement per product and set Units in Stock to match.',
+  adapt: [
+    'Sell in more than one currency: add a Currency field to Companies and a rate to Orders, and a calculated column for the amount in your own currency.',
+    'Keep several warehouses: add a Warehouses table, point Stock Movements at it, and group the stock queries by warehouse.',
+    'Record part payments: add a Payments table pointing at Invoices, and an Unpaid invoices query that sums what has been paid against each one.',
+    'Give customers their own prices: add a Price Lists table (customer, product, price) and use it when taking an order.',
+    'Track batches and best-before dates: add a Batch and a Best Before field to Purchase Lines and Stock Movements.',
+    'Add sales tax: add a Tax Rate field to Products and a calculated column for the tax on each line.',
   ],
 };
 
@@ -199,17 +292,21 @@ export function fill(base, { r, cal, days = 540 }) {
 
   const move = (p, when, kind, quantity, reference) => { p.stock += quantity; add('Stock Movements', { Product: p.id, When: when, Kind: kind, Quantity: quantity, Reference: reference }); };
 
+  // Eighteen months from the first of a month, so each month's sales are a whole month's.
+  let start = -days;
+  while (cal.at(start).getDate() !== 1) start++;
+
   // Opening stock, received before the first order.
-  const opening = add('Purchase Orders', { Supplier: suppliers[0], Employee: buyer, 'Ordered On': cal.day(-days - 20), Expected: cal.day(-days - 6), 'Received On': cal.day(-days - 6), Status: 'Received' });
+  const opening = add('Purchase Orders', { Supplier: suppliers[0], Employee: buyer, 'Ordered On': cal.day(start - 20), Expected: cal.day(start - 6), 'Received On': cal.day(start - 6), Status: 'Received' });
   for (const p of products) {
     const n = p.qty * 2;
     add('Purchase Lines', { 'Purchase Order': opening, Product: p.id, Quantity: n, 'Unit Cost': p.cost });
-    move(p, cal.day(-days - 6), 'Received', n, `PO ${opening}`);
+    move(p, cal.day(start - 6), 'Received', n, `PO ${opening}`);
   }
 
   const pending = []; // purchase orders not yet in: { id, at, lines }
   const invoices = [];
-  for (let d = -days; d <= 0; d++) {
+  for (let d = start; d <= 0; d++) {
     const date = cal.day(d);
     const wd = cal.weekday(d);
     if (wd === 0 || wd === 6) continue;

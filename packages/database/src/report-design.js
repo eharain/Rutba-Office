@@ -34,8 +34,10 @@ export function total(fn, values) {
   // Empty values are left out, not counted as nought: an average of 10 and nothing is 10.
   const nums = values.filter((v) => v !== null && v !== undefined && v !== '').map(Number).filter(Number.isFinite);
   if (!nums.length) return null;
-  if (fn === 'sum') return nums.reduce((a, b) => a + b, 0);
-  if (fn === 'avg') return nums.reduce((a, b) => a + b, 0) / nums.length;
+  // Fifteen significant digits, all a double holds for certain: 0.1 + 0.2 is 0.3 here.
+  const clean = (v) => (Number.isInteger(v) ? v : Number(v.toPrecision(15)));
+  if (fn === 'sum') return clean(nums.reduce((a, b) => a + b, 0));
+  if (fn === 'avg') return clean(nums.reduce((a, b) => a + b, 0) / nums.length);
   if (fn === 'min') return Math.min(...nums);
   if (fn === 'max') return Math.max(...nums);
   return null;

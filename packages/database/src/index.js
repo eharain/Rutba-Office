@@ -6,3 +6,5 @@ export { expressionSql, fieldsNamed, FUNCTION_NAMES } from './expression.js';
 export { wizardForm, labelFor, shownField, valueFromControl, GRID } from './form-design.js';
 export { wizardReport, reportData, total } from './report-design.js';
 export { TEMPLATE_IDS, templateTables, buildTemplate } from './templates.js';
+export { SAMPLE_IDS, buildSample, sampleSpec, sampleAbout } from './samples/index.js';
+export { checkSample } from './samples/check.js';

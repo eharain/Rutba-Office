@@ -10,7 +10,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { Base, importRows, importSheets, buildTemplate } from '@rutba/database';
+import { Base, importRows, importSheets, buildTemplate, buildSample } from '@rutba/database';
 import { parseDelimited } from '@rutba/ooxml/mailmerge';
 import { legacySheetKind, readLegacySheets } from '@rutba/office-formats/legacy-sheets';
 import MDBReader from 'mdb-reader';
@@ -62,6 +62,25 @@ export function createBaseService() {
     return id;
   };
 
+  /** A new database at `file`, a file there replaced, filled by `make(base)`; nothing is left behind if that fails. */
+  const made = (file, win, make) => {
+    if (!file || !path.isAbsolute(String(file))) throw new Error('A new database needs a place to be saved.');
+    if (fs.existsSync(file)) {
+      fs.rmSync(file, { force: true });
+      for (const s of ['-wal', '-shm']) fs.rmSync(file + s, { force: true });
+    }
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const id = hold(file, win);
+    try {
+      make(get(id).base);
+    } catch (err) {
+      letGo(id);
+      for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
+      throw err;
+    }
+    return summary(id);
+  };
+
   return {
     /** A new database at `file` (a .rbase, made empty). */
     create: ({ file }, win) => {
@@ -76,23 +95,10 @@ export function createBaseService() {
     },
 
     /** A new database at `file` made from a template: its tables, relationships, queries, forms and reports. */
-    createFromTemplate: ({ file, template }, win) => {
-      if (!file || !path.isAbsolute(String(file))) throw new Error('A new database needs a place to be saved.');
-      if (fs.existsSync(file)) {
-        fs.rmSync(file, { force: true });
-        for (const s of ['-wal', '-shm']) fs.rmSync(file + s, { force: true });
-      }
-      fs.mkdirSync(path.dirname(file), { recursive: true });
-      const id = hold(file, win);
-      try {
-        buildTemplate(get(id).base, template);
-      } catch (err) {
-        letGo(id);
-        for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
-        throw err;
-      }
-      return summary(id);
-    },
+    createFromTemplate: ({ file, template }, win) => made(file, win, (base) => buildTemplate(base, template)),
+
+    /** A new database at `file` made from a sample: its design, and its invented records unless `withData` is false. */
+    createFromSample: ({ file, sample, withData = true }, win) => made(file, win, (base) => buildSample(base, sample, { withData: withData !== false })),
 
     /** Open a database file: ours, or any SQLite database. */
     open: ({ file }, win) => {

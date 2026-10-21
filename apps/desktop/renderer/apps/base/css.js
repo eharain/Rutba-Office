@@ -14,6 +14,16 @@ export const BASE_CSS = `
 .bs-template-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .bs-template-words strong { font-size: 13.5px; font-weight: 600; }
 .bs-template-words small { font-size: 12px; color: var(--ink-2); line-height: 1.35; }
+.bs-samples { margin-top: 18px; }
+.bs-samples-note { margin: -4px 0 10px; font-size: 12.5px; color: var(--ink-2); text-align: center; }
+.bs-sample { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; padding: 12px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-3, 8px); }
+.bs-sample > .bs-template-words { flex: 1 1 0; }
+.bs-sample-actions { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+.bs-sample-actions button { font: inherit; font-size: 12px; min-height: 26px; padding: 3px 10px; border-radius: var(--r-2); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.bs-sample-actions .bs-sample-data { border-color: var(--accent); color: var(--accent); }
+.bs-sample-actions button:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.bs-sample-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bs-sample-actions button:disabled { opacity: .6; cursor: default; }
 .bs-start-actions { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 14px; }
 
 .bs-app { flex: 1; width: 100%; height: 100%; display: flex; min-height: 0; min-width: 0; }
