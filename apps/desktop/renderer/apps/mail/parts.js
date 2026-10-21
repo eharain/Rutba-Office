@@ -551,6 +551,10 @@ select.rw-input { appearance: auto; }
 }
 .ml-rich:focus { border-color: var(--accent-line); }
 .ml-compose-page { position: fixed; inset: var(--titlebar-h, 40px) 0 0 0; z-index: 60; display: flex; flex-direction: column; background: var(--window); }
+/* Docked in the reading pane, in place of the message read there. */
+.ml-compose-docked { height: 100%; min-height: 0; display: flex; flex-direction: column; background: var(--window); }
+.ml-compose-docked .ml-compose-page-head { padding: 8px 14px; }
+.ml-compose-docked .ml-compose-page-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; }
 .ml-compose-page-head { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line-soft); background: var(--chrome); }
 .ml-compose-page-head h2 { margin: 0; font-size: 15px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ml-compose-page-head .grow { flex: 1; }

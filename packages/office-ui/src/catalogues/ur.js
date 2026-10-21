@@ -7163,7 +7163,6 @@ export default {
   'Message: {subject}': 'پیغام: {subject}',
   'Full view': 'پوری اسکرین',
   'Write it in the whole window': 'اسے پوری ونڈو میں لکھیں',
-  'Write it in a box over the mailbox': 'اسے میل باکس کے اوپر ایک خانے میں لکھیں',
   'After {seconds} s': '{seconds} سیکنڈ بعد',
   'At once': 'فوراً',
   'In {seconds} s': '{seconds} سیکنڈ میں',
@@ -7467,4 +7466,7 @@ export default {
   'Sign in with Rutba': 'Rutba کے ساتھ سائن ان کریں',
   'Waiting for the browser…': 'براؤزر کا انتظار ہے…',
   'Your browser opens at auth.rutba.io to sign in, as everywhere on Rutba.': 'سائن ان کے لیے آپ کا براؤزر auth.rutba.io پر کھلتا ہے، جیسے Rutba پر ہر جگہ۔',
+  'Pop out': 'الگ کریں',
+  'Write it in a window of its own': 'اسے الگ ونڈو میں لکھیں',
+  'Write it in the reading pane': 'اسے پڑھنے کے پین میں لکھیں',
 };

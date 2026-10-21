@@ -13,7 +13,7 @@
 // editor next door, and a reply does not need one.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Dialog, Field, Input, Icon, Select, Separator, formatBytes, t } from '@rutba/office-ui';
+import { Button, Field, Input, Icon, Select, Separator, formatBytes, t } from '@rutba/office-ui';
 import { textToHtml, htmlToText, LinkRow, selectionIn } from './richtext.js';
 import { swapSignature, signatureBlockHtml, signatureTextToHtml, SIGNATURE_ATTR } from '@rutba/mailbox/signature';
 import { pathOf } from '@rutba/office-shell/client';
@@ -94,13 +94,18 @@ function AddressInput({ value, onChange, shell, placeholder, autoFocus }) {
 }
 
 /**
- * `full`: the message fills the window below its title bar, as a mail
- * client's own compose page does, instead of a dialog over the mailbox
- * (owner, 2026-10-20: "the email reply is still in a model dialog it should
- * have conversion to full view as normal email is also same for drafts").
- * `onFull(on)` switches, and the window remembers the choice.
+ * Where the message is written (`place`): 'docked' in the reading pane, in
+ * place of the message read there, as Outlook writes a reply; 'full', the
+ * whole window below its title bar (owner, 2026-10-20: "the email reply is
+ * still in a model dialog it should have conversion to full view"); or
+ * 'window', a window of its own (owner, 2026-10-21: "email compose window
+ * should be dockable as the read pane is and should also expand to a
+ * separate window as the read email window does"). `onPlace(next)` moves it
+ * between docked and full, and the window remembers the choice;
+ * `onPopOut(draft)` hands it, as written, to a window of its own.
  */
-export default function Compose({ draft, accounts, accountId, onAccount, onChange, onClose, onSend, onSaveDraft, shell, toast, identities = [], onCertificates, full = false, onFull = null }) {
+export default function Compose({ draft, accounts, accountId, onAccount, onChange, onClose, onSend, onSaveDraft, shell, toast, identities = [], onCertificates, place = 'docked', onPlace = null, onPopOut = null }) {
+  const full = place !== 'docked';
   const bodyRef = useRef(null);
   const [rich, setRich] = useState(draft.rich !== false);
   const [showCc, setShowCc] = useState(Boolean(draft.cc || draft.bcc));
@@ -161,7 +166,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
     selection.addRange(range);
     el.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rich, full]);
+  }, [rich, place]);
 
   const collect = useCallback(() => {
     const el = bodyRef.current;
@@ -207,8 +212,8 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
 
   const total = (draft.attachments || []).reduce((n, a) => n + (a.size || 0), 0);
   const title = draft.subject ? t('Message: {subject}', { subject: draft.subject }) : t('New message');
-  // What is typed is put in the draft first: the editor is drawn again in the other view.
-  const switchView = (on) => { onChange(collect()); onFull?.(on); };
+  // What is typed is put in the draft first: the editor is drawn again in the other place.
+  const switchView = (next) => { onChange(collect()); onPlace?.(next); };
   const buttons = (
     <>
       <Button label={t('Discard')} onClick={onClose} />
@@ -395,13 +400,16 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
       </div>
   );
 
-  if (full) {
+  const popOut = onPopOut ? <Button icon="window" label={t('Pop out')} className="ml-compose-popout" title={t('Write it in a window of its own')} onClick={() => onPopOut(collect())} /> : null;
+
+  if (place === 'docked') {
     return (
-      <div className="ml-compose-page" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="ml-compose ml-compose-docked" role="region" aria-label={title}>
         <div className="ml-compose-page-head">
           <h2>{title}</h2>
           <span className="grow" />
-          {onFull ? <Button icon="restore" label={t('Smaller')} className="ml-compose-small" title={t('Write it in a box over the mailbox')} onClick={() => switchView(false)} /> : null}
+          {popOut}
+          {onPlace ? <Button icon="maximize" label={t('Full view')} className="ml-compose-full" title={t('Write it in the whole window')} onClick={() => switchView('full')} /> : null}
           {buttons}
         </div>
         <div className="ml-compose-page-body">{form}</div>
@@ -410,19 +418,15 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
   }
 
   return (
-    <Dialog
-      title={title}
-      width={760}
-      onClose={onClose}
-      actions={
-        <>
-          {onFull ? <Button icon="maximize" label={t('Full view')} className="ml-compose-full" title={t('Write it in the whole window')} onClick={() => switchView(true)} /> : null}
-          <span style={{ flex: 1 }} />
-          {buttons}
-        </>
-      }
-    >
-      {form}
-    </Dialog>
+    <div className={`ml-compose ml-compose-page${place === 'window' ? ' alone' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div className="ml-compose-page-head">
+        <h2>{title}</h2>
+        <span className="grow" />
+        {popOut}
+        {onPlace && place === 'full' ? <Button icon="restore" label={t('Smaller')} className="ml-compose-small" title={t('Write it in the reading pane')} onClick={() => switchView('docked')} /> : null}
+        {buttons}
+      </div>
+      <div className="ml-compose-page-body">{form}</div>
+    </div>
   );
 }

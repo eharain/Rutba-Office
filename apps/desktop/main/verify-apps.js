@@ -4743,7 +4743,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await setField('To', 'later@example.com');
       await setField('Subject', SUBJECT);
 
-      await js(`document.querySelector('.rw-dialog button[data-tip="Send later"]')?.click(), 'clicked'`);
+      await js(`document.querySelector('.ml-compose button[data-tip="Send later"]')?.click(), 'clicked'`);
       await until(() => js(`Boolean(document.querySelector('.ml-schedule-custom'))`), 'the schedule panel and its custom-time field', 4000);
 
       // A custom time, not one of the presets — the one nothing else proves.
@@ -4756,7 +4756,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const pad2 = (n) => String(n).padStart(2, '0');
       const customAt = `${inOneHour.getFullYear()}-${pad2(inOneHour.getMonth() + 1)}-${pad2(inOneHour.getDate())}T${pad2(inOneHour.getHours())}:${pad2(inOneHour.getMinutes())}`;
       await setValue('.ml-schedule-custom', customAt);
-      await js(`document.querySelector('.rw-dialog button[data-tip="Schedule"]')?.click(), 'clicked'`);
+      await js(`document.querySelector('.ml-compose button[data-tip="Schedule"]')?.click(), 'clicked'`);
       await until(() => js(`!document.querySelector('.ml-to-row')`), 'the composer to close', 5000);
 
       const queued = await js(`(async () => (await window.rutbaOffice.mail.outbox()).find((o) => o.draft?.subject === ${JSON.stringify(SUBJECT)}) || null)()`);
@@ -7116,14 +7116,14 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await clickIn(win, 'Compose');
       await wait(400);
       await js(`(() => {
-        const inputs = [...document.querySelectorAll('.rw-dialog input:not([disabled]):not([type=checkbox])')];
+        const inputs = [...document.querySelectorAll('.ml-compose input:not([disabled]):not([type=checkbox])')];
         const set = (el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); };
         set(inputs[0], 'someone@example.com');
         set(inputs[1], 'Hello from the check');
         return inputs.length;
       })()`);
       await wait(200);
-      await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Send')?.click(), 'sent'`);
+      await js(`[...document.querySelectorAll('.ml-compose .rw-btn')].find((b) => b.textContent.trim() === 'Send')?.click(), 'sent'`);
       await until(async () => (await mail('outbox')).length === 1, 'the message to reach the outbox', 4000).catch(() => {});
       const queued = await mail('outbox');
       const banner = await js(`document.querySelector('.ml-outbox')?.textContent ?? ''`);
@@ -7132,10 +7132,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`document.querySelector('.ml-outbox button')?.click(), 'undo'`);
       await until(async () => (await mail('outbox')).length === 0, 'the message to come back', 4000).catch(() => {});
       // The message comes back first and the window reopens it a frame later.
-      await until(() => js(`Boolean(document.querySelector('.rw-dialog input:not([disabled])')?.value)`), 'the message to reopen', 3000).catch(() => {});
-      const reopened = await js(`Boolean(document.querySelector('.rw-dialog')) && (document.querySelector('.rw-dialog input:not([disabled])')?.value || '')`);
+      await until(() => js(`Boolean(document.querySelector('.ml-compose input:not([disabled])')?.value)`), 'the message to reopen', 3000).catch(() => {});
+      const reopened = await js(`Boolean(document.querySelector('.ml-compose')) && (document.querySelector('.ml-compose input:not([disabled])')?.value || '')`);
       check('mail: Undo takes it back and reopens it', (await mail('outbox')).length === 0 && reopened === 'someone@example.com', `outbox ${(await mail('outbox')).length}; reopened to ${JSON.stringify(reopened)}`);
-      await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Discard')?.click(), 'discarded'`);
+      await js(`[...document.querySelectorAll('.ml-compose .rw-btn')].find((b) => b.textContent.trim() === 'Discard')?.click(), 'discarded'`);
       await wait(300);
 
       // The attachment view is a place, not a search.

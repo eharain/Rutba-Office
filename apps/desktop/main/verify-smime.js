@@ -235,13 +235,13 @@ export async function verifySmime(h) {
     await js(`(() => { if ([...document.querySelectorAll('.rw-field label')].some((l) => l.textContent.trim() === 'Bcc')) return 1; [...document.querySelectorAll('.ml-linkchip')].find((b) => b.textContent.trim() === 'Cc / Bcc')?.click(); return 1; })()`);
     await until(() => js(`[...document.querySelectorAll('.rw-field label')].some((l) => l.textContent.trim() === 'Bcc')`), 'the Bcc line', 4000).catch(() => {});
     const bccSet = await setField('Bcc', people.bo.email);
-    await js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Send')?.click(), 1`);
+    await js(`[...document.querySelectorAll('.ml-compose .rw-btn')].find((b) => b.textContent.trim() === 'Send')?.click(), 1`);
     const bccRefused = await waitFor(() => js(`[...document.querySelectorAll('.rw-toast')].map((n) => n.textContent).find((x) => /Bcc/.test(x)) || ''`), 'the Bcc refusal', 5000);
     const stillOpen = await js(`Boolean(document.querySelector('.ml-to-row'))`);
     check('smime: an encrypted message with a Bcc is refused, saying why, and the message stays open', /Encrypted mail is not sent to Bcc recipients/.test(bccRefused || '') && stillOpen, JSON.stringify({ bccSet, bccRefused, stillOpen }));
     await shot(win, 'smime-11-bcc-refused.png');
     await setField('Bcc', '');
-    await js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Send')?.click(), 1`);
+    await js(`[...document.querySelectorAll('.ml-compose .rw-btn')].find((b) => b.textContent.trim() === 'Send')?.click(), 1`);
     const sentRow = await waitFor(async () => {
       const rows = (await mail('messages', { accountId, folder: 'Sent', limit: 50 })).rows;
       return rows.find((r) => r.subject === 'Re: the sealed terms') || false;

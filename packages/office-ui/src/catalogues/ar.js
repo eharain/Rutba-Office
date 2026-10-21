@@ -7165,7 +7165,6 @@ export default {
   'Message: {subject}': 'رسالة: {subject}',
   'Full view': 'عرض كامل',
   'Write it in the whole window': 'اكتبها في النافذة كلها',
-  'Write it in a box over the mailbox': 'اكتبها في مربع فوق صندوق البريد',
   'After {seconds} s': 'بعد {seconds} ث',
   'At once': 'فورًا',
   'In {seconds} s': 'خلال {seconds} ث',
@@ -7469,4 +7468,7 @@ export default {
   'Sign in with Rutba': 'تسجيل الدخول باستخدام Rutba',
   'Waiting for the browser…': 'بانتظار المتصفح…',
   'Your browser opens at auth.rutba.io to sign in, as everywhere on Rutba.': 'يفتح متصفحك على auth.rutba.io لتسجيل الدخول، كما في كل مكان على Rutba.',
+  'Pop out': 'فتح في نافذة',
+  'Write it in a window of its own': 'اكتبها في نافذة خاصة بها',
+  'Write it in the reading pane': 'اكتبها في جزء القراءة',
 };

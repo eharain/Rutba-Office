@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7459,
+  "count": 7461,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -26711,6 +26711,12 @@
       ]
     },
     {
+      "message": "Pop out",
+      "where": [
+        "apps/desktop/renderer/apps/mail/compose.js"
+      ]
+    },
+    {
       "message": "Port",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
@@ -42977,7 +42983,13 @@
       ]
     },
     {
-      "message": "Write it in a box over the mailbox",
+      "message": "Write it in a window of its own",
+      "where": [
+        "apps/desktop/renderer/apps/mail/compose.js"
+      ]
+    },
+    {
+      "message": "Write it in the reading pane",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js"
       ]

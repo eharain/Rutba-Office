@@ -97,9 +97,33 @@ export default function Mail({ app, shell }) {
   const [progress, setProgress] = useState(null);
   const [dialog, setDialog] = useState(() => (new URLSearchParams(location.search).has('import') ? { kind: 'import' } : null));
   const [compose, setCompose] = useState(null);
-  // A message is written in a dialog or in the whole window, as last chosen.
-  const [composeFull, setComposeFull] = useState(false);
-  useEffect(() => { shell.store.get({ key: 'mail.composeFull', fallback: false }).then((v) => setComposeFull(Boolean(v))).catch(() => {}); }, [shell]);
+  // A message is written docked in the reading pane or in the whole window,
+  // as last chosen (a choice of the whole window before is kept as one); or,
+  // popped out, in a window of its own.
+  const [composePlace, setComposePlace] = useState('docked');
+  useEffect(() => {
+    Promise.all([shell.store.get({ key: 'mail.composePlace', fallback: null }), shell.store.get({ key: 'mail.composeFull', fallback: false })])
+      .then(([placeKept, fullKept]) => setComposePlace(placeKept === 'full' || placeKept === 'docked' ? placeKept : fullKept ? 'full' : 'docked'))
+      .catch(() => {});
+  }, [shell]);
+  // A window of its own for one message being written: its draft handed over through the store, then forgotten there.
+  const composeAlone = useMemo(() => new URLSearchParams(location.search).get('compose') || null, []);
+  const hadCompose = useRef(false);
+  useEffect(() => {
+    if (!composeAlone) return;
+    shell.store.get({ key: composeAlone, fallback: null })
+      .then((draft) => {
+        if (draft) setCompose(draft);
+        return shell.store.set({ key: composeAlone, value: null });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Sent, saved or discarded, the window of its own goes with it.
+  useEffect(() => {
+    if (compose) hadCompose.current = true;
+    else if (composeAlone && hadCompose.current) shell.win.close({}).catch(() => {});
+  }, [compose, composeAlone, shell]);
   // The calendar part of the open message, read and offered as a card.
   const [invitation, setInvitation] = useState(null);
   const [scan, setScan] = useState(null);
@@ -1063,6 +1087,18 @@ export default function Mail({ app, shell }) {
     [shell, toast]
   );
 
+  /** The message being written, as it stands, handed to a Mail window of its own. */
+  const popOutCompose = useCallback(async (draft) => {
+    const key = `mail.handoff.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
+    try {
+      await shell.store.set({ key, value: draft });
+      await shell.win.create({ app: 'mail', query: { compose: key } });
+      setCompose(null);
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    }
+  }, [shell, toast]);
+
   // Opened by another app with a message to write: Contacts' Send mail, or
   // the calendar's reply or invitation with its file attached.
   useEffect(() => {
@@ -1292,6 +1328,35 @@ export default function Mail({ app, shell }) {
       { label: t('Junk email options…'), icon: 'settings', run: () => setDialog({ kind: 'junk' }) },
     ]);
   };
+
+  // Where the message being written goes: in a window of its own, the whole
+  // window; docked where there is a reading pane (or the message read alone in
+  // its window), else the whole window.
+  const placeNow = composeAlone ? 'window' : composePlace === 'docked' && (alone || prefs.layout !== 'off') ? 'docked' : 'full';
+  const composeView = compose ? (
+    <Compose
+      draft={compose}
+      accounts={accounts}
+      accountId={compose.accountId || (unified ? accounts[0]?.id : accountId)}
+      onAccount={(id) => setCompose((d) => ({ ...d, accountId: id }))}
+      onChange={setCompose}
+      onClose={() => setCompose(null)}
+      onSend={doSend}
+      place={placeNow}
+      onPlace={composeAlone ? null : (next) => { setComposePlace(next); shell.store.set({ key: 'mail.composePlace', value: next }).catch(() => {}); }}
+      onPopOut={composeAlone ? null : popOutCompose}
+      onSaveDraft={async (draft) => {
+        await shell.mail.saveDraft({ accountId: draft.accountId || accountId, draft, replaces: draft.replaces || null });
+        toast(t('Saved to Drafts'), { tone: 'good' });
+        setCompose(null);
+        refreshList();
+      }}
+      shell={shell}
+      toast={toast}
+      identities={identities}
+      onCertificates={() => setDialog({ kind: 'certificates', start: 'import' })}
+    />
+  ) : null;
 
   // The message open: in the reading pane, or alone in its own window.
   const readerView = message ? (
@@ -1646,9 +1711,11 @@ export default function Mail({ app, shell }) {
         </div>
       ) : null}
 
-      {alone ? (
+      {composeAlone ? (
+        <Content />
+      ) : alone ? (
         <Content>
-          {readerView || (
+          {placeNow === 'docked' && composeView ? composeView : readerView || (
             <div style={{ padding: 24, display: 'grid', placeItems: 'center' }}>
               <Spinner />
             </div>
@@ -1697,7 +1764,6 @@ export default function Mail({ app, shell }) {
                   title={a.email}
                 />
               ))}
-              <Item icon="plus" label={t('Add account')} onClick={() => setDialog({ kind: 'account' })} />
             </div>
 
             <div className="rw-panel-head">{t('Archives')}</div>
@@ -1777,6 +1843,13 @@ export default function Mail({ app, shell }) {
                 />
               </List>
             ) : null}
+            {/* Add account at the foot of the pane, after the folders and views (owner, 2026-10-21): under
+                the accounts it stood in the way of the folders once the first account was added. */}
+            <div className="ml-add-account">
+              <List>
+                <Item icon="plus" label={t('Add account')} onClick={() => setDialog({ kind: 'account' })} />
+              </List>
+            </div>
           </Panel>
 
           {view === 'files' ? (
@@ -1951,7 +2024,7 @@ export default function Mail({ app, shell }) {
 
               {prefs.layout !== 'off' ? (
                 <Content>
-                  {readerView || (
+                  {placeNow === 'docked' && composeView ? composeView : readerView || (
                     <Empty icon="mail" title={t('No message selected')}>
                       <span className="ml-keys-hint">
                         {t('Choose a message to read it here.')}{' '}
@@ -2195,29 +2268,7 @@ export default function Mail({ app, shell }) {
         </Dialog>
       ) : null}
 
-      {compose ? (
-        <Compose
-          draft={compose}
-          accounts={accounts}
-          accountId={compose.accountId || (unified ? accounts[0]?.id : accountId)}
-          onAccount={(id) => setCompose((d) => ({ ...d, accountId: id }))}
-          onChange={setCompose}
-          onClose={() => setCompose(null)}
-          onSend={doSend}
-          full={composeFull}
-          onFull={(on) => { setComposeFull(on); shell.store.set({ key: 'mail.composeFull', value: on }).catch(() => {}); }}
-          onSaveDraft={async (draft) => {
-            await shell.mail.saveDraft({ accountId: draft.accountId || accountId, draft, replaces: draft.replaces || null });
-            toast(t('Saved to Drafts'), { tone: 'good' });
-            setCompose(null);
-            refreshList();
-          }}
-          shell={shell}
-          toast={toast}
-          identities={identities}
-          onCertificates={() => setDialog({ kind: 'certificates', start: 'import' })}
-        />
-      ) : null}
+      {placeNow !== 'docked' ? composeView : null}
     </AppFrame>
   );
 }
