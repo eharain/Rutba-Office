@@ -45,7 +45,7 @@ Function rutbaPickWords
   StrCpy $rutbaW_video "Video"
   StrCpy $rutbaW_recorder "Recorder"
   StrCpy $rutbaW_talk "Talk"
-  StrCpy $rutbaW_base "Databases"
+  StrCpy $rutbaW_base "Data Files"
   ; The installer's own language, or, where it fell back to English, the system's.
   IntOp $0 $LANGUAGE & 0x3FF
   ${If} $0 == 9
@@ -73,7 +73,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_video "فيديو"
     StrCpy $rutbaW_recorder "المسجّل"
     StrCpy $rutbaW_talk "توك"
-    StrCpy $rutbaW_base "قواعد البيانات"
+    StrCpy $rutbaW_base "ملفات البيانات"
   ${ElseIf} $0 == 32 ; Urdu
     StrCpy $rutbaW_title "ایپس چنیں"
     StrCpy $rutbaW_sub "وہ ایپس جو آپ دیکھنا اور اپنی فائلیں کھولنے کے لیے چاہتے ہیں۔"
@@ -95,7 +95,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_video "ویڈیو"
     StrCpy $rutbaW_recorder "ریکارڈر"
     StrCpy $rutbaW_talk "ٹاک"
-    StrCpy $rutbaW_base "ڈیٹابیسز"
+    StrCpy $rutbaW_base "ڈیٹا فائلز"
   ${ElseIf} $0 == 57 ; Hindi
     StrCpy $rutbaW_title "ऐप चुनें"
     StrCpy $rutbaW_sub "वे ऐप जिन्हें आप देखना और अपनी फ़ाइलें खोलने के लिए चाहते हैं।"
@@ -117,7 +117,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_video "वीडियो"
     StrCpy $rutbaW_recorder "रिकॉर्डर"
     StrCpy $rutbaW_talk "टॉक"
-    StrCpy $rutbaW_base "डेटाबेस"
+    StrCpy $rutbaW_base "डेटा फ़ाइलें"
   ${EndIf}
 FunctionEnd
 !macroend

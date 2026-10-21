@@ -480,7 +480,7 @@ export default function Databases({ app, shell, boot }) {
     }
   };
 
-  const title = db ? db.name : t('Databases');
+  const title = db ? db.name : t('Data Files');
   if (!db) {
     return (
       <AppFrame app={app} shell={shell} title={title} menu={appMenu}>
@@ -488,7 +488,7 @@ export default function Databases({ app, shell, boot }) {
           <div className="bs-start">
             <Empty
               icon="base"
-              title={t('Databases')}
+              title={t('Data Files')}
               action={(
                 <span className="bs-start-actions">
                   <Button primary icon="plus" label={t('New Database')} className="bs-new-db" onClick={newDatabase} />

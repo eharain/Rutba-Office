@@ -142,11 +142,11 @@ export const APPS = {
     icon: 'talk',
   },
   // Tables, relationships, queries, forms and reports in one SQLite file
-  // (D-2026-10-20-17). "Databases" is a working name until the owner names it.
+  // (D-2026-10-20-17). Named Data Files by the owner, 2026-10-21 (D-2026-10-21-09).
   base: {
     key: 'base',
-    name: 'Rutba Databases',
-    short: 'Databases',
+    name: 'Rutba Data Files',
+    short: 'Data Files',
     tagline: 'Tables, relationships and queries in one file',
     accent: '#8e2a52',
     icon: 'base',
