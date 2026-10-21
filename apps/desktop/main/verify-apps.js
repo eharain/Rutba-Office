@@ -5318,7 +5318,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('slides', () => verifyDeckRehearse({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckAction({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckAlbum({ open, check, until, wait, doc }, { dir }));
-  await part('shell', () => verifyScreenshot({ open, check, until, wait, doc }, { dir }));
+  // Captures real windows through the system: the machine's to itself, as a timing is.
+  await part('shell', () => verifyScreenshot({ open, check, until, wait, doc }, { dir }), { machine: true });
   await part('look', () => verifyIcons({ open, check, until, wait, doc }, { dir }));
   await part('word', () => verifyWordImmersive({ open, check, until, wait }, { dir }));
   await part('word', () => verifyWordTheme({ open, check, until, wait, doc }, { dir }));
@@ -5411,7 +5412,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('slides', () => verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('video', () => verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir }));
-  await part('video', () => verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir }));
+  // A minute of 1080p in under a minute is a timing: run alone, or it measures the lanes beside it.
+  await part('video', () => verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   // Talk and the later Video checks: out of Mail's section, so an --apps run of either finds them.
   await part('talk', () => verifyTalk({ open, check, until, wait, errorsIn }));
   await part('base', () => verifyBase({ open, check, until, wait, errorsIn }, { dir }));

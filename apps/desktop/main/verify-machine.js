@@ -18,6 +18,19 @@ export async function verifyMachine({ open, check, until }) {
     check('machine: the system adapters are in use in the machine lane', false, `clipboard ${c.kind}, shortcuts ${shortcuts().kind}`);
     return;
   }
+  // The computer's clipboard can be out of reach for every program at once
+  // (a locked screen, another desktop): said once, plainly, rather than as
+  // four checks reading back nothing.
+  let reachable = false;
+  for (let i = 0; i < 10 && !reachable; i++) {
+    electronClipboard.writeText(`machine probe ${i}`);
+    reachable = electronClipboard.readText() === `machine probe ${i}`;
+    if (!reachable) await new Promise((r) => setTimeout(r, 300));
+  }
+  if (!reachable) {
+    check("machine: the computer's clipboard can be reached (it cannot while the screen is locked or another desktop is showing)", false, 'every write and read for three seconds failed');
+    return;
+  }
   const kept = await electronClipboard.read().catch(() => []);
   try {
     // Words, through the adapter, are on the system clipboard, and back.
