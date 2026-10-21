@@ -491,37 +491,113 @@ function sheetDrawingsXml(drawings, ctx) {
   return out.length ? `<table:shapes>${out.join('')}</table:shapes>` : '';
 }
 
+/**
+ * A cell's look as an automatic table-cell style: its words (weight, slant,
+ * underline, strike, face, size, colour), its fill, its borders, its
+ * alignment and wrapping. `look` is { bold, italic, underline, strike, font,
+ * size (pt), color, fill, borders: { top, right, bottom, left: { style,
+ * colour } }, align, valign, wrap }.
+ */
+function cellStyleXml(name, look) {
+  const text = [
+    look.bold ? 'fo:font-weight="bold" style:font-weight-asian="bold" style:font-weight-complex="bold"' : '',
+    look.italic ? 'fo:font-style="italic" style:font-style-asian="italic" style:font-style-complex="italic"' : '',
+    look.underline ? 'style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"' : '',
+    look.strike ? 'style:text-line-through-style="solid"' : '',
+    look.size ? `fo:font-size="${Number(look.size)}pt"` : '',
+    look.font ? `fo:font-family="${esc(look.font)}"` : '',
+    look.color ? `fo:color="${esc(look.color)}"` : '',
+  ].filter(Boolean).join(' ');
+  const edge = (e) => {
+    const width = { medium: '1.76pt', thick: '2.49pt', double: '2.26pt', mediumDashed: '1.76pt' }[e.style] || '0.74pt';
+    const kind = e.style === 'double' ? 'double' : e.style === 'dotted' ? 'dotted' : /dash/i.test(e.style) ? 'dashed' : 'solid';
+    return `${width} ${kind} ${e.colour || '#000000'}`;
+  };
+  const cell = [
+    look.fill ? `fo:background-color="${esc(look.fill)}"` : '',
+    ...['top', 'right', 'bottom', 'left'].map((side) => (look.borders?.[side] ? `fo:border-${side}="${esc(edge(look.borders[side]))}"` : '')),
+    look.valign ? `style:vertical-align="${{ top: 'top', center: 'middle', bottom: 'bottom' }[look.valign] || 'automatic'}"` : '',
+    look.wrap ? 'fo:wrap-option="wrap"' : '',
+  ].filter(Boolean).join(' ');
+  const align = { left: 'start', center: 'center', right: 'end', justify: 'justify' }[look.align];
+  return `<style:style style:name="${name}" style:family="table-cell">`
+    + (cell ? `<style:table-cell-properties ${cell}/>` : '')
+    + (align ? `<style:paragraph-properties fo:text-align="${align}"/>` : '')
+    + (text ? `<style:text-properties ${text}/>` : '')
+    + '</style:style>';
+}
+
+/** A name for a look, the same look sharing one style. */
+function styleFor(ctx, family, prefix, key, xmlOf) {
+  const id = `${family}|${key}`;
+  if (!ctx.named.has(id)) {
+    const name = `${prefix}${ctx.named.size + 1}`;
+    ctx.named.set(id, name);
+    ctx.styleXml.push(xmlOf(name));
+  }
+  return ctx.named.get(id);
+}
+
+const cmOf = (px) => `${(Number(px) / 96 * 2.54).toFixed(3)}cm`;
+
 export function writeOds({ sheets = [], title = '' } = {}) {
-  // The drawings' styles, charts and pictures, gathered across the sheets.
-  const ctx = { count: 0, styles: 0, styleXml: [], objects: [], pictures: [] };
+  // The drawings' and the cells' styles, charts and pictures, gathered across the sheets.
+  const ctx = { count: 0, styles: 0, styleXml: [], objects: [], pictures: [], named: new Map() };
   const tables = sheets
     .map((sheet, si) => {
       const rows = sheet.rows || [];
       const cols = Math.max(1, ...rows.map((r) => r.length));
+      // Merged cells: the first spans them, the rest are covered.
+      const spans = new Map();
+      const covered = new Set();
+      for (const m of sheet.merges || []) {
+        spans.set(`${m.top},${m.left}`, { cols: m.right - m.left + 1, rows: m.bottom - m.top + 1 });
+        for (let r = m.top; r <= m.bottom; r++) for (let c = m.left; c <= m.right; c++) if (r !== m.top || c !== m.left) covered.add(`${r},${c}`);
+      }
+      const heights = sheet.heights || {};
       const rowXml = rows
-        .map((row) => {
+        .map((row, r) => {
           let xml = '';
           let gap = 0;
           const flush = () => {
             if (gap) xml += gap === 1 ? '<table:table-cell/>' : `<table:table-cell table:number-columns-repeated="${gap}"/>`;
             gap = 0;
           };
-          for (const cell of row) {
-            const attrs = cell ? valueAttrs(cell) : '';
+          for (let c = 0; c < row.length; c++) {
+            const cell = row[c];
+            if (covered.has(`${r},${c}`)) {
+              flush();
+              xml += '<table:covered-table-cell/>';
+              continue;
+            }
+            const attrs = cell && (cell.value !== undefined || cell.text !== undefined) ? valueAttrs(cell) : '';
             const formula = cell?.formula ? formulaToOdf(cell.formula) : null;
-            if (!attrs && !formula) {
+            const look = cell?.look && Object.keys(cell.look).length ? cell.look : null;
+            const span = spans.get(`${r},${c}`);
+            if (!attrs && !formula && !look && !span) {
               gap += 1;
               continue;
             }
             flush();
-            const text = cell.text ?? (cell.value === null || cell.value === undefined ? '' : String(cell.value));
-            xml += `<table:table-cell ${attrs}${formula ? ` table:formula="${esc(formula)}"` : ''}>${text === '' ? '' : `<text:p>${textXml(text)}</text:p>`}</table:table-cell>`;
+            const style = look ? ` table:style-name="${styleFor(ctx, 'cell', 'ce', JSON.stringify(look), (name) => cellStyleXml(name, look))}"` : '';
+            const spanned = span ? ` table:number-columns-spanned="${span.cols}" table:number-rows-spanned="${span.rows}"` : '';
+            const text = cell?.text ?? (cell?.value === null || cell?.value === undefined ? '' : String(cell.value));
+            xml += `<table:table-cell${style}${spanned}${attrs ? ` ${attrs}` : ''}${formula ? ` table:formula="${esc(formula)}"` : ''}>${text === '' ? '' : `<text:p>${textXml(text)}</text:p>`}</table:table-cell>`;
           }
-          return `<table:table-row>${xml || '<table:table-cell/>'}</table:table-row>`;
+          const height = heights[r];
+          const rowStyle = height ? ` table:style-name="${styleFor(ctx, 'row', 'ro', String(height), (name) => `<style:style style:name="${name}" style:family="table-row"><style:table-row-properties style:row-height="${cmOf(height)}" style:use-optimal-row-height="false"/></style:style>`)}"` : '';
+          return `<table:table-row${rowStyle}>${xml || '<table:table-cell/>'}</table:table-row>`;
         })
         .join('');
+      // Each column its width, when the sheet gives one; the rest one run.
+      const widths = sheet.widths || {};
+      const columns = Object.keys(widths).length
+        ? Array.from({ length: cols }, (_, c) => (widths[c]
+          ? `<table:table-column table:style-name="${styleFor(ctx, 'column', 'co', String(widths[c]), (name) => `<style:style style:name="${name}" style:family="table-column"><style:table-column-properties style:column-width="${cmOf(widths[c])}"/></style:style>`)}"/>`
+          : '<table:table-column/>')).join('')
+        : `<table:table-column table:number-columns-repeated="${cols}"/>`;
       // Its drawings first, as the schema orders a table's parts.
-      return `<table:table table:name="${esc(sheet.name || `Sheet${si + 1}`)}">${sheetDrawingsXml(sheet.drawings, ctx)}<table:table-column table:number-columns-repeated="${cols}"/>${rowXml || '<table:table-row><table:table-cell/></table:table-row>'}</table:table>`;
+      return `<table:table table:name="${esc(sheet.name || `Sheet${si + 1}`)}">${sheetDrawingsXml(sheet.drawings, ctx)}${columns}${rowXml || '<table:table-row><table:table-cell/></table:table-row>'}</table:table>`;
     })
     .join('');
 

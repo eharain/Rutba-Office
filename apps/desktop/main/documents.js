@@ -46,6 +46,7 @@ import { ommlToMathml } from '@rutba/ooxml/math';
 import { probeImage } from '@rutba/imaging/probe';
 import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
 import { pixelsToCharWidth } from '@rutba/sheet-view/geometry';
+import { applyFormat, ensureStylesPart } from '@rutba/sheet-view/styles-write';
 import { parseChartXml } from '@rutba/drawing/ooxml';
 import { presetPath } from '@rutba/drawing/presets';
 import { parsePath as parseDeckPath } from '@rutba/presentation/points';
@@ -275,9 +276,80 @@ function odsDrawings(sheet, images) {
 }
 
 /**
+ * How far a sheet reaches once its styled cells count: an empty cell given a
+ * fill or a border is part of what is saved. Within reason past the words: a
+ * style run far down a sheet is a band, not cells to write one by one.
+ */
+function styledBounds(view, name, bounds) {
+  let { maxRow, maxCol } = bounds;
+  const reach = (r, c) => {
+    if (r > bounds.maxRow + 1000 || c > bounds.maxCol + 64) return;
+    maxRow = Math.max(maxRow, r);
+    maxCol = Math.max(maxCol, c);
+  };
+  for (const key of view.cellStyles.get(name)?.keys() || []) {
+    const at = parseRef(key);
+    reach(at.row, at.col);
+  }
+  const { part } = view.workbook._sheetPart(name);
+  for (const row of part.rows || []) {
+    for (const m of String(row.inner || '').matchAll(/<c\b([^>]*)>/g)) {
+      const r = /\br="([A-Z]+\d+)"/.exec(m[1]);
+      if (!r || !/\bs="\d+"/.test(m[1])) continue;
+      const at = parseRef(r[1]);
+      reach(at.row, at.col);
+    }
+  }
+  return { maxRow, maxCol };
+}
+
+/**
+ * A cell's style as the grid reads it (sheet-view styles.js) as the look an
+ * .ods cell style writes (odf-write.js): its words, fill, borders and
+ * alignment; null when it has none of them.
+ */
+function odsLookOf(style) {
+  if (!style) return null;
+  const f = style.font || {};
+  const look = {};
+  if (f.bold) look.bold = true;
+  if (f.italic) look.italic = true;
+  if (f.underline) look.underline = true;
+  if (f.strike) look.strike = true;
+  if (f.family) look.font = f.family;
+  if (f.sizePt) look.size = f.sizePt;
+  if (f.colour && /^#[0-9a-f]{6}$/i.test(f.colour) && f.colour.toUpperCase() !== '#000000') look.color = f.colour.toUpperCase();
+  if (style.fill?.colour && /^#[0-9a-f]{6}$/i.test(style.fill.colour)) look.fill = style.fill.colour.toUpperCase();
+  const borders = {};
+  for (const side of ['top', 'right', 'bottom', 'left']) {
+    const e = style.border?.[side];
+    if (!e) continue;
+    borders[side] = { style: e.style === 'double' ? 'double' : e.style === 'dotted' ? 'dotted' : e.style === 'dashed' ? 'dashed' : e.widthPx >= 3 ? 'thick' : e.widthPx >= 2 ? 'medium' : 'thin', colour: e.colour || '#000000' };
+  }
+  if (Object.keys(borders).length) look.borders = borders;
+  const a = style.align || {};
+  if (['left', 'center', 'right', 'justify'].includes(a.horizontal)) look.align = a.horizontal;
+  if (['top', 'center', 'bottom'].includes(a.vertical)) look.valign = a.vertical;
+  if (a.wrap) look.wrap = true;
+  return Object.keys(look).length ? look : null;
+}
+
+/** A cell's look as an .ods gives it (odf.js readCellLooks), as the grid's Format Cells delta. */
+export function lookDelta(look) {
+  const delta = {
+    bold: look.bold, italic: look.italic, underline: look.underline, strike: look.strike,
+    fontName: look.font, fontSize: look.size, fontColour: look.color, fill: look.fill,
+    border: look.borders, align: look.align, valign: look.valign, wrap: look.wrap,
+  };
+  for (const k of Object.keys(delta)) if (delta[k] === undefined) delete delta[k];
+  return delta;
+}
+
+/**
  * An .ods as a workbook: the values, formulas, merges and number formats,
  * then what the sheet's layout said — its column widths, row heights, the
- * rows and columns it hides, the panes it keeps frozen — and its drawings.
+ * rows and columns it hides, the panes it keeps frozen, its drawings, and
+ * each cell's look: its words, fill, borders and alignment.
  */
 function odfSheetsToWorkbook(odf) {
   const sheets = odf.sheets || [];
@@ -313,7 +385,8 @@ function odfSheetsToWorkbook(odf) {
   // A row height the default (20 px) does not give, kept.
   const tall = (s) => Object.entries(s.heights || {}).filter(([, px]) => Math.abs(px - 20) > 1);
   const layouts = sheets.filter((s) => s.hiddenRows?.length || s.hiddenCols?.length || s.frozen || Object.keys(s.widths || {}).length || tall(s).length);
-  if (!layouts.length) return built;
+  const looked = sheets.some((s) => Object.keys(s.looks || {}).length);
+  if (!layouts.length && !looked) return built;
   const wb = Workbook.open(built);
   const names = wb.sheetNames();
   sheets.forEach((s, i) => {
@@ -327,6 +400,25 @@ function odfSheetsToWorkbook(odf) {
     if (s.hiddenRows?.length) wb.setRowsHidden(name, Math.min(...s.hiddenRows), Math.max(...s.hiddenRows), new Set(s.hiddenRows));
     if (s.frozen) wb.setFrozenPane(name, s.frozen.rows, s.frozen.cols);
   });
+  // Each cell's look, through the grid's own Format Cells, so it reads back as the grid wrote it.
+  if (looked) {
+    ensureStylesPart(wb.pkg);
+    let xml = wb.pkg.text('xl/styles.xml');
+    sheets.forEach((s, i) => {
+      const name = names[i];
+      if (!name) return;
+      const { part } = wb._sheetPart(name);
+      for (const [cellRef, look] of Object.entries(s.looks || {})) {
+        const { row, col } = parseRef(cellRef);
+        const had = part.getCell(row, col)?.style;
+        const base = had == null ? null : Number(had);
+        const out = applyFormat(xml, base, lookDelta(look));
+        xml = out.xml;
+        if (out.index !== base) wb.setCellStyle(name, cellRef, out.index);
+      }
+    });
+    wb.pkg.write_('xl/styles.xml', xml);
+  }
   return wb.save();
 }
 
@@ -3834,22 +3926,29 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       try {
         for (const name of view.sheetNames()) {
           view.selectSheet(name);
-          const bounds = view.bounds;
+          const bounds = styledBounds(view, name, view.bounds);
           const rows = [];
           for (let r = 0; r <= bounds.maxRow; r++) {
             const row = [];
             for (let c = 0; c <= bounds.maxCol; c++) {
               const input = view.editValue(r, c);
+              const look = odsLookOf(view.styleFor(r, c));
               if (input === '') {
-                row.push(null);
+                // An empty cell keeps its fill and borders: a shaded band is a real thing.
+                row.push(look && (look.fill || look.borders) ? { look } : null);
                 continue;
               }
               const value = view.calc.getValue(name, r, c);
-              row.push({ value, text: view.displayValue(r, c)?.text ?? '', formula: input.startsWith('=') ? input : null, format: view.formatFor(r, c) });
+              row.push({ value, text: view.displayValue(r, c)?.text ?? '', formula: input.startsWith('=') ? input : null, format: view.formatFor(r, c), ...(look ? { look } : {}) });
             }
             rows.push(row);
           }
-          sheets.push({ name, rows, drawings: odsDrawingsOf(view, name) });
+          // Its columns' widths and rows' heights where they are not the default, and its merged cells.
+          const widths = {};
+          const heights = {};
+          for (const [c, px] of view.geo.colWidths || []) if (c <= bounds.maxCol + 32) widths[c] = px;
+          for (const [r, px] of view.geo.rowHeights || []) if (r <= bounds.maxRow + 32) heights[r] = px;
+          sheets.push({ name, rows, widths, heights, merges: view.merges.get(name) || [], drawings: odsDrawingsOf(view, name) });
         }
       } finally {
         if (current) view.selectSheet(current);

@@ -116,7 +116,10 @@ function readTextBody(body) {
 /** What a sheet draws: frames (charts, pictures, words), shapes, lines, groups. */
 const DRAWN = new Set(['draw:frame', 'draw:custom-shape', 'draw:rect', 'draw:ellipse', 'draw:circle', 'draw:line', 'draw:connector', 'draw:g']);
 
-function readTable(table, rowHeights = new Map()) {
+/** Most a run of shaded empty cells is kept for, across or down: a style repeated to the sheet's edge is a band, not cells. */
+const SHADED_RUN = 256;
+
+function readTable(table, rowHeights = new Map(), shaded = () => false) {
   const rows = [];
   const hiddenRows = [];
   // The drawings anchored in its cells, with the cell, and those on the sheet's page itself.
@@ -149,7 +152,9 @@ function readTable(table, rowHeights = new Map()) {
         style: c.attrs['table:style-name'] || null,
         covered: c.name === 'table:covered-table-cell',
       };
-      if (!cell.text && cell.value == null && !cell.formula && !cell.covered && cell.colspan === 1 && cell.rowspan === 1) {
+      // An empty cell its style shades or borders is kept, as a cell with words is, within reason.
+      cell.shaded = Boolean(!cell.text && cell.value == null && !cell.formula && cell.style && shaded(cell.style) && repeat <= SHADED_RUN && rowRepeat <= SHADED_RUN);
+      if (!cell.text && cell.value == null && !cell.formula && !cell.covered && cell.colspan === 1 && cell.rowspan === 1 && !cell.shaded) {
         pending += repeat;
         runs.push([cell, repeat]);
         continue;
@@ -161,7 +166,7 @@ function readTable(table, rowHeights = new Map()) {
       for (let i = 0; i < repeat; i++) cells.push(i === 0 ? cell : { ...cell });
     }
     // Trim the trailing run of empty cells ODF writes to pad the row.
-    while (cells.length && !cells[cells.length - 1].text && cells[cells.length - 1].value == null) cells.pop();
+    while (cells.length && !cells[cells.length - 1].text && cells[cells.length - 1].value == null && !cells[cells.length - 1].shaded) cells.pop();
     for (let i = 0; i < rowRepeat; i++) {
       if (rowHidden && rows.length < 200000) hiddenRows.push(rows.length);
       rows.push(cells.map((c) => ({ ...c })));
@@ -183,9 +188,9 @@ const colName = (i) => {
  * format each styled cell wears — `formats` maps an automatic cell style's
  * name to a format code, see readDataStyles.
  */
-function readSheets(body, formats = new Map(), columnWidths = new Map(), { rowHeights = new Map(), styles = () => ({}) } = {}) {
+function readSheets(body, formats = new Map(), columnWidths = new Map(), { rowHeights = new Map(), styles = () => ({}), looks = new Map() } = {}) {
   return all(body, 'table:table').map((t) => {
-    const table = readTable(t, rowHeights);
+    const table = readTable(t, rowHeights, (name) => Boolean(looks.get(name)?.fill || looks.get(name)?.borders));
     // The columns, in order: which are hidden, and each one's width (px) from its style.
     const hiddenCols = [];
     const widths = {};
@@ -200,12 +205,15 @@ function readSheets(body, formats = new Map(), columnWidths = new Map(), { rowHe
     }
     const merges = [];
     const cellFormats = {};
+    const cellLooks = {};
     table.rows.forEach((row, r) => {
       row.forEach((cell, c) => {
         if (cell.covered) return;
         if (cell.colspan > 1 || cell.rowspan > 1) merges.push(`${colName(c)}${r + 1}:${colName(c + cell.colspan - 1)}${r + cell.rowspan}`);
         const fmt = cell.style && formats.get(cell.style);
         if (fmt) cellFormats[`${colName(c)}${r + 1}`] = fmt;
+        const look = cell.style && looks.get(cell.style);
+        if (look) cellLooks[`${colName(c)}${r + 1}`] = look;
       });
     });
     // Its drawings, each with the cell it is anchored in (null on the page) and its offset from there.
@@ -213,7 +221,7 @@ function readSheets(body, formats = new Map(), columnWidths = new Map(), { rowHe
     for (const { row, col, node } of table.drawings) {
       for (const d of readDrawings({ children: [node] }, styles)) drawings.push({ ...d, anchor: row == null ? null : { row, col } });
     }
-    return { name: table.name, rows: table.rows, merges, formats: cellFormats, hiddenRows: table.hiddenRows, hiddenCols: hiddenCols.filter((c) => c < 1024), widths, heights: table.heights, drawings };
+    return { name: table.name, rows: table.rows, merges, formats: cellFormats, looks: cellLooks, hiddenRows: table.hiddenRows, hiddenCols: hiddenCols.filter((c) => c < 1024), widths, heights: table.heights, drawings };
   });
 }
 
@@ -311,6 +319,70 @@ function readDataStyles(roots) {
     }
   }
   return byCell;
+}
+
+/** An ODF border, "0.75pt solid #000000", as an OOXML edge: { style, colour }, or null for none. */
+export function borderOf(value) {
+  const text = String(value ?? '').trim();
+  if (!text || text === 'none' || / none\b|^none\b|hidden/.test(text)) return null;
+  const colour = /#[0-9a-fA-F]{6}/.exec(text)?.[0] || '#000000';
+  const width = lengthPx(/^[\d.]+\s*[a-z]+/.exec(text)?.[0]) ?? 1;
+  const style = /double/.test(text) ? 'double' : /dotted/.test(text) ? 'dotted' : /dash/.test(text) ? (width >= 2 ? 'mediumDashed' : 'dashed') : width >= 2.5 ? 'thick' : width >= 1.5 ? 'medium' : 'thin';
+  return { style, colour: colour.toUpperCase() };
+}
+
+/**
+ * What each automatic or named cell style makes a cell look like: its words
+ * (weight, slant, underline, strike, face, size, colour), its fill, its
+ * borders and its alignment, a style's parent filling in what it does not
+ * say. The suite's Default and the file's default style are left out: they
+ * are the sheet's own look, not a cell's.
+ */
+function readCellLooks(roots) {
+  const raw = new Map();
+  for (const root of roots.filter(Boolean)) {
+    for (const st of all(root, 'style:style')) {
+      if (st.attrs['style:family'] !== 'table-cell') continue;
+      const name = st.attrs['style:name'];
+      if (!name || name === 'Default') continue;
+      const text = first(st, 'style:text-properties')?.attrs || {};
+      const cell = first(st, 'style:table-cell-properties')?.attrs || {};
+      const para = first(st, 'style:paragraph-properties')?.attrs || {};
+      const look = {};
+      if (text['fo:font-weight']) look.bold = /^(bold|[6-9]00)$/.test(text['fo:font-weight']);
+      if (text['fo:font-style']) look.italic = text['fo:font-style'] === 'italic' || text['fo:font-style'] === 'oblique';
+      if (text['style:text-underline-style']) look.underline = text['style:text-underline-style'] !== 'none';
+      if (text['style:text-line-through-style']) look.strike = text['style:text-line-through-style'] !== 'none';
+      if (/pt$/.test(text['fo:font-size'] || '')) look.size = Number.parseFloat(text['fo:font-size']);
+      const face = text['fo:font-family'] || text['style:font-name'];
+      if (face) look.font = face.replace(/^['"]|['"]$/g, '');
+      if (/^#[0-9a-fA-F]{6}$/.test(text['fo:color'] || '')) look.color = text['fo:color'].toUpperCase();
+      if (/^#[0-9a-fA-F]{6}$/.test(cell['fo:background-color'] || '')) look.fill = cell['fo:background-color'].toUpperCase();
+      const borders = {};
+      for (const side of ['top', 'right', 'bottom', 'left']) {
+        const edge = borderOf(cell[`fo:border-${side}`] ?? cell['fo:border']);
+        if (edge) borders[side] = edge;
+      }
+      if (Object.keys(borders).length) look.borders = borders;
+      const align = { start: 'left', left: 'left', center: 'center', end: 'right', right: 'right', justify: 'justify' }[para['fo:text-align']];
+      if (align) look.align = align;
+      const valign = { top: 'top', middle: 'center', bottom: 'bottom' }[cell['style:vertical-align']];
+      if (valign) look.valign = valign;
+      if (cell['fo:wrap-option'] === 'wrap') look.wrap = true;
+      raw.set(name, { parent: st.attrs['style:parent-style-name'] || null, look });
+    }
+  }
+  const resolve = (name, depth = 0) => {
+    const own = raw.get(name);
+    if (!own) return {};
+    return { ...(own.parent && depth < 8 ? resolve(own.parent, depth + 1) : {}), ...own.look };
+  };
+  const out = new Map();
+  for (const name of raw.keys()) {
+    const look = resolve(name);
+    if (Object.keys(look).length) out.set(name, look);
+  }
+  return out;
 }
 
 /** An ODF length — "2.5cm", "12mm", "1in", "72pt", "96px" — in CSS pixels; null for none. */
@@ -744,7 +816,7 @@ export function readOdf(bytes) {
     const stylesXml = textPart(map, 'styles.xml');
     const formats = readDataStyles([root, stylesXml ? parse(stylesXml) : null]);
     const stylesRoot = stylesXml ? parse(stylesXml) : null;
-    out.sheets = readSheets(body, formats, readColumnWidths([root, stylesRoot]), { rowHeights: readRowHeights([root, stylesRoot]), styles: readGraphicStyles([stylesRoot, root]) });
+    out.sheets = readSheets(body, formats, readColumnWidths([root, stylesRoot]), { rowHeights: readRowHeights([root, stylesRoot]), styles: readGraphicStyles([stylesRoot, root]), looks: readCellLooks([stylesRoot, root]) });
     out.names = readNames(body);
     // Each sheet's charts, read from their own parts with the cells they plot.
     const byName = new Map(out.sheets.map((s) => [s.name, s]));
