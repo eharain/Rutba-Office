@@ -49,6 +49,8 @@ const TOLD_KEY = 'talk.told';
 const TOLD_CAP = 500;
 /** How long an answer to a question put to the introducer is waited for. */
 const ASK_MS = 15000;
+/** Asking with Rutba's email waits for the email to be decided: up to 20 s on a slow relay. */
+const ASK_MAIL_MS = 30000;
 /** Where a friend without Rutba Office gets it (D-2026-10-21-28). */
 export const DOWNLOAD_URL = 'https://office.rutba.io/download';
 const BACKOFF = [2, 4, 8, 15, 30];
@@ -100,10 +102,10 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     a.resolve(msg.type === 'error' ? { error: msg.code || 'server' } : msg);
   };
   /** Sends `msg` and answers with what the introducer said: the answer, or { error: code }. */
-  const ask = (msg, answer, match = null) => new Promise((resolve) => {
+  const ask = (msg, answer, match = null, waitMs = ASK_MS) => new Promise((resolve) => {
     const ref = `r${++refs}`;
     const a = { sent: msg.type, resolve, match: (m) => m.type === answer && (match ? match(m) : m.ref == null || m.ref === ref) };
-    a.timer = setTimeout(() => { const i = asking.indexOf(a); if (i >= 0) asking.splice(i, 1); resolve({ error: 'no-answer' }); }, ASK_MS);
+    a.timer = setTimeout(() => { const i = asking.indexOf(a); if (i >= 0) asking.splice(i, 1); resolve({ error: 'no-answer' }); }, waitMs);
     a.timer.unref?.();
     asking.push(a);
     try {
@@ -161,7 +163,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     if (!account || account.local || !mail?.send) return { by: 'own', sent: false, reason: 'no-account' };
     if (!link) return { by: 'own', from: account.email, sent: false, reason: 'no-link' };
     const join = `${DOWNLOAD_URL}?invite=${encodeURIComponent(inviteCode(link) || '')}`;
-    const fill = (text) => String(text || '').replaceAll('{accept}', link).replaceAll('{join}', join);
+    const fill = (text) => String(text || '').replaceAll('{accept}', () => link).replaceAll('{join}', () => join);
     const subject = fill(letter?.subject) || 'Talk with me on Rutba Talk';
     const text = fill(letter?.text) || `I would like to talk with you on Rutba Talk.\n\nAccept: ${link}\n\nNo Rutba Office yet? Accept with a free Rutba account on that page, then get Rutba Office: ${join}\n`;
     try {
@@ -430,7 +432,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
      */
     invite: async ({ email, note = '', how = 'none', accountId = null, letter = null } = {}) => {
       const address = String(email || '').trim();
-      const r = await ask({ type: 'contact.request', email: address, note: String(note || ''), notify: how === 'rutba' ? 'rutba' : 'none' }, 'contact.request.sent');
+      const r = await ask({ type: 'contact.request', email: address, note: String(note || ''), notify: how === 'rutba' ? 'rutba' : 'none' }, 'contact.request.sent', null, how === 'rutba' ? ASK_MAIL_MS : ASK_MS);
       if (r.error) return { error: r.error };
       if (r.contact) return { contact: r.contact };
       const request = r.request;
@@ -475,7 +477,8 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     acceptInvite: async ({ link } = {}) => {
       const code = inviteCode(link);
       if (!code) return { error: 'no-invite' };
-      const r = await ask({ type: 'invite.accept', code }, 'contact.added', () => true);
+      // The introducer names the code it accepted; one from before it did is taken as this one.
+      const r = await ask({ type: 'invite.accept', code }, 'contact.added', (m) => m.code == null || m.code === code);
       return r.error ? { error: r.error } : { contact: r.contact };
     },
 
