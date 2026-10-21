@@ -24,7 +24,8 @@ function shown(type, v) {
 /** The report as a page: the same for the screen, the printer and the PDF. */
 function ReportPage({ data, today }) {
   const { layout, fields } = data;
-  const typeOf = Object.fromEntries(fields.map((f) => [f.name, f.type]));
+  // A column may say how it is shown (an amount from a query, which has no field types of its own).
+  const typeOf = { ...Object.fromEntries(fields.map((f) => [f.name, f.type])), ...Object.fromEntries(layout.columns.filter((c) => c.type).map((c) => [c.field, c.type])) };
   const totals = layout.totals || [];
   const totalRow = (values, label, cls) => (totals.length ? (
     <tr className={cls}>

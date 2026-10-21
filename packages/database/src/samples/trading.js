@@ -1,0 +1,289 @@
+// The trading company: Northbank Trading, an invented wholesaler of
+// specialty foods and household goods selling to shops, cafes and hotels in
+// ten countries. Customers, suppliers and carriers in one Companies table,
+// their contacts, the staff, products in categories, orders and their lines,
+// purchase orders and theirs, every movement of stock, and invoices.
+//
+// Its records come from eighteen months of trading, run a day at a time:
+// customers order more as the year ends, stock goes down as orders ship, a
+// weekly check raises purchase orders that arrive some days later, and
+// invoices are paid on time, late or not yet. The questions a wholesaler
+// asks are its saved queries; its reports print them.
+
+import { address, companies, money, person, phoneFor, PLACES } from './util.js';
+
+const ref = (table) => ({ type: 'integer', points: table });
+const LINE = 'Round([Quantity] * [Unit Price] * (1 - Nz([Discount])), 2)';
+
+export const spec = {
+  tables: [
+    { name: 'Companies', fields: [
+      { name: 'Name', type: 'text', required: true }, { name: 'Kind', type: 'text', default: 'Customer' },
+      { name: 'Address', type: 'text' }, { name: 'City', type: 'text' }, { name: 'Postcode', type: 'text' }, { name: 'Country', type: 'text' },
+      { name: 'Phone', type: 'text' }, { name: 'E-mail', type: 'text' }, { name: 'Payment Days', type: 'integer', default: 30 },
+      { name: 'Credit Limit', type: 'currency' }, { name: 'Notes', type: 'longtext' },
+    ] },
+    { name: 'Contacts', fields: [
+      { name: 'Company', ...ref('Companies'), required: true }, { name: 'First Name', type: 'text' }, { name: 'Last Name', type: 'text', required: true },
+      { name: 'Job Title', type: 'text' }, { name: 'E-mail', type: 'text' }, { name: 'Phone', type: 'text' },
+    ] },
+    { name: 'Employees', fields: [
+      { name: 'First Name', type: 'text' }, { name: 'Last Name', type: 'text', required: true }, { name: 'Job Title', type: 'text' },
+      { name: 'E-mail', type: 'text' }, { name: 'Phone', type: 'text' }, { name: 'Hired', type: 'date' },
+    ] },
+    { name: 'Categories', fields: [{ name: 'Name', type: 'text', required: true, unique: true }, { name: 'Description', type: 'text' }] },
+    { name: 'Products', fields: [
+      { name: 'Code', type: 'text', unique: true }, { name: 'Name', type: 'text', required: true }, { name: 'Category', ...ref('Categories') },
+      { name: 'Supplier', ...ref('Companies') }, { name: 'Unit', type: 'text' }, { name: 'Cost Price', type: 'currency' }, { name: 'List Price', type: 'currency' },
+      { name: 'Units in Stock', type: 'integer', default: 0 }, { name: 'Reorder Level', type: 'integer', default: 10 },
+      { name: 'Reorder Quantity', type: 'integer', default: 40 }, { name: 'Discontinued', type: 'yesno' },
+    ] },
+    { name: 'Orders', fields: [
+      { name: 'Customer', ...ref('Companies'), required: true }, { name: 'Employee', ...ref('Employees') }, { name: 'Order Date', type: 'date' },
+      { name: 'Required Date', type: 'date' }, { name: 'Shipped Date', type: 'date' }, { name: 'Shipper', ...ref('Companies') },
+      { name: 'Shipping Fee', type: 'currency' }, { name: 'Status', type: 'text', default: 'New' }, { name: 'Notes', type: 'longtext' },
+    ] },
+    { name: 'Order Lines', fields: [
+      { name: 'Order', ...ref('Orders'), required: true }, { name: 'Product', ...ref('Products'), required: true },
+      { name: 'Quantity', type: 'integer', default: 1 }, { name: 'Unit Price', type: 'currency' }, { name: 'Discount', type: 'number', default: 0 },
+    ] },
+    { name: 'Purchase Orders', fields: [
+      { name: 'Supplier', ...ref('Companies'), required: true }, { name: 'Employee', ...ref('Employees') }, { name: 'Ordered On', type: 'date' },
+      { name: 'Expected', type: 'date' }, { name: 'Received On', type: 'date' }, { name: 'Status', type: 'text', default: 'Submitted' },
+    ] },
+    { name: 'Purchase Lines', fields: [
+      { name: 'Purchase Order', ...ref('Purchase Orders'), required: true }, { name: 'Product', ...ref('Products'), required: true },
+      { name: 'Quantity', type: 'integer' }, { name: 'Unit Cost', type: 'currency' },
+    ] },
+    { name: 'Stock Movements', fields: [
+      { name: 'Product', ...ref('Products'), required: true }, { name: 'When', type: 'date' }, { name: 'Kind', type: 'text' },
+      { name: 'Quantity', type: 'integer' }, { name: 'Reference', type: 'text' },
+    ] },
+    { name: 'Invoices', fields: [
+      { name: 'Order', ...ref('Orders'), required: true }, { name: 'Invoice Date', type: 'date' }, { name: 'Due Date', type: 'date' },
+      { name: 'Amount', type: 'currency' }, { name: 'Paid On', type: 'date' },
+    ] },
+  ],
+  queries: {
+    'Order totals': { tables: ['Orders', 'Companies', 'Order Lines'], columns: [
+      { table: 'Orders', field: 'ID', as: 'Order', total: 'group' }, { table: 'Orders', field: 'Order Date', total: 'group', sort: 'desc' },
+      { table: 'Companies', field: 'Name', as: 'Customer', total: 'group' }, { table: 'Orders', field: 'Status', total: 'group' },
+      { expr: LINE, as: 'Goods', total: 'sum' },
+    ] },
+    'Sales by month': { tables: ['Orders', 'Order Lines'], columns: [
+      { expr: 'Format([Order Date], "yyyy-mm")', as: 'Month', total: 'group', sort: 'asc' },
+      { expr: LINE, as: 'Sales', total: 'sum' }, { table: 'Order Lines', field: 'Quantity', as: 'Units', total: 'sum' },
+      { table: 'Orders', field: 'Status', total: 'where', criteria: ['<> "Cancelled"'] },
+    ] },
+    'Sales by category': { tables: ['Order Lines', 'Orders', 'Products', 'Categories'], columns: [
+      { table: 'Categories', field: 'Name', as: 'Category', total: 'group' }, { expr: LINE, as: 'Sales', total: 'sum', sort: 'desc' },
+      { table: 'Order Lines', field: 'Quantity', as: 'Units', total: 'sum' }, { table: 'Orders', field: 'Status', total: 'where', criteria: ['<> "Cancelled"'] },
+    ] },
+    'Sales by employee': { tables: ['Orders', 'Employees', 'Order Lines'], columns: [
+      { expr: '[First Name] & " " & [Last Name]', as: 'Employee', total: 'group' }, { expr: LINE, as: 'Sales', total: 'sum', sort: 'desc' },
+      { table: 'Orders', field: 'Status', total: 'where', criteria: ['<> "Cancelled"'] },
+    ] },
+    'Top customers': { tables: ['Companies', 'Orders', 'Order Lines'], columns: [
+      { table: 'Companies', field: 'Name', as: 'Customer', total: 'group' }, { table: 'Companies', field: 'Country', total: 'group' },
+      { expr: LINE, as: 'Sales', total: 'sum', sort: 'desc' }, { table: 'Orders', field: 'Status', total: 'where', criteria: ['<> "Cancelled"'] },
+    ] },
+    'Products to reorder': { tables: ['Products', 'Companies'], columns: [
+      { table: 'Companies', field: 'Name', as: 'Supplier', sort: 'asc' }, { table: 'Products', field: 'Code' }, { table: 'Products', field: 'Name', as: 'Product' },
+      { table: 'Products', field: 'Units in Stock' }, { table: 'Products', field: 'Reorder Level' }, { table: 'Products', field: 'Reorder Quantity' },
+      { expr: '[Units in Stock] - [Reorder Level]', as: 'Above Reorder Level', criteria: ['<= 0'], show: false },
+      { table: 'Products', field: 'Discontinued', criteria: ['No'], show: false },
+    ] },
+    'Orders to ship': { tables: ['Orders', 'Companies'], columns: [
+      { table: 'Orders', field: 'ID', as: 'Order' }, { table: 'Orders', field: 'Order Date', sort: 'asc' }, { table: 'Companies', field: 'Name', as: 'Customer' },
+      { table: 'Orders', field: 'Required Date' }, { expr: 'DateDiff("d", Date(), [Required Date])', as: 'Days Left' },
+      { table: 'Orders', field: 'Shipped Date', criteria: ['Is Null'], show: false }, { table: 'Orders', field: 'Status', criteria: ['<> "Cancelled"'], show: false },
+    ] },
+    'Unpaid invoices': { tables: ['Invoices', 'Orders', 'Companies'], columns: [
+      { table: 'Invoices', field: 'ID', as: 'Invoice' }, { table: 'Companies', field: 'Name', as: 'Customer' }, { table: 'Invoices', field: 'Invoice Date' },
+      { table: 'Invoices', field: 'Due Date', sort: 'asc' }, { table: 'Invoices', field: 'Amount' },
+      { expr: 'DateDiff("d", [Due Date], Date())', as: 'Days Overdue' }, { table: 'Invoices', field: 'Paid On', criteria: ['Is Null'], show: false },
+    ] },
+    'Stock value': { tables: ['Products', 'Categories'], columns: [
+      { table: 'Categories', field: 'Name', as: 'Category', total: 'group', sort: 'asc' }, { table: 'Products', field: 'Units in Stock', as: 'Units', total: 'sum' },
+      { expr: 'Round([Units in Stock] * [Cost Price], 2)', as: 'Value at Cost', total: 'sum' },
+    ] },
+    'Product list': { tables: ['Products', 'Categories'], columns: [
+      { table: 'Categories', field: 'Name', as: 'Category', sort: 'asc' }, { table: 'Products', field: 'Code', sort: 'asc' }, { table: 'Products', field: 'Name', as: 'Product' },
+      { table: 'Products', field: 'Unit' }, { table: 'Products', field: 'List Price' }, { table: 'Products', field: 'Discontinued', criteria: ['No'], show: false },
+    ] },
+    'Purchases on order': { tables: ['Purchase Orders', 'Companies'], columns: [
+      { table: 'Purchase Orders', field: 'ID', as: 'Purchase Order' }, { table: 'Companies', field: 'Name', as: 'Supplier' },
+      { table: 'Purchase Orders', field: 'Ordered On' }, { table: 'Purchase Orders', field: 'Expected', sort: 'asc' },
+      { table: 'Purchase Orders', field: 'Status', criteria: ['Submitted'] },
+    ] },
+  },
+  reports: [
+    { name: 'Product catalogue', query: 'Product list', group: 'Category', columns: ['Code', 'Product', 'Unit', { field: 'List Price', type: 'currency' }] },
+    { name: 'Monthly sales', query: 'Sales by month', columns: ['Month', { field: 'Units', type: 'integer' }, { field: 'Sales', type: 'currency' }], totals: [{ field: 'Sales', fn: 'sum' }, { field: 'Units', fn: 'sum' }] },
+    { name: 'Orders by customer', query: 'Order totals', group: 'Customer', sort: 'Order Date', desc: true, columns: ['Order', { field: 'Order Date', type: 'date' }, 'Status', { field: 'Goods', type: 'currency' }], totals: [{ field: 'Goods', fn: 'sum' }] },
+    { name: 'Invoices due', query: 'Unpaid invoices', group: 'Customer', columns: ['Invoice', { field: 'Invoice Date', type: 'date' }, { field: 'Due Date', type: 'date' }, { field: 'Days Overdue', type: 'integer' }, { field: 'Amount', type: 'currency' }], totals: [{ field: 'Amount', fn: 'sum' }] },
+    { name: 'Stock to reorder', query: 'Products to reorder', group: 'Supplier', columns: ['Code', 'Product', { field: 'Units in Stock', type: 'integer' }, { field: 'Reorder Level', type: 'integer' }, { field: 'Reorder Quantity', type: 'integer' }] },
+  ],
+};
+
+/** What is sold: [category, description, [name, unit, cost]...]. Generic goods; no brand. */
+const RANGE = [
+  ['Tea and Coffee', 'Loose and bagged teas, beans and ground coffee', [['Assam tea, loose', '1 kg bag', 9.2], ['Darjeeling tea, loose', '500 g tin', 11.5], ['Green tea, sencha', '500 g bag', 8.4], ['Mint tea bags', 'box of 100', 4.1], ['Chai spice blend', '500 g tin', 7.3], ['Arabica beans, medium roast', '1 kg bag', 13.8], ['Espresso beans, dark roast', '1 kg bag', 14.6], ['Ground coffee, filter', '500 g bag', 6.9]]],
+  ['Spices', 'Whole and ground spices and blends', [['Cumin seed', '1 kg bag', 6.2], ['Ground turmeric', '1 kg bag', 5.4], ['Black pepper, whole', '500 g tub', 6.8], ['Cardamom, green', '250 g tub', 9.9], ['Saffron threads', '5 g tin', 12.5], ['Smoked paprika', '500 g tub', 5.1], ['Garam masala', '500 g tub', 5.9], ['Cinnamon sticks', '250 g bag', 4.4]]],
+  ['Rice and Grains', 'Rice, couscous, lentils and flour', [['Basmati rice, aged', '10 kg sack', 16.5], ['Jasmine rice', '10 kg sack', 14.2], ['Red lentils', '5 kg sack', 7.8], ['Chickpeas, dried', '5 kg sack', 8.1], ['Couscous, medium', '5 kg sack', 7.2], ['Bulgur wheat', '5 kg sack', 6.6], ['Chapati flour', '10 kg sack', 9.4]]],
+  ['Dried Fruit and Nuts', 'Dates, apricots, nuts and seeds', [['Medjool dates', '5 kg box', 24.5], ['Dried apricots', '2 kg bag', 9.6], ['Almonds, whole', '1 kg bag', 10.4], ['Pistachios, roasted', '1 kg bag', 17.9], ['Cashews, whole', '1 kg bag', 12.8], ['Walnut halves', '1 kg bag', 11.2], ['Sultanas', '2 kg bag', 6.3]]],
+  ['Oils and Vinegars', 'Cooking oils, olive oils and vinegars', [['Extra virgin olive oil', '5 l tin', 29.5], ['Sunflower oil', '10 l drum', 17.4], ['Sesame oil, toasted', '500 ml bottle', 4.9], ['Balsamic vinegar', '500 ml bottle', 5.6], ['Cider vinegar', '1 l bottle', 2.8], ['Rapeseed oil, cold pressed', '1 l bottle', 4.2]]],
+  ['Sauces and Preserves', 'Chutneys, pastes, jams and honey', [['Mango chutney', '1.2 kg jar', 6.1], ['Harissa paste', '1 kg tub', 7.4], ['Tahini', '1 kg jar', 6.7], ['Raw honey', '1 kg jar', 9.8], ['Apricot jam', '1.2 kg jar', 5.3], ['Tomato passata', 'case of 12', 10.6], ['Chilli sauce', '1 l bottle', 4.6]]],
+  ['Baking', 'Sugar, flour, yeast and baking goods', [['Caster sugar', '5 kg bag', 5.2], ['Bread flour, strong', '16 kg sack', 13.1], ['Dried yeast', '500 g pack', 4.3], ['Cocoa powder', '1 kg bag', 8.9], ['Vanilla extract', '500 ml bottle', 14.2], ['Baking powder', '1 kg tub', 3.9]]],
+  ['Household', 'Kitchen and cleaning supplies for the trade', [['Paper napkins', 'case of 2000', 11.4], ['Kraft takeaway boxes', 'case of 300', 21.6], ['Compostable cups, 12 oz', 'case of 1000', 34.5], ['Dish soap, concentrate', '5 l can', 7.6], ['Food wrap film', '300 m roll', 6.2], ['Baking parchment', '50 m roll', 4.8]]],
+];
+const KINDS_OF_CUSTOMER = ['Pantry', 'Deli', 'Market', 'Stores', 'Kitchen', 'Hospitality', 'Cafe', 'Hotels', 'Grocers'];
+const KINDS_OF_SUPPLIER = ['Provisions', 'Imports', 'Merchants', 'Wholesale', 'Supplies', 'Foods'];
+
+/** Fill a Northbank Trading database made from `spec`. `r` is random(), `cal` calendar(). Answers counts. */
+export function fill(base, { r, cal, days = 540 }) {
+  const insert = (table, values) => base.insert(table, values);
+  const counts = {};
+  const add = (table, values) => { counts[table] = (counts[table] || 0) + 1; return insert(table, values); };
+
+  // Staff.
+  const roles = ['Managing Director', 'Sales Manager', 'Sales Representative', 'Sales Representative', 'Sales Representative', 'Sales Representative', 'Purchasing Officer', 'Warehouse Lead', 'Accounts Clerk'];
+  const staff = roles.map((role, i) => {
+    const p = person(r, { domain: 'northbank.example' });
+    return { id: add('Employees', { ...p, 'Job Title': role, Phone: `020 7946 0${String(100 + i).padStart(3, '0')}`, Hired: cal.day(-r.int(400, 3600)) }), role };
+  });
+  const reps = staff.filter((s) => /Sales/.test(s.role)).map((s) => s.id);
+  const buyer = staff.find((s) => s.role === 'Purchasing Officer').id;
+
+  // Companies: suppliers, carriers, customers.
+  const supplierNames = companies(r, 12, KINDS_OF_SUPPLIER);
+  const suppliers = supplierNames.map((name) => {
+    const a = address(r);
+    const id = add('Companies', { Name: name, Kind: 'Supplier', ...a, Phone: phoneFor(r, a.Country), 'E-mail': `orders@${name.toLowerCase().replace(/[^a-z]+/g, '')}.example`, 'Payment Days': r.pick([30, 45, 60]) });
+    add('Contacts', { Company: id, ...person(r, { domain: `${name.toLowerCase().replace(/[^a-z]+/g, '')}.example` }), 'Job Title': r.pick(['Sales Manager', 'Account Manager', 'Export Manager']), Phone: phoneFor(r, a.Country) });
+    return id;
+  });
+  const shippers = ['Swift Freight', 'Cargo Line Couriers', 'Overland Parcel'].map((name) => {
+    const a = address(r, PLACES.slice(0, 1));
+    return add('Companies', { Name: name, Kind: 'Shipper', ...a, Phone: phoneFor(r, a.Country), 'E-mail': `bookings@${name.toLowerCase().replace(/[^a-z]+/g, '')}.example` });
+  });
+  const customerNames = companies(r, 48, KINDS_OF_CUSTOMER).filter((n) => !supplierNames.includes(n));
+  const customers = customerNames.map((name) => {
+    const a = address(r);
+    const size = r.weighted([['small', 5], ['medium', 3], ['large', 1]]);
+    const terms = r.pick([14, 30, 30, 30, 45]);
+    const id = add('Companies', {
+      Name: name, Kind: 'Customer', ...a, Phone: phoneFor(r, a.Country), 'E-mail': `accounts@${name.toLowerCase().replace(/[^a-z]+/g, '')}.example`,
+      'Payment Days': terms, 'Credit Limit': { small: 2000, medium: 6000, large: 15000 }[size],
+    });
+    for (let k = 0; k < r.int(1, 2); k++) add('Contacts', { Company: id, ...person(r, { domain: `${name.toLowerCase().replace(/[^a-z]+/g, '')}.example` }), 'Job Title': r.pick(['Owner', 'Buyer', 'Head Chef', 'Manager', 'Purchasing']), Phone: phoneFor(r, a.Country) });
+    return { id, size, weight: { small: 1, medium: 2.5, large: 6 }[size], discount: size === 'large' ? 0.05 : 0, rep: r.pick(reps), days: terms };
+  });
+
+  // Categories and products.
+  const products = [];
+  RANGE.forEach(([cat, desc, items], ci) => {
+    const catId = add('Categories', { Name: cat, Description: desc });
+    const supplierOf = suppliers[ci % suppliers.length];
+    const second = suppliers[(ci + 5) % suppliers.length];
+    items.forEach(([name, unit, cost], k) => {
+      const list = money(cost * (1.35 + r.next() * 0.25));
+      const level = r.int(8, 24);
+      const p = { code: `${cat.slice(0, 2).toUpperCase()}${String(101 + k).padStart(3, '0')}`, name, unit, cost, list, level, qty: level * 6, stock: 0, held: 0, supplier: k % 3 === 2 ? second : supplierOf, demand: 0.4 + r.next() * 1.6, discontinued: false };
+      p.id = add('Products', { Code: p.code, Name: name, Category: catId, Supplier: p.supplier, Unit: unit, 'Cost Price': cost, 'List Price': list, 'Units in Stock': 0, 'Reorder Level': level, 'Reorder Quantity': p.qty });
+      products.push(p);
+    });
+  });
+  // Two lines no longer sold.
+  for (const p of r.some(products, 2)) p.discontinued = true;
+
+  const move = (p, when, kind, quantity, reference) => { p.stock += quantity; add('Stock Movements', { Product: p.id, When: when, Kind: kind, Quantity: quantity, Reference: reference }); };
+
+  // Opening stock, received before the first order.
+  const opening = add('Purchase Orders', { Supplier: suppliers[0], Employee: buyer, 'Ordered On': cal.day(-days - 20), Expected: cal.day(-days - 6), 'Received On': cal.day(-days - 6), Status: 'Received' });
+  for (const p of products) {
+    const n = p.qty * 2;
+    add('Purchase Lines', { 'Purchase Order': opening, Product: p.id, Quantity: n, 'Unit Cost': p.cost });
+    move(p, cal.day(-days - 6), 'Received', n, `PO ${opening}`);
+  }
+
+  const pending = []; // purchase orders not yet in: { id, at, lines }
+  const invoices = [];
+  for (let d = -days; d <= 0; d++) {
+    const date = cal.day(d);
+    const wd = cal.weekday(d);
+    if (wd === 0 || wd === 6) continue;
+    // Deliveries arriving today.
+    for (const po of pending.filter((x) => x.at === d)) {
+      base.update('Purchase Orders', po.id, { 'Received On': date, Status: 'Received' });
+      for (const l of po.lines) move(l.p, date, 'Received', l.n, `PO ${po.id}`);
+    }
+    for (let i = pending.length - 1; i >= 0; i--) if (pending[i].at === d) pending.splice(i, 1);
+
+    // Orders: more of them in the weeks before the year ends.
+    const month = cal.at(d).getMonth();
+    const season = month === 10 || month === 11 ? 1.6 : month === 0 ? 0.7 : 1;
+    const n = Math.round((0.8 + r.next() * 1.6) * season);
+    for (let k = 0; k < n; k++) {
+      const c = r.weighted(customers.map((x) => [x, x.weight]));
+      // What is asked for, cut to what is on the shelf: nothing is sold that is not there.
+      const lines = [];
+      for (const p of r.some(products.filter((x) => !x.discontinued || d < -200), r.int(1, c.size === 'large' ? 7 : 4))) {
+        const want = Math.max(1, Math.round(r.int(2, 12) * p.demand * (c.size === 'large' ? 2.5 : 1)));
+        const qty = Math.min(want, p.stock - p.held);
+        if (qty > 0) { lines.push({ p, qty }); p.held += qty; }
+      }
+      if (!lines.length) continue;
+      const cancelled = r.chance(0.03);
+      const shipIn = r.int(1, 4);
+      const shipped = !cancelled && d + shipIn <= 0 ? cal.day(cal.workday(d + shipIn)) : null;
+      const fee = c.size === 'large' ? 0 : r.pick([0, 8.5, 12, 15]);
+      const order = add('Orders', {
+        Customer: c.id, Employee: c.rep, 'Order Date': date, 'Required Date': cal.day(cal.workday(d + 7)), 'Shipped Date': shipped,
+        Shipper: r.pick(shippers), 'Shipping Fee': fee, Status: cancelled ? 'Cancelled' : shipped ? 'Shipped' : 'New',
+      });
+      let total = fee;
+      for (const { p, qty } of lines) {
+        const discount = c.discount || (qty >= 20 ? 0.05 : 0);
+        add('Order Lines', { Order: order, Product: p.id, Quantity: qty, 'Unit Price': p.list, Discount: discount });
+        total += money(qty * p.list * (1 - discount));
+        p.held -= qty;
+        if (shipped) move(p, shipped, 'Sold', -qty, `Order ${order}`);
+        // An order not shipped yet keeps its goods set aside.
+        else if (!cancelled) p.held += qty;
+      }
+      if (shipped) invoices.push({ order, date: shipped, offset: d + shipIn, amount: money(total), days: c.days, slow: c.size === 'small' && r.chance(0.25) });
+    }
+
+    // Each Monday and Thursday the buyer orders what is at or below its reorder level.
+    if (wd === 1 || wd === 4) {
+      const bySupplier = new Map();
+      for (const p of products) {
+        if (p.discontinued || p.stock - p.held > p.level || pending.some((po) => po.lines.some((l) => l.p === p))) continue;
+        if (!bySupplier.has(p.supplier)) bySupplier.set(p.supplier, []);
+        bySupplier.get(p.supplier).push({ p, n: p.qty + Math.max(0, p.level - p.stock) });
+      }
+      for (const [supplier, lines] of bySupplier) {
+        const lead = r.int(5, 12);
+        const id = add('Purchase Orders', { Supplier: supplier, Employee: buyer, 'Ordered On': date, Expected: cal.day(cal.workday(d + lead)), Status: 'Submitted' });
+        for (const l of lines) add('Purchase Lines', { 'Purchase Order': id, Product: l.p.id, Quantity: l.n, 'Unit Cost': l.p.cost });
+        pending.push({ id, at: cal.workday(d + lead), lines });
+      }
+    }
+  }
+
+  // Invoices for what shipped: most paid in time, some late, the newest not yet.
+  for (const inv of invoices) {
+    const due = inv.offset + inv.days;
+    const paidAt = inv.offset + (inv.slow ? inv.days + r.int(5, 40) : r.int(3, inv.days));
+    const paid = paidAt <= 0 ? cal.day(paidAt) : null;
+    add('Invoices', { Order: inv.order, 'Invoice Date': inv.date, 'Due Date': cal.day(due), Amount: inv.amount, 'Paid On': paid });
+    if (paid) base.update('Orders', inv.order, { Status: 'Closed' });
+  }
+
+  // A stock count: a few corrections, as a real count finds.
+  for (const p of r.some(products, 4)) move(p, cal.day(-r.int(20, 120)), 'Adjusted', -r.int(1, 3), 'Stock count');
+
+  for (const p of products) base.update('Products', p.id, { 'Units in Stock': p.stock, Discontinued: p.discontinued });
+  return counts;
+}

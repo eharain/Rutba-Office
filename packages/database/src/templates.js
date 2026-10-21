@@ -153,6 +153,17 @@ export function templateTables(id) {
 export function buildTemplate(base, id) {
   const t = T[id];
   if (!t) throw new Error(`There is no template called ${id}.`);
+  return buildFromSpec(base, t);
+}
+
+/**
+ * Make a database from a spec: { tables: [{ name, fields: [{ name, type,
+ * points?: table, ...}] }], queries: { name: design }, reports: [{ name,
+ * table | query, columns: [field | { field, label?, type? }], group?, sort?,
+ * desc?, totals? }] }. Relationships are made in the order the pointing
+ * fields come, which is the order a query joins two tables by.
+ */
+export function buildFromSpec(base, t) {
   if (base.tables().length) throw new Error('A template is made in an empty database.');
   for (const x of t.tables) {
     base.createTable({ name: x.name, fields: x.fields.map(({ points, ...f }) => f) });
@@ -165,18 +176,23 @@ export function buildTemplate(base, id) {
   for (const [name, design] of Object.entries(t.queries || {})) base.saveQuery(name, design);
   for (const x of t.tables) base.makeForm(x.name);
   for (const r of t.reports || []) {
-    const made = base.makeReport({ table: r.table, name: r.name });
+    const made = base.makeReport(r.query ? { query: r.query, name: r.name } : { table: r.table, name: r.name });
     const label = (field) => made.columns.find((c) => c.field === field)?.label || field;
     // A field that points at another table's record shows its words, so it stands on the left.
-    const pointing = new Set(t.tables.find((x) => x.name === r.table).fields.filter((f) => f.points).map((f) => f.name));
-    const types = Object.fromEntries(base.fields(r.table).map((f) => [f.name, pointing.has(f.name) ? 'text' : f.type]));
+    const spec = r.table ? t.tables.find((x) => x.name === r.table) : null;
+    const pointing = new Set(spec ? spec.fields.filter((f) => f.points).map((f) => f.name) : []);
+    const types = r.table ? Object.fromEntries(base.fields(r.table).map((f) => [f.name, pointing.has(f.name) ? 'text' : f.type])) : {};
     base.saveReport({
       ...made,
-      title: r.name,
-      columns: r.columns.map((field) => ({ field, label: label(field), align: ['currency', 'number', 'integer'].includes(types[field]) ? 'right' : 'left' })),
+      title: r.title || r.name,
+      columns: r.columns.map((c) => {
+        const col = typeof c === 'string' ? { field: c } : c;
+        const type = col.type || types[col.field] || null;
+        return { field: col.field, label: col.label || label(col.field), align: ['currency', 'number', 'integer'].includes(type) ? 'right' : 'left', ...(type ? { type } : {}) };
+      }),
       group: r.group || null,
       sort: r.sort || null,
-      desc: false,
+      desc: Boolean(r.desc),
       totals: r.totals || [],
     });
   }
