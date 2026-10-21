@@ -682,12 +682,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   // The app whose part is running: each check is counted under it (see part()).
   let currentApp = 'shell';
+  // The part a check is in, `<app>#<n>` by the order an app's parts are run,
+  // so the gate can run again only the parts whose checks failed.
+  let currentPart = null;
   // How long each check took since the one before it, so the gate knows each
   // chunk's length and starts the longest first.
   let lastAt = Date.now();
   const check = (name, ok, detail = '') => {
     const now = Date.now();
-    results.push({ name, ok, detail, app: currentApp, seconds: (now - lastAt) / 1000 });
+    results.push({ name, ok, detail, app: currentApp, part: currentPart, seconds: (now - lastAt) / 1000 });
     lastAt = now;
     lastCheck = name;
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
@@ -806,8 +809,16 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
    * Unset, everything runs, as before.
    */
   const lane = process.env.RUTBA_VERIFY_LANE || 'all';
+  const partIds = (process.env.RUTBA_VERIFY_PART_IDS || '').split(',').map((x) => x.trim()).filter(Boolean);
   const wanted = (app) => !appsOnly.length || appsOnly.includes(app);
-  const runs = (app) => lane !== 'machine' && wanted(app);
+  // A section of an app's checks outside any part is the part `<app>#main`;
+  // asked whether it runs, it is the part its checks are counted in.
+  const runs = (app) => {
+    if (lane === 'machine' || !wanted(app)) return false;
+    if (partIds.length && !partIds.includes(`${app}#main`)) return false;
+    currentPart = `${app}#main`;
+    return true;
+  };
   // The full run keeps itself alive with the windows its first sections open,
   // which a run of some apps does not open: a hidden window does it instead,
   // or the last block's windows closing would end the application mid-run.
@@ -815,15 +826,28 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     const { BrowserWindow } = await import('electron');
     new BrowserWindow({ show: false, width: 200, height: 200 });
   }
+  /*
+   * RUTBA_VERIFY_PART_IDS=sheets#12,access#3 runs those parts and no others:
+   * the gate's run at its end of only the parts whose checks failed (owner,
+   * 2026-10-21: "Queue the failed ones to run at the end"). A part is
+   * numbered whether it runs or not, so a number names the same part in
+   * every lane and every run.
+   */
+  const partCount = {};
   const part = async (app, run, { machine = false } = {}) => {
+    partCount[app] = (partCount[app] || 0) + 1;
+    const id = `${app}#${partCount[app]}`;
     if (machine ? lane === 'parallel' : lane === 'machine') return;
     if (!wanted(app)) return;
-    const outer = currentApp;
+    if (partIds.length && !partIds.includes(id)) return;
+    const [outerApp, outerPart] = [currentApp, currentPart];
     currentApp = app;
+    currentPart = id;
     try {
       await block(run);
     } finally {
-      currentApp = outer;
+      currentApp = outerApp;
+      currentPart = outerPart;
     }
   };
 
@@ -849,11 +873,17 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (process.env.RUTBA_VERIFY_PARTS) {
       const byApp = {};
       for (const r of results) {
-        const a = (byApp[r.app] ||= { passed: 0, of: 0, failed: [], seconds: 0 });
+        const a = (byApp[r.app] ||= { passed: 0, of: 0, failed: [], failedParts: [], passedNames: [], seconds: 0 });
         a.of += 1;
         a.seconds = Math.round((a.seconds + (r.seconds || 0)) * 10) / 10;
-        if (r.ok) a.passed += 1;
-        else a.failed.push(r.name);
+        if (r.ok) {
+          a.passed += 1;
+          a.passedNames.push(r.name);
+        } else {
+          a.failed.push(r.name);
+          // A check outside any part (the run's own set-up) has no part to run again: the gate runs its app whole.
+          if (!a.failedParts.includes(r.part ?? '*')) a.failedParts.push(r.part ?? '*');
+        }
       }
       try {
         fs.writeFileSync(process.env.RUTBA_VERIFY_PARTS, JSON.stringify({ apps: byApp, only: appsOnly, lane }, null, 2));

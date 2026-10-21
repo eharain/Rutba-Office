@@ -49,8 +49,12 @@ the same profile. It runs in lanes, so that what can run side by side does:
 2. **test:perf**: the performance budgets, alone, while the machine is
    still (timed beside other work they measure the machine).
 3. **side by side**: the engine suite, the editing checks and a window
-   check process a chunk, as many at once as the processors and memory
-   allow (`--jobs` to say), the longest chunk first. A chunk is an app, or
+   check process a chunk, the longest chunk first: as many at once as the
+   processors allow (one to each two and a half, four at most), another
+   started only while 1.5 GB of memory is free for it, and added as memory
+   comes free; the gate says when it runs fewer and why (`--jobs` to say
+   instead). Close browsers and other large programs before a release run:
+   with 2.7 GB free, the 2.11.0 run had one lane and took over an hour. A chunk is an app, or
    a part of what every app shares: `shell`, `ribbon`, `look` (galleries,
    panels, icons), `theme` (polish, dark theme), `access` (accessibility, keyboard, screen
    reader, high contrast) and `languages` (Urdu, Arabic, Hindi, spelling).
@@ -62,7 +66,16 @@ the same profile. It runs in lanes, so that what can run side by side does:
    clipboard and global shortcuts checked through the system adapters
    (`verify-machine.js`), timing budgets, drags, and copies a page makes
    itself (Mail's message frame).
-5. **smoke**: every window paints without logging anything.
+5. **again**: alone, after the rest, the parts whose checks failed above,
+   in a process started just for them, a machine-lane failure in the
+   machine lane (D-2026-10-21-13, the owner: "Queue the failed ones to run
+   at the end"). Each part is numbered `<app>#<n>` in verify-apps.js
+   (`<app>#main` for a section outside the parts), and
+   `RUTBA_VERIFY_PART_IDS` runs only those named. The gate passes only if
+   every check that failed is seen passing here by its name and nothing
+   here fails; one that fails again closes the gate. The note's Gate section
+   names each check that ran again.
+6. **smoke**: every window paints without logging anything.
 
 With `--record`, a full run that passes writes its own counts into the
 note's **Gate** section (where it ran, when, and what each pass counted) and
@@ -70,10 +83,9 @@ into the README's counts, so the release says the gate ran rather than
 leaving it to be believed. Commit those two files with the version bump.
 `--serial` runs the window checks as one process in turn, as before.
 
-A check that fails because of the machine (a stand-in camera, a font the
-system lacks) is run again on its own; if it passes alone it is named in
-the release commit's message. A check that fails twice is a fault, and the
-release waits for it.
+A check that fails twice, beside the others and again alone, is a fault:
+the gate is closed, and under the owner's rule the release is skipped and
+its work goes into the next one.
 
 The gate keeps a record of its last run in `.gate/` (each chunk's counts
 and how long it took, which orders the next run):

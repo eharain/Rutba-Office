@@ -31,7 +31,17 @@
 //   machine       alone: the parts that need the computer to themselves (its
 //                 own clipboard and keys, checked through the system adapters,
 //                 timing budgets, drags, native copies).
+//   again         alone, the parts whose checks failed above, in a process
+//                 started just for them (owner, 2026-10-21: "Queue the failed
+//                 ones to run at the end"). The gate passes only if every
+//                 check that failed is seen passing here, by its name; one
+//                 that fails again closes it. The record names each one.
 //   smoke         every window paints without logging anything.
+//
+// Lanes side by side: as many as the processors allow (one to each two and a
+// half, four at most), one more started only while 1.5 GB of memory is free,
+// looked at again every ten seconds, so a run that starts short of memory
+// takes more lanes as memory comes free, and says why it has fewer.
 //
 // Nothing here is optional before a release. With --record the gate puts its
 // own counts on the record: a Gate section in docs/releases/v<version>.md
@@ -120,7 +130,7 @@ const n = (v) => Number(v).toLocaleString('en-GB');
 const PLATFORM = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 
 /** The release note's Gate section, in the note's own plain style. */
-export function gateSection(counts, { version, date, platform = process.platform, arch = process.arch }) {
+export function gateSection(counts, { version, date, platform = process.platform, arch = process.arch, reran = [] }) {
   const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
@@ -129,7 +139,10 @@ export function gateSection(counts, { version, date, platform = process.platform
     counts.smoke ? `${n(counts.smoke.passed)} of ${n(counts.smoke.of)} windows painted clean` : null,
   ].filter(Boolean);
   const list = parts.length > 1 ? `${parts.slice(0, -1).join('; ')}; and ${parts.at(-1)}` : parts[0];
-  return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}\n`;
+  const again = reran.length
+    ? `\n\n${wrap(`${reran.length === 1 ? 'One check' : `${n(reran.length)} checks`} failed beside the others and passed when run again alone at the end of the same gate:`)}\n\n${reran.map((r) => `- ${r}`).join('\n')}`
+    : '';
+  return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${again}\n`;
 }
 
 /** The engine tests in all: the suite, and the budgets run alone after it. */
@@ -264,6 +277,83 @@ export function jobsFor({ cpus = os.cpus().length, freeGb = os.freemem() / 2 ** 
   return Math.max(1, Math.min(4, Math.floor(cpus / 2.5), Math.floor(freeGb / 1.5)));
 }
 
+/** The lanes the processors allow: one to each two and a half, at least one and at most four. */
+export function laneCap(cpus = os.cpus().length) {
+  return Math.max(1, Math.min(4, Math.floor(cpus / 2.5)));
+}
+
+/**
+ * Run `tasks` in their order, at most `cap` at once, a task started beside
+ * others only while `freeGb()` leaves `perLane` for it after what the lanes
+ * started in the last `settleMs` will still take. Looked at again every
+ * `tickMs`, so lanes are added as memory comes free. `onShort(free, running)`
+ * hears when a lane waits for memory, once each time it starts to.
+ */
+export async function poolByMemory(tasks, { cap, freeGb = () => os.freemem() / 2 ** 30, perLane = 1.5, settleMs = 30_000, tickMs = 10_000, now = Date.now, onShort = () => {} }) {
+  const results = new Array(tasks.length);
+  if (!tasks.length) return results;
+  let next = 0;
+  let running = 0;
+  let waiting = false;
+  const started = [];
+  return new Promise((resolve, reject) => {
+    let timer = null;
+    const finish = () => { clearInterval(timer); resolve(results); };
+    const fill = () => {
+      while (next < tasks.length && running < cap) {
+        const recent = started.filter((t) => now() - t < settleMs).length;
+        const free = freeGb();
+        if (running > 0 && free - recent * perLane < perLane) {
+          if (!waiting) onShort(free, running);
+          waiting = true;
+          return;
+        }
+        waiting = false;
+        const i = next++;
+        running++;
+        started.push(now());
+        Promise.resolve().then(() => tasks[i]()).then((r) => { results[i] = r; }, (err) => { clearInterval(timer); reject(err); }).finally(() => {
+          running--;
+          if (next >= tasks.length && running === 0) finish();
+          else fill();
+        });
+      }
+    };
+    timer = setInterval(fill, tickMs);
+    if (timer.unref) timer.unref();
+    fill();
+  });
+}
+
+/**
+ * The parts to run again at the end, from the chunks' and the machine
+ * lane's counts: { parallel: { apps, ids, names }, machine: { ... } }. A
+ * failure outside any part ('*') runs its app's chunk whole.
+ */
+export function partsToRerun(apps, machine) {
+  const pick = (entries) => {
+    const out = { apps: [], ids: [], names: [], whole: [] };
+    for (const [app, v] of entries) {
+      if (!v || v.ok || !v.failed?.length) continue;
+      out.apps.push(app);
+      out.names.push(...v.failed);
+      const ids = v.failedParts || ['*'];
+      if (ids.includes('*')) out.whole.push(app);
+      else out.ids.push(...ids);
+    }
+    return out;
+  };
+  const machineApps = machine && !machine.ok ? Object.entries(machine.byApp || { machine: machine }) : [];
+  return { parallel: pick(Object.entries(apps)), machine: pick(machineApps) };
+}
+
+/** Whether the run again cleared `names`: each one ran and passed, and nothing in it failed. */
+export function rerunCleared(names, parts) {
+  const all = Object.values(parts || {});
+  const passed = new Set(all.flatMap((p) => p.passedNames || []));
+  return all.every((p) => !p.failed?.length) && names.every((n) => passed.has(n));
+}
+
 /** Run `tasks` (functions answering promises), at most `limit` at once, in their order. */
 export async function pool(tasks, limit) {
   const results = new Array(tasks.length);
@@ -309,7 +399,7 @@ async function main() {
   const save = () => fs.writeFileSync(STATE, JSON.stringify(state, null, 2));
   if (resume && !state.passes.test && !Object.keys(state.apps).length) say('Nothing to resume on this commit: a run from the start.');
   const timing = readJson(TIMING) || {};
-  const jobs = Math.max(1, Number(jobsArg) || jobsFor());
+  const jobs = Math.max(1, Number(jobsArg) || laneCap());
 
   /** A pass of its own (test, test:perf, verify:edit, smoke), its counts kept on the state. */
   const pass = async (name, what, command, args, { log = null, env = {} } = {}) => {
@@ -388,7 +478,9 @@ async function main() {
     // 3. Side by side: the engine tests, the editing checks and a check
     // process a chunk, each with a clipboard and shortcuts of its own.
     const chunks = longestFirst(wanted.filter((a) => !(resume && state.apps[a]?.ok)), timing);
-    say(`\n\u001b[1m── side by side: ${jobs} at once ─────────────────────────\u001b[0m`);
+    const freeNow = os.freemem() / 2 ** 30;
+    say(`\n\u001b[1m── side by side: up to ${jobs} at once ─────────────────────\u001b[0m`);
+    say(jobsArg ? `  ${jobs} at once, as asked` : `  ${os.cpus().length} processors allow ${jobs}; ${freeNow.toFixed(1)} GB of memory free now, and a lane is added only while 1.5 GB is free for it`);
     say(`  ${[want('test') ? 'the engine tests' : null, want('verify:edit') ? 'the editing checks' : null, want('verify:apps') ? `the window checks of ${chunks.length ? chunks.join(', ') : 'no chunk left'}` : null].filter(Boolean).join(', ')}; the logs are in ${path.relative(ROOT, LOGS)}`);
     const started = Date.now();
     const tasks = [];
@@ -406,7 +498,8 @@ async function main() {
       }
     }
     if (want('verify:edit')) tasks.push(() => pass('verify:edit', 'typing reaches the document', 'node', [path.join('apps', 'desktop', 'build', 'verify-edit-run.js')], { log: path.join(LOGS, 'verify-edit.log') }));
-    await pool(tasks, jobs);
+    if (jobsArg) await pool(tasks, jobs);
+    else await poolByMemory(tasks, { cap: jobs, onShort: (free, running) => say(`  ${running} at once for now: ${free.toFixed(1)} GB free, and another lane needs 1.5 GB (close programs to run more)`) });
     say(`  side by side: ${secs(Date.now() - started)} s`);
 
     // 4. The machine lane, alone: the computer's own clipboard and shortcuts,
@@ -416,7 +509,36 @@ async function main() {
       else {
         say(`\n\u001b[1m── machine: the computer's own clipboard and keys, alone ──\u001b[0m`);
         const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}) });
-        state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds) };
+        state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds), byApp: r.parts || null };
+        save();
+      }
+
+      // 5. Again, alone: the parts whose checks failed, in a process of their
+      // own after the rest, the machine perhaps quieter by now. The gate
+      // passes only if each check that failed passes here.
+      const again = partsToRerun(Object.fromEntries(wanted.map((a) => [a, state.apps[a]])), state.machine);
+      for (const [laneName, set] of [['parallel', again.parallel], ['machine', again.machine]]) {
+        if (!set.names.length) continue;
+        say(`\n\u001b[1m── again, alone: ${set.names.length} check${set.names.length === 1 ? '' : 's'} that failed ${laneName === 'machine' ? 'in the machine lane' : 'beside the others'} ──\u001b[0m`);
+        for (const n of set.names) say(`         ${n}`);
+        await settle();
+        const env = laneName === 'machine'
+          ? { RUTBA_VERIFY_LANE: 'machine' }
+          : { RUTBA_VERIFY_LANE: 'parallel', RUTBA_VERIFY_APPS: set.apps.join(',') };
+        // A chunk with a failure outside its parts runs whole; the rest only the parts that failed.
+        if (!set.whole.length) env.RUTBA_VERIFY_PART_IDS = set.ids.join(',');
+        const r = await windowRun(laneName === 'machine' ? 'again-machine' : 'again', env);
+        const cleared = rerunCleared(set.names, r.parts);
+        say(`  again: ${cleared ? 'each passed alone' : 'still failing'}`);
+        if (!cleared) continue;
+        if (laneName === 'machine') {
+          state.machine = { ...state.machine, ok: true, passed: state.machine.of, reran: set.names, failed: [] };
+        } else {
+          for (const a of set.apps) {
+            const v = state.apps[a];
+            state.apps[a] = { ...v, ok: true, passed: v.of, reran: v.failed, failed: [] };
+          }
+        }
         save();
       }
       const appsOk = wanted.every((a) => state.apps[a]?.ok) && state.machine?.ok;
@@ -430,7 +552,7 @@ async function main() {
     fs.writeFileSync(TIMING, JSON.stringify(timing, null, 2));
   }
 
-  // 5. Every window painted, once the rest has passed.
+  // 6. Every window painted, once the rest has passed.
   if (want('smoke') && !failed) await pass('smoke', 'every window paints', 'npm', ['run', 'smoke']);
 
   console.log('\n────────────────────────────────────────────────');
@@ -454,7 +576,8 @@ async function main() {
       const date = localDate();
       const notePath = path.join(ROOT, 'docs', 'releases', `v${version}.md`);
       if (fs.existsSync(notePath)) {
-        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date })));
+        const reran = [...VERIFY_APPS.flatMap((a) => state.apps[a]?.reran || []), ...(state.machine?.reran || [])];
+        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran })));
         console.log(`Recorded in ${path.relative(ROOT, notePath)}.`);
       } else {
         console.log(`No note at ${path.relative(ROOT, notePath)} to record in; write the note first.`);
