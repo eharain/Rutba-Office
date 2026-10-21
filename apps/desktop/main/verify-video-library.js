@@ -36,7 +36,7 @@ export async function verifyVideoLibrary(h, { dir }) {
     await js(`document.querySelector('.vd-lib-add-files')?.click(), 1`);
     const listed = await ok(until(() => js(`document.querySelectorAll('.vd-lib-source').length === 1`), 'the clip in the library', 8000));
     await until(() => js(`document.querySelectorAll('.vd-clip[data-kind="video"]').length === 1`), 'the clip on the timeline', 6000).catch(() => {});
-    await js(`document.querySelector('.vd-lib-source')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })), 1`);
+    await js(`document.querySelector('.vd-lib-source-pick')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })), 1`);
     const again = await ok(until(async () => (await count('video')) === 2, 'the clip added again', 6000));
     check('video library: the media of the project is kept in the library, and a double-click adds it again',
       shown && empty && listed && again, JSON.stringify({ shown, empty, listed, again }));

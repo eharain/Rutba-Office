@@ -120,26 +120,27 @@ export default function Library({ doc, media, tab, setTab, onAddSource, onAddFil
           <Button icon="plus" label={t('Add Media')} className="vd-lib-add-files" onClick={onAddFiles} />
         </div>
         {shown.length ? (
-          <ul className="vd-lib-media" role="listbox" aria-label={t('Media in this project')}>
+          <ul className="vd-lib-media" aria-label={t('Media in this project')}>
             {shown.map(([url, s]) => (
-              <li
-                key={url}
-                role="option"
-                aria-selected={picked === url}
-                className={`vd-lib-source${picked === url ? ' on' : ''}`}
-                data-url={url}
-                data-tip={t('{name}: double-click to add it after the clips on the picked track', { name: s.name || url })}
-                onClick={() => setPicked(url)}
-                onDoubleClick={() => onAddSource(url, 'end')}
-              >
-                <SourceThumb media={media} url={url} kind={s.kind} />
-                <span className="vd-lib-source-text">
-                  <span className="vd-lib-name">{s.name || url}</span>
-                  <span className="vd-lib-meta">{s.kind === 'image' ? t('Picture') : s.duration ? timecode(s.duration) : ''}</span>
-                </span>
+              // The row is a button to pick (a double-click adds), with its two actions beside it rather than inside it.
+              <li key={url} className={`vd-lib-source${picked === url ? ' on' : ''}`} data-url={url}>
+                <button
+                  type="button"
+                  className="vd-lib-source-pick"
+                  aria-pressed={picked === url}
+                  data-tip={t('{name}: double-click to add it after the clips on the picked track', { name: s.name || url })}
+                  onClick={() => setPicked(url)}
+                  onDoubleClick={() => onAddSource(url, 'end')}
+                >
+                  <SourceThumb media={media} url={url} kind={s.kind} />
+                  <span className="vd-lib-source-text">
+                    <span className="vd-lib-name">{s.name || url}</span>
+                    <span className="vd-lib-meta">{s.kind === 'image' ? t('Picture') : s.duration ? timecode(s.duration) : ''}</span>
+                  </span>
+                </button>
                 <span className="vd-lib-source-actions">
-                  <Button icon="plus" label="" title={t('Add after the clips on the picked track')} className="vd-lib-add" onClick={(e) => { e.stopPropagation(); onAddSource(url, 'end'); }} />
-                  <Button icon="move" label="" title={t('Insert at the playhead')} className="vd-lib-insert" onClick={(e) => { e.stopPropagation(); onAddSource(url, 'insert'); }} />
+                  <Button icon="plus" label="" title={t('Add after the clips on the picked track')} className="vd-lib-add" onClick={() => onAddSource(url, 'end')} />
+                  <Button icon="move" label="" title={t('Insert at the playhead')} className="vd-lib-insert" onClick={() => onAddSource(url, 'insert')} />
                 </span>
               </li>
             ))}
@@ -249,6 +250,7 @@ export const LIBRARY_CSS = `
 .vd-lib-source:hover { background: var(--hover); }
 .vd-lib-source.on { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
 .vd-lib-thumb { width: 64px; height: 36px; border-radius: 4px; background: #1c1f26; flex: none; display: grid; place-items: center; color: #aab0bb; }
+.vd-lib-source-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: default; }
 .vd-lib-source-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .vd-lib-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vd-lib-meta { color: var(--ink-3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
