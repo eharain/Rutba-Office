@@ -42,6 +42,7 @@ import { verifyBaseDocuments } from './verify-base-documents.js';
 import { verifyTemplateVersions } from './verify-template-versions.js';
 import { verifyStartPage } from './verify-start-page.js';
 import { verifyBaseSamples } from './verify-base-samples.js';
+import { verifyBaseSampleShots } from './verify-base-sample-shots.js';
 import { verifyVideoSound } from './verify-video-sound.js';
 import { verifyVideoLibrary, verifyVideoStarters } from './verify-video-library.js';
 import { verifyRecorderLive } from './verify-recorder-live.js';
@@ -5102,6 +5103,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('template-versions')) await verifyTemplateVersions({ open, check, until, wait });
     if (only.includes('start-page')) await verifyStartPage({ open, check, until, wait }, { dir });
     if (only.includes('base-samples')) await verifyBaseSamples({ open, check, until, wait }, { dir });
+    // The site's pictures of the samples: asked for by name only, never part of the full run.
+    if (only.includes('base-sample-shots')) await verifyBaseSampleShots({ open, check, until, wait }, { dir });
     if (only.includes('video-sound')) await verifyVideoSound({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-library')) await verifyVideoLibrary({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-starters')) await verifyVideoStarters({ open, check, until, wait, errorsIn }, { dir });
