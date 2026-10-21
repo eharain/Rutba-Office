@@ -663,11 +663,16 @@ export default function Word({ app, shell, boot }) {
         case 'deleteByCut':
           ops.push({ op: 'deleteSelection' });
           break;
-        case 'insertFromPaste':
+        case 'insertFromPaste': {
+          // A paste's words come from the clipboard service, the one every
+          // other paste in the suite reads (the system clipboard for a person;
+          // a check run's own under the gate), not from the browser's copy of
+          // the system one on the event.
+          shell.clipboard.readText().then((clip) => clip && apply({ op: 'pasteText', text: clip }));
+          return;
+        }
         case 'insertFromDrop': {
-          // The native event carries the payload on `dataTransfer`; a paste
-          // routed through the menu arrives with neither, so the clipboard is
-          // read as a fallback.
+          // A drop carries its words on `dataTransfer`; one with none reads the clipboard.
           const text = e.dataTransfer?.getData('text/plain');
           if (text) ops.push({ op: 'pasteText', text });
           else {

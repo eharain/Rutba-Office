@@ -51,8 +51,8 @@ the same profile. It runs in lanes, so that what can run side by side does:
 3. **side by side**: the engine suite, the editing checks and a window
    check process a chunk, as many at once as the processors and memory
    allow (`--jobs` to say), the longest chunk first. A chunk is an app, or
-   a part of what every app shares: `shell`, `look` (the ribbon, galleries,
-   polish, dark theme, icons), `access` (accessibility, keyboard, screen
+   a part of what every app shares: `shell`, `ribbon`, `look` (galleries,
+   panels, icons), `theme` (polish, dark theme), `access` (accessibility, keyboard, screen
    reader, high contrast) and `languages` (Urdu, Arabic, Hindi, spelling).
    Each process has a clipboard and global shortcuts of its own
    (`machine-fakes.js`), so no process touches another's or the person's,
