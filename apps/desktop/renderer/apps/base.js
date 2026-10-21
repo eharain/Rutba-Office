@@ -26,22 +26,45 @@ const TEMPLATES = [
 
 /**
  * The sample businesses the start screen offers, in the engine's order
- * (packages/templates/data-files, the templates' own repository): each with its invented records
- * to learn from, or empty to start a business of one's own from. The
- * business's name is a made-up proper name, the same in every language.
+ * (packages/templates/data-files, the templates' own repository) and in
+ * groups: each with its invented records to learn from, or empty to start a
+ * business of one's own from. The business's name is a made-up proper name,
+ * the same in every language (tests/database-samples.test.js holds it to the
+ * sample's own).
  */
+const SAMPLE_GROUPS = [
+  { id: 'shops', name: () => t('Shops and food') },
+  { id: 'trade', name: () => t('Trade, making and building') },
+  { id: 'services', name: () => t('Services') },
+  { id: 'care', name: () => t('Health, learning and community') },
+  { id: 'property', name: () => t('Property, premises and staff') },
+];
 const SAMPLES = [
-  { id: 'trading', icon: 'globe', business: 'Northbank Trading', kind: () => t('Wholesale and trading'), line: () => t('Customers, suppliers, products, orders, purchase orders, stock and invoices.') },
-  { id: 'shop', icon: 'scanReceipt', business: 'Larkspur Corner Store', kind: () => t('Shop'), line: () => t('Products, the till, stock, deliveries, loyalty customers and running costs.') },
-  { id: 'clinic', icon: 'calendar', business: 'Cedar Lane Clinic', kind: () => t('Clinic'), line: () => t('Patients, appointments, treatments, invoices and recalls.') },
-  { id: 'salon', icon: 'scissors', business: 'Marigold Hair and Beauty', kind: () => t('Salon'), line: () => t('Clients, bookings, stylists, services, retail stock and commission.') },
-  { id: 'repairs', icon: 'settings', business: 'Ironbridge Repairs', kind: () => t('Repair shop'), line: () => t('Repair jobs from booking in to collection, parts, quotes and warranty.') },
-  { id: 'agency', icon: 'clock', business: 'Bramble Studio', kind: () => t('Consultancy or agency'), line: () => t('Clients, projects, time sheets, expenses and invoices.') },
-  { id: 'cafe', icon: 'sun', business: 'Little Fig Cafe', kind: () => t('Cafe or restaurant'), line: () => t('Menu costing, orders, ingredients, suppliers, waste and the staff rota.') },
-  { id: 'rentals', icon: 'home', business: 'Hollybrook Lettings', kind: () => t('Property rentals'), line: () => t('Properties, units, tenants, leases, rent due, repairs and inspections.') },
-  { id: 'school', icon: 'pen', business: 'Lantern Learning Centre', kind: () => t('School or training centre'), line: () => t('Students, courses, classes, attendance, results and fees.') },
-  { id: 'charity', icon: 'heart', business: 'Rowanmere Community Trust', kind: () => t('Charity or club'), line: () => t('Members, renewals, donations, campaigns, events and volunteers.') },
-  { id: 'workshop', icon: 'layers', business: 'Granite and Grain Woodworks', kind: () => t('Workshop or maker'), line: () => t('Materials, bills of materials, work orders, finished stock and sales.') },
+  { id: 'shop', group: 'shops', icon: 'scanReceipt', business: 'Larkspur Corner Store', kind: () => t('Shop'), line: () => t('Products, the till, stock, deliveries, loyalty customers and running costs.') },
+  { id: 'food', group: 'shops', icon: 'archive', business: 'Bramblegate Wine and Deli', kind: () => t('Food and beverages'), line: () => t('Wines, beers, spirits and fine food, stock by batch and expiry date, markdowns and age checks.') },
+  { id: 'cafe', group: 'shops', icon: 'sun', business: 'Little Fig Cafe', kind: () => t('Cafe or restaurant'), line: () => t('Menu costing, orders, ingredients, suppliers, waste and the staff rota.') },
+  { id: 'takeaway', group: 'shops', icon: 'send', business: 'Saffron Lane Pizza and Curry', kind: () => t('Takeaway'), line: () => t('Phone and online orders, collection and delivery, drivers, kitchen tickets and receipts.') },
+  { id: 'florist', group: 'shops', icon: 'star', business: 'Hazel Row Flowers', kind: () => t('Florist'), line: () => t('Orders with card messages, deliveries, weddings and funerals, stems and waste.') },
+  { id: 'pharmacy', group: 'shops', icon: 'heal', business: 'Tansy Row Pharmacy', kind: () => t('Pharmacy counter'), line: () => t('Counter stock by batch and expiry date, collections, deliveries to the housebound and the till.') },
+  { id: 'trading', group: 'trade', icon: 'globe', business: 'Northbank Trading', kind: () => t('Wholesale and trading'), line: () => t('Customers, suppliers, products, orders, purchase orders, stock and invoices.') },
+  { id: 'workshop', group: 'trade', icon: 'layers', business: 'Granite and Grain Woodworks', kind: () => t('Workshop or maker'), line: () => t('Materials, bills of materials, work orders, finished stock and sales.') },
+  { id: 'builder', group: 'trade', icon: 'grid', business: 'Kilnside Builders', kind: () => t('Builder or tradesperson'), line: () => t('Enquiries, quotes, jobs in stages, variations, stage invoices and retentions.') },
+  { id: 'cars', group: 'trade', icon: 'flag', business: 'Copperbeech Motors', kind: () => t('Car dealer'), line: () => t('Vehicles in stock with their costs, part-exchanges, sales, finance and warranties.') },
+  { id: 'salon', group: 'services', icon: 'scissors', business: 'Marigold Hair and Beauty', kind: () => t('Salon'), line: () => t('Clients, bookings, stylists, services, retail stock and commission.') },
+  { id: 'barber', group: 'services', icon: 'brush', business: 'Copper Pole Barbers', kind: () => t('Barber shop'), line: () => t('Walk-ins and bookings, chair rental, takings by barber and loyalty cards.') },
+  { id: 'repairs', group: 'services', icon: 'phone', business: 'Ironbridge Repairs', kind: () => t('Repair shop'), line: () => t('Repair jobs from booking in to collection, parts, quotes and warranty.') },
+  { id: 'garage', group: 'services', icon: 'settings', business: 'Quarrybank Motors', kind: () => t('Garage and MOT centre'), line: () => t('Vehicles, job cards, parts and labour, MOT tests and reminders.') },
+  { id: 'cleaning', group: 'services', icon: 'bucket', business: 'Fernhollow Cleaning', kind: () => t('Cleaning company'), line: () => t('Clients and sites, contracts, the cleaners\' rota, hours, pay and monthly invoices.') },
+  { id: 'agency', group: 'services', icon: 'clock', business: 'Bramble Studio', kind: () => t('Consultancy or agency'), line: () => t('Clients, projects, time sheets, expenses and invoices.') },
+  { id: 'gym', group: 'services', icon: 'sliders', business: 'Tannery Yard Fitness', kind: () => t('Gym or fitness studio'), line: () => t('Members and plans, payments, classes and bookings, personal training and visits.') },
+  { id: 'clinic', group: 'care', icon: 'calendar', business: 'Cedar Lane Clinic', kind: () => t('Clinic'), line: () => t('Patients, appointments, treatments, invoices and recalls.') },
+  { id: 'school', group: 'care', icon: 'pen', business: 'Lantern Learning Centre', kind: () => t('School or training centre'), line: () => t('Students, courses, classes, attendance, results and fees.') },
+  { id: 'charity', group: 'care', icon: 'heart', business: 'Rowanmere Community Trust', kind: () => t('Charity or club'), line: () => t('Members, renewals, donations, campaigns, events and volunteers.') },
+  { id: 'rentals', group: 'property', icon: 'home', business: 'Hollybrook Lettings', kind: () => t('Property rentals'), line: () => t('Properties, units, tenants, leases, rent due, repairs and inspections.') },
+  { id: 'agent', group: 'property', icon: 'folderOpen', business: 'Fernleigh Estates', kind: () => t('Estate and letting agent'), line: () => t('Landlords and sellers, viewings and offers, tenancies, rent collected and statements.') },
+  { id: 'guesthouse', group: 'property', icon: 'moon', business: 'Gullhaven Guest House', kind: () => t('Guest house or B&B'), line: () => t('Rooms, bookings and deposits, guests, their bills and the booking sites.') },
+  { id: 'visitors', group: 'property', icon: 'signature', business: 'Copperfield House', kind: () => t('Visitors at the front desk'), line: () => t('Who is in the building, passes, hosts, contractors\' inductions and deliveries.') },
+  { id: 'payroll', group: 'property', icon: 'financial', business: 'Wrenmoor Garden Centre', kind: () => t('Staff, timesheets and payroll'), line: () => t('Employees, holidays and absence, timesheets, pay runs and payslips.') },
 ];
 
 export const TYPE_NAMES = () => ({
@@ -593,8 +616,11 @@ export default function Databases({ app, shell, boot }) {
             <section className="bs-templates bs-samples" aria-label={t('Sample databases')}>
               <h2>{t('Or a whole business, ready to use')}</h2>
               <p className="bs-samples-note">{t('Each comes with invented records to learn from, or empty for your own.')}</p>
+              {SAMPLE_GROUPS.map((g) => (
+              <div key={g.id} className="bs-sample-group" data-group={g.id}>
+              <h3>{g.name()}</h3>
               <div className="bs-template-grid">
-                {SAMPLES.map((s) => (
+                {SAMPLES.filter((s) => s.group === g.id).map((s) => (
                   <div key={s.id} className={`bs-sample${needs[s.id] ? ' needs' : ''}`} data-sample={s.id} data-needs={needs[s.id] || undefined} role="group" aria-label={s.kind()}>
                     <span className="bs-template-icon"><Icon name={s.icon} size={18} /></span>
                     <span className="bs-template-words">
@@ -614,6 +640,8 @@ export default function Databases({ app, shell, boot }) {
                   </div>
                 ))}
               </div>
+              </div>
+              ))}
             </section>
           </div>
         </Content>

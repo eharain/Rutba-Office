@@ -15,6 +15,8 @@ export const BASE_CSS = `
 .bs-template-words strong { font-size: 13.5px; font-weight: 600; }
 .bs-template-words small { font-size: 12px; color: var(--ink-2); line-height: 1.35; }
 .bs-samples { margin-top: 18px; }
+.bs-sample-group { margin-top: 14px; }
+.bs-sample-group h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .bs-samples-note { margin: -4px 0 10px; font-size: 12.5px; color: var(--ink-2); text-align: center; }
 .bs-sample { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; padding: 12px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-3, 8px); }
 .bs-sample > .bs-template-words { flex: 1 1 0; }

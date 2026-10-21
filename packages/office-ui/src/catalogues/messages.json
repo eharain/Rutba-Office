@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7581,
+  "count": 7614,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -4759,6 +4759,12 @@
       ]
     },
     {
+      "message": "Barber shop",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Bars",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
@@ -5531,6 +5537,12 @@
       ]
     },
     {
+      "message": "Builder or tradesperson",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Building Blocks Organizer",
       "where": [
         "apps/desktop/renderer/apps/word/blocks.js"
@@ -6089,6 +6101,12 @@
       "message": "Captions below all pictures",
       "where": [
         "apps/desktop/renderer/apps/slides/album.js"
+      ]
+    },
+    {
+      "message": "Car dealer",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -7139,6 +7157,12 @@
       ]
     },
     {
+      "message": "Cleaning company",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Clear",
       "where": [
         "apps/desktop/renderer/apps/pdf/fields.js",
@@ -7469,6 +7493,12 @@
       "message": "Click to select (Shift/Ctrl adds or removes one); double-click to rename",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Clients and sites, contracts, the cleaners' rota, hours, pay and monthly invoices.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -8875,6 +8905,12 @@
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
+      "message": "Counter stock by batch and expiry date, collections, deliveries to the housebound and the till.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -12090,6 +12126,12 @@
       ]
     },
     {
+      "message": "Employees, holidays and absence, timesheets, pay runs and payslips.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Empty",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -12263,6 +12305,12 @@
       "message": "Enhanced: the tones stretched to the full range and the colour cast eased.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Enquiries, quotes, jobs in stages, variations, stage invoices and retentions.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -12480,6 +12528,12 @@
       "message": "Esc",
       "where": [
         "packages/office-ui/src/commands.js"
+      ]
+    },
+    {
+      "message": "Estate and letting agent",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -14112,6 +14166,12 @@
       ]
     },
     {
+      "message": "Florist",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Fly In",
       "where": [
         "apps/desktop/renderer/apps/slides/animate.js"
@@ -14267,6 +14327,12 @@
       "message": "Fonts — the theme's heading and body faces: a pair, or your own",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Food and beverages",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -15078,6 +15144,12 @@
       ]
     },
     {
+      "message": "Garage and MOT centre",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Gear",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
@@ -15638,9 +15710,21 @@
       ]
     },
     {
+      "message": "Guest house or B&B",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Guides",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Gym or fitness studio",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -15881,6 +15965,12 @@
       "message": "Healing Brush (J): Alt+click clean skin, then paint over a blemish",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Health, learning and community",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -18761,6 +18851,12 @@
       ]
     },
     {
+      "message": "Landlords and sellers, viewings and offers, tenancies, rent collected and statements.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Landscape",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -21149,6 +21245,12 @@
       "message": "Meeting minutes",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "Members and plans, payments, classes and bookings, personal training and visits.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -25451,6 +25553,12 @@
       ]
     },
     {
+      "message": "Orders with card messages, deliveries, weddings and funerals, stems and waste.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Organise",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -26517,9 +26625,21 @@
       ]
     },
     {
+      "message": "Pharmacy counter",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Phone",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "Phone and online orders, collection and delivery, drivers, kitchen tickets and receipts.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -27925,6 +28045,12 @@
     },
     {
       "message": "Property rentals",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Property, premises and staff",
       "where": [
         "apps/desktop/renderer/apps/base.js"
       ]
@@ -30728,6 +30854,12 @@
       ]
     },
     {
+      "message": "Rooms, bookings and deposits, guests, their bills and the booking sites.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Rotate",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js",
@@ -33178,6 +33310,12 @@
       ]
     },
     {
+      "message": "Services",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Set",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -33660,6 +33798,12 @@
     },
     {
       "message": "Shop",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Shops and food",
       "where": [
         "apps/desktop/renderer/apps/base.js"
       ]
@@ -35536,6 +35680,12 @@
       ]
     },
     {
+      "message": "Staff, timesheets and payroll",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Stamp",
       "where": [
         "apps/desktop/renderer/apps/pdf/annots.js"
@@ -36784,6 +36934,12 @@
       "message": "Take {table} out of the query",
       "where": [
         "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
+      "message": "Takeaway",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -41159,6 +41315,12 @@
       ]
     },
     {
+      "message": "Trade, making and building",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Training deck",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
@@ -42560,6 +42722,18 @@
       ]
     },
     {
+      "message": "Vehicles in stock with their costs, part-exchanges, sales, finance and warranties.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Vehicles, job cards, parts and labour, MOT tests and reminders.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Version",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -42811,6 +42985,12 @@
       ]
     },
     {
+      "message": "Visitors at the front desk",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Voice",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js",
@@ -42860,6 +43040,12 @@
       "message": "Waiting for {provider}…",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Walk-ins and bookings, chair rental, takings by barber and loyalty cards.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -43248,6 +43434,12 @@
       ]
     },
     {
+      "message": "Who is in the building, passes, hosts, contractors' inductions and deliveries.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Who signs",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js"
@@ -43434,6 +43626,12 @@
       "message": "Windows — locking the window's size and place is greyed in Excel on Windows too",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Wines, beers, spirits and fine food, stock by batch and expiry date, markdowns and age checks.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {

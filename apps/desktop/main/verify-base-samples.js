@@ -3,7 +3,7 @@
 // shop with its records makes the file and opens it with its tables,
 // queries, a form for each table and its reports, and its takings report
 // shows money; choosing the clinic empty makes the same design with no
-// records in it.
+// records in it but its Start Here guide.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -65,10 +65,11 @@ export async function verifyBaseSamples(h, { dir }) {
     await until(() => js(`document.querySelectorAll('.bs-reports [data-report]').length === ${clinic.reports.length}`), 'the empty clinic', 8000).catch(() => {});
     const empty = (() => {
       const d = Base.open(clinicFile);
-      try { return { tables: d.tables().map((t) => t.name), records: d.tables().reduce((n, t) => n + d.count(t.name), 0), queries: d.queries().length }; } finally { d.close(); }
+      // Only the Start Here guide has records: it is how a person finds their way in.
+      try { return { tables: d.tables().map((t) => t.name), records: d.tables().filter((t) => t.name !== 'Start Here').reduce((n, t) => n + d.count(t.name), 0), guide: d.count('Start Here'), queries: d.queries().length }; } finally { d.close(); }
     })();
-    check('base: the clinic made empty has its whole design and no records',
-      JSON.stringify(empty.tables) === JSON.stringify(clinic.tables.map((t) => t.name)) && empty.records === 0 && empty.queries === Object.keys(clinic.queries).length,
+    check('base: the clinic made empty has its whole design, no records but its Start Here guide',
+      JSON.stringify(empty.tables) === JSON.stringify(clinic.tables.map((t) => t.name)) && empty.records === 0 && empty.guide > 10 && empty.queries === Object.keys(clinic.queries).length,
       JSON.stringify(empty));
     win.close();
   } catch (err) {
