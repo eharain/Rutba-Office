@@ -81,13 +81,17 @@ test('the installer\'s choice: read only when the installer chose last; what Off
     assert.equal(await installerChoice({ key }), null);
     reg('add', key, '/v', 'AppsOff', '/t', 'REG_SZ', '/d', 'sheets,video,', '/f');
     reg('add', key, '/v', 'AppsChosenAt', '/t', 'REG_SZ', '/d', 'installer', '/f');
-    assert.deepEqual(await installerChoice({ key }), { off: ['sheets', 'video'], addons: [] });
-    await recordChoice(['pdf'], { key });
+    // An installer older than AppsOn wrote the unticked apps only.
+    assert.deepEqual(await installerChoice({ key }), { off: ['sheets', 'video'], on: null, addons: [] });
+    await recordChoice(['pdf'], { key, on: ['mail', 'word', 'base'], addons: ['ai'] });
     assert.equal(await installerChoice({ key }), null);
     assert.match(reg('query', key, '/v', 'AppsOff'), /REG_SZ\s+pdf/);
-    await recordChoice([], { key });
+    assert.match(reg('query', key, '/v', 'AppsOn'), /REG_SZ\s+mail,word,base/);
     reg('add', key, '/v', 'AppsChosenAt', '/t', 'REG_SZ', '/d', 'installer', '/f');
-    assert.deepEqual(await installerChoice({ key }), { off: [], addons: [] });
+    assert.deepEqual(await installerChoice({ key }), { off: ['pdf'], on: ['mail', 'word', 'base'], addons: ['ai'] });
+    await recordChoice([], { key, on: [] });
+    reg('add', key, '/v', 'AppsChosenAt', '/t', 'REG_SZ', '/d', 'installer', '/f');
+    assert.deepEqual(await installerChoice({ key }), { off: [], on: [], addons: [] });
   } finally {
     reg('delete', key, '/f');
   }

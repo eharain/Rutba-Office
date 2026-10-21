@@ -76,21 +76,31 @@ export async function applyFileTypes(plan, { root = CLASSES } = {}) {
 /** Where the installer's Choose apps page and Office keep the apps turned off, for each other. */
 export const CHOICE_KEY = 'HKCU\\Software\\Rutba Office';
 
-/** The apps the installer's page left unticked, if it was the last to choose: { off } or null. */
+/**
+ * The apps the installer's page left unticked and those it left ticked, if it
+ * was the last to choose: { off, on, addons } or null. `on` is null from an
+ * installer older than AppsOn, which wrote the unticked ones only.
+ */
 export async function installerChoice({ key = CHOICE_KEY } = {}) {
   const by = await reg(['query', key, '/v', 'AppsChosenAt']);
   if (!by.ok || !/REG_SZ\s+installer\s*$/m.test(by.out)) return null;
   const list = async (name) => {
     const r = await reg(['query', key, '/v', name]);
-    const raw = r.ok ? (new RegExp(`${name}\\s+REG_SZ\\s+(.*?)\\s*$`, 'm').exec(r.out)?.[1] ?? '') : '';
+    if (!r.ok) return null;
+    const raw = new RegExp(`${name}\\s+REG_SZ\\s+(.*?)\\s*$`, 'm').exec(r.out)?.[1] ?? '';
     return raw.split(',').map((s) => s.trim()).filter(Boolean);
   };
-  return { off: await list('AppsOff'), addons: await list('AddOns') };
+  return { off: (await list('AppsOff')) || [], on: await list('AppsOn'), addons: (await list('AddOns')) || [] };
 }
 
-/** The apps turned off, written where the installer's page reads them, as chosen in Office. */
-export async function recordChoice(off, { key = CHOICE_KEY, addons = [] } = {}) {
+/**
+ * The apps turned off and those turned on, written where the installer's page
+ * reads them, as chosen in Office. Both, so an installer with an app this copy
+ * has never heard of still shows exactly the apps that are on now.
+ */
+export async function recordChoice(off, { key = CHOICE_KEY, addons = [], on = null } = {}) {
   await reg(['add', key, '/v', 'AppsOff', '/t', 'REG_SZ', '/d', off.join(','), '/f']);
+  if (on) await reg(['add', key, '/v', 'AppsOn', '/t', 'REG_SZ', '/d', on.join(','), '/f']);
   await reg(['add', key, '/v', 'AddOns', '/t', 'REG_SZ', '/d', addons.join(','), '/f']);
   await reg(['add', key, '/v', 'AppsChosenAt', '/t', 'REG_SZ', '/d', 'office', '/f']);
 }
