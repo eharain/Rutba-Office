@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app as electron, BrowserWindow } from 'electron';
+import { app as electron, BrowserWindow, shell } from 'electron';
 import { createShell, holdBlob, releaseBlob, blobUrl, broadcast } from '@rutba/office-shell/electron/main';
 import { useClipboard, memoryClipboard } from '@rutba/office-shell/electron/clipboard';
 import { useShortcuts } from '@rutba/office-shell/electron/shortcuts';
@@ -200,7 +200,17 @@ createShell({
       // Recorder → Go Live: the destinations, their keys in the keystore, the publishers (live.js).
       live: createLiveService({ stores }),
       // Talk: messages and calls with contacts, through the introducer (talk.js).
-      talk: createTalkService({ stores, broadcast, dataDir: path.join(stores.dir, 'talk') }),
+      talk: createTalkService({
+        stores,
+        broadcast,
+        dataDir: path.join(stores.dir, 'talk'),
+        // The sign-in opens the system browser; under the window checks the address is noted instead, as a link's is.
+        openBrowser: (url) => {
+          if (process.env.RUTBA_OFFICE_VERIFY_APPS) { (globalThis.__rutbaCheckOpened ||= []).push(url); return undefined; }
+          return shell.openExternal(url);
+        },
+        testServers: Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS),
+      }),
       // Databases: each open database's SQLite file (base.js).
       base: createBaseService(),
       oauth,

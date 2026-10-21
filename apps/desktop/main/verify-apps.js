@@ -32,6 +32,7 @@ import { verifyRecorderApp } from './verify-recorder-app.js';
 import { verifyAppsChoice } from './verify-apps-choice.js';
 import { verifyMailSafety } from './verify-mail-safety.js';
 import { verifyTalk } from './verify-talk.js';
+import { verifyTalkSignIn } from './verify-talk-signin.js';
 import { verifyBase } from './verify-base.js';
 import { verifyVideoSound } from './verify-video-sound.js';
 import { verifyVideoLibrary, verifyVideoStarters } from './verify-video-library.js';
@@ -5042,6 +5043,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('apps-choice')) await verifyAppsChoice({ open, check, until, wait, errorsIn });
     if (only.includes('mail-safety')) await verifyMailSafety({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('talk')) await verifyTalk({ open, check, until, wait, errorsIn });
+    if (only.includes('talk-signin')) await verifyTalkSignIn({ open, check, until, wait });
     if (only.includes('base')) await verifyBase({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-sound')) await verifyVideoSound({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-library')) await verifyVideoLibrary({ open, check, until, wait, errorsIn }, { dir });
@@ -5416,6 +5418,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('video', () => verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   // Talk and the later Video checks: out of Mail's section, so an --apps run of either finds them.
   await part('talk', () => verifyTalk({ open, check, until, wait, errorsIn }));
+  await part('talk', () => verifyTalkSignIn({ open, check, until, wait }));
   await part('base', () => verifyBase({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifyVideoSound({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifyVideoLibrary({ open, check, until, wait, errorsIn }, { dir }));

@@ -55,12 +55,16 @@ function SignIn({ shell, state, toast }) {
       setBusy(false);
     }
   };
+  // Rutba sign-in in the browser; the window waits while it is open there.
+  const signInWithRutba = () => shell.talk.signInBrowser().catch(() => { /* the state says why */ });
+  const waiting = state.phase === 'signing-in';
   return (
     <div className="tk-signin">
       <Empty icon="talk" title={t('Talk with your contacts')}>
         <p>{t('Messages and calls with the people you know. Sign in with your Rutba account; someone becomes a contact once both of you have said so.')}</p>
-        {state.error ? <p className="tk-error">{state.error}</p> : null}
-        <p className="tk-soon">{t('Rutba sign-in for Talk is being set up. Until then Talk can connect to a test server.')}</p>
+        {state.error && !waiting ? <p className="tk-error">{state.error}</p> : null}
+        <Button primary label={waiting ? t('Waiting for the browser…') : t('Sign in with Rutba')} className="tk-rutba" disabled={waiting} onClick={signInWithRutba} />
+        <p className="tk-soon">{waiting ? t('Finish signing in in your browser, then come back here.') : t('Your browser opens at auth.rutba.io to sign in, as everywhere on Rutba.')}</p>
       </Empty>
       <details className="tk-test">
         <summary>{t('Connect to a test server')}</summary>
@@ -309,7 +313,8 @@ export default function Talk({ app, shell }) {
   if (!state) return <AppFrame app={app} shell={shell} title={t('Talk')} menu={appMenu}><Content><div className="tk-wait"><Spinner /></div></Content></AppFrame>;
 
   const contact = state.contacts.find((c) => c.id === current) || null;
-  const signedIn = state.phase !== 'signed-out';
+  // Signing in in the browser is still the sign-in screen, waiting.
+  const signedIn = state.phase !== 'signed-out' && state.phase !== 'signing-in';
   const presence = state.presence || 'online';
 
   return (

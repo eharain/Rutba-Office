@@ -12,15 +12,25 @@
 // the one connection for every window, keeps your messages on this computer,
 // and hands each window what the introducer says.
 //
-// Nothing connects until you sign in, and only to the introducer.
+// Nothing connects until you sign in, and only to the introducer. Signing in
+// is Rutba's own, in the browser (talk-signin.js, workers/introducer
+// docs/SIGN-IN.md): the access token goes to the introducer, refreshed before
+// it runs out with the refresh token kept beside it; a token can still be
+// given outright for a test or self-run introducer.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { ISSUER, signInWithBrowser, refreshTokens, revoke, expiresAt } from './talk-signin.js';
 
 export const SERVER_KEY = 'talk.server';
 export const DEFAULT_SERVER = 'wss://introducer.rutba.io/ws';
 const TOKEN_SECRET = 'talk.token';
+const REFRESH_SECRET = 'talk.refresh';
+/** Where Rutba sign-in is: auth.rutba.io, or a stand-in under the checks. */
+const ISSUER_KEY = 'talk.issuer';
+/** How long before its end an access token is renewed. */
+const RENEW_BEFORE = 5 * 60 * 1000;
 const OWN_RELAY_KEY = 'talk.ownRelay';
 const OWN_RELAY_SECRET = 'talk.ownRelay.credential';
 const RELAY_CHOICE_KEY = 'talk.relay';
@@ -34,8 +44,10 @@ const HISTORY_CAP = 5000;
  * @param {(event: string, payload: object) => void} o.broadcast to every window
  * @param {string} o.dataDir where the messages are kept
  * @param {(url: string) => WebSocket} [o.connect] how a connection is made (the checks hand in their own)
+ * @param {(url: string) => Promise<void>|void} [o.openBrowser] opens the system browser, for the sign-in
+ * @param {boolean} [o.testServers] whether the browser sign-in may be pointed at another introducer (the checks only)
  */
-export function createTalkService({ stores, broadcast, dataDir, connect = (url) => new WebSocket(url) }) {
+export function createTalkService({ stores, broadcast, dataDir, connect = (url) => new WebSocket(url), openBrowser = null, testServers = false, fetchImpl = (...a) => fetch(...a) }) {
   const settings = stores.settings;
   const secrets = stores.secrets;
   let socket = null;
@@ -135,7 +147,9 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
         keep(msg.message.to, { ...msg.message, mine: true });
         break;
       case 'error':
-        if (msg.for === 'hello') state = { ...state, phase: 'signed-out', error: msg.message || 'The sign-in was not accepted.' };
+        // A token that has run out is renewed and the connection made again; any other refusal signs out.
+        if (msg.for === 'hello' && msg.code === 'expired' && secrets.get(REFRESH_SECRET)) expired = true;
+        else if (msg.for === 'hello') state = { ...state, phase: 'signed-out', error: msg.message || 'The sign-in was not accepted.' };
         break;
       default:
         break;
@@ -150,8 +164,50 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     socket.send(JSON.stringify(msg));
   };
 
-  const open = () => {
+  /* ── the sign-in's tokens ────────────────────────────────────────── */
+
+  const issuer = () => settings.get(ISSUER_KEY, ISSUER);
+  const keepTokens = (t) => {
+    secrets.set(TOKEN_SECRET, String(t.access_token));
+    if (t.refresh_token) secrets.set(REFRESH_SECRET, String(t.refresh_token));
+  };
+  const forget = () => {
+    secrets.delete(TOKEN_SECRET);
+    secrets.delete(REFRESH_SECRET);
+  };
+  let renewing = null;
+  /**
+   * A fresh access token when it is near its end, or when the introducer
+   * said it had run out. 'fresh' or 'kept' when there is one to connect
+   * with; 'ended' when the sign-in has ended (signed out at auth.rutba.io,
+   * by an administrator, or 30 days gone), and the tokens are forgotten.
+   */
+  const renew = (force = false) => {
+    const refresh = secrets.get(REFRESH_SECRET);
+    if (!refresh) return Promise.resolve('kept');
+    const until = expiresAt(secrets.get(TOKEN_SECRET));
+    if (!force && until && until - Date.now() > RENEW_BEFORE) return Promise.resolve('kept');
+    renewing ||= refreshTokens({ issuer: issuer(), refreshToken: refresh, fetchImpl })
+      .then((t) => { keepTokens(t); return 'fresh'; })
+      .catch((err) => {
+        if (err.code === 'invalid_grant') { forget(); return 'ended'; }
+        // Out of reach for now: the person is still signed in; the next try renews it.
+        return 'kept';
+      })
+      .finally(() => { renewing = null; });
+    return renewing;
+  };
+  let expired = false;
+
+  const open = async () => {
     clearTimeout(retryTimer);
+    if ((await renew(expired)) === 'ended') {
+      expired = false;
+      state = { ...state, phase: 'signed-out', error: 'Your Rutba sign-in has ended. Sign in again to use Talk.' };
+      tell();
+      return;
+    }
+    expired = false;
     const token = secrets.get(TOKEN_SECRET);
     if (!token) { state = { ...state, phase: 'signed-out' }; tell(); return; }
     state = { ...state, phase: 'connecting', error: '' };
@@ -177,6 +233,8 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
       if (!wanted || state.phase === 'signed-out') { tell(); return; }
       state = { ...state, phase: 'offline' };
       tell();
+      // Turned away for a token that ran out: again at once, with a fresh one.
+      if (expired) { open(); return; }
       const wait = BACKOFF[Math.min(retry, BACKOFF.length - 1)] * 1000;
       retry += 1;
       retryTimer = setTimeout(open, wait);
@@ -199,7 +257,32 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
         if (!/^wss?:\/\//.test(server)) throw new Error('The server address starts with wss://.');
         settings.set(SERVER_KEY, server);
       }
+      // A token given outright has no refresh of its own.
+      secrets.delete(REFRESH_SECRET);
       secrets.set(TOKEN_SECRET, String(token));
+      wanted = true;
+      open();
+      return snapshot();
+    },
+
+    /**
+     * Sign in with Rutba in the browser: auth.rutba.io in the system
+     * browser, the code back to Office on 127.0.0.1, then Rutba's
+     * introducer. Answers once the sign-in has come back (or why not).
+     */
+    signInBrowser: async ({ server } = {}) => {
+      if (!openBrowser) throw new Error('This copy of Rutba Office cannot open a browser.');
+      state = { ...state, phase: 'signing-in', error: '' };
+      tell();
+      try {
+        const tokens = await signInWithBrowser({ issuer: issuer(), open: openBrowser, fetchImpl });
+        settings.set(SERVER_KEY, testServers && server ? server : DEFAULT_SERVER);
+        keepTokens(tokens);
+      } catch (err) {
+        state = { ...state, phase: 'signed-out', error: err?.message || String(err) };
+        tell();
+        throw err;
+      }
       wanted = true;
       open();
       return snapshot();
@@ -208,7 +291,10 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     signOut: () => {
       wanted = false;
       clearTimeout(retryTimer);
-      secrets.delete(TOKEN_SECRET);
+      // The refresh token given back, so the sign-in cannot be renewed from this copy again.
+      const refresh = secrets.get(REFRESH_SECRET);
+      if (refresh) revoke({ issuer: issuer(), refreshToken: refresh, fetchImpl }).catch(() => {});
+      forget();
       const ws = socket;
       socket = null;
       try { ws?.close(1000, 'signed out'); } catch { /* gone */ }
@@ -219,7 +305,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
 
     /** Connect again with the sign-in kept, as at start-up. */
     resume: () => {
-      if (secrets.get(TOKEN_SECRET)) { wanted = true; if (!socket) open(); }
+      if (secrets.get(TOKEN_SECRET) || secrets.get(REFRESH_SECRET)) { wanted = true; if (!socket) open(); }
       return snapshot();
     },
 

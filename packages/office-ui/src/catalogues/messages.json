@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7456,
+  "count": 7459,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -13527,6 +13527,12 @@
       "message": "Finish editing",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Finish signing in in your browser, then come back here.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -30750,12 +30756,6 @@
       ]
     },
     {
-      "message": "Rutba sign-in for Talk is being set up. Until then Talk can connect to a test server.",
-      "where": [
-        "apps/desktop/renderer/apps/talk.js"
-      ]
-    },
-    {
       "message": "SAMPLE",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -33478,6 +33478,12 @@
       "message": "Sign in",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "Sign in with Rutba",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -42095,6 +42101,12 @@
       ]
     },
     {
+      "message": "Waiting for the browser…",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Waiting for {provider}…",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -43075,6 +43087,12 @@
       "message": "YouTube, 16:9 at 1080p",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "Your browser opens at auth.rutba.io to sign in, as everywhere on Rutba.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {

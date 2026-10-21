@@ -361,7 +361,8 @@ export const METHODS = {
   // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).
   talk: [
     'state',        // () -> { phase, me, contacts, requests, blocked, relays, server, relay, presence, error }
-    'signIn',       // ({ token, server? }) -> state   a Rutba sign-in token; a server for a test introducer
+    'signIn',       // ({ token, server? }) -> state   a token given outright, for a test or self-run introducer
+    'signInBrowser',// () -> state   Rutba sign-in in the system browser, then Rutba's introducer
     'signOut',      // () -> state
     'resume',       // () -> state   connects again with the sign-in kept
     'send',         // (msg) -> { sent }   a contact request, presence, a call's set-up, to the introducer

@@ -7251,7 +7251,6 @@ export default {
   'Relays…': 'रिले…',
   'Ringing…': 'घंटी बज रही है…',
   'Rutba Talk': 'रुतबा टॉक',
-  'Rutba sign-in for Talk is being set up. Until then Talk can connect to a test server.': 'टॉक के लिए रुतबा साइन इन तैयार किया जा रहा है। तब तक टॉक परीक्षण सर्वर से जुड़ सकता है।',
   'Safety code {code}: if {name} sees the same, nobody is listening in.': 'सुरक्षा कोड {code}: यदि {name} को यही दिखे, तो कोई बीच में नहीं सुन रहा।',
   'Say hello to {name}.': '{name} को नमस्ते कहें।',
   'Share screen': 'स्क्रीन साझा करें',
@@ -7466,4 +7465,8 @@ export default {
   'The connection is not encrypted. Use it on a network you trust, or reach it through a secure tunnel. Anyone with the key can use the tools while they are on.': 'कनेक्शन एन्क्रिप्टेड नहीं है। इसे ऐसे नेटवर्क पर इस्तेमाल करें जिस पर आपको भरोसा हो, या किसी सुरक्षित टनल से पहुँचें। कुंजी वाला कोई भी व्यक्ति टूल चालू रहने तक उनका इस्तेमाल कर सकता है।',
   'Who can connect': 'कौन जुड़ सकता है',
   'from {where}': '{where} से',
+  'Finish signing in in your browser, then come back here.': 'अपने ब्राउज़र में साइन इन पूरा करें, फिर यहाँ वापस आएँ।',
+  'Sign in with Rutba': 'Rutba से साइन इन करें',
+  'Waiting for the browser…': 'ब्राउज़र की प्रतीक्षा है…',
+  'Your browser opens at auth.rutba.io to sign in, as everywhere on Rutba.': 'साइन इन के लिए आपका ब्राउज़र auth.rutba.io पर खुलता है, जैसे Rutba पर हर जगह।',
 };

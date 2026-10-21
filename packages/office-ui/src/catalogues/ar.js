@@ -7251,7 +7251,6 @@ export default {
   'Relays…': 'المرحِّلات…',
   'Ringing…': 'يرن…',
   'Rutba Talk': 'رتبة توك',
-  'Rutba sign-in for Talk is being set up. Until then Talk can connect to a test server.': 'يُجهَّز تسجيل الدخول برتبة لتوك. وإلى ذلك الحين يمكن لتوك الاتصال بخادم تجريبي.',
   'Safety code {code}: if {name} sees the same, nobody is listening in.': 'رمز الأمان {code}: إن رأى {name} الرمز نفسه فلا أحد يتنصت.',
   'Say hello to {name}.': 'سلّم على {name}.',
   'Share screen': 'مشاركة الشاشة',
@@ -7466,4 +7465,8 @@ export default {
   'The connection is not encrypted. Use it on a network you trust, or reach it through a secure tunnel. Anyone with the key can use the tools while they are on.': 'الاتصال غير مشفر. استخدمه على شبكة تثق بها، أو صِل إليه عبر نفق آمن. يمكن لأي شخص لديه المفتاح استخدام الأدوات ما دامت تعمل.',
   'Who can connect': 'من يمكنه الاتصال',
   'from {where}': 'من {where}',
+  'Finish signing in in your browser, then come back here.': 'أكمل تسجيل الدخول في متصفحك، ثم عد إلى هنا.',
+  'Sign in with Rutba': 'تسجيل الدخول باستخدام Rutba',
+  'Waiting for the browser…': 'بانتظار المتصفح…',
+  'Your browser opens at auth.rutba.io to sign in, as everywhere on Rutba.': 'يفتح متصفحك على auth.rutba.io لتسجيل الدخول، كما في كل مكان على Rutba.',
 };

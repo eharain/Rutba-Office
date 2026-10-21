@@ -74,13 +74,25 @@ export function standInIntroducer({ page = null } = {}) {
     res.writeHead(404);
     res.end();
   });
+  // What the sign-in check asks of it: the next sign-in turned away as run out.
+  const options = { expireNext: false };
+  /** A JWT-shaped token's claims, as the stand-in sign-in issues them; null for a plain test token. */
+  const claimsOf = (token) => { try { return JSON.parse(Buffer.from(String(token).split('.')[1], 'base64url').toString('utf8')); } catch { return null; } };
   server.on('upgrade', (req, socket) => {
     const conn = accept(req, socket);
+    conn.socket = socket;
     let me = null;
     conn.onmessage = (text) => {
       const msg = JSON.parse(text);
       if (!me) {
-        me = PEOPLE[msg.token];
+        const claims = claimsOf(msg.token);
+        if (claims && (options.expireNext || claims.exp * 1000 < Date.now())) {
+          options.expireNext = false;
+          conn.send(JSON.stringify({ type: 'error', for: 'hello', code: 'expired', message: 'The sign-in has run out.' }));
+          socket.end();
+          return;
+        }
+        me = PEOPLE[msg.token] || (claims && PEOPLE[claims.sub]) || null;
         if (msg.type !== 'hello' || !me) { conn.send(JSON.stringify({ type: 'error', for: 'hello', code: 'token', message: 'That is not a sign-in token.' })); socket.end(); return; }
         online.set(me.id, conn);
         presence.set(me.id, msg.presence || 'online');
@@ -134,7 +146,11 @@ export function standInIntroducer({ page = null } = {}) {
     conn.onclose = () => { if (me && online.get(me.id) === conn) { online.delete(me.id); tellContacts(me.id); } };
   });
   return {
+    options,
     listen: () => new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port))),
+    /** One person's connection ended from this side, as a server restart would. */
+    drop: (id) => online.get(id)?.socket?.end(),
+    online: (id) => online.has(id),
     close: () => new Promise((resolve) => { for (const c of online.values()) { try { c.onclose = null; } catch { /* gone */ } } server.closeAllConnections?.(); server.close(() => resolve()); }),
   };
 }
