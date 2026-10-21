@@ -1828,11 +1828,15 @@ export class SheetView {
     if (lock) {
       throw protectionError('The range "' + lock + '" is protected by a password — unlock it to change ' + ref(row, col) + '.', { range: lock });
     }
+    const startedFrom = this.editValue(row, col);
+    // Words with looks of their own come with the edit, for the cell editor to show and keep.
+    const runs = replace ? null : this._cellRuns(this.activeSheet, row, col);
     this.editing = {
       row, col,
       ref: ref(row, col),
-      draft: replace ? initial : this.editValue(row, col) + initial,
-      startedFrom: this.editValue(row, col),
+      draft: replace ? initial : startedFrom + initial,
+      startedFrom,
+      runs: runs && runs.map((r) => r.text).join('') === startedFrom ? runs : null,
     };
     return this;
   }
@@ -1849,11 +1853,18 @@ export class SheetView {
   }
 
   /** Commit the edit into the calculation model and recalculate dependents. */
-  commitEdit({ move = 'down' } = {}) {
+  commitEdit({ move = 'down', runs = null } = {}) {
     if (!this.editing) return this;
     const { row, col, draft, startedFrom } = this.editing;
     this.editing = null;
-    if (draft !== startedFrom) this.setCell(row, col, draft);
+    // Words typed with looks of their own (the cell editor's runs): the words
+    // into the cell and the runs beside them, one step in Undo.
+    if (Array.isArray(runs) && runs.length && !String(draft).startsWith('=') && runs.map((r) => r.text).join('') === draft) {
+      this._edit('edit ' + ref(row, col), null, [{ row, col }], () => {
+        this._setCell(row, col, draft);
+        this.workbook.setCellRuns(this.activeSheet, row, col, runs);
+      }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
+    } else if (draft !== startedFrom) this.setCell(row, col, draft);
     // Shift reverses the direction, as it does everywhere else in a sheet, and
     // 'none' commits where the cursor is — which is what a click away means.
     if (move === 'down') this.enterKey(false);

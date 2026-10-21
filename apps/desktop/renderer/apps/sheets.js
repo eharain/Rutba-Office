@@ -18,6 +18,8 @@ import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDisc
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS, pivotAround } from './sheets/ribbon.js';
+import { RichEditor } from '../rich-editor.js';
+import { runsToParagraphs, paragraphsToRuns, formatRange, plainOf } from '@rutba/ooxml/rich-runs';
 import { editInImage } from './edit-in-image.js';
 import { PivotFieldsPane, PIVOT_FIELDS_CSS } from './sheets/pivot-fields.js';
 import { ScriptsPane, SCRIPTS_CSS, runInWorker, recordLines, recordedScript } from './sheets/scripts.js';
@@ -660,6 +662,19 @@ export default function Sheets({ app, shell, boot }) {
   const [draft, setDraft] = useState(null);
 
   /**
+   * Words with looks of their own in the cell being typed in (owner,
+   * 2026-10-21: styled text kept, and formatted a few words at a time): the
+   * cell editor is the rich one (rich-editor.js) when the cell's words have
+   * looks already, or once a few chosen words are given one. Bold, Italic,
+   * Underline, Strikethrough, the font, its size and its colour then go to
+   * the words chosen; a formula is always typed in the plain field.
+   */
+  const cellRich = useRef(null);
+  const [richStart, setRichStart] = useState(null);
+  const [richFormat, setRichFormat] = useState(null);
+  const richDone = useRef(false);
+
+  /**
    * An edit is starting, decided here and now.
    *
    * Beginning an edit is a round trip, and the characters that follow arrive
@@ -699,6 +714,12 @@ export default function Sheets({ app, shell, boot }) {
   useEffect(() => {
     if (!editing) { pointRef.current = null; typedRef.current = false; setCaret(null); }
   }, [Boolean(editing)]);
+
+  useEffect(() => {
+    setRichStart(null);
+    setRichFormat(null);
+    richDone.current = false;
+  }, [Boolean(editing), editing?.row, editing?.col]);
 
   useEffect(() => {
     if (editing) putDraft((d) => (d == null ? editing.draft ?? '' : d));
@@ -759,6 +780,52 @@ export default function Sheets({ app, shell, boot }) {
     },
     [dispatch, putDraft]
   );
+
+  /** The rich cell editor's words handed to the engine, their runs with them, then a move as a spreadsheet makes. Once. */
+  const commitRich = useCallback(
+    (paragraphs, move = 'down') => {
+      if (richDone.current || !paragraphs) return Promise.resolve();
+      richDone.current = true;
+      const runs = paragraphsToRuns(paragraphs).map(({ text, bold, italic, underline, strike, size, font, color, colorXml, vertAlign }) => {
+        const r = { text, bold, italic, underline, strike, size, font, color, colorXml, vertAlign };
+        for (const k of Object.keys(r)) if (r[k] === undefined || r[k] === false || r[k] === null) delete r[k];
+        return r;
+      });
+      const text = runs.map((r) => r.text).join('');
+      putDraft(null);
+      startingRef.current = false;
+      return dispatch({ op: 'updateDraft', text }, { op: 'commitEdit', move, runs });
+    },
+    [dispatch, putDraft]
+  );
+
+  /** The ribbon's font buttons while a cell is typed in: to the words chosen there, when some are. */
+  const FONT_KEYS = { bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strike', fontName: 'font', fontSize: 'size', fontColour: 'color' };
+  const ribbonDispatch = useCallback((...ops) => {
+    const [first] = ops;
+    const text = draftRef.current ?? '';
+    if (ops.length === 1 && first?.op === 'setFormat' && editing && !String(text).startsWith('=')) {
+      const keys = Object.keys(first.delta || {});
+      if (keys.length && keys.every((k) => k in FONT_KEYS)) {
+        const delta = Object.fromEntries(keys.map((k) => [FONT_KEYS[k], first.delta[k]]));
+        if (cellRich.current) {
+          cellRich.current.format(delta);
+          return Promise.resolve();
+        }
+        const input = editorRef.current;
+        if (input && input.selectionStart !== input.selectionEnd) {
+          const a = input.selectionStart;
+          const b = input.selectionEnd;
+          const own = editing.runs ? runsToParagraphs(editing.runs) : null;
+          const start = own && plainOf(own) === text ? own : runsToParagraphs([{ text }]);
+          setRichStart({ paragraphs: formatRange(start, a, b, delta), selection: [a, b] });
+          return Promise.resolve();
+        }
+      }
+    }
+    return dispatch(...ops);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, editing]);
 
   /** The formula field the caret is in — the cell's editor or the bar — or null. */
   const formulaInput = () => {
@@ -1716,7 +1783,8 @@ export default function Sheets({ app, shell, boot }) {
   const cellWords = (cell) => {
     if (view.formulas && cell.formula) return cell.formula;
     if (!cell.runs) return cell.text;
-    return cell.runs.map((r, i) => (
+    // One span round the runs: as items of the cell's flex box, each run's own edge spaces were dropped.
+    return <span className="sh-runs">{cell.runs.map((r, i) => (
       <span
         key={i}
         className="sh-run"
@@ -1733,7 +1801,7 @@ export default function Sheets({ app, shell, boot }) {
       >
         {r.text}
       </span>
-    ));
+    ))}</span>;
   };
 
   const cellNode = (cell, dy = 0, dx = 0) => {
@@ -1819,6 +1887,44 @@ export default function Sheets({ app, shell, boot }) {
   const editorNode = (dy = 0) => {
     const active = model.cells.find((c) => c.active);
     const paint = refs.length > 0;
+    const rich = !String(draft ?? '').startsWith('=') && (richStart || editing.runs);
+    if (rich) {
+      const font = active?.style?.font || {};
+      return (
+        <div
+          className="sh-editor-box"
+          style={{
+            left: editing.x ?? active?.x ?? 0,
+            top: (editing.y ?? active?.y ?? 0) - dy,
+            minWidth: Math.max(80, active?.width ?? 80),
+            minHeight: Math.max(20, active?.height ?? 20),
+          }}
+        >
+          <RichEditor
+            key={`${editing.row}:${editing.col}:${richStart ? 'chosen' : 'own'}`}
+            ref={cellRich}
+            className="sh-editor sh-rich"
+            paragraphs={richStart?.paragraphs || runsToParagraphs(editing.runs)}
+            selection={richStart?.selection || null}
+            unit="pt"
+            escape="cancel"
+            dir={model.rtl ? 'auto' : undefined}
+            base={{ size: font.sizePt || 11, font: font.family || null, color: font.colour || null }}
+            style={{ fontWeight: font.bold ? 700 : undefined, fontStyle: font.italic ? 'italic' : undefined }}
+            onCaret={(c) => putDraft(c.text)}
+            onFormat={setRichFormat}
+            onCommit={(paragraphs) => commitRich(paragraphs, 'none')}
+            onCancel={() => { richDone.current = true; putDraft(null); dispatch({ op: 'cancelEdit' }); }}
+            onKey={(e) => {
+              // Excel's keys: Enter and Tab put the words in and move, Shift the other way; Alt+Enter is a new line in the cell.
+              if (e.key === 'Enter' && e.altKey) { e.preventDefault(); cellRich.current?.insert('\n'); return; }
+              if (e.key === 'Enter') { e.preventDefault(); commitRich(cellRich.current?.paragraphs, e.shiftKey ? 'up' : 'down'); return; }
+              if (e.key === 'Tab') { e.preventDefault(); commitRich(cellRich.current?.paragraphs, e.shiftKey ? 'left' : 'right'); }
+            }}
+          />
+        </div>
+      );
+    }
     return (
       <div
         className="sh-editor-box"
@@ -3361,9 +3467,10 @@ export default function Sheets({ app, shell, boot }) {
           tab={tab}
           setTab={setTab}
           arrange={{ picked: (model?.objects || []).filter((o) => picked.includes(o.id)), pane: selPane }}
-          model={model}
+          // While a cell's words are typed in the rich editor, the ribbon shows the look of the words chosen there.
+          model={richFormat && editing ? { ...model, format: { ...(model?.format || {}), bold: richFormat.bold, italic: richFormat.italic, underline: richFormat.underline, strike: richFormat.strike, fontName: richFormat.font || model?.format?.fontName, fontSize: richFormat.size || model?.format?.fontSize } } : model}
           doc={doc}
-          dispatch={dispatch}
+          dispatch={ribbonDispatch}
           commands={commands}
           shell={shell}
           menu={menu}
@@ -4780,6 +4887,11 @@ const CSS = `
 /* A formula's references in their colours: a copy of the text under the
    field, whose own letters go transparent; the caret and selection stay the field's. */
 .sh-editor.painted { background: transparent; }
+/* The rich cell editor: the words in their own looks, growing with them as Excel's editor does. */
+.sh-editor.sh-rich { position: relative; display: block; min-width: 100%; min-height: 100%; padding: 1px 4px; white-space: pre-wrap; cursor: text; line-height: 1.3; }
+.sh-editor.sh-rich > div { margin: 0; }
+.sh-runs { white-space: pre; }
+.sh-cell[style*='white-space: normal'] .sh-runs { white-space: pre-wrap; }
 .painted { color: transparent !important; caret-color: var(--ink); }
 .painted::selection { color: transparent; background: var(--accent-soft); }
 .sh-paint {

@@ -25,7 +25,7 @@ import { describeTransition } from './slides/motion.js';
 import { clickCount, pathPoints } from './slides/animate.js';
 import { motionPath } from '@rutba/presentation/timing';
 import { Markup } from './slides/markup.js';
-import { RichEditor } from './slides/rich-editor.js';
+import { RichEditor } from '../rich-editor.js';
 import { withPlainText, resolveToggles } from '@rutba/ooxml/rich-runs';
 import { DesignGallery, CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 import { CommentsPane, markerSpots, personColour, COMMENTS_CSS, useCommentsRead } from './slides/comments.js';
@@ -133,7 +133,7 @@ export default function Slides({ app, shell, boot }) {
   // with the caret just past it.
   const lastCaret = useRef(null);
   const caretAfterOpen = useRef(null);
-  // The box editor (slides/rich-editor.js), and the look of the words
+  // The box editor (rich-editor.js), and the look of the words
   // chosen in it, which the ribbon shows while a box is being typed in.
   const richEditor = useRef(null);
   const [editFormat, setEditFormat] = useState(null);

@@ -1,4 +1,5 @@
-// The editor a text box (or a table cell) is typed in: its words as they
+// The editor words with looks of their own are typed in, a slide's text box
+// or table cell and a worksheet's cell alike: its words as they
 // look, bold where they are bold and the size they are, and the selected
 // words formatted on their own (owner, 2026-10-21: "the entire text box has
 // single formatting and does not allow formatting selected text
@@ -17,21 +18,21 @@ const WORD = /[\p{L}\p{N}_'’-]/u;
 export const KEEPS_EDITING = '.rw-ribbon, .rw-menu, .rw-popover, .rw-dialog, .rw-panel, [role="menu"], [role="listbox"], [role="dialog"], [data-keeps-editing]';
 
 /** A run's look as CSS. */
-function runCss(r) {
+function runCss(r, unit = 'px') {
   const deco = [r.underline || r.link ? 'underline' : '', r.strike ? 'line-through' : ''].filter(Boolean).join(' ');
   return [
     r.bold ? 'font-weight:700' : r.bold === false ? 'font-weight:400' : '',
     r.italic ? 'font-style:italic' : '',
     deco ? `text-decoration:${deco}` : '',
     r.color ? `color:${r.color}` : '',
-    r.size ? `font-size:${r.size}px` : '',
+    r.size ? `font-size:${r.size}${unit}` : '',
     r.font ? `font-family:'${String(r.font).replace(/'/g, '')}', 'Segoe UI', sans-serif` : '',
     r.highlight ? `background:${r.highlight}` : '',
   ].filter(Boolean).join(';');
 }
 
 /** The box drawn from its paragraphs. Each paragraph a div, each run a span; a break, a field and an equation are kept whole. */
-function draw(el, paragraphs) {
+function draw(el, paragraphs, unit = 'px') {
   let number = 0;
   el.innerHTML = paragraphs.map((p, i) => {
     const bullet = p.bullet?.type === 'char' ? p.bullet.char || '•' : p.bullet?.type === 'number' ? `${(number += 1) + (p.bullet.start || 1) - 1}.` : '';
@@ -44,8 +45,8 @@ function draw(el, paragraphs) {
     ].filter(Boolean).join(';');
     const runs = (p.runs || []).map((r) => {
       if (r.break) return '<br data-k="break">';
-      if (r.field || r.math || r.picture) return `<span contenteditable="false" data-k="atom" data-len="${runPlain(r).length}" style="${runCss(r)}">${esc(runPlain(r))}</span>`;
-      return r.text ? `<span style="${runCss(r)}">${esc(r.text)}</span>` : '';
+      if (r.field || r.math || r.picture) return `<span contenteditable="false" data-k="atom" data-len="${runPlain(r).length}" style="${runCss(r, unit)}">${esc(runPlain(r))}</span>`;
+      return r.text ? `<span style="${runCss(r, unit)}">${esc(r.text)}</span>` : '';
     }).join('');
     // A paragraph that is empty, or ends in a line break, needs a last <br> for the caret to stand on its line.
     const tail = !runs || p.runs[p.runs.length - 1]?.break ? '<br data-k="empty">' : '';
@@ -127,7 +128,9 @@ function positionOf(el, at) {
   return { node: el, offset: 0 };
 }
 
-export const RichEditor = forwardRef(function RichEditor({ paragraphs: initial, base = {}, className = 'sl-rich', style, dir, anchor = 'top', caret = null, onCommit, onCancel, onCaret, onFormat, onKey }, ref) {
+// `unit` is what a run's size counts in (a slide's px, a cell's pt); `escape` 'commit' keeps the words as PowerPoint
+// does, 'cancel' drops them as Excel does; `selection` [start, end] is chosen as the editor opens.
+export const RichEditor = forwardRef(function RichEditor({ paragraphs: initial, base = {}, className = 'sl-rich', style, dir, anchor = 'top', caret = null, selection = null, unit = 'px', escape = 'commit', onCommit, onCancel, onCaret, onFormat, onKey }, ref) {
   const el = useRef(null);
   const model = useRef((initial || []).length ? initial : [{ runs: [{ text: '' }] }]);
   const sel = useRef({ start: 0, end: 0 });
@@ -168,7 +171,7 @@ export const RichEditor = forwardRef(function RichEditor({ paragraphs: initial, 
 
   const set = useCallback((paragraphs, start, end = start, { typing = false, focus = true } = {}) => {
     model.current = paragraphs;
-    draw(el.current, paragraphs);
+    draw(el.current, paragraphs, unit);
     if (focus) el.current.focus({ preventScroll: true });
     place(start, end);
     remember(typing);
@@ -187,11 +190,12 @@ export const RichEditor = forwardRef(function RichEditor({ paragraphs: initial, 
   }, []);
 
   useEffect(() => {
-    draw(el.current, model.current);
+    draw(el.current, model.current, unit);
     el.current.focus({ preventScroll: true });
     const len = plainOf(model.current).length;
     const at = caret == null ? len : Math.min(caret, len);
-    place(at, at);
+    if (selection) place(Math.min(selection[0], len), Math.min(selection[1], len));
+    else place(at, at);
     history.current = { list: [{ paragraphs: model.current, sel: { start: at, end: at } }], at: 0, typedAt: 0 };
     report();
     // Only when the editor opens: later, the model is the truth.
@@ -351,7 +355,7 @@ export const RichEditor = forwardRef(function RichEditor({ paragraphs: initial, 
     h.typedAt = 0;
     const snap = h.list[at];
     model.current = snap.paragraphs;
-    draw(el.current, snap.paragraphs);
+    draw(el.current, snap.paragraphs, unit);
     place(snap.sel.start, snap.sel.end);
     report();
   };
@@ -359,7 +363,11 @@ export const RichEditor = forwardRef(function RichEditor({ paragraphs: initial, 
   const onKeyDown = (e) => {
     const mod = e.ctrlKey || e.metaKey;
     // Esc leaves the box with the words as typed, as PowerPoint does.
-    if (e.key === 'Escape') { e.preventDefault(); commit(); return; }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (escape === 'cancel') { done.current = true; onCancel?.(); } else commit();
+      return;
+    }
     if (mod && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); step(-1); return; }
     if (mod && (e.key === 'y' || e.key === 'Y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z')))) { e.preventDefault(); step(1); return; }
     if (mod && !e.altKey && ['b', 'i', 'u'].includes(e.key.toLowerCase())) {
@@ -390,7 +398,7 @@ export const RichEditor = forwardRef(function RichEditor({ paragraphs: initial, 
       spellCheck
       dir={dir}
       // The words stand where they stand in the box: at its top, middle or foot.
-      style={{ display: 'flex', flexDirection: 'column', justifyContent: { middle: 'center', bottom: 'flex-end' }[anchor] || 'flex-start', whiteSpace: 'pre-wrap', fontSize: base.size ? `${base.size}px` : undefined, color: base.color || undefined, fontFamily: base.font ? `'${base.font}', 'Segoe UI', sans-serif` : undefined, ...style }}
+      style={{ display: 'flex', flexDirection: 'column', justifyContent: { middle: 'center', bottom: 'flex-end' }[anchor] || 'flex-start', whiteSpace: 'pre-wrap', fontSize: base.size ? `${base.size}${unit}` : undefined, color: base.color || undefined, fontFamily: base.font ? `'${base.font}', 'Segoe UI', sans-serif` : undefined, ...style }}
       onKeyDown={onKeyDown}
       onBlur={onBlur}
       onCompositionStart={() => { composing.current = true; }}
