@@ -1,6 +1,6 @@
 # Rutba Office
 
-A free, open-source desktop office suite. Twelve apps in one download, working
+A free, open-source desktop office suite. Thirteen apps in one download, working
 with the network switched off. It starts with the Office apps; the others are
 added from Choose apps whenever you want them.
 
@@ -17,7 +17,6 @@ added from Choose apps whenever you want them.
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.xls` of every age, `.ods` and `.csv`, and old files to save as `.xlsx`: Lotus 1-2-3, dBASE and FoxPro tables, Access databases (read only), SYLK and DIF |
 | **Presentations** | Slides that survive the round trip, shapes you move and recolour by hand | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen; reading `.ppt` and `.odp` |
 | **PDF** | Pages put in order, without redrawing them | Read, find and copy; reorder, rotate, delete, extract, insert, split and merge, each page copied into the new file exactly as it was; Recognise Text makes scanned pages searchable with an invisible text layer; pages drawn by pdf.js, offline |
-
 | **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn; star ratings and tags kept on this computer, a search through the folders inside, and a whole folder resized, converted and renamed in one go; Copy Text from Picture reads the words in a photo or scan |
 | **Image** | Crop, correct, select, paint, layer, export | Levels, curves, white balance, straighten; selections, brushes, clone and heal, masks and perspective; layers with blend modes and adjustments, saved as a project; Edit in Image from the other apps; non-destructive, so your original is never touched |
 | **Video** | A player first, then an editor on a timeline, a screen recorder and introduction videos, without a render farm | A video or sound file opens in a player (speed, repeat, captions, picture in picture, full screen) until Edit Video; clips, stills and sound on lanes, split and trim, transitions, titles and captions, a library of titles, word art, shapes, icons and sound effects, starters to begin from, speed with the pitch kept, Freeze Frame and Reverse, a preview on a second screen, the screen recorded with the camera beside it, introductions made scene by scene with a teleprompter, and export with sound to MP4 or WebM for where it is going; no ffmpeg, no native binaries, nothing to install |
@@ -156,7 +155,7 @@ packages/
   office-shell     the platform contract, and its Electron backend
   office-ui        the design system every app renders with
 
-apps/desktop       the application: main process, renderer, twelve apps
+apps/desktop       the application: main process, renderer, thirteen apps
 tools/             probes for looking inside real files during development
 tests/             the engine suite
 ```
