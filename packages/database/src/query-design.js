@@ -11,7 +11,8 @@
 //   tables: ['Customers', 'Orders'],
 //   columns: [{ table, field, show = true, sort: null | 'asc' | 'desc',
 //               total: null | 'group' | 'sum' | 'avg' | 'count' | 'min' | 'max' | 'where',
-//               criteria: ['> 10', ...] (one per Or row), as: null | 'Heading' }
+//               criteria: ['> 10', ...] (one per Or row), as: null | 'Heading',
+//               decimals: null | 0..6 (the answer rounded, an average to 2 places) }
 //             | { expr: '[Quantity] * [Unit Price]', as: 'Line Total', ...the same }],
 // }
 //
@@ -146,7 +147,10 @@ export function designToSql(design, relationships = [], { fieldsOf = null, today
   const params = [];
   const select = shown.map((c) => {
     const agg = totals ? AGGREGATES[c.total] : null;
-    const expr = agg ? `${agg}(${colSql(c)})` : colSql(c);
+    const raw = agg ? `${agg}(${colSql(c)})` : colSql(c);
+    // Rounded where the design says so: an average spend of 15.08, not 15.0754455445545.
+    const places = Number.isInteger(c.decimals) ? Math.max(0, Math.min(6, c.decimals)) : null;
+    const expr = places === null ? raw : `ROUND(${raw}, ${places})`;
     const heading = (c.expr && !agg ? named.get(c) : c.as) || (agg ? `${c.total[0].toUpperCase()}${c.total.slice(1)} of ${nameOf(c)}` : nameOf(c));
     return { sql: `${expr} AS ${q(heading)}`, heading };
   });
