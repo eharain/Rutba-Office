@@ -72,7 +72,8 @@ test('from the person\'s own address: asked without Rutba\'s email, the letter s
   await online(svc);
   const r = await svc.invite({ email: 'chen@example.com', note: 'Hi', how: 'own', accountId: 'acc1', letter: { subject: 'Talk?', text: 'Accept: {accept}\n\nJoin: {join}' } });
   assert.equal(out.find((m) => m.type === 'contact.request').notify, 'none');
-  assert.deepEqual(r.told, { by: 'own', from: 'amira@shop.example', sent: true });
+  // Kept with the account it went from, so Invite again sends from the same one.
+  assert.deepEqual(r.told, { by: 'own', from: 'amira@shop.example', accountId: 'acc1', sent: true });
   assert.equal(sent.length, 1);
   assert.equal(sent[0].accountId, 'acc1');
   assert.equal(sent[0].draft.to, 'chen@example.com');

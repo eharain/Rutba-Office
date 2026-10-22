@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7739,
+  "count": 7758,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -5133,9 +5133,21 @@
       ]
     },
     {
+      "message": "Block",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Block sender",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Block {name}?",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -5154,6 +5166,12 @@
       "message": "Blocked Top-Level Domains",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Block…",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -6070,6 +6088,7 @@
         "apps/desktop/renderer/apps/slides/setup.js",
         "apps/desktop/renderer/apps/slides/slide-size.js",
         "apps/desktop/renderer/apps/slides/zoom.js",
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/talk/invite.js",
         "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/intro/brand.js",
@@ -18452,6 +18471,12 @@
       ]
     },
     {
+      "message": "Invite again: not yet",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Invite with a link",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
@@ -18459,6 +18484,18 @@
     },
     {
       "message": "Invite with a link…",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Invite {email} again",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Invited {email} again.",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
       ]
@@ -22697,6 +22734,12 @@
       "message": "Needs Rutba Office {version} or newer. Check for updates.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Neither of you can write to or call the other until you are contacts again. Your messages here are deleted.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -29939,6 +29982,7 @@
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/album.js",
         "apps/desktop/renderer/apps/slides/custom-shows.js",
+        "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ruler.js",
@@ -30055,6 +30099,12 @@
       "message": "Remove filter",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Remove from contacts…",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -30215,6 +30265,12 @@
       "message": "Remove {name} from the list",
       "where": [
         "apps/desktop/renderer/start-page.js"
+      ]
+    },
+    {
+      "message": "Remove {name} from your contacts?",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -38775,6 +38831,12 @@
       ]
     },
     {
+      "message": "The invitation to {email} is withdrawn.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "The last calendar stays; delete its events instead.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -40231,6 +40293,12 @@
       "message": "They are saved into the presentation, and travel with it.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "They are taken off your contacts and cannot ask to be in contact again or reach you.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -44295,6 +44363,12 @@
       ]
     },
     {
+      "message": "Withdraw the invitation to {email}",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "Without one, anyone can take the protection off. A password cannot be recovered if it is lost — keep it somewhere safe.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -44690,6 +44764,18 @@
       "message": "You and {name} are contacts now.",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "You can invite them again {when}",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "You can invite them again {when}.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -46186,6 +46272,12 @@
       "message": "sends {when}",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "sent {when}",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -48432,6 +48524,12 @@
       ]
     },
     {
+      "message": "{name} ({address}) asked a few days ago to talk with you on Rutba Talk, the calls and messages of Rutba Office, and is asking again.",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
       "message": "{name} ({address}) would like to talk with you on Rutba Talk, the calls and messages of Rutba Office.",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
@@ -48536,6 +48634,18 @@
       ]
     },
     {
+      "message": "{name} is blocked.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "{name} is no longer a contact.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "{name} is no longer open, so the picture cannot go back into it. Export it instead.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -48635,6 +48745,12 @@
     },
     {
       "message": "{name} would like to talk with you on Rutba Talk",
+      "where": [
+        "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "{name} would still like to talk with you on Rutba Talk",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
       ]

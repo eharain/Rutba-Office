@@ -15,7 +15,7 @@ import { Button, Icon, Input, Select, Panel, Content, Empty, Dialog, Spinner, us
 import { AppFrame, useAppMenu } from '../shell.js';
 import { Call } from './talk/call.js';
 import { TALK_CSS } from './talk/css.js';
-import { AddContact, InviteLinks, OpenInvitation, Invitation, toldText } from './talk/invite.js';
+import { AddContact, InviteLinks, OpenInvitation, Invitation, toldText, errorText, againLetter } from './talk/invite.js';
 
 const PRESENCE = () => [['online', t('Available')], ['busy', t('Busy')], ['away', t('Away')], ['hidden', t('Appear offline')]];
 // The shapes of an address, shown in empty fields: examples, not words to translate.
@@ -81,7 +81,7 @@ function SignIn({ shell, state, toast }) {
 
 /* ── the people on the left ───────────────────────────────────────── */
 
-function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy }) {
+function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy, onContactMenu, onWithdraw, onRemind }) {
   const { contacts, requests } = state;
   return (
     <div className="tk-people">
@@ -104,7 +104,7 @@ function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy }) {
           <Button ghost icon="plus" label={t('Add')} className="tk-add" onClick={onAdd} />
         </div>
         {contacts.length ? contacts.map((c) => (
-          <button key={c.id} type="button" className={`tk-contact${current === c.id ? ' on' : ''}`} data-contact={c.id} onClick={() => onPick(c.id)}>
+          <button key={c.id} type="button" className={`tk-contact${current === c.id ? ' on' : ''}`} data-contact={c.id} onClick={() => onPick(c.id)} onContextMenu={(e) => { e.preventDefault(); onContactMenu(e, c); }}>
             <Avatar person={c} />
             <span className="tk-who"><strong>{c.name || c.email}</strong><small>{c.presence === 'offline' ? t('Offline') : PRESENCE().find(([k]) => k === c.presence)?.[1] || ''}</small></span>
           </button>
@@ -113,8 +113,14 @@ function People({ state, current, onPick, onAdd, onAnswerRequest, onCopy }) {
           <div className="tk-waiting">
             {requests.outgoing.map((r) => (
               <div key={r.id} className="tk-asked" data-asked={r.email} data-told={r.told ? `${r.told.by}:${r.told.sent ? 'sent' : r.told.reason || 'not'}` : ''}>
-                <small><strong>{t('Asked {email}', { email: r.email })}</strong>{r.told ? <span className="tk-told">{toldText(r.told)}</span> : null}</small>
+                <small>
+                  <strong>{t('Asked {email}', { email: r.email })}</strong>
+                  <span className="tk-told">{[r.at ? t('sent {when}', { when: formatWhen(r.reminded || r.at) }) : '', r.told ? toldText(r.told) : ''].filter(Boolean).join(' · ')}</span>
+                </small>
                 {r.link ? <Button ghost icon="link" title={t('Copy their invitation link, to send it another way')} className="tk-asked-copy" onClick={() => onCopy(r.link)} /> : null}
+                {/* Again once the introducer allows it (two days on); an introducer from before says nothing, so not yet. */}
+                <Button ghost icon="refresh" title={r.remindAt && Date.now() >= r.remindAt ? t('Invite {email} again', { email: r.email }) : r.remindAt ? t('You can invite them again {when}', { when: formatWhen(r.remindAt) }) : t('Invite again: not yet')} aria-label={t('Invite {email} again', { email: r.email })} className="tk-asked-again" disabled={!r.remindAt || Date.now() < r.remindAt} onClick={() => onRemind(r)} />
+                <Button ghost icon="close" title={t('Withdraw the invitation to {email}', { email: r.email })} aria-label={t('Withdraw the invitation to {email}', { email: r.email })} className="tk-asked-withdraw" onClick={() => onWithdraw(r)} />
               </div>
             ))}
           </div>
@@ -243,6 +249,33 @@ export default function Talk({ app, shell }) {
   // A link opened while this window was already open comes here.
   useEffect(() => shell.on('app:link', (q) => { if (q?.invite) setInvitation(q.invite); }), [shell]);
   const endInvitation = useCallback(() => setInvitation(null), []);
+  // A contact taken off or blocked, an invitation withdrawn or sent again (D-2026-10-22-09).
+  const asked = async (message, detail, yes) => (await shell.dialog.message({ type: 'question', message, detail, buttons: [yes, t('Cancel')], cancelId: 1 })).response === 0;
+  const contactMenu = (e, c) => menu.open(e, [
+    { label: t('Remove from contacts…'), run: async () => {
+      if (!(await asked(t('Remove {name} from your contacts?', { name: c.name || c.email }), t('Neither of you can write to or call the other until you are contacts again. Your messages here are deleted.'), t('Remove')))) return;
+      const r = await shell.talk.removeContact({ contactId: c.id });
+      if (r.error) toast(errorText(r.error), { tone: 'bad', ms: 5000 });
+      else { if (currentRef.current === c.id) setCurrent(null); toast(t('{name} is no longer a contact.', { name: c.name || c.email }), { ms: 3000 }); }
+    } },
+    { label: t('Block…'), run: async () => {
+      if (!(await asked(t('Block {name}?', { name: c.name || c.email }), t('They are taken off your contacts and cannot ask to be in contact again or reach you.'), t('Block')))) return;
+      const r = await shell.talk.block({ contactId: c.id });
+      if (r.error) toast(errorText(r.error), { tone: 'bad', ms: 5000 });
+      else { if (currentRef.current === c.id) setCurrent(null); toast(t('{name} is blocked.', { name: c.name || c.email }), { ms: 3000 }); }
+    } },
+  ]);
+  const withdraw = async (r) => {
+    const res = await shell.talk.withdraw({ requestId: r.id }).catch(() => ({ error: 'server' }));
+    if (res.error) toast(errorText(res.error), { tone: 'bad', ms: 5000 });
+    else toast(t('The invitation to {email} is withdrawn.', { email: r.email }), { ms: 3000 });
+  };
+  const remind = async (r) => {
+    const res = await shell.talk.remind({ requestId: r.id, letter: againLetter(state.me) }).catch(() => ({ error: 'server' }));
+    if (res.error === 'too-soon') toast(t('You can invite them again {when}.', { when: formatWhen(res.next) }), { ms: 5000 });
+    else if (res.error) toast(errorText(res.error), { tone: 'bad', ms: 5000 });
+    else toast([t('Invited {email} again.', { email: r.email }), toldText(res.told)].join(' '), { tone: res.told?.sent || res.told?.by === 'none' ? 'good' : 'warn', ms: 5000 });
+  };
   const copyLink = useCallback(async (link) => {
     await shell.clipboard.writeText({ text: link }).catch(() => {});
     toast(t('The link is copied. Paste it anywhere.'), { tone: 'good', ms: 2500 });
@@ -356,7 +389,7 @@ export default function Talk({ app, shell }) {
               </Select>
             )}
           >
-            <People state={state} current={current} onPick={setCurrent} onAdd={() => setAdding(true)} onAnswerRequest={answerRequest} onCopy={copyLink} />
+            <People state={state} current={current} onPick={setCurrent} onAdd={() => setAdding(true)} onAnswerRequest={answerRequest} onCopy={copyLink} onContactMenu={contactMenu} onWithdraw={withdraw} onRemind={remind} />
             <div className="tk-invite-actions">
               <Button ghost icon="link" label={t('Invite with a link…')} className="tk-links-btn" onClick={() => setLinksOpen(true)} />
               <Button ghost label={t('Open an invitation…')} className="tk-paste-btn" onClick={() => setPasting(true)} />

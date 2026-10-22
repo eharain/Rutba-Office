@@ -34,6 +34,7 @@ import { verifyMailSafety } from './verify-mail-safety.js';
 import { verifyTalk } from './verify-talk.js';
 import { verifyTalkSignIn } from './verify-talk-signin.js';
 import { verifyTalkInvite } from './verify-talk-invite.js';
+import { verifyTalkManage } from './verify-talk-manage.js';
 import { verifyBase } from './verify-base.js';
 import { verifyBaseQueriesForms } from './verify-base-queries-forms.js';
 import { verifyBaseFilter } from './verify-base-filter.js';
@@ -5100,6 +5101,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('talk')) await verifyTalk({ open, check, until, wait, errorsIn });
     if (only.includes('talk-signin')) await verifyTalkSignIn({ open, check, until, wait });
     if (only.includes('talk-invite')) await verifyTalkInvite({ open, check, until, wait, errorsIn });
+    if (only.includes('talk-manage')) await verifyTalkManage({ open, check, until, wait, errorsIn });
     if (only.includes('base')) await verifyBase({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('base-qf')) await verifyBaseQueriesForms({ open, check, until, wait }, { dir });
     if (only.includes('base-filter')) await verifyBaseFilter({ open, check, until, wait }, { dir });
@@ -5491,6 +5493,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('talk', () => verifyTalk({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkSignIn({ open, check, until, wait }));
   await part('talk', () => verifyTalkInvite({ open, check, until, wait, errorsIn }));
+  await part('talk', () => verifyTalkManage({ open, check, until, wait, errorsIn }));
   await part('base', () => verifyBase({ open, check, until, wait, errorsIn }, { dir }));
   await part('base', () => verifyBaseQueriesForms({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseFilter({ open, check, until, wait }, { dir }));

@@ -59,7 +59,7 @@ function accept(req, socket) {
  * and a `history` of messages ({ from, to, text, at }) handed to whoever
  * signs in, theirs as copies from another device.
  */
-export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [], mailPerDay = 10, mailPerWeek = 30 } = {}) {
+export function standInIntroducer({ page = null, people = {}, contacts: made = [], presence: shown = {}, history = [], mailPerDay = 10, mailPerWeek = 30, remindAfterMs = 2 * 24 * 3600 * 1000 } = {}) {
   const PEOPLE = {
     amira: { id: 'u-amira', name: 'Amira Khan', email: 'amira@example.com' },
     ben: { id: 'u-ben', name: 'Ben Ortiz', email: 'ben@example.com' },
@@ -82,6 +82,7 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
     return { day: { used: mine.filter((m) => now - m.at < 24 * 3600 * 1000).length, limit: mailPerDay }, week: { used: mine.filter((m) => now - m.at < 7 * 24 * 3600 * 1000).length, limit: mailPerWeek } };
   };
   const inviteView = (i) => ({ code: i.code, url: linkOf(i.code), note: i.note, created: i.created, expires: i.expires, uses: i.uses, maxUses: i.maxUses });
+  const outgoingOf = (r) => ({ id: r.id, email: r.toEmail, note: r.note, at: r.at, link: linkOf(r.code), reminded: r.reminded || null, reminders: r.reminders || 0, remindAt: (r.reminders || 0) >= 3 ? null : (r.reminded || r.at) + remindAfterMs });
   const linksOf = (id) => [...invites.values()].filter((i) => i.kind === 'link' && i.from.id === id).map(inviteView);
   const pair = (a, b) => [a, b].sort().join('|');
   const isContact = (a, b) => contacts.has(pair(a, b));
@@ -123,7 +124,7 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
         if (msg.type !== 'hello' || !me) { conn.send(JSON.stringify({ type: 'error', for: 'hello', code: 'token', message: 'That is not a sign-in token.' })); socket.end(); return; }
         online.set(me.id, conn);
         presence.set(me.id, msg.presence || 'online');
-        conn.send(JSON.stringify({ type: 'welcome', me, contacts: contactsOf(me.id), requests: { incoming: [...requests.values()].filter((r) => r.toEmail === me.email).map((r) => ({ id: r.id, from: r.from, note: r.note, at: r.at })), outgoing: [...requests.values()].filter((r) => r.from.id === me.id).map((r) => ({ id: r.id, email: r.toEmail, note: r.note, at: r.at, link: linkOf(r.code) })) }, blocked: [], relays: [], invites: linksOf(me.id), mailAllowance: allowanceOf(me.id) }));
+        conn.send(JSON.stringify({ type: 'welcome', me, contacts: contactsOf(me.id), requests: { incoming: [...requests.values()].filter((r) => r.toEmail === me.email).map((r) => ({ id: r.id, from: r.from, note: r.note, at: r.at })), outgoing: [...requests.values()].filter((r) => r.from.id === me.id).map(outgoingOf) }, blocked: [], relays: [], invites: linksOf(me.id), mailAllowance: allowanceOf(me.id) }));
         // The history: messages to this person, and their own as copies from another device.
         history.forEach((h, i) => {
           const message = { id: `h-${i + 1}`, from: h.from, to: h.to, text: h.text, at: h.at };
@@ -148,7 +149,7 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
           if (!over) mailed.push({ by: me.id, to: r.toEmail, link: linkOf(r.code), at: Date.now() });
           mail = { by: 'rutba', sent: !over, ...(over ? { reason: 'limit' } : {}), allowance: allowanceOf(me.id) };
         }
-        conn.send(JSON.stringify({ type: 'contact.request.sent', ref: m.ref, request: { id: r.id, email: r.toEmail, note: r.note, at: r.at, link: linkOf(r.code) }, ...(mail ? { mail } : {}) }));
+        conn.send(JSON.stringify({ type: 'contact.request.sent', ref: m.ref, request: outgoingOf(r), ...(mail ? { mail } : {}) }));
         if (them) to(them.id, { type: 'contact.requested', request: { id: r.id, from: me, note: r.note, at: r.at } });
         return;
       }
@@ -159,6 +160,33 @@ export function standInIntroducer({ page = null, people = {}, contacts: made = [
         contacts.add(pair(me.id, r.from.id));
         to(me.id, { type: 'contact.added', contact: view(r.from), requestId: r.id });
         to(r.from.id, { type: 'contact.added', contact: view(me), requestId: r.id });
+        return;
+      }
+      if (m.type === 'contact.remove' || m.type === 'contact.block') {
+        const other = String(m.contactId || '');
+        contacts.delete(pair(me.id, other));
+        to(me.id, { type: m.type === 'contact.block' ? 'contact.blocked' : 'contact.removed', id: other });
+        if (m.type === 'contact.remove') to(other, { type: 'contact.removed', id: me.id });
+        return;
+      }
+      if (m.type === 'contact.cancel') {
+        const r = requests.get(m.requestId);
+        if (!r || r.from.id !== me.id) { conn.send(JSON.stringify({ type: 'error', for: 'contact.cancel', code: 'no-request' })); return; }
+        requests.delete(r.id);
+        to(me.id, { type: 'contact.request.gone', requestId: r.id });
+        return;
+      }
+      if (m.type === 'contact.remind') {
+        const r = requests.get(m.requestId);
+        if (!r || r.from.id !== me.id) { conn.send(JSON.stringify({ type: 'error', for: 'contact.remind', code: 'no-request', ref: m.ref })); return; }
+        const at = outgoingOf(r).remindAt;
+        if (at === null) { conn.send(JSON.stringify({ type: 'error', for: 'contact.remind', code: 'too-many', ref: m.ref })); return; }
+        if (Date.now() < at) { conn.send(JSON.stringify({ type: 'error', for: 'contact.remind', code: 'too-soon', next: at, ref: m.ref })); return; }
+        r.reminded = Date.now();
+        r.reminders = (r.reminders || 0) + 1;
+        let mail;
+        if (m.notify === 'rutba') { mailed.push({ by: me.id, to: r.toEmail, link: linkOf(r.code), at: Date.now(), again: true }); mail = { by: 'rutba', sent: true, allowance: allowanceOf(me.id) }; }
+        conn.send(JSON.stringify({ type: 'contact.reminded', ref: m.ref, request: outgoingOf(r), ...(mail ? { mail } : {}) }));
         return;
       }
       if (m.type === 'mail.allowance') { conn.send(JSON.stringify({ type: 'mail.allowance', ref: m.ref, allowance: allowanceOf(me.id) })); return; }

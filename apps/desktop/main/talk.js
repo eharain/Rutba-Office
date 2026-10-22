@@ -99,7 +99,7 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     if (i < 0) return;
     const [a] = asking.splice(i, 1);
     clearTimeout(a.timer);
-    a.resolve(msg.type === 'error' ? { error: msg.code || 'server' } : msg);
+    a.resolve(msg.type === 'error' ? { error: msg.code || 'server', next: msg.next ?? null } : msg);
   };
   /** Sends `msg` and answers with what the introducer said: the answer, or { error: code }. */
   const ask = (msg, answer, match = null, waitMs = ASK_MS) => new Promise((resolve) => {
@@ -160,17 +160,17 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
   const mailFromOwn = async ({ accountId, to, link, letter }) => {
     const account = (await Promise.resolve(mail?.accounts?.() || [])).find((a) => a.id === accountId);
     // An imported archive has no server to send through.
-    if (!account || account.local || !mail?.send) return { by: 'own', sent: false, reason: 'no-account' };
-    if (!link) return { by: 'own', from: account.email, sent: false, reason: 'no-link' };
+    if (!account || account.local || !mail?.send) return { by: 'own', accountId, sent: false, reason: 'no-account' };
+    if (!link) return { by: 'own', from: account.email, accountId, sent: false, reason: 'no-link' };
     const join = `${DOWNLOAD_URL}?invite=${encodeURIComponent(inviteCode(link) || '')}`;
     const fill = (text) => String(text || '').replaceAll('{accept}', () => link).replaceAll('{join}', () => join);
     const subject = fill(letter?.subject) || 'Talk with me on Rutba Talk';
     const text = fill(letter?.text) || `I would like to talk with you on Rutba Talk.\n\nAccept: ${link}\n\nNo Rutba Office yet? Accept with a free Rutba account on that page, then get Rutba Office: ${join}\n`;
     try {
       await mail.send({ accountId, draft: { to, subject, text, html: letterHtml(text) } });
-      return { by: 'own', from: account.email, sent: true };
+      return { by: 'own', from: account.email, accountId, sent: true };
     } catch (err) {
-      return { by: 'own', from: account.email, sent: false, reason: 'failed', detail: err?.message || String(err) };
+      return { by: 'own', from: account.email, accountId, sent: false, reason: 'failed', detail: err?.message || String(err) };
     }
   };
 
@@ -221,6 +221,10 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
         if (msg.mail?.allowance) state = { ...state, mailAllowance: msg.mail.allowance };
         if (msg.request) state = { ...state, requests: { ...state.requests, outgoing: [...state.requests.outgoing.filter((r) => r.id !== msg.request.id), msg.request] } };
         if (msg.contact) handle({ type: 'contact.added', contact: msg.contact });
+        break;
+      case 'contact.reminded':
+        if (msg.request) state = { ...state, requests: { ...state.requests, outgoing: state.requests.outgoing.map((r) => (r.id === msg.request.id ? msg.request : r)) } };
+        if (msg.mail?.allowance) state = { ...state, mailAllowance: msg.mail.allowance };
         break;
       case 'contact.request.gone':
         state = { ...state, requests: { incoming: state.requests.incoming.filter((r) => r.id !== msg.requestId), outgoing: state.requests.outgoing.filter((r) => r.id !== msg.requestId) } };
@@ -446,6 +450,42 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
       keepTold(request.id, told);
       tell();
       return { request: { ...request, told }, told, allowance: state.mailAllowance };
+    },
+
+    /** A contact taken off: neither can write to or call the other until both say so again (D-2026-10-22-09). */
+    removeContact: async ({ contactId } = {}) => {
+      const r = await ask({ type: 'contact.remove', contactId: String(contactId || '') }, 'contact.removed', (m) => m.id === String(contactId || ''));
+      return r.error ? { error: r.error } : { removed: true };
+    },
+
+    /** A contact (or someone asking) blocked: they cannot ask again or reach you. */
+    block: async ({ contactId } = {}) => {
+      const r = await ask({ type: 'contact.block', contactId: String(contactId || '') }, 'contact.blocked', (m) => m.id === String(contactId || ''));
+      return r.error ? { error: r.error } : { blocked: true };
+    },
+
+    /** An invitation asked, withdrawn. */
+    withdraw: async ({ requestId } = {}) => {
+      const r = await ask({ type: 'contact.cancel', requestId: String(requestId || '') }, 'contact.request.gone', (m) => m.requestId === String(requestId || ''));
+      return r.error ? { error: r.error } : { withdrawn: true };
+    },
+
+    /**
+     * An invitation sent again, once the introducer allows it (two days on),
+     * the same way as before: from the same address of the person's own,
+     * from Rutba, or only in Talk. { request, told } or { error, next }.
+     */
+    remind: async ({ requestId, letter = null } = {}) => {
+      const before = (settings.get(TOLD_KEY, {}) || {})[requestId] || null;
+      const how = before?.by === 'own' ? 'own' : before?.by === 'rutba' ? 'rutba' : 'none';
+      const r = await ask({ type: 'contact.remind', requestId: String(requestId || ''), notify: how === 'rutba' ? 'rutba' : 'none' }, 'contact.reminded', null, how === 'rutba' ? ASK_MAIL_MS : ASK_MS);
+      if (r.error) return { error: r.error, next: r.next };
+      let told = { by: how, sent: false };
+      if (how === 'rutba') told = r.mail ? { by: 'rutba', sent: Boolean(r.mail.sent), reason: r.mail.reason || null } : { by: 'rutba', sent: false, reason: 'unsupported' };
+      else if (how === 'own') told = await mailFromOwn({ accountId: before.accountId, to: r.request.email, link: r.request.link, letter });
+      keepTold(requestId, { ...told, again: (before?.again || 0) + 1 });
+      tell();
+      return { request: r.request, told };
     },
 
     /** How many emails Rutba will still send for this person, today and this week. */

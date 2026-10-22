@@ -60,6 +60,17 @@ const letterFor = (me, note) => ({
   ].filter(Boolean).join('\n\n'),
 });
 
+/** The letter for an invitation sent again from the person's own address. */
+export const againLetter = (me) => ({
+  subject: t('{name} would still like to talk with you on Rutba Talk', { name: me?.name || me?.email || '' }),
+  text: [
+    t('Hello,'),
+    t('{name} ({address}) asked a few days ago to talk with you on Rutba Talk, the calls and messages of Rutba Office, and is asking again.', { name: me?.name || me?.email || '', address: me?.email || '' }),
+    t('Accept: {accept}'),
+    t('No Rutba Office yet? The same link lets you accept with a free Rutba account, and Rutba Office is free to download: {join}'),
+  ].join('\n\n'),
+});
+
 /* ── Add a contact ────────────────────────────────────────────────── */
 
 export function AddContact({ shell, state, toast, onClose }) {

@@ -406,6 +406,10 @@ export const METHODS = {
     'revokeInvite', // ({ code }) -> { revoked } | { error }
     'peekInvite',   // ({ link }) -> { code, from, note, kind } | { error }   who an invitation is from, by its link or code
     'acceptInvite', // ({ link }) -> { contact } | { error }
+    'removeContact', // ({ contactId }) -> { removed } | { error }
+    'block',        // ({ contactId }) -> { blocked } | { error }
+    'withdraw',     // ({ requestId }) -> { withdrawn } | { error }   an invitation asked, taken back
+    'remind',       // ({ requestId, letter? }) -> { request, told } | { error, next }   sent again, the same way, once the introducer allows it
   ],
   live: [
     'destinations',     // () -> [{ id, platform, name, url, on, hasKey, keyHint }]
