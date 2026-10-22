@@ -8,10 +8,13 @@
 // ready for the next start, or needing a newer Office.
 
 import { broadcast } from '@rutba/office-shell/electron/main';
+import { readManifest } from '@rutba/templates/manifest';
 
 export async function verifyTemplateVersions(h) {
   const { open, check, until, wait } = h;
   const own = process.env.RUTBA_APP_VERSION;
+  // The version the set's Data Files part needs, as its manifest says (2.13.0 once, 2.16.0 since set 2.16.0).
+  const needs = readManifest().parts?.dataFiles?.minOffice;
   try {
     // An Office one release behind the set's Data Files part.
     process.env.RUTBA_APP_VERSION = '2.12.0';
@@ -26,7 +29,7 @@ export async function verifyTemplateVersions(h) {
       templates: [...document.querySelectorAll('.bs-template[data-needs]')].length,
     })`);
     check('base: an Office older than the templates\' Data Files part shows each ready-made database as needing that version, offering the update rather than the database',
-      old.samples > 0 && old.marked.length === old.samples && old.marked.every((v) => v === '2.13.0') && old.buttons === 0 && /Needs Rutba Office 2\.13\.0/.test(old.update) && old.templates > 0,
+      old.samples > 0 && old.marked.length === old.samples && old.marked.every((v) => v === needs) && old.buttons === 0 && old.update.includes(`Needs Rutba Office ${needs}`) && old.templates > 0,
       JSON.stringify(old));
     win.close();
 
