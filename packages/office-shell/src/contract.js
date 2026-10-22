@@ -407,6 +407,7 @@ export const METHODS = {
     'makeDocument', // ({ id, table, name? }) -> { layout, summary }   the wizard's print template, kept
     'documentData', // ({ id, name? | layout?, keys?, limit? }) -> { layout, letterhead, documents }   one a record
     'lookup',       // ({ id, table, field, show }) -> [{ value, text }]   a lookup list's choices
+    'lookupPage',   // ({ id, table, field, search?, values?, limit? }) -> { items: [{ value, text }], more }   a long list a page at a time, searched, or given records' words
     'saveAs',       // ({ id, file }) -> summary   a copy at file, then the one open
   ],
   // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).

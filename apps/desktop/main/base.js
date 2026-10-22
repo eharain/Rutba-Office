@@ -393,6 +393,8 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
     makeDocument: ({ id, table, name = null }) => ({ layout: get(id).base.makeDocument({ table, name }), summary: summary(id) }),
     documentData: ({ id, name = null, layout = null, keys = null, limit = 1000 }) => get(id).base.documentData({ name, layout, keys, limit }),
     lookup: ({ id, table, field, show }) => get(id).base.lookup({ table, field, show }),
+    // A page of a long list's choices, searched, or the words of given records (a form's list of 20,000 sales).
+    lookupPage: ({ id, table, field, search = '', values = null, limit = 500 }) => get(id).base.lookupPage({ table, field, search, values, limit }),
 
     /** The person's own SELECT, read-only: { columns, rows }, at most `limit` rows. */
     query: ({ id, sql, limit = 5000 }) => {

@@ -727,22 +727,9 @@ export class Base {
    * field that names its records alone.
    */
   lookup({ table, field, show, limit = 2000 }) {
-    // A role sees the choices of a table it may read, by the fields it may see.
-    const named = this.shownOf(table);
-    let wanted = Array.isArray(named) ? named : [named || (Array.isArray(show) ? show[0] : show) || field];
-    if (this._rights()) {
-      const seen = new Set(this.fields(table).map((f) => f.name));
-      if (!seen.has(field)) return [];
-      wanted = wanted.filter((f) => seen.has(f));
-      if (!wanted.length) wanted = [field];
-    }
-    // Two fields or more (a first and a last name) are shown together, a space between, and listed by the last.
-    const shown = wanted;
-    const text = shown.length > 1 ? `TRIM(${shown.map((f) => `COALESCE(${q(f)}, '')`).join(" || ' ' || ")})` : q(shown[0]);
-    const order = shown.length > 1 ? `${q(shown[shown.length - 1])}, ${text}` : text;
-    const rows = this.db.prepare(`SELECT ${q(field)} AS value, ${text} AS text FROM ${q(table)} ORDER BY ${order} LIMIT ?`).all(limit);
-    return rows.map((r) => ({ value: r.value, text: r.text == null ? String(r.value) : String(r.text) }));
+    return this.lookupPage({ table, field, limit }).items;
   }
+
 
   /**
    * A query of the person's own, in SQL: SELECT (or WITH ... SELECT) only,
@@ -1244,27 +1231,58 @@ export class Base {
    * the words of the records whose `field` is one of `values`.
    */
   lookupPage({ table, field, search = '', values = null, limit = 500 }) {
-    const named = this.shownOf(table);
-    let shown = Array.isArray(named) ? named : [named || field];
-    if (this._rights()) {
-      const seen = new Set(this.fields(table).map((f) => f.name));
-      if (!seen.has(field)) return { items: [], more: false };
-      shown = shown.filter((f) => seen.has(f));
-      if (!shown.length) shown = [field];
-    }
-    const text = shown.length > 1 ? `TRIM(${shown.map((f) => `COALESCE(${q(f)}, '')`).join(" || ' ' || ")})` : `CAST(${q(shown[0])} AS TEXT)`;
-    const order = shown.length > 1 ? `${q(shown[shown.length - 1])}, ${text}` : text;
+    if (this._rights() && !this.fields(table).some((f) => f.name === field)) return { items: [], more: false };
+    const text = this._wordsSql(table, 'w0');
+    const value = `w0.${q(field)}`;
     const word = (r) => ({ value: r.value, text: r.text == null || r.text === '' ? String(r.value) : String(r.text) });
     if (Array.isArray(values)) {
       const list = values.filter((v) => v !== null && v !== undefined && v !== '');
       if (!list.length) return { items: [], more: false };
-      const rows = this.db.prepare(`SELECT ${q(field)} AS value, ${text} AS text FROM ${q(table)} WHERE ${q(field)} IN (${list.map(() => '?').join(', ')})`).all(...list);
+      const rows = this.db.prepare(`SELECT ${value} AS value, ${text} AS text FROM ${q(table)} AS w0 WHERE ${value} IN (${list.map(() => '?').join(', ')})`).all(...list);
       return { items: rows.map(word), more: false };
     }
     const where = search ? ` WHERE ${text} LIKE ? ESCAPE '\\'` : '';
     const params = search ? [`%${String(search).replace(/[\\%_]/g, (m) => `\\${m}`)}%`] : [];
-    const rows = this.db.prepare(`SELECT ${q(field)} AS value, ${text} AS text FROM ${q(table)}${where} ORDER BY ${order} LIMIT ?`).all(...params, limit + 1);
+    // A person named by first and last name is listed by the last, as a phone book is.
+    const named = this.shownOf(table);
+    const byLast = Array.isArray(named) && named.length === 2 && /^(last|family)[ _]?name$|^surname$/i.test(named[1]) ? `w0.${q(named[1])}, ` : '';
+    const rows = this.db.prepare(`SELECT ${value} AS value, ${text} AS text FROM ${q(table)} AS w0${where} ORDER BY ${byLast}${text} LIMIT ?`).all(...params, limit + 1);
     return { items: rows.slice(0, limit).map(word), more: rows.length > limit };
   }
+
+  /**
+   * The words a record of `table` (read as `alias`) is known by, as SQL: the
+   * fields shownOf names, a space between; a date or a date and time as a
+   * form shows it (21/10/2026 09:00); a field that points at another table
+   * as that record's own words, one level down. Fields a person's role hides
+   * are left out.
+   */
+  _wordsSql(table, alias, depth = 0) {
+    const named = this.shownOf(table);
+    const fields = new Map(this.fields(table).map((f) => [f.name, f]));
+    let list = (Array.isArray(named) ? named : [named]).filter((n) => fields.has(n));
+    if (!list.length) list = [[...fields.keys()][0]];
+    const rels = this.relationships().filter((r) => r.from.table === table);
+    const parts = list.map((n) => {
+      const f = fields.get(n);
+      const col = `${alias}.${q(n)}`;
+      const rel = rels.find((r) => r.from.field === n);
+      if (rel && depth === 0 && fields.size && this.fields(rel.to.table).length) {
+        const inner = `w${depth + 1}`;
+        return `(SELECT ${this._wordsSql(rel.to.table, inner, depth + 1)} FROM ${q(rel.to.table)} AS ${inner} WHERE ${inner}.${q(rel.to.field)} = ${col})`;
+      }
+      if (f.type === 'date') return `strftime('%d/%m/%Y', ${col})`;
+      if (f.type === 'datetime') return `strftime('%d/%m/%Y %H:%M', ${col})`;
+      return `CAST(${col} AS TEXT)`;
+    });
+    return parts.length > 1 ? `TRIM(${parts.map((x) => `COALESCE(${x}, '')`).join(" || ' ' || ")})` : parts[0];
+  }
+
+  /** The words one record of `table` is known by, found by its rowid. */
+  wordsOf(table, rowid) {
+    const r = this.db.prepare(`SELECT ${this._wordsSql(table, 'w0')} AS text FROM ${q(table)} AS w0 WHERE w0.rowid = ?`).get(rowid);
+    return r?.text ?? null;
+  }
+
 
 }

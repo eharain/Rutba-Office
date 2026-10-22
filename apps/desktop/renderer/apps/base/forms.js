@@ -5,9 +5,9 @@
 // one are listed below; and the bar at the foot moves between records,
 // starts a new one and deletes the one shown.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Select, t, tn } from '@rutba/office-ui';
-import { valueFromControl, shownField } from '@rutba/database/form-design';
+import { valueFromControl } from '@rutba/database/form-design';
 import { usePrinter } from './documents.js';
 import { may } from './people.js';
 
@@ -19,6 +19,51 @@ function shownValue(kind, v) {
   if (kind === 'check') return Boolean(v);
   if (kind === 'datetime') return String(v).slice(0, 16);
   return String(v);
+}
+
+/** How many choices a form's list holds; a table with more is searched as it is typed in. */
+const LIST_MAX = 500;
+
+/**
+ * A list too long to hold every choice (a sale's lines point at one of
+ * 20,000 sales): a box showing the record it points at, searched as it is
+ * typed in, the matches below to pick from.
+ */
+function SearchList({ shell, db, control: c, common, value, onPick }) {
+  const [words, setWords] = useState('');
+  const [typed, setTyped] = useState(null);
+  const [found, setFound] = useState([]);
+  const [open, setOpen] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => {
+    let live = true;
+    if (value === '' || value === null || value === undefined) { setWords(''); return undefined; }
+    shell.base.lookupPage({ id: db.id, table: c.lookup.table, field: c.lookup.field, values: [Number.isFinite(Number(value)) ? Number(value) : value] })
+      .then((page) => { if (live) setWords(page.items[0]?.text ?? String(value)); }).catch(() => {});
+    return () => { live = false; };
+  }, [shell, db.id, c.lookup.table, c.lookup.field, value]);
+  const search = (text) => {
+    setTyped(text);
+    setOpen(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      shell.base.lookupPage({ id: db.id, table: c.lookup.table, field: c.lookup.field, search: text, limit: 30 }).then((page) => setFound(page.items)).catch(() => {});
+    }, 150);
+  };
+  const pick = (o) => { setOpen(false); setTyped(null); setWords(o.text); onPick(String(o.value)); };
+  return (
+    <span className="bs-fc bs-fc-search" style={common.style} data-field={c.field}>
+      <input className="rw-input bs-fc-search-input" aria-label={c.label} role="combobox" aria-expanded={open} placeholder={t('Type to find')}
+        value={typed ?? words} onFocus={() => search(typed ?? '')} onChange={(e) => search(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') { setOpen(false); setTyped(null); } if (e.key === 'Enter' && found[0]) pick(found[0]); }}
+        onBlur={() => setTimeout(() => { setOpen(false); setTyped(null); }, 150)} />
+      {open && found.length ? (
+        <ul className="bs-fc-search-list" role="listbox">
+          {found.map((o) => <li key={String(o.value)} role="option" aria-selected={String(o.value) === String(value)} onMouseDown={(e) => { e.preventDefault(); pick(o); }}>{o.text}</li>)}
+        </ul>
+      ) : null}
+    </span>
+  );
 }
 
 export function FormView({ shell, db, name, onChanged, toast }) {
@@ -63,8 +108,9 @@ export function FormView({ shell, db, name, onChanged, toast }) {
   useEffect(() => {
     if (!layout) return undefined;
     let live = true;
+    // A page of each list's choices; one whose table holds more is searched as it is typed in (SearchList).
     const lookups = layout.controls.filter((c) => c.kind === 'list' && c.lookup);
-    Promise.all(lookups.map((c) => shell.base.lookup({ id: db.id, ...c.lookup }).then((items) => [c.field, items])))
+    Promise.all(lookups.map((c) => shell.base.lookupPage({ id: db.id, table: c.lookup.table, field: c.lookup.field, limit: LIST_MAX }).then((page) => [c.field, page])))
       .then((pairs) => { if (live) setLists(Object.fromEntries(pairs)); })
       .catch(() => {});
     return () => { live = false; };
@@ -73,21 +119,19 @@ export function FormView({ shell, db, name, onChanged, toast }) {
   useEffect(() => {
     if (!layout) return undefined;
     let live = true;
-    const wanted = [];
+    const pairs = [];
     for (const s of layout.subforms || []) {
+      const rows = related[s.table]?.rows || [];
       for (const col of s.columns) {
         if (col === s.field) continue;
         const rel = (db.relationships || []).find((r) => r.from.table === s.table && r.from.field === col);
-        if (rel) wanted.push([s.table, col, rel]);
+        const values = [...new Set(rows.map((r) => r[col]).filter((v) => v !== null && v !== undefined))];
+        if (rel && values.length) pairs.push(shell.base.lookupPage({ id: db.id, table: rel.to.table, field: rel.to.field, values }).then((page) => [`${s.table}.${col}`, new Map(page.items.map((o) => [o.value, o.text]))]));
       }
     }
-    Promise.all(wanted.map(async ([tbl, col, rel]) => {
-      const fields = await shell.base.fields({ id: db.id, table: rel.to.table });
-      const items = await shell.base.lookup({ id: db.id, table: rel.to.table, field: rel.to.field, show: shownField(fields) });
-      return [`${tbl}.${col}`, new Map(items.map((o) => [o.value, o.text]))];
-    })).then((pairs) => { if (live) setSubLists(Object.fromEntries(pairs)); }).catch(() => {});
+    Promise.all(pairs).then((done) => { if (live) setSubLists(Object.fromEntries(done)); }).catch(() => {});
     return () => { live = false; };
-  }, [shell, db.id, layout, db.relationships]);
+  }, [shell, db.id, layout, db.relationships, related]);
   const subValue = (tbl, col, v) => {
     if (v === null || v === undefined) return '';
     const words = subLists[`${tbl}.${col}`]?.get(v);
@@ -156,11 +200,14 @@ export function FormView({ shell, db, name, onChanged, toast }) {
     const common = { className: `bs-fc bs-fc-${c.kind}`, 'data-field': c.field, 'aria-label': c.label, style: { left: c.x, top: c.y, width: c.w, height: c.h } };
     if (c.kind === 'check') return <input key={c.field} type="checkbox" {...common} checked={v} onChange={(e) => keep(c, e.target.checked)} />;
     if (c.kind === 'auto') return <span key={c.field} {...common}>{isNew ? t('(new)') : v}</span>;
+    if (c.kind === 'list' && lists[c.field]?.more) {
+      return <SearchList key={`${c.field}-${record?._rowid ?? 'new'}`} shell={shell} db={db} control={c} common={common} value={v} onPick={(value) => keep(c, value)} />;
+    }
     if (c.kind === 'list') {
       return (
         <select key={`${c.field}-${record?._rowid ?? 'new'}`} {...common} className="rw-select bs-fc bs-fc-list" defaultValue={v} onChange={(e) => keep(c, e.target.value)}>
           <option value="">{t('(none)')}</option>
-          {(lists[c.field] || []).map((o) => <option key={String(o.value)} value={String(o.value)}>{o.text}</option>)}
+          {(lists[c.field]?.items || []).map((o) => <option key={String(o.value)} value={String(o.value)}>{o.text}</option>)}
         </select>
       );
     }
@@ -234,6 +281,11 @@ export const FORM_CSS = `
 .bs-fc-longtext { resize: none; }
 /* A list in a form's row: no top and bottom padding, or Chromium squeezes its words into what is left and cuts them. */
 .bs-fc.bs-fc-list { padding-top: 0; padding-bottom: 0; }
+.bs-fc-search { display: block; }
+.bs-fc-search-input { width: 100%; height: 100%; box-sizing: border-box; padding-top: 0; padding-bottom: 0; }
+.bs-fc-search-list { position: absolute; z-index: 5; left: 0; right: 0; top: 100%; margin: 2px 0 0; padding: 4px 0; list-style: none; max-height: 220px; overflow: auto; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-2); box-shadow: var(--shadow-2, 0 4px 12px rgba(0,0,0,.12)); }
+.bs-fc-search-list li { padding: 4px 10px; cursor: pointer; font-size: 13px; }
+.bs-fc-search-list li:hover, .bs-fc-search-list li[aria-selected="true"] { background: var(--accent-soft); }
 .bs-subform { position: absolute; transform: translateY(48px); display: flex; flex-direction: column; border: 1px solid var(--line-soft); border-radius: var(--r-2); }
 .bs-subform-head { padding: 6px 10px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--line-soft); background: var(--sunken); }
 .bs-subform-head small { color: var(--ink-3); font-weight: 400; margin-inline-start: 6px; }

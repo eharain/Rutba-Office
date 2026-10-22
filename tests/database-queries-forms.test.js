@@ -170,3 +170,21 @@ test('what names a record: what the table says, else a field whose values name o
     assert.throws(() => b.setShown('Sales', ['Nope']), /no field called Nope/);
   } finally { b.close(); }
 });
+
+test('a record named by several fields: a date as a form shows it, and a pointing field as its record\'s own words', async () => {
+  const { buildFromSpec } = await import('../packages/database/src/index.js');
+  const b = Base.open(':memory:');
+  try {
+    buildFromSpec(b, { tables: [
+      { name: 'Patients', fields: [{ name: 'First Name', type: 'text' }, { name: 'Last Name', type: 'text' }] },
+      { name: 'Appointments', show: ['Start', 'Patient'], fields: [{ name: 'Start', type: 'datetime' }, { name: 'Patient', type: 'integer', points: 'Patients' }, { name: 'Status', type: 'text' }] },
+      { name: 'Notes', fields: [{ name: 'Appointment', type: 'integer', points: 'Appointments' }, { name: 'Text', type: 'text' }] },
+    ] });
+    b.insert('Patients', { 'First Name': 'Priya', 'Last Name': 'Shah' });
+    b.insert('Appointments', { Start: '2026-10-21T09:00:00', Patient: 1, Status: 'Booked' });
+    b.insert('Notes', { Appointment: 1, Text: 'Fine' });
+    assert.deepEqual(b.lookup({ table: 'Appointments', field: 'ID' }).map((o) => o.text), ['21/10/2026 09:00 Priya Shah']);
+    assert.deepEqual(b.lookupPage({ table: 'Appointments', field: 'ID', search: 'Shah' }).items.map((o) => o.value), [1]);
+    assert.equal(b.wordsOf('Appointments', 1), '21/10/2026 09:00 Priya Shah');
+  } finally { b.close(); }
+});
