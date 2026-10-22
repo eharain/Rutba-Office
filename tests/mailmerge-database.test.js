@@ -79,3 +79,18 @@ test('a letter keeps which table it merges, as Word writes an Access source, and
   assert.equal(back.path, 'C:\\Club\\Members.rbase');
   assert.equal(back.sheet, 'Members');
 });
+
+test('a protected database gives a mail merge nothing until someone signs in, and says so', () => {
+  const file = path.join(os.tmpdir(), `merge-protected-${process.pid}.rbase`);
+  try {
+    for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
+    const b = Base.open(file);
+    b.createTable({ name: 'Members', fields: [{ name: 'Name', type: 'text' }] });
+    b.insert('Members', { Name: 'Amira' });
+    b.protect({ name: 'Amira', password: 'owner-pass' });
+    b.close();
+    assert.throws(() => readMergeSource(file), /is protected/);
+  } finally {
+    for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
+  }
+});

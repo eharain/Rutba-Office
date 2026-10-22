@@ -40,6 +40,8 @@ function readDatabase(filePath, name, sheet) {
     throw new Error(`${name} could not be read as a database: ${err.message}`);
   }
   try {
+    // A protected database (D-2026-10-22-11) gives nothing to a reader that has not signed in.
+    if (base.access?.locked) throw new Error(`${name} is protected. Open it in Data Files and sign in, or ask its Admin for a copy of what you need.`);
     const tables = base.hasDesignTable('rutba_tables') ? base.tables().map((x) => x.name) : [];
     const queries = base.hasDesignTable('rutba_queries') ? base.queries().map((x) => x.name).filter((n) => !tables.includes(n)) : [];
     const sheets = [...tables, ...queries];
