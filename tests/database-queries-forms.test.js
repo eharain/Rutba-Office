@@ -106,3 +106,17 @@ test('a file made before saved queries and forms opens with their tables, and it
     for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
   }
 });
+
+test('a form\'s date and time box gives the time to the minute, and it is kept, to the second', async () => {
+  const { valueFromControl } = await import('../packages/database/src/form-design.js');
+  const b = Base.open(':memory:');
+  try {
+    b.createTable({ name: 'Visits', fields: [{ name: 'Signed In', type: 'datetime' }] });
+    // What <input type="datetime-local"> answers: no seconds.
+    const id = b.insert('Visits', { 'Signed In': valueFromControl('datetime', '2026-10-22T17:24') });
+    assert.equal(b.rows('Visits')[0]['Signed In'], '2026-10-22T17:24:00');
+    b.update('Visits', id, { 'Signed In': '2026-10-22 09:05' });
+    assert.equal(b.rows('Visits')[0]['Signed In'], '2026-10-22T09:05:00');
+    assert.throws(() => b.update('Visits', id, { 'Signed In': 'teatime' }), /takes a date and a time/);
+  } finally { b.close(); }
+});

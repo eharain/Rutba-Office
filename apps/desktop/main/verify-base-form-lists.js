@@ -35,13 +35,18 @@ export async function verifyBaseFormLists({ open, check, until, wait }, { dir })
       const cells = [...document.querySelectorAll('[data-subform=${JSON.stringify(sub.table)}] tbody td[data-col=${JSON.stringify(col)}]')].map((n) => n.textContent);
       return { form: ${JSON.stringify(form.name)}, field: list?.dataset.field, height: list?.clientHeight, room, line, cells: cells.slice(0, 4) };
     })()`);
+    // A date and time typed in the form (its box answers to the minute) is kept.
+    const when = await js(`(() => { const el = document.querySelector('.bs-fc-datetime'); if (!el) return null; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '2025-11-01T08:15'); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); el.focus(); el.blur(); return el.dataset.field; })()`);
+    await wait(800);
+    const keptWhen = when ? (() => { const x = Base.open(file); try { return x.rows(form.layout.table, { limit: 1 })[0]?.[when]; } finally { x.close(); } })() : null;
+    seen.when = { field: when, kept: keptWhen };
     if (process.env.RUTBA_VERIFY_CAPTURE) {
       win.webContents.invalidate();
       await wait(700);
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'base-form-lists.png'), (await win.webContents.capturePage()).toPNG());
     }
-    check('base: a form\'s list has room for its words, and a subform\'s field that points at another table shows that record\'s words, not its number',
-      Boolean(seen.field) && seen.room >= seen.line && seen.cells.length > 0 && seen.cells.every((c) => c && !/^\d+$/.test(c)),
+    check('base: a form\'s list has room for its words, and a subform\'s field that points at another table shows that record\'s words, not its number; a date and time typed in a form is kept',
+      Boolean(seen.field) && seen.room >= seen.line && seen.cells.length > 0 && seen.cells.every((c) => c && !/^\d+$/.test(c)) && Boolean(seen.when.field) && seen.when.kept === '2025-11-01T08:15:00',
       JSON.stringify(seen));
   } catch (err) {
     check('base: the form list checks ran to the end', false, err?.message || String(err));
