@@ -7855,4 +7855,5 @@ export default {
   '{name} (coming)': '{name} (قريبًا)',
   '{name} is unlinked. The engine keeps its records.': 'فُك ربط {name}. يحتفظ المحرك بسجلاته.',
   '{user} at {host}, database {database}.': '{user} على {host}، قاعدة البيانات {database}.',
+  'Type to find': 'اكتب للبحث',
 };

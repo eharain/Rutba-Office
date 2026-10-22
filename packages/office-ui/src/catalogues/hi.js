@@ -7855,4 +7855,5 @@ export default {
   '{name} (coming)': '{name} (जल्द)',
   '{name} is unlinked. The engine keeps its records.': '{name} का लिंक हटा दिया गया। इंजन इसके रिकॉर्ड रखता है।',
   '{user} at {host}, database {database}.': '{host} पर {user}, डेटाबेस {database}।',
+  'Type to find': 'ढूँढने के लिए लिखें',
 };

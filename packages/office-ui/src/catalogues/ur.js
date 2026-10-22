@@ -7853,4 +7853,5 @@ export default {
   '{name} (coming)': '{name} (جلد)',
   '{name} is unlinked. The engine keeps its records.': '{name} کا ربط ختم ہو گیا۔ انجن اس کے ریکارڈ رکھتا ہے۔',
   '{user} at {host}, database {database}.': '{host} پر {user}، ڈیٹا بیس {database}۔',
+  'Type to find': 'تلاش کے لیے لکھیں',
 };

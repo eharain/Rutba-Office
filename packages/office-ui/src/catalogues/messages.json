@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7845,
+  "count": 7846,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -42979,6 +42979,12 @@
       "message": "Type the words to find, then press Mark Matches again to mark every match.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Type to find",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
       ]
     },
     {
