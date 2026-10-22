@@ -42,6 +42,7 @@ import { verifyBasePin } from './verify-base-pin.js';
 import { verifyBaseAccess } from './verify-base-access.js';
 import { verifyBaseEngineLink } from './verify-base-engine-link.js';
 import { verifyBaseFormLists } from './verify-base-form-lists.js';
+import { verifyBaseFormsAll } from './verify-base-forms-all.js';
 import { verifyBaseOrigin } from './verify-base-origin.js';
 import { verifyBaseReports } from './verify-base-reports.js';
 import { verifyBaseTemplates } from './verify-base-templates.js';
@@ -5121,6 +5122,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('base-samples')) await verifyBaseSamples({ open, check, until, wait }, { dir });
     // The site's pictures of the samples: asked for by name only, never part of the full run.
     if (only.includes('base-sample-shots')) await verifyBaseSampleShots({ open, check, until, wait }, { dir });
+    // Every form of every ready-made database, used as a person would: asked for by name only, never part of the full run.
+    if (only.includes('base-forms-all')) await verifyBaseFormsAll({ open, check, until, wait }, { dir });
     if (only.includes('video-sound')) await verifyVideoSound({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-library')) await verifyVideoLibrary({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-starters')) await verifyVideoStarters({ open, check, until, wait, errorsIn }, { dir });
