@@ -12,6 +12,7 @@ import { wizardForm, shownField } from './form-design.js';
 import { wizardReport, reportData } from './report-design.js';
 import { wizardDocument, documentData, PAPERS, BLOCKS } from './document-design.js';
 import { filterSql, sniffType } from './filter.js';
+import { ACCESS_DESIGN, ADMIN, STARTING_ROLES, normalRights, tableRight, allows, viewSql, hashPassword, checkPassword } from './access.js';
 
 const DESIGN = `
 CREATE TABLE IF NOT EXISTS rutba_meta (key TEXT PRIMARY KEY, value TEXT);
@@ -25,14 +26,14 @@ CREATE TABLE IF NOT EXISTS rutba_queries (name TEXT PRIMARY KEY, design TEXT NOT
 CREATE TABLE IF NOT EXISTS rutba_forms (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
 CREATE TABLE IF NOT EXISTS rutba_reports (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
 CREATE TABLE IF NOT EXISTS rutba_documents (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
-`;
+${ACCESS_DESIGN}`;
 
 /**
  * The version of the design tables this build writes: 2 keeps saved queries
- * and forms, 3 reports, 4 print templates. An older file is given the tables
- * it lacks as it opens.
+ * and forms, 3 reports, 4 print templates, 5 people and roles. An older file
+ * is given the tables it lacks as it opens.
  */
-export const DESIGN_VERSION = 4;
+export const DESIGN_VERSION = 5;
 
 const RESERVED = /^(rutba_|sqlite_)/i;
 
@@ -85,6 +86,9 @@ export class Base {
     this.db = db;
     // The day Date() and Now() answer in this database's expressions; null is today.
     this.today = null;
+    // Who is using it (D-2026-10-22-11): null while it is not protected; locked until someone signs in.
+    this.access = null;
+    try { if (this.meta('protected') === '1') this.access = { locked: true }; } catch { /* a file with no design tables */ }
   }
 
   close() {
@@ -102,13 +106,35 @@ export class Base {
 
   /* ── design ─────────────────────────────────────────────────────── */
 
-  /** The tables, in their order: [{ name, caption }]. */
+  /** The tables, in their order: [{ name, caption }]; those the person's role hides left out. */
   tables() {
+    if (this.access?.locked) return [];
+    const all = this._allTables();
+    const rights = this._rights();
+    return rights ? all.filter((t) => tableRight(rights, t.name).access !== 'hidden') : all;
+  }
+
+  _allTables() {
     return this.db.prepare('SELECT name, caption FROM rutba_tables ORDER BY position, name').all().map((r) => ({ ...r }));
   }
 
-  /** A table's fields, in their order: [{ name, type, size, required, unique, default, caption }]. */
+  /**
+   * A table's fields, in their order: [{ name, type, size, required, unique,
+   * default, caption }]; those the role hides left out, and those it may only
+   * read marked readOnly.
+   */
   fields(table) {
+    if (this.access?.locked) return [];
+    const all = this._allFields(table);
+    const rights = this._rights();
+    if (!rights) return all;
+    const right = tableRight(rights, table);
+    if (right.access === 'hidden') return [];
+    const readOnly = right.access === 'read';
+    return all.filter((f) => right.fields[f.name] !== 'hidden').map((f) => (readOnly || right.fields[f.name] === 'read' ? { ...f, readOnly: true } : f));
+  }
+
+  _allFields(table) {
     return this.db.prepare('SELECT * FROM rutba_fields WHERE tbl = ? ORDER BY position').all(table).map((f) => ({
       name: f.name, type: f.type, size: f.size ?? undefined, required: Boolean(f.required), unique: Boolean(f.uniq),
       default: f.dflt == null ? undefined : JSON.parse(f.dflt), caption: f.caption ?? undefined,
@@ -140,6 +166,7 @@ export class Base {
 
   /** One change to the design, as one transaction and one numbered step. */
   _step(label, detail, run) {
+    this._mayDesign();
     this.db.exec('BEGIN IMMEDIATE');
     try {
       const out = run();
@@ -347,6 +374,7 @@ export class Base {
   /* ── data ───────────────────────────────────────────────────────── */
 
   _known(table) {
+    this._unlocked();
     const fields = this.fields(table);
     if (!fields.length) throw new Error(`There is no table called ${table}.`);
     return fields;
@@ -372,33 +400,59 @@ export class Base {
     const sql = `SELECT rowid AS _rowid, * FROM ${q(table)}`
       + (conds.length ? ` WHERE ${conds.join(' AND ')}` : '')
       + ` ORDER BY ${by ? `${q(by.name)} ${String(order).startsWith('-') ? 'DESC' : 'ASC'}, ` : ''}rowid LIMIT ? OFFSET ?`;
-    return this.db.prepare(sql).all(...keys.map((k) => where[k]), ...f.params, Math.max(0, limit | 0), Math.max(0, offset | 0)).map((r) => ({ ...r }));
+    const strip = Boolean(this._rights());
+    return this.db.prepare(sql).all(...keys.map((k) => where[k]), ...f.params, Math.max(0, limit | 0), Math.max(0, offset | 0)).map((r) => {
+      const row = { ...r };
+      // Read through a role's view, whose rowid is a column of its own.
+      if (strip) delete row.rowid;
+      return row;
+    });
   }
 
   /** Add a record; answers its rowid. Values as a person typed them are put into each field's type. */
   insert(table, values) {
+    this._mayWrite(table, 'add');
     const fields = this._known(table).filter((f) => f.type !== 'autonumber' || values[f.name] != null);
     // A field not given takes its default from the table itself: a Yes/No that defaults to Yes is Yes.
     const set = fields.filter((f) => Object.hasOwn(values, f.name) && values[f.name] !== undefined);
-    const sql = set.length
-      ? `INSERT INTO ${q(table)} (${set.map((f) => q(f.name)).join(', ')}) VALUES (${set.map(() => '?').join(', ')})`
-      : `INSERT INTO ${q(table)} DEFAULT VALUES`;
-    return Number(this._run(sql, set.map((f) => toStored(f, values[f.name]))).lastInsertRowid);
+    this._noHiddenValues(table, values);
+    for (const f of set) if (f.readOnly && values[f.name] != null && values[f.name] !== '') throw new Error(`${f.name} is read only for you.`);
+    const given = set.filter((f) => !f.readOnly);
+    const sql = given.length
+      ? `INSERT INTO ${this._target(table)} (${given.map((f) => q(f.name)).join(', ')}) VALUES (${given.map(() => '?').join(', ')})`
+      : `INSERT INTO ${this._target(table)} DEFAULT VALUES`;
+    const rowid = Number(this._run(sql, given.map((f) => toStored(f, values[f.name]))).lastInsertRowid);
+    this._trail(table, [rowid], 'add');
+    return rowid;
   }
 
   /** Change a record's fields. */
   update(table, rowid, values) {
-    const fields = this._known(table).filter((f) => Object.hasOwn(values, f.name));
+    this._mayWrite(table, 'change', [rowid]);
+    let fields = this._known(table).filter((f) => Object.hasOwn(values, f.name));
+    this._noHiddenValues(table, values);
+    // A field the role may only read stays as it is: given as it is, it is left out; changed, it is refused.
+    const fixed = fields.filter((f) => f.readOnly);
+    if (fixed.length) {
+      const now = this.db.prepare(`SELECT * FROM main.${q(table)} WHERE rowid = ?`).get(rowid) || {};
+      for (const f of fixed) if (toStored(f, values[f.name]) !== now[f.name]) throw new Error(`${f.name} is read only for you.`);
+      fields = fields.filter((f) => !f.readOnly);
+    }
     if (!fields.length) return 0;
-    return Number(this._run(`UPDATE ${q(table)} SET ${fields.map((f) => `${q(f.name)} = ?`).join(', ')} WHERE rowid = ?`, [...fields.map((f) => toStored(f, values[f.name])), rowid]).changes);
+    const changes = Number(this._run(`UPDATE ${this._target(table)} SET ${fields.map((f) => `${q(f.name)} = ?`).join(', ')} WHERE rowid = ?`, [...fields.map((f) => toStored(f, values[f.name])), rowid]).changes);
+    if (changes) this._trail(table, [rowid], 'change', { fields: fields.map((f) => f.name) });
+    return changes;
   }
 
   /** Delete records by rowid. */
   remove(table, rowids) {
-    this._known(table);
     const ids = [...rowids];
+    this._mayWrite(table, 'delete', ids);
+    this._known(table);
     if (!ids.length) return 0;
-    return Number(this._run(`DELETE FROM ${q(table)} WHERE rowid IN (${ids.map(() => '?').join(', ')})`, ids).changes);
+    const changes = Number(this._run(`DELETE FROM ${this._target(table)} WHERE rowid IN (${ids.map(() => '?').join(', ')})`, ids).changes);
+    this._trail(table, ids, 'delete');
+    return changes;
   }
 
   /** A statement, its failures said in words a person can act on. */
@@ -419,7 +473,9 @@ export class Base {
 
   /** The saved queries: [{ name, design }], in their order. */
   queries() {
-    return this.db.prepare('SELECT name, design FROM rutba_queries ORDER BY position, name').all().map((r) => ({ name: r.name, design: JSON.parse(r.design) }));
+    if (this.access?.locked) return [];
+    const all = this.db.prepare('SELECT name, design FROM rutba_queries ORDER BY position, name').all().map((r) => ({ name: r.name, design: JSON.parse(r.design) }));
+    return this._shown('queries', all, (x) => x.design.tables || []);
   }
 
   /** A query kept under `name` (made, or replaced), after its design is checked by building its SQL. */
@@ -446,7 +502,7 @@ export class Base {
     const d = design || this.queries().find((x) => x.name === name)?.design;
     if (!d) throw new Error(`There is no query called ${name}.`);
     const { sql, params, columns } = designToSql(d, this.relationships(), { ...this._designFields(), today });
-    const out = this.query(sql, params);
+    const out = this._select(sql, params);
     const rows = out.rows.slice(0, limit).map(cleanRow);
     return { columns: out.columns.length ? out.columns : columns, rows, count: out.rows.length, sql };
   }
@@ -500,7 +556,9 @@ export class Base {
 
   /** The forms: [{ name, layout }], in their order. */
   forms() {
-    return this.db.prepare('SELECT name, layout FROM rutba_forms ORDER BY position, name').all().map((r) => ({ name: r.name, layout: JSON.parse(r.layout) }));
+    if (this.access?.locked) return [];
+    const all = this.db.prepare('SELECT name, layout FROM rutba_forms ORDER BY position, name').all().map((r) => ({ name: r.name, layout: JSON.parse(r.layout) }));
+    return this._shown('forms', all, (x) => [x.layout.table]);
   }
 
   /** A form kept (made, or replaced), its table checked. */
@@ -530,7 +588,9 @@ export class Base {
 
   /** The reports: [{ name, layout }], in their order. */
   reports() {
-    return this.db.prepare('SELECT name, layout FROM rutba_reports ORDER BY position, name').all().map((r) => ({ name: r.name, layout: JSON.parse(r.layout) }));
+    if (this.access?.locked) return [];
+    const all = this.db.prepare('SELECT name, layout FROM rutba_reports ORDER BY position, name').all().map((r) => ({ name: r.name, layout: JSON.parse(r.layout) }));
+    return this._shown('reports', all, (x) => (x.layout.source?.table ? [x.layout.source.table] : []), (x) => x.layout.source?.query);
   }
 
   /** A report kept (made, or replaced), its source checked. */
@@ -595,8 +655,9 @@ export class Base {
 
   /** The print templates (an invoice, a receipt, a payslip): [{ name, layout }], in their order. */
   documents() {
-    if (!this.hasDesignTable('rutba_documents')) return [];
-    return this.db.prepare('SELECT name, layout FROM rutba_documents ORDER BY position, name').all().map((r) => ({ name: r.name, layout: JSON.parse(r.layout) }));
+    if (!this.hasDesignTable('rutba_documents') || this.access?.locked) return [];
+    const all = this.db.prepare('SELECT name, layout FROM rutba_documents ORDER BY position, name').all().map((r) => ({ name: r.name, layout: JSON.parse(r.layout) }));
+    return this._shown('documents', all, (x) => [x.layout.table, x.layout.letterhead?.table, ...(x.layout.blocks || []).map((bl) => bl.table)].filter(Boolean));
   }
 
   /** A print template kept (made, or replaced), its table, paper and blocks checked. */
@@ -640,8 +701,16 @@ export class Base {
 
   /** The choices for a lookup: each record of `table` by its `field`, shown as `show` (a field, or several), at most `limit`. */
   lookup({ table, field, show, limit = 2000 }) {
+    // A role sees the choices of a table it may read, by the fields it may see.
+    let wanted = Array.isArray(show) && show.length ? show : [show || field];
+    if (this._rights()) {
+      const seen = new Set(this.fields(table).map((f) => f.name));
+      if (!seen.has(field)) return [];
+      wanted = wanted.filter((f) => seen.has(f));
+      if (!wanted.length) wanted = [field];
+    }
     // Two fields or more (a first and a last name) are shown together, a space between, and listed by the last.
-    const shown = Array.isArray(show) && show.length ? show : [show || field];
+    const shown = wanted;
     const text = shown.length > 1 ? `TRIM(${shown.map((f) => `COALESCE(${q(f)}, '')`).join(" || ' ' || ")})` : q(shown[0]);
     const order = shown.length > 1 ? `${q(shown[shown.length - 1])}, ${text}` : text;
     const rows = this.db.prepare(`SELECT ${q(field)} AS value, ${text} AS text FROM ${q(table)} ORDER BY ${order} LIMIT ?`).all(limit);
@@ -653,6 +722,12 @@ export class Base {
    * one statement, run with the database read-only. Answers { columns, rows }.
    */
   query(sql, params = []) {
+    // A person's own SQL could name main.<table> and read past their role: it is for those who may change the design.
+    this._mayDesign();
+    return this._select(sql, params);
+  }
+
+  _select(sql, params = []) {
     const text = String(sql).trim().replace(/;\s*$/, '');
     if (!/^(select|with)\b/i.test(text)) throw new Error('A query here starts with SELECT.');
     if (/;/.test(text.replace(/'(?:[^']|'')*'|"(?:[^"]|"")*"/g, ''))) throw new Error('One statement at a time.');
@@ -666,4 +741,276 @@ export class Base {
       this.db.exec('PRAGMA query_only = OFF');
     }
   }
+
+  /* ── people and roles (D-2026-10-22-11) ─────────────────────────── */
+
+  /** Whether the database asks who you are as it opens. */
+  isProtected() {
+    return this.meta('protected') === '1';
+  }
+
+  /** The rights that narrow what this person sees, or null when nothing does. */
+  _rights() {
+    const a = this.access;
+    return a && !a.locked && !a.full ? a.rights : null;
+  }
+
+  _unlocked() {
+    if (this.access?.locked) throw new Error('Sign in to open this database.');
+  }
+
+  _mayDesign() {
+    this._unlocked();
+    if (this.access?.seeing) throw new Error(`You are seeing the database as ${this.access.seeing} sees it. Go back to your own view to change it.`);
+    if (this._rights()) throw new Error('Only someone whose role may change the design can do that.');
+  }
+
+  /** May this person `want` ('add', 'change', 'delete') in `table`, on these rows? */
+  _mayWrite(table, want, rowids = []) {
+    this._unlocked();
+    if (this.access?.seeing) throw new Error(`You are seeing the database as ${this.access.seeing} sees it. Go back to your own view to change it.`);
+    const rights = this._rights();
+    if (!rights) return;
+    const words = { add: 'add records to', change: 'change records in', delete: 'delete records from' };
+    if (!allows(rights, table, want)) throw new Error(`Your role may not ${words[want]} ${table}.`);
+    // A record the role cannot see (another person's, for one that sees its own only) is not theirs to change.
+    for (const id of rowids) {
+      if (!this.db.prepare(`SELECT 1 FROM ${q(table)} WHERE rowid = ?`).get(id)) throw new Error(`Your role may not ${words[want]} that record of ${table}.`);
+    }
+  }
+
+  /** A value given for a field the role hides is refused, not quietly dropped. */
+  _noHiddenValues(table, values) {
+    const rights = this._rights();
+    if (!rights) return;
+    const right = tableRight(rights, table);
+    for (const f of Object.keys(values)) if (right.fields[f] === 'hidden') throw new Error(`There is no field called ${f} in ${table}.`);
+  }
+
+  /** Where a write goes: past a role's view, to the table itself. */
+  _target(table) {
+    return this._rights() ? `main.${q(table)}` : q(table);
+  }
+
+  /** Who added, changed or deleted which records, kept while the database is protected. */
+  _trail(table, rowids, action, detail = null) {
+    if (!this.access || this.access.locked) return;
+    const put = this.db.prepare('INSERT INTO rutba_trail (at, person, tbl, row, action, detail) VALUES (?, ?, ?, ?, ?, ?)');
+    const at = new Date().toISOString();
+    for (const id of rowids) put.run(at, this.access.person?.id ?? null, table, id, action, detail == null ? null : JSON.stringify(detail));
+  }
+
+  /** Saved items the role shows: not hidden by name, and none over a table it hides. */
+  _shown(kind, all, tablesOf, queryOf = () => null) {
+    const rights = this._rights();
+    if (!rights) return all;
+    const hidden = new Set(rights.hidden[kind]);
+    const hiddenQueries = new Set(rights.hidden.queries);
+    return all.filter((x) => !hidden.has(x.name)
+      && tablesOf(x).every((t) => tableRight(rights, t).access !== 'hidden')
+      && !(queryOf(x) && hiddenQueries.has(queryOf(x))));
+  }
+
+  /** The views a restricted person reads through, made again (after sign-in, a role changed, See as). */
+  _applyViews() {
+    for (const v of this.db.prepare("SELECT name FROM sqlite_temp_master WHERE type = 'view'").all()) this.db.exec(`DROP VIEW temp.${q(v.name)}`);
+    const rights = this._rights();
+    if (!rights) return;
+    for (const t of this._allTables()) this.db.exec(viewSql(t.name, this._allFields(t.name), rights, this.access.person?.id));
+  }
+
+  /** The person signed in: { id, name, role, admin, seeing }, or null. */
+  person() {
+    const a = this.access;
+    if (!a || a.locked) return null;
+    return { ...a.person, admin: Boolean(a.full), seeing: a.seeing || null };
+  }
+
+  /** The rights in force, for the app to show what is read only: null when nothing is narrowed. */
+  rights() {
+    return this._rights();
+  }
+
+  /** The names that may sign in, for the sign-in box: nothing else about them. */
+  signInNames() {
+    if (!this.isProtected()) return [];
+    return this.db.prepare('SELECT name FROM rutba_people ORDER BY name').all().map((r) => r.name);
+  }
+
+  /**
+   * Protect the database: from now on it asks who you are. The person who
+   * protects it is its first Admin; two roles to start from are made beside it.
+   */
+  protect({ name, password }) {
+    this._mayDesign();
+    if (this.isProtected()) throw new Error('This database is protected already.');
+    const n = checkName(name, 'person');
+    const hash = hashPassword(password);
+    const at = new Date().toISOString();
+    this._step('Protect the database', { admin: n }, () => {
+      const putRole = this.db.prepare('INSERT INTO rutba_roles (name, rights, position) VALUES (?, ?, ?) ON CONFLICT(name) DO NOTHING');
+      putRole.run(ADMIN, JSON.stringify({ design: true }), 0);
+      STARTING_ROLES.forEach((r, i) => putRole.run(r.name, JSON.stringify(normalRights(r.rights)), i + 1));
+      this.db.prepare('DELETE FROM rutba_people').run();
+      this.db.prepare('INSERT INTO rutba_people (name, role, hash, created) VALUES (?, ?, ?, ?)').run(n, ADMIN, hash, at);
+      this.setMeta('protected', '1');
+    });
+    this.access = { locked: true };
+    return this.signIn(n, password);
+  }
+
+  /** Take the protection away: an Admin, with their password. The people are removed; the trail is kept. */
+  unprotect({ password }) {
+    const me = this.person();
+    if (!me?.admin || me.seeing) throw new Error('Only an Admin can take the protection away.');
+    const row = this.db.prepare('SELECT hash FROM rutba_people WHERE id = ?').get(me.id);
+    if (!row || !checkPassword(password, row.hash)) throw new Error('That password is not right.');
+    this._step('Take the protection away', null, () => {
+      this.db.prepare('DELETE FROM rutba_people').run();
+      this.setMeta('protected', '0');
+    });
+    this.access = null;
+    this._applyViews();
+  }
+
+  /** Sign in: the database opens as the person's role allows. */
+  signIn(name, password) {
+    if (!this.isProtected()) throw new Error('This database is not protected.');
+    const p = this.db.prepare('SELECT id, name, role, hash FROM rutba_people WHERE name = ?').get(String(name ?? '').trim());
+    if (!p || !checkPassword(password, p.hash)) throw new Error('That name and password do not match.');
+    const role = this.db.prepare('SELECT name, rights FROM rutba_roles WHERE name = ?').get(p.role);
+    const rights = normalRights(role ? JSON.parse(role.rights) : {});
+    this.access = { person: { id: p.id, name: p.name, role: p.role }, rights, full: p.role === ADMIN || rights.design, seeing: null };
+    this._applyViews();
+    return this.person();
+  }
+
+  /** Sign out: the database is locked again until someone signs in. */
+  signOut() {
+    if (!this.isProtected()) return;
+    this.access = { locked: true };
+    this._applyViews();
+  }
+
+  /** An Admin sees the database as `role` would (null to go back): reading only. */
+  seeAs(role) {
+    const a = this.access;
+    if (!a || a.locked || !a.person || a.person.role !== ADMIN) throw new Error('Only an Admin can see the database as another role does.');
+    if (role == null || role === ADMIN) {
+      this.access = { person: a.person, rights: normalRights({ design: true }), full: true, seeing: null };
+    } else {
+      const r = this.db.prepare('SELECT name, rights FROM rutba_roles WHERE name = ?').get(role);
+      if (!r) throw new Error(`There is no role called ${role}.`);
+      const rights = normalRights(JSON.parse(r.rights));
+      this.access = { person: a.person, rights, full: rights.design, seeing: r.name };
+    }
+    this._applyViews();
+    return this.person();
+  }
+
+  _admin() {
+    const me = this.person();
+    if (!me || me.role !== ADMIN || me.seeing) throw new Error('Only an Admin can change people and roles.');
+    return me;
+  }
+
+  /** The roles: [{ name, rights, builtIn }], Admin first. */
+  roles() {
+    this._admin();
+    return this.db.prepare('SELECT name, rights FROM rutba_roles ORDER BY position, name').all().map((r) => ({ name: r.name, rights: normalRights(JSON.parse(r.rights)), builtIn: r.name === ADMIN }));
+  }
+
+  /** A role kept (made, or its rights replaced). Admin's are its own. */
+  saveRole(name, rights) {
+    this._admin();
+    const n = checkName(name, 'role');
+    if (n.toLowerCase() === ADMIN.toLowerCase()) throw new Error('Admin may do everything; its rights are not changed.');
+    const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_roles').get().p;
+    this._step(`Role ${n} kept`, { role: n }, () => {
+      this.db.prepare('INSERT INTO rutba_roles (name, rights, position) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET rights = excluded.rights')
+        .run(n, JSON.stringify(normalRights(rights)), at);
+    });
+    return n;
+  }
+
+  /** A role taken away; one that people have stays until they are given another. */
+  removeRole(name) {
+    this._admin();
+    if (name === ADMIN) throw new Error('Admin stays.');
+    const n = this.db.prepare('SELECT count(*) AS n FROM rutba_people WHERE role = ?').get(name).n;
+    if (n) throw new Error(`${n} ${n === 1 ? 'person has' : 'people have'} the role ${name}. Give them another first.`);
+    this._step(`Role ${name} removed`, { role: name }, () => this.db.prepare('DELETE FROM rutba_roles WHERE name = ?').run(name));
+  }
+
+  /** The people: [{ id, name, role, created }]. */
+  people() {
+    this._admin();
+    return this.db.prepare('SELECT id, name, role, created FROM rutba_people ORDER BY name').all().map((r) => ({ ...r }));
+  }
+
+  _roleThere(role) {
+    if (!this.db.prepare('SELECT 1 FROM rutba_roles WHERE name = ?').get(role)) throw new Error(`There is no role called ${role}.`);
+  }
+
+  /** Someone added, with a role and a password of their own. */
+  addPerson({ name, role, password }) {
+    this._admin();
+    const n = checkName(name, 'person');
+    this._roleThere(role);
+    if (this.db.prepare('SELECT 1 FROM rutba_people WHERE name = ?').get(n)) throw new Error(`There is someone called ${n} already.`);
+    const hash = hashPassword(password);
+    return this._step(`Person ${n} added`, { person: n, role }, () => Number(this.db.prepare('INSERT INTO rutba_people (name, role, hash, created) VALUES (?, ?, ?, ?)')
+      .run(n, role, hash, new Date().toISOString()).lastInsertRowid));
+  }
+
+  /** A person's name or role changed. The last Admin stays an Admin. */
+  changePerson(id, { name, role }) {
+    const me = this._admin();
+    const p = this.db.prepare('SELECT id, name, role FROM rutba_people WHERE id = ?').get(id);
+    if (!p) throw new Error('There is no such person.');
+    const n = name == null ? p.name : checkName(name, 'person');
+    const r = role == null ? p.role : role;
+    this._roleThere(r);
+    if (p.role === ADMIN && r !== ADMIN && this._admins() === 1) throw new Error('The database keeps at least one Admin.');
+    this._step(`Person ${n} changed`, { person: n, role: r }, () => this.db.prepare('UPDATE rutba_people SET name = ?, role = ? WHERE id = ?').run(n, r, id));
+    if (id === me.id) this.access.person = { ...this.access.person, name: n };
+  }
+
+  _admins() {
+    return this.db.prepare('SELECT count(*) AS n FROM rutba_people WHERE role = ?').get(ADMIN).n;
+  }
+
+  /** A person taken away. The last Admin, and yourself, stay. */
+  removePerson(id) {
+    const me = this._admin();
+    if (id === me.id) throw new Error('You cannot remove yourself.');
+    const p = this.db.prepare('SELECT name, role FROM rutba_people WHERE id = ?').get(id);
+    if (!p) return;
+    if (p.role === ADMIN && this._admins() === 1) throw new Error('The database keeps at least one Admin.');
+    this._step(`Person ${p.name} removed`, { person: p.name }, () => this.db.prepare('DELETE FROM rutba_people WHERE id = ?').run(id));
+  }
+
+  /** A new password: your own, with the one you have now; anyone's, for an Admin. */
+  setPassword(id, password, { current = null } = {}) {
+    const me = this.person();
+    if (!me) throw new Error('Sign in to open this database.');
+    const self = me.id === id && !me.seeing;
+    if (!self) this._admin();
+    if (self) {
+      const row = this.db.prepare('SELECT hash FROM rutba_people WHERE id = ?').get(id);
+      if (!row || !checkPassword(current, row.hash)) throw new Error('Your password now is not right.');
+    }
+    const hash = hashPassword(password);
+    // Not a design step: anyone may change their own, and a password is not part of the design's history.
+    this.db.prepare('UPDATE rutba_people SET hash = ? WHERE id = ?').run(hash, id);
+  }
+
+  /** Who added and changed a record: [{ at, person, action, fields }], for a record the person can see. */
+  trailOf(table, rowid) {
+    this._known(table);
+    if (!this.db.prepare(`SELECT 1 FROM ${q(table)} WHERE rowid = ?`).get(rowid)) return [];
+    return this.db.prepare('SELECT t.at, p.name AS person, t.action, t.detail FROM rutba_trail t LEFT JOIN rutba_people p ON p.id = t.person WHERE t.tbl = ? AND t.row = ? ORDER BY t.n')
+      .all(table, rowid).map((r) => ({ at: r.at, person: r.person ?? null, action: r.action, fields: r.detail ? JSON.parse(r.detail).fields || null : null }));
+  }
+
 }

@@ -144,8 +144,8 @@ test('a file made before print templates opens with their table, its version bro
     old.exec("CREATE TABLE rutba_meta (key TEXT PRIMARY KEY, value TEXT); INSERT INTO rutba_meta VALUES ('version', '3');");
     old.close();
     const b = Base.open(file);
-    assert.equal(DESIGN_VERSION, 4);
-    assert.equal(b.meta('version'), '4');
+    assert.equal(DESIGN_VERSION, 5);
+    assert.equal(b.meta('version'), '5');
     assert.deepEqual(b.documents(), []);
     b.close();
   } finally {
