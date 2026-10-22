@@ -86,6 +86,7 @@ test('the form wizard: a control for each field by its type, a lookup as a list 
     assert.deepEqual(customers.subforms.map((s) => [s.table, s.field, s.to]), [['Orders', 'Customer', 'ID']]);
     assert.ok(customers.controls.every((c, i, all) => i === 0 || c.y > all[i - 1].y), 'one below the other');
     assert.deepEqual([labelFor('ID'), labelFor('first_name'), labelFor('CustomerID'), labelFor('VAT_number')], ['ID', 'First name', 'Customer ID', 'VAT number']);
+    assert.deepEqual([labelFor('E-mail'), labelFor('Follow-up Date'), labelFor('-note-')], ['E-mail', 'Follow-up date', 'Note']);
   } finally {
     b.close();
   }
