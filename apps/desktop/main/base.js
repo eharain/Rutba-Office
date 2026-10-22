@@ -8,6 +8,7 @@
 // Worksheets reads (dBASE and FoxPro tables, Access databases, Lotus 1-2-3,
 // SYLK, DIF), through office-formats' readers.
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Base, importRows, importSheets, buildTemplate, buildSample, originOf, planUpgrade, applyUpgrade, toStored } from '@rutba/database';
@@ -122,8 +123,12 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
       const design = await engine.describe(l.remote);
       o.base.relinkDesign(table, design);
       const rows = await engine.read(l.remote, { fields: design.fields, key: design.key });
+      // Read again with nothing changed in the engine: the copy here, and when it was read, stay as they are.
+      const hash = crypto.createHash('sha256').update(JSON.stringify([design, rows])).digest('hex');
+      const was = o.state.get(table);
+      if (was?.hash === hash && !was.error && o.base.linkedLoaded(table)) return;
       o.base.loadLinked(table, rows);
-      o.state.set(table, { error: null, at: new Date().toISOString(), count: rows.length });
+      o.state.set(table, { error: null, at: new Date().toISOString(), count: rows.length, hash });
     } catch (err) {
       o.state.set(table, { error: err.message || String(err), at: null });
     }

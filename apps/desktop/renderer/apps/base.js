@@ -85,6 +85,8 @@ const TYPES = ['text', 'longtext', 'number', 'integer', 'currency', 'date', 'dat
 const PAGE = 100;
 const ROW_H = 30;
 const OPENS = /\.(rbase|sqlite3?|db)$/i;
+/** How often a linked table on screen is read again from its engine. */
+const LIVE_MS = 15000;
 const IMPORTS = ['csv', 'tsv', 'txt', 'dbf', 'mdb', 'accdb', 'wk1', 'wks', 'wk3', 'wk4', 'slk', 'dif'];
 
 /** A value as a cell shows it. */
@@ -602,6 +604,20 @@ export default function Databases({ app, shell, boot }) {
   useEffect(() => () => { if (db) shell.base.close({ id: db.id }).catch(() => {}); }, [db?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = useCallback(async () => { if (db) show(await shell.base.summary({ id: db.id })); }, [shell, db, show]);
+
+  // Live (D-2026-10-22-13): a linked table on screen is read again from its engine every few seconds;
+  // the view changes only when the engine's records did, and not while a cell is being typed in.
+  const linkedOnScreen = Boolean(db && table && (view === 'data' || view === 'design') && db.tables?.some((x) => x.name === table && x.linked));
+  useEffect(() => {
+    if (!linkedOnScreen) return undefined;
+    const timer = setInterval(async () => {
+      if (document.visibilityState !== 'visible') return;
+      const typing = document.activeElement?.matches?.('.bs-edit, .bs-new-input') && (document.activeElement.value || document.activeElement.classList.contains('bs-edit'));
+      if (typing) return;
+      try { show(await shell.base.refreshLinked({ id: db.id, table })); } catch { /* the bar says why at the next read */ }
+    }, LIVE_MS);
+    return () => clearInterval(timer);
+  }, [shell, db?.id, table, linkedOnScreen, show]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const makeTable = async () => {
     const name = String(naming || '').trim();

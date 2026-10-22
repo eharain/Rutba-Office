@@ -75,11 +75,14 @@ export async function verifyBaseEngineLink({ open, check, until, wait }, { dir }
     await client.query(`UPDATE office_link_window.stock SET item = 'Brown sugar' WHERE id = 2`);
     await js(`document.querySelector('.bs-linked-again').click(), 1`);
     const again = await until(() => js(`[...document.querySelectorAll('.bs-row[data-rowid] [data-field="item"]')].some((n) => n.textContent === 'Brown sugar')`), 'read again', 8000).then(() => true, () => false);
+    // Live: changed in the engine again, it shows on its own within the next read (every 15 seconds).
+    await client.query(`UPDATE office_link_window.stock SET on_hand = 7 WHERE id = 1`);
+    const live = await until(() => js(`document.querySelector('.bs-row[data-rowid="1"] [data-field="on_hand"]')?.textContent === '7'`), 'the change shown on its own', 25000).then(() => true, () => false);
     const kept = (() => { const x = Base.open(file); try { return { links: x.links().map((l) => l.name), linked: x.linked().map((l) => l.table), password: fs.readFileSync(file).includes(Buffer.from(decodeURIComponent(u.password))) }; } finally { x.close(); } })();
-    check('base: Link to a database engine connects to PostgreSQL, links a table whose records show with the bar that says they are the engine\'s; a value changed here is changed in the engine, and Read again brings what changed there; the file keeps the link, not the password',
+    check('base: Link to a database engine connects to PostgreSQL, links a table whose records show with the bar that says they are the engine\'s; a value changed here is changed in the engine, Read again brings what changed there, and it shows on its own within the next live read; the file keeps the link, not the password',
       linked.mark && /Warehouse/.test(linked.bar) && JSON.stringify(linked.items) === JSON.stringify(['Flour', 'Sugar']) && !linked.designTab
-        && there === 40 && again && JSON.stringify(kept.links) === JSON.stringify(['Warehouse']) && kept.linked.includes(name) && !kept.password,
-      JSON.stringify({ linked, there, again, kept }));
+        && there === 40 && again && live && JSON.stringify(kept.links) === JSON.stringify(['Warehouse']) && kept.linked.includes(name) && !kept.password,
+      JSON.stringify({ linked, there, again, live, kept }));
   } catch (err) {
     check('base: the engine link checks ran to the end', false, err?.message || String(err));
   } finally {
