@@ -79,7 +79,9 @@ export function toStored(field, value) {
       return s;
     }
     case 'datetime': {
-      const s = value instanceof Date ? value.toISOString().slice(0, 19) : String(value).trim().replace(' ', 'T');
+      let s = value instanceof Date ? value.toISOString().slice(0, 19) : String(value).trim().replace(' ', 'T');
+      // A time to the minute (a form's date and time box gives 2026-10-22T17:24) is kept to the second, :00.
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) s += ':00';
       if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(s)) throw new Error(`${field.name} takes a date and a time, as 2026-10-21 14:30:00.`);
       return s.slice(0, 19);
     }
