@@ -26,14 +26,17 @@ CREATE TABLE IF NOT EXISTS rutba_queries (name TEXT PRIMARY KEY, design TEXT NOT
 CREATE TABLE IF NOT EXISTS rutba_forms (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
 CREATE TABLE IF NOT EXISTS rutba_reports (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
 CREATE TABLE IF NOT EXISTS rutba_documents (name TEXT PRIMARY KEY, layout TEXT NOT NULL, position INTEGER);
-${ACCESS_DESIGN}`;
+${ACCESS_DESIGN}
+CREATE TABLE IF NOT EXISTS rutba_links (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, engine TEXT NOT NULL, settings TEXT NOT NULL, position INTEGER);
+CREATE TABLE IF NOT EXISTS rutba_linked (tbl TEXT PRIMARY KEY COLLATE NOCASE, link TEXT NOT NULL, remote TEXT NOT NULL, key TEXT, caption TEXT, position INTEGER);
+`;
 
 /**
  * The version of the design tables this build writes: 2 keeps saved queries
- * and forms, 3 reports, 4 print templates, 5 people and roles. An older file
- * is given the tables it lacks as it opens.
+ * and forms, 3 reports, 4 print templates, 5 people and roles, 6 tables linked
+ * to a database engine. An older file is given the tables it lacks as it opens.
  */
-export const DESIGN_VERSION = 5;
+export const DESIGN_VERSION = 6;
 
 const RESERVED = /^(rutba_|sqlite_)/i;
 
@@ -111,7 +114,8 @@ export class Base {
     if (this.access?.locked) return [];
     const all = this._allTables();
     const rights = this._rights();
-    return rights ? all.filter((t) => tableRight(rights, t.name).access !== 'hidden') : all;
+    if (rights) return all.filter((t) => tableRight(rights, t.name).access !== 'hidden');
+    return [...all, ...this.linked().map((l) => ({ name: l.table, caption: l.caption, linked: l.link }))];
   }
 
   _allTables() {
@@ -157,7 +161,8 @@ export class Base {
   /** The CREATE TABLE for `table` with `fields` and the relationships from it. */
   _tableSql(table, fields, relations = this.relationships()) {
     const cols = fields.map(columnSql);
-    for (const r of relations.filter((x) => x.from.table === table)) {
+    // A relationship with a table linked to an engine joins queries but is no foreign key: its records are the engine's.
+    for (const r of relations.filter((x) => x.from.table === table && !this.isLinked(x.to.table) && !this.isLinked(x.from.table))) {
       cols.push(`FOREIGN KEY (${q(r.from.field)}) REFERENCES ${q(r.to.table)} (${q(r.to.field)})`
         + ` ON UPDATE ${r.cascadeUpdate ? 'CASCADE' : 'RESTRICT'} ON DELETE ${r.cascadeDelete ? 'CASCADE' : 'RESTRICT'}`);
     }
@@ -250,6 +255,7 @@ export class Base {
 
   /** Add a field at the end of a table. */
   addField(table, field) {
+    this._notLinked(table);
     const f = this._field(field);
     const fields = this.fields(table);
     if (!fields.length) throw new Error(`There is no table called ${table}.`);
@@ -271,6 +277,7 @@ export class Base {
 
   /** Change a field: its name, type, size, required, unique, default or caption. Its data comes with it. */
   changeField(table, name, change) {
+    this._notLinked(table);
     const fields = this.fields(table);
     const i = fields.findIndex((f) => f.name === name);
     if (i < 0) throw new Error(`${table} has no field called ${name}.`);
@@ -305,6 +312,7 @@ export class Base {
 
   /** Take a field away, and its data. One a relationship uses stays until the relationship goes. */
   removeField(table, name) {
+    this._notLinked(table);
     const fields = this.fields(table);
     const f = fields.find((x) => x.name === name);
     if (!f) throw new Error(`${table} has no field called ${name}.`);
@@ -321,6 +329,7 @@ export class Base {
 
   /** Rename a table; its relationships follow it. */
   renameTable(table, to) {
+    this._notLinked(table);
     const name = checkName(to, 'table');
     if (this.tables().some((t) => t.name.toLowerCase() === name.toLowerCase() && t.name !== table)) throw new Error(`There is a table called ${name} already.`);
     return this._step(`Rename table ${table} to ${name}`, { from: table, to: name }, () => {
@@ -334,6 +343,7 @@ export class Base {
 
   /** Delete a table and its records. One another table points at stays until that relationship goes. */
   dropTable(table) {
+    if (this.isLinked(table)) return this.unlinkTable(table);
     if (this.relationships().some((r) => r.to.table === table && r.from.table !== table)) throw new Error(`Another table points at ${table}; take that relationship away first.`);
     return this._step(`Delete table ${table}`, { table }, () => {
       this.db.prepare('DELETE FROM rutba_relations WHERE from_tbl = ?').run(table);
@@ -354,6 +364,11 @@ export class Base {
     if (!fromField || !toField) throw new Error('A relationship joins two fields that are there.');
     if (!(toField.type === 'autonumber' || toField.unique)) throw new Error(`${to.field} in ${to.table} must be unique for others to point at it.`);
     const relations = [...this.relationships(), { id: 0, from, to, cascadeUpdate, cascadeDelete }];
+    if (this.isLinked(from.table) || this.isLinked(to.table)) {
+      // With a linked table: kept for queries to join by, nothing rebuilt and nothing enforced.
+      return this._step(`Relate ${from.table}.${from.field} to ${to.table}.${to.field}`, { from, to, linked: true }, () => Number(this.db.prepare('INSERT INTO rutba_relations (from_tbl, from_field, to_tbl, to_field, cascade_update, cascade_delete) VALUES (?, ?, ?, ?, 0, 0)')
+        .run(from.table, from.field, to.table, to.field).lastInsertRowid));
+    }
     return this._withRebuild(`Relate ${from.table}.${from.field} to ${to.table}.${to.field}`, { from, to, cascadeUpdate, cascadeDelete }, () => {
       this._rebuild(from.table, this.fields(from.table).map((f) => ({ ...f, from: f.name })), relations);
       return Number(this.db.prepare('INSERT INTO rutba_relations (from_tbl, from_field, to_tbl, to_field, cascade_update, cascade_delete) VALUES (?, ?, ?, ?, ?, ?)')
@@ -365,6 +380,9 @@ export class Base {
     const r = this.relationships().find((x) => x.id === id);
     if (!r) return;
     const rest = this.relationships().filter((x) => x.id !== id);
+    if (this.isLinked(r.from.table) || this.isLinked(r.to.table)) {
+      return this._step(`Unrelate ${r.from.table}.${r.from.field} from ${r.to.table}.${r.to.field}`, { id }, () => { this.db.prepare('DELETE FROM rutba_relations WHERE id = ?').run(id); });
+    }
     return this._withRebuild(`Unrelate ${r.from.table}.${r.from.field} from ${r.to.table}.${r.to.field}`, { id }, () => {
       this._rebuild(r.from.table, this.fields(r.from.table).map((f) => ({ ...f, from: f.name })), rest);
       this.db.prepare('DELETE FROM rutba_relations WHERE id = ?').run(id);
@@ -411,6 +429,7 @@ export class Base {
 
   /** Add a record; answers its rowid. Values as a person typed them are put into each field's type. */
   insert(table, values) {
+    this._notLinked(table);
     this._mayWrite(table, 'add');
     const fields = this._known(table).filter((f) => f.type !== 'autonumber' || values[f.name] != null);
     // A field not given takes its default from the table itself: a Yes/No that defaults to Yes is Yes.
@@ -428,6 +447,7 @@ export class Base {
 
   /** Change a record's fields. */
   update(table, rowid, values) {
+    this._notLinked(table);
     this._mayWrite(table, 'change', [rowid]);
     let fields = this._known(table).filter((f) => Object.hasOwn(values, f.name));
     this._noHiddenValues(table, values);
@@ -446,6 +466,7 @@ export class Base {
 
   /** Delete records by rowid. */
   remove(table, rowids) {
+    this._notLinked(table);
     const ids = [...rowids];
     this._mayWrite(table, 'delete', ids);
     this._known(table);
@@ -1011,6 +1032,150 @@ export class Base {
     if (!this.db.prepare(`SELECT 1 FROM ${q(table)} WHERE rowid = ?`).get(rowid)) return [];
     return this.db.prepare('SELECT t.at, p.name AS person, t.action, t.detail FROM rutba_trail t LEFT JOIN rutba_people p ON p.id = t.person WHERE t.tbl = ? AND t.row = ? ORDER BY t.n')
       .all(table, rowid).map((r) => ({ at: r.at, person: r.person ?? null, action: r.action, fields: r.detail ? JSON.parse(r.detail).fields || null : null }));
+  }
+
+
+  /* ── tables linked to a database engine (D-2026-10-22-13) ───────── */
+  //
+  // The engine holds the records. The file keeps only how to reach it (its
+  // address, database and account; the password is the app's to keep, never
+  // the file's) and which of its tables are linked, with their fields as the
+  // engine last described them. The records are read into a TEMP table of
+  // the same name for this connection alone, so queries, reports, print
+  // templates and lookups read them as they read any table, and nothing of
+  // them is written to the file. Changes go to the engine, through the app.
+
+  /** The engines this database is linked to: [{ id, name, engine, settings }]. */
+  links() {
+    return this.db.prepare('SELECT id, name, engine, settings FROM rutba_links ORDER BY position, name').all().map((r) => ({ id: r.id, name: r.name, engine: r.engine, settings: JSON.parse(r.settings) }));
+  }
+
+  /** A link kept (made, or its settings replaced): { id?, name, engine, settings: { host, port, database, user, ssl } }. Answers its id. */
+  saveLink({ id = null, name, engine, settings }) {
+    const n = checkName(name, 'link');
+    const key = id || `link-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const clean = { host: String(settings?.host || ''), port: Number(settings?.port) || null, database: String(settings?.database || ''), user: String(settings?.user || ''), ssl: Boolean(settings?.ssl) };
+    const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_links').get().p;
+    this._step(`Link ${n} kept`, { link: n, engine }, () => {
+      this.db.prepare('INSERT INTO rutba_links (id, name, engine, settings, position) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, engine = excluded.engine, settings = excluded.settings')
+        .run(key, n, String(engine), JSON.stringify(clean), at);
+    });
+    return key;
+  }
+
+  /** A link taken away; one with tables linked through it stays until they are unlinked. */
+  removeLink(id) {
+    const n = this.db.prepare('SELECT count(*) AS n FROM rutba_linked WHERE link = ?').get(id).n;
+    if (n) throw new Error(`${n} table${n === 1 ? ' is' : 's are'} linked through it. Unlink ${n === 1 ? 'it' : 'them'} first.`);
+    this._step('Link removed', { link: id }, () => this.db.prepare('DELETE FROM rutba_links WHERE id = ?').run(id));
+  }
+
+  /** The linked tables: [{ table, link, remote: { schema, name }, key, caption }]. */
+  linked() {
+    if (!this.hasDesignTable('rutba_linked')) return [];
+    return this.db.prepare('SELECT tbl, link, remote, key, caption FROM rutba_linked ORDER BY position, tbl').all()
+      .map((r) => ({ table: r.tbl, link: r.link, remote: JSON.parse(r.remote), key: r.key, caption: r.caption }));
+  }
+
+  isLinked(table) {
+    return Boolean(this.hasDesignTable('rutba_linked') && this.db.prepare('SELECT 1 FROM rutba_linked WHERE tbl = ?').get(table));
+  }
+
+  _notLinked(table) {
+    if (this.isLinked(table)) throw new Error(`${table} is linked to a database engine: its design and records are the engine's, changed there.`);
+  }
+
+  /**
+   * A table of the engine linked under `table`: `remote` its { schema, name },
+   * `key` its primary key's field (null: it can be read, not changed), and
+   * `fields` its design as the engine describes it.
+   */
+  linkTable({ table, link, remote, key = null, fields, caption = null }) {
+    const n = checkName(table, 'table');
+    if (!this.db.prepare('SELECT 1 FROM rutba_links WHERE id = ?').get(link)) throw new Error('There is no such link.');
+    if (this.tables().some((t) => t.name.toLowerCase() === n.toLowerCase())) throw new Error(`There is a table called ${n} already.`);
+    if (this.queries().some((x) => x.name.toLowerCase() === n.toLowerCase())) throw new Error(`${n} is a query's name already.`);
+    const list = (fields || []).map((f) => this._field(f));
+    if (!list.length) throw new Error(`${n} has no fields to show.`);
+    const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_linked').get().p;
+    return this._step(`Link table ${n}`, { table: n, link, remote }, () => {
+      this.db.prepare('INSERT INTO rutba_linked (tbl, link, remote, key, caption, position) VALUES (?, ?, ?, ?, ?, ?)').run(n, link, JSON.stringify(remote), key, caption, at);
+      this._writeFields(n, list);
+      return n;
+    });
+  }
+
+  /** A linked table's design as the engine describes it now, kept when it changed there. */
+  relinkDesign(table, { fields, key = null }) {
+    if (!this.isLinked(table)) return false;
+    const list = (fields || []).map((f) => this._field(f));
+    const before = JSON.stringify(this._allFields(table).map((f) => [f.name, f.type, f.required]));
+    const now = JSON.stringify(list.map((f) => [f.name, f.type, Boolean(f.required)]));
+    const was = this.db.prepare('SELECT key FROM rutba_linked WHERE tbl = ?').get(table).key;
+    if (before === now && was === key) return false;
+    // The engine's design, not a step of this file's own design: kept as it is, without a numbered step.
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this._writeFields(table, list);
+      this.db.prepare('UPDATE rutba_linked SET key = ? WHERE tbl = ?').run(key, table);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+    return true;
+  }
+
+  /** A table unlinked: the engine keeps its records; this file forgets it. */
+  unlinkTable(table) {
+    if (!this.isLinked(table)) throw new Error(`${table} is not linked.`);
+    const out = this._step(`Unlink table ${table}`, { table }, () => {
+      this.db.prepare('DELETE FROM rutba_linked WHERE tbl = ?').run(table);
+      this.db.prepare('DELETE FROM rutba_fields WHERE tbl = ?').run(table);
+      this.db.prepare('DELETE FROM rutba_relations WHERE from_tbl = ? OR to_tbl = ?').run(table, table);
+    });
+    this.db.exec(`DROP TABLE IF EXISTS temp.${q(table)}`);
+    return out;
+  }
+
+  /**
+   * A linked table's records, read from the engine, put where this
+   * connection reads them: a TEMP table of the same name, made again each
+   * time. A whole-number key is its rowid, so a record keeps its place.
+   */
+  loadLinked(table, rows) {
+    const l = this.linked().find((x) => x.table === table);
+    if (!l) throw new Error(`${table} is not linked.`);
+    const fields = this._allFields(table);
+    const keyField = fields.find((f) => f.name === l.key);
+    const byKey = keyField && ['autonumber', 'integer'].includes(keyField.type);
+    const cols = fields.map((f) => (byKey && f === keyField ? `${q(f.name)} INTEGER PRIMARY KEY` : q(f.name)));
+    this.db.exec(`DROP TABLE IF EXISTS temp.${q(table)}`);
+    this.db.exec(`CREATE TEMP TABLE ${q(table)} (${cols.join(', ')})`);
+    const put = this.db.prepare(`INSERT INTO temp.${q(table)} (${fields.map((f) => q(f.name)).join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`);
+    this.db.exec('BEGIN');
+    try {
+      for (const r of rows) put.run(...fields.map((f) => (r[f.name] === undefined ? null : r[f.name])));
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+    return rows.length;
+  }
+
+  /** The engine's key of the record at `rowid` in a linked table's records here. */
+  linkedKey(table, rowid) {
+    const l = this.linked().find((x) => x.table === table);
+    if (!l?.key) throw new Error(`${table} has no primary key in the engine: it can be read, not changed.`);
+    const r = this.db.prepare(`SELECT ${q(l.key)} AS k FROM temp.${q(table)} WHERE rowid = ?`).get(rowid);
+    if (!r) throw new Error('That record is not there any more. Refresh, then try again.');
+    return r.k;
+  }
+
+  /** Whether a linked table's records have been read here yet. */
+  linkedLoaded(table) {
+    return Boolean(this.db.prepare("SELECT 1 FROM sqlite_temp_master WHERE type = 'table' AND name = ?").get(table));
   }
 
 }

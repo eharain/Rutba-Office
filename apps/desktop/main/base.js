@@ -10,7 +10,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { Base, importRows, importSheets, buildTemplate, buildSample, originOf, planUpgrade, applyUpgrade } from '@rutba/database';
+import { Base, importRows, importSheets, buildTemplate, buildSample, originOf, planUpgrade, applyUpgrade, toStored } from '@rutba/database';
+import { ENGINES, connectEngine as defaultConnect } from './engines/index.js';
 import { TEMPLATE_IDS, SAMPLE_IDS, templateNeeds, sampleNeeds, pageOf } from '@rutba/templates/data-files/active';
 import { needsFor } from '@rutba/templates/versions';
 import { readManifest } from '@rutba/templates/manifest';
@@ -24,8 +25,12 @@ const SQLITE_MAGIC = 'SQLite format 3\u0000';
 /** Whether bytes are a SQLite database. */
 export const isSqlite = (bytes) => Buffer.from(bytes.subarray(0, 16)).toString('latin1') === SQLITE_MAGIC;
 
-export function createBaseService() {
-  const open = new Map(); // id -> { base, file }
+/**
+ * `secrets` keeps a linked engine's password (D-2026-10-22-13), never the
+ * file; `connect` opens an engine (engines/index.js, or a stand-in in tests).
+ */
+export function createBaseService({ secrets = null, connect = defaultConnect } = {}) {
+  const open = new Map(); // id -> { base, file, engines: Map(link -> engine), state: Map(table -> { error, at, count }) }
   let next = 1;
 
   const get = (id) => {
@@ -39,7 +44,13 @@ export function createBaseService() {
       id,
       file,
       name: path.basename(file).replace(/\.[^.]+$/, ''),
-      tables: base.tables().map((t) => ({ ...t, count: base.count(t.name) })),
+      tables: base.tables().map((t) => {
+        if (!t.linked) return { ...t, count: base.count(t.name) };
+        // A linked table: its records as last read from the engine, or why they could not be.
+        const st = open.get(id).state.get(t.name) || {};
+        return { ...t, count: base.linkedLoaded(t.name) ? base.count(t.name) : 0, linkError: st.error || null, readAt: st.at || null, key: base.linked().find((l) => l.table === t.name)?.key || null };
+      }),
+      links: base.access?.locked || base.rights() ? [] : base.links().map((l) => ({ id: l.id, name: l.name, engine: l.engine, settings: l.settings, password: Boolean(secrets?.get?.(secretKey(l.id))) })),
       // Only those between tables the person's role shows.
       relationships: (() => { const seen = new Set(base.tables().map((t) => t.name)); return base.relationships().filter((r) => seen.has(r.from.table) && seen.has(r.to.table)); })(),
       queries: base.queries().map((x) => x.name),
@@ -80,9 +91,64 @@ export function createBaseService() {
   const letGo = (id) => {
     const o = open.get(id);
     if (!o) return false;
+    for (const e of o.engines.values()) e.then((x) => x.close()).catch(() => {});
     try { o.base.close(); } catch { /* already closed */ }
     open.delete(id);
     return true;
+  };
+
+  /* ── tables linked to a database engine (D-2026-10-22-13) ───────── */
+
+  const secretKey = (linkId) => `base-link:${linkId}`;
+  /** The engine behind `link`, connected once per window and kept while it lives. */
+  const engineFor = (o, link) => {
+    if (!o.engines.has(link.id)) {
+      const password = secrets?.get?.(secretKey(link.id)) || '';
+      const p = connect(link.engine, link.settings, password);
+      o.engines.set(link.id, p);
+      // A connection that failed is tried again next time, not kept.
+      p.catch(() => { if (o.engines.get(link.id) === p) o.engines.delete(link.id); });
+    }
+    return o.engines.get(link.id);
+  };
+  /** A linked table's records read from the engine into this window's copy, its design kept up to date. */
+  const readLinked = async (o, table) => {
+    const l = o.base.linked().find((x) => x.table === table);
+    if (!l) return;
+    const link = o.base.links().find((x) => x.id === l.link);
+    try {
+      if (!link) throw new Error('Its link is gone.');
+      const engine = await engineFor(o, link);
+      const design = await engine.describe(l.remote);
+      o.base.relinkDesign(table, design);
+      const rows = await engine.read(l.remote, { fields: design.fields, key: design.key });
+      o.base.loadLinked(table, rows);
+      o.state.set(table, { error: null, at: new Date().toISOString(), count: rows.length });
+    } catch (err) {
+      o.state.set(table, { error: err.message || String(err), at: null });
+    }
+  };
+  /** Every linked table read, as a database opens or is refreshed; one that cannot be read says why. */
+  const readAllLinked = async (o) => {
+    if (o.base.access?.locked || o.base.rights()) return;
+    await Promise.all(o.base.linked().map((l) => readLinked(o, l.table)));
+  };
+  /** A change to a linked table: made in the engine, then the table read again. */
+  const writeLinked = async (o, table, run) => {
+    const l = o.base.linked().find((x) => x.table === table);
+    const link = o.base.links().find((x) => x.id === l.link);
+    if (o.base.rights()) throw new Error('Only someone whose role may change the design can change a table linked to an engine, for now.');
+    const engine = await engineFor(o, link);
+    const fields = o.base.fields(table);
+    const stored = (values) => Object.fromEntries(Object.entries(values || {}).flatMap(([k, v]) => {
+      const f = fields.find((x) => x.name === k);
+      return f ? [[k, toStored(f, v)]] : [];
+    }));
+    const out = await run({ engine, remote: l.remote, design: { key: l.key }, stored });
+    await readLinked(o, table);
+    const st = o.state.get(table);
+    if (st?.error) throw new Error(st.error);
+    return out;
   };
   // Each window holds its own connection to the file, let go when the window
   // closes: two windows on one database are two readers and writers of it,
@@ -90,7 +156,7 @@ export function createBaseService() {
   const hold = (file, win) => {
     const base = Base.open(file);
     const id = String(next++);
-    open.set(id, { base, file });
+    open.set(id, { base, file, engines: new Map(), state: new Map() });
     win?.once?.('closed', () => letGo(id));
     return id;
   };
@@ -152,12 +218,14 @@ export function createBaseService() {
     createFromSample: ({ file, sample, withData = true }, win) => made(file, win, (base) => buildSample(base, sample, { withData: withData !== false })),
 
     /** Open a database file: ours, or any SQLite database. */
-    open: ({ file }, win) => {
+    open: async ({ file }, win) => {
       const head = Buffer.alloc(16);
       const fd = fs.openSync(file, 'r');
       try { fs.readSync(fd, head, 0, 16, 0); } finally { fs.closeSync(fd); }
       if (!isSqlite(head)) throw new Error(`${path.basename(file)} is not a database this app opens. Import it into a database instead.`);
-      return summary(hold(file, win));
+      const id = hold(file, win);
+      await readAllLinked(get(id));
+      return summary(id);
     },
 
     close: ({ id }) => ({ closed: letGo(id) }),
@@ -170,9 +238,82 @@ export function createBaseService() {
     },
     // A query's results as a table's records are read: a page, sorted, searched and filtered (D-2026-10-22-07).
     queryRows: ({ id, name = null, design = null, offset = 0, limit = 200, order = null, search = '', filters = [] }) => get(id).base.queryRows({ name, design, offset, limit, order, search, filters }),
-    insert: ({ id, table, values }) => ({ rowid: get(id).base.insert(table, values || {}) }),
-    update: ({ id, table, rowid, values }) => ({ changed: get(id).base.update(table, rowid, values || {}) }),
-    remove: ({ id, table, rowids }) => ({ removed: get(id).base.remove(table, rowids || []) }),
+    // A linked table's changes go to its engine (D-2026-10-22-13); the rest to the file.
+    insert: async ({ id, table, values }) => {
+      const o = get(id);
+      if (!o.base.isLinked(table)) return { rowid: o.base.insert(table, values || {}) };
+      const key = await writeLinked(o, table, ({ engine, remote, design, stored }) => engine.insert(remote, design, stored(values)));
+      const l = o.base.linked().find((x) => x.table === table);
+      const row = key != null && l.key ? o.base.rows(table, { where: { [l.key]: key }, limit: 1 })[0] : null;
+      return { rowid: row?._rowid ?? null };
+    },
+    update: async ({ id, table, rowid, values }) => {
+      const o = get(id);
+      if (!o.base.isLinked(table)) return { changed: o.base.update(table, rowid, values || {}) };
+      const key = o.base.linkedKey(table, rowid);
+      return { changed: await writeLinked(o, table, ({ engine, remote, design, stored }) => engine.update(remote, design, key, stored(values))) };
+    },
+    remove: async ({ id, table, rowids }) => {
+      const o = get(id);
+      if (!o.base.isLinked(table)) return { removed: o.base.remove(table, rowids || []) };
+      const keys = (rowids || []).map((r) => o.base.linkedKey(table, r));
+      return { removed: await writeLinked(o, table, ({ engine, remote, design }) => engine.remove(remote, design, keys)) };
+    },
+
+    /** The engines a table can be linked to: [{ id, name, port, ready }]. */
+    engines: () => ENGINES,
+    /** Try an engine's address and account: its tables and views, or why not. Nothing is kept. */
+    engineTables: async ({ engine, settings, password }) => {
+      const e = await connect(engine, settings, password || '');
+      try { return { tables: await e.tables() }; } finally { await e.close(); }
+    },
+    /** A link to an engine kept in the database, its password in this computer's protected store. Answers { link, summary }. */
+    saveLink: async ({ id, link = null, name, engine, settings, password = null }) => {
+      const o = get(id);
+      whole(o.base);
+      const linkId = o.base.saveLink({ id: link, name, engine, settings });
+      if (password != null) {
+        if (!secrets?.available?.()) throw new Error('This computer offers no protected store for the password, so the link cannot keep it.');
+        secrets.set(secretKey(linkId), String(password));
+      }
+      const was = o.engines.get(linkId);
+      o.engines.delete(linkId);
+      was?.then((x) => x.close()).catch(() => {});
+      await readAllLinked(o);
+      return { link: linkId, summary: summary(id) };
+    },
+    /** A link taken away, its password with it. */
+    removeLink: async ({ id, link }) => {
+      const o = get(id);
+      whole(o.base);
+      o.base.removeLink(link);
+      secrets?.delete?.(secretKey(link));
+      return summary(id);
+    },
+    /** Tables of the engine linked: remotes [{ schema, name, as? }]. Each is read at once. */
+    linkTables: async ({ id, link, remotes }) => {
+      const o = get(id);
+      whole(o.base);
+      const l = o.base.links().find((x) => x.id === link);
+      if (!l) throw new Error('There is no such link.');
+      const engine = await engineFor(o, l);
+      const made = [];
+      for (const r of remotes || []) {
+        const design = await engine.describe({ schema: r.schema, name: r.name });
+        const table = o.base.linkTable({ table: r.as || r.name, link, remote: { schema: r.schema, name: r.name }, key: design.key, fields: design.fields });
+        made.push(table);
+        await readLinked(o, table);
+      }
+      return { tables: made, summary: summary(id) };
+    },
+    /** A table unlinked: the engine keeps its records. */
+    unlinkTable: ({ id, table }) => { const o = get(id); whole(o.base); o.base.unlinkTable(table); o.state.delete(table); return summary(id); },
+    /** The linked tables read again from their engines (one, or all). */
+    refreshLinked: async ({ id, table = null }) => {
+      const o = get(id);
+      if (table) await readLinked(o, table); else await readAllLinked(o);
+      return summary(id);
+    },
 
     createTable: ({ id, name, fields = [] }) => { get(id).base.createTable({ name, fields }); return summary(id); },
     addField: ({ id, table, field }) => { get(id).base.addField(table, field); return summary(id); },
@@ -295,7 +436,7 @@ export function createBaseService() {
     },
 
     /* People, roles and protection (D-2026-10-22-11). Each answers the summary, its access in it. */
-    signIn: ({ id, name, password }) => { get(id).base.signIn(name, password); return summary(id); },
+    signIn: async ({ id, name, password }) => { get(id).base.signIn(name, password); await readAllLinked(get(id)); return summary(id); },
     signOut: ({ id }) => { get(id).base.signOut(); return summary(id); },
     protect: ({ id, name, password }) => { get(id).base.protect({ name, password }); return summary(id); },
     unprotect: ({ id, password }) => { get(id).base.unprotect({ password }); return summary(id); },
@@ -318,8 +459,7 @@ export function createBaseService() {
 
     /** Every database let go, as the app closes. */
     closeAll: () => {
-      for (const o of open.values()) { try { o.base.close(); } catch { /* already closed */ } }
-      open.clear();
+      for (const id of [...open.keys()]) letGo(id);
     },
   };
 }

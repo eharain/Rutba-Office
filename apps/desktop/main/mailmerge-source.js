@@ -42,7 +42,8 @@ function readDatabase(filePath, name, sheet) {
   try {
     // A protected database (D-2026-10-22-11) gives nothing to a reader that has not signed in.
     if (base.access?.locked) throw new Error(`${name} is protected. Open it in Data Files and sign in, or ask its Admin for a copy of what you need.`);
-    const tables = base.hasDesignTable('rutba_tables') ? base.tables().map((x) => x.name) : [];
+    // A table linked to a database engine is read by Data Files, not here: only the file's own tables are offered.
+    const tables = base.hasDesignTable('rutba_tables') ? base.tables().filter((x) => !x.linked).map((x) => x.name) : [];
     const queries = base.hasDesignTable('rutba_queries') ? base.queries().map((x) => x.name).filter((n) => !tables.includes(n)) : [];
     const sheets = [...tables, ...queries];
     if (!sheets.length) throw new Error(`${name} has no tables to take recipients from.`);

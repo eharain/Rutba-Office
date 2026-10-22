@@ -245,7 +245,7 @@ createShell({
         mail: { accounts: () => services?.mail?.accounts?.() || [], send: (args) => services.mail.send(args) },
       }),
       // Databases: each open database's SQLite file (base.js).
-      base: createBaseService(),
+      base: createBaseService({ secrets: stores.secrets }),
       oauth,
       mail: createMailService({
         stores,

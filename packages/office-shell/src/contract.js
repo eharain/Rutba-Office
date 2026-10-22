@@ -365,6 +365,13 @@ export const METHODS = {
     'setPassword',  // ({ id, person, password, current? }) -> { changed }   your own with the one before it; anyone's, for an Admin
     'trailOf',      // ({ id, table, rowid }) -> [{ at, person, action, fields }]   who added and changed a record
     'allFields',    // ({ id }) -> { [table]: [field name] }   every field, for the People and roles grid
+    'engines',      // () -> [{ id, name, port, ready }]   the database engines a table can be linked to (D-2026-10-22-13)
+    'engineTables', // ({ engine, settings, password }) -> { tables: [{ schema, name, kind }] }   an engine tried; nothing kept
+    'saveLink',     // ({ id, link?, name, engine, settings, password? }) -> { link, summary }   its password in this computer's protected store
+    'removeLink',   // ({ id, link }) -> summary
+    'linkTables',   // ({ id, link, remotes: [{ schema, name, as? }] }) -> { tables, summary }   linked live, read at once
+    'unlinkTable',  // ({ id, table }) -> summary   the engine keeps its records
+    'refreshLinked',// ({ id, table? }) -> summary   read again from the engine
     'queryRows',    // ({ id, name? | design?, offset?, limit?, order?, search?, filters? }) -> { columns: [{ name, type }], rows, count }   a page of a query's results, as rows reads a table's
     'insert',       // ({ id, table, values }) -> { rowid }
     'update',       // ({ id, table, rowid, values }) -> { changed }
