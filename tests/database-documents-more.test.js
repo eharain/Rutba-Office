@@ -120,3 +120,47 @@ test('values typed and formatted by the template, a date and time read from its 
     assert.equal(lines.rows[0].Amount, '2.50');
   } finally { b.close(); }
 });
+
+test('on paper a linked record is called by its name, not by the words its lists find it by; a table with no name by those words', () => {
+  const b = Base.open(':memory:');
+  try {
+    buildFromSpec(b, {
+      tables: [
+        { name: 'Employees', show: ['Employee No', 'First Name', 'Last Name'], fields: [{ name: 'Employee No', type: 'text' }, { name: 'First Name', type: 'text' }, { name: 'Last Name', type: 'text' }] },
+        { name: 'Visitors', show: ['Name', 'Company'], fields: [{ name: 'Name', type: 'text' }, { name: 'Company', type: 'text' }] },
+        { name: 'Sales', show: 'Receipt No', fields: [{ name: 'Receipt No', type: 'text' }, { name: 'Payment', type: 'text' }] },
+        { name: 'Leave', fields: [{ name: 'Employee', ...ref('Employees') }, { name: 'Visitor', ...ref('Visitors') }, { name: 'Sale', ...ref('Sales') }] },
+      ],
+    });
+    b.insert('Employees', { 'Employee No': 'EMP-0143', 'First Name': 'Camille', 'Last Name': 'Sharma' });
+    b.insert('Visitors', { Name: 'Ivan Cole', Company: 'Hollybrook Services' });
+    b.insert('Sales', { 'Receipt No': 'R-1001', Payment: 'Card' });
+    b.insert('Leave', { Employee: 1, Visitor: 1, Sale: 1 });
+    const doc = b.documentData({ layout: { name: 'Leave request', table: 'Leave', blocks: [
+      { type: 'fields', items: [{ field: 'Employee' }, { field: 'Employee.Employee No', label: 'Employee number' }, { field: 'Sale' }] },
+      { type: 'text', text: 'Visitor: {Visitor}' },
+    ] } }).documents[0];
+    assert.deepEqual(block(doc, 'fields').items.map((it) => it.value), ['Camille Sharma', 'EMP-0143', 'R-1001']);
+    assert.equal(block(doc, 'text').parts.map((p) => p.text ?? p.value).join(''), 'Visitor: Ivan Cole');
+    // The lists still find them by their words.
+    assert.equal(b.wordsOf('Employees', 1), 'EMP-0143 Camille Sharma');
+  } finally { b.close(); }
+});
+
+test('on paper a record named by a code is called by its own name when it has one, and by the code when it has none', () => {
+  const b = Base.open(':memory:');
+  try {
+    buildFromSpec(b, {
+      tables: [
+        { name: 'Clients', show: 'Account', fields: [{ name: 'Account', type: 'text' }, { name: 'First Name', type: 'text' }, { name: 'Last Name', type: 'text' }] },
+        { name: 'Invoices', show: 'Number', fields: [{ name: 'Number', type: 'text' }, { name: 'Bill To Name', type: 'text' }] },
+        { name: 'Tenancies', fields: [{ name: 'Landlord', ...ref('Clients') }, { name: 'Invoice', ...ref('Invoices') }] },
+      ],
+    });
+    b.insert('Clients', { Account: 'CL-0004', 'First Name': 'Camille', 'Last Name': 'Hartley' });
+    b.insert('Invoices', { Number: 'INV-2025-0001', 'Bill To Name': 'Fatima Tanaka' });
+    b.insert('Tenancies', { Landlord: 1, Invoice: 1 });
+    const doc = b.documentData({ layout: { name: 'Tenancy', table: 'Tenancies', blocks: [{ type: 'text', text: 'Between {Landlord}, for invoice {Invoice}.' }] } }).documents[0];
+    assert.equal(block(doc, 'text').parts.map((p) => p.text ?? p.value).join(''), 'Between Camille Hartley, for invoice INV-2025-0001.');
+  } finally { b.close(); }
+});

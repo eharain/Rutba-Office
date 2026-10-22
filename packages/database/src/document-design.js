@@ -72,15 +72,32 @@ const typeOfValue = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(
 /** The field a table's records are numbered by (its AutoNumber, ID by default). */
 const keyOf = (base, table) => (base.fields(table).find((f) => f.type === 'autonumber') || { name: 'ID' }).name;
 
+/** A field that holds a name: First Name, Last Name, Surname, Name, Title, Company Name. */
+const NAMED = /^(name|title|surname)$|[ _]?name$/i;
+
+/** A person's first and last name, or a field called Name or Title: what a record is called by, if it has one. */
+function nameOf(fields) {
+  const named = (re) => fields.find((f) => f.type === 'text' && re.test(f.name))?.name;
+  const first = named(/^(first|given)[ _]?name$/i);
+  const last = named(/^(last|family)[ _]?name$|^surname$/i);
+  return first && last ? [first, last] : named(/^(name|title)$/i) || null;
+}
+
 /**
- * Words a related record is known by: a person's first and last name, else
- * its first text field. The same as a form's lists and a report's groups.
+ * Words a related record is called by on paper: the names among the fields
+ * that name its table's records (Camille Sharma, not the list's EMP-0143
+ * Camille Sharma); with no name among them, its own name if it has one; else
+ * the words its lists show (a sale by its receipt number).
  */
 function wordsFor(base, table, record) {
   if (!record) return null;
-  if (base.wordsOf && record._rowid !== undefined) return base.wordsOf(table, record._rowid);
-  const show = shownField(base.fields(table));
-  return Array.isArray(show) ? show.map((f) => record[f]).filter((v) => v !== null && v !== undefined && v !== '').join(' ') : record[show];
+  const types = Object.fromEntries(base.fields(table).map((f) => [f.name, f.type]));
+  const show = [].concat(base.shownOf ? base.shownOf(table) : shownField(base.fields(table))).filter((n) => n in types);
+  let names = show.filter((n) => types[n] === 'text' && NAMED.test(n));
+  // Named by a code (a client by its account, CL-0004), a record that has a person's name or a Name is called by it.
+  if (!names.length) names = [].concat(nameOf(base.fields(table)) || []);
+  if (!names.length && base.wordsOf && record._rowid !== undefined) return base.wordsOf(table, record._rowid);
+  return (names.length ? names : show).map((f) => record[f]).filter((v) => v !== null && v !== undefined && v !== '').join(' ');
 }
 
 /** What reads a document's values: records by key, relationships followed, cached for a run of many documents. */
