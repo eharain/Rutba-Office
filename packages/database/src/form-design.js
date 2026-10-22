@@ -23,7 +23,8 @@ const snap = (v) => Math.round(v / GRID) * GRID;
 
 /** A field's name as a label: "first_name" and "FirstName" read "First name". */
 export function labelFor(name) {
-  const words = String(name).replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim().split(/\s+/).filter(Boolean);
+  // An underscore is a space; a hyphen inside a word stays (E-mail, Follow-up), one at either end goes.
+  const words = String(name).replace(/_+/g, ' ').replace(/(^|\s)-+|-+(\s|$)/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim().split(/\s+/).filter(Boolean);
   if (!words.length) return String(name);
   // A word in capitals (ID, VAT, UK) stays so; the others read as a sentence.
   return words.map((w, i) => (/^[A-Z0-9:]+$/.test(w) && w.length > 1 ? w : i ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1).toLowerCase())).join(' ');
