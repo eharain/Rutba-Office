@@ -120,3 +120,20 @@ test('a form\'s date and time box gives the time to the minute, and it is kept, 
     assert.throws(() => b.update('Visits', id, { 'Signed In': 'teatime' }), /takes a date and a time/);
   } finally { b.close(); }
 });
+
+test('a query column rounded to its decimals: an average to two places, a calculation to one', () => {
+  const b = Base.open(':memory:');
+  try {
+    b.createTable({ name: 'Orders', fields: [{ name: 'Day', type: 'text' }, { name: 'Total', type: 'currency' }] });
+    for (const [d, t] of [['Mon', 10], ['Mon', 12.5], ['Mon', 3.3333], ['Tue', 7]]) b.insert('Orders', { Day: d, Total: t });
+    const out = b.runQuery({ design: { tables: ['Orders'], columns: [
+      { table: 'Orders', field: 'Day', total: 'group' },
+      { table: 'Orders', field: 'Total', as: 'Average Spend', total: 'avg', decimals: 2 },
+      { table: 'Orders', field: 'Total', as: 'Raw Average', total: 'avg' },
+    ] } });
+    assert.deepEqual(out.rows.map((r) => [r.Day, r['Average Spend']]), [['Mon', 8.61], ['Tue', 7]]);
+    assert.ok(String(out.rows[0]['Raw Average']).length > 5);
+    const calc = b.runQuery({ design: { tables: ['Orders'], columns: [{ expr: '[Total] / 3', as: 'Third', decimals: 1 }] } });
+    assert.equal(calc.rows[0].Third, 3.3);
+  } finally { b.close(); }
+});
