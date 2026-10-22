@@ -50,6 +50,18 @@ test('a template for some records only, its lines kept by a condition and found 
   } finally { b.close(); }
 });
 
+test('the template condition is applied before the limit: the matching records among the last of many are found', () => {
+  const b = shop();
+  try {
+    for (let i = 0; i < 2500; i++) b.insert('Orders', { Customer: 1, Status: 'Open' });
+    b.insert('Orders', { Customer: 2, Status: 'Late' });
+    b.insert('Orders', { Customer: 2, Status: 'Late' });
+    const late = b.documentData({ layout: { name: 'x', table: 'Orders', where: '[Status] = "Late"', blocks: [] }, limit: 1 });
+    assert.deepEqual(late.documents.map((d) => d.key), [2504]);
+    assert.deepEqual(b.documentData({ layout: { name: 'x', table: 'Orders', where: '[Status] = "Late"', blocks: [] }, limit: 5 }).documents.map((d) => d.key), [2504, 2505]);
+  } finally { b.close(); }
+});
+
 test('blocks and totals rows shown only when they hold: cash tendered and change for cash only', () => {
   const b = shop();
   try {

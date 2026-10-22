@@ -172,8 +172,18 @@ export function documentData(base, layout, { keys = null, limit = 1000 } = {}) {
   // What a condition reads of a record: its fields, by name or by Table.Field, and the letterhead's.
   const scopeOf = (row) => ({ ...head, ...row, ...Object.fromEntries(Object.entries(row).map(([k, v]) => [`${table}.${k}`, v])) });
   // The records it is for: the ones asked for, or those its `where` holds for (a delivery note for shipped orders only).
-  let rows = keys ? keys.map((k) => read.record(table, k)).filter(Boolean) : base.rows(table, { limit });
-  if (layout.where && !keys) rows = rows.filter((row) => holds(evaluate(base, layout.where, scopeOf(row))));
+  let rows;
+  if (keys) rows = keys.map((k) => read.record(table, k)).filter(Boolean);
+  else if (!layout.where) rows = base.rows(table, { limit });
+  else {
+    // The condition first, then the limit: this month's payslips are found however many came before them.
+    rows = [];
+    for (let offset = 0; rows.length < limit; offset += 1000) {
+      const page = base.rows(table, { offset, limit: 1000 });
+      for (const row of page) if (rows.length < limit && holds(evaluate(base, layout.where, scopeOf(row)))) rows.push(row);
+      if (page.length < 1000) break;
+    }
+  }
   const documents = rows.map((row) => {
     // A name: the record's field (or a path through its pointing fields), else the letterhead's.
     // Either may say whose it is first: {Invoices.Date}, {Business Details.Address}.
