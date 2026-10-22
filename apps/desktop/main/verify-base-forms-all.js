@@ -83,7 +83,7 @@ export async function verifyBaseFormsAll({ open, check, until, wait }, { dir }) 
             const r = n.getBoundingClientRect();
             const cs = getComputedStyle(n);
             const room = n.tagName === 'SELECT' ? n.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) : null;
-            return { field: n.dataset.field, tag: n.tagName, kind: [...n.classList].find((c) => c.startsWith('bs-fc-'))?.slice(6), value: n.tagName === 'SPAN' ? n.textContent : n.type === 'checkbox' ? n.checked : n.value, shown: n.tagName === 'SELECT' ? n.selectedOptions[0]?.textContent : null, options: n.tagName === 'SELECT' ? n.options.length : null, room, line: parseFloat(cs.fontSize) * 1.2, r: [r.left, r.top, r.right, r.bottom] };
+            return { field: n.dataset.field, tag: n.tagName, kind: [...n.classList].find((c) => c.startsWith('bs-fc-'))?.slice(6), value: n.classList.contains('bs-fc-search') ? n.querySelector('input')?.value ?? '' : n.tagName === 'SPAN' ? n.textContent : n.type === 'checkbox' ? n.checked : n.value, shown: n.tagName === 'SELECT' ? n.selectedOptions[0]?.textContent : null, options: n.tagName === 'SELECT' ? n.options.length : null, room, line: parseFloat(cs.fontSize) * 1.2, r: [r.left, r.top, r.right, r.bottom] };
           });
           const labels = [...page.querySelectorAll('.bs-fl')].map((n) => ({ text: n.textContent, cut: n.scrollWidth > n.clientWidth + 1 }));
           const subs = [...page.querySelectorAll('.bs-subform')].map((n) => ({ table: n.dataset.subform, r: (() => { const r = n.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; })(), cols: [...n.querySelectorAll('thead th')].map((t) => t.textContent), cells: [...n.querySelectorAll('tbody tr')].slice(0, 3).map((tr) => [...tr.children].map((td) => td.textContent)) }));
@@ -101,6 +101,8 @@ export async function verifyBaseFormsAll({ open, check, until, wait }, { dir }) 
           if (!f.first) continue;
           const v = f.first[c.field];
           if (v === null || v === undefined || v === '') continue;
+          // A long list is a box showing the words of the record it points at.
+          if (c.kind === 'search') { if (!c.value) fault(f.name, `list ${c.field} shows nothing for ${JSON.stringify(v)}`); continue; }
           if (c.tag === 'SELECT' && (c.value === '' || c.value !== String(v))) fault(f.name, `list ${c.field} shows "${c.shown}" for ${JSON.stringify(v)} (${c.options} choices)`);
           else if (c.kind === 'date' && c.value !== String(v).slice(0, 10)) fault(f.name, `date ${c.field} shows "${c.value}" for ${JSON.stringify(v)}`);
           else if (c.kind === 'datetime' && c.value !== String(v).slice(0, 16)) fault(f.name, `date and time ${c.field} shows "${c.value}" for ${JSON.stringify(v)}`);
@@ -161,6 +163,15 @@ export async function verifyBaseFormsAll({ open, check, until, wait }, { dir }) 
           const page = document.querySelector('.bs-form-page[data-form=${sel}]');
           for (const el of page.querySelectorAll('.bs-fc')) {
             const kind = [...el.classList].find((c) => c.startsWith('bs-fc-'))?.slice(6);
+            if (el.classList.contains('bs-fc-search')) {
+              // A long list: the box searched (empty, its first matches), the first picked.
+              el.querySelector('input').dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+              let li = null;
+              for (let i = 0; i < 30 && !li; i++) { await new Promise((r) => setTimeout(r, 100)); li = el.querySelector('.bs-fc-search-list li'); }
+              li?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+              await new Promise((r) => setTimeout(r, 100));
+              continue;
+            }
             if (el.tagName === 'SPAN' || el.readOnly) continue;
             if (el.type === 'checkbox') { el.click(); continue; }
             if (el.tagName === 'SELECT') {
