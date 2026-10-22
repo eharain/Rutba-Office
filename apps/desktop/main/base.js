@@ -46,7 +46,21 @@ export function createBaseService() {
       reports: base.reports().map((x) => x.name),
       documents: base.documents().map((x) => ({ name: x.name, table: x.layout.table })),
       steps: base.steps().length,
+      // Pinned items, first in the side panel, in the order pinned; those since renamed or removed left out.
+      pinned: pinnedOf(base),
+      folded: listMeta(base, 'folded'),
     };
+  };
+  const listMeta = (base, key) => { try { const v = JSON.parse(base.meta(key) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
+  const pinnedOf = (base) => {
+    const have = {
+      table: new Set(base.tables().map((x) => x.name)),
+      query: new Set(base.queries().map((x) => x.name)),
+      form: new Set(base.forms().map((x) => x.name)),
+      report: new Set(base.reports().map((x) => x.name)),
+      document: new Set(base.documents().map((x) => x.name)),
+    };
+    return listMeta(base, 'pinned').filter((p) => have[p?.kind]?.has(p.name));
   };
   const letGo = (id) => {
     const o = open.get(id);
@@ -154,6 +168,23 @@ export function createBaseService() {
     addRelationship: ({ id, from, to, cascadeDelete = false }) => { get(id).base.addRelationship({ from, to, cascadeDelete }); return summary(id); },
     removeRelationship: ({ id, relation }) => { get(id).base.removeRelationship(relation); return summary(id); },
     steps: ({ id }) => get(id).base.steps(),
+    /** Pin an item to the top of the side panel, or unpin it (D-2026-10-22-05). */
+    pin: ({ id, kind, name, pinned = true }) => {
+      const { base } = get(id);
+      if (!['table', 'query', 'form', 'report', 'document'].includes(kind)) throw new Error(`${kind} cannot be pinned.`);
+      const list = listMeta(base, 'pinned').filter((p) => !(p.kind === kind && p.name === name));
+      if (pinned) list.push({ kind, name: String(name) });
+      base.setMeta('pinned', JSON.stringify(list));
+      return summary(id);
+    },
+    /** A side panel section folded away, or open again. */
+    fold: ({ id, section, folded = true }) => {
+      const { base } = get(id);
+      const list = listMeta(base, 'folded').filter((s) => s !== section);
+      if (folded) list.push(String(section));
+      base.setMeta('folded', JSON.stringify(list));
+      return summary(id);
+    },
 
     /* Queries built in the designer, and forms (2.10's Data Files). */
     queries: ({ id }) => get(id).base.queries(),

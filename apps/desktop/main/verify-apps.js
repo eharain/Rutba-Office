@@ -37,6 +37,7 @@ import { verifyTalkInvite } from './verify-talk-invite.js';
 import { verifyBase } from './verify-base.js';
 import { verifyBaseQueriesForms } from './verify-base-queries-forms.js';
 import { verifyBaseFilter } from './verify-base-filter.js';
+import { verifyBasePin } from './verify-base-pin.js';
 import { verifyBaseReports } from './verify-base-reports.js';
 import { verifyBaseTemplates } from './verify-base-templates.js';
 import { verifyBaseDocuments } from './verify-base-documents.js';
@@ -5099,6 +5100,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('base')) await verifyBase({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('base-qf')) await verifyBaseQueriesForms({ open, check, until, wait }, { dir });
     if (only.includes('base-filter')) await verifyBaseFilter({ open, check, until, wait }, { dir });
+    if (only.includes('base-pin')) await verifyBasePin({ open, check, until, wait }, { dir });
     if (only.includes('base-reports')) await verifyBaseReports({ open, check, until, wait }, { dir });
     if (only.includes('base-templates')) await verifyBaseTemplates({ open, check, until, wait }, { dir });
     if (only.includes('base-documents')) await verifyBaseDocuments({ open, check, until, wait }, { dir });
@@ -5488,6 +5490,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('base', () => verifyBase({ open, check, until, wait, errorsIn }, { dir }));
   await part('base', () => verifyBaseQueriesForms({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseFilter({ open, check, until, wait }, { dir }));
+  await part('base', () => verifyBasePin({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseReports({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseTemplates({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseDocuments({ open, check, until, wait }, { dir }));

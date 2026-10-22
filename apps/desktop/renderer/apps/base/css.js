@@ -117,4 +117,15 @@ export const BASE_CSS = `
 
 .bs-field { display: grid; gap: 6px; }
 .bs-field span { font-size: 12.5px; color: var(--ink-2); }
+
+/* the side panel: pinned items, a pin on each, sections that fold (D-2026-10-22-05) */
+.bs-item { position: relative; display: flex; align-items: center; }
+.bs-item .bs-table { flex: 1; min-width: 0; }
+.bs-pin { position: absolute; inset-inline-end: 4px; display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: var(--r-1, 4px); background: var(--sunken); color: var(--ink-3); cursor: pointer; opacity: 0; }
+.bs-item:hover .bs-pin, .bs-pin:focus-visible { opacity: 1; }
+.bs-pin.on { color: var(--accent-text, var(--accent)); }
+.bs-pinned .bs-pin { opacity: 0.8; }
+.bs-pin:hover { background: var(--wash-strong); color: var(--ink); }
+.bs-fold { display: flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.bs-fold h2 { margin: 0; }
 `;

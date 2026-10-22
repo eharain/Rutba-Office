@@ -7728,4 +7728,8 @@ export default {
   '{column}: Yes': '{column}: ہاں',
   '{count} record found': { one: '{count} ریکارڈ ملا', other: '{count} ریکارڈز ملے' },
   '{count} row found': { one: '{count} قطار ملی', other: '{count} قطاریں ملیں' },
+  'Pin {name} to the top': '{name} کو اوپر پن کریں',
+  'Pinned': 'پن کیے گئے',
+  'Unpin': 'پن ہٹائیں',
+  'Unpin {name}': '{name} کا پن ہٹائیں',
 };

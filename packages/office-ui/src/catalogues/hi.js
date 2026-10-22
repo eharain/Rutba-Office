@@ -7730,4 +7730,8 @@ export default {
   '{column}: Yes': '{column}: हाँ',
   '{count} record found': { one: '{count} रिकॉर्ड मिला', other: '{count} रिकॉर्ड मिले' },
   '{count} row found': { one: '{count} पंक्ति मिली', other: '{count} पंक्तियाँ मिलीं' },
+  'Pin {name} to the top': '{name} को ऊपर पिन करें',
+  'Pinned': 'पिन किए गए',
+  'Unpin': 'पिन हटाएँ',
+  'Unpin {name}': '{name} का पिन हटाएँ',
 };

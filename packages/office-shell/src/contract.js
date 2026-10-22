@@ -346,6 +346,8 @@ export const METHODS = {
     'summary',      // ({ id }) -> { id, file, name, tables: [{ name, caption, count }], relationships, steps }
     'fields',       // ({ id, table }) -> [field]
     'rows',         // ({ id, table, offset?, limit?, order?, where?, search?, filters? }) -> { rows, count }   a page of records, searched and filtered (database/src/filter.js)
+    'pin',          // ({ id, kind: 'table' | 'query' | 'form' | 'report' | 'document', name, pinned }) -> summary   pinned first in the side panel, kept in the file
+    'fold',         // ({ id, section, folded }) -> summary   a side panel section folded away, kept in the file
     'queryRows',    // ({ id, name? | design?, offset?, limit?, order?, search?, filters? }) -> { columns: [{ name, type }], rows, count }   a page of a query's results, as rows reads a table's
     'insert',       // ({ id, table, values }) -> { rowid }
     'update',       // ({ id, table, rowid, values }) -> { changed }

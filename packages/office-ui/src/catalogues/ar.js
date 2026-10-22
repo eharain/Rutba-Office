@@ -7730,4 +7730,8 @@ export default {
   '{column}: Yes': '{column}: نعم',
   '{count} record found': { zero: 'لم يُعثر على سجلات', one: 'عُثر على سجل واحد', two: 'عُثر على سجلين', few: 'عُثر على {count} سجلات', many: 'عُثر على {count} سجلًا', other: 'عُثر على {count} سجل' },
   '{count} row found': { zero: 'لم يُعثر على صفوف', one: 'عُثر على صف واحد', two: 'عُثر على صفين', few: 'عُثر على {count} صفوف', many: 'عُثر على {count} صفًا', other: 'عُثر على {count} صف' },
+  'Pin {name} to the top': 'تثبيت {name} في الأعلى',
+  'Pinned': 'المثبّتة',
+  'Unpin': 'إلغاء التثبيت',
+  'Unpin {name}': 'إلغاء تثبيت {name}',
 };

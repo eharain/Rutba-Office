@@ -576,6 +576,7 @@ export default function Databases({ app, shell, boot }) {
     onOpen: () => appMenuOpen.current?.(),
     extra: [{ label: t('Save As'), icon: 'save', run: () => saveAs() }],
   });
+  const sideMenu = useMenu();
 
   useEffect(() => { if (boot?.file) openFile(boot.file); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useFileDrop(useCallback((files) => { const f = files.find((x) => OPENS.test(x)); if (f) openFile(f); }, [openFile]));
@@ -665,88 +666,85 @@ export default function Databases({ app, shell, boot }) {
     );
   }
 
+  /* The side panel's items: opened, pinned to the top, and each section folded away (D-2026-10-22-05). */
+  const KINDS = {
+    table: { icon: 'sheets', attr: 'data-table', on: (n) => table === n && (view === 'data' || view === 'design'), open: (n) => { setTable(n); if (view !== 'design') setView('data'); } },
+    query: { icon: 'filter', attr: 'data-query', on: (n) => view === 'query' && item === n, open: (n) => { setItem(n); setView('query'); } },
+    form: { icon: 'textbox', attr: 'data-form', on: (n) => view === 'form' && item === n, open: (n) => { setItem(n); setView('form'); } },
+    report: { icon: 'print', attr: 'data-report', on: (n) => view === 'report' && item === n, open: (n) => { setItem(n); setView('report'); } },
+    document: { icon: 'file', attr: 'data-document', on: (n) => view === 'document' && item === n, open: (n) => { setItem(n); setView('document'); } },
+  };
+  const pinnedItems = db.pinned || [];
+  const isPinned = (kind, name) => pinnedItems.some((p) => p.kind === kind && p.name === name);
+  const pin = (kind, name, pinned) => shell.base.pin({ id: db.id, kind, name, pinned }).then(show).catch((e) => toast(e.message, { tone: 'bad' }));
+  const sideItem = (kind, name, prefix = null, count = null) => {
+    const k = KINDS[kind];
+    const pinned = isPinned(kind, name);
+    return (
+      <li key={`${prefix || kind}:${name}`} className="bs-item" data-kind={kind} data-name={name}>
+        <button type="button" className={`bs-table${k.on(name) ? ' on' : ''}`} {...(prefix ? { 'data-pinned-item': name } : { [k.attr]: name })} onClick={() => k.open(name)}
+          onContextMenu={(e) => { e.preventDefault(); sideMenu.open(e, [pinned ? { label: t('Unpin'), run: () => pin(kind, name, false) } : { label: t('Pin to the top'), run: () => pin(kind, name, true) }]); }}>
+          <Icon name={k.icon} size={14} />
+          <span>{name}</span>
+          {count !== null ? <small>{count}</small> : null}
+        </button>
+        <button type="button" className={`bs-pin${pinned ? ' on' : ''}`} data-pin={`${kind}:${name}`} aria-pressed={pinned} title={pinned ? t('Unpin {name}', { name }) : t('Pin {name} to the top', { name })} aria-label={pinned ? t('Unpin {name}', { name }) : t('Pin {name} to the top', { name })} onClick={() => pin(kind, name, !pinned)}>
+          <Icon name="pin" size={13} />
+        </button>
+      </li>
+    );
+  };
+  const folded = new Set(db.folded || []);
+  const sideSection = (key, title, add, list) => (
+    <section className={`bs-side-section${folded.has(key) ? ' folded' : ''}`} data-section={key}>
+      <div className="bs-side-head">
+        <button type="button" className="bs-fold" aria-expanded={!folded.has(key)} onClick={() => shell.base.fold({ id: db.id, section: key, folded: !folded.has(key) }).then(show).catch(() => {})}>
+          <Icon name={folded.has(key) ? 'chevronRight' : 'chevronDown'} size={12} />
+          <h2>{title}</h2>
+        </button>
+        {add}
+      </div>
+      {folded.has(key) ? null : list}
+    </section>
+  );
+
   const tab = (key, label) => <button type="button" role="tab" aria-selected={view === key} className={`bs-tab${view === key ? ' on' : ''}`} data-view={key} onClick={() => setView(key)}>{label}</button>;
   return (
     <AppFrame app={app} shell={shell} title={title} menu={appMenu}>
       <div className="bs-app">
         <nav className="bs-side" aria-label={t('Tables')}>
-          <div className="bs-side-head">
-            <h2>{t('Tables')}</h2>
-            <Button icon="plus" label="" title={t('New Table')} className="bs-new-table" onClick={() => setNaming('')} />
-          </div>
-          <ul className="bs-tables">
-            {db.tables.map((x) => (
-              <li key={x.name}>
-                <button type="button" className={`bs-table${table === x.name && (view === 'data' || view === 'design') ? ' on' : ''}`} data-table={x.name} onClick={() => { setTable(x.name); if (view !== 'design') setView('data'); }}>
-                  <Icon name="sheets" size={14} />
-                  <span>{x.name}</span>
-                  <small>{x.count}</small>
-                </button>
-              </li>
-            ))}
-            {db.tables.length ? null : <li className="bs-hint">{t('No tables yet: make one, or import one.')}</li>}
-          </ul>
-          <div className="bs-side-head">
-            <h2>{t('Queries')}</h2>
-            <Button icon="plus" label="" title={t('New Query')} className="bs-new-query" onClick={() => { setItem(null); setView('query'); }} />
-          </div>
-          <ul className="bs-tables bs-queries">
-            {(db.queries || []).map((n) => (
-              <li key={n}>
-                <button type="button" className={`bs-table${view === 'query' && item === n ? ' on' : ''}`} data-query={n} onClick={() => { setItem(n); setView('query'); }}>
-                  <Icon name="filter" size={14} />
-                  <span>{n}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="bs-side-head">
-            <h2>{t('Forms')}</h2>
-            <Button icon="plus" label="" title={t('New Form')} className="bs-new-form" disabled={!db.tables.length} onClick={() => setFormTable(table || db.tables[0]?.name || '')} />
-          </div>
-          <ul className="bs-tables bs-forms">
-            {(db.forms || []).map((n) => (
-              <li key={n}>
-                <button type="button" className={`bs-table${view === 'form' && item === n ? ' on' : ''}`} data-form={n} onClick={() => { setItem(n); setView('form'); }}>
-                  <Icon name="textbox" size={14} />
-                  <span>{n}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="bs-side-head">
-            <h2>{t('Reports')}</h2>
-            <Button icon="plus" label="" title={t('New Report')} className="bs-new-report" disabled={!db.tables.length} onClick={() => setReportSource(`table:${table || db.tables[0]?.name || ''}`)} />
-          </div>
-          <ul className="bs-tables bs-reports">
-            {(db.reports || []).map((n) => (
-              <li key={n}>
-                <button type="button" className={`bs-table${view === 'report' && item === n ? ' on' : ''}`} data-report={n} onClick={() => { setItem(n); setView('report'); }}>
-                  <Icon name="print" size={14} />
-                  <span>{n}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="bs-side-head">
-            <h2>{t('Print templates')}</h2>
-            <Button icon="plus" label="" title={t('New Print Template')} className="bs-new-document" disabled={!db.tables.length} onClick={() => setDocTable(table || db.tables[0]?.name || '')} />
-          </div>
-          <ul className="bs-tables bs-documents">
-            {(db.documents || []).map((d) => (
-              <li key={d.name}>
-                <button type="button" className={`bs-table${view === 'document' && item === d.name ? ' on' : ''}`} data-document={d.name} onClick={() => { setItem(d.name); setView('document'); }}>
-                  <Icon name="file" size={14} />
-                  <span>{d.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          {pinnedItems.length ? (
+            <section className="bs-side-section" data-section="pinned">
+              <div className="bs-side-head"><h2><Icon name="pin" size={12} /> {t('Pinned')}</h2></div>
+              <ul className="bs-tables bs-pinned">
+                {pinnedItems.map((p) => sideItem(p.kind, p.name, `pinned-${p.kind}`))}
+              </ul>
+            </section>
+          ) : null}
+          {sideSection('tables', t('Tables'), <Button icon="plus" label="" title={t('New Table')} className="bs-new-table" onClick={() => setNaming('')} />, (
+            <ul className="bs-tables">
+              {db.tables.map((x) => sideItem('table', x.name, null, x.count))}
+              {db.tables.length ? null : <li className="bs-hint">{t('No tables yet: make one, or import one.')}</li>}
+            </ul>
+          ))}
+          {sideSection('queries', t('Queries'), <Button icon="plus" label="" title={t('New Query')} className="bs-new-query" onClick={() => { setItem(null); setView('query'); }} />, (
+            <ul className="bs-tables bs-queries">{(db.queries || []).map((n) => sideItem('query', n))}</ul>
+          ))}
+          {sideSection('forms', t('Forms'), <Button icon="plus" label="" title={t('New Form')} className="bs-new-form" disabled={!db.tables.length} onClick={() => setFormTable(table || db.tables[0]?.name || '')} />, (
+            <ul className="bs-tables bs-forms">{(db.forms || []).map((n) => sideItem('form', n))}</ul>
+          ))}
+          {sideSection('reports', t('Reports'), <Button icon="plus" label="" title={t('New Report')} className="bs-new-report" disabled={!db.tables.length} onClick={() => setReportSource(`table:${table || db.tables[0]?.name || ''}`)} />, (
+            <ul className="bs-tables bs-reports">{(db.reports || []).map((n) => sideItem('report', n))}</ul>
+          ))}
+          {sideSection('documents', t('Print templates'), <Button icon="plus" label="" title={t('New Print Template')} className="bs-new-document" disabled={!db.tables.length} onClick={() => setDocTable(table || db.tables[0]?.name || '')} />, (
+            <ul className="bs-tables bs-documents">{(db.documents || []).map((d) => sideItem('document', d.name))}</ul>
+          ))}
           <div className="bs-side-foot">
             <Button icon="import" label={t('Import')} className="bs-import" onClick={importDialog} />
             <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('Relationships')}</span></button>
             <button type="button" className={`bs-table${view === 'sql' ? ' on' : ''}`} data-view="sql" onClick={() => setView('sql')}><Icon name="formula" size={14} /><span>{t('SQL')}</span></button>
           </div>
+          {sideMenu.node}
         </nav>
         <main className="bs-main">
           {(view === 'data' || view === 'design') && table ? (
