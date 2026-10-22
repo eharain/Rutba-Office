@@ -16,6 +16,7 @@ import { RecentFiles } from '../start-page.js';
 import { DocumentView, DOCUMENT_CSS } from './base/documents.js';
 import { useGridFilter, FilterBar, ColumnFilter, selectionItems, FILTER_CSS } from './base/filters.js';
 import { SignIn, ProtectDialog, PasswordDialog, SeeingBanner, PeopleView, PEOPLE_CSS, canDesign, may } from './base/people.js';
+import { LinkDialog, LinkedBar, LinkPasswordDialog, LINKS_CSS } from './base/links.js';
 
 /** The ready-made databases the start screen offers, in the engine's order (packages/database/src/templates.js). */
 const TEMPLATES = [
@@ -485,6 +486,9 @@ export default function Databases({ app, shell, boot }) {
   // Protect this database, and your own password (D-2026-10-22-11).
   const [protecting, setProtecting] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  // Link to a database engine, and a link's password on a computer that has not kept it (D-2026-10-22-13).
+  const [linking, setLinking] = useState(false);
+  const [linkPassword, setLinkPassword] = useState(null);
 
   const show = useCallback((summary) => {
     setDb(summary);
@@ -749,6 +753,7 @@ export default function Databases({ app, shell, boot }) {
     document: { icon: 'file', attr: 'data-document', on: (n) => view === 'document' && item === n, open: (n) => { setItem(n); setView('document'); } },
   };
   const pinnedItems = db.pinned || [];
+  const linkedOf = (name) => db.tables.find((x) => x.name === name && x.linked) || null;
   const isPinned = (kind, name) => pinnedItems.some((p) => p.kind === kind && p.name === name);
   const pin = (kind, name, pinned) => shell.base.pin({ id: db.id, kind, name, pinned }).then(show).catch((e) => toast(e.message, { tone: 'bad' }));
   const sideItem = (kind, name, prefix = null, count = null) => {
@@ -757,9 +762,15 @@ export default function Databases({ app, shell, boot }) {
     return (
       <li key={`${prefix || kind}:${name}`} className="bs-item" data-kind={kind} data-name={name}>
         <button type="button" className={`bs-table${k.on(name) ? ' on' : ''}`} {...(prefix ? { 'data-pinned-item': name } : { [k.attr]: name })} onClick={() => k.open(name)}
-          onContextMenu={(e) => { e.preventDefault(); sideMenu.open(e, [pinned ? { label: t('Unpin'), run: () => pin(kind, name, false) } : { label: t('Pin to the top'), run: () => pin(kind, name, true) }]); }}>
+          onContextMenu={(e) => {
+            e.preventDefault();
+            const items = [pinned ? { label: t('Unpin'), run: () => pin(kind, name, false) } : { label: t('Pin to the top'), run: () => pin(kind, name, true) }];
+            if (kind === 'table' && linkedOf(name) && design) items.push({ label: t('Unlink {name}', { name }), run: () => shell.base.unlinkTable({ id: db.id, table: name }).then((s) => { show(s); toast(t('{name} is unlinked. The engine keeps its records.', { name })); }).catch((err) => toast(err.message, { tone: 'bad' })) });
+            sideMenu.open(e, items);
+          }}>
           <Icon name={k.icon} size={14} />
           <span>{name}</span>
+          {kind === 'table' && linkedOf(name) ? <span className={`bs-linked-mark${linkedOf(name).linkError ? ' bad' : ''}`} data-linked-mark={name} title={linkedOf(name).linkError || t('Linked to a database engine')}><Icon name={linkedOf(name).linkError ? 'info' : 'link'} size={12} /></span> : null}
           {count !== null ? <small>{count}</small> : null}
         </button>
         <button type="button" className={`bs-pin${pinned ? ' on' : ''}`} data-pin={`${kind}:${name}`} aria-pressed={pinned} title={pinned ? t('Unpin {name}', { name }) : t('Pin {name} to the top', { name })} aria-label={pinned ? t('Unpin {name}', { name }) : t('Pin {name} to the top', { name })} onClick={() => pin(kind, name, !pinned)}>
@@ -817,6 +828,7 @@ export default function Databases({ app, shell, boot }) {
             {design ? <Button icon="import" label={t('Import')} className="bs-import" onClick={importDialog} /> : null}
             {design ? <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('Relationships')}</span></button> : null}
             {design ? <button type="button" className={`bs-table${view === 'sql' ? ' on' : ''}`} data-view="sql" onClick={() => setView('sql')}><Icon name="formula" size={14} /><span>{t('SQL')}</span></button> : null}
+            {design ? <button type="button" className="bs-table bs-link-engine" onClick={() => setLinking(true)}><Icon name="link" size={14} /><span>{t('Link to a database engine')}</span></button> : null}
             {!access.protected && design ? <button type="button" className="bs-table bs-protect" onClick={() => setProtecting(true)}><Icon name="shield" size={14} /><span>{t('Protect this database')}</span></button> : null}
             {isAdmin && !access.person?.seeing ? <button type="button" className={`bs-table bs-people-open${view === 'people' ? ' on' : ''}`} data-view="people" onClick={() => setView('people')}><Icon name="contacts" size={14} /><span>{t('People and roles')}</span></button> : null}
             {access.person ? (
@@ -839,10 +851,11 @@ export default function Databases({ app, shell, boot }) {
               <div className="bs-tabs" role="tablist">
                 <h1>{table}</h1>
                 {tab('data', t('Records'))}
-                {design ? tab('design', t('Design')) : null}
+                {design && !linkedOf(table) ? tab('design', t('Design')) : null}
               </div>
-              {view === 'data' || !design
-                ? <Datasheet key={`${table}-${db.steps}`} shell={shell} db={db} table={table} onChanged={refresh} toast={toast} />
+              <LinkedBar shell={shell} db={db} table={table} onChanged={show} onPassword={setLinkPassword} toast={toast} />
+              {view === 'data' || !design || linkedOf(table)
+                ? <Datasheet key={`${table}-${db.steps}-${linkedOf(table)?.readAt || ""}`} shell={shell} db={db} table={table} onChanged={refresh} toast={toast} />
                 : <Design shell={shell} db={db} table={table} onChanged={show} onRemoved={() => { setTable(null); refresh(); }} toast={toast} />}
             </>
           ) : view === 'people' && isAdmin ? (
@@ -929,6 +942,8 @@ export default function Databases({ app, shell, boot }) {
         </Dialog>
       ) : null}
       {protecting ? <ProtectDialog shell={shell} db={db} onDone={(s) => { show(s); setProtecting(false); setView('people'); }} onClose={() => setProtecting(false)} toast={toast} /> : null}
+      {linking ? <LinkDialog shell={shell} db={db} onDone={(s, first) => { show(s); setLinking(false); if (first) { setTable(first); setView('data'); } }} onClose={() => setLinking(false)} toast={toast} /> : null}
+      {linkPassword ? <LinkPasswordDialog shell={shell} db={db} link={linkPassword} onDone={(s) => { show(s); setLinkPassword(null); }} onClose={() => setLinkPassword(null)} toast={toast} /> : null}
       {changingPassword ? <PasswordDialog shell={shell} db={db} onClose={() => setChangingPassword(false)} toast={toast} /> : null}
       {naming !== null ? (
         <Dialog title={t('New Table')} onClose={() => setNaming(null)} actions={<><Button label={t('Cancel')} onClick={() => setNaming(null)} /><Button primary label={t('Make')} className="bs-make-table" disabled={!String(naming).trim()} onClick={makeTable} /></>}>
@@ -936,7 +951,7 @@ export default function Databases({ app, shell, boot }) {
           <p className="bs-hint">{t('It starts with an ID that numbers each record; add its fields in its design.')}</p>
         </Dialog>
       ) : null}
-      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS + FILTER_CSS + PEOPLE_CSS}</style>
+      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS + FILTER_CSS + PEOPLE_CSS + LINKS_CSS}</style>
     </AppFrame>
   );
 }

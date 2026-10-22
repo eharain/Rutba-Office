@@ -263,7 +263,15 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
     /** The engines a table can be linked to: [{ id, name, port, ready }]. */
     engines: () => ENGINES,
     /** Try an engine's address and account: its tables and views, or why not. Nothing is kept. */
-    engineTables: async ({ engine, settings, password }) => {
+    engineTables: async ({ id = null, link = null, engine, settings, password }) => {
+      // An existing link's tables, through the password this computer keeps for it.
+      if (id && link) {
+        const o = get(id);
+        whole(o.base);
+        const l = o.base.links().find((x) => x.id === link);
+        if (!l) throw new Error('There is no such link.');
+        return { tables: await (await engineFor(o, l)).tables() };
+      }
       const e = await connect(engine, settings, password || '');
       try { return { tables: await e.tables() }; } finally { await e.close(); }
     },

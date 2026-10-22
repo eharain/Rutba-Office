@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7822,
+  "count": 7845,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2034,6 +2034,7 @@
     {
       "message": "Account",
       "where": [
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
@@ -2769,6 +2770,7 @@
       "message": "Address",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
@@ -3618,6 +3620,12 @@
       ]
     },
     {
+      "message": "An encrypted connection (SSL)",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "An equation is edited in the equation editor — double-click it.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -3787,6 +3795,12 @@
       "message": "Announcements are off, so this is never contacted.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Another engine…",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -6125,6 +6139,7 @@
         "apps/desktop/renderer/apps-choice.js",
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/filters.js",
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/calendar.js",
@@ -8506,6 +8521,7 @@
     {
       "message": "Connect",
       "where": [
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/talk.js"
       ]
     },
@@ -9914,7 +9930,8 @@
     {
       "message": "Database",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -12535,6 +12552,12 @@
       "message": "Ends",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Engine",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -18801,6 +18824,12 @@
       ]
     },
     {
+      "message": "Its tables",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "JPEG Image (.jpg)",
       "where": [
         "apps/desktop/renderer/registry-words.js"
@@ -19135,6 +19164,7 @@
     {
       "message": "Kind",
       "where": [
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/video/inspector.js",
@@ -20279,6 +20309,7 @@
     {
       "message": "Link",
       "where": [
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -20315,9 +20346,28 @@
       ]
     },
     {
+      "message": "Link to a database engine",
+      "where": [
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "Link — a web address on the selected shape’s words (Ctrl+K); Ctrl+click follows it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Linked to a database engine",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Linked to {link}: the records are the engine's, read from it here.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -22751,6 +22801,12 @@
       "message": "Name of Web Site",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Name of this link",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -26810,6 +26866,7 @@
     {
       "message": "Password",
       "where": [
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -26826,9 +26883,21 @@
       ]
     },
     {
+      "message": "Password for {link}",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "Password removed. Save to write the {noun} without it.",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Password…",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -27926,6 +27995,7 @@
       "message": "Port",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
@@ -29128,6 +29198,12 @@
       "message": "Read Mode",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Read again",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -37632,6 +37708,12 @@
       ]
     },
     {
+      "message": "Tables of the engine",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "Tables, relationships and queries in one file",
       "where": [
         "apps/desktop/renderer/registry-words.js"
@@ -38995,6 +39077,12 @@
       ]
     },
     {
+      "message": "The engine keeps the records: Data Files reads them from it and saves each change straight to it. Every computer linked to the same engine works on the same records.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "The envelope is the first page of the document.",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
@@ -39540,6 +39628,12 @@
       ]
     },
     {
+      "message": "The password is kept in this computer's protected store, never in the file. On another computer it is asked for once.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "The password was refused",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
@@ -39701,6 +39795,12 @@
       "plural": "The recording is on the timeline: {count} takes.",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "The records of {table} could not be read from {link}: {why}",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -40890,6 +40990,12 @@
       "where": [
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This database has no tables this account can see.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -43104,6 +43210,12 @@
       ]
     },
     {
+      "message": "Unlink {name}",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Unlock",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -44702,6 +44814,12 @@
       ]
     },
     {
+      "message": "With no primary key there, they can be read, not changed.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "With sample records",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -45561,6 +45679,12 @@
       "message": "a table",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "a table here has that name",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -48566,6 +48690,13 @@
       ]
     },
     {
+      "message": "{count} table linked: its records stay in the engine, read from it here.",
+      "plural": "{count} tables linked: their records stay in the engine, read from it here.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "{count} take",
       "plural": "{count} takes",
       "where": [
@@ -48919,6 +49050,12 @@
       ]
     },
     {
+      "message": "{name} (coming)",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "{name} (dark)",
       "where": [
         "apps/desktop/renderer/apps/slides/design.js"
@@ -49111,6 +49248,12 @@
       "message": "{name} is protected, and its pages cannot be inserted yet.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "{name} is unlinked. The engine keeps its records.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -49657,6 +49800,12 @@
       "message": "{type} (played as {fallback})",
       "where": [
         "apps/desktop/renderer/apps/slides/motion.js"
+      ]
+    },
+    {
+      "message": "{user} at {host}, database {database}.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
