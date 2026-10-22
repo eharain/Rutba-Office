@@ -7698,4 +7698,6 @@ export default {
   'This mail server offers no secure connection for its filters.': 'یہ میل سرور اپنے فلٹرز کے لیے محفوظ کنکشن پیش نہیں کرتا۔',
   'While Rutba Office is running; one due while it is closed goes out the next time mail is fetched.': 'جب تک رتبہ آفس چل رہا ہو؛ بند ہونے کے دوران واجب جواب اگلی بار میل لانے پر جاتا ہے۔',
   'Your mail server': 'آپ کا میل سرور',
+  'Newer templates ({set}) are ready: they are used the next time Rutba Office starts.': 'نئے سانچے ({set}) تیار ہیں: رتبہ آفس اگلی بار شروع ہونے پر یہی استعمال کرے گا۔',
+  'Newer templates ({set}) need Rutba Office {version}: update Rutba Office to get them.': 'نئے سانچوں ({set}) کے لیے رتبہ آفس {version} درکار ہے: انہیں پانے کے لیے رتبہ آفس اپ ڈیٹ کریں۔',
 };

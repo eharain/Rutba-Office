@@ -4,6 +4,10 @@
 // older than the set's Data Files part (manifest.json's minOffice) shows
 // each ready-made database as needing that version, with no way to make it
 // but an update; at its own version the same cards make databases again.
+// And the template gallery says what the update check found of a newer set:
+// ready for the next start, or needing a newer Office.
+
+import { broadcast } from '@rutba/office-shell/electron/main';
 
 export async function verifyTemplateVersions(h) {
   const { open, check, until } = h;
@@ -33,6 +37,25 @@ export async function verifyTemplateVersions(h) {
     await until(() => js(`document.querySelectorAll('.bs-sample .bs-sample-data').length > 0`), 'the cards', 8000).catch(() => {});
     const now = await js(`({ marked: document.querySelectorAll('[data-needs]').length, buttons: document.querySelectorAll('.bs-sample .bs-sample-data').length })`);
     check('base: at its own version Office marks none of its ready-made databases, and each can be made', now.marked === 0 && now.buttons > 0, JSON.stringify(now));
+    win.close();
+
+    // The gallery, told by the update check of a newer set.
+    win = await open('home');
+    js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`Boolean(document.querySelector('.home-more'))`), 'the launcher', 8000);
+    await js(`document.querySelector('.home-more').click(), 1`);
+    await until(() => js(`Boolean(document.querySelector('.tg-dialog'))`), 'the gallery', 8000);
+    const said = {};
+    for (const [phase, extra] of [['ready', {}], ['needs-office', { needs: '9.0.0' }]]) {
+      broadcast('update:state', { state: 'idle', templates: { phase, set: '9.9.0', needs: null, ...extra } });
+      await until(() => js(`document.querySelector('.tg-set')?.dataset.setPhase === ${JSON.stringify(phase)}`), `the ${phase} line`, 4000).catch(() => {});
+      said[phase] = await js(`document.querySelector('.tg-set')?.textContent || ''`);
+    }
+    broadcast('update:state', { state: 'idle', templates: null });
+    await until(() => js(`!document.querySelector('.tg-set')`), 'the line gone', 4000).catch(() => {});
+    const gone = await js(`!document.querySelector('.tg-set')`);
+    check('templates: the gallery says a newer template set is ready for the next start, or that it needs a newer Rutba Office, and nothing when there is none',
+      /9\.9\.0.*next time Rutba Office starts/.test(said.ready) && /9\.9\.0.*need Rutba Office 9\.0\.0/.test(said['needs-office']) && gone, JSON.stringify({ said, gone }));
   } catch (err) {
     check('base: the template version checks ran', false, err.stack || err.message);
   } finally {

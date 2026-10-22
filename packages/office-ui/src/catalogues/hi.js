@@ -7700,4 +7700,6 @@ export default {
   'This mail server offers no secure connection for its filters.': 'यह मेल सर्वर अपने फ़िल्टर के लिए सुरक्षित कनेक्शन नहीं देता।',
   'While Rutba Office is running; one due while it is closed goes out the next time mail is fetched.': 'जब तक रुतबा ऑफ़िस चल रहा है; बंद रहने के दौरान देय उत्तर अगली बार मेल लाने पर जाता है।',
   'Your mail server': 'आपका मेल सर्वर',
+  'Newer templates ({set}) are ready: they are used the next time Rutba Office starts.': 'नए टेम्पलेट ({set}) तैयार हैं: रुतबा ऑफ़िस अगली बार शुरू होने पर इन्हीं का उपयोग करेगा।',
+  'Newer templates ({set}) need Rutba Office {version}: update Rutba Office to get them.': 'नए टेम्पलेट ({set}) के लिए रुतबा ऑफ़िस {version} चाहिए: इन्हें पाने के लिए रुतबा ऑफ़िस अपडेट करें।',
 };

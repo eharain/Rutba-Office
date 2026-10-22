@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Base, importRows, importSheets, buildTemplate, buildSample } from '@rutba/database';
-import { TEMPLATE_IDS, SAMPLE_IDS, templateNeeds, sampleNeeds } from '@rutba/templates/data-files';
+import { TEMPLATE_IDS, SAMPLE_IDS, templateNeeds, sampleNeeds } from '@rutba/templates/data-files/active';
 import { needsFor } from '@rutba/templates/versions';
 import { readManifest } from '@rutba/templates/manifest';
 import { parseDelimited } from '@rutba/ooxml/mailmerge';

@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7690,
+  "count": 7692,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -23010,6 +23010,18 @@
       "message": "New: each selection replaces the last",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Newer templates ({set}) are ready: they are used the next time Rutba Office starts.",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "Newer templates ({set}) need Rutba Office {version}: update Rutba Office to get them.",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {

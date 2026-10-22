@@ -4,6 +4,8 @@
 // every platform capability; this file only says which app opens which file and
 // hands the shell the two namespaces that know about documents and mail.
 
+// First: which template set this run uses, before anything below reads templates (template-set-choice.js).
+import { SETS_DIR, bundledManifest } from './template-set-choice.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +30,7 @@ import { createPrintService } from './print.js';
 import { createMathMeasurer } from './math-raster.js';
 import { createMailService } from './mail.js';
 import { createUpdateService } from './updates.js';
+import { createTemplateSets } from './template-sets.js';
 import { createOAuthService } from './oauth.js';
 import { createPresentService } from './present.js';
 import { createAnnouncementService } from './announce.js';
@@ -48,6 +51,25 @@ const app = path.resolve(here, '..');
 
 // Kept so the smoke run can drive the same services the windows do.
 let services = null;
+
+/**
+ * Newer template sets, fetched and checked with Office's own updates
+ * (D-2026-10-21-24): signed by Rutba's key, used from the next start when
+ * this Office is new enough for them, kept beside the profile.
+ */
+function templateSets() {
+  const fetchFrom = (url) => fetch(url, { headers: { 'user-agent': 'Rutba-Office', accept: 'application/vnd.github+json' } }).then((r) => {
+    if (!r.ok) throw new Error(`The template sets could not be fetched (${r.status}).`);
+    return r;
+  });
+  return createTemplateSets({
+    root: SETS_DIR(),
+    bundled: bundledManifest(),
+    office: process.env.RUTBA_OFFICE_VERSION || electron.getVersion(),
+    fetchJson: (url) => fetchFrom(url).then((r) => r.json()),
+    fetchText: (url) => fetchFrom(url).then((r) => r.text()),
+  });
+}
 let updates = null;
 
 // The document service runs on a thread of its own (doc-host.js, doc-worker.js).
@@ -181,6 +203,8 @@ createShell({
       update: updates = createUpdateService({
         stores,
         broadcast,
+        // A newer signed template set is looked for with Office's own update (template-sets.js).
+        templates: templateSets(),
         // A download shows on every window's taskbar button while it runs.
         taskbar: (fraction) => {
           for (const w of BrowserWindow.getAllWindows()) {

@@ -5,7 +5,7 @@
 // person's own design goes through, so every table, relationship and query
 // is a numbered step like any other and can be changed after.
 
-import { TEMPLATE_IDS, templateTables, templateSpec } from '@rutba/templates/data-files';
+import { TEMPLATE_IDS, templateTables, templateSpec } from '@rutba/templates/data-files/active';
 
 export { TEMPLATE_IDS, templateTables };
 

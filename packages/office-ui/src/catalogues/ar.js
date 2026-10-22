@@ -7700,4 +7700,6 @@ export default {
   'This mail server offers no secure connection for its filters.': 'لا يوفّر خادم البريد هذا اتصالًا آمنًا لمرشّحاته.',
   'While Rutba Office is running; one due while it is closed goes out the next time mail is fetched.': 'ما دام رتبة أوفيس يعمل؛ والرد المستحق أثناء إغلاقه يُرسل عند جلب البريد في المرة التالية.',
   'Your mail server': 'خادم بريدك',
+  'Newer templates ({set}) are ready: they are used the next time Rutba Office starts.': 'قوالب أحدث ({set}) جاهزة: تُستخدم في المرة التالية التي يبدأ فيها رتبة أوفيس.',
+  'Newer templates ({set}) need Rutba Office {version}: update Rutba Office to get them.': 'تحتاج القوالب الأحدث ({set}) إلى رتبة أوفيس {version}: حدّث رتبة أوفيس للحصول عليها.',
 };

@@ -8,7 +8,7 @@
 
 import { buildFromSpec } from './templates.js';
 import { q, toStored } from './types.js';
-import { sampleModule, designOfModule, guideOf, GUIDE_TABLE, random, calendar } from '@rutba/templates/data-files';
+import { sampleModule, designOfModule, guideOf, GUIDE_TABLE, random, calendar } from '@rutba/templates/data-files/active';
 
 /**
  * Make sample `id` in `base`, an empty database: its design, and its

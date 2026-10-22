@@ -9,4 +9,4 @@ export { TEMPLATE_IDS, templateTables, buildTemplate, buildFromSpec } from './te
 export { documentData, wizardDocument, evaluate, PAPERS, BLOCKS } from './document-design.js';
 export { buildSample, buildSampleFrom } from './samples.js';
 // The ready-made databases' content, from the templates' own repository.
-export { SAMPLE_IDS, sampleSpec, sampleAbout, checkSample } from '@rutba/templates/data-files';
+export { SAMPLE_IDS, sampleSpec, sampleAbout, checkSample } from '@rutba/templates/data-files/active';

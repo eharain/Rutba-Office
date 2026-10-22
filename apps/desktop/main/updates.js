@@ -44,7 +44,7 @@ const SIX_HOURS = 6 * 60 * 60 * 1000;
  * @param {Function} [o.taskbar]  show a download's progress on the windows
  *                                (a fraction, or -1 for none)
  */
-export function createUpdateService({ stores, broadcast, taskbar = null }) {
+export function createUpdateService({ stores, broadcast, taskbar = null, templates = null }) {
   /** @type {'idle'|'checking'|'available'|'downloading'|'ready'|'current'|'error'|'off'|'unpackaged'} */
   let state = 'idle';
   let info = null;
@@ -116,6 +116,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null }) {
       channel: FEED.owner + '/' + FEED.repo,
       // The version this copy replaced, until the card has been put away.
       arrived: arrived(),
+      // A newer template set: ready for the next start, or needing a newer Office.
+      templates: templates ? (({ phase, set, needs }) => ({ phase, set, needs }))(templates.state()) : null,
     };
     broadcast?.('update:state', payload);
     return payload;
@@ -196,6 +198,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null }) {
       state = 'error';
       error = updateErrorKind(err?.message || String(err));
     }
+    // The templates are looked for whatever Office's own check found: a set fails on its own.
+    if (templates) await templates.check().catch(() => {});
     return publish();
   }
 

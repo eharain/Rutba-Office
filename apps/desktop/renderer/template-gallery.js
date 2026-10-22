@@ -10,7 +10,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Icon, Search, Dialog, Empty, t, msg } from '@rutba/office-ui';
-import { templatesFolder } from './shell.js';
+import { templatesFolder, useUpdate } from './shell.js';
 import { useChosenApps } from './apps-choice.js';
 
 /**
@@ -94,6 +94,8 @@ export function TemplateGallery({ shell, app = null, onClose }) {
   const [view, setView] = useState('all');
   // From the launcher, only the apps this person chose (Choose apps).
   const chosen = useChosenApps(shell);
+  // A newer template set the update check found (template-sets.js): ready for the next start, or waiting on a newer Office.
+  const sets = useUpdate(shell)?.templates || null;
   const kept = (key) => Boolean(app) || chosen.apps.includes(key);
 
   useEffect(() => {
@@ -150,6 +152,8 @@ export function TemplateGallery({ shell, app = null, onClose }) {
             <Icon name="close" size={16} />
           </button>
         </div>
+        {sets?.phase === 'ready' ? <div className="tg-set" data-set-phase="ready">{t('Newer templates ({set}) are ready: they are used the next time Rutba Office starts.', { set: sets.set })}</div> : null}
+        {sets?.phase === 'needs-office' ? <div className="tg-set" data-set-phase="needs-office">{t('Newer templates ({set}) need Rutba Office {version}: update Rutba Office to get them.', { set: sets.set, version: sets.needs })}</div> : null}
         <div className="tg-main">
           <nav className="tg-rail" aria-label={t('Template categories')}>
             {rail.map((item) => (
@@ -243,6 +247,7 @@ const CSS = `
   border-bottom: 1px solid var(--line-soft);
 }
 .tg-head h2 { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
+.tg-set { padding: 6px 20px; font-size: 12.5px; color: var(--ink-2); background: var(--sunken); border-bottom: 1px solid var(--line-soft); }
 .tg-sub { color: var(--ink-3); font-size: 12.5px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tg-close {
   border: 0; background: none; color: var(--ink-3); width: 30px; height: 30px; border-radius: var(--r-2);

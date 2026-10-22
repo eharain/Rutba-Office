@@ -94,7 +94,7 @@ import { readZip } from '@rutba/ooxml/zip';
 import { redactAction, inspectAction, deckReviewAction, reviewSummary } from './review-tools.js';
 import * as deckCompare from '@rutba/presentation/compare';
 import { createProofing } from './proofing.js';
-import { TEMPLATES as GALLERY, CATEGORIES as GALLERY_CATEGORIES, templateById, templateForLegacy, readTemplate, thumbPath } from '@rutba/templates';
+import { TEMPLATES as GALLERY, CATEGORIES as GALLERY_CATEGORIES, templateById, templateForLegacy, readTemplate, thumbPath } from '@rutba/templates/active';
 import { needsFor } from '@rutba/templates/versions';
 
 let seq = 0;
