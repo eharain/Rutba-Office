@@ -135,10 +135,12 @@ export function createBaseService() {
 
     summary: ({ id }) => summary(id),
     fields: ({ id, table }) => get(id).base.fields(table),
-    rows: ({ id, table, offset = 0, limit = 200, order = null, where = {} }) => {
+    rows: ({ id, table, offset = 0, limit = 200, order = null, where = {}, search = '', filters = [] }) => {
       const { base } = get(id);
-      return { rows: base.rows(table, { offset, limit, order, where }), count: base.count(table, where) };
+      return { rows: base.rows(table, { offset, limit, order, where, search, filters }), count: base.count(table, where, { search, filters }) };
     },
+    // A query's results as a table's records are read: a page, sorted, searched and filtered (D-2026-10-22-07).
+    queryRows: ({ id, name = null, design = null, offset = 0, limit = 200, order = null, search = '', filters = [] }) => get(id).base.queryRows({ name, design, offset, limit, order, search, filters }),
     insert: ({ id, table, values }) => ({ rowid: get(id).base.insert(table, values || {}) }),
     update: ({ id, table, rowid, values }) => ({ changed: get(id).base.update(table, rowid, values || {}) }),
     remove: ({ id, table, rowids }) => ({ removed: get(id).base.remove(table, rowids || []) }),

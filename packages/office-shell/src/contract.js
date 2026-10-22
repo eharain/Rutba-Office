@@ -345,7 +345,8 @@ export const METHODS = {
     'close',        // ({ id }) -> { closed }
     'summary',      // ({ id }) -> { id, file, name, tables: [{ name, caption, count }], relationships, steps }
     'fields',       // ({ id, table }) -> [field]
-    'rows',         // ({ id, table, offset?, limit?, order?, where? }) -> { rows, count }   a page of records
+    'rows',         // ({ id, table, offset?, limit?, order?, where?, search?, filters? }) -> { rows, count }   a page of records, searched and filtered (database/src/filter.js)
+    'queryRows',    // ({ id, name? | design?, offset?, limit?, order?, search?, filters? }) -> { columns: [{ name, type }], rows, count }   a page of a query's results, as rows reads a table's
     'insert',       // ({ id, table, values }) -> { rowid }
     'update',       // ({ id, table, rowid, values }) -> { changed }
     'remove',       // ({ id, table, rowids }) -> { removed }

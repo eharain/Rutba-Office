@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7695,
+  "count": 7720,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -402,6 +402,12 @@
       "message": "(empty paragraph)",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "(empty)",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
       ]
     },
     {
@@ -3188,6 +3194,12 @@
       "message": "All borders",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "All but this value",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
       ]
     },
     {
@@ -5994,6 +6006,7 @@
       "where": [
         "apps/desktop/renderer/apps-choice.js",
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/filters.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
@@ -7280,6 +7293,7 @@
     {
       "message": "Clear all",
       "where": [
+        "apps/desktop/renderer/apps/base/filters.js",
         "apps/desktop/renderer/apps/word/mailings.js"
       ]
     },
@@ -8455,6 +8469,12 @@
         "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Contains",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
       ]
     },
     {
@@ -12226,7 +12246,8 @@
     {
       "message": "Empty",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/filters.js"
       ]
     },
     {
@@ -13705,6 +13726,7 @@
     {
       "message": "Filter",
       "where": [
+        "apps/desktop/renderer/apps/base/filters.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -13715,6 +13737,14 @@
       "message": "Filter by name or tag",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Filter by {column}",
+      "where": [
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/filters.js",
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -14912,6 +14942,7 @@
     {
       "message": "From",
       "where": [
+        "apps/desktop/renderer/apps/base/filters.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js",
@@ -16635,6 +16666,12 @@
       "message": "How it looks",
       "where": [
         "apps/desktop/renderer/apps/video/intro/brand.js"
+      ]
+    },
+    {
+      "message": "How it matches",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
       ]
     },
     {
@@ -18420,6 +18457,12 @@
       ]
     },
     {
+      "message": "Is exactly",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
       "message": "Is not blank",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -19418,6 +19461,12 @@
       "message": "Leave blank for “Automatic reply: ” and the original subject.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Leave either end empty for no limit on that side.",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
       ]
     },
     {
@@ -23253,6 +23302,8 @@
     {
       "message": "No",
       "where": [
+        "apps/desktop/renderer/apps/base/filters.js",
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js",
@@ -24397,6 +24448,12 @@
       ]
     },
     {
+      "message": "Not empty",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
       "message": "Not equal to",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -25345,6 +25402,12 @@
       "message": "Only this occurrence",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Only this value",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
       ]
     },
     {
@@ -32721,6 +32784,12 @@
       ]
     },
     {
+      "message": "Search these records",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
       "message": "Search {folder}",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -36261,6 +36330,12 @@
       ]
     },
     {
+      "message": "Starts with",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
       "message": "State",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -37239,6 +37314,12 @@
       "message": "Take this field out",
       "where": [
         "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
+      "message": "Take this filter off",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
       ]
     },
     {
@@ -41394,6 +41475,7 @@
     {
       "message": "To",
       "where": [
+        "apps/desktop/renderer/apps/base/filters.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -44213,6 +44295,7 @@
     {
       "message": "Words",
       "where": [
+        "apps/desktop/renderer/apps/base/filters.js",
         "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/inspector.js",
@@ -44457,6 +44540,8 @@
     {
       "message": "Yes",
       "where": [
+        "apps/desktop/renderer/apps/base/filters.js",
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js",
@@ -46795,6 +46880,72 @@
       ]
     },
     {
+      "message": "{column} contains {value}",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
+      "message": "{column} from {from}",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
+      "message": "{column} from {from} to {to}",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
+      "message": "{column} is empty",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
+      "message": "{column} is not empty",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
+      "message": "{column} is not {value}",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
+      "message": "{column} is {value}",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
+      "message": "{column} starts with {value}",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
+      "message": "{column} up to {to}",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
+      "message": "{column}: No",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
+      "message": "{column}: Yes",
+      "where": [
+        "apps/desktop/renderer/apps/base/filters.js"
+      ]
+    },
+    {
       "message": "{count} PDF, one a message",
       "plural": "{count} PDFs, one a message",
       "where": [
@@ -47625,6 +47776,13 @@
       ]
     },
     {
+      "message": "{count} record found",
+      "plural": "{count} records found",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "{count} reference on other sheets or by name not drawn",
       "plural": "{count} references on other sheets or by name not drawn",
       "where": [
@@ -47660,6 +47818,13 @@
       "plural": "{count} rows copied to {target}",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "{count} row found",
+      "plural": "{count} rows found",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {

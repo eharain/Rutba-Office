@@ -11,6 +11,7 @@ import { designToSql } from './query-design.js';
 import { wizardForm, shownField } from './form-design.js';
 import { wizardReport, reportData } from './report-design.js';
 import { wizardDocument, documentData, PAPERS, BLOCKS } from './document-design.js';
+import { filterSql, sniffType } from './filter.js';
 
 const DESIGN = `
 CREATE TABLE IF NOT EXISTS rutba_meta (key TEXT PRIMARY KEY, value TEXT);
@@ -352,21 +353,26 @@ export class Base {
   }
 
   /** How many records, with `where` ({ field: value }) narrowing them. */
-  count(table, where = {}) {
-    this._known(table);
+  count(table, where = {}, { search = '', filters = [] } = {}) {
+    const fields = this._known(table);
     const keys = Object.keys(where);
-    return this.db.prepare(`SELECT count(*) AS n FROM ${q(table)}${keys.length ? ` WHERE ${keys.map((k) => `${q(k)} IS ?`).join(' AND ')}` : ''}`).get(...keys.map((k) => where[k])).n;
+    const f = filterSql(fields.map((x) => ({ name: x.name, type: x.type })), { search, filters });
+    const conds = [...keys.map((k) => `${q(k)} IS ?`), ...(f.sql ? [f.sql] : [])];
+    return this.db.prepare(`SELECT count(*) AS n FROM ${q(table)}${conds.length ? ` WHERE ${conds.join(' AND ')}` : ''}`).get(...keys.map((k) => where[k]), ...f.params).n;
   }
 
   /** A page of records: [{ _rowid, ...fields }], `order` a field (prefixed with - for descending). */
-  rows(table, { offset = 0, limit = 200, order = null, where = {} } = {}) {
+  rows(table, { offset = 0, limit = 200, order = null, where = {}, search = '', filters = [] } = {}) {
     const fields = this._known(table);
     const keys = Object.keys(where);
     const by = order ? fields.find((f) => f.name === String(order).replace(/^-/, '')) : null;
+    // Searched and filtered as a query's results are (filter.js).
+    const f = filterSql(fields.map((x) => ({ name: x.name, type: x.type })), { search, filters });
+    const conds = [...keys.map((k) => `${q(k)} IS ?`), ...(f.sql ? [f.sql] : [])];
     const sql = `SELECT rowid AS _rowid, * FROM ${q(table)}`
-      + (keys.length ? ` WHERE ${keys.map((k) => `${q(k)} IS ?`).join(' AND ')}` : '')
+      + (conds.length ? ` WHERE ${conds.join(' AND ')}` : '')
       + ` ORDER BY ${by ? `${q(by.name)} ${String(order).startsWith('-') ? 'DESC' : 'ASC'}, ` : ''}rowid LIMIT ? OFFSET ?`;
-    return this.db.prepare(sql).all(...keys.map((k) => where[k]), Math.max(0, limit | 0), Math.max(0, offset | 0)).map((r) => ({ ...r }));
+    return this.db.prepare(sql).all(...keys.map((k) => where[k]), ...f.params, Math.max(0, limit | 0), Math.max(0, offset | 0)).map((r) => ({ ...r }));
   }
 
   /** Add a record; answers its rowid. Values as a person typed them are put into each field's type. */
@@ -443,6 +449,35 @@ export class Base {
     const out = this.query(sql, params);
     const rows = out.rows.slice(0, limit).map(cleanRow);
     return { columns: out.columns.length ? out.columns : columns, rows, count: out.rows.length, sql };
+  }
+
+  /**
+   * A page of a query's results, searched, filtered and sorted in the
+   * database as a table's records are (D-2026-10-22-07): { columns: [{ name,
+   * type }], rows, count }, `order` a column's name (- before it for
+   * descending), each column typed by the field it shows, or by its values.
+   */
+  queryRows({ name = null, design = null, offset = 0, limit = 200, order = null, search = '', filters = [], today = this.today } = {}) {
+    const d = design || this.queries().find((x) => x.name === name)?.design;
+    if (!d) throw new Error(`There is no query called ${name}.`);
+    const { sql, params, columns: names, sources } = designToSql(d, this.relationships(), { ...this._designFields(), today });
+    const inner = `(${sql}) AS r`;
+    // Typed by the field shown; a calculation or a total by its values, read from a few of them.
+    const sniffed = new Map();
+    const typeOf = (n, i) => {
+      const s = sources[i];
+      if (s) { const fld = this.fields(s.table).find((x) => x.name === s.field); if (fld) return fld.type; }
+      if (!sniffed.has(n)) sniffed.set(n, sniffType(this.db.prepare(`SELECT ${q(n)} AS v FROM ${inner} WHERE ${q(n)} IS NOT NULL LIMIT 50`).all(...params).map((r) => r.v)));
+      return sniffed.get(n);
+    };
+    const columns = names.map((n, i) => ({ name: n, type: typeOf(n, i) }));
+    const f = filterSql(columns, { search, filters });
+    const by = order ? columns.find((c) => c.name === String(order).replace(/^-/, '')) : null;
+    const where = f.sql ? ` WHERE ${f.sql}` : '';
+    const count = this.db.prepare(`SELECT count(*) AS n FROM ${inner}${where}`).get(...params, ...f.params).n;
+    const rows = this.db.prepare(`SELECT * FROM ${inner}${where}${by ? ` ORDER BY ${q(by.name)} ${String(order).startsWith('-') ? 'DESC' : 'ASC'}` : ''} LIMIT ? OFFSET ?`)
+      .all(...params, ...f.params, Math.max(0, limit | 0), Math.max(0, offset | 0)).map(cleanRow);
+    return { columns, rows, count };
   }
 
   /** The SQL a design stands for, its values shown in place of the parameters, for the SQL view. */

@@ -184,5 +184,7 @@ export function designToSql(design, relationships = [], { fieldsOf = null, today
     having.length ? `HAVING ${having.join(' OR ')}` : '',
     order.length ? `ORDER BY ${order.join(', ')}` : '',
   ].filter(Boolean).join('\n');
-  return { sql, params: [...params, ...havingParams], columns: select.map((s) => s.heading) };
+  // Each column's source, for its type: the field it shows, or null for a calculation or a total.
+  const sources = shown.map((c) => (!c.expr && !(totals && AGGREGATES[c.total]) ? { table: c.table, field: c.field } : null));
+  return { sql, params: [...params, ...havingParams], columns: select.map((s) => s.heading), sources };
 }

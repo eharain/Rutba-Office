@@ -68,6 +68,8 @@ export const BASE_CSS = `
 .bs-th { display: flex; align-items: center; gap: 4px; padding: 0 8px; border: 0; border-inline-end: 1px solid var(--line-soft); background: transparent; color: var(--ink-2); font: inherit; font-weight: 600; font-size: 12.5px; text-align: start; cursor: pointer; overflow: hidden; }
 .bs-th span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bs-th:hover { background: var(--wash); }
+.bs-th-cell { display: flex; align-items: center; min-width: 0; border-inline-end: 1px solid var(--line-soft); }
+.bs-th-cell .bs-th { flex: 1; min-width: 0; height: 100%; border-inline-end: 0; }
 .bs-td { display: flex; align-items: center; padding: 0 8px; border-inline-end: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); overflow: hidden; min-width: 0; }
 .bs-td.t-number, .bs-td.t-integer, .bs-td.t-currency, .bs-td.t-autonumber { justify-content: flex-end; font-variant-numeric: tabular-nums; }
 .bs-td.t-yesno { justify-content: center; }

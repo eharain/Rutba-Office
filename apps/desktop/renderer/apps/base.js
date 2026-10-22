@@ -6,7 +6,7 @@
 // of records at a time, so a table of any size opens at once.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Input, Select, Content, Empty, Dialog, Spinner, useToast, t, tn } from '@rutba/office-ui';
+import { Button, Icon, Input, Select, Content, Empty, Dialog, Spinner, useToast, useMenu, t, tn } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, useFileDrop } from '../shell.js';
 import { BASE_CSS } from './base/css.js';
 import { QueryDesigner, QUERY_CSS } from './base/queries.js';
@@ -14,6 +14,7 @@ import { FormView, FORM_CSS } from './base/forms.js';
 import { ReportView, REPORT_CSS } from './base/reports.js';
 import { RecentFiles } from '../start-page.js';
 import { DocumentView, DOCUMENT_CSS } from './base/documents.js';
+import { useGridFilter, FilterBar, ColumnFilter, selectionItems, FILTER_CSS } from './base/filters.js';
 
 /** The ready-made databases the start screen offers, in the engine's order (packages/database/src/templates.js). */
 const TEMPLATES = [
@@ -107,6 +108,10 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
   const [editing, setEditing] = useState(null); // { rowid, field, value }
   const [fresh, setFresh] = useState({});
   const box = useRef(null);
+  // Searched and filtered in the database (D-2026-10-22-07); the menu offers filter by selection.
+  const grid = useGridFilter();
+  const [filtering, setFiltering] = useState(null);
+  const menu = useMenu();
 
   useEffect(() => {
     let live = true;
@@ -116,12 +121,13 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
     setEditing(null);
     return () => { live = false; };
   }, [shell, db.id, table, version, toast]);
+  useEffect(() => { grid.clear(); }, [table]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async (page) => {
     if (pages.current.has(page)) return;
     pages.current.set(page, null);
     try {
-      const r = await shell.base.rows({ id: db.id, table, offset: page * PAGE, limit: PAGE, order });
+      const r = await shell.base.rows({ id: db.id, table, offset: page * PAGE, limit: PAGE, order, search: grid.search, filters: grid.filters });
       pages.current.set(page, r.rows);
       setCount(r.count);
       redraw((n) => n + 1);
@@ -129,7 +135,7 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
       pages.current.delete(page);
       toast(e.message, { tone: 'bad' });
     }
-  }, [shell, db.id, table, order, toast]);
+  }, [shell, db.id, table, order, grid.search, grid.filters, toast]);
 
   useEffect(() => { pages.current = new Map(); load(0); }, [load, version]);
 
@@ -215,16 +221,22 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
     <div className="bs-sheet">
       <div className="bs-tools">
         <Button icon="trash" label={t('Delete')} disabled={!picked.size} className="bs-delete" onClick={removePicked} />
-        <span className="bs-count">{tn(count, '{count} record', '{count} records')}</span>
+        <span className="bs-count">{grid.active ? tn(count, '{count} record found', '{count} records found') : tn(count, '{count} record', '{count} records')}</span>
       </div>
+      <FilterBar grid={grid} />
       <div className="bs-grid" ref={box} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} role="grid" aria-rowcount={count + 1}>
         <div className="bs-row bs-head" style={{ gridTemplateColumns: template }} role="row">
           <span />
           {fields.map((f) => (
-            <button key={f.name} type="button" className="bs-th" role="columnheader" data-field={f.name} aria-sort={order === f.name ? 'ascending' : order === `-${f.name}` ? 'descending' : 'none'} onClick={() => sortBy(f.name)}>
-              <span>{f.name}</span>
-              {order === f.name ? <Icon name="chevronUp" size={12} /> : order === `-${f.name}` ? <Icon name="chevronDown" size={12} /> : null}
-            </button>
+            <div key={f.name} className="bs-th-cell" role="columnheader" aria-sort={order === f.name ? 'ascending' : order === `-${f.name}` ? 'descending' : 'none'}>
+              <button type="button" className="bs-th" data-field={f.name} onClick={() => sortBy(f.name)}>
+                <span>{f.name}</span>
+                {order === f.name ? <Icon name="chevronUp" size={12} /> : order === `-${f.name}` ? <Icon name="chevronDown" size={12} /> : null}
+              </button>
+              <button type="button" className={`bs-th-filter${grid.filters.some((x) => x.column === f.name) ? ' on' : ''}`} data-filter-field={f.name} title={t('Filter by {column}', { column: f.name })} aria-label={t('Filter by {column}', { column: f.name })} onClick={() => setFiltering({ name: f.name, type: f.type })}>
+                <Icon name="filter" size={12} />
+              </button>
+            </div>
           ))}
         </div>
         <div className="bs-body" style={{ height: count * ROW_H, width: wide }}>
@@ -243,6 +255,7 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
                     role="gridcell"
                     data-field={f.name}
                     onDoubleClick={() => row && f.type !== 'autonumber' && f.type !== 'yesno' && setEditing({ rowid: row._rowid, field: f.name, value: row[f.name] ?? '' })}
+                    onContextMenu={(e) => { if (!row) return; e.preventDefault(); menu.open(e, selectionItems(grid, f.name, row[f.name])); }}
                   >
                     {row ? cell(row, f) : null}
                   </span>
@@ -263,6 +276,8 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
         </div>
       </div>
       {editable.length ? null : <p className="bs-hint">{t('This table has no fields to fill in yet. Add some in its design.')}</p>}
+      {filtering ? <ColumnFilter column={filtering} onApply={grid.put} onClose={() => setFiltering(null)} /> : null}
+      {menu.node}
     </div>
   );
 }
@@ -832,7 +847,7 @@ export default function Databases({ app, shell, boot }) {
           <p className="bs-hint">{t('It starts with an ID that numbers each record; add its fields in its design.')}</p>
         </Dialog>
       ) : null}
-      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS}</style>
+      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS + FILTER_CSS}</style>
     </AppFrame>
   );
 }

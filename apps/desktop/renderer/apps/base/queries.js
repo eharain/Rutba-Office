@@ -6,8 +6,9 @@
 // calculated instead, typed as Access takes it in a Field cell:
 // "Line Total: [Quantity] * [Unit Price]".
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Button, Icon, Input, Select, Dialog, Spinner, t, tn } from '@rutba/office-ui';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Icon, Input, Select, Dialog, Spinner, useMenu, t, tn } from '@rutba/office-ui';
+import { useGridFilter, FilterBar, ColumnFilter, selectionItems } from './filters.js';
 import { splitNamedExpression } from '@rutba/database/query-design';
 
 /** The Field list's own choice that turns its cell into an expression box. */
@@ -119,11 +120,10 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
     }
   };
 
-  // Opened run: the saved design's records, as soon as it is read.
-  useEffect(() => {
-    if (!loaded || editing) return;
-    shell.base.runQuery({ id: db.id, design: loaded }).then((a) => { setAnswer(a); setError(''); }, (e) => { setError(e.message); setAnswer(null); });
-  }, [shell, db.id, loaded, editing]);
+  // Opened run: the saved design's records in the grid, its count as the grid reads it.
+  const [found, setFound] = useState(null);
+  const [runs, setRuns] = useState(0);
+  const counted = useCallback((n, filtered) => setFound({ n, filtered }), []);
 
   const results = answer ? (
     <div className="bs-result">
@@ -140,14 +140,12 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
         <div className="bs-tools bs-q-runbar">
           <Icon name="filter" size={16} />
           <strong className="bs-q-title">{name}</strong>
-          {answer ? <span className="bs-count">{tn(answer.count, '{count} row', '{count} rows')}</span> : null}
+          {found ? <span className="bs-count">{found.filtered ? tn(found.n, '{count} row found', '{count} rows found') : tn(found.n, '{count} row', '{count} rows')}</span> : null}
           <span className="bs-q-grow" />
-          <Button icon="refresh" label={t('Run again')} className="bs-q-rerun" onClick={() => loaded && shell.base.runQuery({ id: db.id, design: loaded }).then((a) => { setAnswer(a); setError(''); }, (e) => setError(e.message))} />
+          <Button icon="refresh" label={t('Run again')} className="bs-q-rerun" onClick={() => setRuns((n) => n + 1)} />
           <Button primary icon="pen" label={t('Edit query')} className="bs-q-edit" onClick={() => { setEditing(true); setAnswer(null); }} />
         </div>
-        {error ? <p className="bs-error" role="alert">{error}</p> : null}
-        {!answer && !error ? <div className="bs-q-wait"><Spinner /></div> : null}
-        {results}
+        {loaded ? <QueryResults key={runs} shell={shell} db={db} design={loaded} onCount={counted} toast={toast} /> : <div className="bs-q-wait"><Spinner /></div>}
       </div>
     );
   }
@@ -250,6 +248,115 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
   );
 }
 
+/* ── a query's results, read as a table's records are ─────────────── */
+
+const PAGE = 100;
+const ROW_H = 30;
+const cellText = (type, v) => {
+  if (v === null || v === undefined) return '';
+  if (type === 'currency' && typeof v === 'number') return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  if (type === 'yesno') return v ? t('Yes') : t('No');
+  if (type === 'datetime') return String(v).replace('T', ' ');
+  return String(v);
+};
+
+/**
+ * A saved query's results as the datasheet shows a table's records
+ * (D-2026-10-22-07): a page at a time as it is scrolled, sorted by a column,
+ * searched and filtered in the database, filter by selection from a cell.
+ */
+function QueryResults({ shell, db, design, onCount, toast }) {
+  const [columns, setColumns] = useState([]);
+  const [count, setCount] = useState(0);
+  const [order, setOrder] = useState(null);
+  const [error, setError] = useState('');
+  const [scrollTop, setScrollTop] = useState(0);
+  const [height, setHeight] = useState(400);
+  const [filtering, setFiltering] = useState(null);
+  const [, redraw] = useState(0);
+  const pages = useRef(new Map());
+  const box = useRef(null);
+  const grid = useGridFilter();
+  const menu = useMenu();
+
+  const load = useCallback(async (page) => {
+    if (pages.current.has(page)) return;
+    pages.current.set(page, null);
+    try {
+      const r = await shell.base.queryRows({ id: db.id, design, offset: page * PAGE, limit: PAGE, order, search: grid.search, filters: grid.filters });
+      pages.current.set(page, r.rows);
+      setColumns(r.columns);
+      setCount(r.count);
+      setError('');
+      onCount?.(r.count, grid.active);
+      redraw((n) => n + 1);
+    } catch (e) {
+      pages.current.delete(page);
+      setError(e.message);
+    }
+  }, [shell, db.id, design, order, grid.search, grid.filters, grid.active, onCount]);
+  useEffect(() => { pages.current = new Map(); load(0); }, [load]);
+
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return undefined;
+    const ro = new ResizeObserver(() => setHeight(el.clientHeight));
+    ro.observe(el);
+    setHeight(el.clientHeight);
+    return () => ro.disconnect();
+  }, []);
+  const first = Math.max(0, Math.floor(scrollTop / ROW_H) - 5);
+  const last = Math.min(count, Math.ceil((scrollTop + height) / ROW_H) + 5);
+  useEffect(() => {
+    for (let p = Math.floor(first / PAGE); p <= Math.floor(Math.max(first, last - 1) / PAGE); p++) load(p);
+  }, [first, last, load]);
+  const rowAt = (i) => pages.current.get(Math.floor(i / PAGE))?.[i % PAGE] || null;
+
+  const sortBy = (name) => setOrder((o) => (o === name ? `-${name}` : o === `-${name}` ? null : name));
+  const widths = columns.map((c) => (c.type === 'yesno' ? 90 : ['number', 'integer', 'currency'].includes(c.type) ? 130 : 180));
+  const template = widths.map((w) => `${w}px`).join(' ');
+  const wide = widths.reduce((a, b) => a + b, 0);
+  return (
+    <>
+      <FilterBar grid={grid} />
+      {error ? <p className="bs-error" role="alert">{error}</p> : null}
+      <div className="bs-grid bs-q-grid-results" ref={box} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} role="grid" aria-rowcount={count + 1}>
+        <div className="bs-row bs-head" style={{ gridTemplateColumns: template }} role="row">
+          {columns.map((c) => (
+            <div key={c.name} className="bs-th-cell" role="columnheader" aria-sort={order === c.name ? 'ascending' : order === `-${c.name}` ? 'descending' : 'none'}>
+              <button type="button" className="bs-th" data-field={c.name} onClick={() => sortBy(c.name)}>
+                <span>{c.name}</span>
+                {order === c.name ? <Icon name="chevronUp" size={12} /> : order === `-${c.name}` ? <Icon name="chevronDown" size={12} /> : null}
+              </button>
+              <button type="button" className={`bs-th-filter${grid.filters.some((x) => x.column === c.name) ? ' on' : ''}`} data-filter-field={c.name} title={t('Filter by {column}', { column: c.name })} aria-label={t('Filter by {column}', { column: c.name })} onClick={() => setFiltering(c)}>
+                <Icon name="filter" size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="bs-body" style={{ height: count * ROW_H, width: wide }}>
+          {Array.from({ length: Math.max(0, last - first) }, (_, k) => {
+            const i = first + k;
+            const row = rowAt(i);
+            return (
+              <div key={i} className="bs-row" role="row" data-row={i} style={{ top: i * ROW_H, gridTemplateColumns: template }}>
+                {columns.map((c) => (
+                  <span key={c.name} className={`bs-td t-${c.type}`} role="gridcell" data-field={c.name}
+                    onContextMenu={(e) => { if (!row) return; e.preventDefault(); menu.open(e, selectionItems(grid, c.name, row[c.name])); }}>
+                    {row ? <span className="bs-text">{cellText(c.type, row[c.name])}</span> : null}
+                  </span>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {filtering ? <ColumnFilter column={filtering} onApply={grid.put} onClose={() => setFiltering(null)} /> : null}
+      {menu.node}
+    </>
+  );
+}
+
 export const QUERY_CSS = `
 .bs-query { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
 .bs-q-tables { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); }
@@ -269,5 +376,6 @@ export const QUERY_CSS = `
 .bs-q-title { font-size: 14px; font-weight: 600; }
 .bs-q-grow { flex: 1; }
 .bs-q-wait { display: grid; place-items: center; padding: 40px; }
+.bs-query-run { overflow: hidden; }
 .bs-q-sql-text { margin: 0 16px 8px; padding: 8px 10px; border-radius: var(--r-2); background: var(--sunken); font: 12.5px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
 `;
