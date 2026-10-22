@@ -11,8 +11,19 @@ import { app } from 'electron';
 import { compareVersions, usableBy } from '@rutba/templates/versions';
 import { readManifest, MANIFEST_PATH } from '@rutba/templates/manifest';
 
+/**
+ * The profile's folder, worked out here rather than asked of Electron: this
+ * module runs before the shell names the app "Rutba Office", and the first
+ * app.getPath('userData') fixes the profile where the name then says. Asked
+ * that early it fixed it under the package's own name, and 2.15.0 opened an
+ * empty profile there, every setting and mail account seemingly gone. A
+ * profile named on the command line (the checks' own) is taken as it is.
+ */
+export const PROFILE_NAME = 'Rutba Office';
+const profileDir = () => app.commandLine.getSwitchValue('user-data-dir') || path.join(app.getPath('appData'), PROFILE_NAME);
+
 /** The folder where downloaded sets are kept. */
-export const SETS_DIR = () => path.join(app.getPath('userData'), 'templates');
+export const SETS_DIR = () => path.join(profileDir(), 'templates');
 
 /** The set Office was built with, read from this package's own manifest. */
 export const bundledManifest = () => readManifest(MANIFEST_PATH);

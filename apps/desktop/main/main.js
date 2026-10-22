@@ -5,7 +5,7 @@
 // hands the shell the two namespaces that know about documents and mail.
 
 // First: which template set this run uses, before anything below reads templates (template-set-choice.js).
-import { SETS_DIR, bundledManifest } from './template-set-choice.js';
+import { SETS_DIR, bundledManifest, PROFILE_NAME } from './template-set-choice.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -115,7 +115,8 @@ if (process.env.RUTBA_SCREEN_SCALE) electron.commandLine.appendSwitch('force-dev
 if (process.env.RUTBA_FAKE_MEDIA) electron.commandLine.appendSwitch('use-fake-device-for-media-stream');
 
 createShell({
-  appName: 'Rutba Office',
+  // The profile's folder is named by it too (template-set-choice.js works that folder out before this runs).
+  appName: PROFILE_NAME,
   rendererDir: path.join(app, 'build', 'out'),
   preloadPath: path.join(app, 'build', 'out', 'preload.cjs'),
   iconPath: path.join(app, 'resources', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
