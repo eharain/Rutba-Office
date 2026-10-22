@@ -466,8 +466,13 @@ export default function Databases({ app, shell, boot }) {
   const [busy, setBusy] = useState(false);
   // The ready-made databases that need a newer Office: id -> the version wanted.
   const [needs, setNeeds] = useState({});
+  // Each ready-made one's page on office.rutba.io (D-2026-10-22-03): id -> its address.
+  const [pages, setPages] = useState({});
   useEffect(() => {
-    shell.base.readyMade().then((r) => setNeeds(Object.fromEntries([...r.templates, ...r.samples].filter((x) => x.needs).map((x) => [x.id, x.needs])))).catch(() => {});
+    shell.base.readyMade().then((r) => {
+      setNeeds(Object.fromEntries([...r.templates, ...r.samples].filter((x) => x.needs).map((x) => [x.id, x.needs])));
+      setPages(Object.fromEntries([...r.templates, ...r.samples].filter((x) => x.page).map((x) => [x.id, x.page])));
+    }).catch(() => {});
   }, [shell]);
   const [naming, setNaming] = useState(null);
 
@@ -598,6 +603,49 @@ export default function Databases({ app, shell, boot }) {
     }
   };
 
+  /** A ready-made one's page online, from its card: a small icon in its corner (D-2026-10-22-03). */
+  const pageLink = (url, name) => (url ? (
+    <button type="button" className="bs-page-link" data-page={url} title={t('About {name} online', { name })} aria-label={t('About {name} online', { name })}
+      onClick={(e) => { e.stopPropagation(); shell.shell.openExternal({ url }).catch(() => {}); }}>
+      <Icon name="globe" size={14} />
+    </button>
+  ) : null);
+
+  // A newer design for a database made from a template or sample (D-2026-10-22-04), asked for when it opens.
+  const [update, setUpdate] = useState(null);
+  const [updating, setUpdating] = useState(false);
+  useEffect(() => {
+    setUpdate(null);
+    if (!db?.id || !db.origin) return;
+    let live = true;
+    shell.base.designUpdate({ id: db.id }).then((u) => { if (live && u.available) setUpdate(u); }).catch(() => {});
+    return () => { live = false; };
+  }, [shell, db?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const bringUpdate = async () => {
+    setUpdating(true);
+    try {
+      const r = await shell.base.applyDesignUpdate({ id: db.id });
+      show(r.summary);
+      setUpdate(null);
+      const n = r.tables.length + r.fields.length + r.added.length + r.replaced.length + r.beside.length;
+      toast(r.beside.length
+        ? tn(n, 'The design is up to date: {count} change. Where you had changed something, your version is kept and the newer one is beside it, named (updated).', 'The design is up to date: {count} changes. Where you had changed something, your version is kept and the newer one is beside it, named (updated).')
+        : tn(n, 'The design is up to date: {count} change, your records as they were.', 'The design is up to date: {count} changes, your records as they were.'), { tone: 'good', ms: 7000 });
+    } catch (e) {
+      toast(e.message, { tone: 'bad', ms: 7000 });
+    } finally {
+      setUpdating(false);
+    }
+  };
+  const updateBanner = update ? (
+    <div className="bs-update" role="status" data-changes={update.tables.length + update.fields.length + update.added.length + update.replaced.length + update.beside.length}>
+      <Icon name="refresh" size={16} />
+      <span>{tn(update.tables.length + update.fields.length + update.added.length + update.replaced.length + update.beside.length, 'A newer design of this database is ready: {count} change to its tables, queries, forms, reports or print templates. Your records stay as they are, and anything you changed keeps your version.', 'A newer design of this database is ready: {count} changes to its tables, queries, forms, reports or print templates. Your records stay as they are, and anything you changed keeps your version.')}</span>
+      <Button primary label={t('Update the design')} className="bs-update-now" disabled={updating} onClick={bringUpdate} />
+      <Button ghost label={t('Not now')} className="bs-update-later" onClick={() => setUpdate(null)} />
+    </div>
+  ) : null;
+
   const title = db ? db.name : t('Data Files');
   if (!db) {
     return (
@@ -622,10 +670,13 @@ export default function Databases({ app, shell, boot }) {
               <h2>{t('Or start from a ready-made one')}</h2>
               <div className="bs-template-grid">
                 {TEMPLATES.map((tpl) => (
-                  <button key={tpl.id} type="button" className={`bs-template${needs[tpl.id] ? ' needs' : ''}`} data-template={tpl.id} data-needs={needs[tpl.id] || undefined} disabled={busy} data-tip={needs[tpl.id] ? t('Needs Rutba Office {version} or newer. Check for updates.', { version: needs[tpl.id] }) : undefined} onClick={() => (needs[tpl.id] ? shell.update.check({ manual: true }).catch(() => {}) : fromTemplate(tpl))}>
+                  <div key={tpl.id} className="bs-card-wrap">
+                  <button type="button" className={`bs-template${needs[tpl.id] ? ' needs' : ''}`} data-template={tpl.id} data-needs={needs[tpl.id] || undefined} disabled={busy} data-tip={needs[tpl.id] ? t('Needs Rutba Office {version} or newer. Check for updates.', { version: needs[tpl.id] }) : undefined} onClick={() => (needs[tpl.id] ? shell.update.check({ manual: true }).catch(() => {}) : fromTemplate(tpl))}>
                     <span className="bs-template-icon"><Icon name={tpl.icon} size={18} /></span>
                     <span className="bs-template-words"><strong>{tpl.name()}</strong><small>{tpl.line()}</small></span>
                   </button>
+                  {pageLink(pages[tpl.id], tpl.name())}
+                  </div>
                 ))}
               </div>
             </section>
@@ -643,6 +694,7 @@ export default function Databases({ app, shell, boot }) {
                       <strong>{s.kind()}</strong>
                       <small>{s.line()}</small>
                     </span>
+                    {pageLink(pages[s.id], s.business)}
                     {needs[s.id] ? (
                       <span className="bs-sample-actions">
                         <button type="button" className="bs-sample-update" onClick={() => shell.update.check({ manual: true }).catch(() => {})}>{t('Needs Rutba Office {version}', { version: needs[s.id] })}</button>
@@ -743,10 +795,12 @@ export default function Databases({ app, shell, boot }) {
             <Button icon="import" label={t('Import')} className="bs-import" onClick={importDialog} />
             <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('Relationships')}</span></button>
             <button type="button" className={`bs-table${view === 'sql' ? ' on' : ''}`} data-view="sql" onClick={() => setView('sql')}><Icon name="formula" size={14} /><span>{t('SQL')}</span></button>
+            {db.origin?.page ? <button type="button" className="bs-table bs-about-online" data-page={db.origin.page} onClick={() => shell.shell.openExternal({ url: db.origin.page }).catch(() => {})}><Icon name="globe" size={14} /><span>{t('About this database online')}</span></button> : null}
           </div>
           {sideMenu.node}
         </nav>
         <main className="bs-main">
+          {updateBanner}
           {(view === 'data' || view === 'design') && table ? (
             <>
               <div className="bs-tabs" role="tablist">

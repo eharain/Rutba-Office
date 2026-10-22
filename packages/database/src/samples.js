@@ -7,6 +7,7 @@
 // back from the day it is made.
 
 import { buildFromSpec } from './templates.js';
+import { recordOrigin } from './origin.js';
 import { q, toStored } from './types.js';
 import { sampleModule, designOfModule, guideOf, GUIDE_TABLE, random, calendar } from '@rutba/templates/data-files/active';
 
@@ -16,7 +17,10 @@ import { sampleModule, designOfModule, guideOf, GUIDE_TABLE, random, calendar } 
  * the records are, for a test. Answers the names made and the records added.
  */
 export function buildSample(base, id, options = {}) {
-  return buildSampleFrom(base, sampleModule(id), options);
+  const made = buildSampleFrom(base, sampleModule(id), options);
+  // Which sample it came from, so its page can be linked and a newer design offered (origin.js).
+  recordOrigin(base, { kind: 'sample', id });
+  return made;
 }
 
 /** Make the sample module `s` ({ spec, fill, about }) in `base`, as buildSample does. */

@@ -10,3 +10,5 @@ export { documentData, wizardDocument, evaluate, PAPERS, BLOCKS } from './docume
 export { buildSample, buildSampleFrom } from './samples.js';
 // The ready-made databases' content, from the templates' own repository.
 export { SAMPLE_IDS, sampleSpec, sampleAbout, checkSample } from '@rutba/templates/data-files/active';
+export { originOf, recordOrigin, designPrint } from './origin.js';
+export { planUpgrade, applyUpgrade } from './upgrade.js';

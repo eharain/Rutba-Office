@@ -346,6 +346,8 @@ export const METHODS = {
     'summary',      // ({ id }) -> { id, file, name, tables: [{ name, caption, count }], relationships, steps }
     'fields',       // ({ id, table }) -> [field]
     'rows',         // ({ id, table, offset?, limit?, order?, where?, search?, filters? }) -> { rows, count }   a page of records, searched and filtered (database/src/filter.js)
+    'designUpdate', // ({ id }) -> { available, tables, fields, added, replaced, beside }   a newer design from the template set in use
+    'applyDesignUpdate', // ({ id }) -> { done, ..., summary }   that design brought in, records kept, the person's changes kept
     'pin',          // ({ id, kind: 'table' | 'query' | 'form' | 'report' | 'document', name, pinned }) -> summary   pinned first in the side panel, kept in the file
     'fold',         // ({ id, section, folded }) -> summary   a side panel section folded away, kept in the file
     'queryRows',    // ({ id, name? | design?, offset?, limit?, order?, search?, filters? }) -> { columns: [{ name, type }], rows, count }   a page of a query's results, as rows reads a table's

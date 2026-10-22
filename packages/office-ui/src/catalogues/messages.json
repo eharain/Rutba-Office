@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7724,
+  "count": 7730,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1194,6 +1194,13 @@
       ]
     },
     {
+      "message": "A newer design of this database is ready: {count} change to its tables, queries, forms, reports or print templates. Your records stay as they are, and anything you changed keeps your version.",
+      "plural": "A newer design of this database is ready: {count} changes to its tables, queries, forms, reports or print templates. Your records stay as they are, and anything you changed keeps your version.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "A newsletter with a masthead, two columns of stories and a dates panel",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
@@ -1787,6 +1794,12 @@
       ]
     },
     {
+      "message": "About this database online",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "About {mb} MB a minute",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js"
@@ -1797,6 +1810,12 @@
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
+      "message": "About {name} online",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -24482,6 +24501,7 @@
     {
       "message": "Not now",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/talk/invite.js",
         "apps/desktop/renderer/shell.js"
       ]
@@ -38495,6 +38515,20 @@
       ]
     },
     {
+      "message": "The design is up to date: {count} change, your records as they were.",
+      "plural": "The design is up to date: {count} changes, your records as they were.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "The design is up to date: {count} change. Where you had changed something, your version is kept and the newer one is beside it, named (updated).",
+      "plural": "The design is up to date: {count} changes. Where you had changed something, your version is kept and the newer one is beside it, named (updated).",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "The disk is nearly full: the recording was stopped and kept.",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
@@ -42984,6 +43018,12 @@
       "message": "Update ready",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Update the design",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {

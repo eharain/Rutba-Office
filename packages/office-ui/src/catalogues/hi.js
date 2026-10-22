@@ -7734,4 +7734,10 @@ export default {
   'Pinned': 'पिन किए गए',
   'Unpin': 'पिन हटाएँ',
   'Unpin {name}': '{name} का पिन हटाएँ',
+  'About this database online': 'इस डेटाबेस के बारे में ऑनलाइन',
+  'About {name} online': '{name} के बारे में ऑनलाइन',
+  'Update the design': 'डिज़ाइन अपडेट करें',
+  'A newer design of this database is ready: {count} change to its tables, queries, forms, reports or print templates. Your records stay as they are, and anything you changed keeps your version.': { one: 'इस डेटाबेस का नया डिज़ाइन तैयार है: इसकी तालिकाओं, क्वेरी, फ़ॉर्म, रिपोर्ट या प्रिंट टेम्पलेट में {count} बदलाव। आपके रिकॉर्ड जैसे हैं वैसे रहेंगे, और जो आपने बदला वह आपका ही रहेगा।', other: 'इस डेटाबेस का नया डिज़ाइन तैयार है: इसकी तालिकाओं, क्वेरी, फ़ॉर्म, रिपोर्ट या प्रिंट टेम्पलेट में {count} बदलाव। आपके रिकॉर्ड जैसे हैं वैसे रहेंगे, और जो आपने बदला वह आपका ही रहेगा।' },
+  'The design is up to date: {count} change, your records as they were.': { one: 'डिज़ाइन अद्यतन है: {count} बदलाव, आपके रिकॉर्ड जैसे थे।', other: 'डिज़ाइन अद्यतन है: {count} बदलाव, आपके रिकॉर्ड जैसे थे।' },
+  'The design is up to date: {count} change. Where you had changed something, your version is kept and the newer one is beside it, named (updated).': { one: 'डिज़ाइन अद्यतन है: {count} बदलाव। जहाँ आपने कुछ बदला था, वहाँ आपका संस्करण रखा गया और नया उसके साथ (updated) नाम से है।', other: 'डिज़ाइन अद्यतन है: {count} बदलाव। जहाँ आपने कुछ बदला था, वहाँ आपका संस्करण रखा गया और नया उसके साथ (updated) नाम से है।' },
 };

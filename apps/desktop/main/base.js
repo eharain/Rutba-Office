@@ -10,8 +10,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { Base, importRows, importSheets, buildTemplate, buildSample } from '@rutba/database';
-import { TEMPLATE_IDS, SAMPLE_IDS, templateNeeds, sampleNeeds } from '@rutba/templates/data-files/active';
+import { Base, importRows, importSheets, buildTemplate, buildSample, originOf, planUpgrade, applyUpgrade } from '@rutba/database';
+import { TEMPLATE_IDS, SAMPLE_IDS, templateNeeds, sampleNeeds, pageOf } from '@rutba/templates/data-files/active';
 import { needsFor } from '@rutba/templates/versions';
 import { readManifest } from '@rutba/templates/manifest';
 import { parseDelimited } from '@rutba/ooxml/mailmerge';
@@ -49,6 +49,8 @@ export function createBaseService() {
       // Pinned items, first in the side panel, in the order pinned; those since renamed or removed left out.
       pinned: pinnedOf(base),
       folded: listMeta(base, 'folded'),
+      // The template or sample it was made from, and its page online (D-2026-10-22-03).
+      origin: (() => { const o = originOf(base); return o ? { kind: o.kind, id: o.id, set: o.set, page: pageOf(o.id) } : null; })(),
     };
   };
   const listMeta = (base, key) => { try { const v = JSON.parse(base.meta(key) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
@@ -125,8 +127,8 @@ export function createBaseService() {
       return {
         set: manifest.set || null,
         office,
-        templates: TEMPLATE_IDS.map((id) => ({ id, needs: whole || needsFor(office, { minOffice: templateNeeds(id) }) })),
-        samples: SAMPLE_IDS.map((id) => ({ id, needs: whole || needsFor(office, { minOffice: sampleNeeds(id) }) })),
+        templates: TEMPLATE_IDS.map((id) => ({ id, needs: whole || needsFor(office, { minOffice: templateNeeds(id) }), page: pageOf(id) })),
+        samples: SAMPLE_IDS.map((id) => ({ id, needs: whole || needsFor(office, { minOffice: sampleNeeds(id) }), page: pageOf(id) })),
       };
     },
 
@@ -168,6 +170,19 @@ export function createBaseService() {
     addRelationship: ({ id, from, to, cascadeDelete = false }) => { get(id).base.addRelationship({ from, to, cascadeDelete }); return summary(id); },
     removeRelationship: ({ id, relation }) => { get(id).base.removeRelationship(relation); return summary(id); },
     steps: ({ id }) => get(id).base.steps(),
+    /**
+     * A newer design for a database made from a template or sample, when the
+     * set in use has one (D-2026-10-22-04): what it would add, replace, or put
+     * beside the person's own version. Records are never touched.
+     */
+    designUpdate: ({ id }) => {
+      const { available, tables, fields, added, replaced, beside } = planUpgrade(get(id).base);
+      return { available, tables, fields, added, replaced, beside };
+    },
+    applyDesignUpdate: ({ id }) => {
+      const { done, tables, fields, added, replaced, beside } = applyUpgrade(get(id).base);
+      return { done, tables, fields, added, replaced, beside, summary: summary(id) };
+    },
     /** Pin an item to the top of the side panel, or unpin it (D-2026-10-22-05). */
     pin: ({ id, kind, name, pinned = true }) => {
       const { base } = get(id);

@@ -128,4 +128,12 @@ export const BASE_CSS = `
 .bs-pin:hover { background: var(--wash-strong); color: var(--ink); }
 .bs-fold { display: flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .bs-fold h2 { margin: 0; }
+
+/* a ready-made one's page online, and a newer design for a database made from one (D-2026-10-22-03, -04) */
+.bs-card-wrap { position: relative; display: grid; }
+.bs-sample { position: relative; }
+.bs-page-link { position: absolute; top: 6px; inset-inline-end: 6px; display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 50%; background: transparent; color: var(--ink-3); cursor: pointer; }
+.bs-page-link:hover { background: var(--wash-strong); color: var(--accent-text, var(--accent)); }
+.bs-update { display: flex; align-items: center; gap: 10px; padding: 8px 16px; background: color-mix(in srgb, var(--accent) 10%, var(--surface)); border-bottom: 1px solid var(--line); font-size: 13px; }
+.bs-update > span { flex: 1; }
 `;

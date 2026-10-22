@@ -6,6 +6,7 @@
 // is a numbered step like any other and can be changed after.
 
 import { TEMPLATE_IDS, templateTables, templateSpec } from '@rutba/templates/data-files/active';
+import { recordOrigin } from './origin.js';
 
 export { TEMPLATE_IDS, templateTables };
 
@@ -15,7 +16,10 @@ export { TEMPLATE_IDS, templateTables };
  * table and its reports. Answers the names made.
  */
 export function buildTemplate(base, id) {
-  return buildFromSpec(base, templateSpec(id));
+  const made = buildFromSpec(base, templateSpec(id));
+  // Which template it came from, so its page can be linked and a newer design offered (origin.js).
+  recordOrigin(base, { kind: 'template', id });
+  return made;
 }
 
 /**
