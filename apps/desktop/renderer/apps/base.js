@@ -15,6 +15,7 @@ import { ReportView, REPORT_CSS } from './base/reports.js';
 import { RecentFiles } from '../start-page.js';
 import { DocumentView, DOCUMENT_CSS } from './base/documents.js';
 import { useGridFilter, FilterBar, ColumnFilter, selectionItems, FILTER_CSS } from './base/filters.js';
+import { SignIn, ProtectDialog, PasswordDialog, SeeingBanner, PeopleView, PEOPLE_CSS, canDesign, may } from './base/people.js';
 
 /** The ready-made databases the start screen offers, in the engine's order (packages/database/src/templates.js). */
 const TEMPLATES = [
@@ -192,6 +193,11 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
   };
 
   const editable = fields.filter((f) => f.type !== 'autonumber');
+  // What the person's role allows here (D-2026-10-22-11); the database refuses the rest in any case.
+  const mayAdd = may(db, table, 'add');
+  const mayChange = may(db, table, 'change');
+  const mayDelete = may(db, table, 'delete');
+  const fixed = (f) => !mayChange || Boolean(f.readOnly);
   const cols = fields.map((f) => (f.type === 'longtext' ? 280 : f.type === 'yesno' ? 90 : f.type === 'autonumber' ? 80 : 160));
   const template = `36px ${cols.map((w) => `${w}px`).join(' ')}`;
   const wide = 36 + cols.reduce((a, b) => a + b, 0);
@@ -199,7 +205,7 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
 
   const cell = (row, f) => {
     if (f.type === 'yesno') {
-      return <input type="checkbox" checked={Boolean(row[f.name])} aria-label={f.name} onChange={(e) => save(row._rowid, f, e.target.checked)} />;
+      return <input type="checkbox" checked={Boolean(row[f.name])} aria-label={f.name} disabled={fixed(f)} onChange={(e) => save(row._rowid, f, e.target.checked)} />;
     }
     if (editing && editing.rowid === row._rowid && editing.field === f.name) {
       return (
@@ -220,7 +226,7 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
   return (
     <div className="bs-sheet">
       <div className="bs-tools">
-        <Button icon="trash" label={t('Delete')} disabled={!picked.size} className="bs-delete" onClick={removePicked} />
+        {mayDelete ? <Button icon="trash" label={t('Delete')} disabled={!picked.size} className="bs-delete" onClick={removePicked} /> : null}
         <span className="bs-count">{grid.active ? tn(count, '{count} record found', '{count} records found') : tn(count, '{count} record', '{count} records')}</span>
       </div>
       <FilterBar grid={grid} />
@@ -254,7 +260,8 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
                     className={`bs-td t-${f.type}`}
                     role="gridcell"
                     data-field={f.name}
-                    onDoubleClick={() => row && f.type !== 'autonumber' && f.type !== 'yesno' && setEditing({ rowid: row._rowid, field: f.name, value: row[f.name] ?? '' })}
+                    data-readonly={fixed(f) || undefined}
+                    onDoubleClick={() => row && f.type !== 'autonumber' && f.type !== 'yesno' && !fixed(f) && setEditing({ rowid: row._rowid, field: f.name, value: row[f.name] ?? '' })}
                     onContextMenu={(e) => { if (!row) return; e.preventDefault(); menu.open(e, selectionItems(grid, f.name, row[f.name])); }}
                   >
                     {row ? cell(row, f) : null}
@@ -264,18 +271,18 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
             );
           })}
         </div>
-        <div className="bs-row bs-new" style={{ gridTemplateColumns: template }} role="row">
+        {mayAdd ? <div className="bs-row bs-new" style={{ gridTemplateColumns: template }} role="row">
           <span className="bs-pick"><Icon name="plus" size={14} /></span>
           {fields.map((f) => (
             <span key={f.name} className="bs-td">
               {f.type === 'autonumber' ? <span className="bs-auto">{t('(new)')}</span>
                 : f.type === 'yesno' ? <input type="checkbox" aria-label={f.name} checked={Boolean(fresh[f.name])} onChange={(e) => setFresh({ ...fresh, [f.name]: e.target.checked })} />
-                  : <input className="bs-new-input" data-field={f.name} aria-label={f.name} placeholder={TYPE_NAMES()[f.type]} value={fresh[f.name] ?? ''} onChange={(e) => setFresh({ ...fresh, [f.name]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') addRecord(); }} />}
+                  : <input className="bs-new-input" data-field={f.name} aria-label={f.name} placeholder={TYPE_NAMES()[f.type]} disabled={Boolean(f.readOnly)} value={fresh[f.name] ?? ''} onChange={(e) => setFresh({ ...fresh, [f.name]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') addRecord(); }} />}
             </span>
           ))}
-        </div>
+        </div> : null}
       </div>
-      {editable.length ? null : <p className="bs-hint">{t('This table has no fields to fill in yet. Add some in its design.')}</p>}
+      {editable.length || !canDesign(db) ? null : <p className="bs-hint">{t('This table has no fields to fill in yet. Add some in its design.')}</p>}
       {filtering ? <ColumnFilter column={filtering} onApply={grid.put} onClose={() => setFiltering(null)} /> : null}
       {menu.node}
     </div>
@@ -475,6 +482,9 @@ export default function Databases({ app, shell, boot }) {
     }).catch(() => {});
   }, [shell]);
   const [naming, setNaming] = useState(null);
+  // Protect this database, and your own password (D-2026-10-22-11).
+  const [protecting, setProtecting] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const show = useCallback((summary) => {
     setDb(summary);
@@ -718,6 +728,18 @@ export default function Databases({ app, shell, boot }) {
     );
   }
 
+  if (db.access?.locked) {
+    return (
+      <AppFrame app={app} shell={shell} title={title} menu={appMenu}>
+        <SignIn shell={shell} db={db} onSigned={(s) => { show(s); setView('data'); }} />
+        <style>{BASE_CSS + PEOPLE_CSS}</style>
+      </AppFrame>
+    );
+  }
+  const design = canDesign(db);
+  const access = db.access || { protected: false };
+  const isAdmin = access.person?.role === 'Admin';
+
   /* The side panel's items: opened, pinned to the top, and each section folded away (D-2026-10-22-05). */
   const KINDS = {
     table: { icon: 'sheets', attr: 'data-table', on: (n) => table === n && (view === 'data' || view === 'design'), open: (n) => { setTable(n); if (view !== 'design') setView('data'); } },
@@ -773,45 +795,58 @@ export default function Databases({ app, shell, boot }) {
               </ul>
             </section>
           ) : null}
-          {sideSection('tables', t('Tables'), <Button icon="plus" label="" title={t('New Table')} className="bs-new-table" onClick={() => setNaming('')} />, (
+          {sideSection('tables', t('Tables'), design ? <Button icon="plus" label="" title={t('New Table')} className="bs-new-table" onClick={() => setNaming('')} /> : null, (
             <ul className="bs-tables">
               {db.tables.map((x) => sideItem('table', x.name, null, x.count))}
-              {db.tables.length ? null : <li className="bs-hint">{t('No tables yet: make one, or import one.')}</li>}
+              {db.tables.length || !design ? null : <li className="bs-hint">{t('No tables yet: make one, or import one.')}</li>}
             </ul>
           ))}
-          {sideSection('queries', t('Queries'), <Button icon="plus" label="" title={t('New Query')} className="bs-new-query" onClick={() => { setItem(null); setView('query'); }} />, (
+          {sideSection('queries', t('Queries'), design ? <Button icon="plus" label="" title={t('New Query')} className="bs-new-query" onClick={() => { setItem(null); setView('query'); }} /> : null, (
             <ul className="bs-tables bs-queries">{(db.queries || []).map((n) => sideItem('query', n))}</ul>
           ))}
-          {sideSection('forms', t('Forms'), <Button icon="plus" label="" title={t('New Form')} className="bs-new-form" disabled={!db.tables.length} onClick={() => setFormTable(table || db.tables[0]?.name || '')} />, (
+          {sideSection('forms', t('Forms'), design ? <Button icon="plus" label="" title={t('New Form')} className="bs-new-form" disabled={!db.tables.length} onClick={() => setFormTable(table || db.tables[0]?.name || '')} /> : null, (
             <ul className="bs-tables bs-forms">{(db.forms || []).map((n) => sideItem('form', n))}</ul>
           ))}
-          {sideSection('reports', t('Reports'), <Button icon="plus" label="" title={t('New Report')} className="bs-new-report" disabled={!db.tables.length} onClick={() => setReportSource(`table:${table || db.tables[0]?.name || ''}`)} />, (
+          {sideSection('reports', t('Reports'), design ? <Button icon="plus" label="" title={t('New Report')} className="bs-new-report" disabled={!db.tables.length} onClick={() => setReportSource(`table:${table || db.tables[0]?.name || ''}`)} /> : null, (
             <ul className="bs-tables bs-reports">{(db.reports || []).map((n) => sideItem('report', n))}</ul>
           ))}
-          {sideSection('documents', t('Print templates'), <Button icon="plus" label="" title={t('New Print Template')} className="bs-new-document" disabled={!db.tables.length} onClick={() => setDocTable(table || db.tables[0]?.name || '')} />, (
+          {sideSection('documents', t('Print templates'), design ? <Button icon="plus" label="" title={t('New Print Template')} className="bs-new-document" disabled={!db.tables.length} onClick={() => setDocTable(table || db.tables[0]?.name || '')} /> : null, (
             <ul className="bs-tables bs-documents">{(db.documents || []).map((d) => sideItem('document', d.name))}</ul>
           ))}
           <div className="bs-side-foot">
-            <Button icon="import" label={t('Import')} className="bs-import" onClick={importDialog} />
-            <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('Relationships')}</span></button>
-            <button type="button" className={`bs-table${view === 'sql' ? ' on' : ''}`} data-view="sql" onClick={() => setView('sql')}><Icon name="formula" size={14} /><span>{t('SQL')}</span></button>
+            {design ? <Button icon="import" label={t('Import')} className="bs-import" onClick={importDialog} /> : null}
+            {design ? <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('Relationships')}</span></button> : null}
+            {design ? <button type="button" className={`bs-table${view === 'sql' ? ' on' : ''}`} data-view="sql" onClick={() => setView('sql')}><Icon name="formula" size={14} /><span>{t('SQL')}</span></button> : null}
+            {!access.protected && design ? <button type="button" className="bs-table bs-protect" onClick={() => setProtecting(true)}><Icon name="shield" size={14} /><span>{t('Protect this database')}</span></button> : null}
+            {isAdmin && !access.person?.seeing ? <button type="button" className={`bs-table bs-people-open${view === 'people' ? ' on' : ''}`} data-view="people" onClick={() => setView('people')}><Icon name="contacts" size={14} /><span>{t('People and roles')}</span></button> : null}
+            {access.person ? (
+              <div className="bs-me" data-me={access.person.name}>
+                <Icon name="lock" size={13} />
+                <span>{t('Signed in as')} <strong>{access.person.name}</strong> ({access.person.role})</span>
+              </div>
+            ) : null}
+            {access.person ? <button type="button" className="bs-table bs-my-password" onClick={() => setChangingPassword(true)}><Icon name="lock" size={14} /><span>{t('Change my password')}</span></button> : null}
+            {access.person ? <button type="button" className="bs-table bs-sign-out" onClick={async () => { show(await shell.base.signOut({ id: db.id })); }}><Icon name="unlock" size={14} /><span>{t('Sign out')}</span></button> : null}
             {db.origin?.page ? <button type="button" className="bs-table bs-about-online" data-page={db.origin.page} onClick={() => shell.shell.openExternal({ url: db.origin.page }).catch(() => {})}><Icon name="globe" size={14} /><span>{t('About this database online')}</span></button> : null}
           </div>
           {sideMenu.node}
         </nav>
         <main className="bs-main">
           {updateBanner}
+          <SeeingBanner shell={shell} db={db} onChanged={(s) => { show(s); setView('data'); }} />
           {(view === 'data' || view === 'design') && table ? (
             <>
               <div className="bs-tabs" role="tablist">
                 <h1>{table}</h1>
                 {tab('data', t('Records'))}
-                {tab('design', t('Design'))}
+                {design ? tab('design', t('Design')) : null}
               </div>
-              {view === 'data'
+              {view === 'data' || !design
                 ? <Datasheet key={`${table}-${db.steps}`} shell={shell} db={db} table={table} onChanged={refresh} toast={toast} />
                 : <Design shell={shell} db={db} table={table} onChanged={show} onRemoved={() => { setTable(null); refresh(); }} toast={toast} />}
             </>
+          ) : view === 'people' && isAdmin ? (
+            <PeopleView shell={shell} db={db} onChanged={(s) => { show(s); if (s.access?.person?.seeing || !s.access?.protected) setView('data'); }} toast={toast} />
           ) : view === 'relations' ? (
             <Relationships shell={shell} db={db} onChanged={show} toast={toast} />
           ) : view === 'sql' ? (
@@ -893,13 +928,15 @@ export default function Databases({ app, shell, boot }) {
           <p className="bs-hint">{t('Its records on a page, grouped by the first field that points at another table, with the amounts added up for each group and for the whole. Print it, or save it as a PDF.')}</p>
         </Dialog>
       ) : null}
+      {protecting ? <ProtectDialog shell={shell} db={db} onDone={(s) => { show(s); setProtecting(false); setView('people'); }} onClose={() => setProtecting(false)} toast={toast} /> : null}
+      {changingPassword ? <PasswordDialog shell={shell} db={db} onClose={() => setChangingPassword(false)} toast={toast} /> : null}
       {naming !== null ? (
         <Dialog title={t('New Table')} onClose={() => setNaming(null)} actions={<><Button label={t('Cancel')} onClick={() => setNaming(null)} /><Button primary label={t('Make')} className="bs-make-table" disabled={!String(naming).trim()} onClick={makeTable} /></>}>
           <label className="bs-field"><span>{t('Name')}</span><Input className="rw-input bs-table-name" aria-label={t('Name')} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') makeTable(); }} /></label>
           <p className="bs-hint">{t('It starts with an ID that numbers each record; add its fields in its design.')}</p>
         </Dialog>
       ) : null}
-      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS + FILTER_CSS}</style>
+      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS + FILTER_CSS + PEOPLE_CSS}</style>
     </AppFrame>
   );
 }

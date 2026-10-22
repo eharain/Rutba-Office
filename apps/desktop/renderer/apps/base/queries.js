@@ -10,6 +10,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Icon, Input, Select, Dialog, Spinner, useMenu, t, tn } from '@rutba/office-ui';
 import { useGridFilter, FilterBar, ColumnFilter, selectionItems } from './filters.js';
 import { splitNamedExpression } from '@rutba/database/query-design';
+import { canDesign } from './people.js';
 
 /** The Field list's own choice that turns its cell into an expression box. */
 const EXPRESSION = '\u0002expression';
@@ -143,7 +144,7 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
           {found ? <span className="bs-count">{found.filtered ? tn(found.n, '{count} row found', '{count} rows found') : tn(found.n, '{count} row', '{count} rows')}</span> : null}
           <span className="bs-q-grow" />
           <Button icon="refresh" label={t('Run again')} className="bs-q-rerun" onClick={() => setRuns((n) => n + 1)} />
-          <Button primary icon="pen" label={t('Edit query')} className="bs-q-edit" onClick={() => { setEditing(true); setAnswer(null); }} />
+          {canDesign(db) ? <Button primary icon="pen" label={t('Edit query')} className="bs-q-edit" onClick={() => { setEditing(true); setAnswer(null); }} /> : null}
         </div>
         {loaded ? <QueryResults key={runs} shell={shell} db={db} design={loaded} onCount={counted} toast={toast} /> : <div className="bs-q-wait"><Spinner /></div>}
       </div>

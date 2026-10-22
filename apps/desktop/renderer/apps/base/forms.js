@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Select, t, tn } from '@rutba/office-ui';
 import { valueFromControl } from '@rutba/database/form-design';
 import { usePrinter } from './documents.js';
+import { may } from './people.js';
 
 const LABEL_X = 16;
 
@@ -183,10 +184,10 @@ export function FormView({ shell, db, name, onChanged, toast }) {
             <Button icon="pdf" label="" title={t('Save as PDF')} className="bs-form-pdf" onClick={() => printRecord('pdf')} />
           </span>
         ) : null}
-        {isNew
+        {!may(db, layout?.table, 'add') ? null : isNew
           ? <Button primary icon="plus" label={t('Add Record')} className="bs-nav-add" onClick={addRecord} />
           : <Button icon="plus" label={t('New Record')} className="bs-nav-new" onClick={() => setAt(count)} />}
-        {isNew ? null : <Button icon="trash" label={t('Delete')} className="bs-nav-delete" onClick={remove} />}
+        {isNew || !may(db, layout?.table, 'delete') ? null : <Button icon="trash" label={t('Delete')} className="bs-nav-delete" onClick={remove} />}
       </div>
       {printer.portal}
     </div>

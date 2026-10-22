@@ -39,6 +39,7 @@ import { verifyBase } from './verify-base.js';
 import { verifyBaseQueriesForms } from './verify-base-queries-forms.js';
 import { verifyBaseFilter } from './verify-base-filter.js';
 import { verifyBasePin } from './verify-base-pin.js';
+import { verifyBaseAccess } from './verify-base-access.js';
 import { verifyBaseOrigin } from './verify-base-origin.js';
 import { verifyBaseReports } from './verify-base-reports.js';
 import { verifyBaseTemplates } from './verify-base-templates.js';
@@ -5106,6 +5107,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('base-qf')) await verifyBaseQueriesForms({ open, check, until, wait }, { dir });
     if (only.includes('base-filter')) await verifyBaseFilter({ open, check, until, wait }, { dir });
     if (only.includes('base-pin')) await verifyBasePin({ open, check, until, wait }, { dir });
+    if (only.includes('base-access')) await verifyBaseAccess({ open, check, until, wait }, { dir });
     if (only.includes('base-origin')) await verifyBaseOrigin({ open, check, until, wait }, { dir });
     if (only.includes('base-reports')) await verifyBaseReports({ open, check, until, wait }, { dir });
     if (only.includes('base-templates')) await verifyBaseTemplates({ open, check, until, wait }, { dir });
@@ -5498,6 +5500,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('base', () => verifyBaseQueriesForms({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseFilter({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBasePin({ open, check, until, wait }, { dir }));
+  await part('base', () => verifyBaseAccess({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseOrigin({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseReports({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseTemplates({ open, check, until, wait }, { dir }));

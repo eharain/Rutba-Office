@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7772,
+  "count": 7822,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -517,6 +517,12 @@
       "message": "(unknown sender)",
       "where": [
         "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
+      "message": "(you)",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -1173,6 +1179,18 @@
       "message": "A new list needs a name to be saved under.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A new password",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "A new password for {name}",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -2126,6 +2144,7 @@
       "message": "Add",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js",
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/recorder/live-dialog.js",
@@ -2395,6 +2414,12 @@
       "message": "Add a note…",
       "where": [
         "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
+      "message": "Add a person",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -2855,6 +2880,12 @@
       "message": "Adjustment: a layer that changes the look of every layer under it",
       "where": [
         "apps/desktop/renderer/apps/image/insert.js"
+      ]
+    },
+    {
+      "message": "Admin may do everything, the design too. Each other role sees and does only what is chosen here.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -3372,6 +3403,12 @@
       "message": "All {n}",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "All, deleting too",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -4252,6 +4289,12 @@
       ]
     },
     {
+      "message": "As the table",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "As they are",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js"
@@ -4721,6 +4764,12 @@
       "where": [
         "packages/office-ui/src/index.js",
         "packages/office-ui/src/zoom.js"
+      ]
+    },
+    {
+      "message": "Back to my own view",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -6076,6 +6125,7 @@
         "apps/desktop/renderer/apps-choice.js",
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/filters.js",
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
@@ -6491,6 +6541,7 @@
     {
       "message": "Change",
       "where": [
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/recorder/live-dialog.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -6550,6 +6601,13 @@
       "message": "Change case works within one paragraph at a time.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Change my password",
+      "where": [
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -13517,6 +13575,7 @@
       "message": "Fields",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js",
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -14808,7 +14867,8 @@
     {
       "message": "Forms",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -15202,6 +15262,12 @@
       "message": "From no-reply@rutba.io, in your name. {day} left today, {week} this week.",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "From now on it asks who you are as it opens, and each person sees and changes only what their role allows. You become its Admin, who may do everything.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -16288,6 +16354,12 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Hidden",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -18619,6 +18691,12 @@
       ]
     },
     {
+      "message": "It starts reading every table; choose what it may do with each.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "It starts with an ID that numbers each record; add its fields in its design.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -18634,6 +18712,12 @@
       "message": "It was signed with SHA-1, which no longer protects a signature from forgery.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "It will open for anyone again, with everything in it. Your password, to be sure:",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -20871,7 +20955,8 @@
     {
       "message": "Make",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -20890,6 +20975,12 @@
       "message": "Make a link",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Make a role for each kind of work: a cashier, a manager, someone who keeps the stock.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -21459,6 +21550,12 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "May",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -22612,6 +22709,7 @@
       "where": [
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/documents.js",
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image/batch.js",
@@ -23092,6 +23190,12 @@
       ]
     },
     {
+      "message": "New password",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "New picture",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -23101,6 +23205,12 @@
       "message": "New record",
       "where": [
         "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
+      "message": "New role",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -25526,6 +25636,12 @@
       ]
     },
     {
+      "message": "Only those they added",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "Only when it is not the address itself.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -26694,6 +26810,7 @@
     {
       "message": "Password",
       "where": [
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/talk.js",
@@ -26948,6 +27065,7 @@
     {
       "message": "People",
       "where": [
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/parts.js",
@@ -26956,6 +27074,12 @@
     },
     {
       "message": "People and how to reach them, with a phone list to print.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "People and roles",
       "where": [
         "apps/desktop/renderer/apps/base.js"
       ]
@@ -28337,7 +28461,8 @@
     {
       "message": "Print templates",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -28525,6 +28650,7 @@
     {
       "message": "Protect",
       "where": [
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/forms.js",
@@ -28609,6 +28735,13 @@
       "message": "Protect sheet",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Protect this database",
+      "where": [
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -28833,7 +28966,8 @@
     {
       "message": "Queries",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -29003,6 +29137,12 @@
       ]
     },
     {
+      "message": "Read and add",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "Read as a receipt.",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
@@ -29018,6 +29158,12 @@
       "message": "Read back: none of the marked words is left in any part of the copy.",
       "where": [
         "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Read only",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -29048,6 +29194,12 @@
       "message": "Read the document aloud, from the caret",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Read, add and change",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -29485,7 +29637,8 @@
       "message": "Records",
       "where": [
         "apps/desktop/renderer/apps/base.js",
-        "apps/desktop/renderer/apps/base/forms.js"
+        "apps/desktop/renderer/apps/base/forms.js",
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -30256,6 +30409,12 @@
       ]
     },
     {
+      "message": "Remove this role",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "Remove this row",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
@@ -30296,6 +30455,12 @@
       "plural": "Remove {count} duplicates",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Remove {name}",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -30714,7 +30879,8 @@
     {
       "message": "Reports",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -31327,9 +31493,27 @@
       ]
     },
     {
+      "message": "Role",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "Role of {name}",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "Role, under the name",
       "where": [
         "apps/desktop/renderer/apps/video/intro/brand.js"
+      ]
+    },
+    {
+      "message": "Roles",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -33034,6 +33218,12 @@
       "message": "See Jupiter",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js"
+      ]
+    },
+    {
+      "message": "See as {role}",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -34821,6 +35011,7 @@
     {
       "message": "Sign in",
       "where": [
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
@@ -34828,6 +35019,12 @@
       "message": "Sign in to Talk to accept the invitation you opened.",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "Sign in to {name}",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -34845,6 +35042,7 @@
     {
       "message": "Sign out",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/talk.js"
       ]
     },
@@ -34981,6 +35179,12 @@
       "message": "Signed by {name}. The signature is valid and the message has not changed since it was signed.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "Signed in as",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -37234,6 +37438,7 @@
       "message": "Table",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -37415,6 +37620,12 @@
       ]
     },
     {
+      "message": "Tables made from now on",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "Tables of records you keep, related to each other, in one file on this computer.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -37460,6 +37671,12 @@
       ]
     },
     {
+      "message": "Take it away",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "Take it back and reopen it in Compose",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -37475,6 +37692,12 @@
       "message": "Take the password off",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Take the protection away",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -37636,6 +37859,12 @@
       "message": "Teleprompter speed",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Tell them their password; they can change it once they have signed in.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -38643,6 +38872,18 @@
       ]
     },
     {
+      "message": "The database is no longer protected. The people are removed; the record of who changed what is kept.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "The database is protected. You are its Admin: add people and give their roles what they may see in People and roles.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "The deck's layouts in a pane — put this slide on one, or start a new slide from it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -38799,6 +39040,12 @@
       "message": "The file is no longer where it was.",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "The file itself is not encrypted: the roles hold in Rutba Office, but anyone who copies the file can read it with another program.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -39173,6 +39420,12 @@
       ]
     },
     {
+      "message": "The new password again",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "The new size is smaller one way. Maximize keeps the content as large as it is, so some may run off the edges; Ensure Fit scales it down so all of it stays on the slide.",
       "where": [
         "apps/desktop/renderer/apps/slides/slide-size.js"
@@ -39272,6 +39525,18 @@
       "message": "The pages could not be printed: {reason}",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "The password again",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "The password is changed.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -39839,6 +40104,7 @@
     {
       "message": "The two passwords are not the same.",
       "where": [
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/word/restrict.js",
         "apps/desktop/renderer/protect.js"
@@ -39973,6 +40239,12 @@
       "message": "The {n} Office apps are on. Add Image, Video, Recorder, Talk or AI Tools when you want them, and turn off what you do not use, at any time.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Their password",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -40618,6 +40890,12 @@
       "where": [
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This database is protected. Sign in to open it.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -41469,6 +41747,12 @@
       "message": "Tick the apps and add-ons you want. Any of them can be added or taken away later, from Choose apps in Rutba Office.",
       "where": [
         "apps/desktop/renderer/apps-choice.js"
+      ]
+    },
+    {
+      "message": "Ticked ones are shown. Any that stand on a table the role cannot see are left out for it in any case.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -44071,6 +44355,12 @@
       ]
     },
     {
+      "message": "What {role} may do with {table}",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "What's New",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -44205,6 +44495,12 @@
       "message": "Who signs it. Left empty, the note is signed with your account's name.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Who you are",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -44834,6 +45130,12 @@
       ]
     },
     {
+      "message": "You are seeing this database as {role} sees it. Nothing can be changed until you go back.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
       "message": "You can invite them again {when}",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
@@ -44915,6 +45217,7 @@
     {
       "message": "Your name",
       "where": [
+        "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pdf/fields.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -44933,6 +45236,18 @@
       "message": "Your own formula…",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Your password is changed.",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "Your password now",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {
@@ -48349,6 +48664,12 @@
       "message": "{error} (at character {at})",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
+      ]
+    },
+    {
+      "message": "{field} for {role}",
+      "where": [
+        "apps/desktop/renderer/apps/base/people.js"
       ]
     },
     {

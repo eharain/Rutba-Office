@@ -7,6 +7,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, Input, Select, t, tn } from '@rutba/office-ui';
+import { canDesign } from './people.js';
 
 const FN_LABEL = { sum: () => t('Sum'), avg: () => t('Average'), count: () => t('Count'), min: () => t('Smallest'), max: () => t('Largest') };
 
@@ -168,7 +169,7 @@ export function ReportView({ shell, db, name, onChanged, onRemoved, toast }) {
         <span className="grow" />
         <Button icon="print" label={t('Print')} className="bs-report-print" onClick={print} />
         <Button icon="pdf" label={t('Save as PDF')} className="bs-report-pdf" onClick={savePdf} />
-        <Button icon="trash" label="" title={t('Delete this report')} className="bs-report-delete" onClick={remove} />
+        {canDesign(db) ? <Button icon="trash" label="" title={t('Delete this report')} className="bs-report-delete" onClick={remove} /> : null}
       </div>
       <div className="bs-report-scroll">
         <ReportPage data={data} today={today} />

@@ -10,6 +10,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { Button, Icon, Input, Select, t, tn } from '@rutba/office-ui';
 import { shown } from './reports.js';
+import { canDesign } from './people.js';
 
 const PAPER = () => [['a4', t('A4')], ['letter', t('Letter')], ['a5', t('A5')], ['receipt-80', t('Till roll, 80 mm')], ['receipt-58', t('Till roll, 58 mm')]];
 const BLOCK_KINDS = () => [['heading', t('Heading')], ['fields', t('Fields')], ['lines', t('Lines')], ['totals', t('Totals')], ['text', t('Text')], ['signatures', t('Signatures')], ['spacer', t('Space')]];
@@ -355,10 +356,10 @@ export function DocumentView({ shell, db, name, onChanged, onRemoved, toast }) {
         <span className="grow" />
         <Button icon="print" label={t('Print')} className="bs-doc-print" disabled={!count} onClick={() => printer.print(data)} />
         <Button icon="pdf" label={t('Save as PDF')} className="bs-doc-pdf" disabled={!count} onClick={() => printer.savePdf(data, layout.name)} />
-        <Button icon="pen" label={t('Design')} className={`bs-doc-design${design ? ' on' : ''}`} aria-pressed={design} onClick={() => setDesign(!design)} />
-        <Button icon="trash" label="" title={t('Delete this print template')} className="bs-doc-delete" onClick={async () => {
+        {canDesign(db) ? <Button icon="pen" label={t('Design')} className={`bs-doc-design${design ? ' on' : ''}`} aria-pressed={design} onClick={() => setDesign(!design)} /> : null}
+        {canDesign(db) ? <Button icon="trash" label="" title={t('Delete this print template')} className="bs-doc-delete" onClick={async () => {
           try { onRemoved?.(await shell.base.removeDocument({ id: db.id, name })); } catch (e) { toast(e.message, { tone: 'bad', ms: 7000 }); }
-        }} />
+        }} /> : null}
       </div>
       <div className="bs-doc-body">
         <div className="bs-report-scroll">

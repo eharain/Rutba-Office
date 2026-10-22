@@ -40,7 +40,8 @@ export function createBaseService() {
       file,
       name: path.basename(file).replace(/\.[^.]+$/, ''),
       tables: base.tables().map((t) => ({ ...t, count: base.count(t.name) })),
-      relationships: base.relationships(),
+      // Only those between tables the person's role shows.
+      relationships: (() => { const seen = new Set(base.tables().map((t) => t.name)); return base.relationships().filter((r) => seen.has(r.from.table) && seen.has(r.to.table)); })(),
       queries: base.queries().map((x) => x.name),
       forms: base.forms().map((x) => x.name),
       reports: base.reports().map((x) => x.name),
@@ -51,7 +52,19 @@ export function createBaseService() {
       folded: listMeta(base, 'folded'),
       // The template or sample it was made from, and its page online (D-2026-10-22-03).
       origin: (() => { const o = originOf(base); return o ? { kind: o.kind, id: o.id, set: o.set, page: pageOf(o.id) } : null; })(),
+      // Who is using it (D-2026-10-22-11): protected or not, who is signed in, and what their role narrows.
+      access: accessOf(base),
     };
+  };
+  const accessOf = (base) => {
+    if (!base.isProtected()) return { protected: false };
+    const person = base.person();
+    return { protected: true, locked: !person, names: person ? [] : base.signInNames(), person, rights: base.rights() };
+  };
+  /** Only for someone who sees everything: a copy of the file, or a newer design, would reach past a role. */
+  const whole = (base) => {
+    if (base.access?.locked) throw new Error('Sign in to open this database.');
+    if (base.rights()) throw new Error('Only someone whose role may change the design can do that.');
   };
   const listMeta = (base, key) => { try { const v = JSON.parse(base.meta(key) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
   const pinnedOf = (base) => {
@@ -176,10 +189,14 @@ export function createBaseService() {
      * beside the person's own version. Records are never touched.
      */
     designUpdate: ({ id }) => {
-      const { available, tables, fields, added, replaced, beside } = planUpgrade(get(id).base);
+      const { base } = get(id);
+      // Offered to those who may change the design; to anyone else it is not there.
+      if (base.access?.locked || base.rights()) return { available: false };
+      const { available, tables, fields, added, replaced, beside } = planUpgrade(base);
       return { available, tables, fields, added, replaced, beside };
     },
     applyDesignUpdate: ({ id }) => {
+      whole(get(id).base);
       const { done, tables, fields, added, replaced, beside } = applyUpgrade(get(id).base);
       return { done, tables, fields, added, replaced, beside, summary: summary(id) };
     },
@@ -265,11 +282,38 @@ export function createBaseService() {
     /** A copy of the database at `file` (Save As), the copy then the one open. */
     saveAs: ({ id, file }, win) => {
       const o = get(id);
+      whole(o.base);
       if (path.resolve(file).toLowerCase() === path.resolve(o.file).toLowerCase()) return summary(id);
       for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
       o.base.db.exec(`VACUUM INTO '${String(file).replace(/'/g, "''")}'`);
+      const access = o.base.access;
       letGo(id);
-      return summary(hold(file, win));
+      const copy = hold(file, win);
+      // The copy opens as the person who made it, not locked in front of them.
+      if (access && !access.locked) { get(copy).base.access = access; get(copy).base._applyViews(); }
+      return summary(copy);
+    },
+
+    /* People, roles and protection (D-2026-10-22-11). Each answers the summary, its access in it. */
+    signIn: ({ id, name, password }) => { get(id).base.signIn(name, password); return summary(id); },
+    signOut: ({ id }) => { get(id).base.signOut(); return summary(id); },
+    protect: ({ id, name, password }) => { get(id).base.protect({ name, password }); return summary(id); },
+    unprotect: ({ id, password }) => { get(id).base.unprotect({ password }); return summary(id); },
+    seeAs: ({ id, role = null }) => { get(id).base.seeAs(role); return summary(id); },
+    roles: ({ id }) => get(id).base.roles(),
+    saveRole: ({ id, name, rights }) => ({ name: get(id).base.saveRole(name, rights) }),
+    removeRole: ({ id, name }) => { get(id).base.removeRole(name); return { removed: true }; },
+    people: ({ id }) => get(id).base.people(),
+    addPerson: ({ id, name, role, password }) => ({ id: get(id).base.addPerson({ name, role, password }) }),
+    changePerson: ({ id, person, name = null, role = null }) => { get(id).base.changePerson(person, { name, role }); return { changed: true }; },
+    removePerson: ({ id, person }) => { get(id).base.removePerson(person); return { removed: true }; },
+    setPassword: ({ id, person, password, current = null }) => { get(id).base.setPassword(person, password, { current }); return { changed: true }; },
+    trailOf: ({ id, table, rowid }) => get(id).base.trailOf(table, rowid),
+    /** Every table's fields, all of them, for the Admin's People and roles grid. */
+    allFields: ({ id }) => {
+      const { base } = get(id);
+      whole(base);
+      return Object.fromEntries(base.tables().map((t) => [t.name, base.fields(t.name).map((f) => f.name)]));
     },
 
     /** Every database let go, as the app closes. */

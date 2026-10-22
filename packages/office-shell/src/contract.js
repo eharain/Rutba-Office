@@ -350,6 +350,21 @@ export const METHODS = {
     'applyDesignUpdate', // ({ id }) -> { done, ..., summary }   that design brought in, records kept, the person's changes kept
     'pin',          // ({ id, kind: 'table' | 'query' | 'form' | 'report' | 'document', name, pinned }) -> summary   pinned first in the side panel, kept in the file
     'fold',         // ({ id, section, folded }) -> summary   a side panel section folded away, kept in the file
+    'signIn',       // ({ id, name, password }) -> summary   a protected database opened as that person's role allows (D-2026-10-22-11)
+    'signOut',      // ({ id }) -> summary   locked again until someone signs in
+    'protect',      // ({ id, name, password }) -> summary   protected from now on, that person its first Admin
+    'unprotect',    // ({ id, password }) -> summary   the protection taken away by an Admin; the people go, the records stay
+    'seeAs',        // ({ id, role | null }) -> summary   an Admin sees the database as a role would, reading only
+    'roles',        // ({ id }) -> [{ name, rights, builtIn }]
+    'saveRole',     // ({ id, name, rights }) -> { name }
+    'removeRole',   // ({ id, name }) -> { removed }
+    'people',       // ({ id }) -> [{ id, name, role, created }]
+    'addPerson',    // ({ id, name, role, password }) -> { id }
+    'changePerson', // ({ id, person, name?, role? }) -> { changed }
+    'removePerson', // ({ id, person }) -> { removed }
+    'setPassword',  // ({ id, person, password, current? }) -> { changed }   your own with the one before it; anyone's, for an Admin
+    'trailOf',      // ({ id, table, rowid }) -> [{ at, person, action, fields }]   who added and changed a record
+    'allFields',    // ({ id }) -> { [table]: [field name] }   every field, for the People and roles grid
     'queryRows',    // ({ id, name? | design?, offset?, limit?, order?, search?, filters? }) -> { columns: [{ name, type }], rows, count }   a page of a query's results, as rows reads a table's
     'insert',       // ({ id, table, values }) -> { rowid }
     'update',       // ({ id, table, rowid, values }) -> { changed }
