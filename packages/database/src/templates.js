@@ -39,6 +39,8 @@ export function buildFromSpec(base, t) {
       base.addRelationship({ from: { table: x.name, field: f.name }, to: { table: f.points, field: 'ID' } });
     }
   }
+  // What names each table's records, where the spec says (a sale by its Receipt No, not its payment).
+  for (const x of t.tables) if (x.show) base.setShown(x.name, x.show);
   for (const [name, design] of Object.entries(t.queries || {})) base.saveQuery(name, design);
   for (const x of t.tables) base.makeForm(x.name);
   for (const r of t.reports || []) {

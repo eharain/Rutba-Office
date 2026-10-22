@@ -138,3 +138,35 @@ test('a query column rounded to its decimals: an average to two places, a calcul
     assert.equal(calc.rows[0].Third, 3.3);
   } finally { b.close(); }
 });
+
+test('what names a record: what the table says, else a field whose values name one record each, references included', async () => {
+  const { buildFromSpec } = await import('../packages/database/src/index.js');
+  const b = Base.open(':memory:');
+  try {
+    buildFromSpec(b, { tables: [
+      { name: 'Sales', fields: [{ name: 'Receipt No', type: 'text' }, { name: 'Payment', type: 'text' }] },
+      { name: 'Products', fields: [{ name: 'Barcode', type: 'text' }, { name: 'Name', type: 'text' }] },
+      { name: 'Units', show: ['Unit'], fields: [{ name: 'Unit', type: 'text' }, { name: 'Floor', type: 'text' }] },
+    ] });
+    for (let i = 1; i <= 30; i++) b.insert('Sales', { 'Receipt No': `R-${String(i).padStart(3, '0')}`, Payment: i % 2 ? 'Card' : 'Cash' });
+    b.insert('Products', { Barcode: '501', Name: 'Bread' });
+    b.insert('Products', { Barcode: '502', Name: 'Milk' });
+    b.insert('Units', { Unit: 'Flat 1', Floor: 'Ground' });
+    b.insert('Units', { Unit: 'Flat 2', Floor: 'Ground' });
+    // Payment repeats; the receipt number names one sale.
+    assert.equal(b.shownOf('Sales'), 'Receipt No');
+    assert.equal(b.shownOf('Products'), 'Name');
+    assert.equal(b.shownOf('Units'), 'Unit');
+    assert.deepEqual(b.lookup({ table: 'Sales', field: 'ID', show: 'Payment' }).slice(0, 2).map((o) => o.text), ['R-001', 'R-002']);
+    // A long list a page at a time, searched, or the words of the records shown.
+    const page = b.lookupPage({ table: 'Sales', field: 'ID', limit: 10 });
+    assert.equal(page.items.length, 10);
+    assert.equal(page.more, true);
+    assert.deepEqual(b.lookupPage({ table: 'Sales', field: 'ID', search: '02' }).items.map((o) => o.text), ['R-002', 'R-020', 'R-021', 'R-022', 'R-023', 'R-024', 'R-025', 'R-026', 'R-027', 'R-028', 'R-029']);
+    assert.deepEqual(b.lookupPage({ table: 'Sales', field: 'ID', values: [30, 7] }).items.map((o) => [o.value, o.text]).sort((x, y) => x[0] - y[0]), [[7, 'R-007'], [30, 'R-030']]);
+    assert.deepEqual(b.lookupPage({ table: 'Sales', field: 'ID', search: '100%_' }).items, []);
+    b.setShown('Sales', ['Payment', 'Receipt No']);
+    assert.deepEqual(b.shownOf('Sales'), ['Payment', 'Receipt No']);
+    assert.throws(() => b.setShown('Sales', ['Nope']), /no field called Nope/);
+  } finally { b.close(); }
+});

@@ -78,7 +78,7 @@ const keyOf = (base, table) => (base.fields(table).find((f) => f.type === 'auton
  */
 function wordsFor(base, table, record) {
   if (!record) return null;
-  const show = shownField(base.fields(table));
+  const show = base.shownOf ? base.shownOf(table) : shownField(base.fields(table));
   return Array.isArray(show) ? show.map((f) => record[f]).filter((v) => v !== null && v !== undefined && v !== '').join(' ') : record[show];
 }
 

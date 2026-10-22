@@ -660,7 +660,7 @@ export class Base {
       fields = this.fields(l.source.table).map((f) => ({ name: f.name, type: f.type }));
       records = this.rows(l.source.table, { limit: 1_000_000 });
       for (const r of this.relationships().filter((x) => x.from.table === l.source.table)) {
-        const show = shownField(this.fields(r.to.table));
+        const show = this.shownOf(r.to.table);
         shown[r.from.field] = new Map(this.lookup({ table: r.to.table, field: r.to.field, show, limit: 1_000_000 }).map((o) => [o.value, o.text]));
       }
     } else {
@@ -720,10 +720,16 @@ export class Base {
     return documentData(this, l, { keys, limit });
   }
 
-  /** The choices for a lookup: each record of `table` by its `field`, shown as `show` (a field, or several), at most `limit`. */
+  /**
+   * The choices for a lookup: each record of `table` by its `field`, named
+   * as the table says its records are named (shownOf), at most `limit`. A
+   * `show` given is used only for a table that says nothing and has no
+   * field that names its records alone.
+   */
   lookup({ table, field, show, limit = 2000 }) {
     // A role sees the choices of a table it may read, by the fields it may see.
-    let wanted = Array.isArray(show) && show.length ? show : [show || field];
+    const named = this.shownOf(table);
+    let wanted = Array.isArray(named) ? named : [named || (Array.isArray(show) ? show[0] : show) || field];
     if (this._rights()) {
       const seen = new Set(this.fields(table).map((f) => f.name));
       if (!seen.has(field)) return [];
@@ -1176,6 +1182,89 @@ export class Base {
   /** Whether a linked table's records have been read here yet. */
   linkedLoaded(table) {
     return Boolean(this.db.prepare("SELECT 1 FROM sqlite_temp_master WHERE type = 'table' AND name = ?").get(table));
+  }
+
+
+  /* ── what names a table's records (found filming the samples, 2026-10-22) ── */
+
+  _shownMap() {
+    try { const m = JSON.parse(this.meta('shown') || '{}'); return m && typeof m === 'object' ? m : {}; } catch { return {}; }
+  }
+
+  /** Say what names `table`'s records: a field or several (a reference, or a name and a date), or null to leave it to the data. */
+  setShown(table, fields) {
+    const list = fields == null ? null : [].concat(fields).map(String);
+    const have = new Set(this.fields(table).map((f) => f.name));
+    if (list) for (const f of list) if (!have.has(f)) throw new Error(`${table} has no field called ${f}.`);
+    const map = this._shownMap();
+    if (list && list.length) map[table] = list; else delete map[table];
+    this._step(`Records of ${table} named by ${list ? list.join(', ') : 'their data'}`, { table, show: list }, () => this.setMeta('shown', JSON.stringify(map)));
+    this._shownCache = null;
+  }
+
+  /**
+   * What names `table`'s records, in its lists, subforms, reports and print
+   * templates: what the table says (setShown); else the first of its likely
+   * fields whose values name one record each (a Name or Title, a field
+   * ending in Name, a text field, then a reference such as a Receipt No);
+   * else the likeliest, as shownField picks it. A field, or a list of them.
+   */
+  shownOf(table) {
+    const fields = this.fields(table);
+    if (!fields.length) return null;
+    const have = new Set(fields.map((f) => f.name));
+    const declared = this._shownMap()[table];
+    if (Array.isArray(declared) && declared.length && declared.every((f) => have.has(f))) return declared.length === 1 ? declared[0] : declared;
+    const count = (() => { try { return this.db.prepare(`SELECT count(*) AS n FROM ${q(table)}`).get().n; } catch { return 0; } })();
+    this._shownCache ||= new Map();
+    const key = `${table}|${count}|${this.steps().length}`;
+    if (this._shownCache.has(key)) return this._shownCache.get(key);
+    const pick = shownField(fields);
+    const text = fields.filter((f) => f.type === 'text');
+    const named = (re) => text.filter((f) => re.test(f.name)).map((f) => f.name);
+    const candidates = [];
+    if (Array.isArray(pick)) candidates.push(pick);
+    for (const n of [...named(/^(name|title)$/i), ...named(/[ _]?name$/i), ...text.map((f) => f.name)]) if (!candidates.some((c) => c === n)) candidates.push(n);
+    const unique = (c) => {
+      const expr = Array.isArray(c) ? c.map((f) => `COALESCE(${q(f)}, '')`).join(" || ' ' || ") : q(c);
+      try {
+        const r = this.db.prepare(`SELECT count(*) AS n, count(DISTINCT ${expr}) AS d FROM ${q(table)} WHERE ${Array.isArray(c) ? '1' : `${q(c)} IS NOT NULL AND ${q(c)} <> ''`}`).get();
+        return r.n > 0 && r.d === r.n && r.n >= count * 0.9;
+      } catch { return false; }
+    };
+    // With fewer than two records nothing can repeat: the likeliest stands.
+    const out = count < 2 ? pick : (candidates.find(unique) ?? pick);
+    this._shownCache.set(key, out);
+    return out;
+  }
+
+  /**
+   * A page of a lookup's choices, for a list too long to hold them all:
+   * { items: [{ value, text }], more } with `search` matching the words, or
+   * the words of the records whose `field` is one of `values`.
+   */
+  lookupPage({ table, field, search = '', values = null, limit = 500 }) {
+    const named = this.shownOf(table);
+    let shown = Array.isArray(named) ? named : [named || field];
+    if (this._rights()) {
+      const seen = new Set(this.fields(table).map((f) => f.name));
+      if (!seen.has(field)) return { items: [], more: false };
+      shown = shown.filter((f) => seen.has(f));
+      if (!shown.length) shown = [field];
+    }
+    const text = shown.length > 1 ? `TRIM(${shown.map((f) => `COALESCE(${q(f)}, '')`).join(" || ' ' || ")})` : `CAST(${q(shown[0])} AS TEXT)`;
+    const order = shown.length > 1 ? `${q(shown[shown.length - 1])}, ${text}` : text;
+    const word = (r) => ({ value: r.value, text: r.text == null || r.text === '' ? String(r.value) : String(r.text) });
+    if (Array.isArray(values)) {
+      const list = values.filter((v) => v !== null && v !== undefined && v !== '');
+      if (!list.length) return { items: [], more: false };
+      const rows = this.db.prepare(`SELECT ${q(field)} AS value, ${text} AS text FROM ${q(table)} WHERE ${q(field)} IN (${list.map(() => '?').join(', ')})`).all(...list);
+      return { items: rows.map(word), more: false };
+    }
+    const where = search ? ` WHERE ${text} LIKE ? ESCAPE '\\'` : '';
+    const params = search ? [`%${String(search).replace(/[\\%_]/g, (m) => `\\${m}`)}%`] : [];
+    const rows = this.db.prepare(`SELECT ${q(field)} AS value, ${text} AS text FROM ${q(table)}${where} ORDER BY ${order} LIMIT ?`).all(...params, limit + 1);
+    return { items: rows.slice(0, limit).map(word), more: rows.length > limit };
   }
 
 }
