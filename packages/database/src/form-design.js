@@ -30,8 +30,10 @@ export function labelFor(name) {
 }
 
 /**
- * The field a table's records are best known by: its first text field, else
- * its first field. A person's First Name and Last Name are both, as a list of
+ * The field a table's records are best known by: its Name or Title, or a
+ * field whose name ends in Name; else its first text field that is not a
+ * code (a barcode, an SKU, a reference); else its first text field, else its
+ * first field. A person's First Name and Last Name are both, as a list of
  * two, so a borrower is Amira Haddad and not Amira.
  */
 export function shownField(fields) {
@@ -39,7 +41,10 @@ export function shownField(fields) {
   const first = named(/^(first|given)[ _]?name$/i);
   const last = named(/^(last|family)[ _]?name$|^surname$/i);
   if (first && last) return [first, last];
-  return (fields.find((f) => f.type === 'text') || fields.find((f) => f.type !== 'autonumber') || fields[0])?.name;
+  const code = /(^|[ _])(bar ?code|code|sku|ref|reference|number|no|id|plate|registration|reg)$/i;
+  return named(/^(name|title)$/i) || named(/[ _]?name$/i)
+    || fields.find((f) => f.type === 'text' && !code.test(f.name))?.name
+    || (fields.find((f) => f.type === 'text') || fields.find((f) => f.type !== 'autonumber') || fields[0])?.name;
 }
 
 /**

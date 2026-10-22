@@ -7,7 +7,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Select, t, tn } from '@rutba/office-ui';
-import { valueFromControl } from '@rutba/database/form-design';
+import { valueFromControl, shownField } from '@rutba/database/form-design';
 import { usePrinter } from './documents.js';
 import { may } from './people.js';
 
@@ -29,6 +29,8 @@ export function FormView({ shell, db, name, onChanged, toast }) {
   const [draft, setDraft] = useState({});
   const [lists, setLists] = useState({});
   const [related, setRelated] = useState({});
+  // A subform's field that points at another table, shown as that record's words: `${table}.${field}` -> Map(value -> words).
+  const [subLists, setSubLists] = useState({});
   // The print templates for this form's table: the record shown printed, or saved as a PDF.
   const templates = (db.documents || []).filter((d) => d.table === layout?.table);
   const [template, setTemplate] = useState('');
@@ -67,6 +69,30 @@ export function FormView({ shell, db, name, onChanged, toast }) {
       .catch(() => {});
     return () => { live = false; };
   }, [shell, db.id, layout]);
+
+  useEffect(() => {
+    if (!layout) return undefined;
+    let live = true;
+    const wanted = [];
+    for (const s of layout.subforms || []) {
+      for (const col of s.columns) {
+        if (col === s.field) continue;
+        const rel = (db.relationships || []).find((r) => r.from.table === s.table && r.from.field === col);
+        if (rel) wanted.push([s.table, col, rel]);
+      }
+    }
+    Promise.all(wanted.map(async ([tbl, col, rel]) => {
+      const fields = await shell.base.fields({ id: db.id, table: rel.to.table });
+      const items = await shell.base.lookup({ id: db.id, table: rel.to.table, field: rel.to.field, show: shownField(fields) });
+      return [`${tbl}.${col}`, new Map(items.map((o) => [o.value, o.text]))];
+    })).then((pairs) => { if (live) setSubLists(Object.fromEntries(pairs)); }).catch(() => {});
+    return () => { live = false; };
+  }, [shell, db.id, layout, db.relationships]);
+  const subValue = (tbl, col, v) => {
+    if (v === null || v === undefined) return '';
+    const words = subLists[`${tbl}.${col}`]?.get(v);
+    return words === undefined ? String(v) : words;
+  };
 
   const load = useCallback(async (place) => {
     if (!layout) return;
@@ -160,7 +186,7 @@ export function FormView({ shell, db, name, onChanged, toast }) {
             <div className="bs-subform-body">
               <table>
                 <thead><tr>{s.columns.map((col) => <th key={col}>{col}</th>)}</tr></thead>
-                <tbody>{(related[s.table]?.rows || []).map((r) => <tr key={r._rowid}>{s.columns.map((col) => <td key={col}>{r[col] === null || r[col] === undefined ? '' : String(r[col])}</td>)}</tr>)}</tbody>
+                <tbody>{(related[s.table]?.rows || []).map((r) => <tr key={r._rowid}>{s.columns.map((col) => <td key={col} data-col={col}>{subValue(s.table, col, r[col])}</td>)}</tr>)}</tbody>
               </table>
             </div>
           </div>
@@ -206,6 +232,8 @@ export const FORM_CSS = `
 .bs-fc-check { width: 18px !important; height: 18px !important; accent-color: var(--accent); margin: 4px 0 0; }
 .bs-fc-number, .bs-fc-currency { text-align: end; }
 .bs-fc-longtext { resize: none; }
+/* A list in a form's row: no top and bottom padding, or Chromium squeezes its words into what is left and cuts them. */
+.bs-fc.bs-fc-list { padding-top: 0; padding-bottom: 0; }
 .bs-subform { position: absolute; transform: translateY(48px); display: flex; flex-direction: column; border: 1px solid var(--line-soft); border-radius: var(--r-2); }
 .bs-subform-head { padding: 6px 10px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--line-soft); background: var(--sunken); }
 .bs-subform-head small { color: var(--ink-3); font-weight: 400; margin-inline-start: 6px; }

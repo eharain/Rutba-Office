@@ -41,6 +41,7 @@ import { verifyBaseFilter } from './verify-base-filter.js';
 import { verifyBasePin } from './verify-base-pin.js';
 import { verifyBaseAccess } from './verify-base-access.js';
 import { verifyBaseEngineLink } from './verify-base-engine-link.js';
+import { verifyBaseFormLists } from './verify-base-form-lists.js';
 import { verifyBaseOrigin } from './verify-base-origin.js';
 import { verifyBaseReports } from './verify-base-reports.js';
 import { verifyBaseTemplates } from './verify-base-templates.js';
@@ -5110,6 +5111,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('base-pin')) await verifyBasePin({ open, check, until, wait }, { dir });
     if (only.includes('base-access')) await verifyBaseAccess({ open, check, until, wait }, { dir });
     if (only.includes('base-engine-link')) await verifyBaseEngineLink({ open, check, until, wait }, { dir });
+    if (only.includes('base-form-lists')) await verifyBaseFormLists({ open, check, until, wait }, { dir });
     if (only.includes('base-origin')) await verifyBaseOrigin({ open, check, until, wait }, { dir });
     if (only.includes('base-reports')) await verifyBaseReports({ open, check, until, wait }, { dir });
     if (only.includes('base-templates')) await verifyBaseTemplates({ open, check, until, wait }, { dir });
@@ -5504,6 +5506,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('base', () => verifyBasePin({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseAccess({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseEngineLink({ open, check, until, wait }, { dir }));
+  await part('base', () => verifyBaseFormLists({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseOrigin({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseReports({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseTemplates({ open, check, until, wait }, { dir }));
