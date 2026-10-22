@@ -51,6 +51,7 @@
     "electron-updater": "^6.8.9",
     "imapflow": "^2.4.3",
     "mailparser": "^3.9.39",
+    "mysql2": "3.24.6",
     "nodemailer": "^10.1.1",
     "pg": "8.23.1"
   },

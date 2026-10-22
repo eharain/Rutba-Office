@@ -47,10 +47,10 @@ test('a PostgreSQL table linked live: read into the window, changed in the engin
   const secrets = { available: () => true, get: (k) => kept.get(k) ?? null, set: (k, v) => kept.set(k, v), delete: (k) => kept.delete(k) };
   const svc = createBaseService({ secrets });
   try {
-    await pgc.query('DROP SCHEMA IF EXISTS office_link_test CASCADE');
-    await pgc.query('CREATE SCHEMA office_link_test');
-    await pgc.query(`CREATE TABLE office_link_test.products (id serial PRIMARY KEY, name varchar(80) NOT NULL, price numeric(10,2), active boolean DEFAULT true, added date)`);
-    await pgc.query(`INSERT INTO office_link_test.products (name, price, active, added) VALUES ('Bread', 2.50, true, '2026-10-01'), ('Milk', 1.20, false, '2026-10-02')`);
+    await pgc.query('DROP SCHEMA IF EXISTS datafiles_link_test CASCADE');
+    await pgc.query('CREATE SCHEMA datafiles_link_test');
+    await pgc.query(`CREATE TABLE datafiles_link_test.products (id serial PRIMARY KEY, name varchar(80) NOT NULL, price numeric(10,2), active boolean DEFAULT true, added date)`);
+    await pgc.query(`INSERT INTO datafiles_link_test.products (name, price, active, added) VALUES ('Bread', 2.50, true, '2026-10-01'), ('Milk', 1.20, false, '2026-10-02')`);
 
     // A local table of sales that points at the engine's products by number.
     const b = Base.open(file);
@@ -62,7 +62,7 @@ test('a PostgreSQL table linked live: read into the window, changed in the engin
     const opened = await svc.open({ file });
     const id = opened.id;
     const found = await svc.engineTables({ engine: 'postgres', settings: settingsOf(u), password });
-    assert.ok(found.tables.some((t) => t.schema === 'office_link_test' && t.name === 'products'));
+    assert.ok(found.tables.some((t) => t.schema === 'datafiles_link_test' && t.name === 'products'));
     await assert.rejects(svc.engineTables({ engine: 'postgres', settings: settingsOf(u), password: 'not-it' }), /did not take that account/);
 
     const { link } = await svc.saveLink({ id, name: 'Head office', engine: 'postgres', settings: settingsOf(u), password });
@@ -71,7 +71,7 @@ test('a PostgreSQL table linked live: read into the window, changed in the engin
     const raw = fs.readFileSync(file);
     assert.ok(!raw.includes(Buffer.from(password)));
 
-    const linked = await svc.linkTables({ id, link, remotes: [{ schema: 'office_link_test', name: 'products', as: 'Products' }] });
+    const linked = await svc.linkTables({ id, link, remotes: [{ schema: 'datafiles_link_test', name: 'products', as: 'Products' }] });
     const products = linked.summary.tables.find((t) => t.name === 'Products');
     assert.equal(products.linked, link);
     assert.equal(products.count, 2);
@@ -84,12 +84,12 @@ test('a PostgreSQL table linked live: read into the window, changed in the engin
     assert.ok(added.rowid);
     await svc.update({ id, table: 'Products', rowid: 1, values: { price: '2.75' } });
     await svc.remove({ id, table: 'Products', rowids: [2] });
-    const there = (await pgc.query('SELECT name, price::float AS price, active FROM office_link_test.products ORDER BY id')).rows;
+    const there = (await pgc.query('SELECT name, price::float AS price, active FROM datafiles_link_test.products ORDER BY id')).rows;
     assert.deepEqual(there, [{ name: 'Bread', price: 2.75, active: true }, { name: 'Eggs', price: 3.1, active: true }]);
     assert.deepEqual(svc.rows({ id, table: 'Products' }).rows.map((r) => r.name), ['Bread', 'Eggs']);
 
     // Changed in the engine by someone else: read again.
-    await pgc.query(`UPDATE office_link_test.products SET name = 'Loaf' WHERE id = 1`);
+    await pgc.query(`UPDATE datafiles_link_test.products SET name = 'Loaf' WHERE id = 1`);
     await svc.refreshLinked({ id });
     assert.equal(svc.rows({ id, table: 'Products' }).rows[0].name, 'Loaf');
 
@@ -116,11 +116,11 @@ test('a PostgreSQL table linked live: read into the window, changed in the engin
     // Unlinked: the engine keeps its records.
     const after = svc.unlinkTable({ id: again.id, table: 'Products' });
     assert.ok(!after.tables.some((t) => t.name === 'Products'));
-    assert.equal((await pgc.query('SELECT count(*)::int AS n FROM office_link_test.products')).rows[0].n, 2);
+    assert.equal((await pgc.query('SELECT count(*)::int AS n FROM datafiles_link_test.products')).rows[0].n, 2);
     svc.close({ id: again.id });
   } finally {
     svc.closeAll();
-    await pgc.query('DROP SCHEMA IF EXISTS office_link_test CASCADE').catch(() => {});
+    await pgc.query('DROP SCHEMA IF EXISTS datafiles_link_test CASCADE').catch(() => {});
     await pgc.end();
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -141,6 +141,49 @@ test('an engine that cannot be reached: the table is listed with why, and the re
     assert.equal(s.links[0].password, false);
   } finally {
     svc.closeAll();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+const MYSQL_URL = process.env.OFFICE_MYSQL_TEST_URL;
+
+test('a MySQL table linked live: read in, changed in the engine, read again (OFFICE_MYSQL_TEST_URL)', { skip: MYSQL_URL ? false : 'no OFFICE_MYSQL_TEST_URL' }, async () => {
+  const { createRequire } = await import('node:module');
+  const mysql = createRequire(import.meta.url)('mysql2/promise');
+  const u = new URL(MYSQL_URL);
+  const settings = { host: u.hostname, port: Number(u.port) || 3306, database: u.pathname.slice(1), user: decodeURIComponent(u.username), ssl: false };
+  const password = decodeURIComponent(u.password);
+  const my = await mysql.createConnection({ ...settings, password });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-mysql-'));
+  const file = path.join(dir, 'shop.rbase');
+  const kept = new Map();
+  const svc = createBaseService({ secrets: { available: () => true, get: (k) => kept.get(k) ?? null, set: (k, v) => kept.set(k, v), delete: (k) => kept.delete(k) } });
+  try {
+    await my.query('DROP TABLE IF EXISTS datafiles_link_test');
+    await my.query('CREATE TABLE datafiles_link_test (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(80) NOT NULL, price DECIMAL(10,2), active TINYINT(1) DEFAULT 1, added DATE, seen DATETIME)');
+    await my.query(`INSERT INTO datafiles_link_test (name, price, active, added, seen) VALUES ('Bread', 2.50, 1, '2026-10-01', '2026-10-01 09:30:00'), ('Milk', 1.20, 0, '2026-10-02', NULL)`);
+    Base.open(file).close();
+    const { id } = await svc.open({ file });
+    const found = await svc.engineTables({ engine: 'mysql', settings, password });
+    assert.ok(found.tables.some((t) => t.name === 'datafiles_link_test'));
+    const { link } = await svc.saveLink({ id, name: 'Shop MySQL', engine: 'mysql', settings, password });
+    const linked = await svc.linkTables({ id, link, remotes: [{ schema: settings.database, name: 'datafiles_link_test', as: 'Products' }] });
+    assert.equal(linked.summary.tables.find((t) => t.name === 'Products').count, 2);
+    assert.deepEqual(svc.fields({ id, table: 'Products' }).map((f) => [f.name, f.type]), [['id', 'autonumber'], ['name', 'text'], ['price', 'number'], ['active', 'yesno'], ['added', 'date'], ['seen', 'datetime']]);
+    assert.deepEqual(svc.rows({ id, table: 'Products' }).rows.map((r) => [r.name, r.price, r.active, r.added, r.seen]), [['Bread', 2.5, 1, '2026-10-01', '2026-10-01T09:30:00'], ['Milk', 1.2, 0, '2026-10-02', null]]);
+    const added = await svc.insert({ id, table: 'Products', values: { name: 'Eggs', price: '3.10', active: true, added: '2026-10-22', seen: '2026-10-22T17:24' } });
+    assert.ok(added.rowid);
+    await svc.update({ id, table: 'Products', rowid: 1, values: { price: '2.75' } });
+    await svc.remove({ id, table: 'Products', rowids: [2] });
+    const [there] = await my.query('SELECT name, CAST(price AS DOUBLE) AS price, active, CAST(seen AS CHAR) AS seen FROM datafiles_link_test ORDER BY id');
+    assert.deepEqual(there.map((r) => ({ ...r })), [{ name: 'Bread', price: 2.75, active: 1, seen: '2026-10-01 09:30:00' }, { name: 'Eggs', price: 3.1, active: 1, seen: '2026-10-22 17:24:00' }]);
+    await my.query(`UPDATE datafiles_link_test SET name = 'Loaf' WHERE id = 1`);
+    await svc.refreshLinked({ id });
+    assert.equal(svc.rows({ id, table: 'Products' }).rows[0].name, 'Loaf');
+  } finally {
+    svc.closeAll();
+    await my.query('DROP TABLE IF EXISTS datafiles_link_test').catch(() => {});
+    await my.end();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
