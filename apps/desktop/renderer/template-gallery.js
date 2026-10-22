@@ -192,8 +192,8 @@ export function TemplateGallery({ shell, app = null, onClose }) {
                   </button>
                 ) : null}
                 {shown.map((tpl) => (
+                  <div key={tpl.id} className="tg-card-wrap">
                   <button
-                    key={tpl.id}
                     type="button"
                     className={`tg-card${tpl.needs ? ' needs' : ''}`}
                     data-template={tpl.id}
@@ -210,6 +210,13 @@ export function TemplateGallery({ shell, app = null, onClose }) {
                     </span>
                     {tpl.needs ? <span className="tg-needs">{t('Needs Rutba Office {version}', { version: tpl.needs })}</span> : null}
                   </button>
+                  {tpl.page ? (
+                    <button type="button" className="tg-page-link" data-page={tpl.page} title={t('About {name} online', { name: t(tpl.name) })} aria-label={t('About {name} online', { name: t(tpl.name) })}
+                      onClick={() => shell.shell.openExternal({ url: tpl.page }).catch(() => {})}>
+                      <Icon name="globe" size={14} />
+                    </button>
+                  ) : null}
+                  </div>
                 ))}
                 {ownShown.map((p) => (
                   <button
@@ -247,6 +254,10 @@ const CSS = `
   border-bottom: 1px solid var(--line-soft);
 }
 .tg-head h2 { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
+.tg-card-wrap { position: relative; display: grid; }
+.tg-page-link { position: absolute; top: 8px; inset-inline-end: 8px; display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--line-soft); border-radius: 50%; background: var(--surface); color: var(--ink-3); cursor: pointer; opacity: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+.tg-card-wrap:hover .tg-page-link, .tg-page-link:focus-visible { opacity: 1; }
+.tg-page-link:hover { color: var(--accent-text, var(--accent)); }
 .tg-set { padding: 6px 20px; font-size: 12.5px; color: var(--ink-2); background: var(--sunken); border-bottom: 1px solid var(--line-soft); }
 .tg-sub { color: var(--ink-3); font-size: 12.5px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tg-close {

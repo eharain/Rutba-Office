@@ -45,6 +45,12 @@ export async function verifyTemplateVersions(h) {
     await until(() => js(`Boolean(document.querySelector('.home-more'))`), 'the launcher', 8000);
     await js(`document.querySelector('.home-more').click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.tg-dialog'))`), 'the gallery', 8000);
+    // Each template links to its page online (D-2026-10-22-03).
+    await until(() => js(`document.querySelectorAll('.tg-card-wrap .tg-page-link').length > 10`), 'the templates’ links', 6000).catch(() => {});
+    const pages = await js(`({ cards: document.querySelectorAll('.tg-card-wrap').length, links: [...document.querySelectorAll('.tg-card-wrap .tg-page-link')].map((n) => n.dataset.page) })`);
+    check('templates: each template in the gallery links to its page online, at office.rutba.io/templates/<its name>',
+      pages.cards > 10 && pages.links.length === pages.cards && pages.links.every((u) => /^https:\/\/office\.rutba\.io\/templates\/[a-z0-9-]+$/.test(u)) && pages.links.includes('https://office.rutba.io/templates/word-letter'),
+      JSON.stringify({ cards: pages.cards, first: pages.links.slice(0, 3) }));
     const said = {};
     for (const [phase, extra] of [['ready', {}], ['needs-office', { needs: '9.0.0' }]]) {
       broadcast('update:state', { state: 'idle', templates: { phase, set: '9.9.0', needs: null, ...extra } });
