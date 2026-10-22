@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7732,
+  "count": 7739,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2025,6 +2025,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/dav-accounts.js"
       ]
     },
@@ -11092,6 +11093,7 @@
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/image/type-editor.js",
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/recorder/live-dialog.js",
         "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/talk/invite.js"
@@ -20883,6 +20885,12 @@
       ]
     },
     {
+      "message": "Manage accounts",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Manual",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -26037,11 +26045,18 @@
     {
       "message": "Out of office",
       "where": [
-        "apps/desktop/renderer/apps/mail.js"
+        "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
       "message": "Out of office (on)",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Out of office…",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
       ]
@@ -29917,6 +29932,7 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/mail/compose.js",
+        "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/mail/smime.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
@@ -30014,6 +30030,12 @@
       "message": "Remove Table of Contents",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Remove account…",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -34800,6 +34822,12 @@
       "message": "Signatures",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js"
+      ]
+    },
+    {
+      "message": "Signature…",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -46833,6 +46861,24 @@
       "message": "{added} added, {updated} updated.",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "{address} is removed.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{address}, automatic replies on",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "{address}, brought in from a file",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {

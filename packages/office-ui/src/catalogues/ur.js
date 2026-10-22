@@ -7740,4 +7740,11 @@ export default {
   'The design is up to date: {count} change. Where you had changed something, your version is kept and the newer one is beside it, named (updated).': { one: 'ڈیزائن اپ ٹو ڈیٹ ہے: {count} تبدیلی۔ جہاں آپ نے کچھ بدلا تھا، وہاں آپ کا ورژن رکھا گیا اور نیا اس کے ساتھ (updated) کے نام سے ہے۔', other: 'ڈیزائن اپ ٹو ڈیٹ ہے: {count} تبدیلیاں۔ جہاں آپ نے کچھ بدلا تھا، وہاں آپ کا ورژن رکھا گیا اور نیا اس کے ساتھ (updated) کے نام سے ہے۔' },
   'About the {name} template online': '{name} سانچے کے بارے میں آن لائن',
   '{name} template': '{name} سانچہ',
+  'Manage accounts': 'اکاؤنٹس کا انتظام',
+  'Remove account…': 'اکاؤنٹ ہٹائیں…',
+  '{address} is removed.': '{address} ہٹا دیا گیا۔',
+  '{address}, automatic replies on': '{address}، خودکار جوابات آن',
+  '{address}, brought in from a file': '{address}، فائل سے لایا گیا',
+  'Out of office…': 'دفتر سے باہر…',
+  'Signature…': 'دستخط…',
 };

@@ -1372,3 +1372,42 @@ export function JunkDialog({ shell, accountId, accounts = [], onClose, onSaved, 
     </Dialog>
   );
 }
+
+/* ── the account manager (D-2026-10-22-09) ─────────────────────────── */
+
+/**
+ * Every account, as Add account's counterpart: each with what it is (an
+ * account on a server, or a mailbox brought in from a file), its Signature,
+ * its Out of office and Remove; and Add account for another.
+ */
+export function AccountsDialog({ accounts, onClose, onAdd, onRemove, onSignature, onOutOfOffice }) {
+  return (
+    <Dialog
+      title={t('Accounts')}
+      width={620}
+      onClose={onClose}
+      actions={(
+        <>
+          <Button icon="plus" label={t('Add account')} className="ml-accounts-add" onClick={onAdd} />
+          <span style={{ flex: 1 }} />
+          <Button primary label={t('Done')} onClick={onClose} />
+        </>
+      )}
+    >
+      <ul className="ml-account-list" aria-label={t('Accounts')}>
+        {accounts.map((a) => (
+          <li key={a.id} className="ml-account-row" data-account={a.email}>
+            <Icon name={a.local ? 'archive' : 'mail'} size={18} />
+            <span className="ml-account-words">
+              <strong>{a.name || a.email}</strong>
+              <small>{a.local ? t('{address}, brought in from a file', { address: a.email }) : a.autoReply?.enabled ? t('{address}, automatic replies on', { address: a.email }) : a.email}</small>
+            </span>
+            <Button ghost label={t('Signature')} className="ml-account-signature" onClick={() => onSignature(a)} />
+            {a.local ? null : <Button ghost label={t('Out of office')} className="ml-account-ooo" onClick={() => onOutOfOffice(a)} />}
+            <Button ghost icon="trash" label={t('Remove')} className="ml-account-remove" onClick={() => onRemove(a)} />
+          </li>
+        ))}
+      </ul>
+    </Dialog>
+  );
+}

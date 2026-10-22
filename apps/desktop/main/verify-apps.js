@@ -135,6 +135,7 @@ import { verifyPolishPass } from './verify-polish-pass.js';
 import { verifyCalendarMonth } from './verify-calendar-month.js';
 import { verifyCalendarMultiDay } from './verify-calendar-multiday.js';
 import { verifyMailServerOoo } from './verify-mail-server-ooo.js';
+import { verifyMailAccountsManager } from './verify-mail-accounts-manager.js';
 import { verifySheetDark } from './verify-sheet-dark.js';
 import { verifyPdfFindMark } from './verify-pdf-find-mark.js';
 import { verifyDarkPass } from './verify-dark-pass.js';
@@ -5040,6 +5041,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('calendar-month')) await verifyCalendarMonth({ open, check, until, wait }, { dir });
     if (only.includes('calendar-multiday')) await verifyCalendarMultiDay({ open, check, until, wait }, { dir });
     if (only.includes('mail-server-ooo')) await verifyMailServerOoo({ open, check, until, wait, errorsIn });
+    if (only.includes('mail-accounts-manager')) await verifyMailAccountsManager({ open, check, until, wait, errorsIn });
     if (only.includes('sheet-dark')) await verifySheetDark({ open, check, until, wait }, { dir });
     if (only.includes('pdf-find-mark')) await verifyPdfFindMark({ open, check, until, wait }, { dir });
     if (only.includes('dark-pass')) await verifyDarkPass({ open, check, until, wait }, { dir });
@@ -7286,6 +7288,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await verifyMailJunk({ open, check, until, wait, errorsIn });
   await part('mail', () => verifyMailLinks({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailServerOoo({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyMailAccountsManager({ open, check, until, wait, errorsIn }));
   // AI Tools and S/MIME run inside Mail's section, so they are counted as its part.
   await part('mail', () => verifyAiTools({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailWindow({ open, check, until, wait, errorsIn }));

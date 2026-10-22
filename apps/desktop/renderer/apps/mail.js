@@ -32,7 +32,7 @@ import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js
 import Reader from './mail/reader.js';
 import { frameMenuItems, pictureBytes, savePicture, SourceDialog, SAFETY_CSS } from './mail/safety.js';
 import Compose from './mail/compose.js';
-import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog, JunkDialog } from './mail/dialogs.js';
+import { AccountDialog, AccountsDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog, JunkDialog } from './mail/dialogs.js';
 import { RulesDialog } from './mail/rules.js';
 import { attachmentExtension } from '@rutba/mailbox/mime';
 import { withSignature, withSignatureHtml, signatureTextToHtml } from '@rutba/mailbox/signature';
@@ -1087,6 +1087,37 @@ export default function Mail({ app, shell }) {
     [shell, toast]
   );
 
+  /**
+   * An account taken off (D-2026-10-22-09): asked first, its mail on this
+   * computer deleted with it or kept, from the ribbon, the account's own menu
+   * or the account manager alike.
+   */
+  const removeAccount = useCallback(async (a) => {
+    if (!a) return;
+    const { response } = await shell.dialog.message({
+      type: 'warning',
+      message: t('Remove {address}?', { address: a.email }),
+      detail: t('The mail stored on this computer for that account is deleted too.'),
+      buttons: [t('Remove'), t('Keep the mail'), t('Cancel')],
+      cancelId: 2,
+    });
+    if (response === 2) return;
+    try {
+      await shell.mail.removeAccount({ id: a.id, keepMail: response === 1 });
+      if (a.id === accountId) setAccountId(null);
+      loadAccounts();
+      toast(t('{address} is removed.', { address: a.email }), { tone: 'good' });
+    } catch (err) {
+      toast(err.message, { tone: 'bad', ms: 6000 });
+    }
+  }, [shell, accountId, loadAccounts, toast]);
+  const accountItems = (a) => [
+    { label: t('Signature…'), run: () => setDialog({ kind: 'signature', accountId: a.id }) },
+    { label: t('Out of office…'), run: () => setDialog({ kind: 'ooo', accountId: a.id }) },
+    '-',
+    { label: t('Remove account…'), run: () => removeAccount(a) },
+  ];
+
   /** The message being written, as it stands, handed to a Mail window of its own. */
   const popOutCompose = useCallback(async (draft) => {
     const key = `mail.handoff.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
@@ -1550,19 +1581,7 @@ export default function Mail({ app, shell }) {
                   icon="trash"
                   label={t('Remove')}
                   disabled={!account}
-                  onClick={async () => {
-                    const { response } = await shell.dialog.message({
-                      type: 'warning',
-                      message: t('Remove {address}?', { address: account.email }),
-                      detail: t('The mail stored on this computer for that account is deleted too.'),
-                      buttons: [t('Remove'), t('Keep the mail'), t('Cancel')],
-                      cancelId: 2,
-                    });
-                    if (response === 2) return;
-                    await shell.mail.removeAccount({ id: account.id, keepMail: response === 1 });
-                    setAccountId(null);
-                    loadAccounts();
-                  }}
+                  onClick={() => removeAccount(account)}
                 />
               </Group>
               <Group label={t('This folder')}>
@@ -1770,6 +1789,7 @@ export default function Mail({ app, shell }) {
                   current={a.id === accountId}
                   count={a.counts?.unread || undefined}
                   onClick={() => setAccountId(a.id)}
+                  onContextMenu={(e) => { e.preventDefault(); menu.open(e, accountItems(a)); }}
                   title={a.email}
                 />
               ))}
@@ -1857,6 +1877,7 @@ export default function Mail({ app, shell }) {
             <div className="ml-add-account">
               <List>
                 <Item icon="plus" label={t('Add account')} onClick={() => setDialog({ kind: 'account' })} />
+                {accounts.length ? <Item icon="settings" label={t('Manage accounts')} onClick={() => setDialog({ kind: 'accounts' })} /> : null}
               </List>
             </div>
           </Panel>
@@ -2206,6 +2227,16 @@ export default function Mail({ app, shell }) {
         </Dialog>
       ) : null}
 
+      {dialog?.kind === 'accounts' ? (
+        <AccountsDialog
+          accounts={accounts}
+          onClose={() => setDialog(null)}
+          onAdd={() => setDialog({ kind: 'account' })}
+          onRemove={(a) => removeAccount(a)}
+          onSignature={(a) => setDialog({ kind: 'signature', accountId: a.id })}
+          onOutOfOffice={(a) => setDialog({ kind: 'ooo', accountId: a.id })}
+        />
+      ) : null}
       {dialog?.kind === 'signature' ? (
         <SignatureDialog
           shell={shell}

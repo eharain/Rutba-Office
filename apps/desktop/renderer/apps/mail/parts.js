@@ -622,6 +622,11 @@ select.rw-input { appearance: auto; }
 }
 .ml-ooo-toggle { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin: 10px 0; cursor: pointer; }
 .ml-ooo-toggle input { margin: 0; }
+.ml-account-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ml-account-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: var(--r-2); }
+.ml-account-words { flex: 1; min-width: 0; display: grid; }
+.ml-account-words strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml-account-words small { color: var(--ink-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ml-ooo-where { display: grid; gap: 6px; margin: 4px 0 10px; padding: 0; border: 0; }
 .ml-ooo-where legend { padding: 0; margin-bottom: 4px; font-size: 12.5px; color: var(--ink-2); }
 .ml-ooo-way { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: var(--r-2); cursor: pointer; }

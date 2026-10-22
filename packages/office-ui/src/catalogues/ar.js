@@ -7742,4 +7742,11 @@ export default {
   'The design is up to date: {count} change. Where you had changed something, your version is kept and the newer one is beside it, named (updated).': { zero: 'التصميم محدّث بلا تغييرات.', one: 'التصميم محدّث: تغيير واحد. حيث غيّرت شيئًا بقيت نسختك، والأحدث بجانبها باسم (updated).', two: 'التصميم محدّث: تغييران. حيث غيّرت شيئًا بقيت نسختك، والأحدث بجانبها باسم (updated).', few: 'التصميم محدّث: {count} تغييرات. حيث غيّرت شيئًا بقيت نسختك، والأحدث بجانبها باسم (updated).', many: 'التصميم محدّث: {count} تغييرًا. حيث غيّرت شيئًا بقيت نسختك، والأحدث بجانبها باسم (updated).', other: 'التصميم محدّث: {count} تغيير. حيث غيّرت شيئًا بقيت نسختك، والأحدث بجانبها باسم (updated).' },
   'About the {name} template online': 'عن قالب {name} على الإنترنت',
   '{name} template': 'قالب {name}',
+  'Manage accounts': 'إدارة الحسابات',
+  'Remove account…': 'إزالة الحساب…',
+  '{address} is removed.': 'أُزيل {address}.',
+  '{address}, automatic replies on': '{address}، الردود التلقائية مفعّلة',
+  '{address}, brought in from a file': '{address}، مستورد من ملف',
+  'Out of office…': 'خارج المكتب…',
+  'Signature…': 'توقيع…',
 };

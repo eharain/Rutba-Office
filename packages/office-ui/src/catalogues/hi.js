@@ -7742,4 +7742,11 @@ export default {
   'The design is up to date: {count} change. Where you had changed something, your version is kept and the newer one is beside it, named (updated).': { one: 'डिज़ाइन अद्यतन है: {count} बदलाव। जहाँ आपने कुछ बदला था, वहाँ आपका संस्करण रखा गया और नया उसके साथ (updated) नाम से है।', other: 'डिज़ाइन अद्यतन है: {count} बदलाव। जहाँ आपने कुछ बदला था, वहाँ आपका संस्करण रखा गया और नया उसके साथ (updated) नाम से है।' },
   'About the {name} template online': '{name} टेम्पलेट के बारे में ऑनलाइन',
   '{name} template': '{name} टेम्पलेट',
+  'Manage accounts': 'खाते प्रबंधित करें',
+  'Remove account…': 'खाता हटाएँ…',
+  '{address} is removed.': '{address} हटा दिया गया।',
+  '{address}, automatic replies on': '{address}, स्वचालित उत्तर चालू',
+  '{address}, brought in from a file': '{address}, फ़ाइल से लाया गया',
+  'Out of office…': 'कार्यालय से बाहर…',
+  'Signature…': 'हस्ताक्षर…',
 };
