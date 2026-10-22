@@ -7700,4 +7700,7 @@ export default {
   'Your mail server': 'آپ کا میل سرور',
   'Newer templates ({set}) are ready: they are used the next time Rutba Office starts.': 'نئے سانچے ({set}) تیار ہیں: رتبہ آفس اگلی بار شروع ہونے پر یہی استعمال کرے گا۔',
   'Newer templates ({set}) need Rutba Office {version}: update Rutba Office to get them.': 'نئے سانچوں ({set}) کے لیے رتبہ آفس {version} درکار ہے: انہیں پانے کے لیے رتبہ آفس اپ ڈیٹ کریں۔',
+  'Edit query': 'کوئری میں ترمیم کریں',
+  'Run again': 'دوبارہ چلائیں',
+  'Show results': 'نتائج دکھائیں',
 };

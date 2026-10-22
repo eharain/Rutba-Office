@@ -78,6 +78,19 @@ export async function verifyBaseQueriesForms(h, { dir }) {
     const kept = await until(() => js(`Boolean(document.querySelector('.bs-queries [data-query="Totals"]'))`), 'the query in the list', 5000).then(() => true, () => false);
     check('base: Save As keeps the query in the file under its name, listed with the queries', kept, String(kept));
 
+    // Opened again from the list it runs: its records, then Edit query for its design, and Show results back (D-2026-10-22-06).
+    await js(`__q.click('.bs-queries [data-query="Totals"]')`);
+    await until(() => js(`document.querySelectorAll('.bs-query-run .bs-result tbody tr').length === 2`), 'the query run', 5000).catch(() => {});
+    const ran = await js(`({ rows: document.querySelectorAll('.bs-query-run .bs-result tbody tr').length, title: __q.text('.bs-q-title'), count: __q.text('.bs-query-run .bs-count'), designer: Boolean(document.querySelector('.bs-q-grid')) })`);
+    await js(`__q.click('.bs-q-edit')`);
+    await until(() => js(`Boolean(document.querySelector('.bs-q-grid'))`), 'the design', 4000).catch(() => {});
+    const designing = await js(`({ designer: Boolean(document.querySelector('.bs-q-grid')), tables: [...document.querySelectorAll('.bs-q-chip')].map((n) => n.textContent.trim()) })`);
+    await js(`__q.click('.bs-q-results')`);
+    const back = await until(() => js(`document.querySelectorAll('.bs-query-run .bs-result tbody tr').length === 2`), 'the records again', 5000).then(() => true, () => false);
+    check('base: a saved query opens run, its records and how many, with Edit query opening its design and Show results going back',
+      ran.rows === 2 && ran.title === 'Totals' && /2 rows/.test(ran.count) && !ran.designer && designing.designer && designing.tables.length === 2 && back,
+      JSON.stringify({ ran, designing, back }));
+
     // A calculated column, typed as Access takes it in a Field cell.
     await js(`__q.click('.bs-new-query')`);
     await until(() => js(`Boolean(document.querySelector('.bs-q-add-table'))`), 'a new designer', 4000).catch(() => {});

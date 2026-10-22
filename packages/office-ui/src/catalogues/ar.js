@@ -7702,4 +7702,7 @@ export default {
   'Your mail server': 'خادم بريدك',
   'Newer templates ({set}) are ready: they are used the next time Rutba Office starts.': 'قوالب أحدث ({set}) جاهزة: تُستخدم في المرة التالية التي يبدأ فيها رتبة أوفيس.',
   'Newer templates ({set}) need Rutba Office {version}: update Rutba Office to get them.': 'تحتاج القوالب الأحدث ({set}) إلى رتبة أوفيس {version}: حدّث رتبة أوفيس للحصول عليها.',
+  'Edit query': 'تحرير الاستعلام',
+  'Run again': 'تشغيل مرة أخرى',
+  'Show results': 'عرض النتائج',
 };

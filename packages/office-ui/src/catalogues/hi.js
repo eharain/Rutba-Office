@@ -7702,4 +7702,7 @@ export default {
   'Your mail server': 'आपका मेल सर्वर',
   'Newer templates ({set}) are ready: they are used the next time Rutba Office starts.': 'नए टेम्पलेट ({set}) तैयार हैं: रुतबा ऑफ़िस अगली बार शुरू होने पर इन्हीं का उपयोग करेगा।',
   'Newer templates ({set}) need Rutba Office {version}: update Rutba Office to get them.': 'नए टेम्पलेट ({set}) के लिए रुतबा ऑफ़िस {version} चाहिए: इन्हें पाने के लिए रुतबा ऑफ़िस अपडेट करें।',
+  'Edit query': 'क्वेरी संपादित करें',
+  'Run again': 'फिर से चलाएँ',
+  'Show results': 'परिणाम दिखाएँ',
 };

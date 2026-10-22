@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7692,
+  "count": 7695,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -11909,6 +11909,12 @@
       "message": "Edit its words",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Edit query",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -31556,6 +31562,12 @@
       ]
     },
     {
+      "message": "Run again",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
       "message": "Run on this folder",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
@@ -34343,6 +34355,12 @@
       "message": "Show password",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Show results",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {

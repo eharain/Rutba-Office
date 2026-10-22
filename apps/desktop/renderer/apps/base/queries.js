@@ -7,7 +7,7 @@
 // "Line Total: [Quantity] * [Unit Price]".
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button, Input, Select, Dialog, t, tn } from '@rutba/office-ui';
+import { Button, Icon, Input, Select, Dialog, Spinner, t, tn } from '@rutba/office-ui';
 import { splitNamedExpression } from '@rutba/database/query-design';
 
 /** The Field list's own choice that turns its cell into an expression box. */
@@ -42,6 +42,9 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
   const [error, setError] = useState('');
   const [naming, setNaming] = useState(null);
   const [adding, setAdding] = useState('');
+  // A saved query opens run, its records shown, its design behind Edit query (D-2026-10-22-06); a new one opens in design.
+  const [editing, setEditing] = useState(!name);
+  const [loaded, setLoaded] = useState(null);
 
   // A saved query opens with its design; a new one with nothing in it.
   useEffect(() => {
@@ -49,6 +52,8 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
     setAnswer(null);
     setSql('');
     setError('');
+    setEditing(!name);
+    setLoaded(null);
     if (!name) { setTables([]); setColumns([blank()]); setTotals(false); return undefined; }
     shell.base.queries({ id: db.id }).then((all) => {
       const found = all.find((x) => x.name === name);
@@ -57,6 +62,7 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
       setTables(d.tables || []);
       setTotals((d.columns || []).some((c) => c.total));
       setColumns([...(d.columns || []).map((c) => ({ ...blank(), ...c, exprText: c.expr ? (c.as ? `${c.as}: ${c.expr}` : c.expr) : null, sort: c.sort || '', total: c.total || 'group', criteria: [...(c.criteria || []), '', ''].slice(0, Math.max(2, (c.criteria || []).length)) })), blank()]);
+      setLoaded(d);
     }).catch((e) => toast(e.message, { tone: 'bad' }));
     return () => { live = false; };
   }, [shell, db.id, name, toast]);
@@ -105,12 +111,46 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
     try {
       const summary = await shell.base.saveQuery({ id: db.id, name: as, design });
       setNaming(null);
+      setLoaded(design);
       onSaved(summary, as);
       toast(t('Kept as {name}', { name: as }), { tone: 'good' });
     } catch (e) {
       toast(e.message, { tone: 'bad', ms: 7000 });
     }
   };
+
+  // Opened run: the saved design's records, as soon as it is read.
+  useEffect(() => {
+    if (!loaded || editing) return;
+    shell.base.runQuery({ id: db.id, design: loaded }).then((a) => { setAnswer(a); setError(''); }, (e) => { setError(e.message); setAnswer(null); });
+  }, [shell, db.id, loaded, editing]);
+
+  const results = answer ? (
+    <div className="bs-result">
+      <table>
+        <thead><tr>{answer.columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+        <tbody>{answer.rows.map((r, i) => <tr key={i}>{answer.columns.map((c) => <td key={c}>{r[c] === null || r[c] === undefined ? '' : String(r[c])}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  ) : null;
+
+  if (!editing) {
+    return (
+      <div className="bs-query bs-query-run">
+        <div className="bs-tools bs-q-runbar">
+          <Icon name="filter" size={16} />
+          <strong className="bs-q-title">{name}</strong>
+          {answer ? <span className="bs-count">{tn(answer.count, '{count} row', '{count} rows')}</span> : null}
+          <span className="bs-q-grow" />
+          <Button icon="refresh" label={t('Run again')} className="bs-q-rerun" onClick={() => loaded && shell.base.runQuery({ id: db.id, design: loaded }).then((a) => { setAnswer(a); setError(''); }, (e) => setError(e.message))} />
+          <Button primary icon="pen" label={t('Edit query')} className="bs-q-edit" onClick={() => { setEditing(true); setAnswer(null); }} />
+        </div>
+        {error ? <p className="bs-error" role="alert">{error}</p> : null}
+        {!answer && !error ? <div className="bs-q-wait"><Spinner /></div> : null}
+        {results}
+      </div>
+    );
+  }
 
   const others = db.tables.map((x) => x.name).filter((x) => !tables.includes(x));
   return (
@@ -194,17 +234,12 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
         <Button icon="save" label={name ? t('Save') : t('Save As')} className="bs-q-save" disabled={!design.columns.length} onClick={() => (name ? save(name) : setNaming(''))} />
         {name ? <Button label={t('Save As')} className="bs-q-save-as" disabled={!design.columns.length} onClick={() => setNaming('')} /> : null}
         {answer ? <span className="bs-count">{tn(answer.count, '{count} row', '{count} rows')}</span> : null}
+        <span className="bs-q-grow" />
+        {name ? <Button icon="table" label={t('Show results')} className="bs-q-results" onClick={() => { setEditing(false); setAnswer(null); }} /> : null}
       </div>
       {error ? <p className="bs-error" role="alert">{error}</p> : null}
       {sql ? <pre className="bs-q-sql-text selectable">{sql}</pre> : null}
-      {answer ? (
-        <div className="bs-result">
-          <table>
-            <thead><tr>{answer.columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
-            <tbody>{answer.rows.map((r, i) => <tr key={i}>{answer.columns.map((c) => <td key={c}>{r[c] === null || r[c] === undefined ? '' : String(r[c])}</td>)}</tr>)}</tbody>
-          </table>
-        </div>
-      ) : null}
+      {results}
 
       {naming !== null ? (
         <Dialog title={t('Save Query')} onClose={() => setNaming(null)} actions={<><Button label={t('Cancel')} onClick={() => setNaming(null)} /><Button primary label={t('Save')} className="bs-q-save-named" disabled={!String(naming).trim()} onClick={() => save(String(naming).trim())} /></>}>
@@ -230,5 +265,9 @@ export const QUERY_CSS = `
 .bs-q-field { min-width: 180px; }
 .bs-q-expr { min-width: 260px; font-family: var(--mono, ui-monospace, monospace); font-size: 12.5px; }
 .bs-q-center { text-align: center; }
+.bs-q-runbar { align-items: center; }
+.bs-q-title { font-size: 14px; font-weight: 600; }
+.bs-q-grow { flex: 1; }
+.bs-q-wait { display: grid; place-items: center; padding: 40px; }
 .bs-q-sql-text { margin: 0 16px 8px; padding: 8px 10px; border-radius: var(--r-2); background: var(--sunken); font: 12.5px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
 `;
