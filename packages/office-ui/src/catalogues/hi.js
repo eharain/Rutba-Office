@@ -7780,4 +7780,6 @@ export default {
   'e.g. Not [Paid]': 'जैसे Not [Paid]',
   'e.g. [Status] = "Shipped"': 'जैसे [Status] = "Shipped"',
   '{count} line': { one: '{count} पंक्ति', other: '{count} पंक्तियाँ' },
+  'This invitation has been sent again as often as Talk allows.': 'यह आमंत्रण उतनी बार फिर से भेजा जा चुका है जितना टॉक अनुमति देता है।',
+  'This invitation is no longer waiting: it was accepted, withdrawn or has ended.': 'यह आमंत्रण अब प्रतीक्षा में नहीं है: यह स्वीकार हो गया, वापस ले लिया गया या समाप्त हो गया।',
 };

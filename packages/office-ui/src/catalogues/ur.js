@@ -7778,4 +7778,6 @@ export default {
   'e.g. Not [Paid]': 'مثلاً Not [Paid]',
   'e.g. [Status] = "Shipped"': 'مثلاً [Status] = "Shipped"',
   '{count} line': { one: '{count} سطر', other: '{count} سطریں' },
+  'This invitation has been sent again as often as Talk allows.': 'یہ دعوت اتنی بار دوبارہ بھیجی جا چکی ہے جتنی ٹاک اجازت دیتا ہے۔',
+  'This invitation is no longer waiting: it was accepted, withdrawn or has ended.': 'یہ دعوت اب منتظر نہیں: یہ قبول ہو گئی، واپس لے لی گئی یا ختم ہو گئی۔',
 };

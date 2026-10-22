@@ -7780,4 +7780,6 @@ export default {
   'e.g. Not [Paid]': 'مثلًا Not [Paid]',
   'e.g. [Status] = "Shipped"': 'مثلًا [Status] = "Shipped"',
   '{count} line': { zero: 'لا أسطر', one: 'سطر واحد', two: 'سطران', few: '{count} أسطر', many: '{count} سطرًا', other: '{count} سطر' },
+  'This invitation has been sent again as often as Talk allows.': 'أُرسلت هذه الدعوة مجددًا بقدر ما يسمح به توك.',
+  'This invitation is no longer waiting: it was accepted, withdrawn or has ended.': 'لم تعد هذه الدعوة معلّقة: قُبلت أو سُحبت أو انتهت.',
 };

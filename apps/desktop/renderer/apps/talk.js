@@ -273,6 +273,8 @@ export default function Talk({ app, shell }) {
   const remind = async (r) => {
     const res = await shell.talk.remind({ requestId: r.id, letter: againLetter(state.me) }).catch(() => ({ error: 'server' }));
     if (res.error === 'too-soon') toast(t('You can invite them again {when}.', { when: formatWhen(res.next) }), { ms: 5000 });
+    else if (res.error === 'too-many') toast(t('This invitation has been sent again as often as Talk allows.'), { ms: 5000 });
+    else if (res.error === 'no-request') toast(t('This invitation is no longer waiting: it was accepted, withdrawn or has ended.'), { ms: 5000 });
     else if (res.error) toast(errorText(res.error), { tone: 'bad', ms: 5000 });
     else toast([t('Invited {email} again.', { email: r.email }), toldText(res.told)].join(' '), { tone: res.told?.sent || res.told?.by === 'none' ? 'good' : 'warn', ms: 5000 });
   };

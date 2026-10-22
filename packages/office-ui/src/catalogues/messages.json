@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7770,
+  "count": 7772,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -40831,9 +40831,21 @@
       ]
     },
     {
+      "message": "This invitation has been sent again as often as Talk allows.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
       "message": "This invitation has ended.",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "This invitation is no longer waiting: it was accepted, withdrawn or has ended.",
+      "where": [
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
