@@ -10,7 +10,7 @@
 import { broadcast } from '@rutba/office-shell/electron/main';
 
 export async function verifyTemplateVersions(h) {
-  const { open, check, until } = h;
+  const { open, check, until, wait } = h;
   const own = process.env.RUTBA_APP_VERSION;
   try {
     // An Office one release behind the set's Data Files part.
@@ -51,6 +51,18 @@ export async function verifyTemplateVersions(h) {
     check('templates: each template in the gallery links to its page online, at office.rutba.io/templates/<its name>',
       pages.cards > 10 && pages.links.length === pages.cards && pages.links.every((u) => /^https:\/\/office\.rutba\.io\/templates\/[a-z0-9-]+$/.test(u)) && pages.links.includes('https://office.rutba.io/templates/word-letter'),
       JSON.stringify({ cards: pages.cards, first: pages.links.slice(0, 3) }));
+    // A document made from one links to that template's page, in its status bar; a blank one does not.
+    const made = await open('word', null, { template: 'word-letter' });
+    const mjs = (code) => made.webContents.executeJavaScript(code);
+    await until(() => mjs(`Boolean(document.querySelector('.rw-template-help'))`), 'the template link', 10000).catch(() => {});
+    const help = await mjs(`({ page: document.querySelector('.rw-template-help')?.dataset.page || null, words: document.querySelector('.rw-template-help')?.textContent || '' })`);
+    const blank = await open('word', null, { template: 'blank' });
+    await wait(1500);
+    const none = await blank.webContents.executeJavaScript(`!document.querySelector('.rw-template-help')`);
+    made.close();
+    blank.close();
+    check("templates: a document made from a template links to that template's page from its status bar, and a blank one has no such link",
+      help.page === 'https://office.rutba.io/templates/word-letter' && /Letter template/.test(help.words) && none, JSON.stringify({ help, none }));
     const said = {};
     for (const [phase, extra] of [['ready', {}], ['needs-office', { needs: '9.0.0' }]]) {
       broadcast('update:state', { state: 'idle', templates: { phase, set: '9.9.0', needs: null, ...extra } });

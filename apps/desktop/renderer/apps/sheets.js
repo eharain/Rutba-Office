@@ -16,6 +16,7 @@ import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, 
 import { cellInk, edgeInk } from '@rutba/office-ui/contrast';
 import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
+import { TemplateHelp } from '../template-help.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS, pivotAround } from './sheets/ribbon.js';
@@ -3502,6 +3503,7 @@ export default function Sheets({ app, shell, boot }) {
       status={
         <>
           <span>{doc?.path || t('Not saved yet')}</span>
+          <TemplateHelp shell={shell} />
           <Spacer />
           {status ? (
             <>

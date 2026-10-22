@@ -17,6 +17,7 @@ import { flushSync } from 'react-dom';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, menuItems, formatWhen, t, tn } from '@rutba/office-ui';
 import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows } from '../shell.js';
+import { TemplateHelp } from '../template-help.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
 import { editInImage } from './edit-in-image.js';
@@ -2535,6 +2536,7 @@ export default function Word({ app, shell, boot }) {
       status={
         <>
           <span>{doc?.path || t('Not saved yet')}</span>
+          <TemplateHelp shell={shell} />
           <Spacer />
           {paged ? <Chip>{t('Page {page} of {total}', { page: pages.at, total: pages.count })}</Chip> : null}
           {multiColumn ? (

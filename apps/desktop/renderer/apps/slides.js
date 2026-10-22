@@ -13,6 +13,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, useWheelZoom, menuItems, t, tn, language } from '@rutba/office-ui';
 import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
+import { TemplateHelp } from '../template-help.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
@@ -2769,6 +2770,7 @@ export default function Slides({ app, shell, boot }) {
       status={
         <>
           <span>{doc?.path || t('Not saved yet')}</span>
+          <TemplateHelp shell={shell} />
           <Spacer />
           {model?.masterView ? (() => {
             const item = model.masterView.items.find((it) => it.part === masterPart);

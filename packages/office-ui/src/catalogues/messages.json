@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7730,
+  "count": 7732,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1794,6 +1794,12 @@
       ]
     },
     {
+      "message": "About the {name} template online",
+      "where": [
+        "apps/desktop/renderer/template-help.js"
+      ]
+    },
+    {
       "message": "About this database online",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -1815,7 +1821,8 @@
     {
       "message": "About {name} online",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
@@ -48566,6 +48573,12 @@
       "message": "{name} reversed",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "{name} template",
+      "where": [
+        "apps/desktop/renderer/template-help.js"
       ]
     },
     {

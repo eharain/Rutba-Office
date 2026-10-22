@@ -7738,4 +7738,6 @@ export default {
   'A newer design of this database is ready: {count} change to its tables, queries, forms, reports or print templates. Your records stay as they are, and anything you changed keeps your version.': { one: 'اس ڈیٹا بیس کا نیا ڈیزائن تیار ہے: اس کے ٹیبلز، کوئریز، فارمز، رپورٹس یا پرنٹ سانچوں میں {count} تبدیلی۔ آپ کے ریکارڈ جوں کے توں رہیں گے، اور جو آپ نے بدلا وہ آپ کا ہی رہے گا۔', other: 'اس ڈیٹا بیس کا نیا ڈیزائن تیار ہے: اس کے ٹیبلز، کوئریز، فارمز، رپورٹس یا پرنٹ سانچوں میں {count} تبدیلیاں۔ آپ کے ریکارڈ جوں کے توں رہیں گے، اور جو آپ نے بدلا وہ آپ کا ہی رہے گا۔' },
   'The design is up to date: {count} change, your records as they were.': { one: 'ڈیزائن اپ ٹو ڈیٹ ہے: {count} تبدیلی، آپ کے ریکارڈ جوں کے توں۔', other: 'ڈیزائن اپ ٹو ڈیٹ ہے: {count} تبدیلیاں، آپ کے ریکارڈ جوں کے توں۔' },
   'The design is up to date: {count} change. Where you had changed something, your version is kept and the newer one is beside it, named (updated).': { one: 'ڈیزائن اپ ٹو ڈیٹ ہے: {count} تبدیلی۔ جہاں آپ نے کچھ بدلا تھا، وہاں آپ کا ورژن رکھا گیا اور نیا اس کے ساتھ (updated) کے نام سے ہے۔', other: 'ڈیزائن اپ ٹو ڈیٹ ہے: {count} تبدیلیاں۔ جہاں آپ نے کچھ بدلا تھا، وہاں آپ کا ورژن رکھا گیا اور نیا اس کے ساتھ (updated) کے نام سے ہے۔' },
+  'About the {name} template online': '{name} سانچے کے بارے میں آن لائن',
+  '{name} template': '{name} سانچہ',
 };
