@@ -99,6 +99,25 @@ export async function verifyBaseDocuments(h, { dir }) {
     }, 'the change kept', 6000).then(() => true, () => false);
     check('base: Design turns the template into a till receipt and adds words with a blank filled from the record; the pages follow, and the change is kept in the file', drawn && kept, JSON.stringify({ drawn, kept }));
 
+    // Which records it is for, when a block shows, and lines grouped (the samples' list, 2026-10-22).
+    await js(`__d.set('.bs-doc-record', 'all')`);
+    await until(() => js(`__d.pages().length === 2`), 'both invoices', 5000).catch(() => {});
+    await js(`__d.set('.bs-dd-where', '[Customer] = 2')`);
+    const onlyBen = await until(() => js(`__d.pages().length === 1 && /Ben Cole/.test(__d.pages()[0].textContent)`), "only Ben's invoice", 6000).then(() => true, () => false);
+    await js(`__d.set('.bs-dd-where', '')`);
+    await until(() => js(`__d.pages().length === 2`), 'both again', 5000).catch(() => {});
+    await js(`__d.set([...document.querySelectorAll('.bs-dd-if')].pop(), '[Customer] = 1')`);
+    const thanks = await until(() => js(`(() => { const p = __d.pages(); return p.length === 2 && /Thank you/.test(p[0].textContent) && !/Thank you/.test(p[1].textContent); })()`), 'the words on the first only', 6000).then(() => true, () => false);
+    await js(`__d.set('.bs-dd-group', 'Description')`);
+    const grouped = await until(() => js(`__d.pages()[0]?.querySelectorAll('.bs-doc-lines tr.group').length === 2 && __d.pages()[0].querySelectorAll('.bs-doc-lines tr.subtotal').length === 2`), 'the lines grouped', 6000).then(() => true, () => false);
+    if (process.env.RUTBA_VERIFY_CAPTURE) { win.webContents.invalidate(); await wait(700); fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'base-documents-grouped.png'), (await win.webContents.capturePage()).toPNG()); }
+    const keptMore = await until(() => {
+      const d = Base.open(file);
+      try { const l = d.documents().find((x) => x.name === 'Invoice')?.layout; return (l?.blocks.some((x) => x.type === 'lines' && x.group === 'Description') && l.blocks.some((x) => x.if === '[Customer] = 1')) || null; } finally { d.close(); }
+    }, 'kept in the file', 6000).then(() => true, () => false);
+    check("base: a template's Only for records where keeps the records it is for, a block's Show only when hides it on the others, and Group by puts the lines under headings with subtotals; kept in the file",
+      onlyBen && thanks && grouped && keptMore, JSON.stringify({ onlyBen, thanks, grouped, keptMore }));
+
     // The Invoices form prints the invoice it shows.
     await js(`__d.click('.bs-forms [data-form="Invoices"]')`);
     await until(() => js(`Boolean(document.querySelector('.bs-form-print-now'))`), 'the form\'s Print', 6000).catch(() => {});

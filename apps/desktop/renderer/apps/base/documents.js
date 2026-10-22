@@ -47,7 +47,12 @@ function DocumentPage({ layout, letterhead, doc }) {
             return (
               <table key={i} className="bs-doc-lines">
                 <thead><tr>{b.columns.map((c) => <th key={c.name} className={c.align === 'right' ? 'r' : ''}>{c.label}</th>)}</tr></thead>
-                <tbody>{b.rows.map((r, k) => <tr key={k}>{b.columns.map((c) => <td key={c.name} className={c.align === 'right' ? 'r' : ''}>{valueText(c.type, r[c.name], c.decimals)}</td>)}</tr>)}</tbody>
+                <tbody>{b.rows.map((r, k) => (r._group !== undefined
+                  // Grouped lines: a heading for each, then its lines, then its subtotal.
+                  ? <tr key={k} className="group"><th colSpan={b.columns.length}>{r._group === '' ? t('(none)') : String(r._group)}</th></tr>
+                  : r._subtotal
+                    ? <tr key={k} className="subtotal">{b.columns.map((c, n) => <td key={c.name} className={c.align === 'right' ? 'r' : ''}>{n === 0 && !(c.name in r._subtotal) ? tn(r._count, '{count} line', '{count} lines') : c.name in r._subtotal ? valueText(c.type, r._subtotal[c.name], c.decimals) : ''}</td>)}</tr>
+                    : <tr key={k}>{b.columns.map((c) => <td key={c.name} className={c.align === 'right' ? 'r' : ''}>{valueText(c.type, r[c.name], c.decimals)}</td>)}</tr>))}</tbody>
               </table>
             );
           case 'totals':
@@ -185,7 +190,15 @@ function BlockEditor({ block, onChange, names, childTables, childNames }) {
           </label>
           <datalist id="bs-dd-child-names">{(childNames[block.table] || []).map((n) => <option key={n} value={n} />)}</datalist>
           <RowList rows={block.columns || []} onChange={(columns) => set({ columns })} blank={() => ({ field: (childNames[block.table] || [])[0] || '' })} addLabel={t('Add a column')}
-            render={(c, patch) => (c.expr !== undefined ? (
+            render={(c, patch) => (c.running !== undefined ? (
+              <>
+                <Input className="rw-input" aria-label={t('Column name')} placeholder={t('Name')} value={c.as || ''} onChange={(e) => patch({ as: e.target.value })} />
+                <Select className="rw-select bs-dd-running" aria-label={t('A running balance of')} value={c.running} onChange={(e) => patch({ running: e.target.value })}>
+                  {(block.columns || []).filter((x) => x !== c && x.running === undefined).map((x) => x.as || x.field).filter(Boolean).map((n) => <option key={n} value={n}>{n}</option>)}
+                </Select>
+                <Input className="rw-input bs-dd-expr" aria-label={t('Starting from')} placeholder={t('Starting from, e.g. [Opening Balance]')} value={c.start || ''} onChange={(e) => patch({ start: e.target.value || undefined })} />
+              </>
+            ) : c.expr !== undefined ? (
               <>
                 <Input className="rw-input" aria-label={t('Column name')} placeholder={t('Name')} value={c.as || ''} onChange={(e) => patch({ as: e.target.value })} />
                 <Input className="rw-input bs-dd-expr" aria-label={t('Expression')} value={c.expr} onChange={(e) => patch({ expr: e.target.value })} />
@@ -197,6 +210,16 @@ function BlockEditor({ block, onChange, names, childTables, childNames }) {
               </>
             ))} />
           <Button icon="formula" label={t('Add a calculated column')} onClick={() => set({ columns: [...(block.columns || []), { expr: '[Quantity] * [Unit Price]', as: 'Amount', type: 'currency' }] })} />
+          <Button icon="sum" label={t('Add a running balance')} className="bs-dd-add-running" disabled={!(block.columns || []).length} onClick={() => set({ columns: [...(block.columns || []), { running: (block.columns || []).map((x) => x.as || x.field).filter(Boolean).pop(), as: t('Balance') }] })} />
+          <label className="bs-dd-inline"><span>{t('Only lines where')}</span>
+            <Input className="rw-input bs-dd-expr bs-dd-lines-where" aria-label={t('Only lines where')} placeholder={t('e.g. Not [Paid]')} value={block.where || ''} onChange={(e) => set({ where: e.target.value || undefined })} />
+          </label>
+          <label className="bs-dd-inline"><span>{t('Group by')}</span>
+            <Select className="rw-select bs-dd-group" value={block.group || ''} onChange={(e) => set({ group: e.target.value || undefined })}>
+              <option value="">{t('(none)')}</option>
+              {(block.columns || []).filter((x) => x.running === undefined).map((x) => x.as || x.field).filter(Boolean).map((n) => <option key={n} value={n}>{n}</option>)}
+            </Select>
+          </label>
         </>
       );
     case 'totals':
@@ -227,6 +250,9 @@ function Designer({ layout, onChange, tables, names, childTables, childNames }) 
             {PAPER().map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </Select>
         </label>
+        <label className="bs-dd-inline"><span>{t('Only for records where')}</span>
+          <Input className="rw-input bs-dd-expr bs-dd-where" aria-label={t('Only for records where')} placeholder={t('e.g. [Status] = "Shipped"')} value={layout.where || ''} onChange={(e) => onChange({ ...layout, where: e.target.value || undefined })} />
+        </label>
         <label className="bs-dd-inline"><span>{t('Letterhead')}</span>
           <Select className="rw-select bs-dd-letterhead" value={layout.letterhead?.table || ''} onChange={(e) => onChange({ ...layout, letterhead: e.target.value ? { table: e.target.value } : undefined })}>
             <option value="">{t('(none)')}</option>
@@ -244,6 +270,9 @@ function Designer({ layout, onChange, tables, names, childTables, childNames }) 
             <Button icon="trash" label="" title={t('Take this block out')} className="bs-dd-remove" onClick={() => setBlocks(blocks.filter((_, k) => k !== i))} />
           </header>
           <BlockEditor block={b} names={names} childTables={childTables} childNames={childNames} onChange={(nb) => setBlocks(blocks.map((x, k) => (k === i ? nb : x)))} />
+                  <label className="bs-dd-inline bs-dd-if-row"><span>{t('Show only when')}</span>
+            <Input className="rw-input bs-dd-expr bs-dd-if" aria-label={t('Show only when')} placeholder={t('Always, or e.g. [Payment] = "Cash"')} value={b.if || ''} onChange={(e) => setBlocks(blocks.map((x, k) => (k === i ? { ...x, if: e.target.value || undefined } : x)))} />
+          </label>
         </section>
       ))}
       <div className="bs-dd-add">
@@ -388,6 +417,8 @@ export const DOCUMENT_CSS = `
 .bs-doc-lines th, .bs-doc-lines td { text-align: start; padding: 5px 6px; }
 .bs-doc-lines th { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: #6e6e73; border-bottom: 1.5px solid #1d1d1f; }
 .bs-doc-lines td { border-bottom: 1px solid #e4e4e8; }
+.bs-doc-lines tr.group th { padding-top: 10px; font-size: 12px; text-transform: none; letter-spacing: 0; color: #1d1d1f; border-bottom: 1px solid #c7c7cc; }
+.bs-doc-lines tr.subtotal td { font-weight: 600; border-bottom: 1.5px solid #c7c7cc; }
 .bs-doc-page .r { text-align: end; font-variant-numeric: tabular-nums; }
 .paper-receipt-80 .bs-doc-lines th, .paper-receipt-58 .bs-doc-lines th { border-bottom: 1px dashed #1d1d1f; }
 .paper-receipt-80 .bs-doc-lines td, .paper-receipt-58 .bs-doc-lines td { border: 0; padding: 2px 2px; }

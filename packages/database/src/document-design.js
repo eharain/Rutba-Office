@@ -14,6 +14,15 @@
 //   signatures  lines to sign on, with who signs under each
 //   spacer      room between blocks
 //
+// Any block (and any totals row) can say when it is shown: `if`, an
+// expression over the record, the letterhead and what came before. A template
+// can say which records it is for (`where`), its lines which of them they list
+// (`where`) and how they are found (`on`, any field of the record, not only
+// its number), a column keep a running balance (`running`), and the lines be
+// grouped under headings with subtotals (`group`). A value can say how it
+// shows (`type`, `format`, a Format pattern as the query designer writes one);
+// one that is empty shows as nothing.
+//
 // The letterhead is the first record of a table of the business's own
 // details, put at the top of every page. Paper is A4, Letter, A5, or a till
 // roll 80 or 58 mm wide. The expressions are the query designer's
@@ -47,6 +56,18 @@ export function evaluate(base, src, scope) {
   }, { today: base.today });
   return base.query(`SELECT ${sql} AS v`).rows[0]?.v ?? null;
 }
+
+/** Whether an expression's answer holds: anything but empty, zero, false or "0". */
+const holds = (v) => !(v === null || v === undefined || v === '' || v === 0 || v === '0' || v === false);
+
+/** A value as a Format pattern writes it ("0.00", "#,##0", "dd/mm/yyyy"), or as it is when it has none. */
+function formatted(base, v, format) {
+  if (!format || v === null || v === undefined || v === '') return v;
+  return evaluate(base, `Format([v], "${String(format).replace(/"/g, '""')}")`, { v });
+}
+
+/** A value whose type nobody said, read from the value: a date, a date and time, or as it is. */
+const typeOfValue = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? 'date' : typeof v === 'string' && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(v) ? 'datetime' : null);
 
 /** The field a table's records are numbered by (its AutoNumber, ID by default). */
 const keyOf = (base, table) => (base.fields(table).find((f) => f.type === 'autonumber') || { name: 'ID' }).name;
@@ -148,7 +169,11 @@ export function documentData(base, layout, { keys = null, limit = 1000 } = {}) {
     }
   }
 
-  const rows = keys ? keys.map((k) => read.record(table, k)).filter(Boolean) : base.rows(table, { limit });
+  // What a condition reads of a record: its fields, by name or by Table.Field, and the letterhead's.
+  const scopeOf = (row) => ({ ...head, ...row, ...Object.fromEntries(Object.entries(row).map(([k, v]) => [`${table}.${k}`, v])) });
+  // The records it is for: the ones asked for, or those its `where` holds for (a delivery note for shipped orders only).
+  let rows = keys ? keys.map((k) => read.record(table, k)).filter(Boolean) : base.rows(table, { limit });
+  if (layout.where && !keys) rows = rows.filter((row) => holds(evaluate(base, layout.where, scopeOf(row))));
   const documents = rows.map((row) => {
     // A name: the record's field (or a path through its pointing fields), else the letterhead's.
     // Either may say whose it is first: {Invoices.Date}, {Business Details.Address}.
@@ -160,24 +185,46 @@ export function documentData(base, layout, { keys = null, limit = 1000 } = {}) {
       return read.value(table, row, name);
     };
     // What a total may use: the record's fields, the letterhead's, and the lines' sums.
-    const scope = { ...head, ...row };
+    const scope = scopeOf(row);
     const blocks = (layout.blocks || []).map((b) => {
+      // Shown only when its condition holds: cash tendered and change for a cash sale only.
+      if (b.if && !holds(evaluate(base, b.if, scope))) return null;
       switch (b.type) {
         case 'heading':
           return { type: 'heading', parts: fillText(String(b.text || ''), get) };
         case 'fields':
-          return { type: 'fields', columns: Math.min(3, Math.max(1, b.columns || 2)), items: (b.items || []).map((it) => ({ label: it.label || it.field.split('.').pop(), ...get(it.field) })) };
+          return {
+            type: 'fields',
+            columns: Math.min(3, Math.max(1, b.columns || 2)),
+            items: (b.items || []).filter((it) => !it.if || holds(evaluate(base, it.if, scope))).map((it) => {
+              const v = get(it.field);
+              const type = it.type || v.type || typeOfValue(v.value);
+              return it.format ? { label: it.label || it.field.split('.').pop(), value: formatted(base, v.value, it.format), type: 'text' } : { label: it.label || it.field.split('.').pop(), value: v.value, type };
+            }),
+          };
         case 'lines': {
           const child = b.table;
-          const link = b.link || linkOf(base, child, table);
-          const lines = base.rows(child, { where: { [link]: row[keyField] }, limit: 10000, order: b.sort || null });
+          // Found by the field that points at this record, or by `on`: a field of theirs to a field of this record's.
+          const by = b.on && typeof b.on === 'object'
+            // The record's own value (a pointing field's number, not its words), or one reached through a path.
+            ? Object.fromEntries(Object.entries(b.on).map(([theirs, mine]) => [theirs, Object.hasOwn(row, mine) ? row[mine] : get(mine).value]))
+            : { [b.link || linkOf(base, child, table)]: row[keyField] };
+          let lines = base.rows(child, { where: by, limit: 10000, order: b.sort || null });
+          // Only those its `where` holds for: a statement's unpaid invoices.
+          if (b.where) lines = lines.filter((l) => holds(evaluate(base, b.where, { ...scope, ...l })));
           const types = read.typesOf(child);
-          const columns = (b.columns || []).map((c) => ({ name: c.as || c.field, label: c.label || c.as || c.field, type: c.type || (c.field ? types[c.field] : null) || null, align: null, decimals: c.decimals ?? null }));
+          const columns = (b.columns || []).map((c) => ({ name: c.as || c.field || c.running, label: c.label || c.as || c.field || c.running, type: c.type || (c.field ? types[c.field] : null) || (c.running ? 'currency' : null), align: null, decimals: c.decimals ?? null }));
+          // A running balance starts from its `start` (an opening balance), else nothing.
+          const running = Object.fromEntries((b.columns || []).filter((c) => c.running).map((c) => [c.as || c.running, Number(c.start ? evaluate(base, c.start, scope) : 0) || 0]));
           for (const c of columns) c.align = ['currency', 'number', 'integer'].includes(c.type) ? 'right' : 'left';
           const out = lines.map((l) => {
             const values = {};
             for (const [i, c] of (b.columns || []).entries()) {
-              if (c.expr) values[columns[i].name] = evaluate(base, c.expr, { ...head, ...l, ...values });
+              if (c.running) {
+                const name = columns[i].name;
+                running[name] = Math.round((running[name] + (Number(values[c.running]) || 0)) * 1e6) / 1e6;
+                values[name] = running[name];
+              } else if (c.expr) values[columns[i].name] = evaluate(base, c.expr, { ...scope, ...l, ...values });
               else {
                 const v = read.value(child, l, c.field);
                 values[columns[i].name] = v.value;
@@ -187,19 +234,56 @@ export function documentData(base, layout, { keys = null, limit = 1000 } = {}) {
             }
             return values;
           });
+          // A calculated column nobody typed: a date or a date and time read from its values.
+          for (const c of columns) if (!c.type) c.type = out.map((v) => typeOfValue(v[c.name])).find(Boolean) || null;
           for (const c of columns) c.align = ['currency', 'number', 'integer'].includes(c.type) ? 'right' : 'left';
-          // The lines' sums, for the totals below: a column summed under its own name.
+          // The lines' sums, for the totals below: a column summed under its own name. A running balance is not summed: its last is its total.
+          const isNumber = (c) => ['currency', 'number', 'integer'].includes(c.type) || out.some((v) => typeof v[c.name] === 'number');
           for (const c of columns) {
-            if (!['currency', 'number', 'integer'].includes(c.type) && !out.some((v) => typeof v[c.name] === 'number')) continue;
-            scope[c.name] = Math.round(out.reduce((n, v) => n + (Number(v[c.name]) || 0), 0) * 1e6) / 1e6;
+            if (!isNumber(c)) continue;
+            scope[c.name] = c.name in running ? (out.length ? out[out.length - 1][c.name] : running[c.name]) : Math.round(out.reduce((n, v) => n + (Number(v[c.name]) || 0), 0) * 1e6) / 1e6;
           }
-          return { type: 'lines', columns, rows: out };
+          scope[`${b.as || child} count`] = out.length;
+          // Each column's own Format pattern, applied once the sums are taken.
+          const shownRows = out.map((v) => {
+            const r = { ...v };
+            for (const [i, c] of (b.columns || []).entries()) if (c.format) r[columns[i].name] = formatted(base, v[columns[i].name], c.format);
+            return r;
+          });
+          for (const [i, c] of (b.columns || []).entries()) if (c.format) { columns[i].type = 'text'; }
+          // Grouped: a heading for each value of the column, in the order they come, and a subtotal under each.
+          if (b.group && columns.some((c) => c.name === b.group)) {
+            const order = [];
+            const groups = new Map();
+            out.forEach((v, k) => {
+              const key = v[b.group] ?? '';
+              if (!groups.has(key)) { groups.set(key, []); order.push(key); }
+              groups.get(key).push(k);
+            });
+            const rows = [];
+            for (const key of order) {
+              const members = groups.get(key);
+              rows.push({ _group: shownRows[members[0]][b.group] ?? '', _count: members.length });
+              for (const k of members) rows.push(shownRows[k]);
+              if (b.subtotals !== false) {
+                const sub = {};
+                // `subtotals` may name the columns worth adding up (an amount, not a unit price); else every number.
+                const named = Array.isArray(b.subtotals) ? new Set(b.subtotals) : null;
+                for (const c of columns) if (isNumber(c) && !(c.name in running) && c.name !== b.group && (!named || named.has(c.name))) sub[c.name] = Math.round(members.reduce((n, k) => n + (Number(out[k][c.name]) || 0), 0) * 1e6) / 1e6;
+                rows.push({ _subtotal: sub, _count: members.length });
+              }
+            }
+            return { type: 'lines', columns, rows, group: b.group };
+          }
+          return { type: 'lines', columns, rows: shownRows };
         }
         case 'totals': {
-          const items = (b.rows || []).map((t) => {
+          // A row with an `if` shows only when it holds; one that does not still counts as nothing for the rows after it.
+          const items = (b.rows || []).flatMap((t) => {
+            if (t.if && !holds(evaluate(base, t.if, scope))) { scope[t.label] = null; return []; }
             const v = evaluate(base, t.expr, scope);
             scope[t.label] = v;
-            return { label: t.label, value: v, type: t.type || 'currency', strong: Boolean(t.strong), decimals: t.decimals ?? null };
+            return [t.format ? { label: t.label, value: formatted(base, v, t.format), type: 'text', strong: Boolean(t.strong), decimals: null } : { label: t.label, value: v, type: t.type || 'currency', strong: Boolean(t.strong), decimals: t.decimals ?? null }];
           });
           return { type: 'totals', rows: items };
         }
@@ -212,7 +296,7 @@ export function documentData(base, layout, { keys = null, limit = 1000 } = {}) {
         default:
           throw new Error(`A template has no block called ${b.type}.`);
       }
-    });
+    }).filter(Boolean);
     return { key: row[keyField], blocks };
   });
   return { layout, letterhead, documents };

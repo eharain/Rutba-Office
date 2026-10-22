@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7758,
+  "count": 7770,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1411,6 +1411,12 @@
       ]
     },
     {
+      "message": "A running balance of",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
+      ]
+    },
+    {
       "message": "A scatter chart here plots up to three series — select a block of an X column and up to three Y columns.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -2389,6 +2395,12 @@
       "message": "Add a note…",
       "where": [
         "apps/desktop/renderer/apps/pdf/annots.js"
+      ]
+    },
+    {
+      "message": "Add a running balance",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
       ]
     },
     {
@@ -3512,6 +3524,12 @@
       "message": "Always on",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "Always, or e.g. [Payment] = \"Cash\"",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
       ]
     },
     {
@@ -4798,6 +4816,12 @@
       "message": "Bad",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Balance",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
       ]
     },
     {
@@ -15797,6 +15821,7 @@
     {
       "message": "Group by",
       "where": [
+        "apps/desktop/renderer/apps/base/documents.js",
         "apps/desktop/renderer/apps/base/reports.js"
       ]
     },
@@ -25429,6 +25454,12 @@
       ]
     },
     {
+      "message": "Only for records where",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
+      ]
+    },
+    {
       "message": "Only glTF 2.0 models are read",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -25438,6 +25469,12 @@
       "message": "Only include the country/region if different than:",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Only lines where",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
       ]
     },
     {
@@ -34527,6 +34564,12 @@
       ]
     },
     {
+      "message": "Show only when",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
+      ]
+    },
+    {
       "message": "Show options",
       "where": [
         "apps/desktop/renderer/apps/slides/setup.js"
@@ -36426,6 +36469,18 @@
       "message": "Start:",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Starting from",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
+      ]
+    },
+    {
+      "message": "Starting from, e.g. [Opening Balance]",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
       ]
     },
     {
@@ -45524,6 +45579,18 @@
       ]
     },
     {
+      "message": "e.g. Not [Paid]",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
+      ]
+    },
+    {
+      "message": "e.g. [Status] = \"Shipped\"",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
+      ]
+    },
+    {
       "message": "effect",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -47642,6 +47709,13 @@
       "plural": "{count} left as they were",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{count} line",
+      "plural": "{count} lines",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
       ]
     },
     {
