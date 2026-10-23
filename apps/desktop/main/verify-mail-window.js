@@ -7,7 +7,8 @@
 // the message read, and no folders or list beside it. The arrow keys there
 // stay on the message rather than moving to another. The first window still
 // has its list. Deleted from its own window, the message goes to Deleted and
-// the window closes. Run alone with RUTBA_VERIFY_ONLY=mail-window.
+// the window closes. Deleted from the list, that row goes and the rest of the
+// list stays as it was. Run alone with RUTBA_VERIFY_ONLY=mail-window.
 
 import { BrowserWindow } from 'electron';
 
@@ -89,6 +90,44 @@ export async function verifyMailWindow(h) {
     const left = await mail('messages', { accountId, folder: inbox, query: '', limit: 500 });
     const inInbox = (left.rows || left || []).some((r) => (r.subject || '').includes(subject));
     check('mail: deleted from its own window, the message leaves the inbox and the window closes', closed && !inInbox, `closed ${closed}; still in the inbox ${inInbox}`);
+
+    // Deleted from the list (owner, 2026-10-23: "the email list entirely reloads when and email is
+    // deleted rather than just single item removal"): that row goes, and the list stays as it was,
+    // never emptied, no spinner over it, the other rows the same rows where they were.
+    const keep = `Window: the minutes ${stamp}`;
+    const drop = `Window: the agenda ${stamp}`;
+    for (const [s, n] of [[keep, 'keep'], [drop, 'drop']]) {
+      await mail('deliverTest', { accountId, folder: 'Inbox', raw: raw.replace(subject, s).replace(`<window-${stamp}@`, `<window-${n}-${stamp}@`) });
+    }
+    await openInbox();
+    const rowOf = (s) => `[...document.querySelectorAll('.ml-row')].find((row) => row.querySelector('.ml-subject')?.textContent.includes(${JSON.stringify(s)}))`;
+    await until(async () => (await js(`Boolean(${rowOf(keep)} && ${rowOf(drop)})`)) || (await openInbox(), await wait(400), false), 'both messages in the list', 12000).catch(() => {});
+    const removed = await js(`(async () => {
+      const kept = ${rowOf(keep)};
+      const target = ${rowOf(drop)};
+      if (!kept || !target) return { ready: false };
+      kept.dataset.keptRow = '1';
+      const top = kept.getBoundingClientRect().top;
+      let emptied = false;
+      let spun = false;
+      const watch = new MutationObserver(() => {
+        if (!document.querySelector('.ml-list')) emptied = true;
+        // The list's spinner stands where the list was, a button's in the button.
+        if ([...document.querySelectorAll('.rw-spinner')].some((n) => !n.closest('button'))) spun = true;
+      });
+      watch.observe(document.body, { childList: true, subtree: true });
+      target.click();
+      await new Promise((r) => setTimeout(r, 400));
+      const del = [...document.querySelectorAll('.rw-btn, button')].find((n) => (n.dataset.tip || n.title || n.getAttribute('aria-label') || '').trim().startsWith('Delete') && !n.disabled && n.offsetParent !== null);
+      if (!del) { watch.disconnect(); return { ready: true, button: false }; }
+      del.click();
+      for (let i = 0; i < 40 && ${rowOf(drop)}; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 1500));
+      watch.disconnect();
+      const after = ${rowOf(keep)};
+      return { ready: true, button: true, gone: !${rowOf(drop)}, sameRow: Boolean(after && after.dataset.keptRow === '1'), emptied, spun, moved: after ? Math.round(after.getBoundingClientRect().top - top) : null };
+    })()`);
+    check('mail: a message deleted from the list leaves it alone, the list never emptied nor a spinner shown over it, the other messages the same rows', removed.ready && removed.button && removed.gone && removed.sameRow && !removed.emptied && !removed.spun, JSON.stringify(removed));
 
     const complaints = [...(await errorsIn(win))];
     check('mail window: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

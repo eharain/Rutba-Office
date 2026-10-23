@@ -51,6 +51,9 @@ const EVERYTHING = '*';
 
 const keyOf = (row) => `${row.accountId}|${row.folder}|${row.id}`;
 
+/** What takes a message out of the folder shown: it leaves the list at once. */
+const LEAVES = ['delete', 'archive', 'junk', 'move', 'notJunk', 'block'];
+
 export default function Mail({ app, shell }) {
   const toast = useToast();
   const menu = useMenu();
@@ -265,7 +268,7 @@ export default function Mail({ app, shell }) {
     }
     setFound(null);
     if (unified) {
-      setBusy(true);
+      if (!quiet) setBusy(true);
       try {
         setList(await shell.mail.unified({ role, query, limit: 500 }));
       } catch (err) {
@@ -559,17 +562,24 @@ export default function Mail({ app, shell }) {
           await overRows(chosen, (g) => shell.mail.flag({ ...g, patch: { pinned: on } }));
         }
         setChecked(new Set());
-        if (['delete', 'archive', 'junk', 'move', 'notJunk', 'block'].includes(what) || (what === 'safeGroup' && chosen.some((r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk')))) setSelected(null);
+        if (LEAVES.includes(what) || (what === 'safeGroup' && chosen.some((r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk')))) setSelected(null);
         // Moved out of its folder, the message's own window has nothing left to show.
-        if (alone && ['delete', 'archive', 'junk', 'move', 'notJunk', 'block'].includes(what)) {
+        if (alone && LEAVES.includes(what)) {
           shell.win.close({}).catch(() => {});
           return;
+        }
+        if (LEAVES.includes(what)) {
+          const gone = new Set(chosen.map(keyOf));
+          setList((current) => ({ ...current, rows: current.rows.filter((r) => !gone.has(keyOf(r))), total: Math.max(0, (current.total ?? current.rows.length) - gone.size) }));
+          quietSearch.current = true;
         }
         await refreshList();
         await loadAccounts();
         setFolderTick((n) => n + 1);
       } catch (err) {
         toast(err.message, { tone: 'bad' });
+        // Refused part way: the folder as it now is.
+        await refreshList().catch(() => {});
       }
     },
     [alone, targets, overRows, foldersFor, unified, role, shell, refreshList, loadAccounts, toast]
