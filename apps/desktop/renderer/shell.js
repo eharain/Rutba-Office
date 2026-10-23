@@ -311,7 +311,7 @@ export function useUpdate(shell) {
 }
 
 /** The frame. Apps supply the ribbon, the body and the status bar. */
-export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, menu, right, children }) {
+export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, menu, right, titleAfter, children }) {
   const [platform, setPlatform] = useState('win32');
   const update = useUpdate(shell);
   // The release this window said "Not now" to, and the one its status
@@ -343,6 +343,7 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
         title={title || app?.name}
         subtitle={subtitle}
         dirty={dirty}
+        titleAfter={titleAfter}
         platform={platform}
         shell={shell}
         right={<>{right}<AiBadge shell={shell} onOpen={() => setAiTools(true)} /></>}

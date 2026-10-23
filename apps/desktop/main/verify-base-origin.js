@@ -49,6 +49,15 @@ export async function verifyBaseOrigin({ open, check, until, wait }, { dir }) {
     const made = await js(`({ page: document.querySelector('.bs-about-online')?.dataset.page || null, banner: Boolean(document.querySelector('.bs-update')) })`);
     check('base: a database made from a ready-made one links to its page online, and offers nothing while it is up to date',
       made.page === 'https://office.rutba.io/samples/contacts' && !made.banner, JSON.stringify(made));
+    // Owner, 2026-10-23: "little world / web icon next to the database name to link to outside world",
+    // and "fix panel becomes part of the scrolled panel".
+    const placed = await js(`(() => {
+      const globe = document.querySelector('.bs-about-online');
+      const foot = document.querySelector('.bs-side-foot');
+      return { inTitle: Boolean(globe?.closest('.rw-titlebar .rw-doctitle')), named: globe?.getAttribute('aria-label') || '', inPanel: Boolean(globe?.closest('.bs-side')), footPosition: foot ? getComputedStyle(foot).position : null };
+    })()`);
+    check('base: About this database online is a globe beside the database name in the title bar, and the side panel foot scrolls with the panel',
+      placed.inTitle && placed.named === 'About this database online' && !placed.inPanel && placed.footPosition !== 'sticky', JSON.stringify(placed));
 
     // One made from an older design: offered the newer, and brought up to date, its record kept.
     win = await open('base', older);

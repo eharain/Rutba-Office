@@ -46,7 +46,7 @@ export const BASE_CSS = `
 .bs-table small { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
 .bs-table:hover { background: var(--wash); }
 .bs-table.on { background: var(--wash-strong); box-shadow: inset 3px 0 0 var(--accent); }
-.bs-side-foot { display: grid; gap: 2px; padding: 8px; border-top: 1px solid var(--line-soft); margin-top: auto; position: sticky; bottom: 0; background: var(--sunken); }
+.bs-side-foot { display: grid; gap: 2px; padding: 8px; border-top: 1px solid var(--line-soft); }
 .bs-side-foot .bs-import { justify-content: flex-start; margin-bottom: 4px; }
 
 .bs-main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; position: relative; min-height: 0; }

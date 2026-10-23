@@ -316,6 +316,8 @@ textarea,
   white-space: nowrap;
 }
 .rw-doctitle .dirty { color: var(--accent-text); font-weight: 700; margin-inline-start: 5px; }
+.rw-doctitle-after { display: inline-flex; vertical-align: middle; margin-inline-start: 4px; }
+.rw-doctitle-after .rw-btn { height: 22px; min-width: 22px; padding: 0 4px; }
 
 .rw-wincontrols { display: flex; height: 100%; align-items: center; padding-inline-end: 4px; gap: 2px; }
 .rw-wincontrols button {

@@ -156,7 +156,7 @@ export function SuiteMark({ size = 18 }) {
  * begins with the suite's mark and name, then the app's own, so each window
  * says it is a Rutba Office app; a narrow window keeps the mark alone.
  */
-export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, onMenu }) {
+export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, onMenu, titleAfter }) {
   const [maximized, setMaximized] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const isMac = platform === 'darwin';
@@ -222,6 +222,8 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
         {title}
         {dirty ? <span className="dirty" aria-hidden="true">•</span> : null}
         {subtitle ? <span style={{ opacity: 0.6 }}> — {subtitle}</span> : null}
+        {/* Beside the name, what belongs to it: a database's page online. */}
+        {titleAfter ? <span className="interactive rw-doctitle-after">{titleAfter}</span> : null}
       </h1>
 
       <div className="interactive" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

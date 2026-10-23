@@ -811,7 +811,13 @@ export default function Databases({ app, shell, boot }) {
 
   const tab = (key, label) => <button type="button" role="tab" aria-selected={view === key} className={`bs-tab${view === key ? ' on' : ''}`} data-view={key} onClick={() => setView(key)}>{label}</button>;
   return (
-    <AppFrame app={app} shell={shell} title={title} menu={appMenu}>
+    <AppFrame app={app} shell={shell} title={title} menu={appMenu}
+      titleAfter={db.origin?.page ? (
+        <button type="button" className="rw-btn ghost bs-about-online" data-page={db.origin.page} title={t('About this database online')} aria-label={t('About this database online')}
+          onClick={() => shell.shell.openExternal({ url: db.origin.page }).catch(() => {})}>
+          <Icon name="globe" size={13} />
+        </button>
+      ) : null}>
       <div className="bs-app">
         <nav className="bs-side" aria-label={t('Tables')}>
           {pinnedItems.length ? (
@@ -855,7 +861,6 @@ export default function Databases({ app, shell, boot }) {
             ) : null}
             {access.person ? <button type="button" className="bs-table bs-my-password" onClick={() => setChangingPassword(true)}><Icon name="lock" size={14} /><span>{t('Change my password')}</span></button> : null}
             {access.person ? <button type="button" className="bs-table bs-sign-out" onClick={async () => { show(await shell.base.signOut({ id: db.id })); }}><Icon name="unlock" size={14} /><span>{t('Sign out')}</span></button> : null}
-            {db.origin?.page ? <button type="button" className="bs-table bs-about-online" data-page={db.origin.page} onClick={() => shell.shell.openExternal({ url: db.origin.page }).catch(() => {})}><Icon name="globe" size={14} /><span>{t('About this database online')}</span></button> : null}
           </div>
           {sideMenu.node}
         </nav>
