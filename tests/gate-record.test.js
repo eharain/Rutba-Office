@@ -3,7 +3,7 @@
 // the note's plain style, and brought into the README's counts.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { countsOf, engineCounts, gateSection, withGateSection, withReadmeCounts, localDate, wrap } from '../tools/gate.js';
+import { countsOf, engineCounts, gateSection, withGateSection, withReadmeCounts, localDate, wrap, isPatch } from '../tools/gate.js';
 
 const counts = {
   test: countsOf('test', 'ℹ tests 1800\nℹ pass 1794\nℹ fail 0\nℹ skipped 6\n...\nℹ tests 70\nℹ pass 70\nℹ fail 0\nℹ skipped 0\n'),
@@ -59,4 +59,15 @@ test('the budgets, run alone after the suite, count among the engine tests but n
   const out = withReadmeCounts(readme, withPerf);
   assert.match(out, /# 1,870 tests, no network needed/);
   assert.match(out, /before a release: 1,874 engine tests/);
+});
+
+test('a patch release goes on the record with the apps it changed, a minor release only in full (D-2026-10-23-01)', () => {
+  assert.equal(isPatch('2.17.1'), true);
+  assert.equal(isPatch('2.17.12'), true);
+  assert.equal(isPatch('2.17.0'), false);
+  assert.equal(isPatch('2.18.0-dev'), false);
+  const counts = { test: { tests: 3000, passed: 2991, failed: 0, skipped: 9 }, 'verify:apps': { passed: 120, of: 120 }, smoke: { passed: 14, of: 14 } };
+  assert.match(gateSection(counts, { version: '2.17.2', date: '2026-10-23', platform: 'win32', arch: 'x64', apps: ['base', 'mail'] }), /120 of 120 application checks, of base and mail, the apps it\s+changed/);
+  assert.match(gateSection(counts, { version: '2.17.2', date: '2026-10-23', platform: 'win32', arch: 'x64', apps: ['base'] }), /of base, the app it changed/);
+  assert.doesNotMatch(gateSection(counts, { version: '2.18.0', date: '2026-10-23', platform: 'win32', arch: 'x64' }), /it changed/);
 });

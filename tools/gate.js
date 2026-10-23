@@ -6,7 +6,9 @@
 //   npm run gate -- --apps word,mail   the window checks of those chunks only
 //   npm run gate -- --changed    the window checks of the chunks changed since
 //                                the last release tag (all of them when what
-//                                every app shares has changed)
+//                                every app shares has changed); with --record
+//                                on a patch release (2.17.1), what it checked
+//                                is put on the record (D-2026-10-23-01)
 //   npm run gate -- --resume     carry on from the last run on this commit:
 //                                what passed is not run again, and --record
 //                                adds the runs up
@@ -130,12 +132,12 @@ const n = (v) => Number(v).toLocaleString('en-GB');
 const PLATFORM = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 
 /** The release note's Gate section, in the note's own plain style. */
-export function gateSection(counts, { version, date, platform = process.platform, arch = process.arch, reran = [] }) {
+export function gateSection(counts, { version, date, platform = process.platform, arch = process.arch, reran = [], apps = null }) {
   const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
     counts['verify:edit'] ? `${n(counts['verify:edit'].passed)} of ${n(counts['verify:edit'].of)} editing checks` : null,
-    counts['verify:apps'] ? `${n(counts['verify:apps'].passed)} of ${n(counts['verify:apps'].of)} application checks` : null,
+    counts['verify:apps'] ? `${n(counts['verify:apps'].passed)} of ${n(counts['verify:apps'].of)} application checks${apps ? `, of ${listed(apps)}, the ${apps.length === 1 ? 'app' : 'apps'} it changed` : ''}` : null,
     counts.smoke ? `${n(counts.smoke.passed)} of ${n(counts.smoke.of)} windows painted clean` : null,
   ].filter(Boolean);
   const list = parts.length > 1 ? `${parts.slice(0, -1).join('; ')}; and ${parts.at(-1)}` : parts[0];
@@ -143,6 +145,18 @@ export function gateSection(counts, { version, date, platform = process.platform
     ? `\n\n${wrap(`${reran.length === 1 ? 'One check' : `${n(reran.length)} checks`} failed beside the others and passed when run again alone at the end of the same gate:`)}\n\n${reran.map((r) => `- ${r}`).join('\n')}`
     : '';
   return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${again}\n`;
+}
+
+/** a, b and c */
+const listed = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0]);
+
+/**
+ * A patch release (2.17.1, not 2.17.0) may go on the record with the window
+ * checks of only the apps it changed (owner, D-2026-10-23-01: "has no way to
+ * just test one single app when the changes is in single app only").
+ */
+export function isPatch(version) {
+  return /^\d+\.\d+\.([1-9]\d*)$/.test(String(version));
 }
 
 /** The engine tests in all: the suite, and the budgets run alone after it. */
@@ -565,19 +579,23 @@ async function main() {
       : `\n\u001b[32mThe gate is open.\u001b[0m ${results.length} passes${partial ? `, for ${only.length ? only.join(', ') : wanted.join(', ')} only` : ''}.`
   );
 
-  // On the record only when every pass and every chunk passed on this commit, in one run or resumed.
-  const whole = !partial && ['test', 'test:perf', 'verify:edit', 'smoke'].every((name) => state.passes[name]?.ok)
-    && VERIFY_APPS.every((a) => state.apps[a]?.ok) && state.machine?.ok;
+  // On the record only when every pass and every chunk passed on this commit, in one run or resumed;
+  // a patch release with --changed, every pass and the chunks it changed.
+  const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+  const scoped = changed && !only.length && !appsArg && isPatch(version) && wanted.length < VERIFY_APPS.length;
+  const whole = (!partial || scoped) && ['test', 'test:perf', 'verify:edit', 'smoke'].every((name) => state.passes[name]?.ok)
+    && (scoped ? wanted : VERIFY_APPS).every((a) => state.apps[a]?.ok) && (!wanted.length || state.machine?.ok);
   if (record) {
     if (failed || !whole) {
-      console.log('Nothing recorded: only a full run that passed is put on the record.');
+      console.log(changed && !isPatch(version)
+        ? `Nothing recorded: ${version} is not a patch release, and only a full run that passed is put on its record.`
+        : 'Nothing recorded: only a run that passed, in full or for the apps a patch release changed, is put on the record.');
     } else {
-      const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
       const date = localDate();
       const notePath = path.join(ROOT, 'docs', 'releases', `v${version}.md`);
       if (fs.existsSync(notePath)) {
         const reran = [...VERIFY_APPS.flatMap((a) => state.apps[a]?.reran || []), ...(state.machine?.reran || [])];
-        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran })));
+        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null })));
         console.log(`Recorded in ${path.relative(ROOT, notePath)}.`);
       } else {
         console.log(`No note at ${path.relative(ROOT, notePath)} to record in; write the note first.`);
