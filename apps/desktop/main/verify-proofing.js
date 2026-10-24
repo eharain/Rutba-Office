@@ -296,6 +296,11 @@ export async function verifySpelling(h, { dir }) {
     const w = helpers(win, wait);
     const id = sessionFor('doc').id;
     await until(() => w.js(`Boolean(document.querySelector('.wd-page [data-block="1"]'))`), 'the page', 8000);
+    // The dictionary loaded on its thread before the right-click. The menu
+    // asks it about the word and waits two and a half seconds for an answer;
+    // on a busy machine the first load took longer, and the menu opened with
+    // the usual verbs alone. This waits for the answer the menu would get.
+    await until(async () => (await doc.proof({ id, action: 'spellCheckWord', word: 'brwn' }))?.suggestions?.includes('brown'), 'the dictionary on its thread', 60000).catch(() => {});
 
     // Right-click on the misspelt word: the suggestions head the menu.
     const menu = await w.js(`(() => {
