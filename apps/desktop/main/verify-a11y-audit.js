@@ -35,6 +35,14 @@ export async function runAxe(win, { include = null } = {}) {
   if (!loaded) await js(`${axeScript()};\n1`);
   const context = include ? `{ include: ${JSON.stringify(include)}, exclude: ${JSON.stringify(EXCLUDE)} }` : `{ exclude: ${JSON.stringify(EXCLUDE)} }`;
   return js(`(async () => {
+    // What is moving finished first (a tab's buttons fading in, a pane
+    // sliding open), and the frame after it drawn: on a busy machine the
+    // fixed pause after a click ended mid-fade, and axe measured the contrast
+    // of words still on their way in. An animation that never ends (a
+    // spinner) is not waited for, and none is waited for past five seconds.
+    const moving = document.getAnimations().filter((a) => a.playState === 'running' && a.effect?.getComputedTiming?.().endTime !== Infinity);
+    await Promise.race([Promise.all(moving.map((a) => a.finished.catch(() => {}))), new Promise((r) => setTimeout(r, 5000))]);
+    await Promise.race([new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))), new Promise((r) => setTimeout(r, 500))]);
     const r = await window.axe.run(${context}, {
       runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] },
       resultTypes: ['violations'],
