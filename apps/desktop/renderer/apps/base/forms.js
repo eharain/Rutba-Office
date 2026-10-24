@@ -2,16 +2,20 @@
 // form wizard's, kept in the file). Each control shows its field and keeps
 // a change when it is left; a lookup is a list of the related table's
 // records by their first words; the records elsewhere that point at this
-// one are listed below; and the bar at the foot moves between records,
-// starts a new one and deletes the one shown.
+// one are listed below, their lines changed in place and added at the foot
+// as a datasheet's are; and the bar at the foot moves between records,
+// starts a new one and deletes the one shown. Design moves, sizes, takes
+// off and puts back its fields, and renames their labels (FormDesigner).
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Dialog, Select, t, tn } from '@rutba/office-ui';
-import { valueFromControl } from '@rutba/database/form-design';
+import { valueFromControl, labelLeft } from '@rutba/database/form-design';
 import { usePrinter } from './documents.js';
+import { FormDesigner, FORM_DESIGN_CSS } from './form-designer.js';
 import { may, canDesign } from './people.js';
 
-const LABEL_X = 16;
+/** The control a subform's column is typed in, by its field's type. */
+const SUB_KINDS = { integer: 'number', number: 'number', currency: 'currency', yesno: 'check', date: 'date', datetime: 'datetime', autonumber: 'auto' };
 
 /** A stored value as a control shows it. */
 function shownValue(kind, v) {
@@ -63,6 +67,143 @@ function SearchList({ shell, db, control: c, common, value, onPick }) {
         </ul>
       ) : null}
     </span>
+  );
+}
+
+/**
+ * A subform: the lines of another table that point at the record shown,
+ * each value changed where it stands (clicked, typed, kept when its box is
+ * left), a new line typed in the row at the foot and added with Enter or
+ * Add, pointing at the record shown; a line deleted after asking. What the person may do in
+ * that table decides which of these they have.
+ */
+function SubformLines({ shell, db, sub: s, record, rows, count, words, onChanged, toast }) {
+  const [fields, setFields] = useState([]);
+  const [choices, setChoices] = useState({});
+  const [fresh, setFresh] = useState({});
+  const [removing, setRemoving] = useState(null);
+  const [editing, setEditing] = useState(null); // `${rowid}.${col}`
+  const mayChange = may(db, s.table, 'change');
+  const mayAdd = may(db, s.table, 'add') && Boolean(record);
+  const mayDelete = may(db, s.table, 'delete');
+  const pointing = (col) => (db.relationships || []).find((r) => r.from.table === s.table && r.from.field === col);
+  useEffect(() => {
+    let live = true;
+    shell.base.fields({ id: db.id, table: s.table }).then((f) => { if (live) setFields(f); }).catch(() => {});
+    // A column that points at another table is a list of its records, as the form's own lists are.
+    Promise.all(s.columns.filter((col) => pointing(col)).map((col) => {
+      const rel = pointing(col);
+      return shell.base.lookupPage({ id: db.id, table: rel.to.table, field: rel.to.field, limit: LIST_MAX }).then((page) => [col, page]);
+    })).then((pairs) => { if (live) setChoices(Object.fromEntries(pairs)); }).catch(() => {});
+    return () => { live = false; };
+  }, [shell, db.id, s.table, db.steps]);
+  const kindOf = (col) => (pointing(col) ? 'list' : SUB_KINDS[fields.find((f) => f.name === col)?.type] || 'text');
+  const fixed = (col) => kindOf(col) === 'auto' || Boolean(fields.find((f) => f.name === col)?.readOnly);
+
+  const keep = async (r, col, raw) => {
+    setEditing(null);
+    const value = valueFromControl(kindOf(col), raw);
+    if ((r[col] ?? null) === value || (kindOf(col) === 'check' && Boolean(r[col]) === value)) return;
+    try {
+      await shell.base.update({ id: db.id, table: s.table, rowid: r._rowid, values: { [col]: value } });
+      onChanged();
+    } catch (e) {
+      toast(e.message, { tone: 'bad', ms: 7000 });
+      onChanged();
+    }
+  };
+  const add = async () => {
+    const values = Object.fromEntries(Object.entries(fresh).filter(([, v]) => v !== '' && v !== undefined).map(([col, v]) => [col, valueFromControl(kindOf(col), v)]));
+    if (!Object.keys(values).length) return;
+    try {
+      await shell.base.insert({ id: db.id, table: s.table, values: { ...values, [s.field]: record[s.to] } });
+      setFresh({});
+      onChanged();
+    } catch (e) {
+      toast(e.message, { tone: 'bad', ms: 7000 });
+    }
+  };
+  const remove = async () => {
+    const r = removing;
+    setRemoving(null);
+    try {
+      await shell.base.remove({ id: db.id, table: s.table, rowids: [r._rowid] });
+      onChanged();
+    } catch (e) {
+      toast(e.message, { tone: 'bad', ms: 7000 });
+    }
+  };
+  const options = (col) => (choices[col]?.items || []).map((o) => <option key={String(o.value)} value={String(o.value)}>{o.text}</option>);
+
+  const cell = (r, col) => {
+    const kind = kindOf(col);
+    const v = r[col];
+    if (!mayChange || fixed(col)) return words(col, v);
+    const key = `${r._rowid}-${col}-${String(v)}`;
+    if (kind === 'check') return <input key={key} type="checkbox" className="bs-sub-cell" data-col={col} aria-label={col} checked={Boolean(v)} onChange={(e) => keep(r, col, e.target.checked)} />;
+    // The value as words until it is clicked, as the record's lines read; then the box to change it in.
+    if (editing !== `${r._rowid}.${col}`) {
+      return <span className="bs-sub-text" role="button" tabIndex={0} title={t('Click to change')} onClick={() => setEditing(`${r._rowid}.${col}`)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'F2') setEditing(`${r._rowid}.${col}`); }}>{words(col, v)}</span>;
+    }
+    const leave = (e) => { if (e.key === 'Escape') setEditing(null); };
+    if (kind === 'list') {
+      return (
+        <select key={key} autoFocus className="rw-select bs-sub-cell" data-col={col} aria-label={col} defaultValue={v === null || v === undefined ? '' : String(v)} onChange={(e) => keep(r, col, e.target.value)} onBlur={() => setEditing(null)} onKeyDown={leave}>
+          <option value="">{t('(none)')}</option>
+          {options(col)}
+        </select>
+      );
+    }
+    const type = { date: 'date', datetime: 'datetime-local' }[kind] || 'text';
+    return <input key={key} autoFocus type={type} className={`rw-input bs-sub-cell bs-sub-${kind}`} data-col={col} aria-label={col} defaultValue={shownValue(kind, v)} onBlur={(e) => keep(r, col, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); leave(e); }} />;
+  };
+  const newCell = (col) => {
+    const kind = kindOf(col);
+    if (fixed(col)) return <span className="bs-auto">{t('(new)')}</span>;
+    if (kind === 'check') return <input type="checkbox" className="bs-sub-new" data-col={col} aria-label={col} checked={Boolean(fresh[col])} onChange={(e) => setFresh({ ...fresh, [col]: e.target.checked })} />;
+    if (kind === 'list') {
+      return (
+        <select className="rw-select bs-sub-new" data-col={col} aria-label={col} value={fresh[col] ?? ''} onChange={(e) => setFresh({ ...fresh, [col]: e.target.value })}>
+          <option value="">{t('(none)')}</option>
+          {options(col)}
+        </select>
+      );
+    }
+    const type = { date: 'date', datetime: 'datetime-local' }[kind] || 'text';
+    return <input type={type} className={`rw-input bs-sub-new bs-sub-${kind}`} data-col={col} aria-label={col} placeholder={col} value={fresh[col] ?? ''} onChange={(e) => setFresh({ ...fresh, [col]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />;
+  };
+
+  return (
+    <div className="bs-subform" style={{ left: s.x, top: s.y, width: s.w, height: s.h }} data-subform={s.table}>
+      <div className="bs-subform-head">{s.label} <small>{tn(count || 0, '{count} record', '{count} records')}</small></div>
+      <div className="bs-subform-body">
+        <table>
+          <thead><tr>{s.columns.map((col) => <th key={col}>{col}</th>)}{mayDelete || mayAdd ? <th aria-label={t('Lines')} /> : null}</tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r._rowid} data-rowid={r._rowid}>
+                {s.columns.map((col) => <td key={col} data-col={col}>{cell(r, col)}</td>)}
+                {mayDelete ? <td className="bs-sub-tools"><button type="button" className="bs-sub-remove" title={t('Delete this line')} aria-label={t('Delete this line')} onClick={() => setRemoving(r)}>×</button></td> : mayAdd ? <td /> : null}
+              </tr>
+            ))}
+          </tbody>
+          {/* The new line, typed at the foot as a datasheet's new record is. */}
+          {mayAdd ? (
+            <tfoot>
+              <tr className="bs-sub-fresh">
+                {s.columns.map((col) => <td key={col} data-col={col}>{newCell(col)}</td>)}
+                <td className="bs-sub-tools"><button type="button" className="bs-sub-add" title={t('Add this line')} aria-label={t('Add this line')} onClick={add}>+</button></td>
+              </tr>
+            </tfoot>
+          ) : null}
+        </table>
+      </div>
+      {removing ? (
+        <Dialog title={t('Delete this line?')} onClose={() => setRemoving(null)} actions={<><Button label={t('Cancel')} className="bs-sub-remove-cancel" onClick={() => setRemoving(null)} /><Button primary label={t('Delete')} className="bs-sub-remove-yes" onClick={remove} /></>}>
+          <p>{t('The line is deleted from {table}, and cannot be brought back.', { table: s.table })}</p>
+        </Dialog>
+      ) : null}
+    </div>
   );
 }
 
@@ -152,6 +293,13 @@ export function FormView({ shell, db, name, onChanged, onMakeTemplate = null, to
     }
     setRelated(sub);
   }, [shell, db.id, layout]);
+  /** A subform's lines read again, after one is changed, added or deleted there. */
+  const reloadSub = async (s) => {
+    if (!record) return;
+    const page = await shell.base.rows({ id: db.id, table: s.table, where: { [s.field]: record[s.to] }, limit: 100 });
+    setRelated((was) => ({ ...was, [s.table]: page }));
+  };
+  const [designing, setDesigning] = useState(false);
   useEffect(() => { load(at).catch((e) => toast(e.message, { tone: 'bad' })); }, [at, load, toast]);
 
   const isNew = !record;
@@ -198,6 +346,10 @@ export function FormView({ shell, db, name, onChanged, onMakeTemplate = null, to
   };
 
   if (!layout) return <div className="bs-form-empty">{t('This form is not in the database.')}</div>;
+  if (designing) {
+    return <FormDesigner shell={shell} db={db} layout={layout} toast={toast} onCancel={() => setDesigning(false)}
+      onSaved={(summary, kept) => { setLayout(kept); setDesigning(false); onChanged?.(); }} />;
+  }
   const field = (c) => {
     const v = shownValue(c.kind, draft[c.field]);
     const common = { className: `bs-fc bs-fc-${c.kind}`, 'data-field': c.field, 'aria-label': c.label, style: { left: c.x, top: c.y, width: c.w, height: c.h } };
@@ -226,20 +378,13 @@ export function FormView({ shell, db, name, onChanged, onMakeTemplate = null, to
         <h2 className="bs-form-title">{layout.title}</h2>
         {layout.controls.map((c) => (
           <React.Fragment key={c.field}>
-            <span className="bs-fl" style={{ left: LABEL_X, top: c.y + 4 }}>{c.label}</span>
+            <span className="bs-fl" style={{ left: labelLeft(c), top: c.y + 4 }}>{c.label}</span>
             {field(c)}
           </React.Fragment>
         ))}
         {(layout.subforms || []).map((s) => (
-          <div key={s.table} className="bs-subform" style={{ left: s.x, top: s.y, width: s.w, height: s.h }} data-subform={s.table}>
-            <div className="bs-subform-head">{s.label} <small>{tn(related[s.table]?.count || 0, '{count} record', '{count} records')}</small></div>
-            <div className="bs-subform-body">
-              <table>
-                <thead><tr>{s.columns.map((col) => <th key={col}>{col}</th>)}</tr></thead>
-                <tbody>{(related[s.table]?.rows || []).map((r) => <tr key={r._rowid}>{s.columns.map((col) => <td key={col} data-col={col}>{subValue(s.table, col, r[col])}</td>)}</tr>)}</tbody>
-              </table>
-            </div>
-          </div>
+          <SubformLines key={s.table} shell={shell} db={db} sub={s} record={record} rows={related[s.table]?.rows || []} count={related[s.table]?.count || 0}
+            words={(col, v) => subValue(s.table, col, v)} toast={toast} onChanged={() => reloadSub(s).catch((e) => toast(e.message, { tone: 'bad' }))} />
         ))}
       </div>
       <div className="bs-form-bar" role="toolbar" aria-label={t('Records')}>
@@ -249,6 +394,7 @@ export function FormView({ shell, db, name, onChanged, onMakeTemplate = null, to
         <Button icon="chevronRight" label="" title={t('Next record')} className="bs-nav-next" disabled={at >= count - 1} onClick={() => setAt(at + 1)} />
         <Button icon="skipForward" label="" title={t('Last record')} className="bs-nav-last" disabled={at >= count - 1} onClick={() => setAt(Math.max(0, count - 1))} />
         <span className="grow" />
+        {canDesign(db) ? <Button icon="pen" label={t('Design')} className="bs-form-design" title={t('Move, size, take off and put back the fields, and rename their labels')} onClick={() => setDesigning(true)} /> : null}
         {!templates.length && !isNew && canDesign(db) ? (
           // No print template for this table: where its Print buttons would be, how to make one.
           <span className="bs-form-no-print" data-no-template={layout.table}>
@@ -307,10 +453,21 @@ export const FORM_CSS = `
 .bs-subform-body { flex: 1; min-height: 0; overflow: auto; }
 .bs-subform table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 .bs-subform th, .bs-subform td { text-align: start; padding: 4px 8px; border-bottom: 1px solid var(--line-soft); }
+.bs-subform td:has(> .bs-sub-cell, > .bs-sub-new) { padding: 2px 4px; }
+.bs-sub-cell, .bs-sub-new { width: 100%; box-sizing: border-box; height: 24px; font-size: 12.5px; }
+.bs-sub-text { display: block; min-height: 18px; cursor: text; border-radius: 3px; }
+.bs-sub-text:hover { background: var(--hover); }
+.bs-sub-text:focus-visible { outline: 2px solid var(--accent); }
+.bs-sub-cell[type="checkbox"], .bs-sub-new[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+.bs-sub-number, .bs-sub-currency { text-align: end; }
+.bs-sub-fresh td { background: var(--sunken); }
+.bs-sub-tools { width: 24px; text-align: center; }
+.bs-sub-remove, .bs-sub-add { border: 0; background: transparent; color: var(--ink-3); font-size: 15px; line-height: 1; cursor: pointer; padding: 2px 4px; border-radius: 3px; }
+.bs-sub-remove:hover, .bs-sub-add:hover { color: var(--ink); background: var(--hover); }
 .bs-form-bar { display: flex; align-items: center; gap: 4px; padding: 8px 16px; border-top: 1px solid var(--line-soft); background: var(--window); position: sticky; bottom: 0; }
 .bs-form-print { display: inline-flex; gap: 4px; align-items: center; margin-inline-end: 8px; }
 .bs-form-no-print { display: inline-flex; gap: 6px; align-items: center; margin-inline-end: 8px; }
 .bs-form-no-print .bs-hint { font-size: 12px; color: var(--ink-3); }
 .bs-nav-place { min-width: 140px; text-align: center; font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .bs-form-empty { padding: 24px; color: var(--ink-3); }
-`;
+${FORM_DESIGN_CSS}`;

@@ -48,6 +48,7 @@ import { verifyBaseFormsAll } from './verify-base-forms-all.js';
 import { verifyBaseOrigin } from './verify-base-origin.js';
 import { verifyBaseReports } from './verify-base-reports.js';
 import { verifyBaseFixes } from './verify-base-fixes.js';
+import { verifyBaseDesigners } from './verify-base-designers.js';
 import { verifyBaseTemplates } from './verify-base-templates.js';
 import { verifyBaseDocuments } from './verify-base-documents.js';
 import { verifyTemplateVersions } from './verify-template-versions.js';
@@ -5129,6 +5130,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('base-origin')) await verifyBaseOrigin({ open, check, until, wait }, { dir });
     if (only.includes('base-reports')) await verifyBaseReports({ open, check, until, wait }, { dir });
     if (only.includes('base-fixes')) await verifyBaseFixes({ open, check, until, wait }, { dir });
+    if (only.includes('base-designers')) await verifyBaseDesigners({ open, check, until, wait }, { dir });
     if (only.includes('base-templates')) await verifyBaseTemplates({ open, check, until, wait }, { dir });
     if (only.includes('base-documents')) await verifyBaseDocuments({ open, check, until, wait }, { dir });
     if (only.includes('template-versions')) await verifyTemplateVersions({ open, check, until, wait });
@@ -5537,6 +5539,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('base', () => verifyBaseOrigin({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseReports({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseFixes({ open, check, until, wait }, { dir }));
+  await part('base', () => verifyBaseDesigners({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseTemplates({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseDocuments({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseSamples({ open, check, until, wait }, { dir }));
