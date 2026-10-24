@@ -11,6 +11,17 @@ import { MERGE_KINDS, readInstr, complexFieldXml } from './mailmerge.js';
 import { foldControls, CONTROL_MARK } from './forms.js';
 
 /**
+ * A page or column break, `<w:br w:type="page"/>`: where the page or the
+ * column ends, not a line break inside the words. It is no character of the
+ * text, so a rebuild cannot write it back from the text; the paragraph keeps
+ * the element instead (document.js `_keptFragments`). Read as a line break
+ * it was both: the text's "\n" came back as a `<w:br/>` beside the kept
+ * break, one more with every keystroke.
+ */
+export const LAYOUT_BREAK = /<w:br\b[^>]*\bw:type="(?:page|column)"[^>]*\/>/;
+const LAYOUT_BREAK_ALL = new RegExp(LAYOUT_BREAK.source, 'g');
+
+/**
  * Text of a run/paragraph fragment, honouring w:tab and w:br like Word does.
  *
  * Walked in document order: `<w:t>` gives its words, a bare `<w:tab/>` a tab,
@@ -24,6 +35,7 @@ import { foldControls, CONTROL_MARK } from './forms.js';
  */
 export function textOf(xmlFragment) {
   let out = '';
+  xmlFragment = String(xmlFragment).replace(LAYOUT_BREAK_ALL, '');
   const re = /<m:oMathPara\b[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:t\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:t>)|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:(?:br|cr)\b[^>]*\/>|<w:(?:footnote|endnote)Reference\b[^>]*\/>/g;
   for (const m of String(xmlFragment).matchAll(re)) {
     const tag = m[0];
@@ -191,7 +203,8 @@ function runFromInner(inner, link = null) {
   // between a label and its value as a run of its own, and dropping it ran
   // every form line's label into its value and left `text` and `runs`
   // disagreeing about where the caret was.
-  if (!/<w:t\b|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:(?:br|cr)\b/.test(inner)) {
+  // A page or column break is not text (`LAYOUT_BREAK`): a run of nothing else is kept whole.
+  if (!/<w:t\b|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:(?:br|cr)\b/.test(inner.replace(LAYOUT_BREAK_ALL, ''))) {
     const ref = /<w:(footnote|endnote)Reference\b[^>]*\bw:id="([^"]+)"/.exec(inner);
     const mark = /<w:(footnote|endnote)Ref\b/.exec(inner);
     if (!ref && !mark) return null;
@@ -262,7 +275,7 @@ function parseTrackAttrs(attrsText) {
 function textOfDel(xmlFragment) {
   let out = '';
   const re = /<w:delText\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:delText>)|<w:tab\s*\/>|<w:(?:br|cr)\b[^>]*\/>/g;
-  for (const m of String(xmlFragment).matchAll(re)) {
+  for (const m of String(xmlFragment).replace(LAYOUT_BREAK_ALL, '').matchAll(re)) {
     const tag = m[0];
     if (tag.startsWith('<w:tab')) out += '\t';
     else if (tag.startsWith('<w:delText')) out += unesc(m[1] ?? '');

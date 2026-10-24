@@ -84,7 +84,7 @@ export {
 } from './runs.js';
 export { splitParagraphChange, joinParagraphChange, withParagraphChange, paragraphChangeOf } from './revisions.js';
 import {
-  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults, mergeFieldsOnly, foldsToRuns, langElement,
+  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults, mergeFieldsOnly, foldsToRuns, langElement, LAYOUT_BREAK,
 } from './runs.js';
 import { installReferences } from './references.js';
 
@@ -159,6 +159,7 @@ function paragraphSectionBreak(pPrXml) {
  */
 const PAGE_BREAK_BEFORE = /<w:pageBreakBefore\b(?![^>]*w:val="(?:0|false)")/;
 const EXPLICIT_BREAK = /<w:br\b[^>]*w:type="page"/;
+const LAYOUT_BREAKS = new RegExp(LAYOUT_BREAK.source, 'g');
 
 /**
  * Where an anchored drawing sits and how text treats it, from `wp:anchor`:
@@ -5989,13 +5990,20 @@ export class Document {
       // rewrites it — so keeping the chunk whole would DOUBLE the text (a
       // `w:ins` wrapper did exactly that before this rule; those paragraphs
       // are structural now, and this stays as the defence in depth). Only
-      // what a rewrite cannot express is lifted out. A chunk with no text —
-      // a break run, a hyperlink wrapping only an image, a proofErr marker —
-      // survives verbatim.
-      if (/<w:t\b|<w:softHyphen\s*\/>/.test(chunk)) {
+      // what a rewrite cannot express is lifted out. A chunk with no text
+      // (a page break run, a hyperlink wrapping only an image, a proofErr
+      // marker) survives verbatim.
+      // A tab, a line break and a carriage return are text too: parseRuns
+      // reads each as a character and renderRuns writes it back. A run of
+      // only `<w:tab/>` was kept here as well, so every keystroke in the
+      // Letter template's address line wrote its tab once more, and saved
+      // them (2.17.1). A page or column break is not text (runs.js
+      // `LAYOUT_BREAK`), so it is lifted out like a picture.
+      if (/<w:t\b|<w:softHyphen\s*\/>|<w:tab\s*\/>|<w:(?:br|cr)\b/.test(chunk.replace(LAYOUT_BREAKS, ''))) {
         for (const sub of chunk.matchAll(/<w:(drawing|object|pict)\b[^>]*(?:\/>|>[\s\S]*?<\/w:\1>)/g)) {
           kept.push('<w:r>' + sub[0] + '</w:r>');
         }
+        for (const sub of chunk.matchAll(LAYOUT_BREAKS)) kept.push('<w:r>' + sub[0] + '</w:r>');
       } else if (/<w:(?:footnote|endnote)Reference\b/.test(chunk)) {
         // A note reference is a run the model OWNS — one character of text,
         // written back by renderRuns from the run that carries it. Keeping

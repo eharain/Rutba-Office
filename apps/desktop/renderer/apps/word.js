@@ -2641,6 +2641,26 @@ export default function Word({ app, shell, boot }) {
                   apply({ op: 'gotoBookmark', name: link.dataset.link.slice(1) });
                   return;
                 }
+                // A triple-click selects the paragraph, as in Word: the
+                // browser's own selection runs on to the start of the next
+                // one, which the page then shows highlighted as well.
+                if (e.detail >= 3) {
+                  const pos = currentPosition();
+                  const block = pos?.anchor?.block ?? pos?.focus?.block;
+                  const parts = block == null ? [] : [...(pageRef.current?.querySelectorAll(`[data-block="${block}"]`) || [])].filter((el) => !el.parentElement?.closest('[data-block]'));
+                  const length = model?.blocks?.[block]?.text?.length;
+                  if (parts.length && Number.isFinite(length)) {
+                    const range = document.createRange();
+                    range.setStart(parts[0], 0);
+                    range.setEnd(parts[parts.length - 1], parts[parts.length - 1].childNodes.length);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    setPicked(null);
+                    apply({ op: 'setSelection', anchor: { block, offset: 0 }, focus: { block, offset: length } });
+                    return;
+                  }
+                }
                 syncSelection();
               }}
               onKeyDown={(e) => {

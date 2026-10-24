@@ -602,6 +602,18 @@ export class DocView {
   }
 
   _insertText(text) {
+    // Whole paragraphs selected up to the start of the next one, as a
+    // triple-click selects: what is typed replaces the words and keeps the
+    // last paragraph mark, as in Word. Joining the lines instead ran the
+    // Letter template's name into its address line.
+    if (!this.collapsed) {
+      const { from, to } = this.selection;
+      if (from.offset === 0 && to.offset === 0 && to.block > from.block
+        && this._containerOf(to.block - 1) === this._containerOf(from.block)) {
+        const last = to.block - 1;
+        this.setSelection(from, { block: last, offset: this.blocks[last].text.length });
+      }
+    }
     if (!this.collapsed) this.deleteSelection();
     const { block, offset } = this.focus;
     const b = this._editable(block);
