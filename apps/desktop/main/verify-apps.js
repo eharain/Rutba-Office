@@ -210,6 +210,7 @@ import { verifyWordMarkdown } from './verify-word-markdown.js';
 import { verifyWordPageNumbers } from './verify-word-page-numbers.js';
 import { verifyWordTabKeys } from './verify-word-tab-keys.js';
 import { verifyWordModifyStyle } from './verify-word-modify-style.js';
+import { verifyWordSaveAs } from './verify-word-save-as.js';
 import { verifyDeckSmartArt } from './verify-deck-smartart.js';
 import { verifyWordSmartArt } from './verify-word-smartart.js';
 import { verifySheetSmartArt } from './verify-sheet-smartart.js';
@@ -5159,6 +5160,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordmarkdown')) await verifyWordMarkdown({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('wordpagenumbers')) await verifyWordPageNumbers({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('wordmodifystyle')) await verifyWordModifyStyle({ open, check, until, wait, press, errorsIn }, { dir });
+    if (only.includes('wordsaveas')) await verifyWordSaveAs({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('decksmartart')) await verifyDeckSmartArt({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('wordsmartart')) await verifyWordSmartArt({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('sheetsmartart')) await verifySheetSmartArt({ open, check, until, wait, doc, sessionFor }, { dir });
@@ -5557,6 +5559,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => verifyWordMarkdown({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyWordPageNumbers({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyWordModifyStyle({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('word', () => verifyWordSaveAs({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('slides', () => verifyDeckSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));

@@ -376,7 +376,13 @@ export default function Word({ app, shell, boot }) {
     appKey: 'word',
     onNew: () => shell.win.create({ app: 'word' }),
     onOpen: () => openFileRef.current?.(),
-    extra: doc ? [protection.menuItem, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'word', doc?.name); if (target) saveRef.current?.(true, target); } }] : [],
+    // Save As beside Open and Save as Template: a copy under a new name from
+    // the menu, not only from Ctrl+Shift+S.
+    extra: doc ? [
+      { label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) },
+      { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'word', doc?.name); if (target) saveRef.current?.(true, target); } },
+      protection.menuItem,
+    ] : [],
   });
 
   const apply = useCallback(
