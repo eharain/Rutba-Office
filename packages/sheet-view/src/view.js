@@ -3171,8 +3171,9 @@ export class SheetView {
   /**
    * Whether a range's first row reads as a HEADER: every cell in it is
    * non-blank text, and at least one column turns numeric right below it.
-   * Only consulted when the range was auto-expanded — a person who selected
-   * rows explicitly meant those rows.
+   * A selection is read the same way as the list round a cell: rows of
+   * data alone never read so, and a heading row selected with its list is
+   * still its heading.
    */
   _looksLikeHeader(range) {
     if (range.top === range.bottom) return false;
@@ -3186,23 +3187,65 @@ export class SheetView {
   }
 
   /**
+   * What a sort will sort, before it does: the rows (`range`), the heading
+   * row kept out of them (`header`, or null), the column the A to Z button
+   * sorts by (`keyCol`), and each column named as the Sort dialog lists it,
+   * by its heading when the list has one.
+   *
+   * A single cell stands for the list round it. The list's heading row, or
+   * the top row of a selection that reads as one (a table's header row,
+   * words over numbers, or bold over plain), is never sorted into the data,
+   * as Excel's "My data has headers" works out for itself.
+   */
+  sortPlan() {
+    const picked = { ...this.selection.range };
+    const single = picked.top === picked.bottom && picked.left === picked.right;
+    let range = single ? this._currentRegion(picked.top, picked.left) : picked;
+    const table = this._tableAt(range.top, range.left);
+    let header = null;
+    if (table && range.top === table.top && Number(table.headerRowCount ?? 1) > 0) header = range.top;
+    else if (this._looksLikeHeader(range) || this._boldOverPlain(range)) header = range.top;
+    if (header !== null) range = { ...range, top: range.top + 1 };
+    // A table's totals row stays at its foot.
+    if (table && Number(table.totalsRowCount ?? 0) > 0 && range.bottom === table.bottom) range = { ...range, bottom: range.bottom - 1 };
+    const keyCol = Math.min(Math.max(this.selection.active.col, range.left), range.right);
+    const columns = [];
+    for (let c = range.left; c <= range.right; c++) {
+      const heading = header === null ? '' : this.calc.getValue(this.activeSheet, header, c);
+      columns.push({ col: c, letter: colName(c), heading: heading === '' || heading === null || heading === undefined ? null : String(heading) });
+    }
+    return { range, header, keyCol, columns };
+  }
+
+  /** A top row in bold over a plain row below it: a heading row as a person formats one. */
+  _boldOverPlain(range) {
+    if (range.top >= range.bottom) return false;
+    const bold = (r, c) => Boolean(this.styles.byStyleIndex[this._styleIndexAt(this.activeSheet, r, c) ?? -1]?.font?.bold);
+    let any = false;
+    for (let c = range.left; c <= range.right; c++) {
+      const head = this.calc.getValue(this.activeSheet, range.top, c);
+      if (head === '' || head === null || head === undefined) continue;
+      if (typeof head !== 'string' || !bold(range.top, c) || bold(range.top + 1, c)) return false;
+      any = true;
+    }
+    return any;
+  }
+
+  /**
    * Sort the selection's rows by the active cell's column.
    *
-   * A single cell first expands to its current region and skips a detected
-   * header row; a real multi-cell selection is sorted exactly as chosen.
+   * The rows are sortPlan's: a single cell stands for its current region,
+   * and a heading row is never sorted into the data.
    * Ordering is the spreadsheet's: numbers, then text (case-insensitive),
    * then logicals, then errors — and blanks last in BOTH directions. The
    * sort is stable, formulas shift by how far their row moved, styles move
    * with their cells, and the whole thing is one undo step.
    */
   sortSelection({ ascending = true, keys = null } = {}) {
-    let range = { ...this.selection.range };
-    const keyCol = Math.min(Math.max(this.selection.active.col, range.left), range.right);
-    if (range.top === range.bottom && range.left === range.right) {
-      range = this._currentRegion(range.top, range.left);
-      if (this._looksLikeHeader(range)) range = { ...range, top: range.top + 1 };
-    }
-    if (range.top === range.bottom) return this;
+    const plan = this.sortPlan();
+    const range = plan.range;
+    const keyCol = plan.keyCol;
+    if (range.top >= range.bottom) return this;
     // Several keys, each its own way, as Excel's Sort dialog takes them:
     // the first decides, the next breaks its ties. One key is the active
     // cell's column, the way the A→Z and Z→A buttons have always sorted.

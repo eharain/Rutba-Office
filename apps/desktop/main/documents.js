@@ -2263,7 +2263,16 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     insertCols: (v, a) => v.insertCols(a.at, a.count || 1),
     deleteCols: (v, a) => v.deleteCols(a.at, a.count || 1),
     autoSum: (v, a) => v.autoSum(a.fn || 'SUM'),
-    sort: (v, a) => v.sortSelection({ ascending: a.ascending !== false, keys: Array.isArray(a.keys) ? a.keys : null }),
+    // Sort: the column it sorted by rides back, by its heading where the list has one.
+    sort: (v, a) => {
+      const plan = v.sortPlan();
+      v.sortSelection({ ascending: a.ascending !== false, keys: Array.isArray(a.keys) ? a.keys : null });
+      const key = Array.isArray(a.keys) && a.keys.length ? Number(a.keys[0].col) : plan.keyCol;
+      const c = plan.columns.find((x) => x.col === key);
+      return JSON.stringify({ column: c ? (c.heading ?? c.letter) : '', heading: Boolean(c?.heading), header: plan.header !== null });
+    },
+    // The Sort dialog's columns: the list's, named from its heading row.
+    sortPlan: (v) => JSON.stringify(v.sortPlan()),
     paste: (v, a) => v.pasteText(a.text, a.html),
     // Data → From Picture → Receipt or Invoice: rows of typed values with their number formats, one step.
     putRecords: (v, a) => v.putRecords(a.rows),
@@ -3006,7 +3015,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot', 'filterPanel']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'pictureSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot', 'filterPanel', 'sortPlan']);
 
 
   /* ── passwords, hashed off this thread ────────────────────────────────── */

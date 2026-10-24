@@ -131,6 +131,8 @@ export default function Sheets({ app, shell, boot }) {
   // Which of the ribbon's dialogs is open, by name. One piece of state rather
   // than seven booleans, because only one of them can be open at a time.
   const [dialog, setDialog] = useState(null);
+  // The Sort dialog's list: its rows, heading row and columns, as the engine will sort them.
+  const [sortAsk, setSortAsk] = useState(null);
   // A column or row being resized by its heading's edge: which one, and the
   // size the pointer has dragged it to — drawn as a guide line until the
   // button is released and the engine is told.
@@ -284,6 +286,15 @@ export default function Sheets({ app, shell, boot }) {
     },
     [doc, shell, toast]
   );
+
+  // What a sort did, said: the column it sorted by, by its heading where the list has one.
+  const sortSaid = (next, ascending) => {
+    let said = null;
+    try { said = JSON.parse(next?.opResult || 'null'); } catch { said = null; }
+    if (!said?.column) return;
+    const way = ascending ? t('A to Z') : t('Z to A');
+    toast(said.heading ? t('Sorted {way} by {column}', { way, column: said.column }) : t('Sorted {way} by column {column}', { way, column: said.column }), { tone: 'good' });
+  };
 
   // The newest frame, for a drag to read the rows and columns it has scrolled to.
   const modelRef = useRef(null);
@@ -647,8 +658,8 @@ export default function Sheets({ app, shell, boot }) {
       'sheet.deleteRow': { label: t('Delete row'), icon: 'minus', run: () => dispatch({ op: 'deleteRows', at: model?.selection.top ?? 0, count: 1 }) },
       'sheet.insertCol': { label: t('Insert column'), icon: 'plus', run: () => dispatch({ op: 'insertCols', at: model?.selection.left ?? 0, count: 1 }) },
       'sheet.deleteCol': { label: t('Delete column'), icon: 'minus', run: () => dispatch({ op: 'deleteCols', at: model?.selection.left ?? 0, count: 1 }) },
-      'sheet.sortAsc': { label: t('Sort A→Z'), icon: 'sort', run: () => dispatch({ op: 'sort', ascending: true }) },
-      'sheet.sortDesc': { label: t('Sort Z→A'), icon: 'sort', run: () => dispatch({ op: 'sort', ascending: false }) },
+      'sheet.sortAsc': { label: t('Sort A→Z'), icon: 'sort', run: () => dispatch({ op: 'sort', ascending: true }).then((next) => sortSaid(next, true)) },
+      'sheet.sortDesc': { label: t('Sort Z→A'), icon: 'sort', run: () => dispatch({ op: 'sort', ascending: false }).then((next) => sortSaid(next, false)) },
       'sheet.chart': { label: t('Chart'), icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: 'column' }) },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2984,7 +2995,17 @@ export default function Sheets({ app, shell, boot }) {
       case 'link': setDialog('link'); return;
       case 'note': setDialog('note'); return;
       case 'headerFooter': setDialog('headerFooter'); return;
-      case 'sortDialog': setDialog('sort'); return;
+      case 'sortDialog': {
+        // The columns as the engine will sort them: the list round the cell, named from its heading row.
+        try {
+          const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'sortPlan' }] });
+          setSortAsk(JSON.parse(next.opResult || 'null'));
+          setDialog('sort');
+        } catch (err) {
+          toast(cleanError(err), { tone: 'warn', ms: 4500 });
+        }
+        return;
+      }
       // Data → Outline. Whole rows group as rows and whole columns as
       // columns; anything else asks which, as Excel's Group dialog does.
       case 'group':
@@ -4145,30 +4166,13 @@ export default function Sheets({ app, shell, boot }) {
       ) : null}
       {dialog === 'sort' ? (
         <SortDialog
-          columns={(() => {
-            // The columns to offer: the selection's when it spans more than one
-            // cell, else the filled run round the active cell on its row; each
-            // named by its heading when the row above reads as one.
-            const r = sel && Number.isFinite(sel.left) ? sel : null;
-            const active = model?.cells?.find((c) => c.active);
-            const filled = (c) => model?.cells?.some((x) => x.col === c && x.text !== '');
-            let left = r ? r.left : (active?.col ?? 0);
-            let right = r ? r.right : (active?.col ?? 0);
-            if (!r || (r.left === r.right && r.top === r.bottom)) {
-              while (left > 0 && filled(left - 1)) left -= 1;
-              while (filled(right + 1)) right += 1;
-            }
-            const top = r ? r.top : (active?.row ?? 0);
-            const name = (c) => { let s = ''; let k = c + 1; while (k > 0) { const m = (k - 1) % 26; s = String.fromCharCode(65 + m) + s; k = Math.floor((k - 1) / 26); } return s; };
-            const out = [];
-            for (let c = left; c <= right; c++) {
-              const head = model?.cells?.find((x) => x.col === c && x.row === Math.max(0, top - (r && r.top !== r.bottom ? 0 : 1)) && !x.numeric && x.text);
-              out.push({ col: c, name: head ? `${name(c)} — ${head.text}` : t('Column {name}', { name: name(c) }) });
-            }
-            return out;
-          })()}
+          // The list's columns, each by its heading where it has one (Excel's
+          // "My data has headers"), else by its letter.
+          columns={(sortAsk?.columns || []).map((c) => ({ col: c.col, name: c.heading ? c.heading : t('Column {name}', { name: c.letter }) }))}
+          first={sortAsk?.keyCol ?? null}
+          header={sortAsk?.header != null}
           onClose={() => setDialog(null)}
-          onSort={async (keys) => { setDialog(null); await dispatch({ op: 'sort', keys }); toast(t('Sorted'), { tone: 'good' }); }}
+          onSort={async (keys) => { setDialog(null); sortSaid(await dispatch({ op: 'sort', keys }), keys[0]?.ascending !== false); }}
         />
       ) : null}
       {dialog === 'pasteSpecial' ? (

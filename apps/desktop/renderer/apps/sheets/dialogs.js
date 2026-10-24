@@ -686,8 +686,8 @@ export function SheetShortcutsDialog({ onClose }) {
  * the first deciding and the next breaking its ties — Excel's Sort dialog,
  * to the level people use.
  */
-export function SortDialog({ columns, onClose, onSort }) {
-  const first = columns[0]?.col ?? 0;
+export function SortDialog({ columns, onClose, onSort, first: firstCol = null, header = false }) {
+  const first = columns.some((c) => c.col === firstCol) ? firstCol : (columns[0]?.col ?? 0);
   const [keys, setKeys] = useState([{ col: first, ascending: true }]);
   const set = (i, patch) => setKeys((ks) => ks.map((k, j) => (j === i ? { ...k, ...patch } : k)));
   const ok = keys.length > 0 && keys.every((k) => Number.isFinite(k.col));
@@ -704,6 +704,7 @@ export function SortDialog({ columns, onClose, onSort }) {
       }
     >
       <div className="ml-form">
+        {header ? <p className="rw-hint sh-sort-header" style={{ margin: 0 }}>{t('The list has a heading row: it stays at the top, and its headings name the columns.')}</p> : null}
         {keys.map((k, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'end' }}>
             <Field label={i === 0 ? t('Sort by') : t('Then by')} style={{ flex: 1 }}>

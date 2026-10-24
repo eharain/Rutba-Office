@@ -109,6 +109,13 @@ const ORIENTATIONS = [
 export const MARGIN_PRESETS = Object.fromEntries(Object.entries(PRINT_MARGINS).map(([name, m]) => [name.toLowerCase(), m]));
 
 /** Which preset a file's margins are, or null when they are its own. */
+/** A column's letters, as the grid heads it: 0 is A, 26 is AA. */
+function letterOf(c) {
+  let s = '';
+  for (let k = Number(c) + 1; k > 0; k = Math.floor((k - 1) / 26)) s = String.fromCharCode(65 + ((k - 1) % 26)) + s;
+  return s;
+}
+
 export function marginsName(margins) {
   if (!margins) return null;
   for (const [name, m] of Object.entries(MARGIN_PRESETS)) {
@@ -703,8 +710,8 @@ export default function SheetsRibbon({
             <Button icon="list" label={t('Queries & Connections')} title={t("Queries & Connections — the workbook's queries, each refreshed, edited or deleted")} onClick={() => act('queriesPane')} />
           </Group>
           <Group label={t('Sort & Filter')}>
-            <Button tall icon="sort" label={t('A → Z')} title={t('Sort the selection ascending by its first column')} onClick={() => commands['sheet.sortAsc'].run()} />
-            <Button tall icon="sort" label={t('Z → A')} title={t('Sort the selection descending by its first column')} onClick={() => commands['sheet.sortDesc'].run()} />
+            <Button tall icon="sort" label={t('A → Z')} title={t("Sort the list A to Z by column {name}, the active cell's column; a heading row stays at the top", { name: letterOf(sel?.active?.col ?? 0) })} onClick={() => commands['sheet.sortAsc'].run()} />
+            <Button tall icon="sort" label={t('Z → A')} title={t("Sort the list Z to A by column {name}, the active cell's column; a heading row stays at the top", { name: letterOf(sel?.active?.col ?? 0) })} onClick={() => commands['sheet.sortDesc'].run()} />
             <Button tall icon="sort" label={t('Sort')} title={t('Sort by up to three columns, each A to Z or Z to A')} onClick={() => act('sortDialog')} />
             <Button tall icon="filter" label={t('Filter')} pressed={model?.filtered} onClick={() => dispatch({ op: 'autoFilter' })} />
             <Button icon="close" label={t('Clear')} title={t('Clear: show every row an advanced filter hid')} onClick={() => act('clearFilter')} />
