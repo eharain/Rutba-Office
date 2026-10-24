@@ -707,7 +707,15 @@ export default function PdfApp({ app, shell, boot }) {
     }
   }, [guardLocked, redactionMarks, toast, shell]);
 
-  /** The marks applied: the pages written whole as a new file, which then opens here. */
+  // Save, for Apply Redactions to call: it is made further down.
+  const saveRef = useRef(null);
+
+  /**
+   * The marks applied: the pages written whole as a new file, which then
+   * opens here. Marks not yet saved are asked about first, as closing the
+   * window would ask: saved, left, or kept open here with the redacted copy
+   * in a window of its own.
+   */
   const applyRedactions = useCallback(async () => {
     const images = applying?.images || {};
     setApplying(false);
@@ -725,7 +733,21 @@ export default function PdfApp({ app, shell, boot }) {
     try {
       const { removed } = await shell.pdf.redact({ pages: entriesOf(list), path: out, images });
       setBusy(null);
-      await openPdf(out);
+      let here = true;
+      if (dirty) {
+        const { response } = await shell.dialog.message({
+          type: 'question',
+          message: t('Save the marks in {name}?', { name: name || t('Untitled') }),
+          detail: t('The redacted copy is saved as {copy}. The marks in {name} are not saved: save them to come back to them, or keep {name} open here and see the redacted copy in a new window.', { copy: basename(out), name: name || t('Untitled') }),
+          buttons: [t('Save'), t("Don't Save"), t('Keep It Open')],
+          defaultId: 0,
+          cancelId: 2,
+        });
+        if (response === 2) here = false;
+        else if (response === 0 && !(await saveRef.current?.())) here = false;
+      }
+      if (here) await openPdf(out);
+      else await shell.win.create({ app: 'pdf', file: out });
       const parts = [tn(removed.pages, 'Redacted {count} page.', 'Redacted {count} pages.')];
       if (removed.images) parts.push(tn(removed.images, '{count} picture under a mark could not be painted out and was left off its page.', '{count} pictures under marks could not be painted out and were left off their pages.'));
       parts.push(t('Saved as {name}.', { name: basename(out) }));
@@ -735,7 +757,7 @@ export default function PdfApp({ app, shell, boot }) {
     } finally {
       setBusy(null);
     }
-  }, [path, name, shell, toast, openPdf, applying]);
+  }, [path, name, shell, toast, openPdf, applying, dirty]);
 
   /** Fill & Sign: the signature or initials kept from last time, or the dialog to make them. */
   const sign = useCallback((kind, { fresh = false } = {}) => {
@@ -876,6 +898,7 @@ export default function PdfApp({ app, shell, boot }) {
     }
     return saveTo(path);
   }, [path, shell, saveAs, saveTo, guardLocked]);
+  saveRef.current = save;
 
   const extract = useCallback(async () => {
     if (guardLocked()) return;

@@ -13,11 +13,16 @@
 // the redacted words are found neither by this package's reader nor by a
 // plain search of every byte and every inflated stream, the words beside
 // them are kept, the photograph is painted out under its mark, and the
-// original file is as it was.
+// original file is as it was. Applying asks first about the marks not yet
+// saved: Don't Save opens the redacted copy here, Keep It Open leaves the
+// original open here with its marks and shows the copy in a window of its
+// own. One area over a line lists its words with every letter, and one mark
+// on one page is said so.
 // Run alone with RUTBA_VERIFY_ONLY=pdf-redact.
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { BrowserWindow } from 'electron';
 import pdfWriter from '@rutba/pdf';
 import pdfReader from '@rutba/pdf/reader';
 import pdfRedact from '@rutba/pdf/redact';
@@ -209,6 +214,8 @@ export async function verifyPdfRedact(h, { dir }) {
   const words = await d.js(`document.querySelector('[data-role="redact-words"]')?.textContent || ''`);
   check('pdf-redact: the dialog lists the words marked, as they were written', /"0300-1234567"/.test(words) && /"SECRET-4417"/.test(words), words);
   answer('save', target);
+  // The marks are not saved: Don't Save, and the redacted copy opens here.
+  answer('message', { response: 1 });
   await d.role('redact-go');
   const wrote = await until(() => fs.existsSync(target), 'the redacted file', 15000).then(() => true).catch(() => false);
   const opened = await until(() => d.js(`[...document.querySelectorAll('.pdf-thumb')].length === 2 && [...document.querySelectorAll('.pdf-thumb')].every((n) => n.dataset.from === 'client-letter_Redacted.pdf')`), 'the redacted file in the window', 15000).then(() => true).catch(() => false);
@@ -257,6 +264,49 @@ export async function verifyPdfRedact(h, { dir }) {
     wrote && back.readerClean && back.kept && back.bytesClean && back.whole && back.pictures === 1 && back.black > 50 && back.black < 120 * 80 && back.originalKept && back.marksGone, JSON.stringify(back));
   check('pdf-redact: read back, the code is gone from the title, the bookmark and the comment, the other bookmark kept, and the scan left off its page', wrote && !/SECRET/.test(back.title) && back.bookmarks === 'The letter' && back.comments === 0 && back.scanGone,
     JSON.stringify(back));
+  const askedFirst = !(globalThis.__rutbaCheckDialogAnswers || []).some((a) => a.kind === 'message');
+  check('pdf-redact: applying asks about the marks not yet saved before the window turns to the redacted copy', askedFirst, askedFirst ? 'asked' : 'not asked');
+  if (!askedFirst) globalThis.__rutbaCheckDialogAnswers = (globalThis.__rutbaCheckDialogAnswers || []).filter((a) => a.kind !== 'message');
   const errors = await errorsIn(win);
   check('pdf-redact: no error was shown', !errors.length, errors.join(' | '));
+
+  // One area over a line of words; Keep It Open: the original stays here with its mark.
+  const second = path.join(root, 'second-letter.pdf');
+  makeLetter(second);
+  const win2 = await open('pdf', second);
+  const d2 = driver(win2, { until, wait });
+  await until(() => d2.js(`Boolean(document.querySelector('.pdf-page[data-index="0"] .pdf-annots[data-ready]'))`), 'the second letter drawn', 20000).catch(() => {});
+  await d2.tab('Redact');
+  await d2.role('redact-area');
+  await d2.dragOn(0, [[0.08, 0.226], [0.5, 0.245], [0.85, 0.26]]);
+  const oneMark = await until(async () => (await d2.marks()).reduce((a, b) => a + b, 0) === 1, 'the area mark', 10000).then(() => true).catch(() => false);
+  await d2.js(`(document.querySelector('[data-role="redact-area"]').click(), 1)`);
+  await d2.role('redact-apply');
+  await until(() => d2.js(`Boolean(document.querySelector('[data-role="redact-dialog"]'))`), 'the Apply dialog', 8000).catch(() => {});
+  const lead2 = await d2.js(`document.querySelector('.pdf-redact-lead')?.textContent || ''`);
+  const words2 = await d2.js(`document.querySelector('[data-role="redact-words"]')?.textContent || ''`);
+  check('pdf-redact: one mark on one page is said so, and the words under an area are listed with every letter and one space between',
+    oneMark && /^1 mark on one page is applied\.$/.test(lead2.trim()) && /"The photograph below is private\."/.test(words2), JSON.stringify({ oneMark, lead2, words2 }));
+  const target2 = path.join(root, 'second-letter_Redacted.pdf');
+  const before = BrowserWindow.getAllWindows();
+  answer('save', target2);
+  answer('message', { response: 2 });
+  await d2.role('redact-go');
+  const wrote2 = await until(() => fs.existsSync(target2), 'the second redacted file', 15000).then(() => true).catch(() => false);
+  const fresh = () => BrowserWindow.getAllWindows().find((w) => !before.includes(w) && !w.isDestroyed()) || null;
+  await until(fresh, 'a window for the redacted copy', 10000).catch(() => null);
+  const copyWin = fresh();
+  const copyShown = copyWin
+    ? await until(() => copyWin.webContents.executeJavaScript(`[...document.querySelectorAll('.pdf-thumb')].length > 0 && [...document.querySelectorAll('.pdf-thumb')].every((n) => n.dataset.from === 'second-letter_Redacted.pdf')`), 'the redacted copy in its window', 15000).then(() => true).catch(() => false)
+    : false;
+  const stayed = await d2.js(`[...document.querySelectorAll('.pdf-thumb')].every((n) => n.dataset.from === 'second-letter.pdf')`);
+  const kept = (await d2.marks()).reduce((a, b) => a + b, 0);
+  check('pdf-redact: Keep It Open leaves the original open here with its mark, and shows the redacted copy in a window of its own',
+    wrote2 && copyShown && stayed && kept === 1, JSON.stringify({ wrote2, copyShown, stayed, kept }));
+  if (copyWin && !copyWin.isDestroyed()) copyWin.destroy();
+  globalThis.__rutbaCheckDialogAnswers = (globalThis.__rutbaCheckDialogAnswers || []).filter((a) => a.kind !== 'message');
+  const errors2 = await errorsIn(win2);
+  check('pdf-redact: the second letter showed no error', !errors2.length, errors2.join(' | '));
+  // The second letter keeps its mark unsaved: let it go without asking.
+  win2.destroy();
 }
