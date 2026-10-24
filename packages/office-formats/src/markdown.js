@@ -130,7 +130,7 @@ export function inlineRuns(source, refs = new Map()) {
       const parsed = linkAt(text, i, refs);
       if (parsed) {
         const inner = inlineRuns(parsed.label, refs);
-        for (const run of inner) push({ ...run, link: parsed.url, ref: parsed.ref || null, title: parsed.title || run.title || null });
+        for (const run of inner) push({ ...run, link: parsed.url, ref: parsed.ref || null, ...(parsed.form ? { refForm: parsed.form } : {}), title: parsed.title || run.title || null });
         i = parsed.end;
         continue;
       }
@@ -242,7 +242,7 @@ function linkAt(text, start, refs) {
   const key = (refMatch && refMatch[1].trim() ? refMatch[1] : label).trim().toLowerCase();
   const found = refs.get(key);
   if (!found) return null;
-  return { label, url: found.url, title: found.title, ref: found.label, end: close + 1 + (refMatch ? refMatch[0].length : 0) };
+  return { label, url: found.url, title: found.title, ref: found.label, form: refMatch ? (refMatch[1].trim() ? 'full' : 'collapsed') : 'shortcut', end: close + 1 + (refMatch ? refMatch[0].length : 0) };
 }
 
 /** The closing run of `mark`, skipping code spans and escapes. */
@@ -370,6 +370,7 @@ export function parseMarkdown(text) {
         const right = spec.endsWith(':');
         return left && right ? 'center' : right ? 'right' : left ? 'left' : null;
       });
+      const first = i;
       i += 2;
       const rows = [header];
       while (i < lines.length && lines[i].trim() && /\|/.test(lines[i])) rows.push(cells(lines[i++]));
@@ -378,6 +379,10 @@ export function parseMarkdown(text) {
         header: true,
         align,
         rows: rows.map((row) => row.map((c) => ({ text: c, runs: runs(c) }))),
+        // The lines as written, padding and all: a table whose cells say what
+        // they said is written back in them (`tableCells`), not padded anew.
+        source: lines.slice(first, i).join('\n'),
+        cells: tableCells(rows.map((row) => row.map((c) => ({ text: c, runs: runs(c) })))),
       });
       continue;
     }
@@ -502,6 +507,13 @@ export function parseMarkdown(text) {
       if (isRule(lines[i]) && para.length) break;
       para.push(lines[i++]);
     }
+    // A definition list (a term, then lines opening ": "), as PHP Markdown
+    // Extra and Pandoc write one. GitHub shows it as the lines it is, so it
+    // is kept line for line, not joined into one.
+    if (para.length > 1 && para.slice(1).some((l) => /^ {0,3}:\s/.test(l))) {
+      blocks.push({ type: 'definitions', lines: para.slice(), text: para.join('\n') });
+      continue;
+    }
     if (para.length) {
       // Two spaces at the end of a line is a hard break, and is meaningful.
       const joined = para.map((l, n) => (/ {2,}$/.test(l) && n < para.length - 1 ? `${l.trim()}\n` : l.trim())).join(' ').replace(/\n /g, '\n').trim();
@@ -519,10 +531,37 @@ export function parseMarkdown(text) {
       // the file rather than to any block a document can hold, so anything
       // converting through another format keeps it here.
       tables: blocks.filter((b) => b.type === 'table').map((b) => b.align || []),
+      // Each table as written and what its cells said, in the same order: a
+      // table that comes back with the same cells goes back as it was written.
+      tableSources: blocks.filter((b) => b.type === 'table').map((b) => ({ source: b.source, cells: b.rows.map((row) => row.map((c) => c.text ?? '')) })),
+      // The links written against a definition ([words][label]), by their
+      // words and address, so a document that holds only the address can
+      // write each one back the way it was written.
+      references: referencesIn(blocks),
       // What the file said about itself, for a title when nothing else does.
       title: blocks.find((b) => b.type === 'heading' && b.level === 1)?.text || null,
     },
   };
+}
+
+/** A table's cells as the writer would write them, for telling whether any changed. */
+function tableCells(rows) {
+  return JSON.stringify((rows || []).map((row) => (row || []).map((c) => String(runsToMarkdown(c.runs) || c.text || ''))));
+}
+
+/** Every run of every block that was written against a definition: its words, address and label. */
+function referencesIn(blocks) {
+  const out = [];
+  const walk = (runs) => {
+    for (const r of runs || []) if (r.link && r.ref) out.push({ text: r.text ?? '', url: r.link, ref: r.ref, form: r.refForm || null });
+  };
+  for (const block of blocks) {
+    walk(block.runs);
+    for (const item of block.items || []) walk(item.runs);
+    for (const line of block.lines || []) walk(line.runs);
+    for (const row of block.rows || []) for (const cell of row || []) walk(cell.runs);
+  }
+  return out;
 }
 
 /* ── writing ─────────────────────────────────────────────────────────────── */
@@ -597,7 +636,8 @@ export function runsToMarkdown(runs) {
       if (r.image) return `![${t}](${r.image}${r.title ? ` "${r.title}"` : ''})`;
       // A link written against a definition stays written that way, so a file
       // that keeps its addresses at the bottom still does after a save.
-      if (r.link && r.ref) return `[${t}][${r.ref}]`;
+      // In the form it was written in: [words][label], [label][] or [label].
+      if (r.link && r.ref) return r.refForm === 'shortcut' ? `[${t}]` : r.refForm === 'collapsed' ? `[${t}][]` : `[${t}][${r.ref}]`;
       if (r.link) return `[${t}](${r.link}${r.title ? ` "${r.title}"` : ''})`;
       return t;
     })
@@ -676,6 +716,11 @@ ${(block.level === 1 ? '=' : '-').repeat(Math.max(3, heading.length))}`);
       case 'table': {
         const rows = block.rows || [];
         if (!rows.length) break;
+        // Its cells as they were read: the table as it was written.
+        if (block.source && block.cells && tableCells(rows) === block.cells) {
+          out.push(block.source);
+          break;
+        }
         const cell = (c) => String(runsToMarkdown(c.runs) || c.text || '').replace(/\|/g, '\\|');
         // Columns padded to a common width. GitHub does not need it; a person
         // reading the file in a text editor very much does.
@@ -700,6 +745,10 @@ ${(block.level === 1 ? '=' : '-').repeat(Math.max(3, heading.length))}`);
 
       case 'html':
         out.push(block.text ?? '');
+        break;
+
+      case 'definitions':
+        out.push((block.lines || String(block.text ?? '').split('\n')).join('\n'));
         break;
 
       default: {
@@ -730,10 +779,13 @@ ${(block.level === 1 ? '=' : '-').repeat(Math.max(3, heading.length))}`);
   }
   for (const note of meta.footnotes || []) walk(note.runs);
 
+  // Together, one to a line, as a file keeps them at its foot.
+  const definitions = [];
   for (const d of meta.definitions || []) {
     if (!used.has(String(d.label).toLowerCase()) && !used.has(String(d.url).toLowerCase())) continue;
-    out.push(`[${d.label}]: ${d.url}${d.title ? ` "${d.title}"` : ''}`);
+    definitions.push(`[${d.label}]: ${d.url}${d.title ? ` "${d.title}"` : ''}`);
   }
+  if (definitions.length) out.push(definitions.join('\n'));
 
   const document = out.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
   const head = meta.frontMatter != null ? `---\n${meta.frontMatter}\n---\n\n` : '';

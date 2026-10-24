@@ -25,11 +25,23 @@
 // one you cannot.
 
 import { parseMarkdown, serializeMarkdown, runsToMarkdown } from '@rutba/office-formats/markdown';
+import { controlXml, readControl } from '@rutba/ooxml/forms';
 
 const HEADING = /^Heading([1-6])$/i;
 
 /** A task box a person can see and tick, rather than a hidden attribute. */
 const BOX = { true: '☑ ', false: '☐ ' };
+
+/** Where a task box's content control ids start: one each, the paragraph's place added. */
+const TASK_ID_BASE = 730000;
+
+/** A run holding a check box content control, and whether it is ticked; null for any other run. */
+function taskBox(run) {
+  if (!run?.control) return null;
+  // The page's frame carries the control read; the engine's own run, its XML.
+  const c = run.control.kind ? run.control : run.control.xml ? readControl(run.control.xml) : null;
+  return c && (c.kind === 'checkBox' || c.kind === 'formCheckBox') ? Boolean(c.checked) : null;
+}
 
 /**
  * Markdown blocks → the paragraph list `buildDocx` takes.
@@ -66,7 +78,18 @@ export function markdownToParagraphs(blocks) {
         for (const [n, item] of (block.items || []).entries()) {
           const marker = block.ordered ? `${(block.start || 1) + n}. ` : '- ';
           const lead = '  '.repeat(item.level || 0);
-          const box = item.task === null || item.task === undefined ? '' : BOX[String(item.task)];
+          const task = item.task === true || item.task === false;
+          // A task item's box is a check box a person clicks, as on GitHub,
+          // and its "- " is not shown: the box says it is an item. The way
+          // out puts the marker back (`paragraphsToMarkdown`).
+          if (task && !block.ordered) {
+            out.push({
+              style: 'ListBullet',
+              runs: [...(lead ? [{ text: lead }] : []), { xml: controlXml('checkBox', { checked: item.task }, { id: String(TASK_ID_BASE + out.length) }) }, { text: ' ' }, ...runsFor(item.runs, item.text)],
+            });
+            continue;
+          }
+          const box = task ? BOX[String(item.task)] : '';
           out.push({
             style: block.ordered ? 'ListNumber' : 'ListBullet',
             runs: [{ text: `${lead}${marker}${box}` }, ...runsFor(item.runs, item.text)],
@@ -87,8 +110,15 @@ export function markdownToParagraphs(blocks) {
         out.push({ style: 'Rule', text: '---' });
         break;
 
+      // Raw HTML looks like code but is not code: its own style, so the way
+      // out keeps the blank line between it and a code block below it.
       case 'html':
-        for (const line of String(block.text ?? '').split('\n')) out.push({ style: 'Code', runs: [{ text: line, font: 'Consolas' }] });
+        for (const line of String(block.text ?? '').split('\n')) out.push({ style: 'Html', runs: [{ text: line, font: 'Consolas' }] });
+        break;
+
+      // A definition list, line for line as it was written: the term opens it.
+      case 'definitions':
+        for (const [n, line] of (block.lines || []).entries()) out.push({ style: n ? 'Definition' : 'DefinitionTerm', runs: [{ text: line }] });
         break;
 
       default:
@@ -133,6 +163,8 @@ function runsFor(runs, fallback = '') {
  */
 export function paragraphsToMarkdown(blocks, meta = {}, labels = null) {
   const pieces = [];
+  // The links that were written against a definition, by their words and address.
+  const refs = new Map((meta.references || []).map((r) => [`${r.text}\u0000${r.url}`, r]));
   let run = null; // a group of adjacent lines that belong together
   // A run of numbered items: the indents open above this one, and each level's count.
   let indents = [];
@@ -161,7 +193,13 @@ export function paragraphsToMarkdown(blocks, meta = {}, labels = null) {
   const closeTable = () => {
     if (!table) return;
     const rows = table.rows.map((row) => (row || []).map((c) => c ?? ''));
-    if (rows.length) {
+    // The same table with the same words in every cell goes back as it was
+    // written, its padding and its rule as they were.
+    const kept = (meta.tableSources || [])[tableCount];
+    const raw = JSON.stringify(table.raw.map((row) => (row || []).map((c) => c ?? '')));
+    if (kept?.source && raw === JSON.stringify(kept.cells)) {
+      pieces.push(kept.source);
+    } else if (rows.length) {
       const columns = Math.max(...rows.map((r) => r.length));
       const widths = Array.from({ length: columns }, (_, c) => Math.max(3, ...rows.map((r) => String(r[c] ?? '').length)));
       const line = (row) => `| ${Array.from({ length: columns }, (_, i) => String(row[i] ?? '').padEnd(widths[i])).join(' | ')} |`;
@@ -192,7 +230,7 @@ export function paragraphsToMarkdown(blocks, meta = {}, labels = null) {
       closeRun();
       if (!table || table.id !== at[1]) {
         closeTable();
-        table = { id: at[1], rows: [] };
+        table = { id: at[1], rows: [], raw: [] };
       }
       const row = Number(at[2]);
       const cell = Number(at[3]);
@@ -206,8 +244,10 @@ export function paragraphsToMarkdown(blocks, meta = {}, labels = null) {
       // header row that grew asterisks on every save is worse.
       const text = row === 0
         ? (block.runs || []).map((r) => r.text ?? '').join('') || block.text || ''
-        : runsToMarkdown(toMarkdownRuns(block.runs)) || block.text || '';
+        : runsToMarkdown(toMarkdownRuns(block.runs, refs)) || block.text || '';
       table.rows[row][cell] = [table.rows[row][cell], text].filter(Boolean).join(' ');
+      table.raw[row] = table.raw[row] || [];
+      table.raw[row][cell] = [table.raw[row][cell], (block.runs || []).map((r) => r.text ?? '').join('') || block.text || ''].filter(Boolean).join(' ');
       continue;
     }
     closeTable();
@@ -228,7 +268,7 @@ export function paragraphsToMarkdown(blocks, meta = {}, labels = null) {
     }
 
     const style = String(block.style || '');
-    const text = runsToMarkdown(toMarkdownRuns(block.runs)) || block.text || '';
+    const text = runsToMarkdown(toMarkdownRuns(block.runs, refs)) || block.text || '';
 
     const heading = HEADING.exec(style);
     if (heading) {
@@ -240,7 +280,27 @@ export function paragraphsToMarkdown(blocks, meta = {}, labels = null) {
     if (/^Code$/i.test(style)) {
       // Code lines are already literal — do not let the inline writer escape
       // the asterisks and underscores inside somebody's source.
-      inRun('code', (block.runs || []).map((r) => r.text ?? '').join('') || block.text || '');
+      const line = (block.runs || []).map((r) => r.text ?? '').join('') || block.text || '';
+      inRun('code', line);
+      // A fence that closes the block ends it: the next block, code or not,
+      // starts after a blank line, as it was written.
+      if (/^ {0,3}(`{3,}|~{3,})/.test(line)) {
+        run.fences = (run.fences || 0) + 1;
+        if (run.fences % 2 === 0) closeRun();
+      }
+      continue;
+    }
+
+    // Raw HTML, line for line, a block of its own.
+    if (/^Html$/i.test(style)) {
+      inRun('html', (block.runs || []).map((r) => r.text ?? '').join('') || block.text || '');
+      continue;
+    }
+
+    // A definition list, line for line; its term starts it.
+    if (/^Definition(Term)?$/i.test(style)) {
+      if (/Term$/i.test(style)) closeRun();
+      inRun('definitions', (block.runs || []).map((r) => r.text ?? '').join('') || block.text || '');
       continue;
     }
 
@@ -254,7 +314,12 @@ export function paragraphsToMarkdown(blocks, meta = {}, labels = null) {
       // were written there so a person could see and edit them. The box goes
       // back to being the two characters Markdown uses — a tick in the file
       // would render as a tick on GitHub, not as a checked box.
-      inRun('list', text.replace(/☑\s*/, '[x] ').replace(/☐\s*/, '[ ] '));
+      // A task item's box is a check box, its marker not shown: both are
+      // written back here.
+      const item = text.replace(/☑\s*/, '[x] ').replace(/☐\s*/, '[ ] ');
+      const lead = /^\s*/.exec(item)[0];
+      const marked = /^(?:[-*+]|\d{1,9}[.)])(?:\s|$)/.test(item.slice(lead.length));
+      inRun('list', marked || /^ListParagraph$/i.test(style) ? item : `${lead}${/^ListNumber$/i.test(style) ? '1.' : '-'} ${item.slice(lead.length)}`);
       continue;
     }
 
@@ -297,14 +362,23 @@ export function paragraphsToMarkdown(blocks, meta = {}, labels = null) {
   // One pass through the reader and writer, so what lands on disk is normalised
   // the same way as a file the parser produced — and so the definitions that
   // are still referenced come back.
-  const reparsed = parseMarkdown(document);
+  // The definitions go along, so a link written against one reads as a link.
+  const defined = (meta.definitions || []).map((d) => `[${d.label}]: ${d.url}${d.title ? ` "${d.title}"` : ''}`).join('\n');
+  const reparsed = parseMarkdown(defined ? `${document}\n${defined}\n` : document);
   return serializeMarkdown(reparsed.blocks, { ...reparsed.meta, definitions: meta.definitions || reparsed.meta.definitions });
 }
 
-/** Document runs → the shape the Markdown writer expects. */
-function toMarkdownRuns(runs) {
-  return (runs || []).map((r) => ({
+/**
+ * Document runs → the shape the Markdown writer expects. A task's check box
+ * is the two characters Markdown writes for it; a link written against a
+ * definition on the way in (`refs`, by its words and address) is written so
+ * again.
+ */
+function toMarkdownRuns(runs, refs = null) {
+  return (runs || []).map((r) => (taskBox(r) !== null ? { text: taskBox(r) ? '[x]' : '[ ]', html: true } : {
     text: r.text ?? '',
+    ref: (r.link && refs?.get(`${r.text ?? ''}\u0000${r.link}`)?.ref) || undefined,
+    refForm: (r.link && refs?.get(`${r.text ?? ''}\u0000${r.link}`)?.form) || undefined,
     bold: r.bold || undefined,
     italic: r.italic || undefined,
     strike: r.strike || undefined,

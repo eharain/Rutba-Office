@@ -903,6 +903,8 @@ function paragraphXml(p, links = null) {
   const pPr = pPrBits.length ? '<w:pPr>' + pPrBits.join('') + '</w:pPr>' : '';
 
   const runXml = (r) => {
+    // A run given whole, a form field's say: written as it is.
+    if (r.xml) return r.xml;
     const bits = [];
     if (r.bold) bits.push('<w:b/>');
     if (r.italic) bits.push('<w:i/>');
@@ -972,6 +974,7 @@ export function buildDocx({ paragraphs = [], styles = false }) {
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"' +
     (linked ? ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' : '') +
+    (body.includes('<w14:') ? ' xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"' : '') +
     '>' +
     '<w:body>' + body + '<w:sectPr/></w:body></w:document>';
   const contentTypes =
