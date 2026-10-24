@@ -62,6 +62,30 @@ import(workerData.writer).then((m) => m.writeCorpusPst(workerData.file, { count:
 const sha = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
 /**
+ * What `read` answers once it answers something, waited for as long as
+ * indexing goes on: given up when `progress` (the count indexed) has stood
+ * still for `stallMs`, or after `capMs` in all. On a busy machine indexing is
+ * slower, not stuck, and a fixed time measured the machine.
+ */
+export async function whileIndexing(wait, read, progress, { stallMs = 90000, capMs = 900000 } = {}) {
+  const started = Date.now();
+  let mark;
+  let movedAt = started;
+  for (;;) {
+    const got = await read().catch(() => null);
+    if (got) return got;
+    const now = Date.now();
+    const at = await progress().catch(() => undefined);
+    if (at !== mark) {
+      mark = at;
+      movedAt = now;
+    }
+    if (now - movedAt > stallMs || now - started > capMs) return null;
+    await wait(250);
+  }
+}
+
+/**
  * @param {object} h the harness: open, check, until, wait, capture, errorsIn
  */
 export async function verifyMailIndexWorker(h) {
@@ -144,12 +168,6 @@ export async function verifyMailIndexWorker(h) {
       lastCpu = cpu;
     }, 1);
 
-    const opened = await mail('openArchive', { path: file });
-    archiveId = opened.id;
-    check(`mail index worker: a ${Math.round(written.bytes / 1048576)} MB .pst of ${COUNT.toLocaleString('en-GB')} messages opens in place and starts indexing`, opened.messages === COUNT && ['indexing', 'waiting'].includes(opened.index.state), JSON.stringify({ messages: opened.messages, index: opened.index, bytes: written.bytes }));
-
-    phase = 'typing';
-    // ── The document typed into while the archive indexes.
     const caret = async () => {
       const at = await wjs(`(() => { const b = document.querySelector('.wd-page [data-block="1"]'); if (!b) return null; b.scrollIntoView({ block: 'center' }); const q = b.getBoundingClientRect(); const r = document.createRange(); r.selectNodeContents(b); const t = r.getBoundingClientRect(); return { x: Math.round(t.right + 6), y: Math.round(q.top + q.height / 2) }; })()`);
       if (!at) return false;
@@ -179,6 +197,29 @@ export async function verifyMailIndexWorker(h) {
       wc.sendInputEvent({ type: 'char', keyCode: 'q' });
       wc.sendInputEvent({ type: 'keyUp', keyCode: 'q' });
     };
+    // A few keys typed before the archive opens, and not counted: the first
+    // key a window takes runs its typing path cold, and on a busy machine that
+    // one key took 251 ms where the rest took under 120. What is timed below
+    // is the archive's effect on typing, so the typing path is warm first.
+    measuring = false;
+    await caret();
+    await probe();
+    for (let i = 0; i < 4; i++) {
+      key();
+      await wait(90);
+    }
+    await until(() => wjs(`window.__ix.seen.length >= 4`), 'the warm-up keys on the page', 8000).catch(() => {});
+    const warm = await wjs(`window.__ix.downs.map((d, i) => (window.__ix.seen[i] == null ? null : Math.round(window.__ix.seen[i] - d)))`);
+    last = performance.now();
+    lastCpu = threadCpu?.() ?? 0;
+    measuring = true;
+
+    const opened = await mail('openArchive', { path: file });
+    archiveId = opened.id;
+    check(`mail index worker: a ${Math.round(written.bytes / 1048576)} MB .pst of ${COUNT.toLocaleString('en-GB')} messages opens in place and starts indexing`, opened.messages === COUNT && ['indexing', 'waiting'].includes(opened.index.state), JSON.stringify({ messages: opened.messages, index: opened.index, bytes: written.bytes }));
+
+    phase = 'typing';
+    // ── The document typed into while the archive indexes.
     await caret();
     await probe();
     let typed = 0;
@@ -198,7 +239,7 @@ export async function verifyMailIndexWorker(h) {
     const worstKey = lags.some((l) => l == null) ? null : Math.max(...lags);
     check(`mail index worker: while the archive indexes, another window's typed keys reach its page within ${KEY_MS} ms`,
       during >= 4 && lags.length === typed && worstKey != null && worstKey < KEY_MS,
-      `${typed} keys, ${during} while indexing, ms to the page ${JSON.stringify(lags)}`);
+      `${typed} keys, ${during} while indexing, ms to the page ${JSON.stringify(lags)}; before the archive opened ${JSON.stringify(warm)}`);
     await shot(word, 'mail-index-1-document-typed.png');
 
     phase = 'strip';
@@ -265,10 +306,10 @@ export async function verifyMailIndexWorker(h) {
     if (grown) await shot(mailWin, 'mail-index-5-search-while-indexing.png');
     check('mail index worker: Resume indexing carries on, and the search over all mail, asked again as it goes, grows and says how far ("… of 20,000 indexed so far")',
       resumed === 'pressed' && Boolean(grown) && grown.done > (paused?.done || 0), JSON.stringify({ resumed, grown, paused: paused?.done }));
-    const ready = await waitFor(async () => {
+    const ready = await whileIndexing(wait, async () => {
       const s = await stateOf();
-      return s?.state === 'ready' ? s : false;
-    }, 'the archive indexed to the end', 120000);
+      return s?.state === 'ready' ? s : null;
+    }, async () => (await stateOf())?.done);
     measuring = false;
     // Each long turn's time less the collector's pauses inside it.
     await wait(50);
