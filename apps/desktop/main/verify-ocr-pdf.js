@@ -67,11 +67,14 @@ function driver(win, { until, wait }) {
     el.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
   })()`);
-  /** Find's count for a word, once it settles. */
+  /**
+   * Find's count for a word, once the search for that word has finished: the
+   * count says which words its hits are for (data-for). Read 400 ms after any
+   * count showed, a busy machine gave the word before's count, or none.
+   */
   const find = async (word) => {
     await setInput('[data-role="find-input"]', word);
-    await until(() => js(`(document.querySelector('.pdf-find-count')?.textContent || '') !== ''`), `find ${word}`, 8000).catch(() => {});
-    await wait(400);
+    await until(() => js(`document.querySelector('.pdf-find-count')?.dataset.for === ${JSON.stringify(word)}`), `find ${word}`, 30000).catch(() => {});
     return js(`Number(document.querySelector('.pdf-find-count')?.dataset.count || 0)`);
   };
   return { wc, js, capture, tip, role, setInput, find };
@@ -149,16 +152,18 @@ export async function verifyOcrPdf(h, { dir }) {
     const invoice = await d.find('invoice');
     const record = await d.find('records');
     const urdu = await d.find('کمپیوٹر');
-    const toUrdu = await until(() => d.js(`document.querySelector('.pdf-thumb.current')?.dataset.page === '2' && (globalThis.CSS?.highlights?.get('pdf-find-now')?.size || 0) === 1`), 'the Urdu match shown on its page', 8000).then(() => true).catch(() => false);
+    const toUrdu = await until(() => d.js(`document.querySelector('.pdf-thumb.current')?.dataset.page === '2' && (globalThis.CSS?.highlights?.get('pdf-find-now')?.size || 0) === 1`), 'the Urdu match shown on its page', 20000).then(() => true).catch(() => false);
     await d.capture('ocr-pdf-03-find-urdu.png');
     const english = await d.find('Nothing is sent');
-    await until(() => d.js(`(globalThis.CSS?.highlights?.get('pdf-find-now')?.size || 0) === 1`), 'the match marked', 6000).catch(() => {});
+    await until(() => d.js(`(globalThis.CSS?.highlights?.get('pdf-find-now')?.size || 0) === 1`), 'the match marked', 20000).catch(() => {});
     await d.capture('ocr-pdf-04-find.png');
     check('ocr-pdf: Find finds words on the scanned pages, English and Urdu, and marks them where they are', invoice >= 1 && record >= 1 && urdu >= 1 && toUrdu && english === 1,
       JSON.stringify({ invoice, record, urdu, toUrdu, english }));
 
     // The words over the first scan selected and copied, as on any PDF with text.
     await d.js(`document.querySelector('[data-tip^="Close Find"]')?.click(), 1`);
+    // The first scan's words laid on its page again once Find has closed: read at once, a busy machine had not.
+    await until(() => d.js(`(document.querySelector('.pdf-page[data-index="0"] .textLayer[data-ready]')?.textContent.length || 0) > 0`), 'the first scan\'s words on its page', 20000).catch(() => {});
     const copied = await d.js(`(() => {
       const layer = document.querySelector('.pdf-page[data-index="0"] .textLayer[data-ready]');
       if (!layer) return '';

@@ -146,6 +146,8 @@ export default function PdfApp({ app, shell, boot }) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState([]);
   const [hitAt, setHitAt] = useState(-1);
+  // The words the hits were found for, on the count as data-for: a check waits for its own search to finish rather than reading the last one's count.
+  const [hitsFor, setHitsFor] = useState('');
   const [splitOpen, setSplitOpen] = useState(false);
   const [printing, setPrinting] = useState(null);
   // Recognise Text: null, { } while its dialog asks, { progress } while it reads.
@@ -1137,7 +1139,7 @@ export default function PdfApp({ app, shell, boot }) {
   useEffect(() => {
     const q = query;
     const seq = ++findSeq.current;
-    if (!findOpen || !q.trim()) { setHits([]); setHitAt(-1); return; }
+    if (!findOpen || !q.trim()) { setHits([]); setHitAt(-1); setHitsFor(q); return; }
     (async () => {
       const found = [];
       for (const p of pagesRef.current) {
@@ -1150,6 +1152,7 @@ export default function PdfApp({ app, shell, boot }) {
       }
       if (seq !== findSeq.current) return;
       setHits(found);
+      setHitsFor(q);
       const at = found.findIndex((h) => pagesRef.current.findIndex((p) => p.key === h.key) >= pagesRef.current.findIndex((p) => p.key === currentRef.current));
       setHitAt(found.length ? Math.max(0, at) : -1);
     })();
@@ -1648,7 +1651,7 @@ export default function PdfApp({ app, shell, boot }) {
                     if (e.key === 'Enter') { e.preventDefault(); nextHit(e.shiftKey ? -1 : 1); }
                   }}
                 />
-                <span className="pdf-find-count" data-count={hits.length} data-at={hitAt} data-query={query.trim() ? 'yes' : 'no'}>
+                <span className="pdf-find-count" data-count={hits.length} data-at={hitAt} data-for={hitsFor} data-query={query.trim() ? 'yes' : 'no'}>
                   {!query.trim() ? '' : hits.length ? t('{at} of {count}', { at: hitAt + 1, count: hits.length }) : t('No matches')}
                 </span>
                 <Button ghost icon="chevronUp" title={t('Previous match (Shift+F3)')} disabled={!hits.length} onClick={() => nextHit(-1)} />
