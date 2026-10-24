@@ -125,19 +125,26 @@ export async function verifySheetPointing(h, { dir }) {
       againF2.map((b) => b.ref).join() === 'A1,A2' && againDbl.map((b) => b.ref).join() === 'A1,A2',
       `F2 ${JSON.stringify(againF2)}; double-click ${JSON.stringify(againDbl)}`);
 
-    // =SUM(B3:B12): a drag from B3 to B12 makes the range.
+    // =SUM(B3:B12): a drag from B3 to B12 makes the range. Each step waits for
+    // the editor to show it, so a busy machine is given the time it needs.
     await click('D2');
     await type('=SUM(');
+    await until(async () => (await editor()) === '=SUM(', 'the =SUM( edit', 6000).catch(() => {});
     await mouse('mouseDown', 'B3');
-    await wait(80);
+    await until(async () => (await editor()) === '=SUM(B3', 'B3 pointed at', 6000).catch(() => {});
     for (const ref of ['B5', 'B8', 'B12']) { await mouse('mouseMove', ref); await wait(80); }
-    const dashed = await js(`Boolean(document.querySelector('.sh-refbox.on.pointing'))`);
+    let dashed = false;
+    await until(async () => {
+      dashed = dashed || await js(`Boolean(document.querySelector('.sh-refbox.on.pointing'))`);
+      return dashed && (await editor()) === '=SUM(B3:B12';
+    }, 'the drag to reach B12', 8000).catch(() => {});
     await mouse('mouseUp', 'B12');
-    await wait(150);
+    await until(async () => !(await js(`Boolean(document.querySelector('.sh-refbox.on.pointing'))`)), 'the drag to end', 6000).catch(() => {});
     const dragged = await editor();
     await type(')');
+    await until(async () => (await editor()) === '=SUM(B3:B12)', 'the closing bracket', 6000).catch(() => {});
     await press(wc, 'Return');
-    const sum = await until(() => valueOf('D2') === '75', 'D2 to hold the sum', 4000).catch(() => false);
+    const sum = await until(() => valueOf('D2') === '75', 'D2 to hold the sum', 10000).catch(() => false);
     check('sheets: dragging from B3 to B12 after "=SUM(" makes the range, drawn dashed while it is dragged, and sums it',
       dragged === '=SUM(B3:B12' && dashed && sum === true, `${JSON.stringify(dragged)}; dashed ${dashed}; D2 ${JSON.stringify(valueOf('D2'))}`);
 

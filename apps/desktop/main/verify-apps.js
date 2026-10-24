@@ -5697,9 +5697,20 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // Waited for, not guessed at. A fixed pause is a check that passes on a
     // quiet machine and fails on a busy one, which teaches everybody to ignore
     // it — so this waits for the thing it is actually waiting for.
+    // Ctrl+S is a keystroke too, swallowed the same way when the window loses
+    // focus for a frame, so it is pressed again (focus taken again) if no
+    // write follows; and the file is read only once its size has settled.
     const wasSaved = fs.statSync(files.xlsx).mtimeMs;
-    await press(win.webContents, 's', { modifiers: ['control'] });
-    await until(() => fs.statSync(files.xlsx).mtimeMs !== wasSaved, 'the file to be written');
+    const written = () => fs.statSync(files.xlsx).mtimeMs !== wasSaved;
+    for (let tries = 0; tries < 3 && !written(); tries++) {
+      raise(win);
+      await win.webContents.executeJavaScript(`document.querySelector('.sh')?.focus(), 'ok'`);
+      await press(win.webContents, 's', { modifiers: ['control'] });
+      await until(written, 'the file to be written', 10_000).catch(() => {});
+    }
+    await until(written, 'the file to be written after three Ctrl+S', 1000);
+    let lastSize = -1;
+    await until(() => { const size = fs.statSync(files.xlsx).size; const settled = size > 0 && size === lastSize; lastSize = size; return settled; }, 'the written file to settle', 10_000);
 
     const reopened = await doc.open({ path: files.xlsx });
     const model = doc.model({ id: reopened.id });
