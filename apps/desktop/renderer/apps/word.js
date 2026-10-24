@@ -37,6 +37,7 @@ import {
   BookmarkDialog, CrossReferenceDialog, CaptionDialog, HyphenationDialog, ManualHyphenationDialog,
 } from './word/dialogs.js';
 import { DefineListDialog } from './word/list-dialog.js';
+import { ModifyStyleDialog } from './word/style-dialog.js';
 import { lineBoxes, rectOf, zoomOf } from './word/pages.js';
 import { MathRun, mathHostOf, EQUATION_CSS, EquationDialog, clipOf, CLIP_TYPE } from './word/equations.js';
 import { useMailings, installMailingsStyles } from './word/mailings.js';
@@ -279,6 +280,8 @@ export default function Word({ app, shell, boot }) {
   // The note dialog carries its own state: which kind, and — when editing —
   // which note and its current words.
   const [noteDialog, setNoteDialog] = useState(null);
+  // Home → Styles → right-click → Modify: which style, { id, name }.
+  const [styleDialog, setStyleDialog] = useState(null);
 
   // What was selected when a dialog opened. Read at the moment of the press,
   // because a dialog takes focus and a selection read after that is empty.
@@ -2522,6 +2525,7 @@ export default function Word({ app, shell, boot }) {
           openFile={openFile}
           exportAs={exportAs}
           openDialog={openDialog}
+          modifyStyle={setStyleDialog}
           insertPicture={insertPicture}
           act={act}
           view={view}
@@ -3194,6 +3198,18 @@ export default function Word({ app, shell, boot }) {
 
       {dialog === 'comments' ? (
         <CommentsDialog comments={model?.comments || []} onClose={() => setDialog(null)} onGoto={(c) => { setDialog(null); if (Number.isFinite(c.blockIndex)) act('goto', c.blockIndex); }} onDelete={(c) => act('deleteComment', c.id)} />
+      ) : null}
+
+      {styleDialog ? (
+        <ModifyStyleDialog
+          name={styleDialog.name}
+          style={model?.resolvedStyles?.[styleDialog.id] || null}
+          onClose={() => setStyleDialog(null)}
+          onApply={async (spec) => {
+            if (Object.keys(spec).length) await apply({ op: 'modifyStyle', styleId: styleDialog.id, spec });
+            setStyleDialog(null);
+          }}
+        />
       ) : null}
 
       {dialog === 'bookmark' ? (

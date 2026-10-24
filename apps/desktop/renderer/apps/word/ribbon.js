@@ -140,7 +140,7 @@ const PEN_WEIGHTS = [[2, t('¼ pt')], [4, t('½ pt')], [6, t('¾ pt')], [8, t('1
 const styleName = (s) => String(s.name || s.id).replace(/(^|\s)\p{Ll}/gu, (m) => m.toUpperCase());
 
 export default function WordRibbon({
-  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null, blocks = null, table = null,
+  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, modifyStyle = null, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null, blocks = null, table = null,
   forms = null, redaction = null,
 }) {
   // Table Layout: an operation on the caret's table, and whether the selection runs across its cells.
@@ -296,6 +296,12 @@ export default function WordRibbon({
 
   const run = (delta) => dispatch({ op: 'setRunFormat', delta });
   const para = (delta) => dispatch({ op: 'setParagraphFormat', delta });
+  // A style's right-click, as Word's: the style takes the selection's look, or
+  // its Modify dialog opens. Either changes every paragraph with the style.
+  const styleMenu = (s) => [
+    { label: t('Update {style} to Match Selection', { style: styleName(s) }), icon: 'refresh', run: () => dispatch({ op: 'updateStyleToMatch', styleId: s.id }) },
+    ...(modifyStyle ? [{ label: t('Modify…'), icon: 'styles', run: () => modifyStyle({ id: s.id, name: styleName(s) }) }] : []),
+  ];
   const toggleList = (kind) => para({ list: format.listType === kind ? null : kind });
   const colourMenu = (event, key, list) =>
     menu.open(event, list.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => run({ [key]: value }) })));
@@ -468,6 +474,7 @@ export default function WordRibbon({
                   className={`wd-style${(format.paragraphStyle || 'Normal') === s.id ? ' on' : ''}`}
                   title={t('Apply {style}', { style: s.name || s.id })}
                   onClick={() => para({ styleId: s.id === 'Normal' && !styles.some((x) => x.id === 'Normal') ? null : s.id })}
+                  onContextMenu={(e) => menu.open(e, styleMenu(s))}
                   style={STYLE_LOOK[s.id] || undefined}
                 >
                   <span className="wd-style-name">{s.name || s.id}</span>
@@ -624,7 +631,7 @@ export default function WordRibbon({
               onMore={(e) => menu.open(e, (styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).map((s) => ({ label: styleName(s), icon: (format.paragraphStyle || 'Normal') === s.id ? 'check' : undefined, run: () => para({ styleId: s.id }) })))}
             >
               {(styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).map((s) => (
-                <button key={s.id} type="button" data-style={s.id} className={`wd-style${(format.paragraphStyle || 'Normal') === s.id ? ' on' : ''}`} style={STYLE_LOOK[s.id] || undefined} title={t('Apply {style} to this paragraph', { style: s.name || s.id })} onClick={() => para({ styleId: s.id })}>
+                <button key={s.id} type="button" data-style={s.id} className={`wd-style${(format.paragraphStyle || 'Normal') === s.id ? ' on' : ''}`} onContextMenu={(e) => menu.open(e, styleMenu(s))} style={STYLE_LOOK[s.id] || undefined} title={t('Apply {style} to this paragraph', { style: s.name || s.id })} onClick={() => para({ styleId: s.id })}>
                   <span className="wd-style-name">{s.name || s.id}</span>
                 </button>
               ))}

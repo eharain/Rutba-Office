@@ -561,6 +561,39 @@ export class OoxmlBackend {
   partBytes(part) { return this.doc.pkg.has(part) ? this.doc.pkg.read(part) : null; }
   /** Paragraph styles resolved from styles.xml — flattened, CSS pixels. */
   paragraphStyles() { return this.doc.paragraphStyles(); }
+  /**
+   * Before Modify Style: the styles part made real (a file with none gets
+   * the standard catalogue) and named for the edit's undo.
+   */
+  prepareStyleEdit() {
+    this.doc.ensureParagraphStyles();
+    this.doc.willEditPart('word/styles.xml');
+    return this;
+  }
+  /** One paragraph style's font, size, bold, italic, colour and spacing changed in styles.xml. */
+  modifyStyle(styleId, spec) { this.doc.modifyStyle(styleId, spec); return this; }
+  /**
+   * What a paragraph's own formatting says, as Modify Style's fields: the
+   * run's face, size, colour, bold and italic, and the paragraph's spacing.
+   * Only what is set on the words themselves is named; what they take from
+   * their style is left out, so the style keeps it.
+   */
+  ownLook(index, rPr) {
+    const look = {};
+    const own = splitFormatChange(rPr || '').own || '';
+    const r = this.readRunProps(own);
+    if (r.fontName) look.fontName = r.fontName;
+    if (r.fontSize) look.sizePt = r.fontSize;
+    if (r.fontColour) look.colour = String(r.fontColour).replace(/^#/, '');
+    for (const [tag, key] of [['b', 'bold'], ['i', 'italic']]) {
+      const m = new RegExp('<w:' + tag + '(\\s[^>]*)?/>').exec(own);
+      if (m) look[key] = !/\bw:val="(?:0|false|off)"/.test(m[1] || '');
+    }
+    const pp = this.getParagraphProps(index);
+    if (pp?.spaceBeforePts != null) look.spaceBeforePt = pp.spaceBeforePts;
+    if (pp?.spaceAfterPts != null) look.spaceAfterPt = pp.spaceAfterPts;
+    return look;
+  }
   /** Character styles by id — what a run's `w:rStyle` gives it. */
   characterStyles() { return this.doc.characterStyles(); }
   /** Footnotes and endnotes by id, displayed paragraphs each — see `Document.notes`. */

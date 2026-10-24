@@ -1429,6 +1429,44 @@ export class DocView {
     return this._styleCatalogue;
   }
 
+  /**
+   * Home → Styles → right-click → Modify: one paragraph style's font, size,
+   * bold, italic, colour and spacing changed (see `Document.modifyStyle`).
+   * Every paragraph with the style follows; the change is kept in
+   * styles.xml, and one undo puts it back.
+   */
+  modifyStyle(styleId, spec = {}) {
+    if (typeof this.doc.modifyStyle !== 'function') throw new Error('this document backend does not support styles');
+    if (typeof this.doc.prepareStyleEdit === 'function') this.doc.prepareStyleEdit();
+    return this._edit('style', null, () => {
+      this.doc.modifyStyle(styleId, spec);
+      this._stylesWritten();
+      this._invalidate();
+      return this;
+    });
+  }
+
+  /**
+   * Home → Styles → right-click → Update Heading 1 to Match Selection: the
+   * style takes the look of the words at the start of the selection (their
+   * own face, size, colour, bold and italic) and of their paragraph's
+   * spacing. With no style named, the caret paragraph's own style (Normal
+   * for a paragraph with none).
+   */
+  updateStyleToMatch(styleId = null) {
+    if (typeof this.doc.ownLook !== 'function') throw new Error('this document backend does not support styles');
+    const { from } = this.selection;
+    const b = this.block(from.block);
+    const id = styleId || (typeof this.doc.getParagraphProps === 'function' ? this.doc.getParagraphProps(from.block)?.style : null) || 'Normal';
+    let rPr = null;
+    if (b && b.runs.length) {
+      const { runIndex } = locate(b.runs, this.collapsed ? Math.max(0, from.offset - 1) : from.offset, this.collapsed ? 'left' : 'right');
+      rPr = b.runs[runIndex]?.rPr ?? null;
+    }
+    const look = this.doc.ownLook(from.block, rPr);
+    return this.modifyStyle(id, look);
+  }
+
   /** Plain text of the selection, for copy. */
   copyText() {
     const { from, to } = this.selection;

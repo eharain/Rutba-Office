@@ -2549,6 +2549,9 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     setRunFormat: (v, a) => v.setRunFormat(a.delta),
     clearFormat: (v) => v.clearFormat(),
     setParagraphFormat: (v, a) => v.setParagraphFormat(a.delta),
+    // Home → Styles → right-click: Modify, and Update to Match Selection.
+    modifyStyle: (v, a) => v.modifyStyle(a.styleId, a.spec || {}),
+    updateStyleToMatch: (v, a) => v.updateStyleToMatch(a.styleId || null),
     setLink: (v, a) => v.setLink(a.url),
     insertTable: (v, a) => v.insertTable(a),
     // The bytes reach this process as a Uint8Array over the IPC, not a

@@ -2793,6 +2793,102 @@ export class Document {
   }
 
   /**
+   * Home → Styles → Modify Style, and Update Heading 1 to Match Selection:
+   * one paragraph style's look changed in word/styles.xml, so every
+   * paragraph that has the style follows. Each field is changed only when
+   * given; null takes the style's own setting off, so it falls back to the
+   * style it is based on.
+   *
+   *   fontName       the face, as rFonts ascii and hAnsi (a theme font goes)
+   *   sizePt         the size in points (half points kept)
+   *   bold, italic   true or false
+   *   colour         'RRGGBB' or '#RRGGBB' (a theme colour goes)
+   *   spaceBeforePt  space above in points
+   *   spaceAfterPt   space below in points
+   *
+   * A style the file does not define yet, but the standard catalogue does
+   * (Heading 1 in a file that has only Normal), is added first, as Word adds
+   * a built-in style the first time it is changed. Any other unknown id is
+   * refused. Only this one style element is rewritten.
+   */
+  modifyStyle(styleId, spec = {}) {
+    const id = String(styleId || '');
+    if (!id) throw new Error('no style named');
+    this.ensureParagraphStyles();
+    const part = 'word/styles.xml';
+    let xml = this.pkg.text(part);
+    let at = styleElementOf(xml, id);
+    if (!at) {
+      const standard = styleElementOf(STANDARD_STYLES_XML, id);
+      if (!standard) throw new Error('this document has no paragraph style "' + id + '"');
+      xml = xml.replace('</w:styles>', () => standard[0] + '</w:styles>');
+      at = styleElementOf(xml, id);
+    }
+    let style = at[0];
+    if (/\/>$/.test(style)) style = style.replace(/\/>$/, '>') + '</w:style>';
+    const open = /^<w:style\b[^>]*>/.exec(style)[0];
+    let inner = style.slice(open.length, style.length - '</w:style>'.length);
+
+    const has = (k) => Object.prototype.hasOwnProperty.call(spec, k) && spec[k] !== undefined;
+    // The run properties.
+    let rPr = takeStyleChild(inner, 'rPr');
+    inner = rPr.rest;
+    let r = rPr.inner;
+    if (has('fontName')) {
+      const face = spec.fontName == null ? '' : String(spec.fontName).trim();
+      r = setStyleChild(r, 'rFonts', face ? '<w:rFonts w:ascii="' + esc(face) + '" w:hAnsi="' + esc(face) + '" w:cs="' + esc(face) + '"/>' : null, STYLE_RPR_ORDER);
+    }
+    if (has('sizePt')) {
+      const half = spec.sizePt == null ? null : Math.max(2, Math.round(Number(spec.sizePt) * 2));
+      if (spec.sizePt != null && !Number.isFinite(half)) throw new Error('a size in points, please');
+      r = setStyleChild(r, 'sz', half ? '<w:sz w:val="' + half + '"/>' : null, STYLE_RPR_ORDER);
+      r = setStyleChild(r, 'szCs', half ? '<w:szCs w:val="' + half + '"/>' : null, STYLE_RPR_ORDER);
+    }
+    // Off, when the style it is based on turns it on, is said outright.
+    const basedOn = /<w:basedOn\b[^>]*\bw:val="([^"]*)"/.exec(inner)?.[1] ?? null;
+    const base = basedOn ? readParagraphStyles(xml)[basedOn] || {} : {};
+    for (const [key, tag] of [['bold', 'b'], ['italic', 'i']]) {
+      if (!has(key)) continue;
+      const on = Boolean(spec[key]);
+      const off = !on && base[key] ? ' w:val="0"' : null;
+      r = setStyleChild(r, tag, on ? '<w:' + tag + '/>' : off ? '<w:' + tag + off + '/>' : null, STYLE_RPR_ORDER);
+      r = setStyleChild(r, tag + 'Cs', on ? '<w:' + tag + 'Cs/>' : off ? '<w:' + tag + 'Cs' + off + '/>' : null, STYLE_RPR_ORDER);
+    }
+    if (has('colour')) {
+      const hex = spec.colour == null ? '' : String(spec.colour).replace(/^#/, '').toUpperCase();
+      if (hex && !/^[0-9A-F]{6}$/.test(hex)) throw new Error('a colour as six hex digits, please');
+      r = setStyleChild(r, 'color', hex ? '<w:color w:val="' + hex + '"/>' : null, STYLE_RPR_ORDER);
+    }
+    // The paragraph's spacing: before and after, the line spacing kept.
+    let pPr = takeStyleChild(inner, 'pPr');
+    inner = pPr.rest;
+    let p = pPr.inner;
+    if (has('spaceBeforePt') || has('spaceAfterPt')) {
+      const now = /<w:spacing\b([^>]*?)\/?>/.exec(p);
+      const attrsNow = {};
+      if (now) for (const m of now[1].matchAll(/(w:\w+)="([^"]*)"/g)) attrsNow[m[1]] = m[2];
+      for (const [key, name] of [['spaceBeforePt', 'before'], ['spaceAfterPt', 'after']]) {
+        if (!has(key)) continue;
+        delete attrsNow['w:' + name + 'Lines'];
+        delete attrsNow['w:' + name + 'Autospacing'];
+        if (spec[key] == null) delete attrsNow['w:' + name];
+        else attrsNow['w:' + name] = String(Math.max(0, Math.round(Number(spec[key]) * 20)));
+      }
+      const pairs = Object.entries(attrsNow);
+      p = setStyleChild(p, 'spacing', pairs.length ? '<w:spacing ' + pairs.map(([k, v]) => k + '="' + v + '"').join(' ') + '/>' : null, STYLE_PPR_ORDER);
+    }
+    // Back in the schema's order: pPr, then rPr, then the table parts.
+    const pXml = p ? '<w:pPr>' + p + '</w:pPr>' : '';
+    const rXml = r ? '<w:rPr>' + r + '</w:rPr>' : '';
+    const later = /<w:(?:tblPr|trPr|tcPr|tblStylePr)\b/.exec(inner);
+    inner = later ? inner.slice(0, later.index) + pXml + rXml + inner.slice(later.index) : inner + pXml + rXml;
+    xml = xml.slice(0, at.index) + open + inner + '</w:style>' + xml.slice(at.index + at[0].length);
+    this.pkg.write_(part, xml);
+    this.dirty = true;
+    return this;
+  }
+
+  /**
    * Page setup — orientation, paper size, margin presets — by editing the
    * body's `w:sectPr` in place. Everything not named rides through: header
    * and footer distances, the gutter, section type, header references.
@@ -7704,6 +7800,74 @@ export function resolveTrackedXml(xml, keep) {
     return props.trim() ? '<w:rPr>' + props + '</w:rPr>' : '';
   });
   return out.replace(/<w:pPr\b[^>]*>\s*<\/w:pPr>/g, '');
+}
+
+// ---- one style's look, for Modify Style ------------------------------------
+
+/** The rPr children in the schema's order, which a style's run properties keep. */
+const STYLE_RPR_ORDER = [
+  'rStyle', 'rFonts', 'b', 'bCs', 'i', 'iCs', 'caps', 'smallCaps', 'strike', 'dstrike',
+  'outline', 'shadow', 'emboss', 'imprint', 'noProof', 'snapToGrid', 'vanish', 'webHidden',
+  'color', 'spacing', 'w', 'kern', 'position', 'sz', 'szCs', 'highlight', 'u', 'effect',
+  'bdr', 'shd', 'fitText', 'vertAlign', 'rtl', 'cs', 'em', 'lang', 'eastAsianLayout',
+  'specVanish', 'oMath',
+];
+
+/** The pPr children in the schema's order. */
+const STYLE_PPR_ORDER = [
+  'pStyle', 'keepNext', 'keepLines', 'pageBreakBefore', 'framePr', 'widowControl',
+  'numPr', 'suppressLineNumbers', 'pBdr', 'shd', 'tabs', 'suppressAutoHyphens', 'kinsoku',
+  'wordWrap', 'overflowPunct', 'topLinePunct', 'autoSpaceDE', 'autoSpaceDN', 'bidi',
+  'adjustRightInd', 'snapToGrid', 'spacing', 'ind', 'contextualSpacing', 'mirrorIndents',
+  'suppressOverlap', 'jc', 'textDirection', 'textAlignment', 'textboxTightWrap',
+  'outlineLvl', 'divId', 'cnfStyle', 'rPr', 'sectPr', 'pPrChange',
+];
+
+/** A paragraph style's whole element in a styles part, by id: the match, or null. */
+function styleElementOf(xml, id) {
+  const quoted = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp('<w:style\\b(?=[^>]*\\bw:type="paragraph")(?=[^>]*\\bw:styleId="' + quoted + '")[^>]*?(?:/>|>[\\s\\S]*?</w:style>)').exec(xml);
+}
+
+/** The top-level elements of some xml, as { tag, start, end }; a w: element's tag is its local name. */
+function topElements(inner) {
+  const out = [];
+  let depth = 0;
+  let start = -1;
+  let tag = null;
+  for (const m of inner.matchAll(/<(\/?)([\w]+):([\w]+)\b[^>]*?(\/?)>/g)) {
+    const name = m[2] === 'w' ? m[3] : m[2] + ':' + m[3];
+    if (m[1]) {
+      depth -= 1;
+      if (depth === 0) { out.push({ tag, start, end: m.index + m[0].length }); start = -1; tag = null; }
+    } else if (m[4]) {
+      if (depth === 0) out.push({ tag: name, start: m.index, end: m.index + m[0].length });
+    } else {
+      if (depth === 0) { start = m.index; tag = name; }
+      depth += 1;
+    }
+  }
+  return out;
+}
+
+/** A style's pPr or rPr taken out: its inner xml, and the style's inner xml without it. */
+function takeStyleChild(inner, tag) {
+  const el = topElements(inner).find((c) => c.tag === tag);
+  if (!el) return { inner: '', rest: inner };
+  const xml = inner.slice(el.start, el.end);
+  const body = /\/>$/.test(xml) && !xml.includes('</') ? '' : xml.replace(/^<w:\w+\b[^>]*>/, '').replace(/<\/w:\w+>$/, '');
+  return { inner: body, rest: inner.slice(0, el.start) + inner.slice(el.end) };
+}
+
+/** Replace (or, with null, remove) one child of a pPr or rPr, kept in the schema's order. */
+function setStyleChild(inner, tag, element, order) {
+  let out = inner;
+  for (const el of topElements(out).filter((c) => c.tag === tag).reverse()) out = out.slice(0, el.start) + out.slice(el.end);
+  if (element == null) return out;
+  const rank = (t) => { const i = order.indexOf(t); return i === -1 ? order.length : i; };
+  const mine = rank(tag);
+  const next = topElements(out).find((c) => rank(c.tag) > mine);
+  return next ? out.slice(0, next.start) + element + out.slice(next.start) : out + element;
 }
 
 // References: citations and a bibliography (references.js).
