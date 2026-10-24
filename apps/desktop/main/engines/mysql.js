@@ -81,9 +81,16 @@ export async function connect({ host, port = 3306, database, user, ssl = false }
       return { fields, key };
     },
 
-    async read(remote, { fields, key, limit = 100000 }) {
-      const [rows] = await conn.query(`SELECT ${fields.map((f) => q(f.name)).join(', ')} FROM ${qualified(remote)}${key ? ` ORDER BY ${q(key)}` : ''} LIMIT ${Math.max(1, limit | 0)}`);
+    async read(remote, { fields, key, limit = 100000, since = null }) {
+      const where = since?.field && since.value != null ? ` WHERE ${q(since.field)} >= ?` : '';
+      const value = where && typeof since.value === 'string' ? since.value.replace('T', ' ') : since?.value;
+      const [rows] = await conn.query(`SELECT ${fields.map((f) => q(f.name)).join(', ')} FROM ${qualified(remote)}${where}${key ? ` ORDER BY ${q(key)}` : ''} LIMIT ${Math.max(1, limit | 0)}`, where ? [value] : []);
       return rows.map((row) => Object.fromEntries(fields.map((f) => [f.name, fromEngine(f.type, row[f.name])])));
+    },
+
+    async keys(remote, { key, type = 'integer' }) {
+      const [rows] = await conn.query(`SELECT ${q(key)} AS k FROM ${qualified(remote)}`);
+      return rows.map((row) => fromEngine(type, row.k));
     },
 
     async insert(remote, { key }, values) {

@@ -92,10 +92,21 @@ export async function connect({ host, port = 5432, database, user, ssl = false }
       return { fields, key };
     },
 
-    /** Its records, at most `limit`, in its key's order: [{ field: value }]. */
-    async read(remote, { fields, key, limit = 100000 }) {
-      const r = await client.query(`SELECT ${fields.map((f) => q(f.name)).join(', ')} FROM ${qualified(remote)}${key ? ` ORDER BY ${q(key)}` : ''} LIMIT ${Math.max(1, limit | 0)}`);
+    /**
+     * Its records, at most `limit`, in its key's order: [{ field: value }].
+     * `since` ({ field, value }) reads only those whose updated-at field is
+     * at or after the value, for a synced copy of a large table.
+     */
+    async read(remote, { fields, key, limit = 100000, since = null }) {
+      const where = since?.field && since.value != null ? ` WHERE ${q(since.field)} >= $1` : '';
+      const r = await client.query(`SELECT ${fields.map((f) => q(f.name)).join(', ')} FROM ${qualified(remote)}${where}${key ? ` ORDER BY ${q(key)}` : ''} LIMIT ${Math.max(1, limit | 0)}`, where ? [since.value] : []);
       return r.rows.map((row) => Object.fromEntries(fields.map((f) => [f.name, fromEngine(f.type, row[f.name])])));
+    },
+
+    /** Every key there, for a copy read by its updated-at field to find what was deleted. */
+    async keys(remote, { key, type = 'integer' }) {
+      const r = await client.query(`SELECT ${q(key)} AS k FROM ${qualified(remote)}`);
+      return r.rows.map((row) => fromEngine(type, row.k));
     },
 
     /** A record added; answers its key. */

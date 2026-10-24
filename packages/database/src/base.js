@@ -13,6 +13,7 @@ import { wizardReport, reportData } from './report-design.js';
 import { wizardDocument, documentData, PAPERS, BLOCKS } from './document-design.js';
 import { filterSql, sniffType } from './filter.js';
 import { ACCESS_DESIGN, ADMIN, STARTING_ROLES, normalRights, tableRight, allows, viewSql, hashPassword, checkPassword } from './access.js';
+import { SOURCE_KINDS, ensureSync, copyTableSql, copyReadOnly, checkCopyChange, trackWrite, pending, designDiff, reshapeCopy } from './sync.js';
 
 const DESIGN = `
 CREATE TABLE IF NOT EXISTS rutba_meta (key TEXT PRIMARY KEY, value TEXT);
@@ -115,7 +116,7 @@ export class Base {
     const all = this._allTables();
     const rights = this._rights();
     if (rights) return all.filter((t) => tableRight(rights, t.name).access !== 'hidden');
-    return [...all, ...this.linked().map((l) => ({ name: l.table, caption: l.caption, linked: l.link }))];
+    return [...all, ...this.linked().map((l) => ({ name: l.table, caption: l.caption, linked: l.link, mode: l.mode }))];
   }
 
   _allTables() {
@@ -429,7 +430,7 @@ export class Base {
 
   /** Add a record; answers its rowid. Values as a person typed them are put into each field's type. */
   insert(table, values) {
-    this._notLinked(table);
+    const copy = this._writable(table);
     this._mayWrite(table, 'add');
     const fields = this._known(table).filter((f) => f.type !== 'autonumber' || values[f.name] != null);
     // A field not given takes its default from the table itself: a Yes/No that defaults to Yes is Yes.
@@ -442,13 +443,15 @@ export class Base {
       : `INSERT INTO ${this._target(table)} DEFAULT VALUES`;
     const rowid = Number(this._run(sql, given.map((f) => toStored(f, values[f.name]))).lastInsertRowid);
     this._trail(table, [rowid], 'add');
+    if (copy) trackWrite(this, table, 'add', [rowid]);
     return rowid;
   }
 
   /** Change a record's fields. */
   update(table, rowid, values) {
-    this._notLinked(table);
+    const copy = this._writable(table);
     this._mayWrite(table, 'change', [rowid]);
+    if (copy) checkCopyChange(this, copy, rowid, values);
     let fields = this._known(table).filter((f) => Object.hasOwn(values, f.name));
     this._noHiddenValues(table, values);
     // A field the role may only read stays as it is: given as it is, it is left out; changed, it is refused.
@@ -461,18 +464,20 @@ export class Base {
     if (!fields.length) return 0;
     const changes = Number(this._run(`UPDATE ${this._target(table)} SET ${fields.map((f) => `${q(f.name)} = ?`).join(', ')} WHERE rowid = ?`, [...fields.map((f) => toStored(f, values[f.name])), rowid]).changes);
     if (changes) this._trail(table, [rowid], 'change', { fields: fields.map((f) => f.name) });
+    if (changes && copy) trackWrite(this, table, 'change', [rowid]);
     return changes;
   }
 
   /** Delete records by rowid. */
   remove(table, rowids) {
-    this._notLinked(table);
+    const copy = this._writable(table);
     const ids = [...rowids];
     this._mayWrite(table, 'delete', ids);
     this._known(table);
     if (!ids.length) return 0;
     const changes = Number(this._run(`DELETE FROM ${this._target(table)} WHERE rowid IN (${ids.map(() => '?').join(', ')})`, ids).changes);
     this._trail(table, ids, 'delete');
+    if (copy) trackWrite(this, table, 'delete', ids);
     return changes;
   }
 
@@ -1047,7 +1052,10 @@ export class Base {
   saveLink({ id = null, name, engine, settings }) {
     const n = checkName(name, 'link');
     const key = id || `link-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const clean = { host: String(settings?.host || ''), port: Number(settings?.port) || null, database: String(settings?.database || ''), user: String(settings?.user || ''), ssl: Boolean(settings?.ssl) };
+    // A source's settings are the service's to clean (its secrets kept apart, never here); an engine's are these.
+    const clean = SOURCE_KINDS.has(String(engine)) ? JSON.parse(JSON.stringify(settings || {}))
+      : { host: String(settings?.host || ''), port: Number(settings?.port) || null, database: String(settings?.database || ''), user: String(settings?.user || ''), ssl: Boolean(settings?.ssl) };
+    if (SOURCE_KINDS.has(String(engine))) ensureSync(this);
     const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_links').get().p;
     this._step(`Link ${n} kept`, { link: n, engine }, () => {
       this.db.prepare('INSERT INTO rutba_links (id, name, engine, settings, position) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, engine = excluded.engine, settings = excluded.settings')
@@ -1063,11 +1071,16 @@ export class Base {
     this._step('Link removed', { link: id }, () => this.db.prepare('DELETE FROM rutba_links WHERE id = ?').run(id));
   }
 
-  /** The linked tables: [{ table, link, remote: { schema, name }, key, caption }]. */
+  /**
+   * The linked tables: [{ table, link, remote: { schema, name }, key, caption,
+   * mode, stamp, synced }], `mode` 'live' (read from the engine into this
+   * window) or 'copy' (kept in the file and synced), `stamp` a copy's
+   * updated-at field, `synced` when it last caught up.
+   */
   linked() {
     if (!this.hasDesignTable('rutba_linked')) return [];
-    return this.db.prepare('SELECT tbl, link, remote, key, caption FROM rutba_linked ORDER BY position, tbl').all()
-      .map((r) => ({ table: r.tbl, link: r.link, remote: JSON.parse(r.remote), key: r.key, caption: r.caption }));
+    return this.db.prepare('SELECT * FROM rutba_linked ORDER BY position, tbl').all()
+      .map((r) => ({ table: r.tbl, link: r.link, remote: JSON.parse(r.remote), key: r.key, caption: r.caption, mode: r.mode || 'live', stamp: r.stamp || null, synced: r.synced || null }));
   }
 
   isLinked(table) {
@@ -1078,37 +1091,109 @@ export class Base {
     if (this.isLinked(table)) throw new Error(`${table} is linked to a database engine: its design and records are the engine's, changed there.`);
   }
 
+  /** A table whose records may be written here: its own, or a copy of an engine's (answered, to be synced); a live one is the app's to write. */
+  _writable(table) {
+    if (!this.isLinked(table)) return null;
+    const l = this.linked().find((x) => x.table === table);
+    if (!l || l.mode !== 'copy') this._notLinked(table);
+    const why = copyReadOnly(this, l);
+    if (why) throw new Error(why);
+    return l;
+  }
+
   /**
    * A table of the engine linked under `table`: `remote` its { schema, name },
    * `key` its primary key's field (null: it can be read, not changed), and
    * `fields` its design as the engine describes it.
    */
-  linkTable({ table, link, remote, key = null, fields, caption = null }) {
+  linkTable({ table, link, remote, key = null, fields, caption = null, mode = 'live' }) {
     const n = checkName(table, 'table');
-    if (!this.db.prepare('SELECT 1 FROM rutba_links WHERE id = ?').get(link)) throw new Error('There is no such link.');
+    const kind = this.db.prepare('SELECT engine FROM rutba_links WHERE id = ?').get(link);
+    if (!kind) throw new Error('There is no such link.');
     if (this.tables().some((t) => t.name.toLowerCase() === n.toLowerCase())) throw new Error(`There is a table called ${n} already.`);
     if (this.queries().some((x) => x.name.toLowerCase() === n.toLowerCase())) throw new Error(`${n} is a query's name already.`);
     const list = (fields || []).map((f) => this._field(f));
     if (!list.length) throw new Error(`${n} has no fields to show.`);
+    // A source's records are always kept as a copy (D-2026-10-22-13, step 5).
+    const copy = mode === 'copy' || SOURCE_KINDS.has(kind.engine);
+    if (copy) ensureSync(this);
     const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_linked').get().p;
-    return this._step(`Link table ${n}`, { table: n, link, remote }, () => {
-      this.db.prepare('INSERT INTO rutba_linked (tbl, link, remote, key, caption, position) VALUES (?, ?, ?, ?, ?, ?)').run(n, link, JSON.stringify(remote), key, caption, at);
+    return this._step(`Link table ${n}`, { table: n, link, remote, mode: copy ? 'copy' : 'live' }, () => {
+      if (copy) {
+        this.db.prepare("INSERT INTO rutba_linked (tbl, link, remote, key, caption, position, mode) VALUES (?, ?, ?, ?, ?, ?, 'copy')").run(n, link, JSON.stringify(remote), key, caption, at);
+        this.db.exec(copyTableSql(n, list, key));
+      } else {
+        this.db.prepare('INSERT INTO rutba_linked (tbl, link, remote, key, caption, position) VALUES (?, ?, ?, ?, ?, ?)').run(n, link, JSON.stringify(remote), key, caption, at);
+      }
       this._writeFields(n, list);
       return n;
     });
   }
 
-  /** A linked table's design as the engine describes it now, kept when it changed there. */
+  /**
+   * A linked table switched between read live and kept as a copy in this
+   * file, its records kept: those on screen become the copy, or the copy's
+   * are what is on screen until the engine is read. A copy with changes
+   * still to send stays one until they have gone.
+   */
+  setLinkMode(table, mode) {
+    const l = this.linked().find((x) => x.table === table);
+    if (!l) throw new Error(`${table} is not linked.`);
+    if (mode !== 'live' && mode !== 'copy') throw new Error('A linked table is read live or kept as a copy.');
+    if (l.mode === mode) return false;
+    if (SOURCE_KINDS.has(this.db.prepare('SELECT engine FROM rutba_links WHERE id = ?').get(l.link)?.engine)) throw new Error(`${table} is read from a source: it is always kept as a copy.`);
+    ensureSync(this);
+    const fields = this._allFields(table);
+    if (mode === 'live') {
+      const wait = pending(this, table).count;
+      if (wait) throw new Error(`${wait} change${wait === 1 ? '' : 's'} made here wait${wait === 1 ? 's' : ''} to go to the engine. Sync now, then switch to Live.`);
+      const rows = this.db.prepare(`SELECT * FROM main.${q(table)} ORDER BY rowid`).all();
+      this._step(`Read ${table} live`, { table, mode }, () => {
+        this.db.prepare("UPDATE rutba_linked SET mode = 'live', stamp = NULL WHERE tbl = ?").run(table);
+        this.db.exec(`DROP TABLE main.${q(table)}`);
+        this.db.prepare('DELETE FROM rutba_sync WHERE tbl = ?').run(table);
+      });
+      this.loadLinked(table, rows);
+      return true;
+    }
+    const rows = this.linkedLoaded(table) ? this.db.prepare(`SELECT * FROM temp.${q(table)}`).all() : [];
+    this._step(`Keep a copy of ${table}`, { table, mode }, () => {
+      this.db.prepare("UPDATE rutba_linked SET mode = 'copy' WHERE tbl = ?").run(table);
+      this.db.exec(`DROP TABLE IF EXISTS temp.${q(table)}`);
+      this.db.exec(copyTableSql(table, fields, l.key));
+      const put = this.db.prepare(`INSERT INTO main.${q(table)} (${fields.map((f) => q(f.name)).join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`);
+      for (const r of rows) put.run(...fields.map((f) => r[f.name] ?? null));
+    });
+    return true;
+  }
+
+  /** A copy's updated-at field (the engine changes it with each change), to read only what changed; null to read the whole table. */
+  setLinkStamp(table, field) {
+    const l = this.linked().find((x) => x.table === table);
+    if (!l || l.mode !== 'copy') throw new Error(`${table} is not kept as a copy.`);
+    if (field != null && !this._allFields(table).some((f) => f.name === field)) throw new Error(`${table} has no field called ${field}.`);
+    this._step(field ? `Read ${table} by ${field}` : `Read all of ${table}`, { table, stamp: field }, () => this.db.prepare('UPDATE rutba_linked SET stamp = ? WHERE tbl = ?').run(field ?? null, table));
+  }
+
+  /**
+   * A linked table's design as the engine (or source) describes it now, kept
+   * when it changed there; a copy's table is made again to it, the records of
+   * the fields it keeps kept. Answers false, or what changed: { added,
+   * removed, changed } field names.
+   */
   relinkDesign(table, { fields, key = null }) {
     if (!this.isLinked(table)) return false;
     const list = (fields || []).map((f) => this._field(f));
-    const before = JSON.stringify(this._allFields(table).map((f) => [f.name, f.type, f.required]));
+    const old = this._allFields(table);
+    const before = JSON.stringify(old.map((f) => [f.name, f.type, f.required]));
     const now = JSON.stringify(list.map((f) => [f.name, f.type, Boolean(f.required)]));
-    const was = this.db.prepare('SELECT key FROM rutba_linked WHERE tbl = ?').get(table).key;
+    const l = this.linked().find((x) => x.table === table);
+    const was = l.key;
     if (before === now && was === key) return false;
     // The engine's design, not a step of this file's own design: kept as it is, without a numbered step.
     this.db.exec('BEGIN IMMEDIATE');
     try {
+      if (l.mode === 'copy') reshapeCopy(this, table, old, list, key);
       this._writeFields(table, list);
       this.db.prepare('UPDATE rutba_linked SET key = ? WHERE tbl = ?').run(key, table);
       this.db.exec('COMMIT');
@@ -1116,13 +1201,22 @@ export class Base {
       this.db.exec('ROLLBACK');
       throw err;
     }
-    return true;
+    return designDiff(old, list);
   }
 
-  /** A table unlinked: the engine keeps its records; this file forgets it. */
+  /** A table unlinked: the engine keeps its records; this file forgets it (a copy's records with it). */
   unlinkTable(table) {
     if (!this.isLinked(table)) throw new Error(`${table} is not linked.`);
+    const l = this.linked().find((x) => x.table === table);
+    const copy = l?.mode === 'copy';
+    const wait = copy ? pending(this, table).count : 0;
+    if (wait) throw new Error(`${wait} change${wait === 1 ? '' : 's'} made here wait${wait === 1 ? 's' : ''} to go to the engine. Sync now first, or they are lost with the copy.`);
     const out = this._step(`Unlink table ${table}`, { table }, () => {
+      if (copy) {
+        this.db.exec(`DROP TABLE IF EXISTS main.${q(table)}`);
+        this.db.prepare('DELETE FROM rutba_sync WHERE tbl = ?').run(table);
+        this.db.prepare('DELETE FROM rutba_clashes WHERE tbl = ?').run(table);
+      }
       this.db.prepare('DELETE FROM rutba_linked WHERE tbl = ?').run(table);
       this.db.prepare('DELETE FROM rutba_fields WHERE tbl = ?').run(table);
       this.db.prepare('DELETE FROM rutba_relations WHERE from_tbl = ? OR to_tbl = ?').run(table, table);
@@ -1161,7 +1255,7 @@ export class Base {
   linkedKey(table, rowid) {
     const l = this.linked().find((x) => x.table === table);
     if (!l?.key) throw new Error(`${table} has no primary key in the engine: it can be read, not changed.`);
-    const r = this.db.prepare(`SELECT ${q(l.key)} AS k FROM temp.${q(table)} WHERE rowid = ?`).get(rowid);
+    const r = this.db.prepare(`SELECT ${q(l.key)} AS k FROM ${l.mode === 'copy' ? 'main' : 'temp'}.${q(table)} WHERE rowid = ?`).get(rowid);
     if (!r) throw new Error('That record is not there any more. Refresh, then try again.');
     return r.k;
   }

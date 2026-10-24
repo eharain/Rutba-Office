@@ -13,6 +13,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Base, importRows, importSheets, buildTemplate, buildSample, originOf, planUpgrade, applyUpgrade, toStored } from '@rutba/database';
 import { ENGINES, connectEngine as defaultConnect } from './engines/index.js';
+import { SOURCE_KINDS } from '@rutba/database';
+import { createSync, unreachable, sourceSecret, cleanSourceSettings } from './base-sync.js';
 import { TEMPLATE_IDS, SAMPLE_IDS, templateNeeds, sampleNeeds, pageOf } from '@rutba/templates/data-files/active';
 import { needsFor } from '@rutba/templates/versions';
 import { readManifest } from '@rutba/templates/manifest';
@@ -47,11 +49,16 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
       name: path.basename(file).replace(/\.[^.]+$/, ''),
       tables: base.tables().map((t) => {
         if (!t.linked) return { ...t, count: base.count(t.name) };
+        // A copy kept in the file (D-2026-10-22-13, steps 4 and 5): when it caught up, what waits, what clashed.
+        const copy = sync.describe(open.get(id), t);
+        if (copy) return { ...t, ...copy };
         // A linked table: its records as last read from the engine, or why they could not be.
         const st = open.get(id).state.get(t.name) || {};
-        return { ...t, count: base.linkedLoaded(t.name) ? base.count(t.name) : 0, linkError: st.error || null, readAt: st.at || null, key: base.linked().find((l) => l.table === t.name)?.key || null };
+        return { ...t, mode: 'live', count: base.linkedLoaded(t.name) ? base.count(t.name) : 0, linkError: st.error || null, readAt: st.at || null, key: base.linked().find((l) => l.table === t.name)?.key || null };
       }),
-      links: base.access?.locked || base.rights() ? [] : base.links().map((l) => ({ id: l.id, name: l.name, engine: l.engine, settings: l.settings, password: Boolean(secrets?.get?.(secretKey(l.id))) })),
+      links: base.access?.locked || base.rights() ? [] : base.links().filter((l) => !SOURCE_KINDS.has(l.engine)).map((l) => ({ id: l.id, name: l.name, engine: l.engine, settings: l.settings, password: Boolean(secrets?.get?.(secretKey(l.id))) })),
+      // The other sources tables are read from: a file, another database, a web address answering JSON.
+      sources: base.access?.locked || base.rights() ? [] : base.links().filter((l) => SOURCE_KINDS.has(l.engine)).map((l) => ({ id: l.id, name: l.name, kind: l.engine, settings: l.settings })),
       // Only those between tables the person's role shows.
       relationships: (() => { const seen = new Set(base.tables().map((t) => t.name)); return base.relationships().filter((r) => seen.has(r.from.table) && seen.has(r.to.table)); })(),
       queries: base.queries().map((x) => x.name),
@@ -112,6 +119,13 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
     }
     return o.engines.get(link.id);
   };
+  /** A connection that broke let go, so the next read connects again (the engine stopped and started). */
+  const dropEngine = (o, link) => {
+    const p = o.engines.get(link.id);
+    o.engines.delete(link.id);
+    p?.then((x) => x.close()).catch(() => {});
+  };
+  const sync = createSync({ engineFor, dropEngine, secrets });
   /** A linked table's records read from the engine into this window's copy, its design kept up to date. */
   const readLinked = async (o, table) => {
     const l = o.base.linked().find((x) => x.table === table);
@@ -130,13 +144,23 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
       o.base.loadLinked(table, rows);
       o.state.set(table, { error: null, at: new Date().toISOString(), count: rows.length, hash });
     } catch (err) {
+      if (link && unreachable(err)) dropEngine(o, link);
       o.state.set(table, { error: err.message || String(err), at: null });
     }
   };
-  /** Every linked table read, as a database opens or is refreshed; one that cannot be read says why. */
-  const readAllLinked = async (o) => {
+  /** A linked table caught up, as it is kept: read live, synced as a copy, or read again from its source. */
+  const catchUp = (o, l) => (l.mode !== 'copy' ? readLinked(o, l.table) : sync.isSourceTable(o, l) ? sync.refreshSource(o, l.table) : sync.syncCopy(o, l.table));
+  /**
+   * Every linked table read, as a database opens or is refreshed; one that
+   * cannot be read says why. A copy is in the file already: `copiesFor`
+   * waits that long for copies to catch up, the rest going on behind.
+   */
+  const readAllLinked = async (o, { copiesFor = Infinity } = {}) => {
     if (o.base.access?.locked || o.base.rights()) return;
-    await Promise.all(o.base.linked().map((l) => readLinked(o, l.table)));
+    const all = o.base.linked();
+    const copies = Promise.all(all.filter((l) => l.mode === 'copy').map((l) => catchUp(o, l)));
+    const live = Promise.all(all.filter((l) => l.mode !== 'copy').map((l) => catchUp(o, l)));
+    await Promise.all([live, Number.isFinite(copiesFor) ? Promise.race([copies, new Promise((r) => setTimeout(r, copiesFor))]) : copies]);
   };
   /** A change to a linked table: made in the engine, then the table read again. */
   const writeLinked = async (o, table, run) => {
@@ -155,6 +179,8 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
     if (st?.error) throw new Error(st.error);
     return out;
   };
+  /** Whether a table is read live from its engine, its changes written there at once. */
+  const isLive = (base, table) => base.isLinked(table) && base.linked().find((x) => x.table === table)?.mode !== 'copy';
   // Each window holds its own connection to the file, let go when the window
   // closes: two windows on one database are two readers and writers of it,
   // as SQLite allows, and one closing leaves the other's open.
@@ -229,24 +255,32 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
       try { fs.readSync(fd, head, 0, 16, 0); } finally { fs.closeSync(fd); }
       if (!isSqlite(head)) throw new Error(`${path.basename(file)} is not a database this app opens. Import it into a database instead.`);
       const id = hold(file, win);
-      await readAllLinked(get(id));
+      await readAllLinked(get(id), { copiesFor: 2500 });
       return summary(id);
     },
 
     close: ({ id }) => ({ closed: letGo(id) }),
 
     summary: ({ id }) => summary(id),
-    fields: ({ id, table }) => get(id).base.fields(table),
+    fields: ({ id, table }) => {
+      const { base } = get(id);
+      const fields = base.fields(table);
+      // A table read from a source, or one with no key in its engine, is read here, not changed.
+      const l = base.isLinked(table) ? base.linked().find((x) => x.table === table) : null;
+      const fixed = l && (!l.key || SOURCE_KINDS.has(base.links().find((x) => x.id === l.link)?.engine));
+      return fixed ? fields.map((f) => ({ ...f, readOnly: true })) : fields;
+    },
     rows: ({ id, table, offset = 0, limit = 200, order = null, where = {}, search = '', filters = [] }) => {
       const { base } = get(id);
       return { rows: base.rows(table, { offset, limit, order, where, search, filters }), count: base.count(table, where, { search, filters }) };
     },
     // A query's results as a table's records are read: a page, sorted, searched and filtered (D-2026-10-22-07).
     queryRows: ({ id, name = null, design = null, offset = 0, limit = 200, order = null, search = '', filters = [] }) => get(id).base.queryRows({ name, design, offset, limit, order, search, filters }),
-    // A linked table's changes go to its engine (D-2026-10-22-13); the rest to the file.
+    // A linked table's changes go to its engine (D-2026-10-22-13); the rest to the file, a copy's
+    // marked to go to its engine at the next catch-up.
     insert: async ({ id, table, values }) => {
       const o = get(id);
-      if (!o.base.isLinked(table)) return { rowid: o.base.insert(table, values || {}) };
+      if (!isLive(o.base, table)) return { rowid: o.base.insert(table, values || {}) };
       const key = await writeLinked(o, table, ({ engine, remote, design, stored }) => engine.insert(remote, design, stored(values)));
       const l = o.base.linked().find((x) => x.table === table);
       const row = key != null && l.key ? o.base.rows(table, { where: { [l.key]: key }, limit: 1 })[0] : null;
@@ -254,13 +288,13 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
     },
     update: async ({ id, table, rowid, values }) => {
       const o = get(id);
-      if (!o.base.isLinked(table)) return { changed: o.base.update(table, rowid, values || {}) };
+      if (!isLive(o.base, table)) return { changed: o.base.update(table, rowid, values || {}) };
       const key = o.base.linkedKey(table, rowid);
       return { changed: await writeLinked(o, table, ({ engine, remote, design, stored }) => engine.update(remote, design, key, stored(values))) };
     },
     remove: async ({ id, table, rowids }) => {
       const o = get(id);
-      if (!o.base.isLinked(table)) return { removed: o.base.remove(table, rowids || []) };
+      if (!isLive(o.base, table)) return { removed: o.base.remove(table, rowids || []) };
       const keys = (rowids || []).map((r) => o.base.linkedKey(table, r));
       return { removed: await writeLinked(o, table, ({ engine, remote, design }) => engine.remove(remote, design, keys)) };
     },
@@ -313,18 +347,124 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
       const made = [];
       for (const r of remotes || []) {
         const design = await engine.describe({ schema: r.schema, name: r.name });
-        const table = o.base.linkTable({ table: r.as || r.name, link, remote: { schema: r.schema, name: r.name }, key: design.key, fields: design.fields });
+        // Each read live (as 2.17) or kept as a copy in this file (D-2026-10-22-13, step 4).
+        const table = o.base.linkTable({ table: r.as || r.name, link, remote: { schema: r.schema, name: r.name }, key: design.key, fields: design.fields, mode: r.mode === 'copy' ? 'copy' : 'live' });
         made.push(table);
-        await readLinked(o, table);
+        await catchUp(o, o.base.linked().find((x) => x.table === table));
       }
       return { tables: made, summary: summary(id) };
     },
-    /** A table unlinked: the engine keeps its records. */
-    unlinkTable: ({ id, table }) => { const o = get(id); whole(o.base); o.base.unlinkTable(table); o.state.delete(table); return summary(id); },
-    /** The linked tables read again from their engines (one, or all). */
-    refreshLinked: async ({ id, table = null }) => {
+    /** A table unlinked: the engine keeps its records. A source's link goes with its table, its secrets with it. */
+    unlinkTable: ({ id, table }) => {
       const o = get(id);
-      if (table) await readLinked(o, table); else await readAllLinked(o);
+      whole(o.base);
+      const l = o.base.linked().find((x) => x.table === table);
+      const link = l ? o.base.links().find((x) => x.id === l.link) : null;
+      o.base.unlinkTable(table);
+      o.state.delete(table);
+      if (link && SOURCE_KINDS.has(link.engine) && !o.base.linked().some((x) => x.link === link.id)) {
+        o.base.removeLink(link.id);
+        secrets?.delete?.(sourceSecret(link.id));
+        for (const h of link.settings?.headers || []) if (h.secret) secrets?.delete?.(sourceSecret(link.id, h.name));
+      }
+      return summary(id);
+    },
+    /**
+     * The linked tables caught up (one, or all): read again live, synced as
+     * copies, and sources read again; a source on screen only when it is due
+     * on its schedule, unless `now` (Refresh, Sync now).
+     */
+    refreshLinked: async ({ id, table = null, now = false }) => {
+      const o = get(id);
+      if (!table) { await readAllLinked(o); return summary(id); }
+      const l = o.base.linked().find((x) => x.table === table);
+      if (l && (now || !(l.mode === 'copy' && sync.isSourceTable(o, l)) || sync.due(o, l))) await catchUp(o, l);
+      return summary(id);
+    },
+    /** Sources due on their schedules read again: the summary when any was, else null. */
+    refreshDue: async ({ id }) => ((await sync.refreshDue(get(id))) ? summary(id) : null),
+    /** A linked table read live or kept as a copy in this file, its records kept, then caught up. */
+    setLinkMode: async ({ id, table, mode }) => {
+      const o = get(id);
+      whole(o.base);
+      o.base.setLinkMode(table, mode);
+      o.state.delete(table);
+      await catchUp(o, o.base.linked().find((x) => x.table === table));
+      return summary(id);
+    },
+    /** A copy's updated-at field, to read only what changed in a large table; null to read all of it. */
+    setLinkStamp: ({ id, table, field = null }) => { const o = get(id); whole(o.base); o.base.setLinkStamp(table, field); return summary(id); },
+    /** The versions from here a copy's engine replaced: [{ id, key, at, action, mine, theirs, why }]. */
+    clashes: ({ id, table }) => sync.clashes(get(id), table),
+    /** A clash settled: the engine's version kept, or the one from here put back to go to the engine. */
+    settleClash: ({ id, table, clash, keep = 'engine' }) => { sync.settleClash(get(id), table, clash, keep); return summary(id); },
+    /** What another Data Files database offers to link: its tables and queries, as the person named may see them. */
+    sourceItems: ({ where, person = null, password = null }) => sync.rbaseItems(where, { person, password }),
+    /**
+     * A source tried before it is linked (a file, another database, a web
+     * address answering JSON): its fields, first records and count, or why
+     * it cannot be read. Nothing is kept.
+     */
+    trySource: ({ kind, settings, password = null, headers = {}, item = null }) => sync.trySource(kind, settings, { password, headers, item }),
+    /**
+     * A source linked: kept in the database as a link of its own with one
+     * table, its records a copy in the file, read at once. Its password, and
+     * the headers marked secret, go in this computer's protected store,
+     * never in the file. Answers { table, summary }.
+     */
+    linkSource: async ({ id, kind, name, settings, password = null, headers = {}, item = null }) => {
+      const o = get(id);
+      whole(o.base);
+      if (!SOURCE_KINDS.has(kind)) throw new Error(`${kind} is not a source Data Files reads.`);
+      const clean = cleanSourceSettings(kind, settings);
+      const secret = (kind === 'rbase' && password) || clean.headers?.some((h) => h.secret);
+      if (secret && !secrets?.available?.()) throw new Error('This computer offers no protected store for the key or password, so the source cannot keep it.');
+      const got = await sync.trySource(kind, clean, { password, headers, item });
+      if (!got.fields.length) throw new Error('There is nothing there to read.');
+      const want = String(name || '').trim();
+      if (o.base.tables().some((t) => t.name.toLowerCase() === want.toLowerCase())) throw new Error(`There is a table called ${want} already.`);
+      // The source's link is named as its table, made its own beside an engine's of that name.
+      const taken = new Set(o.base.links().map((l) => l.name.toLowerCase()));
+      let linkName = want;
+      for (let n = 2; taken.has(linkName.toLowerCase()); n++) linkName = `${want} ${n}`;
+      const linkId = o.base.saveLink({ name: linkName, engine: kind, settings: clean });
+      try {
+        if (kind === 'rbase' && password) secrets.set(sourceSecret(linkId), String(password));
+        for (const h of clean.headers || []) if (h.secret) secrets.set(sourceSecret(linkId, h.name), String(headers[h.name] ?? ''));
+        const remote = kind === 'file' ? { sheet: got.sheet || null } : kind === 'rbase' ? { item: got.item } : {};
+        const table = o.base.linkTable({ table: want, link: linkId, remote, key: null, fields: got.fields, mode: 'copy' });
+        await sync.refreshSource(o, table);
+        return { table, summary: summary(id) };
+      } catch (err) {
+        try {
+          o.base.removeLink(linkId);
+          secrets?.delete?.(sourceSecret(linkId));
+          for (const h of clean.headers || []) if (h.secret) secrets?.delete?.(sourceSecret(linkId, h.name));
+        } catch { /* a table was made: it stays, with its link */ }
+        throw err;
+      }
+    },
+    /** How often a source is read again: every 5, 15 or 60 minutes, or 0, by hand. */
+    setSourceEvery: ({ id, table, every }) => {
+      const o = get(id);
+      whole(o.base);
+      const l = o.base.linked().find((x) => x.table === table);
+      const link = l && o.base.links().find((x) => x.id === l.link);
+      if (!link || !SOURCE_KINDS.has(link.engine)) throw new Error(`${table} is not read from a source.`);
+      o.base.saveLink({ id: link.id, name: link.name, engine: link.engine, settings: cleanSourceSettings(link.engine, { ...link.settings, every }) });
+      return summary(id);
+    },
+    /** Who you are in a protected database a source reads: kept for the next reads, the password in the protected store. */
+    sourceSignIn: async ({ id, table, person, password }) => {
+      const o = get(id);
+      whole(o.base);
+      const l = o.base.linked().find((x) => x.table === table);
+      const link = l && o.base.links().find((x) => x.id === l.link);
+      if (!link || link.engine !== 'rbase') throw new Error(`${table} is not read from another database.`);
+      if (!secrets?.available?.()) throw new Error('This computer offers no protected store for the password, so the source cannot keep it.');
+      o.base.saveLink({ id: link.id, name: link.name, engine: link.engine, settings: cleanSourceSettings('rbase', { ...link.settings, person }) });
+      secrets.set(sourceSecret(link.id), String(password ?? ''));
+      await sync.refreshSource(o, table);
       return summary(id);
     },
 

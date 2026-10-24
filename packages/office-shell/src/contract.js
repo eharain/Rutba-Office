@@ -371,7 +371,17 @@ export const METHODS = {
     'removeLink',   // ({ id, link }) -> summary
     'linkTables',   // ({ id, link, remotes: [{ schema, name, as? }] }) -> { tables, summary }   linked live, read at once
     'unlinkTable',  // ({ id, table }) -> summary   the engine keeps its records
-    'refreshLinked',// ({ id, table? }) -> summary   read again from the engine
+    'refreshLinked',// ({ id, table?, now? }) -> summary   read again from the engine, a copy synced, a source read when due (or now)
+    'setLinkMode',  // ({ id, table, mode: 'live' | 'copy' }) -> summary   read live or kept as a copy in the file, its records kept
+    'setLinkStamp', // ({ id, table, field | null }) -> summary   a copy's updated-at field, to read only what changed
+    'clashes',      // ({ id, table }) -> [{ id, key, at, action, mine, theirs, why }]   versions from here the engine's replaced
+    'settleClash',  // ({ id, table, clash, keep: 'engine' | 'mine' }) -> summary
+    'sourceItems',  // ({ where, person?, password? }) -> { protected, items: [{ kind, name }] }   another database's tables and queries
+    'trySource',    // ({ kind, settings, password?, headers?, item? }) -> { fields, rows, count, sheets?, items? }   nothing kept
+    'linkSource',   // ({ id, kind, name, settings, password?, headers?, item? }) -> { table, summary }   a file, another database or JSON, kept as a copy
+    'setSourceEvery', // ({ id, table, every: 5 | 15 | 60 | 0 }) -> summary   how often a source is read again
+    'sourceSignIn', // ({ id, table, person, password }) -> summary   who you are in a protected database a source reads
+    'refreshDue',   // ({ id }) -> summary | null   sources due on their schedules read again
     'queryRows',    // ({ id, name? | design?, offset?, limit?, order?, search?, filters? }) -> { columns: [{ name, type }], rows, count }   a page of a query's results, as rows reads a table's
     'insert',       // ({ id, table, values }) -> { rowid }
     'update',       // ({ id, table, rowid, values }) -> { changed }

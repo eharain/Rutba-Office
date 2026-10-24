@@ -16,7 +16,8 @@ import { RecentFiles } from '../start-page.js';
 import { DocumentView, DOCUMENT_CSS } from './base/documents.js';
 import { useGridFilter, FilterBar, ColumnFilter, selectionItems, FILTER_CSS } from './base/filters.js';
 import { SignIn, ProtectDialog, PasswordDialog, SeeingBanner, PeopleView, PEOPLE_CSS, canDesign, may } from './base/people.js';
-import { LinkDialog, LinkedBar, LinkPasswordDialog, LINKS_CSS } from './base/links.js';
+import { LinkDialog, LinkedBar, LinkPasswordDialog, ClashesDialog, LINKS_CSS } from './base/links.js';
+import { SourceDialog, SourceSignInDialog, SOURCES_CSS } from './base/sources.js';
 
 /** The ready-made databases the start screen offers, in the engine's order (packages/database/src/templates.js). */
 const TEMPLATES = [
@@ -197,9 +198,11 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
 
   const editable = fields.filter((f) => f.type !== 'autonumber');
   // What the person's role allows here (D-2026-10-22-11); the database refuses the rest in any case.
-  const mayAdd = may(db, table, 'add');
-  const mayChange = may(db, table, 'change');
-  const mayDelete = may(db, table, 'delete');
+  // A copy read from a source, or of an engine table with no primary key, is read only here.
+  const readOnly = Boolean(db.tables.find((x) => x.name === table)?.readOnly);
+  const mayAdd = !readOnly && may(db, table, 'add');
+  const mayChange = !readOnly && may(db, table, 'change');
+  const mayDelete = !readOnly && may(db, table, 'delete');
   const fixed = (f) => !mayChange || Boolean(f.readOnly);
   const cols = fields.map((f) => (f.type === 'longtext' ? 280 : f.type === 'yesno' ? 90 : f.type === 'autonumber' ? 80 : 160));
   const template = `36px ${cols.map((w) => `${w}px`).join(' ')}`;
@@ -491,6 +494,10 @@ export default function Databases({ app, shell, boot }) {
   // Link to a database engine, and a link's password on a computer that has not kept it (D-2026-10-22-13).
   const [linking, setLinking] = useState(false);
   const [linkPassword, setLinkPassword] = useState(null);
+  // Other sources a table is read from, a copy's clashes, and who you are where a source is read (steps 4 and 5).
+  const [sourcing, setSourcing] = useState(false);
+  const [clashesOf, setClashesOf] = useState(null);
+  const [sourceWho, setSourceWho] = useState(null);
 
   const show = useCallback((summary) => {
     setDb(summary);
@@ -618,6 +625,16 @@ export default function Databases({ app, shell, boot }) {
     }, LIVE_MS);
     return () => clearInterval(timer);
   }, [shell, db?.id, table, linkedOnScreen, show]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sources read again on their schedules while the database is open, on screen or not.
+  const hasSources = Boolean(db?.sources?.length);
+  useEffect(() => {
+    if (!hasSources) return undefined;
+    const timer = setInterval(async () => {
+      try { const s = await shell.base.refreshDue({ id: db.id }); if (s) show(s); } catch { /* the bar says why at the next read */ }
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [shell, db?.id, hasSources, show]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const makeTable = async () => {
     const name = String(naming || '').trim();
@@ -781,12 +798,12 @@ export default function Databases({ app, shell, boot }) {
           onContextMenu={(e) => {
             e.preventDefault();
             const items = [pinned ? { label: t('Unpin'), run: () => pin(kind, name, false) } : { label: t('Pin to the top'), run: () => pin(kind, name, true) }];
-            if (kind === 'table' && linkedOf(name) && design) items.push({ label: t('Unlink {name}', { name }), run: () => shell.base.unlinkTable({ id: db.id, table: name }).then((s) => { show(s); toast(t('{name} is unlinked. The engine keeps its records.', { name })); }).catch((err) => toast(err.message, { tone: 'bad' })) });
+            if (kind === 'table' && linkedOf(name) && design) items.push({ label: t('Unlink {name}', { name }), run: () => shell.base.unlinkTable({ id: db.id, table: name }).then((s) => { show(s); toast(linkedOf(name).source ? t('{name} is unlinked. Its source keeps its records.', { name }) : t('{name} is unlinked. The engine keeps its records.', { name })); }).catch((err) => toast(err.message, { tone: 'bad' })) });
             sideMenu.open(e, items);
           }}>
           <Icon name={k.icon} size={14} />
           <span>{name}</span>
-          {kind === 'table' && linkedOf(name) ? <span className={`bs-linked-mark${linkedOf(name).linkError ? ' bad' : ''}`} data-linked-mark={name} title={linkedOf(name).linkError || t('Linked to a database engine')}><Icon name={linkedOf(name).linkError ? 'info' : 'link'} size={12} /></span> : null}
+          {kind === 'table' && linkedOf(name) ? <span className={`bs-linked-mark${linkedOf(name).linkError ? ' bad' : ''}`} data-linked-mark={name} title={linkedOf(name).linkError || (linkedOf(name).source ? t('Read from a file or web address') : linkedOf(name).mode === 'copy' ? t('Linked to a database engine, kept as a copy') : t('Linked to a database engine'))}><Icon name={linkedOf(name).linkError ? 'info' : 'link'} size={12} /></span> : null}
           {count !== null ? <small>{count}</small> : null}
         </button>
         <button type="button" className={`bs-pin${pinned ? ' on' : ''}`} data-pin={`${kind}:${name}`} aria-pressed={pinned} title={pinned ? t('Unpin {name}', { name }) : t('Pin {name} to the top', { name })} aria-label={pinned ? t('Unpin {name}', { name }) : t('Pin {name} to the top', { name })} onClick={() => pin(kind, name, !pinned)}>
@@ -851,6 +868,7 @@ export default function Databases({ app, shell, boot }) {
             {design ? <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('Relationships')}</span></button> : null}
             {design ? <button type="button" className={`bs-table${view === 'sql' ? ' on' : ''}`} data-view="sql" onClick={() => setView('sql')}><Icon name="formula" size={14} /><span>{t('SQL')}</span></button> : null}
             {design ? <button type="button" className="bs-table bs-link-engine" onClick={() => setLinking(true)}><Icon name="link" size={14} /><span>{t('Link to a database engine')}</span></button> : null}
+            {design ? <button type="button" className="bs-table bs-link-source" onClick={() => setSourcing(true)}><Icon name="import" size={14} /><span>{t('Link to a file or web address')}</span></button> : null}
             {!access.protected && design ? <button type="button" className="bs-table bs-protect" onClick={() => setProtecting(true)}><Icon name="shield" size={14} /><span>{t('Protect this database')}</span></button> : null}
             {isAdmin && !access.person?.seeing ? <button type="button" className={`bs-table bs-people-open${view === 'people' ? ' on' : ''}`} data-view="people" onClick={() => setView('people')}><Icon name="contacts" size={14} /><span>{t('People and roles')}</span></button> : null}
             {access.person ? (
@@ -874,7 +892,7 @@ export default function Databases({ app, shell, boot }) {
                 {tab('data', t('Records'))}
                 {design && !linkedOf(table) ? tab('design', t('Design')) : null}
               </div>
-              <LinkedBar shell={shell} db={db} table={table} onChanged={show} onPassword={setLinkPassword} toast={toast} />
+              <LinkedBar shell={shell} db={db} table={table} design={design} onChanged={show} onPassword={setLinkPassword} onClashes={setClashesOf} onSourceSignIn={setSourceWho} toast={toast} />
               {view === 'data' || !design || linkedOf(table)
                 ? <Datasheet key={`${table}-${db.steps}-${linkedOf(table)?.readAt || ""}`} shell={shell} db={db} table={table} onChanged={refresh} toast={toast} />
                 : <Design shell={shell} db={db} table={table} onChanged={show} onRemoved={() => { setTable(null); refresh(); }} toast={toast} />}
@@ -964,6 +982,9 @@ export default function Databases({ app, shell, boot }) {
       ) : null}
       {protecting ? <ProtectDialog shell={shell} db={db} onDone={(s) => { show(s); setProtecting(false); setView('people'); }} onClose={() => setProtecting(false)} toast={toast} /> : null}
       {linking ? <LinkDialog shell={shell} db={db} onDone={(s, first) => { show(s); setLinking(false); if (first) { setTable(first); setView('data'); } }} onClose={() => setLinking(false)} toast={toast} /> : null}
+      {sourcing ? <SourceDialog shell={shell} db={db} onDone={(s, made) => { show(s); setSourcing(false); if (made) { setTable(made); setView('data'); } }} onClose={() => setSourcing(false)} toast={toast} /> : null}
+      {clashesOf ? <ClashesDialog shell={shell} db={db} table={clashesOf} onChanged={show} onClose={() => setClashesOf(null)} toast={toast} /> : null}
+      {sourceWho ? <SourceSignInDialog shell={shell} db={db} table={sourceWho} onDone={(s) => { show(s); setSourceWho(null); }} onClose={() => setSourceWho(null)} toast={toast} /> : null}
       {linkPassword ? <LinkPasswordDialog shell={shell} db={db} link={linkPassword} onDone={(s) => { show(s); setLinkPassword(null); }} onClose={() => setLinkPassword(null)} toast={toast} /> : null}
       {changingPassword ? <PasswordDialog shell={shell} db={db} onClose={() => setChangingPassword(false)} toast={toast} /> : null}
       {naming !== null ? (
@@ -972,7 +993,7 @@ export default function Databases({ app, shell, boot }) {
           <p className="bs-hint">{t('It starts with an ID that numbers each record; add its fields in its design.')}</p>
         </Dialog>
       ) : null}
-      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS + FILTER_CSS + PEOPLE_CSS + LINKS_CSS}</style>
+      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS + FILTER_CSS + PEOPLE_CSS + LINKS_CSS + SOURCES_CSS}</style>
     </AppFrame>
   );
 }
