@@ -170,11 +170,15 @@ export async function verifyMailWindow(h) {
       next.ready && next.button && next.gone && JSON.stringify(order) === '["first","second","third"]' && next.selected.length === 1 && next.selected[0].includes(three[2].s) && next.shown.includes(three[2].s),
       JSON.stringify({ order, ...next }));
     // The keys go on from there: Down moves to the message below the third, not the first.
+    // The one above is whatever row the list draws above the third; on a busy
+    // machine another check's message can be dated between the three, so it
+    // is read from the list rather than assumed to be the first of three.
+    const above = await js(`(() => { const rows = [...document.querySelectorAll('.ml-row')]; const i = rows.findIndex((r) => r.classList.contains('selected')); return i > 0 ? rows[i - 1].querySelector('.ml-subject')?.textContent || '' : ''; })()`);
     win.focus();
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Up' });
     win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Up' });
-    const up = await until(() => js(`(document.querySelector('.ml-row.selected .ml-subject')?.textContent || '').includes(${JSON.stringify(three[0].s)})`), 'Up to the first of three', 3000).then(() => true).catch(() => false);
-    check('mail: after the delete, Up goes on from the message selected, to the one above it', up, up ? 'the first of three' : await js(`document.querySelector('.ml-row.selected .ml-subject')?.textContent || 'nothing selected'`));
+    const up = Boolean(above) && await until(() => js(`(document.querySelector('.ml-row.selected .ml-subject')?.textContent || '') === ${JSON.stringify(above)}`), 'Up to the row above', 5000).then(() => true).catch(() => false);
+    check('mail: after the delete, Up goes on from the message selected, to the one above it', up, up ? above : await js(`document.querySelector('.ml-row.selected .ml-subject')?.textContent || 'nothing selected'`));
 
     // The first send makes Sent (A6.13): an account with no Sent yet, a
     // message sent from it, and Sent among its folders without a reload.

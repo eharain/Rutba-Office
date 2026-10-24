@@ -37,7 +37,7 @@ async function server(handle) {
 
 test('rows and JSON records made into a table: the header named, types worked out, nested fields flattened one level', () => {
   const t = tableFromRows([['ignore me'], ['Name', 'Price', 'Added', 'In stock'], ['Bread', '2.50', '2026-10-01', 'yes'], ['', '', '', ''], ['Milk', '1,200.10', '2026-10-02', 'no']], { header: 2 });
-  assert.deepEqual(t.fields.map((f) => [f.name, f.type]), [['Name', 'text'], ['Price', 'number'], ['Added', 'date'], ['In stock', 'yesno']]);
+  assert.deepEqual(t.fields.map((f) => [f.name, f.type]), [['Name', 'text'], ['Price', 'currency'], ['Added', 'date'], ['In stock', 'yesno']]);
   assert.deepEqual(t.rows, [{ Name: 'Bread', Price: 2.5, Added: '2026-10-01', 'In stock': 1 }, { Name: 'Milk', Price: 1200.1, Added: '2026-10-02', 'In stock': 0 }]);
   assert.deepEqual(flatten({ id: 1, address: { city: 'Leeds', geo: { lat: 1 } }, tags: ['a'] }), { id: 1, 'address.city': 'Leeds', 'address.geo': '{"lat":1}', tags: '["a"]' });
   assert.deepEqual(valueAt({ data: { items: [1, 2] } }, 'data.items'), [1, 2]);

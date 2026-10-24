@@ -6014,12 +6014,14 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     currentApp = 'word';
   try {
     const win = await open('word', files.md);
-    await wait(400);
+    // Waited for, not guessed at: the README's task boxes and its table drawn.
+    await until(() => win.webContents.executeJavaScript(`(() => { const t = [...document.querySelectorAll('.wd-page [data-block]')].map((b) => b.textContent).join(' '); return document.querySelectorAll('.wd-page .wd-cc[data-kind="checkBox"]').length > 0 && t.includes('Format') && t.includes('.pst'); })()`), 'the README drawn', 15000).catch(() => {});
 
     const shown = await win.webContents.executeJavaScript(`(() => {
       const blocks = [...document.querySelectorAll('.wd-page [data-block]')];
       return {
         count: blocks.length,
+        boxes: document.querySelectorAll('.wd-page .wd-cc[data-kind="checkBox"]').length,
         text: blocks.map((b) => b.textContent).join('\\n'),
         headings: blocks.filter((b) => /^h[1-6]$/i.test(b.tagName) || /heading/i.test(b.className)).length,
         links: document.querySelectorAll('.wd-page a, .wd-page [data-link]').length,
@@ -6027,7 +6029,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     })()`);
 
     // The structure a README is made of has to be visible, not flattened.
-    check('word: a task list survives into the document', /☑|☐/.test(shown.text), `${shown.count} blocks drawn`);
+    check('word: a task list survives into the document, its items as check boxes', shown.boxes > 0, `${shown.boxes} check box(es) in ${shown.count} blocks drawn`);
     check('word: a fenced code block keeps its fences', shown.text.includes('```'), 'the fence markers are on screen');
     check('word: a table is a table', shown.text.includes('Format') && shown.text.includes('.pst'), 'table cells are present');
 
