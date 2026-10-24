@@ -18,10 +18,36 @@
 // leaves no file behind. Run alone with RUTBA_VERIFY_ONLY=video-mp4.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { Mp4Writer, memorySink } from '@rutba/media/mp4-write';
 import { readMp4 } from '@rutba/media/mp4-read';
 import { makeFixtures } from './verify-video-editor.js';
+
+/** The share of the processors busy over `ms`, from the operating system's own counters. */
+async function busyShare(ms) {
+  const sample = () => os.cpus().reduce((t, c) => ({ idle: t.idle + c.times.idle, all: t.all + Object.values(c.times).reduce((a, b) => a + b, 0) }), { idle: 0, all: 0 });
+  const a = sample();
+  await new Promise((r) => setTimeout(r, ms));
+  const b = sample();
+  return b.all > a.all ? 1 - (b.idle - a.idle) / (b.all - a.all) : 0;
+}
+
+/**
+ * Wait, up to two minutes, until the processors have been under a quarter
+ * busy for three seconds running (as the gate settles before its budgets).
+ * Answers how long it waited and how busy they were at the end.
+ */
+async function settled(limitMs = 120_000) {
+  const started = Date.now();
+  let calm = 0;
+  let share = 1;
+  while (Date.now() - started < limitMs && calm < 3) {
+    share = await busyShare(1000);
+    calm = share < 0.25 ? calm + 1 : 0;
+  }
+  return { waited: Math.round((Date.now() - started) / 1000), busy: Math.round(share * 100) };
+}
 
 
 /** Runs in the window: a 1080p clip as H.264 with a tone as AAC, as base64 samples with their times (microseconds). */
@@ -207,6 +233,11 @@ export async function verifyVideoMp4(h, { dir }) {
     box.fast === '1' && /H\.264/.test(box.format || '') && /AAC/.test(box.format || '') && box.frame === '1920x1080' && /as fast as this computer/.test(box.hint || ''), JSON.stringify(box));
 
   globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: target });
+  // The budget is the export's, so it starts on a machine that has settled:
+  // the clip just encoded and written is read by the virus scanner for a
+  // while after, and the lanes before this one end their windows; beside
+  // that the clock measured the machine.
+  const calm = await settled();
   const t0 = Date.now();
   await js(`document.querySelector('.vd-export-go')?.click(), 1`);
   const busy = await until(() => js(`Boolean(document.querySelector('.vd-export-busy'))`), 'the progress', 8000).then(() => true).catch(() => false);
@@ -224,7 +255,7 @@ export async function verifyVideoMp4(h, { dir }) {
   check('video mp4: the export says how far it has got and how much faster than the project plays', busy && speedShown && /Encoding/.test(progressText?.line || '') && /as fast as it plays/.test(progressText?.speed || ''), JSON.stringify(progressText));
   check('video mp4: a 60-second 1080p timeline exports in under 60 seconds (from the press to the file in place)',
     finished && wall < 60 && fs.existsSync(target),
-    measure ? `${wall.toFixed(1)} s by the clock for ${length.toFixed(1)} s of 1080p (the encoder's own count ${measure.seconds} s, ${(length / measure.seconds).toFixed(2)}× real time; ${measure.codec}${measure.hardware ? ' on the graphics hardware' : ' in software'}, sound ${measure.audio}; ${(measure.size / 1e6).toFixed(1)} MB; ms spent ${JSON.stringify(measure.spent)})` : `not finished after ${wall.toFixed(1)} s`);
+    measure ? `${wall.toFixed(1)} s by the clock for ${length.toFixed(1)} s of 1080p (the encoder's own count ${measure.seconds} s, ${(length / measure.seconds).toFixed(2)}× real time; ${measure.codec}${measure.hardware ? ' on the graphics hardware' : ' in software'}, sound ${measure.audio}; ${(measure.size / 1e6).toFixed(1)} MB; ms spent ${JSON.stringify(measure.spent)}; begun after ${calm.waited} s for the processors to settle, at ${calm.busy}% busy)` : `not finished after ${wall.toFixed(1)} s`);
 
   // The file, read back by our own reader.
   let file = null;
