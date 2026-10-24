@@ -30,10 +30,10 @@ export function nextShown(model, from, delta) {
   return from;
 }
 
-/** hh:mm:ss, or mm:ss for a talk that has not gone on too long. */
-function elapsed(from) {
+/** hh:mm:ss, or mm:ss for a talk that has not gone on too long; held at `until` while the clock is paused. */
+export function elapsed(from, until = null, at = Date.now()) {
   if (!from) return '0:00';
-  const total = Math.max(0, Math.floor((Date.now() - from) / 1000));
+  const total = Math.max(0, Math.floor(((until ?? at) - from) / 1000));
   const s = String(total % 60).padStart(2, '0');
   const m = Math.floor(total / 60) % 60;
   const h = Math.floor(total / 3600);
@@ -43,7 +43,7 @@ function elapsed(from) {
 export default function Presenter({ shell, docId }) {
   const [model, setModel] = useState(null);
   const [next, setNext] = useState(null);
-  const [state, setState] = useState({ index: 0, step: 0, running: false, startedAt: null, blank: false });
+  const [state, setState] = useState({ index: 0, step: 0, running: false, startedAt: null, pausedAt: null, blank: false });
   const [now, setNow] = useState(Date.now());
   const [error, setError] = useState(null);
   const index = state.index || 0;
@@ -136,16 +136,23 @@ export default function Presenter({ shell, docId }) {
       <style>{CSS}</style>
 
       <header className="pv-bar">
-        <span className="pv-clock" title={t('How long you have been talking')}>
+        <span className={`pv-clock${state.pausedAt ? ' paused' : ''}`} title={state.pausedAt ? t('The clock is paused') : t('How long you have been talking')} data-role="presenter-clock">
           <Icon name="clock" size={14} />
-          {elapsed(state.startedAt)}
+          {elapsed(state.startedAt, state.pausedAt)}
         </span>
-        <Button
-          icon={state.running ? 'pause' : 'play'}
-          label={state.running ? t('Pause') : t('Start')}
-          onClick={() => shell.present.set({ running: !state.running })}
-        />
-        <Button icon="refresh" label={t('Reset')} onClick={() => shell.present.set({ restart: true, running: true, step: 0 })} />
+        {/* Pause and Reset are the clock's alone, as in PowerPoint: the show and its slide stay where they are. */}
+        {state.running ? (
+          <Button
+            icon={state.pausedAt ? 'play' : 'pause'}
+            label={state.pausedAt ? t('Resume') : t('Pause')}
+            title={state.pausedAt ? t('Resume: the clock goes on from where it was paused') : t('Pause: the clock stops; the show goes on')}
+            data-role="presenter-pause"
+            onClick={() => shell.present.set({ pause: !state.pausedAt })}
+          />
+        ) : (
+          <Button icon="play" label={t('Start')} onClick={() => shell.present.set({ running: true })} />
+        )}
+        <Button icon="refresh" label={t('Reset')} title={t('Reset: the clock back to 0:00; the slide stays')} data-role="presenter-reset" onClick={() => shell.present.set({ resetClock: true })} />
         <span className="pv-spacer" />
         <span className="pv-position">
           {t('Slide {number} of {total}', { number: index + 1, total: model.count })}{clicks ? ` · ${t('click {step} of {clicks}', { step, clicks })}` : ''}
@@ -198,6 +205,7 @@ const CSS = `
   border-bottom: 1px solid var(--line); background: var(--chrome);
 }
 .pv-spacer { flex: 1; }
+.pv-clock.paused { opacity: 0.6; }
 .pv-clock {
   display: inline-flex; align-items: center; gap: 7px; font-variant-numeric: tabular-nums;
   font-size: 19px; font-weight: 600; min-width: 96px;
