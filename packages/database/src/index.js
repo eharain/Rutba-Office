@@ -4,7 +4,7 @@ export { importRows, importSheets, inferType } from './import.js';
 export { designToSql, criterionSql, joinsFor, splitNamedExpression } from './query-design.js';
 export { expressionSql, fieldsNamed, FUNCTION_NAMES } from './expression.js';
 export { wizardForm, labelFor, shownField, valueFromControl, GRID } from './form-design.js';
-export { wizardReport, reportData, total } from './report-design.js';
+export { wizardReport, reportData, total, totalFields, withTotal } from './report-design.js';
 export { TEMPLATE_IDS, templateTables, buildTemplate, buildFromSpec } from './templates.js';
 export { documentData, wizardDocument, evaluate, PAPERS, BLOCKS } from './document-design.js';
 export { buildSample, buildSampleFrom } from './samples.js';

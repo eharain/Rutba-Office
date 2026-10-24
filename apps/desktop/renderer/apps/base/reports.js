@@ -1,12 +1,14 @@
 // A Data Files report: the records of a table or a saved query laid out as a
 // page, grouped by a field with each group's totals and the whole's. The bar
-// above it chooses the grouping, the order and the title, each kept in the
+// above it chooses the grouping, the order, the title and each number's
+// total (Sum, Average, Count or none), each kept in the
 // file as it changes; Print sends the page to the printer and Save as PDF
 // writes it as it is shown, the window's own controls left out of both.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Input, Select, t, tn } from '@rutba/office-ui';
+import { Button, Dialog, Input, Select, t, tn } from '@rutba/office-ui';
+import { totalFields, withTotal } from '@rutba/database/report-design';
 import { canDesign } from './people.js';
 
 const FN_LABEL = { sum: () => t('Sum'), avg: () => t('Average'), count: () => t('Count'), min: () => t('Smallest'), max: () => t('Largest') };
@@ -80,6 +82,7 @@ export function ReportView({ shell, db, name, onChanged, onRemoved, toast }) {
   const [missing, setMissing] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [title, setTitle] = useState('');
+  const [choosing, setChoosing] = useState(false);
   const today = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
 
   const load = useCallback(async () => {
@@ -145,6 +148,8 @@ export function ReportView({ shell, db, name, onChanged, onRemoved, toast }) {
   if (missing) return <div className="bs-form-empty">{t('This report is not in the database.')}</div>;
   if (!data) return null;
   const { layout, fields } = data;
+  // The numbers shown, each of which may have a total (a whole number too, and a query's amounts).
+  const numbers = canDesign(db) ? totalFields(layout, fields) : [];
   return (
     <div className="bs-report-run">
       <div className="bs-report-bar" role="toolbar" aria-label={t('Report')}>
@@ -166,6 +171,7 @@ export function ReportView({ shell, db, name, onChanged, onRemoved, toast }) {
           </Select>
         </label>
         <label className="bs-check bs-report-desc-opt"><input type="checkbox" className="bs-report-desc" checked={Boolean(layout.desc)} disabled={!layout.sort} onChange={(e) => change({ desc: e.target.checked })} /><span>{t('Largest first')}</span></label>
+        {numbers.length ? <Button icon="formula" label={t('Totals')} className="bs-report-totals" title={t('Choose the total under each number: Sum, Average, Count or none')} onClick={() => setChoosing(true)} /> : null}
         <span className="grow" />
         <Button icon="print" label={t('Print')} className="bs-report-print" onClick={print} />
         <Button icon="pdf" label={t('Save as PDF')} className="bs-report-pdf" onClick={savePdf} />
@@ -174,6 +180,29 @@ export function ReportView({ shell, db, name, onChanged, onRemoved, toast }) {
       <div className="bs-report-scroll">
         <ReportPage data={data} today={today} />
       </div>
+      {choosing ? (
+        <Dialog title={t('Totals')} onClose={() => setChoosing(false)} actions={<Button primary label={t('Done')} className="bs-report-totals-done" onClick={() => setChoosing(false)} />}>
+          <p className="bs-hint">{layout.group ? t('Each total is worked out for each group and for the whole report.') : t('Each total is worked out for the whole report.')}</p>
+          <div className="bs-report-total-list">
+            {numbers.map((n) => {
+              const now = (layout.totals || []).find((x) => x.field === n.field)?.fn || '';
+              return (
+                <label key={n.field} className="bs-report-total-row" data-total-field={n.field}>
+                  <span>{n.label}</span>
+                  <Select className="rw-select bs-report-total-fn" aria-label={t('Total of {field}', { field: n.label })} value={now} onChange={(e) => change(withTotal(layout, n.field, e.target.value || null))}>
+                    <option value="">{t('None')}</option>
+                    <option value="sum">{t('Sum')}</option>
+                    <option value="avg">{t('Average')}</option>
+                    <option value="count">{t('Count')}</option>
+                    {now === 'min' ? <option value="min">{t('Smallest')}</option> : null}
+                    {now === 'max' ? <option value="max">{t('Largest')}</option> : null}
+                  </Select>
+                </label>
+              );
+            })}
+          </div>
+        </Dialog>
+      ) : null}
       {printing ? createPortal(<div className="bs-report-print-root"><ReportPage data={data} today={today} /></div>, document.body) : null}
     </div>
   );
@@ -181,6 +210,8 @@ export function ReportView({ shell, db, name, onChanged, onRemoved, toast }) {
 
 export const REPORT_CSS = `
 .bs-report-run { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bs-report-total-list { display: grid; gap: 8px; min-width: 300px; }
+.bs-report-total-row { display: grid; grid-template-columns: 1fr 160px; gap: 10px; align-items: center; }
 .bs-report-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--line-soft); background: var(--window); }
 .bs-report-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
 .bs-report-title { width: 200px; }

@@ -35,6 +35,35 @@ export function wizardReport({ table = null, query = null, fields = [], columns 
   return { name: name || (table || query), title: labelFor(table || query), source, columns: cols, group, sort: null, desc: false, totals };
 }
 
+/** The totals a report's chooser offers: none, or one of these, for each column. */
+export const TOTAL_FNS = ['sum', 'avg', 'count'];
+
+/**
+ * The columns of a report that may carry a total, for its Totals chooser:
+ * each number shown (Number, Whole number or Currency, a query's columns
+ * by their type), not the field it is grouped by nor one that points at
+ * another table's record (shown as words). `fields` are reportData's.
+ */
+export function totalFields(layout, fields = []) {
+  const typeOf = new Map(fields.map((f) => [f.name, f.type]));
+  for (const c of layout.columns || []) if (c.type && !typeOf.get(c.field)) typeOf.set(c.field, c.type);
+  return (layout.columns || []).filter((c) => c.field !== layout.group && NUMERIC.has(typeOf.get(c.field))).map((c) => ({ field: c.field, label: c.label || c.field, type: typeOf.get(c.field) }));
+}
+
+/**
+ * A layout with `field`'s total set to `fn` (sum, avg, count, min or max),
+ * or taken off with none (null or ''): one total for each column, in the
+ * columns' order, the others as they were.
+ */
+export function withTotal(layout, field, fn) {
+  if (fn && !['sum', 'avg', 'count', 'min', 'max'].includes(fn)) throw new Error(`A report's total is Sum, Average or Count, not ${fn}.`);
+  const others = (layout.totals || []).filter((x) => x.field !== field);
+  const totals = fn ? [...others, { field, fn }] : others;
+  const at = new Map((layout.columns || []).map((c, i) => [c.field, i]));
+  totals.sort((a, b) => (at.get(a.field) ?? 1e9) - (at.get(b.field) ?? 1e9));
+  return { ...layout, totals };
+}
+
 /** A total of `values` by `fn`; null where there is nothing to count up. */
 export function total(fn, values) {
   if (fn === 'count') return values.filter((v) => v !== null && v !== undefined && v !== '').length;
