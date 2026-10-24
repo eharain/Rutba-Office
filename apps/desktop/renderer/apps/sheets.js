@@ -257,7 +257,7 @@ export default function Sheets({ app, shell, boot }) {
   });
   // File → Save as Template, from the menu made before `save` is.
   const saveRef = useRef(null);
-  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.(), extra: doc ? [protection.menuItem, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'sheets', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
+  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.(), extra: doc ? [{ label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) }, protection.menuItem, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'sheets', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
 
   const dispatch = useCallback(
     async (...ops) => {
@@ -404,7 +404,7 @@ export default function Sheets({ app, shell, boot }) {
           toast(
             opened.converted.writesBack
               ? t('Opened from {was}. Saving writes the {was} back.', { was })
-              : t('Opened from {was}. This build cannot write {was} — Save as will write a .xlsx.', { was }),
+              : t('Opened from {was}. This build cannot write {was}, so Save asks where to keep it as a .xlsx.', { was }),
             { ms: 5200 }
           );
           // What an old format's reader could not keep, said once the file is open.
@@ -464,14 +464,20 @@ export default function Sheets({ app, shell, boot }) {
     async (as = false, given = null) => {
       if (!doc) return false;
       let target = given || doc.path;
-      if (!given && (as || !target)) {
-        target = await pickSave(shell, 'sheets', doc.path || doc.name);
+      // An old file this cannot write back (WK1, XLS, DBF, MDB and the like):
+      // Save asks where to keep it as a .xlsx, as Save as does, rather than
+      // refusing.
+      const cannotWrite = Boolean(doc.converted?.from) && !doc.converted.writesBack;
+      if (!given && (as || !target || cannotWrite)) {
+        const named = doc.path || doc.name;
+        target = await pickSave(shell, 'sheets', cannotWrite && named ? named.replace(/\.[^.\\/]+$/, '') + '.xlsx' : named);
         // A cancelled Save As is not a save; the caller must know.
         if (!target) return false;
       }
       try {
         const saved = await shell.doc.save({ id: doc.id, path: target });
-        setDoc((d) => ({ ...d, ...saved, dirty: false }));
+        // Written as a workbook, the file is no longer the old one it was opened from.
+        setDoc((d) => ({ ...d, ...saved, dirty: false, converted: /\.(xlsx|xlsm|xltx)$/i.test(saved.path || '') ? null : d.converted }));
         shell.app.addRecent({ path: saved.path, app: 'sheets' }).catch(() => {});
         toast(t('Saved {name}', { name: saved.path.split(/[\\/]/).pop() }), { tone: 'good' });
         return true;

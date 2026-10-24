@@ -2,7 +2,8 @@
 // its formula worked out again, a .wk3 with its sheets in their tabs, a
 // dBASE table with its memo file beside it, SYLK and DIF, each opened as a
 // workbook saved on as .xlsx, and what a reader could not keep said once the
-// file is open. The files are made here, record by record. Run alone with
+// file is open; Ctrl+S on one asks where to keep it as a .xlsx, and the app
+// menu has Save as. The files are made here, record by record. Run alone with
 // RUTBA_VERIFY_ONLY=old-sheets.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -135,6 +136,37 @@ export async function verifyOldSheets(h, { dir }) {
     const complaints = [];
     for (const x of [a, b, c, d, e]) complaints.push(...(await errorsIn(x.win)));
     check('old sheets: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+
+    // Ctrl+S on an old file this cannot write: Save asks where to keep it
+    // and writes a .xlsx, where 2.17 said it could not and stopped.
+    const answers = globalThis.__rutbaCheckDialogAnswers;
+    const isZip = (file) => { try { return fs.readFileSync(file).subarray(0, 2).toString('latin1') === 'PK'; } catch { return false; } };
+    const asked = [];
+    const planSave = (file) => { const a = { kind: 'save', answer: file }; answers?.push(a); asked.push(a); };
+    const prices = path.join(folder, 'prices.xlsx');
+    planSave(prices);
+    a.win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'S', modifiers: ['control'] });
+    a.win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'S', modifiers: ['control'] });
+    const wrote = await until(() => isZip(prices), 'prices.xlsx', 8000).then(() => true).catch(() => false);
+    const afterSave = await errorsIn(a.win);
+    const wk1Kept = fs.readFileSync(files.wk1).equals(wk1());
+    check('old sheets: Ctrl+S on a .wk1 asks where to keep it and writes a .xlsx, the .wk1 left as it was, with no error',
+      Boolean(answers) && wrote && wk1Kept && afterSave.length === 0, JSON.stringify({ planned: Boolean(answers), wrote, wk1Kept, afterSave }));
+
+    // Save as in Worksheets' app menu, beside Save as Template.
+    const regions = path.join(folder, 'regions.xlsx');
+    planSave(regions);
+    const bjs = (code) => b.win.webContents.executeJavaScript(code);
+    await bjs(`document.querySelector('.rw-appmark')?.click(), 1`);
+    await until(() => bjs(`Boolean(document.querySelector('.rw-menu'))`), 'the app menu', 4000).catch(() => {});
+    const listed = await bjs(`[...document.querySelectorAll('.rw-menu button')].map((n) => n.textContent.trim())`);
+    const pressed = await bjs(`(() => { const m = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim().startsWith('Save as…')); if (!m) return 'no Save as'; m.click(); return 'clicked'; })()`);
+    const wroteAs = await until(() => isZip(regions), 'regions.xlsx', 8000).then(() => true).catch(() => false);
+    check('old sheets: Worksheets\' app menu has Save as, before Save as Template, and it writes the workbook where asked',
+      pressed === 'clicked' && wroteAs && listed.findIndex((l) => l.startsWith('Save as…')) < listed.findIndex((l) => l.startsWith('Save as Template')),
+      JSON.stringify({ pressed, wroteAs, listed }));
+    // An answer no dialog took is not left for a later check.
+    for (const x of asked) { const at = answers?.indexOf(x) ?? -1; if (at >= 0) answers.splice(at, 1); }
   } catch (err) {
     check('old sheets: the check ran to the end', false, err?.message || String(err));
   }
