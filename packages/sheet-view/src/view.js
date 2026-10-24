@@ -1956,11 +1956,47 @@ export class SheetView {
         this.workbook.setCellRuns(this.activeSheet, row, col, kept);
       }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
     }
+    // Typed in the row just under a table, the table grows to take it, as
+    // Excel's AutoExpansion does: its range and its filter take the row, in
+    // the same undo step as the typing.
+    const table = this._tableToGrow(row, col, input);
+    if (table) {
+      return this._edit('edit ' + ref(row, col), null, [{ row, col }], () => {
+        this._setCell(row, col, input);
+        const grown = ref(table.top, table.left) + ':' + ref(row, table.right);
+        const xml = this.pkg.text(table.part);
+        const next = xml
+          .replace(/(<table\b[^>]*?\sref=")[^"]*(")/, (m, a, b) => a + grown + b)
+          .replace(/(<autoFilter\b[^>]*?\sref=")[^"]*(")/, (m, a, b) => a + grown + b);
+        this.pkg.write_(table.part, next);
+        this._structuralDirty = true;
+      }, { parts: [table.part] });
+    }
     // Group by cell: retyping the same cell repeatedly is one undo, moving to
     // another cell starts a new one. That is Excel's behaviour and the reason
     // an undo does not walk back through every intermediate value.
     return this._edit('edit ' + ref(row, col), 'cell:' + this.activeSheet + '!' + ref(row, col),
       [{ row, col }], () => this._setCell(row, col, input));
+  }
+
+  /**
+   * The table a value typed at a cell makes longer: one with no totals row,
+   * the cell in the row straight under it and inside its columns, the row
+   * otherwise empty there. Clearing a cell grows nothing.
+   */
+  _tableToGrow(row, col, input) {
+    if (input === '' || input === null || input === undefined) return null;
+    for (const t of this.workbook.tables()) {
+      if (t.sheet !== this.activeSheet || Number(t.totalsRowCount ?? 0) > 0) continue;
+      const box = this._tableByName(t.name);
+      if (row !== box.bottom + 1 || col < box.left || col > box.right) continue;
+      // A row that already holds something of its own is not the table's to take.
+      for (let c = box.left; c <= box.right; c++) {
+        if (c !== col && this.isFilled(row, c)) return null;
+      }
+      return box;
+    }
+    return null;
   }
 
   /** A cell's runs as the file holds them, or null for plain words. */
