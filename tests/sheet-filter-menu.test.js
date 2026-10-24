@@ -73,3 +73,9 @@ test('a table\'s menu sorts the table\'s rows under its heading', () => {
   assert.deepEqual([1, 2, 3, 4].map((r) => view.calc.getValue('Data', r, 0)), ['Tape', 'Pens', 'Paper', 'Ink']);
   assert.throws(() => view.sortFilterColumn(name, 'Ghost'), /no column/);
 });
+
+test('the frame lists a plain list filtered by Data, Filter for the heading arrows, beside the tables', () => {
+  const view = filtered();
+  const lists = view.render().filterLists;
+  assert.deepEqual(lists.map((l) => [l.name, l.top, l.columns]), [['#sheet', 0, ['Item', 'Region', 'Qty']]]);
+});

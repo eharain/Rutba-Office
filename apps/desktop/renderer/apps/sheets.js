@@ -1752,7 +1752,8 @@ export default function Sheets({ app, shell, boot }) {
   };
 
   /** The filter arrows: every filtered list's heading cells, keyed by "row:col". */
-  const headsAt = useMemo(() => filterHeads(model?.tables), [model?.tables]);
+  // Data → Filter on a plain list as well as the tables: the frame's filterLists hold both.
+  const headsAt = useMemo(() => filterHeads(model?.filterLists || model?.tables), [model?.filterLists, model?.tables]);
   const openFilter = useCallback((head, at) => {
     setFilterAt(at);
     dispatch({ op: 'filterPanel', table: head.table, column: head.column });

@@ -1587,6 +1587,12 @@ export class SheetView {
         const af = this.sheetFilter();
         return af ? [...sheetTables, af] : sheetTables;
       })(),
+      // The same lists under a name of their own, for the heading row's filter
+      // arrows: a window's frame may carry the tables alone under `tables`.
+      filterLists: (() => {
+        const af = this.sheetFilter();
+        return af ? [...sheetTables, af] : sheetTables;
+      })(),
       // This person's open filter dropdown, if any.
       filterPanel: this.filterPanel,
       // The sheet's stored what-if scenarios, for the Data tab.
