@@ -16,7 +16,9 @@ import { Base, SAMPLE_IDS, TEMPLATE_IDS, buildSample, buildTemplate } from '@rut
 import { shownField } from '@rutba/database/form-design';
 
 // What a person types in a box of each kind.
-const TYPED = { text: 'Form check', longtext: 'Typed on the form.', number: '7', currency: '4.50', date: '2026-10-22', datetime: '2026-10-22T09:30' };
+// A date no sample holds: the samples' records run up to the day they are made, and a day a
+// table keeps once (a cafe's cash-up) is taken by the time the check runs a few days on.
+const TYPED = { text: 'Form check', longtext: 'Typed on the form.', number: '7', currency: '4.50', date: '2001-02-03', datetime: '2001-02-03T09:30' };
 
 export async function verifyBaseFormsAll({ open, check, until, wait }, { dir }) {
   const wanted = (process.env.RUTBA_VERIFY_FORMS || '').split(',').map((s) => s.trim()).filter(Boolean);
