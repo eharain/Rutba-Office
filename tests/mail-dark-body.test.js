@@ -57,9 +57,16 @@ test('bodyDocument lifts colours only at night, and stays quick on a hostile mes
   const html = '<p style="color: #333333">Words</p>';
   assert.match(bodyDocument({ html }, { dark: false }), /<p style="color: #333333">/);
   assert.doesNotMatch(bodyDocument({ html }, { dark: true }), /<p style="color: #333333">/);
+  // Quick is the work it does, timed by this thread's own CPU time: the clock
+  // on the wall also counts the turns the machine gave to the gate's other
+  // lanes, and beside them passed 1.5 s on work of about 0.2 s.
+  const cpu = typeof process.threadCpuUsage === 'function' ? () => process.threadCpuUsage() : () => process.cpuUsage();
   for (const hostile of ['<div>'.repeat(50000) + '</x>'.repeat(50000), '<p style="color:#333">'.repeat(30000), '<'.repeat(100000)]) {
     const started = Date.now();
+    const was = cpu();
     bodyDocument({ html: hostile }, { dark: true });
-    assert.ok(Date.now() - started < 1500, `${Date.now() - started} ms`);
+    const now = cpu();
+    const ms = (now.user - was.user + now.system - was.system) / 1000;
+    assert.ok(ms < 1500, `${Math.round(ms)} ms of CPU time, ${Date.now() - started} ms by the clock`);
   }
 });
