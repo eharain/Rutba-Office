@@ -206,6 +206,8 @@ export async function verifyPdfRedact(h, { dir }) {
     JSON.stringify({ lead, warning }));
   check('pdf-redact: before saving, the dialog lists what else it found and removes (the bookmark, the comment, the title) and says by page that the scan will be left off', /1 bookmark/.test(also) && /1 comment/.test(also) && /the title/.test(also) && /page 2, 1 picture/.test(pictures),
     JSON.stringify({ also, pictures }));
+  const words = await d.js(`document.querySelector('[data-role="redact-words"]')?.textContent || ''`);
+  check('pdf-redact: the dialog lists the words marked, as they were written', /"0300-1234567"/.test(words) && /"SECRET-4417"/.test(words), words);
   answer('save', target);
   await d.role('redact-go');
   const wrote = await until(() => fs.existsSync(target), 'the redacted file', 15000).then(() => true).catch(() => false);

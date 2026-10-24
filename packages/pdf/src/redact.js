@@ -416,6 +416,9 @@ function redactContent(ctx, data, resources, base, depth = 0) {
     }
     return { result, cut };
   };
+  // Letters cut from one line and then the next are two words, not one:
+  // a move to a new line or a new place ends the word being taken.
+  const gap = () => { if (ctx.run && !ctx.run.endsWith(' ')) ctx.run += ' '; };
 
   for (const o of ops) {
     const a = o.operands;
@@ -423,20 +426,21 @@ function redactContent(ctx, data, resources, base, depth = 0) {
       case 'q': stack.push({ ...gs, ctm: gs.ctm.slice() }); out.push(o); break;
       case 'Q': if (stack.length) gs = stack.pop(); out.push(o); break;
       case 'cm': if (a.length >= 6) gs.ctm = mul(a.slice(0, 6).map((x) => num(x)), gs.ctm); out.push(o); break;
-      case 'BT': tm = [1, 0, 0, 1, 0, 0]; tlm = [1, 0, 0, 1, 0, 0]; out.push(o); break;
+      case 'BT': gap(); tm = [1, 0, 0, 1, 0, 0]; tlm = [1, 0, 0, 1, 0, 0]; out.push(o); break;
       case 'Tf': gs.font = a[0] instanceof Name ? a[0].name : null; gs.size = num(a[1]); out.push(o); break;
       case 'Tc': gs.tc = num(a[0]); out.push(o); break;
       case 'Tw': gs.tw = num(a[0]); out.push(o); break;
       case 'Tz': gs.th = num(a[0], 100) / 100; out.push(o); break;
       case 'TL': gs.tl = num(a[0]); out.push(o); break;
       case 'Ts': gs.rise = num(a[0]); out.push(o); break;
-      case 'Td': if (ctx.run) ctx.run += ' '; tlm = mul([1, 0, 0, 1, num(a[0]), num(a[1])], tlm); tm = tlm.slice(); out.push(o); break;
-      case 'TD': gs.tl = -num(a[1]); tlm = mul([1, 0, 0, 1, num(a[0]), num(a[1])], tlm); tm = tlm.slice(); out.push(o); break;
-      case 'Tm': tlm = a.slice(0, 6).map((x) => num(x)); tm = tlm.slice(); out.push(o); break;
-      case 'T*': tlm = mul([1, 0, 0, 1, 0, -gs.tl], tlm); tm = tlm.slice(); out.push(o); break;
+      case 'Td': gap(); tlm = mul([1, 0, 0, 1, num(a[0]), num(a[1])], tlm); tm = tlm.slice(); out.push(o); break;
+      case 'TD': gap(); gs.tl = -num(a[1]); tlm = mul([1, 0, 0, 1, num(a[0]), num(a[1])], tlm); tm = tlm.slice(); out.push(o); break;
+      case 'Tm': gap(); tlm = a.slice(0, 6).map((x) => num(x)); tm = tlm.slice(); out.push(o); break;
+      case 'T*': gap(); tlm = mul([1, 0, 0, 1, 0, -gs.tl], tlm); tm = tlm.slice(); out.push(o); break;
       case 'Tj': case "'": case '"': case 'TJ': {
         if (o.op === "'" || o.op === '"') {
           if (o.op === '"') { gs.tw = num(a[0]); gs.tc = num(a[1]); out.push({ op: 'Tw', operands: [gs.tw] }, { op: 'Tc', operands: [gs.tc] }); }
+          gap();
           tlm = mul([1, 0, 0, 1, 0, -gs.tl], tlm);
           tm = tlm.slice();
           out.push({ op: 'T*', operands: [] });
@@ -688,7 +692,7 @@ function scrubber(words) {
   const shown = new Map();
   for (const w of words || []) {
     const phrase = norm(w);
-    const plain = String(w || '').replace(/s+/g, ' ').trim();
+    const plain = String(w || '').replace(/\s+/g, ' ').trim();
     if (plain && !shown.has(phrase)) shown.set(phrase, plain);
     if (phrase.replace(/[^\p{L}\p{N}]/gu, '').length >= 2) needles.add(phrase);
     for (const tok of phrase.split(' ')) {

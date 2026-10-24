@@ -135,7 +135,7 @@ export function ApplyRedactionsDialog({ marks, pages, preview, onApply, onClose 
       <div className="pdf-redact-form" data-role="redact-dialog">
         <div className="pdf-redact-lead">
           <span className="pdf-redact-icon"><Icon name="redact" size={22} /></span>
-          <span>{tn(marks, '{count} mark on {pages} pages is applied.', '{count} marks on {pages} pages are applied.', { pages })}</span>
+          <span>{pages > 1 ? t('{count} marks on {pages} pages are applied.', { count: marks, pages }) : tn(marks, '{count} mark on one page is applied.', '{count} marks on one page are applied.')}</span>
         </div>
         <p>{t('Applying removes the words and pictures under the marks from the pages for good, and fills each mark black. Comments and links over a mark go too.')}</p>
         {preview?.words?.length ? (

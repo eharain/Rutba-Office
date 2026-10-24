@@ -18,7 +18,7 @@ const { textString } = require('../src/assemble');
 const { PdfUpdate, flateStream } = require('../src/update');
 const { annotate, readAnnotations } = require('../src/annotations');
 const { addTextLayer } = require('../src/textlayer');
-const { applyRedactions, redactionPlan, bytesContain, parseContent, writeContent } = require('../src/redact');
+const { applyRedactions, redactionPlan, bytesContain, parseContent, writeContent, scrubber } = require('../src/redact');
 const { widthOfBytes } = require('../src/metrics');
 const { encode } = require('../src/encoding');
 const { readWithPdfjs } = require('./pdfjs');
@@ -218,4 +218,20 @@ test('content read and written again draws the same', () => {
   assert.deepEqual(again.map((o) => o.op), ops.map((o) => o.op));
   assert.ok(writeContent(ops).includes(Buffer.from('ID \x00\xff EI', 'latin1')), 'the inline picture is kept byte for byte');
   assert.ok(zlib && textString);
+});
+
+test('the words the marks recorded are listed with their spacing tidied and every letter kept', () => {
+  // Every "s" was turned into a space: /s+/ where /\s+/ was meant.
+  const s = scrubber(['Business  address\n details', 'Miss Sasha Ross']);
+  assert.deepEqual(s.shown, ['Business address details', 'Miss Sasha Ross']);
+});
+
+test('an area mark over two lines lists their words apart, one space between, every letter kept', () => {
+  const doc = new PdfDocument({ title: 'Letter', created });
+  const page = doc.addPage();
+  page.text('Address', 72, 100, { font: 'Helvetica', size: 14 });
+  page.text('Sussex House', 72, 118, { font: 'Helvetica', size: 14 });
+  // One area over both lines, whole: the letters of the first line and then the second.
+  const { words } = applyRedactions(doc.toBuffer(), { areas: [{ page: 0, rects: [[60, H - 124, 300, H - 90]] }] });
+  assert.deepEqual(words, ['Address Sussex House'], JSON.stringify(words));
 });
