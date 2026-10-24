@@ -157,7 +157,8 @@ export class RecorderRig {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: source.id, maxFrameRate: fps, ...(size ? { maxWidth: size.width, maxHeight: size.height } : {}) } },
+          // `capture`: what a source is recorded from when it is not itself (a check run's stand-in screen).
+          video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: source.capture || source.id, maxFrameRate: fps, ...(size ? { maxWidth: size.width, maxHeight: size.height } : {}) } },
         });
       } catch (err) {
         error = t('{name} could not be recorded: {reason}', { name: source.name, reason: err?.message || String(err) });

@@ -473,7 +473,7 @@ export const METHODS = {
   // Insert → Screenshot: the windows and screens there are, and one of them as a picture.
   // The recorder (Video → Record, Presentations → Screen Recording) records one of them.
   capture: [
-    'sources',      // () -> [{ id, name, kind, thumbnail, display? }]   every window but the asking one, then each screen (display: its size in pixels)
+    'sources',      // () -> [{ id, name, kind, thumbnail, display?, capture? }]   every window but the asking one, then each screen (display: its size in pixels; capture: what it is recorded from, a check run's stand-in screen)
     'grab',         // ({ id }) -> { bytes, width, height, name }   that window or screen as a PNG
     'choose',       // ({ id, audio }) -> { loopback }   what this window's next getDisplayMedia is given: that source, and the computer's own sound where the platform hears it
     'controls',     // ({ on, paused, minimise }) -> { stop, pause, tray }   while recording: a global Stop and Pause key and a tray icon, sent back as capture:command; off releases them

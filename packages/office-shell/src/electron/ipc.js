@@ -478,6 +478,14 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
         const choice = win ? chosen.get(win.webContents.id) : null;
         if (!choice) return callback({});
         chosen.delete(win.webContents.id);
+        if (screenStandIn()) {
+          // A check's stand-in: one of this application's own windows, answered with Chromium's stand-in screen.
+          const ours = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed() && w.getMediaSourceId() === choice.id);
+          if (!ours) return callback({});
+          const answer = { video: { id: STAND_IN_SCREEN, name: ours.getTitle() } };
+          if (choice.audio && request.audioRequested && process.platform === 'win32') answer.audio = 'loopback';
+          return callback(answer);
+        }
         const kind = String(choice.id).startsWith('screen:') ? 'screen' : 'window';
         const found = await desktopCapturer.getSources({ types: [kind], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false });
         const source = found.find((x) => x.id === choice.id);
@@ -548,6 +556,38 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     return Math.max(0, (end - tr.started - tr.held) / 1000);
   };
 
+  /*
+   * A stand-in for the screen, for the recorder's checks, as the camera and
+   * the microphone are stood in for by Chromium's own (RUTBA_FAKE_MEDIA). While a check sets
+   * globalThis.__rutbaScreenStandIn, this application's own windows are
+   * listed from its own list, each with a picture of its page, rather than
+   * from the computer's, and what is recorded of one is Chromium's stand-in
+   * screen ('screen:-3:0', a moving picture at a steady frame rate). Nothing
+   * of the desktop is asked for, so those checks run beside other work and
+   * with the screen locked; one check in the machine lane records the real
+   * screen. Never in a run that is not a check run.
+   */
+  const STAND_IN_SCREEN = 'screen:-3:0';
+  const screenStandIn = () => CHECK && Boolean(process.env.RUTBA_FAKE_MEDIA) && globalThis.__rutbaScreenStandIn === true;
+  const standInSources = async (own) => {
+    const out = [];
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (w.isDestroyed() || !w.isVisible() || w.isMinimized()) continue;
+      const id = w.getMediaSourceId();
+      if (id === own) continue;
+      let thumbnail = null;
+      try {
+        const page = await w.webContents.capturePage();
+        if (page.isEmpty()) continue;
+        thumbnail = page.resize({ width: 320 }).toDataURL();
+      } catch {
+        continue;
+      }
+      out.push({ id, name: w.getTitle(), kind: 'window', thumbnail, capture: STAND_IN_SCREEN });
+    }
+    return out;
+  };
+
   impl.capture = {
     pointer: async ({ on = false, id = '', fps = 30, paused = undefined } = {}) => {
       if (!on) return stopTracking() || { samples: [], clicks: [] };
@@ -603,6 +643,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     },
     sources: async (_p, win) => {
       const own = win && !win.isDestroyed() ? win.getMediaSourceId() : null;
+      if (screenStandIn()) return standInSources(own);
       const found = await desktopCapturer.getSources({ types: ['window', 'screen'], thumbnailSize: { width: 320, height: 200 }, fetchWindowIcons: false });
       const displays = screen.getAllDisplays();
       const ours = CHECK ? new Set(BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).map((w) => w.getMediaSourceId())) : null;

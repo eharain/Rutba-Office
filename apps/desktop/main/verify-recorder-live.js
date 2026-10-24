@@ -5,8 +5,8 @@
 // handshake, connect, createStream, publish) and keeps what it is sent. The
 // check adds it as a destination in Go Live's box with a test key, adds a
 // YouTube destination with no key (left out, and said so), and goes live on
-// a Documents window this check opens, with the stand-in camera and
-// microphone. The ingest is given the metadata, the H.264 and AAC
+// a Documents window this check opens (recorded as the stand-in screen,
+// withScreenStandIn), with the stand-in camera and microphone. The ingest is given the metadata, the H.264 and AAC
 // configurations and a key frame first, then frames on a steady clock, and
 // the copy is recorded on disk at the same time. The connection is cut: the
 // destination says it is reconnecting, comes back, and is given the
@@ -22,6 +22,7 @@ import crypto from 'node:crypto';
 import { buildDocx } from '@rutba/ooxml/build';
 import { probeMedia } from '@rutba/media/probe';
 import { ChunkReader, chunkMessage, encodeAmf0, decodeAmf0 } from '@rutba/stream';
+import { withScreenStandIn } from './verify-recorder.js';
 
 /** A local ingest: answers a publisher as YouTube's does, and keeps what each connection sent. */
 function startIngest() {
@@ -78,7 +79,11 @@ function startIngest() {
  * @param {object} h the harness: open, check, until, wait, errorsIn
  * @param {{ dir: string }} args the run's scratch folder
  */
-export async function verifyRecorderLive(h, { dir }) {
+export function verifyRecorderLive(h, args) {
+  return withScreenStandIn(() => liveChecks(h, args));
+}
+
+async function liveChecks(h, { dir }) {
   const { open, check, until, wait, errorsIn } = h;
   const ok = (p) => p.then(() => true).catch(() => false);
   const folder = path.join(dir, 'live-recordings');
@@ -128,8 +133,12 @@ export async function verifyRecorderLive(h, { dir }) {
 
     // Live: the ingest is given the key, the metadata, both configurations and a key frame first, then frames.
     await js(`document.querySelector('.st-golive')?.click(), 1`);
-    const went = await ok(until(() => js(`[...document.querySelectorAll('.st-dest')].some((n) => n.dataset.state === 'live')`), 'the destination live', 15000));
-    await wait(3500);
+    const went = await ok(until(() => js(`[...document.querySelectorAll('.st-dest')].some((n) => n.dataset.state === 'live')`), 'the destination live', 30000));
+    // Until the ingest has been sent the frames the check reads, not a fixed
+    // three and a half seconds: beside the gate's other lanes the encoder made
+    // 23 pictures and 19 sounds in that time, where the check reads 40 of each.
+    const sent = (c, video, audio) => Boolean(c) && c.video.length > video && c.audio.length > audio;
+    await until(() => sent(ingest.seen.connections[0], 40, 40), 'the first frames at the ingest', 60000).catch(() => {});
     const c1 = ingest.seen.connections[0] || { video: [], audio: [], data: [] };
     const firstFrame = c1.video.findIndex((v) => v.kind !== 'config');
     const tsUp = c1.video.slice(firstFrame).every((v, i, a) => i === 0 || v.ts >= a[i - 1].ts);
@@ -143,9 +152,9 @@ export async function verifyRecorderLive(h, { dir }) {
 
     // The line cut: reconnecting, then back, with the configurations again first.
     ingest.cut();
-    const dropped = await ok(until(() => js(`[...document.querySelectorAll('.st-dest')].some((n) => n.dataset.state === 'reconnecting')`), 'reconnecting', 6000));
-    const back = await ok(until(() => js(`[...document.querySelectorAll('.st-dest')].some((n) => n.dataset.state === 'live')`), 'back live', 15000));
-    await wait(3000);
+    const dropped = await ok(until(() => js(`[...document.querySelectorAll('.st-dest')].some((n) => n.dataset.state === 'reconnecting')`), 'reconnecting', 15000));
+    const back = await ok(until(() => js(`[...document.querySelectorAll('.st-dest')].some((n) => n.dataset.state === 'live')`), 'back live', 30000));
+    await until(() => sent(ingest.seen.connections[1], 20, 0), 'the frames after the reconnect', 60000).catch(() => {});
     const c2 = ingest.seen.connections[1] || { video: [], audio: [], data: [] };
     const again = c2.video.findIndex((v) => v.kind !== 'config');
     check('recorder live: when the line is cut the destination says it is reconnecting, comes back by itself, and is given the configurations and a key frame before more frames',

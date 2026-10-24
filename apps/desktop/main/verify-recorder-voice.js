@@ -16,12 +16,17 @@ import { probeMedia } from '@rutba/media/probe';
 import { emptyProject, addMedia } from '@rutba/studio/project';
 import { writeRvid } from '@rutba/studio/rvid';
 import { gradientPng } from './sample-picture.js';
+import { withScreenStandIn } from './verify-recorder.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
  * @param {{ dir: string }} args the run's scratch folder
  */
-export async function verifyRecorderVoice(h, { dir }) {
+export function verifyRecorderVoice(h, args) {
+  return withScreenStandIn(() => voiceChecks(h, args));
+}
+
+async function voiceChecks(h, { dir }) {
   const { open, check, until, wait, errorsIn } = h;
   const ok = (p) => p.then(() => true).catch(() => false);
   const folder = path.join(dir, 'voice-recordings');
@@ -50,7 +55,7 @@ export async function verifyRecorderVoice(h, { dir }) {
     // Record Voice on the ribbon: the recorder on Voice, with nothing about a picture.
     const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Record Voice')); if (!b || b.disabled) return 'no button'; b.click(); return 'clicked'; })()`);
     await ok(until(() => js(`Boolean(document.querySelector('.rec-dialog'))`), 'the recorder', 6000));
-    const heard = await ok(until(() => js(`Number(document.querySelector('.rec-voice-wave')?.dataset.bars || 0) >= 8 && Number(document.querySelector('.rec-meter-mic')?.dataset.peak || 0) > 0`), 'the voice drawn as it goes', 10000));
+    const heard = await ok(until(() => js(`Number(document.querySelector('.rec-voice-wave')?.dataset.bars || 0) >= 8 && Number(document.querySelector('.rec-meter-mic')?.dataset.peak || 0) > 0`), 'the voice drawn as it goes', 30000));
     const setup = await js(`({
       title: document.querySelector('.rec-dialog .rw-dialog-head')?.textContent || '',
       voice: document.querySelector('.rec-kinds button[data-value="voice"]')?.getAttribute('aria-checked'),

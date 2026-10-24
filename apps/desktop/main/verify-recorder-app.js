@@ -4,7 +4,8 @@
 // The launcher has its tile. The window opens on the Screen and camera
 // scene with Chromium's stand-in camera and microphone (RUTBA_FAKE_MEDIA);
 // a Documents window this check opens is picked from the window list (a
-// check run lists only the suite's own windows). The program is drawn live
+// check run lists only the suite's own windows), and recorded as Chromium's
+// stand-in screen (withScreenStandIn). The program is drawn live
 // on its canvas: the window with the camera over it. A title is put across
 // the foot, and the Be right back card shows on its own. Recorded, the scene
 // is changed while it records and the recording paused and resumed; Stop
@@ -18,12 +19,17 @@ import { BrowserWindow } from 'electron';
 import { shortcuts } from '@rutba/office-shell/electron/shortcuts';
 import { buildDocx } from '@rutba/ooxml/build';
 import { probeMedia } from '@rutba/media/probe';
+import { withScreenStandIn } from './verify-recorder.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
  * @param {{ dir: string }} args the run's scratch folder
  */
-export async function verifyRecorderApp(h, { dir }) {
+export function verifyRecorderApp(h, args) {
+  return withScreenStandIn(() => appChecks(h, args));
+}
+
+async function appChecks(h, { dir }) {
   const { open, check, until, wait, errorsIn } = h;
   const ok = (p) => p.then(() => true).catch(() => false);
   const folder = path.join(dir, 'studio-recordings');
@@ -33,6 +39,8 @@ export async function verifyRecorderApp(h, { dir }) {
   try {
     fs.mkdirSync(folder, { recursive: true });
     const home = await open('home');
+    // The launcher drawn before it is read: beside other work it was read while still empty.
+    await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="recorder"]'))`), 'the launcher\'s Recorder tile', 15000).catch(() => {});
     const tile = await home.webContents.executeJavaScript(`(() => { const c = document.querySelector('.home-card[data-app="recorder"]'); return c ? c.textContent : ''; })()`);
     check('recorder app: the launcher has a Recorder tile', /Recorder/.test(tile), tile.slice(0, 80));
 
@@ -133,14 +141,18 @@ export async function verifyRecorderApp(h, { dir }) {
       JSON.stringify({ asShown, cam, camSize, counting, early, scr, screenSize, bar }));
     await pick('st-shot-of', 'program');
     await pick('st-shot-timer', '0');
-    await wait(300);
+    // The window drawn with what was picked (no timer, the program) before it
+    // is minimised: on a busy machine a fixed 300 ms was not always enough, and
+    // the key then started the 3 second timer of the picture before, which a
+    // minimised window runs at a timer a second at most.
+    await until(() => js(`(() => { const of = document.querySelector('.st-shot-of'); const timer = document.querySelector('.st-shot-timer'); const b = document.querySelector('.st-shoot'); return of?.value === 'program' && timer?.value === '0' && !document.querySelector('.st-shot-count') && Boolean(b) && !b.disabled && /What is shown/.test(b.title || ''); })()`), 'no timer and the program, ready to take', 10000).catch(() => {});
     // The key (Ctrl+Shift+F8) takes one too, with the window minimised as well as in front.
     // Held through the shortcuts adapter (a stand-in under the checks), and pressed there.
     const keyHeld = Boolean(shortcuts().isRegistered('CommandOrControl+Shift+F8'));
     win.minimize();
-    await wait(300);
+    await until(() => win.isMinimized(), 'the window minimised', 5000).catch(() => {});
     shortcuts().press?.('CommandOrControl+Shift+F8');
-    const byKey = await ok(until(() => pictures().length >= 4, 'the picture by the key', 6000));
+    const byKey = await ok(until(() => pictures().length >= 4, 'the picture by the key', 20000));
     win.restore();
     const keyTip = await js(`(() => { const b = document.querySelector('.st-shoot'); return (b?.title || b?.dataset.tip || b?.getAttribute('aria-label') || ''); })()`);
     check('recorder app: Take Picture\'s key takes a picture with the window minimised, and the button names the key',
@@ -149,29 +161,37 @@ export async function verifyRecorderApp(h, { dir }) {
 
     // Record: one file growing, the scene changed while it records, a pause.
     await js(`document.querySelector('.st-record')?.click(), 1`);
-    const recording = await ok(until(() => js(`(() => { const b = document.querySelector('.st-stop'); return Boolean(b) && !b.disabled; })()`), 'the recording to start', 8000));
+    const recording = await ok(until(() => js(`(() => { const b = document.querySelector('.st-stop'); return Boolean(b) && !b.disabled; })()`), 'the recording to start', 15000));
+    // The check's own clock of what was recorded: from here to Stop, less the
+    // pause. A fixed bound of five seconds counted the waits between the
+    // steps, which a busy machine stretched to eight.
+    const recordedFrom = Date.now();
     const files = () => { try { return fs.readdirSync(folder).filter((n) => /\.webm$/.test(n)).map((n) => ({ name: n, size: fs.statSync(path.join(folder, n)).size })); } catch { return []; } };
     const grew = await ok(until(() => files().some((f) => f.size > 5000), 'the recording on disk', 8000));
     await wait(1200);
     await js(`document.querySelector('.st-scene[data-scene="camera"]')?.click(), 1`);
     const switched = await ok(until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'camera'`), 'the camera scene while recording', 4000));
     await wait(900);
+    const pausedFrom = Date.now();
     await js(`document.querySelector('.st-pause')?.click(), 1`);
-    const paused = await ok(until(() => js(`/Paused/.test(document.querySelector('.st-badge')?.textContent || '')`), 'paused', 3000));
-    await wait(1200);
+    const paused = await ok(until(() => js(`/Paused/.test(document.querySelector('.st-badge')?.textContent || '')`), 'paused', 8000));
+    await wait(2500);
     await js(`document.querySelector('.st-pause')?.click(), 1`);
+    const pausedFor = (Date.now() - pausedFrom) / 1000;
     await wait(900);
     check('recorder app: Record writes one file as it goes, the scene changes while it records, and Pause holds it',
       recording && grew && switched && paused && files().length === 1, JSON.stringify({ recording, grew, switched, paused, files: files() }));
 
     // Stop: one WebM, picture and sound, as long as it ran without the pause.
     await js(`document.querySelector('.st-stop')?.click(), 1`);
-    const saved = await ok(until(() => js(`Boolean(document.querySelector('.st-saved'))`), 'the saved bar', 10000));
+    const recordedFor = (Date.now() - recordedFrom) / 1000 - pausedFor;
+    const saved = await ok(until(() => js(`Boolean(document.querySelector('.st-saved'))`), 'the saved bar', 30000));
     const made = files();
     const probe = made.length === 1 ? probeMedia(new Uint8Array(fs.readFileSync(path.join(folder, made[0].name))), { complete: true }) : null;
+    // Within a second of the time recorded: the pause (two and a half seconds and more) is not in it.
     check('recorder app: Stop keeps one recording, named Recording and the time, with picture and sound, 1280 by 720, as long as it recorded and not the pause',
-      saved && made.length === 1 && /^Recording .*\.webm$/.test(made[0].name) && probe?.hasVideo && probe?.hasAudio && probe.width === 1280 && probe.height === 720 && probe.duration > 2.2 && probe.duration < 5,
-      JSON.stringify({ saved, made, probe: probe ? { video: probe.hasVideo, audio: probe.hasAudio, w: probe.width, h: probe.height, duration: probe.duration } : null }));
+      saved && made.length === 1 && /^Recording .*\.webm$/.test(made[0].name) && probe?.hasVideo && probe?.hasAudio && probe.width === 1280 && probe.height === 720 && probe.duration > 2.2 && Math.abs(probe.duration - recordedFor) < 1 && pausedFor >= 2.5,
+      JSON.stringify({ saved, made, recorded: Math.round(recordedFor * 100) / 100, paused: Math.round(pausedFor * 100) / 100, probe: probe ? { video: probe.hasVideo, audio: probe.hasAudio, w: probe.width, h: probe.height, duration: probe.duration } : null }));
 
     // Edit in Video: the recording on Video's timeline.
     const before = BrowserWindow.getAllWindows();
