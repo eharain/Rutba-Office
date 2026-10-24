@@ -207,6 +207,30 @@ export function withReadmeCounts(readme, counts) {
   return out;
 }
 
+/**
+ * Whether the screen is locked: on Windows the lock screen is its own
+ * process, LogonUI. With it up, the checks of the computer's own clipboard,
+ * real input and the screen's capture fail after an hour of waiting (three
+ * gates for 2.17.1), so the machine lane waits for the screen instead.
+ * `list` answers what tasklist printed, for tests.
+ */
+export function screenLocked({ platform = process.platform, list = () => execFileSync('tasklist', ['/FI', 'IMAGENAME eq LogonUI.exe', '/NH'], { encoding: 'utf8' }) } = {}) {
+  if (platform !== 'win32') return false;
+  try { return /^\s*LogonUI\.exe\s/im.test(list()); } catch { return false; }
+}
+
+/** Wait up to `limitMs` for the screen to be unlocked, saying so once; whether it was. */
+async function unlockedWithin(limitMs, { tickMs = 30_000 } = {}) {
+  if (!screenLocked()) return true;
+  console.log(`The screen is locked. The machine lane needs it unlocked: waiting up to ${Math.round(limitMs / 60_000)} minutes.`);
+  const started = Date.now();
+  while (Date.now() - started < limitMs) {
+    await new Promise((r) => setTimeout(r, tickMs));
+    if (!screenLocked()) { console.log('The screen is unlocked: the machine lane starts.'); return true; }
+  }
+  return false;
+}
+
 const argv = process.argv.slice(2);
 const valueOf = (flag) => { const i = argv.indexOf(flag); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('-') ? argv[i + 1] : null; };
 const appsArg = valueOf('--apps');
@@ -414,6 +438,9 @@ async function main() {
   if (resume && !state.passes.test && !Object.keys(state.apps).length) say('Nothing to resume on this commit: a run from the start.');
   const timing = readJson(TIMING) || {};
   const jobs = Math.max(1, Number(jobsArg) || laneCap());
+  if (want('verify:apps') && wanted.length && screenLocked()) {
+    say('The screen is locked: everything that does not need it runs now, and the machine lane (the computer\'s own clipboard, real input, the screen\'s capture) waits for it to be unlocked.');
+  }
 
   /** A pass of its own (test, test:perf, verify:edit, smoke), its counts kept on the state. */
   const pass = async (name, what, command, args, { log = null, env = {} } = {}) => {
@@ -520,7 +547,11 @@ async function main() {
     // timing budgets, drags and native copies, with nothing else running.
     if (want('verify:apps')) {
       if (resume && state.machine?.ok) say('  [machine] passed in the run before on this commit');
-      else {
+      else if (!(await unlockedWithin(60 * 60_000))) {
+        // Not run, so not failed: what it checks waits, and --resume runs it once the screen is unlocked.
+        say('  [machine] not run: the screen stayed locked. Unlock it and run the gate again with --resume.');
+        failed = true;
+      } else {
         say(`\n\u001b[1m── machine: the computer's own clipboard and keys, alone ──\u001b[0m`);
         const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}) });
         state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds), byApp: r.parts || null };
