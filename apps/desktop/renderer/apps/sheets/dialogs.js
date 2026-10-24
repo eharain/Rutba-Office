@@ -7,6 +7,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, t, tn, language } from '@rutba/office-ui';
+import { CONDITION_RULES, ruleSpec, validationSpec } from './rule-specs.js';
 
 /* ── number formats ──────────────────────────────────────────────────────── */
 
@@ -56,22 +57,30 @@ export const numberFormats = () => [...NUMBER_FORMATS, ...(REGIONAL_FORMATS[lang
 
 /* ── conditional formatting ──────────────────────────────────────────────── */
 
-const CONDITIONS = [
-  { id: 'greaterThan', label: t('Greater than'), operands: 1 },
-  { id: 'lessThan', label: t('Less than'), operands: 1 },
-  { id: 'between', label: t('Between'), operands: 2 },
-  { id: 'equal', label: t('Equal to'), operands: 1 },
-  { id: 'notEqual', label: t('Not equal to'), operands: 1 },
-  { id: 'containsText', label: t('Text contains'), operands: 1, text: true },
-  { id: 'duplicateValues', label: t('Duplicate values'), operands: 0 },
-  { id: 'uniqueValues', label: t('Unique values'), operands: 0 },
-];
+// The words for each condition the engine writes (rule-specs.js says what each asks for).
+const CONDITION_LABELS = {
+  greaterThan: t('Greater than'),
+  lessThan: t('Less than'),
+  between: t('Between'),
+  equal: t('Equal to'),
+  notEqual: t('Not equal to'),
+  containsText: t('Text contains'),
+  duplicateValues: t('Duplicate values'),
+  uniqueValues: t('Unique values'),
+  colorScale: t('Colour scale: red, yellow, green (low to high)'),
+  colorScaleReverse: t('Colour scale: green, yellow, red (low to high)'),
+  dataBarBlue: t('Data bars: blue'),
+  dataBarGreen: t('Data bars: green'),
+  dataBarRed: t('Data bars: red'),
+};
+const CONDITIONS = CONDITION_RULES.map((c) => ({ ...c, label: CONDITION_LABELS[c.id] }));
 
+// In the order of rule-specs.js's LOOKS.
 const HIGHLIGHTS = [
-  { label: t('Red text on light red'), colour: '9C0006', fill: 'FFC7CE' },
-  { label: t('Amber text on light amber'), colour: '9C6500', fill: 'FFEB9C' },
-  { label: t('Green text on light green'), colour: '006100', fill: 'C6EFCE' },
-  { label: t('Bold only'), colour: null, fill: null, bold: true },
+  { label: t('Red text on light red') },
+  { label: t('Amber text on light amber') },
+  { label: t('Green text on light green') },
+  { label: t('Bold only') },
 ];
 
 export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
@@ -80,7 +89,6 @@ export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
   const [b, setB] = useState('');
   const [style, setStyle] = useState(0);
   const chosen = CONDITIONS.find((c) => c.id === rule);
-  const look = HIGHLIGHTS[style];
 
   return (
     <Dialog
@@ -94,15 +102,8 @@ export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
           <Button
             primary
             label={t('Apply')}
-            disabled={chosen.operands > 0 && !a}
-            onClick={() =>
-              onApply({
-                type: rule,
-                operator: rule,
-                values: [a, b].slice(0, chosen.operands).filter((v) => v !== ''),
-                format: { fontColour: look.colour, fill: look.fill, bold: look.bold },
-              })
-            }
+            disabled={(chosen.operands > 0 && !a.trim()) || (chosen.operands > 1 && !b.trim())}
+            onClick={() => onApply(ruleSpec({ rule, a: a.trim(), b: b.trim(), style }))}
           />
         </>
       }
@@ -130,13 +131,19 @@ export function ConditionalDialog({ onClose, onApply, onClear, selection }) {
             ) : null}
           </div>
         ) : null}
-        <Field label={t('Show them as')}>
-          <Select value={String(style)} onChange={(e) => setStyle(Number(e.target.value))}>
-            {HIGHLIGHTS.map((h, i) => (
-              <option key={h.label} value={String(i)}>{h.label}</option>
-            ))}
-          </Select>
-        </Field>
+        {chosen.look ? (
+          <Field label={t('Show them as')}>
+            <Select value={String(style)} onChange={(e) => setStyle(Number(e.target.value))}>
+              {HIGHLIGHTS.map((h, i) => (
+                <option key={h.label} value={String(i)}>{h.label}</option>
+              ))}
+            </Select>
+          </Field>
+        ) : (
+          <p className="rw-hint" style={{ margin: 0 }}>{rule.startsWith('dataBar')
+            ? t('Each cell gets a bar as long as its share of the largest value.')
+            : t('Each cell is shaded by where its value falls between the smallest and the largest.')}</p>
+        )}
       </div>
     </Dialog>
   );
@@ -163,15 +170,8 @@ export function ValidationDialog({ onClose, onApply, onClear, selection }) {
           <Button
             primary
             label={t('Apply')}
-            onClick={() =>
-              onApply({
-                type,
-                formula1: type === 'list' ? list : min,
-                formula2: type === 'list' ? undefined : max,
-                prompt: message || undefined,
-                allowBlank: true,
-              })
-            }
+            disabled={type === 'list' ? !list.trim() : !min.trim() && !max.trim()}
+            onClick={() => onApply(validationSpec({ kind: type, list, min, max, prompt: message }))}
           />
         </>
       }
@@ -185,7 +185,6 @@ export function ValidationDialog({ onClose, onApply, onClear, selection }) {
             <option value="list">{t('A list of values')}</option>
             <option value="whole">{t('Whole numbers')}</option>
             <option value="decimal">{t('Decimal numbers')}</option>
-            <option value="date">{t('Dates')}</option>
             <option value="textLength">{t('Text of a given length')}</option>
           </Select>
         </Field>

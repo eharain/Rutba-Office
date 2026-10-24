@@ -3811,11 +3811,14 @@ export class SheetView {
    *
    * @param {object} spec
    *   {kind:'cellIs', operator, values:[v1,v2?], look} — greaterThan,
-   *     lessThan, between, equal
+   *     lessThan, between, equal, notEqual
    *   {kind:'containsText', text, look}
    *   {kind:'duplicates', look}
-   *   {kind:'colorScale'} — the classic 3-stop red→yellow→green
-   *   {kind:'dataBar'}
+   *   {kind:'unique', look}: the values that appear only once
+   *   {kind:'colorScale', reverse?}: the classic 3-stop red→yellow→green,
+   *     or green→yellow→red when a high value is the bad one
+   *   {kind:'dataBar', colour?}: blue, green or red, Excel's solid presets
+   *   A look is red, yellow, green or bold.
    */
   addConditionalRule(spec = {}) {
     if (this.protection().sheet) {
@@ -3825,7 +3828,9 @@ export class SheetView {
       red: { fontColour: '#9c0006', fill: '#ffc7ce' },
       yellow: { fontColour: '#9c5700', fill: '#ffeb9c' },
       green: { fontColour: '#006100', fill: '#c6efce' },
+      bold: { bold: true },
     };
+    const barColours = { blue: 'FF638EC6', green: 'FF63C384', red: 'FFFF555A' };
     const r = this.selection.range;
     const sqref = ref(r.top, r.left)
       + (r.top === r.bottom && r.left === r.right ? '' : ':' + ref(r.bottom, r.right));
@@ -3842,7 +3847,7 @@ export class SheetView {
     };
     const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
-    const needsLook = spec.kind === 'cellIs' || spec.kind === 'containsText' || spec.kind === 'duplicates';
+    const needsLook = ['cellIs', 'containsText', 'duplicates', 'unique'].includes(spec.kind);
     const look = needsLook ? looks[spec.look] ?? looks.red : null;
 
     let rule;
@@ -3851,7 +3856,7 @@ export class SheetView {
       switch (spec.kind) {
         case 'cellIs': {
           const op = String(spec.operator ?? '');
-          if (!['greaterThan', 'lessThan', 'between', 'equal'].includes(op)) {
+          if (!['greaterThan', 'lessThan', 'between', 'equal', 'notEqual'].includes(op)) {
             throw new Error('"' + op + '" is not a rule this dialog writes');
           }
           const values = (spec.values ?? []).slice(0, op === 'between' ? 2 : 1);
@@ -3874,15 +3879,22 @@ export class SheetView {
         }
         case 'duplicates':
           return '<cfRule type="duplicateValues"' + dxf + ' priority="' + priority + '"/>';
-        case 'colorScale':
+        case 'unique':
+          return '<cfRule type="uniqueValues"' + dxf + ' priority="' + priority + '"/>';
+        case 'colorScale': {
+          const ends = spec.reverse ? ['FF63BE7B', 'FFF8696B'] : ['FFF8696B', 'FF63BE7B'];
           return '<cfRule type="colorScale" priority="' + priority + '"><colorScale>'
             + '<cfvo type="min"/><cfvo type="percentile" val="50"/><cfvo type="max"/>'
-            + '<color rgb="FFF8696B"/><color rgb="FFFFEB84"/><color rgb="FF63BE7B"/>'
+            + '<color rgb="' + ends[0] + '"/><color rgb="FFFFEB84"/><color rgb="' + ends[1] + '"/>'
             + '</colorScale></cfRule>';
-        case 'dataBar':
+        }
+        case 'dataBar': {
+          const colour = barColours[spec.colour ?? 'blue'];
+          if (!colour) throw new Error('"' + String(spec.colour) + '" is not a data bar colour this dialog writes');
           return '<cfRule type="dataBar" priority="' + priority + '"><dataBar>'
-            + '<cfvo type="min"/><cfvo type="max"/><color rgb="FF638EC6"/>'
+            + '<cfvo type="min"/><cfvo type="max"/><color rgb="' + colour + '"/>'
             + '</dataBar></cfRule>';
+        }
         default:
           throw new Error('"' + String(spec.kind ?? '') + '" is not a rule this dialog writes');
       }
@@ -3956,8 +3968,9 @@ export class SheetView {
    * @param {object} spec
    *   {kind:'list', items:['a','b',...]}         — the in-cell dropdown
    *   {kind:'list', source:'$D$1:$D$9'}          — range-fed
-   *   {kind:'whole'|'decimal', operator, values:[v1,v2?]}
-   *   plus optional errorTitle/error — the words the refusal speaks in.
+   *   {kind:'whole'|'decimal'|'textLength', operator, values:[v1,v2?]}
+   *   plus optional errorTitle/error, the words the refusal speaks in,
+   *   and prompt, the words shown when the cell is selected.
    */
   addValidationRule(spec = {}) {
     if (this.protection().sheet) {
@@ -3986,7 +3999,7 @@ export class SheetView {
         if (items.some((s) => s.includes('"'))) throw new Error('list choices cannot contain quotes');
         f1 = '"' + items.join(',') + '"';
       }
-    } else if (spec.kind === 'whole' || spec.kind === 'decimal') {
+    } else if (spec.kind === 'whole' || spec.kind === 'decimal' || spec.kind === 'textLength') {
       type = spec.kind;
       operator = String(spec.operator ?? 'between');
       if (!['between', 'greaterThanOrEqual', 'lessThanOrEqual', 'greaterThan', 'lessThan', 'equal'].includes(operator)) {
@@ -4008,6 +4021,7 @@ export class SheetView {
       + ' allowBlank="1" showInputMessage="1" showErrorMessage="1"'
       + (spec.errorTitle ? ' errorTitle="' + escAttr(spec.errorTitle) + '"' : '')
       + (spec.error ? ' error="' + escAttr(spec.error) + '"' : '')
+      + (spec.prompt ? ' prompt="' + escAttr(spec.prompt) + '"' : '')
       + ' sqref="' + sqref + '">'
       + '<formula1>' + escText(f1) + '</formula1>'
       + (f2 !== null ? '<formula2>' + escText(f2) + '</formula2>' : '')
