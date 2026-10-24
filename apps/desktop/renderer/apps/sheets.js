@@ -3901,7 +3901,7 @@ export default function Sheets({ app, shell, boot }) {
             </Panel>
           ) : null}
           {queriesOpen ? (
-            <Panel right width={300} resizable title={t('Queries & Connections')} actions={<Button icon="close" title={t('Close the pane — Queries & Connections opens it again')} onClick={() => setQueriesOpen(false)} />}>
+            <Panel right width={300} resizable title={t('Queries & Connections')} actions={<Button icon="close" title={t('Close the pane. Queries & Connections opens it again.')} onClick={() => setQueriesOpen(false)} />}>
               <QueriesPane
                 queries={model?.queries || []}
                 onRefresh={(q) => act('queryRefresh', q)}

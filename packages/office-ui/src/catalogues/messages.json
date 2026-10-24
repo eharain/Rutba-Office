@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 7846,
+  "count": 8017,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -365,7 +365,14 @@
     {
       "message": "(All)",
       "where": [
+        "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/word/references-figures.js"
+      ]
+    },
+    {
+      "message": "(Blanks)",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/filter-panel.js"
       ]
     },
     {
@@ -378,6 +385,18 @@
       "message": "(No spelling suggestions)",
       "where": [
         "apps/desktop/renderer/apps/word/review.js"
+      ]
+    },
+    {
+      "message": "(Select all search results)",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/filter-panel.js"
+      ]
+    },
+    {
+      "message": "(Select all)",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/filter-panel.js"
       ]
     },
     {
@@ -755,6 +774,12 @@
       ]
     },
     {
+      "message": "A CSV file or a spreadsheet",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "A CalDAV or CardDAV server: iCloud (caldav.icloud.com), Fastmail, Nextcloud, Synology, Radicale and the like.",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
@@ -971,6 +996,12 @@
       ]
     },
     {
+      "message": "A file to read",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "A file whose name holds this",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
@@ -1020,6 +1051,18 @@
       ]
     },
     {
+      "message": "A key or token",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "A key or token is kept in this computer's protected store, never in the file.",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "A kiosk always loops, so it is never left on its last slide",
       "where": [
         "apps/desktop/renderer/apps/slides/setup.js"
@@ -1047,6 +1090,12 @@
       "message": "A letter to go with a job application: the role, what you bring and why this company",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "A letterhead is your business's name, address and other details at the top of every page. They come from the first record of a table of your own details: make a table called Business with one record, then choose it here. A template made after it takes it by itself.",
+      "where": [
+        "apps/desktop/renderer/apps/base/documents.js"
       ]
     },
     {
@@ -1191,6 +1240,12 @@
       "message": "A new password for {name}",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "A new record",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -1625,6 +1680,7 @@
     {
       "message": "A to Z",
       "where": [
+        "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -1656,6 +1712,12 @@
       "message": "A watermark picture is a PNG, a JPEG, a GIF, a BMP or a WebP.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A web address answering JSON",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -2606,6 +2668,12 @@
       "message": "Add this card",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "Add this line",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
       ]
     },
     {
@@ -3798,9 +3866,27 @@
       ]
     },
     {
+      "message": "Another Data Files database",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "Another database",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "Another engine…",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "Another header",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -4267,6 +4353,12 @@
       ]
     },
     {
+      "message": "As it comes",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
       "message": "As it is",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -4595,7 +4687,8 @@
     {
       "message": "AutoNumber",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/form-designer.js"
       ]
     },
     {
@@ -5319,7 +5412,8 @@
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word.js",
-        "apps/desktop/renderer/apps/word/references-index.js"
+        "apps/desktop/renderer/apps/word/references-index.js",
+        "apps/desktop/renderer/apps/word/style-dialog.js"
       ]
     },
     {
@@ -5705,6 +5799,7 @@
     {
       "message": "Browse…",
       "where": [
+        "apps/desktop/renderer/apps/base/sources.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/smime.js",
         "apps/desktop/renderer/apps/word/compare.js",
@@ -5853,6 +5948,12 @@
       ]
     },
     {
+      "message": "By month",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/pivot-fields.js"
+      ]
+    },
+    {
       "message": "C4 — 229 × 324 mm",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -5874,6 +5975,12 @@
       "message": "CONFIDENTIAL",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "CSV files and spreadsheets",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -6139,9 +6246,12 @@
         "apps/desktop/renderer/apps-choice.js",
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/filters.js",
+        "apps/desktop/renderer/apps/base/form-designer.js",
+        "apps/desktop/renderer/apps/base/forms.js",
         "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/base/queries.js",
+        "apps/desktop/renderer/apps/base/sources.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
@@ -6161,6 +6271,7 @@
         "apps/desktop/renderer/apps/pdf/redact.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/filter-panel.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/sheets/picture-data.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -6196,6 +6307,7 @@
         "apps/desktop/renderer/apps/word/references.js",
         "apps/desktop/renderer/apps/word/restrict.js",
         "apps/desktop/renderer/apps/word/signature.js",
+        "apps/desktop/renderer/apps/word/style-dialog.js",
         "apps/desktop/renderer/apps/word/untracked.js",
         "apps/desktop/renderer/icons-insert.js",
         "apps/desktop/renderer/object-insert.js",
@@ -6690,6 +6802,12 @@
       ]
     },
     {
+      "message": "Changes the engine replaced in {table}",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "Change…",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js",
@@ -6739,6 +6857,24 @@
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Chart Design",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Chart Title",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Chart title",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -7263,6 +7399,12 @@
       ]
     },
     {
+      "message": "Choose the total under each number: Sum, Average, Count or none",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
+      ]
+    },
+    {
       "message": "Choose which account to send from.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -7465,6 +7607,12 @@
       ]
     },
     {
+      "message": "Clear filter from \"{column}\"",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/filter-panel.js"
+      ]
+    },
+    {
       "message": "Clear formats",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -7516,6 +7664,12 @@
       ]
     },
     {
+      "message": "Clear them and change",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Clear: narration or timings, on this slide or every slide",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -7525,6 +7679,12 @@
       "message": "Clear: show every row an advanced filter hid",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Clearing leaves those values empty; the rest are kept in the new type. Cancel to put them right in Records first.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -7690,6 +7850,12 @@
       ]
     },
     {
+      "message": "Click to change",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
       "message": "Click to select (Shift or Ctrl adds one); double-click to rename",
       "where": [
         "apps/desktop/renderer/apps/word/drawings.js"
@@ -7772,6 +7938,7 @@
       "message": "Close",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/image/batch.js",
@@ -7922,13 +8089,13 @@
       ]
     },
     {
-      "message": "Close the pane — Field List opens it again",
+      "message": "Close the pane. Field List opens it again.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
-      "message": "Close the pane — Queries & Connections opens it again",
+      "message": "Close the pane. Queries & Connections opens it again.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
       ]
@@ -8033,6 +8200,18 @@
       "message": "Colour of the words",
       "where": [
         "apps/desktop/renderer/apps/image/type-editor.js"
+      ]
+    },
+    {
+      "message": "Colour scale: green, yellow, red (low to high)",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Colour scale: red, yellow, green (low to high)",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
     {
@@ -9416,6 +9595,7 @@
       "message": "Currency",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/form-designer.js",
         "apps/desktop/renderer/apps/pdf/found.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
@@ -9903,6 +10083,24 @@
       ]
     },
     {
+      "message": "Data bars: blue",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Data bars: green",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Data bars: red",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
       "message": "Data from Picture",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
@@ -9944,6 +10142,7 @@
       "message": "Date",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/form-designer.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/parts.js",
@@ -9999,6 +10198,7 @@
       "message": "Date and time",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/form-designer.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -10031,8 +10231,19 @@
     {
       "message": "Dates",
       "where": [
-        "apps/desktop/renderer/apps/mail/archive.js",
-        "apps/desktop/renderer/apps/sheets/dialogs.js"
+        "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Dates in {field} were read day first: 12/04/2025 is 12 April 2025.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Dates in {field} were read month first: 04/12/2025 is 12 April 2025.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -10065,6 +10276,12 @@
       "message": "Decimal numbers",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Decimals",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -10528,6 +10745,18 @@
       ]
     },
     {
+      "message": "Delete this line",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
+      "message": "Delete this line?",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
       "message": "Delete this one",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -10537,6 +10766,12 @@
       "message": "Delete this print template",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js"
+      ]
+    },
+    {
+      "message": "Delete this record?",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
       ]
     },
     {
@@ -10781,6 +11016,7 @@
       "where": [
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/documents.js",
+        "apps/desktop/renderer/apps/base/forms.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
@@ -11191,6 +11427,12 @@
       ]
     },
     {
+      "message": "Don't Save",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Don't hyphenate this paragraph",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -11207,6 +11449,7 @@
       "message": "Done",
       "where": [
         "apps/desktop/renderer/apps-choice.js",
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/image/type-editor.js",
@@ -11420,6 +11663,12 @@
       "message": "Drafts",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Drag a field to move it and its corner to size it. The arrow keys move the field picked; with Shift they size it. Click a label to rename it.",
+      "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js"
       ]
     },
     {
@@ -11802,9 +12051,27 @@
       ]
     },
     {
+      "message": "Each answer gives the next page's address",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "Each category is written as Word's TOA field, its heading over it; All writes one for every category that has citations in it.",
       "where": [
         "apps/desktop/renderer/apps/word/references-toa.js"
+      ]
+    },
+    {
+      "message": "Each cell gets a bar as long as its share of the largest value.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Each cell is shaded by where its value falls between the smallest and the largest.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
     {
@@ -11862,6 +12129,12 @@
       ]
     },
     {
+      "message": "Each sheet's first row names its fields. Dates and amounts come in as the sheet formats them.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Each slide then moves on by itself after the time it was on screen, and Use Timings is turned on.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -11877,6 +12150,18 @@
       "message": "Each ticked field gets a panel of buttons, one per item, that filters the table.",
       "where": [
         "apps/desktop/renderer/apps/sheets/objects.js"
+      ]
+    },
+    {
+      "message": "Each total is worked out for each group and for the whole report.",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
+      ]
+    },
+    {
+      "message": "Each total is worked out for the whole report.",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
       ]
     },
     {
@@ -12875,6 +13160,12 @@
       ]
     },
     {
+      "message": "Every field is on the form",
+      "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js"
+      ]
+    },
+    {
       "message": "Every fifth line",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -12917,6 +13208,12 @@
       ]
     },
     {
+      "message": "Every paragraph with this style changes with it.",
+      "where": [
+        "apps/desktop/renderer/apps/word/style-dialog.js"
+      ]
+    },
+    {
       "message": "Every record",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js"
@@ -12932,6 +13229,13 @@
       "message": "Every sheet ({count})",
       "where": [
         "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Every sheet ({count}), a table each",
+      "plural": "Every sheet ({count}), a table each",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -13536,6 +13840,7 @@
       "where": [
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/documents.js",
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/word/references-figures.js"
       ]
@@ -13580,6 +13885,12 @@
       "message": "Field names",
       "where": [
         "apps/desktop/renderer/apps/word/references-figures.js"
+      ]
+    },
+    {
+      "message": "Field names in row",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -13901,9 +14212,21 @@
       ]
     },
     {
+      "message": "Filter or sort by {column}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/filter-panel.js"
+      ]
+    },
+    {
       "message": "Filter the list, in place",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Filter {column}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/filter-panel.js"
       ]
     },
     {
@@ -13916,6 +14239,7 @@
       "message": "Filters",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -14199,6 +14523,12 @@
       "message": "First line indent",
       "where": [
         "apps/desktop/renderer/apps/word/ruler.js"
+      ]
+    },
+    {
+      "message": "First page",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -14552,7 +14882,8 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/intro/brand.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/apps/word/style-dialog.js"
       ]
     },
     {
@@ -14560,7 +14891,8 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/apps/word/style-dialog.js"
       ]
     },
     {
@@ -14678,6 +15010,12 @@
       ]
     },
     {
+      "message": "For a large table: a field the engine changes with every change, so only what changed is read.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "For each address field the Address Block and the Greeting Line need, choose the column of your list that holds it.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -14760,6 +15098,12 @@
       "message": "Form Field Shading",
       "where": [
         "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Form design",
+      "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js"
       ]
     },
     {
@@ -15321,6 +15665,12 @@
       "message": "From {organizer}",
       "where": [
         "apps/desktop/renderer/apps/mail/reader.js"
+      ]
+    },
+    {
+      "message": "From {source}: read at {time}, {every}. Read only here.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -16173,9 +16523,21 @@
       ]
     },
     {
+      "message": "Header name",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "Header text",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Header value",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -16185,9 +16547,21 @@
       ]
     },
     {
+      "message": "Header, as Authorization",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "Headers",
       "where": [
         "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Headers sent with each request",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -16872,6 +17246,12 @@
       ]
     },
     {
+      "message": "How often {table} is read",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "How they hear of it",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
@@ -16899,6 +17279,12 @@
       "message": "How your name appears on messages you send",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "How {table} is kept",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -17184,6 +17570,12 @@
       "message": "Import Captions",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Import a Workbook",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -18750,7 +19142,8 @@
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/word.js",
-        "apps/desktop/renderer/apps/word/references-index.js"
+        "apps/desktop/renderer/apps/word/references-index.js",
+        "apps/desktop/renderer/apps/word/style-dialog.js"
       ]
     },
     {
@@ -18772,6 +19165,12 @@
       "message": "Its column",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Its columns changed at the source: {changes}. The design here follows.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -18975,9 +19374,21 @@
       ]
     },
     {
+      "message": "Keep It Open",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Keep Top Rows",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Keep a copy in this file",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -19002,6 +19413,12 @@
       "message": "Keep original formatting",
       "where": [
         "apps/desktop/renderer/apps/word/references-toa.js"
+      ]
+    },
+    {
+      "message": "Keep the engine's",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -19032,6 +19449,12 @@
       "message": "Keep the pitch",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
+      "message": "Keep the query under a name, as it is written, with the other queries",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -19080,6 +19503,12 @@
       "message": "Kept",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Kept as a copy of {link} in this file: caught up at {time}.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -19201,6 +19630,12 @@
       "message": "Label information",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
+      ]
+    },
+    {
+      "message": "Label of {field}",
+      "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js"
       ]
     },
     {
@@ -20291,7 +20726,8 @@
     {
       "message": "Lines",
       "where": [
-        "apps/desktop/renderer/apps/base/documents.js"
+        "apps/desktop/renderer/apps/base/documents.js",
+        "apps/desktop/renderer/apps/base/forms.js"
       ]
     },
     {
@@ -20310,6 +20746,7 @@
       "message": "Link",
       "where": [
         "apps/desktop/renderer/apps/base/links.js",
+        "apps/desktop/renderer/apps/base/sources.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -20353,6 +20790,13 @@
       ]
     },
     {
+      "message": "Link to a file or web address",
+      "where": [
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "Link — a web address on the selected shape’s words (Ctrl+K); Ctrl+click follows it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -20360,6 +20804,12 @@
     },
     {
       "message": "Linked to a database engine",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Linked to a database engine, kept as a copy",
       "where": [
         "apps/desktop/renderer/apps/base.js"
       ]
@@ -20419,6 +20869,7 @@
     {
       "message": "List",
       "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js",
         "apps/desktop/renderer/smartart-dialog.js"
       ]
     },
@@ -20509,7 +20960,14 @@
     {
       "message": "Live",
       "where": [
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/recorder.js"
+      ]
+    },
+    {
+      "message": "Live reads the records from the engine as you work. Keep a copy in this file keeps them here too: you can work with the engine out of reach, and your changes go to it when it is back. When a record was changed in both places, the engine's version wins and yours is kept for you to see.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -20672,7 +21130,8 @@
     {
       "message": "Long text",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/form-designer.js"
       ]
     },
     {
@@ -22156,6 +22615,12 @@
       ]
     },
     {
+      "message": "Modify Style: {style}",
+      "where": [
+        "apps/desktop/renderer/apps/word/style-dialog.js"
+      ]
+    },
+    {
       "message": "Modify: feather, grow or shrink the selection by that many pixels",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
@@ -22164,7 +22629,8 @@
     {
       "message": "Modify…",
       "where": [
-        "apps/desktop/renderer/apps/sheets/dialogs.js"
+        "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
@@ -22337,6 +22803,12 @@
       "message": "More junk is caught, and now and then a good message with it — look in Junk once in a while.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "More pages",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -22652,6 +23124,12 @@
       ]
     },
     {
+      "message": "Move, size, take off and put back the fields, and rename their labels",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
       "message": "Moved",
       "where": [
         "apps/desktop/renderer/apps/slides/changes.js",
@@ -22801,6 +23279,12 @@
       "message": "Name of Web Site",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Name of the table here",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -23069,7 +23553,8 @@
     {
       "message": "New Print Template",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/forms.js"
       ]
     },
     {
@@ -23656,6 +24141,18 @@
       "message": "No Rutba Office yet? The same link lets you accept with a free Rutba account, and Rutba Office is free to download: {join}",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "No Title",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "No Title: the chart drawn without one",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
@@ -24544,6 +25041,7 @@
     {
       "message": "None",
       "where": [
+        "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/words.js",
@@ -24606,7 +25104,13 @@
       ]
     },
     {
-      "message": "None — tick a field above, or move one here.",
+      "message": "None. Move a field here to show one of its items at a time.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/pivot-fields.js"
+      ]
+    },
+    {
+      "message": "None. Tick a field above, or move one here.",
       "where": [
         "apps/desktop/renderer/apps/sheets/pivot-fields.js"
       ]
@@ -25021,6 +25525,7 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/sheets/filter-panel.js",
         "apps/desktop/renderer/start-page.js"
       ]
     },
@@ -25028,6 +25533,12 @@
       "message": "Nothing matches.",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "Nothing of yours was replaced.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -25122,6 +25633,7 @@
       "message": "Number",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/form-designer.js",
         "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/apps/pdf/found.js",
@@ -25209,6 +25721,7 @@
       "where": [
         "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/filter-panel.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/sheets/words.js",
@@ -25230,6 +25743,7 @@
         "apps/desktop/renderer/apps/word/references.js",
         "apps/desktop/renderer/apps/word/restrict.js",
         "apps/desktop/renderer/apps/word/signature.js",
+        "apps/desktop/renderer/apps/word/style-dialog.js",
         "apps/desktop/renderer/apps/word/untracked.js",
         "apps/desktop/renderer/object-insert.js",
         "apps/desktop/renderer/ocr-ui.js",
@@ -25513,6 +26027,12 @@
       "message": "One account a line: the address, then its password, separated by a space, a tab, a comma, a semicolon, a colon or a bar. A first line naming the columns (email, password, name, IMAP server...) is read as a table, as a spreadsheet saves one. A line starting # is left out.",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "One answer holds them all",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -25982,7 +26502,7 @@
       ]
     },
     {
-      "message": "Opened from {was}. This build cannot write {was} — Save as will write a .xlsx.",
+      "message": "Opened from {was}. This build cannot write {was}, so Save asks where to keep it as a .xlsx.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
       ]
@@ -26699,6 +27219,12 @@
       ]
     },
     {
+      "message": "Page number in",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "Page range",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js"
@@ -26764,6 +27290,12 @@
         "apps/desktop/renderer/apps/pdf/view.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Pages by number",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -27047,6 +27579,12 @@
       "message": "Pause recording",
       "where": [
         "packages/office-shell/src/electron/ipc.js"
+      ]
+    },
+    {
+      "message": "Pause: the clock stops; the show goes on",
+      "where": [
+        "apps/desktop/renderer/apps/slides/presenter.js"
       ]
     },
     {
@@ -27416,6 +27954,12 @@
       "message": "Picture changed",
       "where": [
         "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
+      "message": "Picture from {name}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -28907,9 +29451,27 @@
       ]
     },
     {
+      "message": "Put a field on the form",
+      "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js"
+      ]
+    },
+    {
+      "message": "Put a field on…",
+      "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js"
+      ]
+    },
+    {
       "message": "Put a row of headings above them",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
+      "message": "Put mine back",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -29056,7 +29618,7 @@
     {
       "message": "Query",
       "where": [
-        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -29075,6 +29637,7 @@
     {
       "message": "Query: {name}",
       "where": [
+        "apps/desktop/renderer/apps/base/sources.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -29178,6 +29741,7 @@
     {
       "message": "Read",
       "where": [
+        "apps/desktop/renderer/apps/base/sources.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
@@ -29202,6 +29766,13 @@
     },
     {
       "message": "Read again",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js",
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "Read all of it",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
       ]
@@ -29234,6 +29805,24 @@
       "message": "Read back: none of the marked words is left in any part of the copy.",
       "where": [
         "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Read by hand",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "Read from",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "Read from a file or web address",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -29270,6 +29859,18 @@
       "message": "Read the document aloud, from the caret",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Read what changed by {field}",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "Read {every}",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -29639,9 +30240,21 @@
       ]
     },
     {
+      "message": "Record {at} of {table} is deleted, and cannot be brought back.",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
       "message": "Record {at} of {total}",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Record {key}",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -30016,6 +30629,12 @@
       ]
     },
     {
+      "message": "Refresh",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "Refresh All",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -30039,6 +30658,12 @@
       "message": "Refresh — run it again on its source as it is now",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Refresh: recalculate this pivot from its source",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -31061,6 +31686,12 @@
       ]
     },
     {
+      "message": "Reset: the clock back to 0:00; the slide stays",
+      "where": [
+        "apps/desktop/renderer/apps/slides/presenter.js"
+      ]
+    },
+    {
       "message": "Reset: the picture back to its own rectangle",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
@@ -31228,6 +31859,7 @@
       "where": [
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/recorder.js",
+        "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
@@ -31248,6 +31880,12 @@
       "message": "Resume recording",
       "where": [
         "packages/office-shell/src/electron/ipc.js"
+      ]
+    },
+    {
+      "message": "Resume: the clock goes on from where it was paused",
+      "where": [
+        "apps/desktop/renderer/apps/slides/presenter.js"
       ]
     },
     {
@@ -32034,7 +32672,6 @@
     {
       "message": "Run",
       "where": [
-        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets/scripts.js"
       ]
@@ -32054,7 +32691,7 @@
     {
       "message": "Run the query (Ctrl+Enter). It only reads: nothing in the database changes.",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -32108,7 +32745,8 @@
     {
       "message": "Rutba Database (.rbase)",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -32392,6 +33030,7 @@
     {
       "message": "Save",
       "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
@@ -32638,6 +33277,12 @@
       "message": "Save the document first, so a second window can open the same file.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Save the marks in {name}?",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -33101,6 +33746,7 @@
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/sheets/filter-panel.js",
         "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/apps/video/library.js",
         "packages/office-ui/src/index.js"
@@ -34508,6 +35154,8 @@
     {
       "message": "Sheet",
       "where": [
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/sources.js",
         "apps/desktop/renderer/apps/sheets.js"
       ]
     },
@@ -34878,6 +35526,12 @@
       ]
     },
     {
+      "message": "Show the dates as months",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/pivot-fields.js"
+      ]
+    },
+    {
       "message": "Show the folder",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
@@ -34887,6 +35541,12 @@
       "message": "Show the gridlines on screen",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Show the items",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/pivot-fields.js"
       ]
     },
     {
@@ -35088,7 +35748,14 @@
       "message": "Sign in",
       "where": [
         "apps/desktop/renderer/apps/base/people.js",
+        "apps/desktop/renderer/apps/base/sources.js",
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
+      ]
+    },
+    {
+      "message": "Sign in there…",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -35409,6 +36076,12 @@
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
+      "message": "Size (pt)",
+      "where": [
+        "apps/desktop/renderer/apps/word/style-dialog.js"
       ]
     },
     {
@@ -35955,6 +36628,12 @@
       ]
     },
     {
+      "message": "Some records do not fit",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Some removed content cannot be put back with Undo. Save a copy first if you may want it again.",
       "where": [
         "apps/desktop/renderer/inspect.js"
@@ -35999,6 +36678,7 @@
     {
       "message": "Sort A to Z",
       "where": [
+        "apps/desktop/renderer/apps/sheets/filter-panel.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -36023,6 +36703,7 @@
     {
       "message": "Sort Z to A",
       "where": [
+        "apps/desktop/renderer/apps/sheets/filter-panel.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -36072,13 +36753,13 @@
       ]
     },
     {
-      "message": "Sort the selection ascending by its first column",
+      "message": "Sort the list A to Z by column {name}, the active cell's column; a heading row stays at the top",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
     {
-      "message": "Sort the selection descending by its first column",
+      "message": "Sort the list Z to A by column {name}, the active cell's column; a heading row stays at the top",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
@@ -36102,12 +36783,6 @@
       ]
     },
     {
-      "message": "Sorted",
-      "where": [
-        "apps/desktop/renderer/apps/sheets.js"
-      ]
-    },
-    {
       "message": "Sorted by \"{column}\"",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -36117,6 +36792,18 @@
       "message": "Sorted by \"{column}\", Z to A",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Sorted {way} by column {column}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Sorted {way} by {column}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -36210,6 +36897,18 @@
         "apps/desktop/renderer/apps/base/documents.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Space after (pt)",
+      "where": [
+        "apps/desktop/renderer/apps/word/style-dialog.js"
+      ]
+    },
+    {
+      "message": "Space before (pt)",
+      "where": [
+        "apps/desktop/renderer/apps/word/style-dialog.js"
       ]
     },
     {
@@ -37461,6 +38160,7 @@
     {
       "message": "Sync now",
       "where": [
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/dav-accounts.js"
       ]
     },
@@ -37638,6 +38338,7 @@
       "message": "Table or query",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/sources.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -37666,6 +38367,12 @@
       ]
     },
     {
+      "message": "Table: {name}",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "Table: {name} ({sheet})",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -37681,12 +38388,6 @@
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
-      ]
-    },
-    {
-      "message": "Tables and old files",
-      "where": [
-        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -37720,6 +38421,12 @@
       ]
     },
     {
+      "message": "Tables, workbooks and old files",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Tag",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
@@ -37738,6 +38445,12 @@
       "message": "Tags",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Take Off",
+      "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js"
       ]
     },
     {
@@ -37762,6 +38475,12 @@
       "message": "Take it back and reopen it in Compose",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Take the field picked off the form. It stays in the table.",
+      "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js"
       ]
     },
     {
@@ -38004,6 +38723,7 @@
       "message": "Text",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js",
+        "apps/desktop/renderer/apps/base/form-designer.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/image/words.js",
@@ -38876,6 +39596,12 @@
       ]
     },
     {
+      "message": "The clock is paused",
+      "where": [
+        "apps/desktop/renderer/apps/slides/presenter.js"
+      ]
+    },
+    {
       "message": "The column to group by is not in the list",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -39077,7 +39803,19 @@
       ]
     },
     {
+      "message": "The engine did not take it: {why}",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "The engine keeps the records: Data Files reads them from it and saves each change straight to it. Every computer linked to the same engine works on the same records.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "The engine's",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
       ]
@@ -39203,6 +39941,12 @@
       ]
     },
     {
+      "message": "The form {name} is kept as it is laid out now.",
+      "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js"
+      ]
+    },
+    {
       "message": "The format was not recognised.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -39263,6 +40007,12 @@
       ]
     },
     {
+      "message": "The line is deleted from {table}, and cannot be brought back.",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
       "message": "The link could not be opened: {reason}",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -39303,6 +40053,12 @@
       "message": "The link reads {named} but goes to {host}.",
       "where": [
         "apps/desktop/renderer/apps/mail/links.js"
+      ]
+    },
+    {
+      "message": "The list has a heading row: it stays at the top, and its headings name the columns.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
     {
@@ -39574,6 +40330,12 @@
       ]
     },
     {
+      "message": "The other database is opened to read and nothing else. A protected one gives what your role there may see.",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "The other table has no column \"{withOn}\"",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -39625,6 +40387,12 @@
       "message": "The password is changed.",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "The password is kept in this computer's protected store, never in the file.",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -39721,9 +40489,15 @@
       ]
     },
     {
-      "message": "The pivot table goes under the data. Data → Refresh All recalculates it from the source.",
+      "message": "The pivot table goes under the data, and the sheet goes to it with PivotTable Fields open beside it, where its Refresh button recalculates it from the source.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "The places the answer is rounded to: an average to 2, for 15.08",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -39762,6 +40536,12 @@
       "message": "The query's name, and its sheet's",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "The quick brown fox jumps over the lazy dog",
+      "where": [
+        "apps/desktop/renderer/apps/word/style-dialog.js"
       ]
     },
     {
@@ -39804,6 +40584,12 @@
       ]
     },
     {
+      "message": "The records of {table} could not be synced with {link}: {why}",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "The redacted PDF is saved as a new file and opens here; the original is left as it is. It is written whole, not as an update of the original, because an update keeps the original's bytes, and the redacted words with them.",
       "where": [
         "apps/desktop/renderer/apps/pdf/redact.js"
@@ -39813,6 +40599,12 @@
       "message": "The redacted copy is saved as a new file: choose another name, so the original is kept.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The redacted copy is saved as {copy}. The marks in {name} are not saved: save them to come back to them, or keep {name} open here and see the redacted copy in a new window.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -40004,6 +40796,12 @@
       ]
     },
     {
+      "message": "The sheet {name}",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "The show in this window, not full screen",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -40073,6 +40871,12 @@
       "message": "The source is copied.",
       "where": [
         "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "The source keeps the records. Data Files reads them into a table here, read only, and reads them again on a schedule and when you refresh.",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -40463,6 +41267,12 @@
       "message": "There is a selection: these change only what is selected, on a layer of its own. Deselect (Ctrl+D) to change the whole picture.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "There is a table called {name} already.",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -42107,6 +42917,12 @@
       ]
     },
     {
+      "message": "To print this record, make a print template for {table}.",
+      "where": [
+        "apps/desktop/renderer/apps/base/forms.js"
+      ]
+    },
+    {
       "message": "To record",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -42320,10 +43136,17 @@
       ]
     },
     {
+      "message": "Total of {field}",
+      "where": [
+        "apps/desktop/renderer/apps/base/reports.js"
+      ]
+    },
+    {
       "message": "Totals",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js",
-        "apps/desktop/renderer/apps/base/queries.js"
+        "apps/desktop/renderer/apps/base/queries.js",
+        "apps/desktop/renderer/apps/base/reports.js"
       ]
     },
     {
@@ -43599,6 +44422,12 @@
       ]
     },
     {
+      "message": "Update {style} to Match Selection",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
       "message": "Updated from {version}. What changed is a click away.",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -43816,6 +44645,7 @@
     {
       "message": "Value",
       "where": [
+        "apps/desktop/renderer/apps/base/sources.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -44294,6 +45124,12 @@
       ]
     },
     {
+      "message": "Web address",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "Web site",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -44479,6 +45315,12 @@
       ]
     },
     {
+      "message": "What {table} reads at each catch-up",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "What's New",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -44532,6 +45374,36 @@
       "message": "Where a project stands: progress, milestones, risks and next steps",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
+      "message": "Where it is",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "Where it is: a path, a network share or a web address",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "Where the next address is",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "Where the next address is (empty: the Link header)",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "Where the records are in the answer",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -44619,6 +45491,12 @@
       "message": "Who you are",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "Who you are where {table} is read from",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -45231,7 +46109,8 @@
     {
       "message": "Yes/No",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/form-designer.js"
       ]
     },
     {
@@ -45269,6 +46148,24 @@
       "message": "You can invite them again {when}.",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "You changed it here, and it was changed in the engine too. The engine's version is kept.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "You changed it here, and it was deleted in the engine. It is gone here too.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "You deleted it here, and it was changed in the engine. It is back.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -45351,6 +46248,12 @@
       ]
     },
     {
+      "message": "Your name there",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "Your name, or the title",
       "where": [
         "apps/desktop/renderer/apps/recorder.js"
@@ -45372,6 +46275,12 @@
       "message": "Your password now",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "Your password there",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -45434,12 +46343,14 @@
     {
       "message": "Yours",
       "where": [
+        "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/template-gallery.js"
       ]
     },
     {
       "message": "Z to A",
       "where": [
+        "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -45715,6 +46626,12 @@
       ]
     },
     {
+      "message": "added {fields}",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "address",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
@@ -45863,6 +46780,12 @@
       ]
     },
     {
+      "message": "by hand",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "cc {recipients}",
       "where": [
         "apps/desktop/renderer/apps/mail/reader.js"
@@ -45884,6 +46807,12 @@
       "message": "changed",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "changed {fields}",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -46091,6 +47020,24 @@
       ]
     },
     {
+      "message": "every 15 minutes",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "every 5 minutes",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "every hour",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "exosphere",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js"
@@ -46106,6 +47053,12 @@
       "message": "fax",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "first",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -46769,6 +47722,12 @@
       ]
     },
     {
+      "message": "see them",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "select a picture, shape, chart or slicer first",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -46906,6 +47865,12 @@
       "message": "table {name}",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "taken away {fields}",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -47077,6 +48042,12 @@
       "message": "the picture fills the frame, cropped to fit",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "the picture in {name}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -47680,6 +48651,18 @@
       ]
     },
     {
+      "message": "{column}: filtered",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/filter-panel.js"
+      ]
+    },
+    {
+      "message": "{column}: filtered. Click to change the filter",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/filter-panel.js"
+      ]
+    },
+    {
       "message": "{count} PDF, one a message",
       "plural": "{count} PDFs, one a message",
       "where": [
@@ -47796,6 +48779,20 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/scripts.js",
         "apps/desktop/renderer/apps/slides/revisions.js"
+      ]
+    },
+    {
+      "message": "{count} change made here goes to {link} at the next catch-up.",
+      "plural": "{count} changes made here go to {link} at the next catch-up.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "{count} change waits to go to {link}, kept since {time}. {link} cannot be reached now: it goes when it is back.",
+      "plural": "{count} changes wait to go to {link}, kept since {time}. {link} cannot be reached now: they go when it is back.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -48204,8 +49201,8 @@
       ]
     },
     {
-      "message": "{count} mark on {pages} pages is applied.",
-      "plural": "{count} marks on {pages} pages are applied.",
+      "message": "{count} mark on one page is applied.",
+      "plural": "{count} marks on one page are applied.",
       "where": [
         "apps/desktop/renderer/apps/pdf/redact.js"
       ]
@@ -48215,6 +49212,12 @@
       "plural": "{count} marked read",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{count} marks on {pages} pages are applied.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/redact.js"
       ]
     },
     {
@@ -48294,6 +49297,13 @@
       "plural": "{count} of these files are already there.",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js"
+      ]
+    },
+    {
+      "message": "{count} of your changes was replaced by a newer one in the engine:",
+      "plural": "{count} of your changes were replaced by newer ones in the engine:",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -48438,6 +49448,13 @@
       ]
     },
     {
+      "message": "{count} place",
+      "plural": "{count} places",
+      "where": [
+        "apps/desktop/renderer/apps/base/queries.js"
+      ]
+    },
+    {
       "message": "{count} possible duplicate shaded",
       "plural": "{count} possible duplicates shaded",
       "where": [
@@ -48524,6 +49541,13 @@
       ]
     },
     {
+      "message": "{count} record, with these fields:",
+      "plural": "{count} records, with these fields:",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "{count} reference on other sheets or by name not drawn",
       "plural": "{count} references on other sheets or by name not drawn",
       "where": [
@@ -48548,7 +49572,6 @@
       "message": "{count} row",
       "plural": "{count} rows",
       "where": [
-        "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -48696,6 +49719,13 @@
       ]
     },
     {
+      "message": "{count} table linked and kept as a copy in this file: it works with the engine out of reach and catches up when it is back.",
+      "plural": "{count} tables linked and kept as copies in this file: they work with the engine out of reach and catch up when it is back.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "{count} table linked: its records stay in the engine, read from it here.",
       "plural": "{count} tables linked: their records stay in the engine, read from it here.",
       "where": [
@@ -48822,6 +49852,18 @@
       ]
     },
     {
+      "message": "{field} {value}",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "{field}, a {kind} field",
+      "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js"
+      ]
+    },
+    {
       "message": "{field}, where it was read",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
@@ -48844,6 +49886,12 @@
       "message": "{field}: show where it was read. Check it against the attachment: the reading was not sure of it.",
       "where": [
         "apps/desktop/renderer/apps/mail/docnote.js"
+      ]
+    },
+    {
+      "message": "{field}: {w} by {h}, at {x}, {y}",
+      "where": [
+        "apps/desktop/renderer/apps/base/form-designer.js"
       ]
     },
     {
@@ -49031,6 +50079,12 @@
       ]
     },
     {
+      "message": "{link} cannot be reached now. The copy here is as it was at {time}, and changes made here wait for it.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "{look} adjustment",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
@@ -49148,6 +50202,12 @@
       ]
     },
     {
+      "message": "{name} edited",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "{name} has more than one sheet. The first row of the one you choose names the fields.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -49254,6 +50314,12 @@
       "message": "{name} is protected, and its pages cannot be inserted yet.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "{name} is unlinked. Its source keeps its records.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -49732,7 +50798,7 @@
     {
       "message": "{shown} of {count} rows",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base/queries.js"
       ]
     },
     {
@@ -49755,6 +50821,12 @@
       ]
     },
     {
+      "message": "{source} could not be read: {why} The copy here is as it was at {time}.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
       "message": "{speed}× as fast as it plays, about {left} left",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
@@ -49768,6 +50840,18 @@
     },
     {
       "message": "{table} ({count})",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "{table} is linked: read from its source {every}, kept here as a copy to read.",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "{table} keeps the file's own {field} numbers.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
       ]
