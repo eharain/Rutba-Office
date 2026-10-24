@@ -4,7 +4,8 @@
 // for its rows a page at a time, so a table of a million records opens as
 // quickly as one of ten.
 //
-// Imports make a new table each: delimited text (CSV, TSV) and the old files
+// Imports make a new table each: delimited text (CSV, TSV), workbooks (.xlsx
+// and .ods, a table a sheet, read as Worksheets reads them) and the old files
 // Worksheets reads (dBASE and FoxPro tables, Access databases, Lotus 1-2-3,
 // SYLK, DIF), through office-formats' readers.
 
@@ -21,6 +22,7 @@ import { readManifest } from '@rutba/templates/manifest';
 import { parseDelimited } from '@rutba/ooxml/mailmerge';
 import { legacySheetKind, readLegacySheets } from '@rutba/office-formats/legacy-sheets';
 import MDBReader from 'mdb-reader';
+import { readWorkbook, WORKBOOK_EXTENSIONS } from './base-workbook.js';
 
 /** The SQLite file's own first sixteen bytes. */
 const SQLITE_MAGIC = 'SQLite format 3\u0000';
@@ -470,7 +472,8 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
 
     createTable: ({ id, name, fields = [] }) => { get(id).base.createTable({ name, fields }); return summary(id); },
     addField: ({ id, table, field }) => { get(id).base.addField(table, field); return summary(id); },
-    changeField: ({ id, table, name, change }) => { get(id).base.changeField(table, name, change); return summary(id); },
+    // `clear`: the records whose value does not fit the new type are let go empty, as the person was asked.
+    changeField: ({ id, table, name, change, clear = false }) => { get(id).base.changeField(table, name, change, { clear: Boolean(clear) }); return summary(id); },
     removeField: ({ id, table, name }) => { get(id).base.removeField(table, name); return summary(id); },
     renameTable: ({ id, table, to }) => { get(id).base.renameTable(table, to); return summary(id); },
     dropTable: ({ id, table }) => { get(id).base.dropTable(table); return summary(id); },
@@ -543,22 +546,35 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
     },
 
     /**
-     * A file imported as new tables: CSV or TSV, or an old file Worksheets
-     * reads. Answers { tables: [{ table, count, skipped }], notes, summary }.
+     * A file imported as new tables: CSV or TSV, a workbook (each sheet, or
+     * the `sheet` named), or an old file Worksheets reads. Answers { tables:
+     * [{ table, count, skipped, key, dates }], notes, summary }. With `peek`, a
+     * workbook's sheets are only named: { sheets }, nothing imported.
      */
-    importFile: ({ id, file }) => {
+    importFile: ({ id, file, sheet = null, peek = false }) => {
       const { base } = get(id);
       const bytes = new Uint8Array(fs.readFileSync(file));
       const name = path.basename(file).replace(/\.[^.]+$/, '');
       const ext = path.extname(file).toLowerCase();
       let made;
       let notes = [];
-      if (ext === '.csv' || ext === '.tsv' || ext === '.txt') {
+      if (WORKBOOK_EXTENSIONS.includes(ext.slice(1))) {
+        let sheets;
+        try {
+          sheets = readWorkbook(bytes, ext, { only: peek ? null : sheet });
+        } catch (err) {
+          throw new Error(`${path.basename(file)} could not be read as a workbook: ${err.message}`);
+        }
+        if (peek) return { sheets: sheets.map((s) => s.name) };
+        if (!sheets.length) throw new Error(`${path.basename(file)} has nothing in it to import.`);
+        // One sheet is named after the file, as a CSV is; several after their sheets.
+        made = importSheets(base, { sheets: sheets.length === 1 && !sheet ? [{ ...sheets[0], name }] : sheets });
+      } else if (ext === '.csv' || ext === '.tsv' || ext === '.txt') {
         const text = new TextDecoder('utf-8').decode(bytes);
         made = [importRows(base, name, parseDelimited(text, ext === '.tsv' ? '\t' : null))];
       } else {
         const kind = legacySheetKind(bytes, ext);
-        if (!kind) throw new Error(`${path.basename(file)} is not a file this app imports: CSV, TSV, dBASE, Access, Lotus 1-2-3, SYLK or DIF.`);
+        if (!kind) throw new Error(`${path.basename(file)} is not a file this app imports: CSV, TSV, a workbook (.xlsx or .ods), dBASE, Access, Lotus 1-2-3, SYLK or DIF.`);
         let memo = null;
         let memoKind = null;
         if (kind === 'dbf') {
@@ -572,7 +588,7 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
         notes = model.notes || [];
         made = importSheets(base, model);
       }
-      return { tables: made.map((m) => ({ table: m.table, count: m.count, skipped: m.skipped })), notes, summary: summary(id) };
+      return { tables: made.map((m) => ({ table: m.table, count: m.count, skipped: m.skipped, key: m.key || null, dates: m.dates || [] })), notes, summary: summary(id) };
     },
 
     /** A copy of the database at `file` (Save As), the copy then the one open. */

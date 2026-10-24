@@ -67,7 +67,7 @@ test('a relationship is a real foreign key: it refuses records pointing at nothi
   b.insert('Orders', { Customer: amira, Total: 10 });
   const id = b.addRelationship({ from: { table: 'Orders', field: 'Customer' }, to: { table: 'Customers', field: 'ID' }, cascadeDelete: true });
   assert.equal(b.relationships()[0].id, id);
-  assert.throws(() => b.insert('Orders', { Customer: 99, Total: 1 }), /related to others/);
+  assert.throws(() => b.insert('Orders', { Customer: 99, Total: 1 }), /Customers has no record 99, so Customer cannot point at it/);
   assert.throws(() => b.dropTable('Customers'), /Another table points at Customers/);
   b.remove('Customers', [amira]);
   assert.equal(b.count('Orders'), 0);
@@ -101,10 +101,16 @@ test('a table imported from rows takes the types its values call for', () => {
   assert.deepEqual(inferType(['2024-01-01', '', null]), { type: 'date' });
   assert.deepEqual(inferType([45306, 45307], 'date'), { type: 'date' });
   const b = fresh();
+  // The file's own IDs, whole numbers, one each and no two the same, are the table's AutoNumber (2.18).
   const made = importRows(b, 'People', [['ID', 'Name', 'Age', 'Member', 'Joined'], [7, 'Amira', 34, 'yes', '2020-05-01'], [9, 'Ben', '41', 'no', '2021-07-09'], [null, '', '', '', '']]);
   assert.equal(made.count, 2);
-  assert.deepEqual(made.fields.map((f) => [f.name, f.type]), [['ID (imported)', 'integer'], ['Name', 'text'], ['Age', 'integer'], ['Member', 'yesno'], ['Joined', 'date']]);
-  assert.deepEqual(b.rows('People').map((r) => [r.ID, r['ID (imported)'], r.Name, r.Age, r.Member, r.Joined]), [[1, 7, 'Amira', 34, 1, '2020-05-01'], [2, 9, 'Ben', 41, 0, '2021-07-09']]);
+  assert.equal(made.key, 'ID');
+  assert.deepEqual(made.fields.map((f) => [f.name, f.type]), [['ID', 'autonumber'], ['Name', 'text'], ['Age', 'integer'], ['Member', 'yesno'], ['Joined', 'date']]);
+  assert.deepEqual(b.rows('People').map((r) => [r.ID, r.Name, r.Age, r.Member, r.Joined]), [[7, 'Amira', 34, 1, '2020-05-01'], [9, 'Ben', 41, 0, '2021-07-09']]);
+  // IDs that cannot be the key (one missing) stay beside a new AutoNumber, as before.
+  const beside = importRows(b, 'Folk', [['ID', 'Name'], [7, 'Amira'], ['', 'Ben']]);
+  assert.deepEqual(beside.fields.map((f) => [f.name, f.type]), [['ID (imported)', 'integer'], ['Name', 'text']]);
+  assert.deepEqual(b.rows('Folk').map((r) => [r.ID, r['ID (imported)'], r.Name]), [[1, 7, 'Amira'], [2, null, 'Ben']]);
   // A second import of the same name is its own table.
   assert.equal(importRows(b, 'People', [['A'], [1]]).table, 'People 2');
 });
@@ -113,7 +119,8 @@ test('the old files\' sheets import as tables, date-formatted columns as dates',
   const b = fresh();
   const model = { sheets: [{ name: 'TEAS', rows: [['NAME', 'PRICE', 'SOLD'], ['Tea', 3.5, 45306], ['Cake', 12, null]], styles: { A1: { bold: true }, B2: { numFmt: '0.00' }, C2: { numFmt: 'yyyy-mm-dd' } } }], names: [], notes: [] };
   const [made] = importSheets(b, model);
-  assert.deepEqual(made.fields.map((f) => [f.name, f.type]), [['NAME', 'text'], ['PRICE', 'number'], ['SOLD', 'date']]);
+  // A price formatted with two places is an amount: Currency.
+  assert.deepEqual(made.fields.map((f) => [f.name, f.type]), [['NAME', 'text'], ['PRICE', 'currency'], ['SOLD', 'date']]);
   assert.deepEqual(b.rows('TEAS').map((r) => [r.NAME, r.PRICE, r.SOLD]), [['Tea', 3.5, '2024-01-15'], ['Cake', 12, null]]);
 });
 

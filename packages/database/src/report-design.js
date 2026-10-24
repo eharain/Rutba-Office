@@ -8,22 +8,29 @@
 //   columns: [{ field, label, align: 'left' | 'right' }],
 //   group: null | field, sort: null | field, desc: false,
 //   totals: [{ field, fn: 'sum' | 'avg' | 'count' | 'min' | 'max' }] }
+//
+// A column a query shows may say its type ({ field, type }), for a total of
+// an amount or a whole number the query works out.
 
 import { labelFor } from './form-design.js';
 
 const NUMERIC = new Set(['number', 'integer', 'currency']);
 
-/** A report for a table (its fields from `fields`) or a query (its columns from `columns`), as the wizard makes it. */
+/**
+ * A report for a table (its fields from `fields`) or a query (its columns
+ * from `columns`, names or { name, type }), as the wizard makes it: each
+ * amount (a Number or Currency) summed, the totals then chosen in the window.
+ */
 export function wizardReport({ table = null, query = null, fields = [], columns = [], relationships = [], name = null }) {
   const source = table ? { table } : { query };
   const looks = table
     ? fields.filter((f) => f.type !== 'autonumber').map((f) => ({ field: f.name, label: f.caption || labelFor(f.name), type: f.type }))
-    : columns.map((c) => ({ field: c, label: c, type: null }));
+    : columns.map((c) => (typeof c === 'string' ? { field: c, label: c, type: null } : { field: c.name, label: c.name, type: c.type || null }));
   if (!looks.length) throw new Error('There is nothing to put in a report.');
   const pointing = table ? relationships.filter((r) => r.from.table === table).map((r) => r.from.field) : [];
   // Grouped by the first field that points at another table's record, as one would by customer.
   const group = looks.find((c) => pointing.includes(c.field))?.field || null;
-  const cols = looks.filter((c) => c.field !== group).slice(0, 8).map((c) => ({ field: c.field, label: c.label, align: NUMERIC.has(c.type) && !pointing.includes(c.field) ? 'right' : 'left' }));
+  const cols = looks.filter((c) => c.field !== group).slice(0, 8).map((c) => ({ field: c.field, label: c.label, align: NUMERIC.has(c.type) && !pointing.includes(c.field) ? 'right' : 'left', ...(query && c.type ? { type: c.type } : {}) }));
   const totals = looks.filter((c) => (c.type === 'currency' || c.type === 'number') && c.field !== group).map((c) => ({ field: c.field, fn: 'sum' }));
   return { name: name || (table || query), title: labelFor(table || query), source, columns: cols, group, sort: null, desc: false, totals };
 }

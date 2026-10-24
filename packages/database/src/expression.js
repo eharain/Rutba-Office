@@ -204,6 +204,9 @@ export function expressionSql(src, resolve, options = {}) {
       if (w === 'false' || w === 'no') return '0';
       if (w === 'null') return 'NULL';
       const fn = FUNCTIONS[w];
+      // A total typed into an expression: the designer's Total row does that, and its Decimals round it.
+      const totals = { avg: 'Average', sum: 'Sum', count: 'Count', min: 'Min', max: 'Max' };
+      if (!fn && totals[w]) throw new Error(`${t.v} totals a column, which an expression here cannot. Tick Totals, set this column's Total to ${totals[w]}, and choose its Decimals beside it to round it.`);
       if (!fn) throw new Error(`${t.v} is not a function Data Files knows. It knows ${FUNCTION_NAMES.join(', ')}.`);
       expect('(');
       const args = [];

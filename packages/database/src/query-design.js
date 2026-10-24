@@ -15,6 +15,7 @@
 //               decimals: null | 0..6 (the answer rounded, an average to 2 places) }
 //             | { expr: '[Quantity] * [Unit Price]', as: 'Line Total', ...the same }],
 // }
+// | { sql: 'SELECT ...' }, a query written in the SQL view and kept as it is written.
 //
 // A column with `expr` is calculated, as Access writes one (expression.js):
 // its [Field] names are the query's tables' fields.
@@ -37,6 +38,10 @@ export function splitNamedExpression(cell) {
 
 /** The aggregate each total names, in SQL. */
 const AGGREGATES = { sum: 'SUM', avg: 'AVG', count: 'COUNT', min: 'MIN', max: 'MAX' };
+/** A total's heading, as the designer's Total list names it: "Average of Total", "Sum of Quantity". */
+const TOTAL_WORDS = { sum: 'Sum', avg: 'Average', count: 'Count', min: 'Min', max: 'Max' };
+/** A heading as 2.17 wrote an average's ("Avg of Total"), as it is written now, for a report that still names it so. */
+export const newHeading = (heading) => String(heading).replace(/^Avg of /, 'Average of ');
 
 /** A typed value as SQL takes it: a quoted string, a #date#, a number, true/false. */
 function valueOf(token) {
@@ -63,16 +68,31 @@ function listOf(text) {
 /** An Access wildcard (* and ?) as a LIKE pattern (% and _), the pattern's own % and _ kept literal. */
 const likePattern = (s) => String(s).replace(/[\\%_]/g, (c) => `\\${c}`).replace(/\*/g, '%').replace(/\?/g, '_');
 
+/** Whether a criterion's value names a field ([Reorder Level], [Products].[Price] * 2) rather than being one: brackets outside quotes. */
+const namesField = (token) => {
+  const t = token.trim();
+  return !/^["'#]/.test(t) && /\[[^\]]+\]/.test(t);
+};
+
 /**
  * One cell of criteria for one field as SQL and its parameters, or throws
  * what is wrong with it. `c` is the column, `text` what the person typed.
+ * A value that names a field (<= [Reorder Level]) is compared with that
+ * field, worked out as an expression is: `resolve(table, field)` answers its
+ * column, as designToSql's does.
  */
-export function criterionSql(column, text) {
+export function criterionSql(column, text, { resolve = null, today = null } = {}) {
   const t = String(text).trim();
   if (!t) return null;
   let m;
+  // A field named where a value goes: that field's value, not the words "[Reorder Level]".
+  const side = (token) => {
+    if (!namesField(token)) return { sql: '?', params: [valueOf(token)] };
+    if (!resolve) throw new Error(`"${t}" names a field. Compare fields in the query designer, where the query's tables are known.`);
+    return { sql: `(${expressionSql(token, resolve, { today })})`, params: [] };
+  };
   if ((m = /^not\s+(.+)$/i.exec(t)) && !/^not\s+(like|in|between)\b/i.test(t) && !/^is\b/i.test(t)) {
-    const inner = criterionSql(column, m[1]);
+    const inner = criterionSql(column, m[1], { resolve, today });
     return { sql: `NOT (${inner.sql})`, params: inner.params };
   }
   if (/^is\s+null$/i.test(t)) return { sql: `${column} IS NULL`, params: [] };
@@ -83,12 +103,28 @@ export function criterionSql(column, text) {
     if (!values.length) throw new Error(`"${t}" lists nothing to look for.`);
     return { sql: `${column} ${m[1] ? 'NOT ' : ''}IN (${values.map(() => '?').join(', ')})`, params: values };
   }
-  if ((m = /^(not\s+)?between\s+(.+?)\s+and\s+(.+)$/i.exec(t))) return { sql: `${column} ${m[1] ? 'NOT ' : ''}BETWEEN ? AND ?`, params: [valueOf(m[2]), valueOf(m[3])] };
-  if ((m = /^(<>|<=|>=|=|<|>)\s*(.+)$/.exec(t))) return { sql: `${column} ${m[1] === '<>' ? '<>' : m[1]} ?`, params: [valueOf(m[2])] };
-  // A value alone means equal to it; with a wildcard in it, like it.
+  if ((m = /^(not\s+)?between\s+(.+?)\s+and\s+(.+)$/i.exec(t))) {
+    const [lo, hi] = [side(m[2]), side(m[3])];
+    return { sql: `${column} ${m[1] ? 'NOT ' : ''}BETWEEN ${lo.sql} AND ${hi.sql}`, params: [...lo.params, ...hi.params] };
+  }
+  if ((m = /^(<>|<=|>=|=|<|>)\s*(.+)$/.exec(t))) {
+    const v = side(m[2]);
+    return { sql: `${column} ${m[1]} ${v.sql}`, params: v.params };
+  }
+  // A value alone means equal to it; with a wildcard in it, like it. A field named alone, equal to that field.
+  if (namesField(t)) { const f = side(t); return { sql: `${column} = ${f.sql}`, params: f.params }; }
   const v = valueOf(t);
   if (typeof v === 'string' && /[*?]/.test(v)) return { sql: `${column} LIKE ? ESCAPE '\\'`, params: [likePattern(v)] };
   return { sql: `${column} = ?`, params: [v] };
+}
+
+/** A query's own SQL, checked as the SQL view runs it: SELECT (or WITH ... SELECT), one statement. */
+export function sqlText(sql) {
+  const text = String(sql ?? '').trim().replace(/;\s*$/, '');
+  if (!text) throw new Error('Write the query first.');
+  if (!/^(select|with)\b/i.test(text)) throw new Error('A query here starts with SELECT.');
+  if (/;/.test(text.replace(/'(?:[^']|'')*'|"(?:[^"]|"")*"/g, ''))) throw new Error('One statement at a time.');
+  return text;
 }
 
 /**
@@ -118,6 +154,8 @@ export function joinsFor(tables, relationships) {
  * headings of what it shows. `relationships` are the file's.
  */
 export function designToSql(design, relationships = [], { fieldsOf = null, today = null } = {}) {
+  // A query written in SQL and kept from the SQL view: its own text, a SELECT and nothing else.
+  if (typeof design?.sql === 'string') return { sql: sqlText(design.sql), params: [], columns: [], sources: [], written: true };
   const tables = [...new Set(design.tables || [])];
   const columns = (design.columns || []).filter((c) => c && ((c.table && c.field) || (typeof c.expr === 'string' && c.expr.trim())));
   for (const c of columns) if (!c.expr && !tables.includes(c.table)) throw new Error(`${c.field} is from ${c.table}, which is not in the query.`);
@@ -151,7 +189,7 @@ export function designToSql(design, relationships = [], { fieldsOf = null, today
     // Rounded where the design says so: an average spend of 15.08, not 15.0754455445545.
     const places = Number.isInteger(c.decimals) ? Math.max(0, Math.min(6, c.decimals)) : null;
     const expr = places === null ? raw : `ROUND(${raw}, ${places})`;
-    const heading = (c.expr && !agg ? named.get(c) : c.as) || (agg ? `${c.total[0].toUpperCase()}${c.total.slice(1)} of ${nameOf(c)}` : nameOf(c));
+    const heading = (c.expr && !agg ? named.get(c) : c.as) || (agg ? `${TOTAL_WORDS[c.total]} of ${nameOf(c)}` : nameOf(c));
     return { sql: `${expr} AS ${q(heading)}`, heading };
   });
   // Criteria: a row of cells joined by AND, the rows by OR. With totals, a
@@ -166,7 +204,7 @@ export function designToSql(design, relationships = [], { fieldsOf = null, today
     const wp = [];
     const hp = [];
     for (const c of columns) {
-      const one = criterionSql(totals && AGGREGATES[c.total] ? `${AGGREGATES[c.total]}(${colSql(c)})` : colSql(c), (c.criteria || [])[r] || '');
+      const one = criterionSql(totals && AGGREGATES[c.total] ? `${AGGREGATES[c.total]}(${colSql(c)})` : colSql(c), (c.criteria || [])[r] || '', { resolve, today });
       if (!one) continue;
       if (totals && AGGREGATES[c.total]) { h.push(one.sql); hp.push(...one.params); } else { w.push(one.sql); wp.push(...one.params); }
     }

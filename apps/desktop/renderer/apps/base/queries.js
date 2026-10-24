@@ -1,7 +1,8 @@
 // Data Files' query designer: tables put in, the fields to show, criteria in
 // the words Access uses, the sort and totals, and the answer as a table. The
 // design is kept in the file under a name; the SQL it stands for can be seen
-// (the SQL view still takes a query written by hand). The tables are joined
+// (the SQL view takes a query written by hand, and keeps it under a name as
+// it is written: SqlView). The tables are joined
 // by their relationships, so a person never writes a join. A column can be
 // calculated instead, typed as Access takes it in a Field cell:
 // "Line Total: [Quantity] * [Unit Price]".
@@ -16,7 +17,9 @@ import { canDesign } from './people.js';
 const EXPRESSION = '\u0002expression';
 
 const TOTALS = () => [['group', t('Group By')], ['sum', t('Sum')], ['avg', t('Average')], ['count', t('Count')], ['min', t('Min')], ['max', t('Max')], ['where', t('Where')]];
-const blank = () => ({ table: '', field: '', exprText: null, show: true, sort: '', total: 'group', criteria: ['', ''] });
+const blank = () => ({ table: '', field: '', exprText: null, show: true, sort: '', total: 'group', decimals: '', criteria: ['', ''] });
+/** The places a column's answer is rounded to, beside its Total: as it comes, or 0 to 6. */
+const DECIMALS = () => [['', t('As it comes')], ...[0, 1, 2, 3, 4, 5, 6].map((n) => [String(n), tn(n, '{count} place', '{count} places')])];
 /** A column in use: a field chosen, or an expression typed. */
 const used = (c) => Boolean((c.table && c.field) || (c.exprText !== null && c.exprText !== undefined && c.exprText.trim()));
 
@@ -29,6 +32,8 @@ function designOf(tables, columns, totals) {
       show: c.show,
       sort: c.sort || null,
       total: totals ? c.total || 'group' : null,
+      // Rounded where the person said so: an average spend to 2 places.
+      ...(c.decimals !== '' && c.decimals !== null && c.decimals !== undefined ? { decimals: Number(c.decimals) } : {}),
       criteria: c.criteria.filter((x, i, all) => x.trim() || all.slice(i + 1).some((y) => y.trim())),
     })),
   };
@@ -47,6 +52,7 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
   // A saved query opens run, its records shown, its design behind Edit query (D-2026-10-22-06); a new one opens in design.
   const [editing, setEditing] = useState(!name);
   const [loaded, setLoaded] = useState(null);
+  const [sqlEdit, setSqlEdit] = useState(null);
 
   // A saved query opens with its design; a new one with nothing in it.
   useEffect(() => {
@@ -63,7 +69,7 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
       const d = found.design;
       setTables(d.tables || []);
       setTotals((d.columns || []).some((c) => c.total));
-      setColumns([...(d.columns || []).map((c) => ({ ...blank(), ...c, exprText: c.expr ? (c.as ? `${c.as}: ${c.expr}` : c.expr) : null, sort: c.sort || '', total: c.total || 'group', criteria: [...(c.criteria || []), '', ''].slice(0, Math.max(2, (c.criteria || []).length)) })), blank()]);
+      setColumns([...(d.columns || []).map((c) => ({ ...blank(), ...c, exprText: c.expr ? (c.as ? `${c.as}: ${c.expr}` : c.expr) : null, sort: c.sort || '', total: c.total || 'group', decimals: Number.isInteger(c.decimals) ? String(c.decimals) : '', criteria: [...(c.criteria || []), '', ''].slice(0, Math.max(2, (c.criteria || []).length)) })), blank()]);
       setLoaded(d);
     }).catch((e) => toast(e.message, { tone: 'bad' }));
     return () => { live = false; };
@@ -151,6 +157,12 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
     );
   }
 
+  // A query written in SQL is changed as it was written, in the SQL view's box.
+  if (typeof loaded?.sql === 'string') {
+    return <SqlView shell={shell} db={db} name={name} text={sqlEdit ?? loaded.sql} onText={setSqlEdit} toast={toast}
+      onSaved={(summary, as) => { setLoaded({ sql: sqlEdit ?? loaded.sql }); onSaved(summary, as); }} onResults={() => setEditing(false)} />;
+  }
+
   const others = db.tables.map((x) => x.name).filter((x) => !tables.includes(x));
   return (
     <div className="bs-query">
@@ -175,7 +187,7 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
         <table className="bs-q-grid">
           <thead>
             <tr>
-              <th>{t('Field')}</th><th>{t('Show')}</th><th>{t('Sort')}</th>{totals ? <th>{t('Total')}</th> : null}<th>{t('Criteria')}</th><th>{t('Or')}</th><th />
+              <th>{t('Field')}</th><th>{t('Show')}</th><th>{t('Sort')}</th>{totals ? <><th>{t('Total')}</th><th>{t('Decimals')}</th></> : null}<th>{t('Criteria')}</th><th>{t('Or')}</th><th />
             </tr>
           </thead>
           <tbody>
@@ -215,6 +227,13 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
                     </Select>
                   </td>
                 ) : null}
+                {totals ? (
+                  <td>
+                    <Select className="rw-select bs-q-decimals" aria-label={t('Decimals')} title={t('The places the answer is rounded to: an average to 2, for 15.08')} value={c.decimals ?? ''} onChange={(e) => setColumn(i, { decimals: e.target.value })}>
+                      {DECIMALS().map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                    </Select>
+                  </td>
+                ) : null}
                 {[0, 1].map((r) => (
                   <td key={r}>
                     <Input className={`rw-input bs-q-criteria bs-q-row-${r}`} aria-label={r ? t('Or') : t('Criteria')} placeholder={r ? '' : t('e.g. > 10, Like "A*"')} value={c.criteria[r] || ''} onChange={(e) => setColumn(i, { criteria: c.criteria.map((x, k) => (k === r ? e.target.value : x)) })} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} />
@@ -243,6 +262,64 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
       {naming !== null ? (
         <Dialog title={t('Save Query')} onClose={() => setNaming(null)} actions={<><Button label={t('Cancel')} onClick={() => setNaming(null)} /><Button primary label={t('Save')} className="bs-q-save-named" disabled={!String(naming).trim()} onClick={() => save(String(naming).trim())} /></>}>
           <label className="bs-field"><span>{t('Name')}</span><Input className="rw-input bs-q-name" aria-label={t('Name')} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && String(naming).trim()) save(String(naming).trim()); }} /></label>
+        </Dialog>
+      ) : null}
+    </div>
+  );
+}
+
+/* ── a query written in SQL ───────────────────────────────────────── */
+
+/**
+ * The SQL view: a query written by hand, run with the database read-only,
+ * and kept under a name as it is written (Save As), then opened from the
+ * Queries list as any query is. `text` is held by the window, so it is
+ * still there when the view is left and come back to.
+ */
+export function SqlView({ shell, db, name = null, text, onText, onSaved, onResults = null, toast }) {
+  const [out, setOut] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [naming, setNaming] = useState(null);
+  const runIt = async () => {
+    setBusy(true);
+    setError('');
+    try { setOut(await shell.base.query({ id: db.id, sql: text })); } catch (e) { setError(e.message); setOut(null); } finally { setBusy(false); }
+  };
+  const save = async (as) => {
+    try {
+      const summary = await shell.base.saveQuery({ id: db.id, name: as, design: { sql: text } });
+      setNaming(null);
+      onSaved?.(summary, as);
+      toast(t('Kept as {name}', { name: as }), { tone: 'good' });
+    } catch (e) {
+      toast(e.message, { tone: 'bad', ms: 7000 });
+    }
+  };
+  return (
+    <div className="bs-sql">
+      {name ? <div className="bs-tools bs-q-runbar"><Icon name="formula" size={16} /><strong className="bs-q-title">{name}</strong></div> : null}
+      <textarea className="rw-input bs-sql-text" spellCheck={false} value={text} onChange={(e) => onText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runIt(); } }} aria-label={t('Query')} />
+      <div className="bs-tools">
+        <Button primary icon="play" label={t('Run')} className="bs-sql-run" disabled={busy} title={t('Run the query (Ctrl+Enter). It only reads: nothing in the database changes.')} onClick={runIt} />
+        <Button icon="save" label={name ? t('Save') : t('Save As')} className="bs-sql-save" disabled={!String(text).trim()} title={t('Keep the query under a name, as it is written, with the other queries')} onClick={() => (name ? save(name) : setNaming(''))} />
+        {name ? <Button label={t('Save As')} className="bs-sql-save-as" disabled={!String(text).trim()} onClick={() => setNaming('')} /> : null}
+        {out ? <span className="bs-count">{out.count > out.rows.length ? t('{shown} of {count} rows', { shown: out.rows.length, count: out.count }) : tn(out.count, '{count} row', '{count} rows')}</span> : null}
+        <span className="bs-q-grow" />
+        {onResults ? <Button icon="table" label={t('Show results')} className="bs-q-results" onClick={onResults} /> : null}
+      </div>
+      {error ? <p className="bs-error" role="alert">{error}</p> : null}
+      {out ? (
+        <div className="bs-result">
+          <table>
+            <thead><tr>{out.columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+            <tbody>{out.rows.map((r, i) => <tr key={i}>{out.columns.map((c) => <td key={c}>{r[c] === null ? '' : String(r[c])}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      ) : null}
+      {naming !== null ? (
+        <Dialog title={t('Save Query')} onClose={() => setNaming(null)} actions={<><Button label={t('Cancel')} onClick={() => setNaming(null)} /><Button primary label={t('Save')} className="bs-sql-save-named" disabled={!String(naming).trim()} onClick={() => save(String(naming).trim())} /></>}>
+          <label className="bs-field"><span>{t('Name')}</span><Input className="rw-input bs-sql-name" aria-label={t('Name')} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && String(naming).trim()) save(String(naming).trim()); }} /></label>
         </Dialog>
       ) : null}
     </div>

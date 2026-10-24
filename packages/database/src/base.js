@@ -6,8 +6,8 @@
 // AutoNumber is never renumbered.
 
 import { DatabaseSync } from 'node:sqlite';
-import { FIELD_TYPES, q, columnSql, toStored } from './types.js';
-import { designToSql } from './query-design.js';
+import { FIELD_TYPES, q, columnSql, toStored, literal, fitTo, UNFIT } from './types.js';
+import { designToSql, sqlText, newHeading } from './query-design.js';
 import { wizardForm, shownField } from './form-design.js';
 import { wizardReport, reportData } from './report-design.js';
 import { wizardDocument, documentData, PAPERS, BLOCKS } from './document-design.js';
@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS rutba_linked (tbl TEXT PRIMARY KEY COLLATE NOCASE, li
 export const DESIGN_VERSION = 6;
 
 const RESERVED = /^(rutba_|sqlite_)/i;
+
+/** A table's name for one of its records: Sales a Sale, Deliveries a Delivery; Address and Status as they are. */
+const singular = (name) => String(name).replace(/ies$/i, 'y').replace(/([^su])s$/i, '$1');
 
 /** A table or field name a person may give: words, not empty, not one of the file's own. */
 function checkName(name, what) {
@@ -88,6 +91,8 @@ export class Base {
 
   constructor(db) {
     this.db = db;
+    // A value put into a field's new type as its type is changed (_rebuild); one that does not fit is let go empty.
+    try { db.function('rutba_fit', { deterministic: true }, (type, size, v) => fitTo({ type, size }, v) ?? (type === 'yesno' ? 0 : null)); } catch { /* an SQLite without functions of our own */ }
     // The day Date() and Now() answer in this database's expressions; null is today.
     this.today = null;
     // Who is using it (D-2026-10-22-11): null while it is not protected; locked until someone signs in.
@@ -223,9 +228,11 @@ export class Base {
   _rebuild(table, fields, relations) {
     const tmp = `rutba_rebuild_${Date.now()}`;
     const keep = fields.filter((f) => f.from);
-    this.db.exec(this._tableSql(tmp, fields.map(({ from, ...f }) => f), relations.map((r) => (r.from.table === table ? { ...r, from: { ...r.from, table: tmp } } : r))));
+    this.db.exec(this._tableSql(tmp, fields.map(({ from, convert, ...f }) => f), relations.map((r) => (r.from.table === table ? { ...r, from: { ...r.from, table: tmp } } : r))));
     if (keep.length) {
-      const cast = (f) => (['number', 'currency'].includes(f.type) ? `CAST(${q(f.from)} AS REAL)` : f.type === 'integer' ? `CAST(${q(f.from)} AS INTEGER)` : q(f.from));
+      // A field whose type changed: each value put into the new type as fitTo puts it (rutba_fit), one that does not fit let go empty.
+      const cast = (f) => (f.convert ? `rutba_fit(${literal(f.type)}, ${literal(f.size ?? null)}, ${q(f.from)})`
+        : ['number', 'currency'].includes(f.type) ? `CAST(${q(f.from)} AS REAL)` : f.type === 'integer' ? `CAST(${q(f.from)} AS INTEGER)` : q(f.from));
       this.db.exec(`INSERT INTO ${q(tmp)} (${keep.map((f) => q(f.name)).join(', ')}) SELECT ${keep.map(cast).join(', ')} FROM ${q(table)}`);
     }
     // The AutoNumber's counter is the table's, not its rows': a number given once is never given again.
@@ -276,8 +283,66 @@ export class Base {
     });
   }
 
-  /** Change a field: its name, type, size, required, unique, default or caption. Its data comes with it. */
-  changeField(table, name, change) {
+  /** How a record is named in a sentence: by its AutoNumber (ID 4), else its place (record 4). */
+  _recordWord(fields, row) {
+    const key = fields.find((f) => f.type === 'autonumber');
+    return key ? `${key.name} ${row[key.name]}` : `record ${row._r}`;
+  }
+
+  /** A few records named, the rest counted: "ID 4 ("soon"), ID 7 ("next week") and 3 more". */
+  _someRecords(list, word) {
+    const shown = list.slice(0, 3).map(word);
+    const more = list.length - shown.length;
+    return shown.length === 1 ? shown[0] : more ? `${shown.join(', ')} and ${more} more` : `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`;
+  }
+
+  /**
+   * Whether a field's records fit it as it is to be (`now`, from `was`):
+   * every value in the new type, none empty when it is required, no two the
+   * same when it is unique. Throws which records do not, in plain words; with
+   * `clear`, those whose value is not of the new type are let go empty.
+   */
+  _fitRecords(table, fields, was, now, { clear = false } = {}) {
+    const typed = was.type !== now.type || (now.type === 'text' && (Number(now.size) || 255) < (Number(was.size) || 255));
+    const firm = (now.required && !was.required) || (now.unique && !was.unique);
+    if (!typed && !firm) return false;
+    const key = fields.find((f) => f.type === 'autonumber');
+    const rows = this.db.prepare(`SELECT rowid AS _r${key ? `, ${q(key.name)}` : ''}, ${q(was.name)} AS v FROM main.${q(table)} ORDER BY rowid`).all();
+    const word = (r) => this._recordWord(fields, r);
+    const them = (n) => (n === 1 ? 'it' : 'them');
+    const unfit = typed ? rows.filter((r) => fitTo(now, r.v) === undefined) : [];
+    if (unfit.length && !clear) {
+      const n = unfit.length;
+      throw new Error(`${n} record${n === 1 ? '' : 's'} of ${table} ${n === 1 ? 'has' : 'have'} a ${was.name} that ${(UNFIT[now.type] || UNFIT.text)(now)}: ${this._someRecords(unfit, (r) => `${word(r)} ("${String(r.v).slice(0, 40)}")`)}. Clear ${them(n)} and change the type, or put ${them(n)} right first.`);
+    }
+    const gone = new Set(unfit.map((r) => r._r));
+    const after = rows.filter((r) => !gone.has(r._r)).map((r) => ({ ...r, v: typed ? fitTo(now, r.v) : r.v }));
+    if (now.required && !was.required) {
+      const empty = [...unfit, ...after.filter((r) => r.v === null || r.v === undefined || r.v === '')];
+      if (empty.length) {
+        const n = empty.length;
+        throw new Error(`${n} record${n === 1 ? '' : 's'} of ${table} ${n === 1 ? 'has' : 'have'} no ${was.name}: ${this._someRecords(empty, word)}. Fill ${them(n)} in first, then make ${was.name} required.`);
+      }
+    }
+    if (now.unique && !was.unique) {
+      const seen = new Map();
+      for (const r of after) {
+        if (r.v === null || r.v === undefined) continue;
+        const k = typeof r.v === 'string' ? `s${r.v}` : `n${r.v}`;
+        if (seen.has(k)) throw new Error(`${word(seen.get(k))} and ${word(r)} of ${table} have the same ${was.name} ("${String(r.v).slice(0, 40)}"). Change one of them first, then make ${was.name} unique.`);
+        seen.set(k, r);
+      }
+    }
+    return typed;
+  }
+
+  /**
+   * Change a field: its name, type, size, required, unique, default or
+   * caption. Its data comes with it, each value put into the new type; a value
+   * that does not fit refuses the change, saying which records, unless
+   * `clear` lets those go empty.
+   */
+  changeField(table, name, change, { clear = false } = {}) {
     this._notLinked(table);
     const fields = this.fields(table);
     const i = fields.findIndex((f) => f.name === name);
@@ -304,8 +369,9 @@ export class Base {
         saveRelations();
       });
     }
-    return this._withRebuild(`Change field ${was.name} in ${table}`, { table, from: was, to: now }, () => {
-      this._rebuild(table, next.map((f, k) => ({ ...f, from: k === i ? was.name : f.name })), relations);
+    const convert = this._fitRecords(table, fields, was, now, { clear });
+    return this._withRebuild(`Change field ${was.name} in ${table}`, { table, from: was, to: now, ...(clear ? { cleared: true } : {}) }, () => {
+      this._rebuild(table, next.map((f, k) => ({ ...f, from: k === i ? was.name : f.name, ...(k === i && convert ? { convert: true } : {}) })), relations);
       this._writeFields(table, next);
       saveRelations();
     });
@@ -441,7 +507,7 @@ export class Base {
     const sql = given.length
       ? `INSERT INTO ${this._target(table)} (${given.map((f) => q(f.name)).join(', ')}) VALUES (${given.map(() => '?').join(', ')})`
       : `INSERT INTO ${this._target(table)} DEFAULT VALUES`;
-    const rowid = Number(this._run(sql, given.map((f) => toStored(f, values[f.name]))).lastInsertRowid);
+    const rowid = Number(this._run(sql, given.map((f) => toStored(f, values[f.name])), { table, values }).lastInsertRowid);
     this._trail(table, [rowid], 'add');
     if (copy) trackWrite(this, table, 'add', [rowid]);
     return rowid;
@@ -462,7 +528,7 @@ export class Base {
       fields = fields.filter((f) => !f.readOnly);
     }
     if (!fields.length) return 0;
-    const changes = Number(this._run(`UPDATE ${this._target(table)} SET ${fields.map((f) => `${q(f.name)} = ?`).join(', ')} WHERE rowid = ?`, [...fields.map((f) => toStored(f, values[f.name])), rowid]).changes);
+    const changes = Number(this._run(`UPDATE ${this._target(table)} SET ${fields.map((f) => `${q(f.name)} = ?`).join(', ')} WHERE rowid = ?`, [...fields.map((f) => toStored(f, values[f.name])), rowid], { table, values, rowids: [rowid] }).changes);
     if (changes) this._trail(table, [rowid], 'change', { fields: fields.map((f) => f.name) });
     if (changes && copy) trackWrite(this, table, 'change', [rowid]);
     return changes;
@@ -475,24 +541,67 @@ export class Base {
     this._mayWrite(table, 'delete', ids);
     this._known(table);
     if (!ids.length) return 0;
-    const changes = Number(this._run(`DELETE FROM ${this._target(table)} WHERE rowid IN (${ids.map(() => '?').join(', ')})`, ids).changes);
+    const changes = Number(this._run(`DELETE FROM ${this._target(table)} WHERE rowid IN (${ids.map(() => '?').join(', ')})`, ids, { table, rowids: ids, deleting: true }).changes);
     this._trail(table, ids, 'delete');
     if (copy) trackWrite(this, table, 'delete', ids);
     return changes;
   }
 
-  /** A statement, its failures said in words a person can act on. */
-  _run(sql, params) {
+  /**
+   * A statement, its failures said in words a person can act on. `about`
+   * ({ table, values, rowids, deleting }) is what it was doing, so a record
+   * pointing at nothing, or pointed at, can be named.
+   */
+  _run(sql, params, about = null) {
     try {
       return this.db.prepare(sql).run(...params);
     } catch (err) {
       const m = String(err.message);
-      if (/FOREIGN KEY constraint failed/.test(m)) throw new Error('That record is related to others: it points at one that is not there, or others point at it.');
+      if (/FOREIGN KEY constraint failed/.test(m)) throw new Error(this._relatedWords(about) || 'That record is related to others: it points at one that is not there, or others point at it.');
       if (/UNIQUE constraint failed: [^.]+\.(.+)$/.test(m)) throw new Error(`Another record has that ${RegExp.$1} already.`);
       if (/NOT NULL constraint failed: [^.]+\.(.+)$/.test(m)) throw new Error(`${RegExp.$1} needs a value.`);
       if (/CHECK constraint failed/.test(m)) throw new Error('A value does not fit its field: too long, or not the kind the field takes.');
       throw err;
     }
+  }
+
+  /**
+   * Why a record is refused by a relationship, in plain words: the record it
+   * points at is not there ("Products has no record 99"), or, deleting, which
+   * records point at it. Null when it cannot be said.
+   */
+  _relatedWords(about) {
+    if (!about?.table) return null;
+    const rels = this.relationships().filter((r) => !this.isLinked(r.from.table) && !this.isLinked(r.to.table));
+    try {
+      if (!about.deleting) {
+        const fields = this.fields(about.table);
+        for (const r of rels.filter((x) => x.from.table === about.table && Object.hasOwn(about.values || {}, x.from.field))) {
+          const f = fields.find((x) => x.name === r.from.field);
+          const v = f ? toStored(f, about.values[r.from.field]) : about.values[r.from.field];
+          if (v === null || v === undefined) continue;
+          if (this.db.prepare(`SELECT 1 FROM main.${q(r.to.table)} WHERE ${q(r.to.field)} = ?`).get(v)) continue;
+          const byNumber = this._allFields(r.to.table).find((x) => x.name === r.to.field)?.type === 'autonumber';
+          return `${r.to.table} has no record ${byNumber ? v : `with ${r.to.field} ${v}`}, so ${r.from.field} cannot point at it.`;
+        }
+      }
+      const ids = about.rowids || [];
+      if (!ids.length) return null;
+      const marks = ids.map(() => '?').join(', ');
+      const pointedAt = rels.filter((x) => x.to.table === about.table && (about.deleting ? !x.cascadeDelete : Object.hasOwn(about.values || {}, x.to.field)));
+      for (const r of pointedAt) {
+        const fromFields = this._allFields(r.from.table);
+        const key = fromFields.find((x) => x.type === 'autonumber');
+        const pointing = this.db.prepare(`SELECT rowid AS _r${key ? `, ${q(key.name)}` : ''} FROM main.${q(r.from.table)} WHERE ${q(r.from.field)} IN (SELECT ${q(r.to.field)} FROM main.${q(about.table)} WHERE rowid IN (${marks})) ORDER BY rowid`).all(...ids);
+        if (!pointing.length) continue;
+        const n = pointing.length;
+        const it = ids.length === 1 ? 'it' : 'them';
+        const which = `${n} record${n === 1 ? '' : 's'} of ${r.from.table} point${n === 1 ? 's' : ''} at ${ids.length === 1 ? 'this one' : 'these'}${this._rights() ? '' : ` (${this._someRecords(pointing, (x) => this._recordWord(fromFields, x))})`}`;
+        if (!about.deleting) return `${which}, so its ${r.to.field} cannot change.`;
+        return `${which}. Delete or change ${n === 1 ? 'that one' : 'those'} first, or say in Relationships that deleting one of ${about.table} deletes its records in ${r.from.table}; then delete ${it}.`;
+      }
+    } catch { /* said in general words */ }
+    return null;
   }
 
   /* ── saved queries and forms ───────────────────────────────────── */
@@ -501,7 +610,9 @@ export class Base {
   queries() {
     if (this.access?.locked) return [];
     const all = this.db.prepare('SELECT name, design FROM rutba_queries ORDER BY position, name').all().map((r) => ({ name: r.name, design: JSON.parse(r.design) }));
-    return this._shown('queries', all, (x) => x.design.tables || []);
+    // A query written in SQL could name main.<table> and read past a role: it is for those who may change the design.
+    const shown = this._rights() ? all.filter((x) => typeof x.design?.sql !== 'string') : all;
+    return this._shown('queries', shown, (x) => x.design.tables || []);
   }
 
   /** A query kept under `name` (made, or replaced), after its design is checked by building its SQL. */
@@ -509,11 +620,29 @@ export class Base {
     const n = checkName(name, 'query');
     if (this.tables().some((t) => t.name.toLowerCase() === n.toLowerCase())) throw new Error(`${n} is a table's name already. Give the query another.`);
     designToSql(design, this.relationships(), this._designFields());
+    // One written in SQL is kept as it is written, once SQLite has read it.
+    if (typeof design?.sql === 'string') this._written(design.sql);
     const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_queries').get().p;
+    const kept = typeof design?.sql === 'string' ? { sql: sqlText(design.sql) } : design;
     return this._step(`Query ${n} kept`, { query: n }, () => {
-      this.db.prepare('INSERT INTO rutba_queries (name, design, position) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET design = excluded.design').run(n, JSON.stringify(design), at);
+      this.db.prepare('INSERT INTO rutba_queries (name, design, position) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET design = excluded.design').run(n, JSON.stringify(kept), at);
       return n;
     });
+  }
+
+  /**
+   * A query written in SQL, read by SQLite with the database read-only: its
+   * text checked, and its columns' names. For those who may change the design.
+   */
+  _written(sql) {
+    this._mayDesign();
+    const text = sqlText(sql);
+    this.db.exec('PRAGMA query_only = ON');
+    try {
+      return { text, columns: this.db.prepare(text).columns().map((c) => c.name) };
+    } finally {
+      this.db.exec('PRAGMA query_only = OFF');
+    }
   }
 
   removeQuery(name) {
@@ -527,6 +656,7 @@ export class Base {
   runQuery({ name = null, design = null, limit = 5000, today = this.today } = {}) {
     const d = design || this.queries().find((x) => x.name === name)?.design;
     if (!d) throw new Error(`There is no query called ${name}.`);
+    if (typeof d.sql === 'string') this._mayDesign();
     const { sql, params, columns } = designToSql(d, this.relationships(), { ...this._designFields(), today });
     const out = this._select(sql, params);
     const rows = out.rows.slice(0, limit).map(cleanRow);
@@ -542,7 +672,19 @@ export class Base {
   queryRows({ name = null, design = null, offset = 0, limit = 200, order = null, search = '', filters = [], today = this.today } = {}) {
     const d = design || this.queries().find((x) => x.name === name)?.design;
     if (!d) throw new Error(`There is no query called ${name}.`);
-    const { sql, params, columns: names, sources } = designToSql(d, this.relationships(), { ...this._designFields(), today });
+    const designed = designToSql(d, this.relationships(), { ...this._designFields(), today });
+    const { sql, params, sources } = designed;
+    // A query written in SQL: its columns as SQLite reads them, and it is run with the database read-only.
+    const names = designed.written ? this._written(sql).columns : designed.columns;
+    if (designed.written) this.db.exec('PRAGMA query_only = ON');
+    try {
+      return this._queryPage(sql, params, names, sources, { offset, limit, order, search, filters });
+    } finally {
+      if (designed.written) this.db.exec('PRAGMA query_only = OFF');
+    }
+  }
+
+  _queryPage(sql, params, names, sources, { offset, limit, order, search, filters }) {
     const inner = `(${sql}) AS r`;
     // Typed by the field shown; a calculation or a total by its values, read from a few of them.
     const sniffed = new Map();
@@ -564,6 +706,7 @@ export class Base {
 
   /** The SQL a design stands for, its values shown in place of the parameters, for the SQL view. */
   sqlOf(design, { today = this.today } = {}) {
+    if (typeof design?.sql === 'string') return this._written(design.sql).text;
     const { sql, params } = designToSql(design, this.relationships(), { ...this._designFields(), today });
     let i = 0;
     // A ? inside a quoted name or text (an expression's "Is it?") is not a parameter.
@@ -644,7 +787,7 @@ export class Base {
     for (let i = 2; taken.has(n.toLowerCase()); i++) n = `${want} ${i}`;
     const layout = table
       ? wizardReport({ table, fields: this.fields(table), relationships: this.relationships(), name: n })
-      : wizardReport({ query, columns: this.runQuery({ name: query, limit: 1 }).columns, name: n });
+      : wizardReport({ query, columns: this.queryRows({ name: query, limit: 1 }).columns, name: n });
     this.saveReport(layout);
     return layout;
   }
@@ -656,7 +799,7 @@ export class Base {
    * the source's fields with their types, for grouping, sorting and showing.
    */
   reportData({ name = null, layout = null, today = this.today } = {}) {
-    const l = layout || this.reports().find((r) => r.name === name)?.layout;
+    let l = layout || this.reports().find((r) => r.name === name)?.layout;
     if (!l) throw new Error(`There is no report called ${name}.`);
     let records;
     let fields;
@@ -671,7 +814,15 @@ export class Base {
     } else {
       const out = this.runQuery({ name: l.source?.query, limit: 1_000_000, today });
       records = out.rows;
-      fields = out.columns.map((c) => ({ name: c, type: null }));
+      // Each column typed by the field it shows, or by its values, as the query's results are.
+      const types = new Map(this.queryRows({ name: l.source?.query, limit: 1, today }).columns.map((c) => [c.name, c.type]));
+      fields = out.columns.map((c) => ({ name: c, type: types.get(c) ?? null }));
+      // A report made before 2.18 names an average's column "Avg of Total"; the query heads it "Average of Total" now.
+      const have = new Set(out.columns);
+      const now = (f) => (f && !have.has(f) && have.has(newHeading(f)) ? newHeading(f) : f);
+      if ([...(l.columns || []).map((c) => c.field), ...(l.totals || []).map((x) => x.field), l.group, l.sort].some((f) => f && now(f) !== f)) {
+        l = { ...l, columns: (l.columns || []).map((c) => ({ ...c, field: now(c.field) })), totals: (l.totals || []).map((x) => ({ ...x, field: now(x.field) })), group: now(l.group), sort: now(l.sort) };
+      }
     }
     const shownAs = (field, value) => (shown[field]?.has(value) ? shown[field].get(value) : value);
     // A pointing field is shown as words, not as the number it holds.
@@ -1288,7 +1439,9 @@ export class Base {
    * templates: what the table says (setShown); else the first of its likely
    * fields whose values name one record each (a Name or Title, a field
    * ending in Name, a text field, then a reference such as a Receipt No);
-   * else the likeliest, as shownField picks it. A field, or a list of them.
+   * else the likeliest, as shownField picks it. A field, or a list of them;
+   * or, when nothing names one record each, { number, date, noun }: named by
+   * its number and date, as "Sale 17, 21/10/2026".
    */
   shownOf(table) {
     const fields = this.fields(table);
@@ -1305,7 +1458,7 @@ export class Base {
     const named = (re) => text.filter((f) => re.test(f.name)).map((f) => f.name);
     const candidates = [];
     if (Array.isArray(pick)) candidates.push(pick);
-    for (const n of [...named(/^(name|title)$/i), ...named(/[ _]?name$/i), ...text.map((f) => f.name)]) if (!candidates.some((c) => c === n)) candidates.push(n);
+    for (const n of [...named(/^(name|title)$/i), ...named(/[ _]?name$/i), ...text.map((f) => f.name), ...(Array.isArray(pick) ? [] : [pick])]) if (!candidates.some((c) => c === n)) candidates.push(n);
     const unique = (c) => {
       const expr = Array.isArray(c) ? c.map((f) => `COALESCE(${q(f)}, '')`).join(" || ' ' || ") : q(c);
       try {
@@ -1314,7 +1467,16 @@ export class Base {
       } catch { return false; }
     };
     // With fewer than two records nothing can repeat: the likeliest stands.
-    const out = count < 2 ? pick : (candidates.find(unique) ?? pick);
+    let out = count < 2 ? pick : candidates.find(unique);
+    if (out === undefined) {
+      // Nothing names one record each (a sale's Payment is Cash for most): it is named by its number and its date,
+      // "Sale 17, 21/10/2026", unless it is named by the record it points at (a sale's line by its sale).
+      const pointing = new Set(this.relationships().filter((r) => r.from.table === table).map((r) => r.from.field));
+      const key = fields.find((f) => f.type === 'autonumber');
+      out = key && ![].concat(pick).some((n) => pointing.has(n))
+        ? { number: key.name, date: fields.find((f) => f.type === 'date' || f.type === 'datetime')?.name || null, noun: singular(table) }
+        : pick;
+    }
     this._shownCache.set(key, out);
     return out;
   }
@@ -1354,6 +1516,11 @@ export class Base {
   _wordsSql(table, alias, depth = 0) {
     const named = this.shownOf(table);
     const fields = new Map(this.fields(table).map((f) => [f.name, f]));
+    if (named && typeof named === 'object' && !Array.isArray(named) && fields.has(named.number)) {
+      // A record named by nothing of its own: its table's noun, its number and its date.
+      const number = `(${literal(`${named.noun} `)} || CAST(${alias}.${q(named.number)} AS TEXT))`;
+      return named.date && fields.has(named.date) ? `(${number} || COALESCE(', ' || strftime('%d/%m/%Y', ${alias}.${q(named.date)}), ''))` : number;
+    }
     let list = (Array.isArray(named) ? named : [named]).filter((n) => fields.has(n));
     if (!list.length) list = [[...fields.keys()][0]];
     const rels = this.relationships().filter((r) => r.from.table === table);

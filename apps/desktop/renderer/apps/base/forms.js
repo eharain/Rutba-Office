@@ -6,10 +6,10 @@
 // starts a new one and deletes the one shown.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Select, t, tn } from '@rutba/office-ui';
+import { Button, Dialog, Select, t, tn } from '@rutba/office-ui';
 import { valueFromControl } from '@rutba/database/form-design';
 import { usePrinter } from './documents.js';
-import { may } from './people.js';
+import { may, canDesign } from './people.js';
 
 const LABEL_X = 16;
 
@@ -66,7 +66,7 @@ function SearchList({ shell, db, control: c, common, value, onPick }) {
   );
 }
 
-export function FormView({ shell, db, name, onChanged, toast }) {
+export function FormView({ shell, db, name, onChanged, onMakeTemplate = null, toast }) {
   const [layout, setLayout] = useState(null);
   const [count, setCount] = useState(0);
   const [at, setAt] = useState(0); // the record's place, count for a new one
@@ -181,7 +181,10 @@ export function FormView({ shell, db, name, onChanged, toast }) {
       toast(e.message, { tone: 'bad', ms: 7000 });
     }
   };
+  // Delete asks first: a record deleted is gone, and the form shows the next.
+  const [asking, setAsking] = useState(false);
   const remove = async () => {
+    setAsking(false);
     if (!record) return;
     try {
       await shell.base.remove({ id: db.id, table: layout.table, rowids: [record._rowid] });
@@ -246,6 +249,13 @@ export function FormView({ shell, db, name, onChanged, toast }) {
         <Button icon="chevronRight" label="" title={t('Next record')} className="bs-nav-next" disabled={at >= count - 1} onClick={() => setAt(at + 1)} />
         <Button icon="skipForward" label="" title={t('Last record')} className="bs-nav-last" disabled={at >= count - 1} onClick={() => setAt(Math.max(0, count - 1))} />
         <span className="grow" />
+        {!templates.length && !isNew && canDesign(db) ? (
+          // No print template for this table: where its Print buttons would be, how to make one.
+          <span className="bs-form-no-print" data-no-template={layout.table}>
+            <span className="bs-hint">{t('To print this record, make a print template for {table}.', { table: layout.table })}</span>
+            {onMakeTemplate ? <Button icon="print" label={t('New Print Template')} className="bs-form-make-template" onClick={() => onMakeTemplate(layout.table)} /> : null}
+          </span>
+        ) : null}
         {templates.length && !isNew ? (
           <span className="bs-form-print">
             {templates.length > 1 ? (
@@ -260,8 +270,13 @@ export function FormView({ shell, db, name, onChanged, toast }) {
         {!may(db, layout?.table, 'add') ? null : isNew
           ? <Button primary icon="plus" label={t('Add Record')} className="bs-nav-add" onClick={addRecord} />
           : <Button icon="plus" label={t('New Record')} className="bs-nav-new" onClick={() => setAt(count)} />}
-        {isNew || !may(db, layout?.table, 'delete') ? null : <Button icon="trash" label={t('Delete')} className="bs-nav-delete" onClick={remove} />}
+        {isNew || !may(db, layout?.table, 'delete') ? null : <Button icon="trash" label={t('Delete')} className="bs-nav-delete" onClick={() => setAsking(true)} />}
       </div>
+      {asking ? (
+        <Dialog title={t('Delete this record?')} onClose={() => setAsking(false)} actions={<><Button label={t('Cancel')} className="bs-delete-cancel" onClick={() => setAsking(false)} /><Button primary label={t('Delete')} className="bs-delete-yes" onClick={remove} /></>}>
+          <p>{t('Record {at} of {table} is deleted, and cannot be brought back.', { at: at + 1, table: layout.table })}</p>
+        </Dialog>
+      ) : null}
       {printer.portal}
     </div>
   );
@@ -294,6 +309,8 @@ export const FORM_CSS = `
 .bs-subform th, .bs-subform td { text-align: start; padding: 4px 8px; border-bottom: 1px solid var(--line-soft); }
 .bs-form-bar { display: flex; align-items: center; gap: 4px; padding: 8px 16px; border-top: 1px solid var(--line-soft); background: var(--window); position: sticky; bottom: 0; }
 .bs-form-print { display: inline-flex; gap: 4px; align-items: center; margin-inline-end: 8px; }
+.bs-form-no-print { display: inline-flex; gap: 6px; align-items: center; margin-inline-end: 8px; }
+.bs-form-no-print .bs-hint { font-size: 12px; color: var(--ink-3); }
 .bs-nav-place { min-width: 140px; text-align: center; font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .bs-form-empty { padding: 24px; color: var(--ink-3); }
 `;

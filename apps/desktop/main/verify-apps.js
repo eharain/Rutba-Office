@@ -47,6 +47,7 @@ import { verifyBaseFormLists } from './verify-base-form-lists.js';
 import { verifyBaseFormsAll } from './verify-base-forms-all.js';
 import { verifyBaseOrigin } from './verify-base-origin.js';
 import { verifyBaseReports } from './verify-base-reports.js';
+import { verifyBaseFixes } from './verify-base-fixes.js';
 import { verifyBaseTemplates } from './verify-base-templates.js';
 import { verifyBaseDocuments } from './verify-base-documents.js';
 import { verifyTemplateVersions } from './verify-template-versions.js';
@@ -5127,6 +5128,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('base-form-lists')) await verifyBaseFormLists({ open, check, until, wait }, { dir });
     if (only.includes('base-origin')) await verifyBaseOrigin({ open, check, until, wait }, { dir });
     if (only.includes('base-reports')) await verifyBaseReports({ open, check, until, wait }, { dir });
+    if (only.includes('base-fixes')) await verifyBaseFixes({ open, check, until, wait }, { dir });
     if (only.includes('base-templates')) await verifyBaseTemplates({ open, check, until, wait }, { dir });
     if (only.includes('base-documents')) await verifyBaseDocuments({ open, check, until, wait }, { dir });
     if (only.includes('template-versions')) await verifyTemplateVersions({ open, check, until, wait });
@@ -5534,6 +5536,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('base', () => verifyBaseFormLists({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseOrigin({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseReports({ open, check, until, wait }, { dir }));
+  await part('base', () => verifyBaseFixes({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseTemplates({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseDocuments({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseSamples({ open, check, until, wait }, { dir }));

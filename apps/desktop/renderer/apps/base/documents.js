@@ -19,6 +19,8 @@ const PAGE = { a4: ['210mm 297mm', '210mm'], letter: ['8.5in 11in', '8.5in'], a5
 const isRoll = (paper) => String(paper).startsWith('receipt');
 // The shape of a total's expression, shown in an empty box: an example, not words to translate.
 const TOTAL_SHAPE = '[Amount]';
+/** The tables a template takes its letterhead from by itself (document-design.js). */
+const LETTERHEAD_TABLES = /^(business|company)( details| info(rmation)?)?$/i;
 
 /** A value as a document shows it; empty shows as nothing. */
 const valueText = (type, v, decimals = null) => (v === null || v === undefined ? '' : type === 'autonumber' ? String(v) : shown(type, v, decimals));
@@ -260,6 +262,10 @@ function Designer({ layout, onChange, tables, names, childTables, childNames }) 
             {tables.filter((x) => x !== layout.table).map((x) => <option key={x} value={x}>{x}</option>)}
           </Select>
         </label>
+        {/* What the letterhead is, where nothing gives one: the business's own details at the top of every page. */}
+        {!layout.letterhead?.table && !tables.some((x) => LETTERHEAD_TABLES.test(x)) ? (
+          <p className="bs-hint bs-dd-letterhead-hint">{t('A letterhead is your business\'s name, address and other details at the top of every page. They come from the first record of a table of your own details: make a table called Business with one record, then choose it here. A template made after it takes it by itself.')}</p>
+        ) : null}
       </div>
       {blocks.map((b, i) => (
         <section key={i} className="bs-dd-block" data-block={b.type}>
@@ -373,22 +379,28 @@ export function DocumentView({ shell, db, name, onChanged, onRemoved, toast }) {
   );
 }
 
-/** The record to print: every one, or one by its number. */
+/** The record to print: every one, or one, named as its lists name it (Sale 17, 21/10/2026), in the table's order. */
 function RecordPicker({ shell, db, table, value, onPick }) {
   const [keys, setKeys] = useState([]);
+  const [words, setWords] = useState(new Map());
   useEffect(() => {
     let live = true;
-    shell.base.rows({ id: db.id, table, limit: 1000 }).then((p) => {
+    (async () => {
+      const fields = await shell.base.fields({ id: db.id, table });
+      const key = fields.find((f) => f.type === 'autonumber')?.name || 'ID';
+      const p = await shell.base.rows({ id: db.id, table, limit: 1000 });
+      const list = p.rows.map((r) => r[key] ?? r.ID).filter((k) => k !== null && k !== undefined);
       if (!live) return;
-      const key = Object.keys(p.rows[0] || {}).find((k) => k !== '_rowid') || 'ID';
-      setKeys(p.rows.map((r) => r.ID ?? r[key]));
-    }).catch(() => {});
+      setKeys(list);
+      const page = list.length ? await shell.base.lookupPage({ id: db.id, table, field: key, values: list }) : { items: [] };
+      if (live) setWords(new Map(page.items.map((o) => [o.value, o.text])));
+    })().catch(() => {});
     return () => { live = false; };
   }, [shell, db.id, table, db.steps]);
   return (
     <Select className="rw-select bs-doc-record" aria-label={t('Record')} value={value} onChange={(e) => onPick(e.target.value)}>
       <option value="all">{t('Every record')}</option>
-      {keys.map((k) => <option key={k} value={String(k)}>{t('Record {n}', { n: k })}</option>)}
+      {keys.map((k) => <option key={k} value={String(k)}>{words.get(k) && words.get(k) !== String(k) ? words.get(k) : t('Record {n}', { n: k })}</option>)}
     </Select>
   );
 }
@@ -445,6 +457,7 @@ export const DOCUMENT_CSS = `
 .bs-dd-expr { font-family: var(--mono, ui-monospace, monospace); font-size: 12px; }
 .bs-dd-text { width: 100%; box-sizing: border-box; resize: vertical; font: inherit; font-size: 12.5px; }
 .bs-dd-add { display: flex; gap: 6px; }
+.bs-dd-letterhead-hint { margin: 0; font-size: 12px; color: var(--ink-3); line-height: 1.4; }
 .bs-doc-print-root { display: none; }
 @media print {
   html, body { background: #fff !important; }

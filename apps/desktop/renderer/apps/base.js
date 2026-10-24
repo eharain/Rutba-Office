@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Icon, Input, Select, Content, Empty, Dialog, Spinner, useToast, useMenu, t, tn } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, useFileDrop } from '../shell.js';
 import { BASE_CSS } from './base/css.js';
-import { QueryDesigner, QUERY_CSS } from './base/queries.js';
+import { QueryDesigner, SqlView, QUERY_CSS } from './base/queries.js';
 import { FormView, FORM_CSS } from './base/forms.js';
 import { ReportView, REPORT_CSS } from './base/reports.js';
 import { RecentFiles } from '../start-page.js';
@@ -88,7 +88,9 @@ const ROW_H = 30;
 const OPENS = /\.(rbase|sqlite3?|db)$/i;
 /** How often a linked table on screen is read again from its engine. */
 const LIVE_MS = 15000;
-const IMPORTS = ['csv', 'tsv', 'txt', 'dbf', 'mdb', 'accdb', 'wk1', 'wks', 'wk3', 'wk4', 'slk', 'dif'];
+const IMPORTS = ['csv', 'tsv', 'txt', 'xlsx', 'xlsm', 'ods', 'dbf', 'mdb', 'accdb', 'wk1', 'wks', 'wk3', 'wk4', 'slk', 'dif'];
+/** The workbooks among them: each sheet a table, or the one chosen. */
+const WORKBOOKS = /\.(xlsx|xlsm|ods)$/i;
 
 /** A value as a cell shows it. */
 function shown(field, value) {
@@ -96,6 +98,13 @@ function shown(field, value) {
   if (field?.type === 'currency' && typeof value === 'number') return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
   if (field?.type === 'datetime') return String(value).replace('T', ' ');
   return String(value);
+}
+
+/** A field's default as the new row shows it: an amount with its two places (1.50). */
+function shownDefault(field) {
+  const n = Number(field.default);
+  if (field.type === 'currency' && String(field.default).trim() !== '' && Number.isFinite(n)) return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  return shown(field, field.default);
 }
 
 /* ── the datasheet: a page of records at a time ───────────────────── */
@@ -117,6 +126,21 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
   const grid = useGridFilter();
   const [filtering, setFiltering] = useState(null);
   const menu = useMenu();
+  // A field that points at another table's record shows that record's words (Semi-skimmed milk, not 24); the number is what is kept and typed.
+  const pointing = useMemo(() => (db.relationships || []).filter((r) => r.from.table === table), [db.relationships, table]);
+  const [words, setWords] = useState({});
+  const nameRows = useCallback(async (rows) => {
+    for (const r of pointing) {
+      const values = [...new Set(rows.map((x) => x[r.from.field]).filter((v) => v !== null && v !== undefined && v !== ''))];
+      if (!values.length) continue;
+      const page = await shell.base.lookupPage({ id: db.id, table: r.to.table, field: r.to.field, values });
+      setWords((w) => {
+        const m = new Map(w[r.from.field] || []);
+        for (const o of page.items) m.set(o.value, o.text);
+        return { ...w, [r.from.field]: m };
+      });
+    }
+  }, [shell, db.id, pointing]);
 
   useEffect(() => {
     let live = true;
@@ -136,11 +160,12 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
       pages.current.set(page, r.rows);
       setCount(r.count);
       redraw((n) => n + 1);
+      nameRows(r.rows).catch(() => {});
     } catch (e) {
       pages.current.delete(page);
       toast(e.message, { tone: 'bad' });
     }
-  }, [shell, db.id, table, order, grid.search, grid.filters, toast]);
+  }, [shell, db.id, table, order, grid.search, grid.filters, toast, nameRows]);
 
   useEffect(() => { pages.current = new Map(); load(0); }, [load, version]);
 
@@ -226,6 +251,8 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
         />
       );
     }
+    const named = words[f.name]?.get(row[f.name]);
+    if (named !== undefined) return <span className="bs-text bs-named" data-value={row[f.name]} title={t('{field} {value}', { field: f.name, value: row[f.name] })}>{named}</span>;
     return <span className="bs-text">{shown(f, row[f.name])}</span>;
   };
 
@@ -282,8 +309,9 @@ function Datasheet({ shell, db, table, onChanged, toast }) {
           {fields.map((f) => (
             <span key={f.name} className="bs-td">
               {f.type === 'autonumber' ? <span className="bs-auto">{t('(new)')}</span>
-                : f.type === 'yesno' ? <input type="checkbox" aria-label={f.name} checked={Boolean(fresh[f.name])} onChange={(e) => setFresh({ ...fresh, [f.name]: e.target.checked })} />
-                  : <input className="bs-new-input" data-field={f.name} aria-label={f.name} placeholder={TYPE_NAMES()[f.type]} disabled={Boolean(f.readOnly)} value={fresh[f.name] ?? ''} onChange={(e) => setFresh({ ...fresh, [f.name]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') addRecord(); }} />}
+                : f.type === 'yesno' ? <input type="checkbox" aria-label={f.name} checked={Boolean(fresh[f.name] ?? (f.default === true || f.default === 1 || /^(1|yes|true)$/i.test(String(f.default ?? ''))))} onChange={(e) => setFresh({ ...fresh, [f.name]: e.target.checked })} />
+                  // A field with a default shows it, as the record will have it unless something else is typed.
+                  : <input className={`bs-new-input${f.default !== undefined && f.default !== null && f.default !== '' ? ' has-default' : ''}`} data-field={f.name} aria-label={f.name} placeholder={f.default !== undefined && f.default !== null && f.default !== '' ? shownDefault(f) : TYPE_NAMES()[f.type]} disabled={Boolean(f.readOnly)} value={fresh[f.name] ?? ''} onChange={(e) => setFresh({ ...fresh, [f.name]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') addRecord(); }} />}
             </span>
           ))}
         </div> : null}
@@ -316,9 +344,31 @@ function Design({ shell, db, table, onChanged, onRemoved, toast }) {
       setVersion((v) => v + 1);
     }
   };
-  const change = (f, change) => run(() => shell.base.changeField({ id: db.id, table, name: f.name, change }));
+  // A change some records' values do not fit: the database names them, and they can be cleared to make it.
+  const [unfit, setUnfit] = useState(null);
+  const change = async (f, change) => {
+    try {
+      onChanged(await shell.base.changeField({ id: db.id, table, name: f.name, change }));
+      setVersion((v) => v + 1);
+    } catch (e) {
+      if (/Clear (it|them) and change the type/.test(e.original || e.message)) setUnfit({ field: f.name, change, message: e.message });
+      else toast(e.message, { tone: 'bad', ms: 7000 });
+      setVersion((v) => v + 1);
+    }
+  };
+  const clearAndChange = () => {
+    const u = unfit;
+    setUnfit(null);
+    run(() => shell.base.changeField({ id: db.id, table, name: u.field, change: u.change, clear: true }));
+  };
   return (
     <div className="bs-design">
+      {unfit ? (
+        <Dialog title={t('Some records do not fit')} onClose={() => setUnfit(null)} actions={<><Button label={t('Cancel')} className="bs-unfit-cancel" onClick={() => setUnfit(null)} /><Button primary label={t('Clear them and change')} className="bs-unfit-clear" onClick={clearAndChange} /></>}>
+          <p className="bs-unfit-words" role="alert">{unfit.message}</p>
+          <p className="bs-hint">{t('Clearing leaves those values empty; the rest are kept in the new type. Cancel to put them right in Records first.')}</p>
+        </Dialog>
+      ) : null}
       <table className="bs-fields">
         <thead>
           <tr><th>{t('Field')}</th><th>{t('Type')}</th><th>{t('Size')}</th><th>{t('Required')}</th><th>{t('Unique')}</th><th>{t('Default')}</th><th /></tr>
@@ -431,37 +481,6 @@ function Relationships({ shell, db, onChanged, toast }) {
 
 /* ── SQL ──────────────────────────────────────────────────────────── */
 
-function Sql({ shell, db }) {
-  const first = db.tables[0]?.name;
-  const [text, setText] = useState(first ? `SELECT * FROM "${first}"` : 'SELECT 1');
-  const [out, setOut] = useState(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const runIt = async () => {
-    setBusy(true);
-    setError('');
-    try { setOut(await shell.base.query({ id: db.id, sql: text })); } catch (e) { setError(e.message); setOut(null); } finally { setBusy(false); }
-  };
-  return (
-    <div className="bs-sql">
-      <textarea className="rw-input bs-sql-text" spellCheck={false} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runIt(); } }} aria-label={t('Query')} />
-      <div className="bs-tools">
-        <Button primary icon="play" label={t('Run')} className="bs-sql-run" disabled={busy} title={t('Run the query (Ctrl+Enter). It only reads: nothing in the database changes.')} onClick={runIt} />
-        {out ? <span className="bs-count">{out.count > out.rows.length ? t('{shown} of {count} rows', { shown: out.rows.length, count: out.count }) : tn(out.count, '{count} row', '{count} rows')}</span> : null}
-      </div>
-      {error ? <p className="bs-error" role="alert">{error}</p> : null}
-      {out ? (
-        <div className="bs-result">
-          <table>
-            <thead><tr>{out.columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
-            <tbody>{out.rows.map((r, i) => <tr key={i}>{out.columns.map((c) => <td key={c}>{r[c] === null ? '' : String(r[c])}</td>)}</tr>)}</tbody>
-          </table>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 /* ── the window ───────────────────────────────────────────────────── */
 
 export default function Databases({ app, shell, boot }) {
@@ -498,6 +517,9 @@ export default function Databases({ app, shell, boot }) {
   const [sourcing, setSourcing] = useState(false);
   const [clashesOf, setClashesOf] = useState(null);
   const [sourceWho, setSourceWho] = useState(null);
+  // The SQL view's text, kept while the database is open when the view is left and come back to.
+  const [sqlText, setSqlText] = useState(null);
+  useEffect(() => { setSqlText(null); }, [db?.id]);
 
   const show = useCallback((summary) => {
     setDb(summary);
@@ -569,24 +591,45 @@ export default function Databases({ app, shell, boot }) {
     if (file) openFile(file);
   }, [shell, openFile]);
 
-  const importDialog = useCallback(async () => {
-    if (!db) return;
-    const files = await shell.dialog.open({ title: t('Import'), filters: [{ name: t('Tables and old files'), extensions: IMPORTS }] });
-    if (!files?.[0]) return;
+  // A workbook of several sheets: which to import, every one or one ({ file, sheets, sheet }).
+  const [sheetChoice, setSheetChoice] = useState(null);
+  const importFile = useCallback(async (file, sheet = null) => {
     setBusy(true);
     try {
-      const r = await shell.base.importFile({ id: db.id, file: files[0] });
+      const r = await shell.base.importFile({ id: db.id, file, sheet });
       show(r.summary);
       setTable(r.tables[0]?.table || null);
       setView('data');
       const made = r.tables.map((x) => t('{table} ({count})', { table: x.table, count: x.count })).join(', ');
-      toast(t('Imported: {tables}', { tables: made }), { tone: 'good', ms: 7000 });
+      // How it read the file: dates written 12/04/2025, and the file's own ID numbers kept.
+      const said = r.tables.flatMap((x) => [
+        ...(x.dates || []).map((d) => (d.order === 'mdy'
+          ? t('Dates in {field} were read month first: 04/12/2025 is 12 April 2025.', { field: d.field })
+          : t('Dates in {field} were read day first: 12/04/2025 is 12 April 2025.', { field: d.field }))),
+        ...(x.key ? [t('{table} keeps the file\'s own {field} numbers.', { table: x.table, field: x.key })] : []),
+      ]);
+      toast([t('Imported: {tables}', { tables: made }), ...said].join(' '), { tone: 'good', ms: said.length ? 12000 : 7000 });
     } catch (e) {
       toast(e.message, { tone: 'bad', ms: 8000 });
     } finally {
       setBusy(false);
     }
   }, [shell, db, show, toast]);
+  const importDialog = useCallback(async () => {
+    if (!db) return;
+    const files = await shell.dialog.open({ title: t('Import'), filters: [{ name: t('Tables, workbooks and old files'), extensions: IMPORTS }] });
+    if (!files?.[0]) return;
+    if (WORKBOOKS.test(files[0])) {
+      try {
+        const { sheets } = await shell.base.importFile({ id: db.id, file: files[0], peek: true });
+        if (sheets.length > 1) { setSheetChoice({ file: files[0], sheets, sheet: '' }); return; }
+      } catch (e) {
+        toast(e.message, { tone: 'bad', ms: 8000 });
+        return;
+      }
+    }
+    importFile(files[0]);
+  }, [shell, db, toast, importFile]);
 
   const saveAs = useCallback(async () => {
     if (!db) return;
@@ -902,11 +945,11 @@ export default function Databases({ app, shell, boot }) {
           ) : view === 'relations' ? (
             <Relationships shell={shell} db={db} onChanged={show} toast={toast} />
           ) : view === 'sql' ? (
-            <Sql shell={shell} db={db} />
+            <SqlView shell={shell} db={db} text={sqlText ?? (db.tables[0]?.name ? `SELECT * FROM "${db.tables[0].name}"` : 'SELECT 1')} onText={setSqlText} onSaved={(s, n) => { show(s); setItem(n); setView('query'); }} toast={toast} />
           ) : view === 'query' ? (
             <QueryDesigner key={item || 'new'} shell={shell} db={db} name={item} onSaved={(s, n) => { show(s); setItem(n); }} toast={toast} />
           ) : view === 'form' && item ? (
-            <FormView key={`${item}-${db.steps}`} shell={shell} db={db} name={item} onChanged={refresh} toast={toast} />
+            <FormView key={`${item}-${db.steps}`} shell={shell} db={db} name={item} onChanged={refresh} onMakeTemplate={(tbl) => setDocTable(tbl)} toast={toast} />
           ) : view === 'document' && item ? (
             <DocumentView key={item} shell={shell} db={db} name={item} onChanged={show} onRemoved={(s) => { show(s); setItem(null); setView('data'); }} toast={toast} />
           ) : view === 'report' && item ? (
@@ -978,6 +1021,17 @@ export default function Databases({ app, shell, boot }) {
             </Select>
           </label>
           <p className="bs-hint">{t('Its records on a page, grouped by the first field that points at another table, with the amounts added up for each group and for the whole. Print it, or save it as a PDF.')}</p>
+        </Dialog>
+      ) : null}
+      {sheetChoice ? (
+        <Dialog title={t('Import a Workbook')} onClose={() => setSheetChoice(null)} actions={<><Button label={t('Cancel')} onClick={() => setSheetChoice(null)} /><Button primary label={t('Import')} className="bs-import-sheets" onClick={() => { const c = sheetChoice; setSheetChoice(null); importFile(c.file, c.sheet || null); }} /></>}>
+          <label className="bs-field"><span>{t('Import')}</span>
+            <Select className="rw-select bs-import-sheet" aria-label={t('Sheet')} value={sheetChoice.sheet} onChange={(e) => setSheetChoice({ ...sheetChoice, sheet: e.target.value })}>
+              <option value="">{tn(sheetChoice.sheets.length, 'Every sheet ({count}), a table each', 'Every sheet ({count}), a table each')}</option>
+              {sheetChoice.sheets.map((n) => <option key={n} value={n}>{t('The sheet {name}', { name: n })}</option>)}
+            </Select>
+          </label>
+          <p className="bs-hint">{t('Each sheet\'s first row names its fields. Dates and amounts come in as the sheet formats them.')}</p>
         </Dialog>
       ) : null}
       {protecting ? <ProtectDialog shell={shell} db={db} onDone={(s) => { show(s); setProtecting(false); setView('people'); }} onClose={() => setProtecting(false)} toast={toast} /> : null}
