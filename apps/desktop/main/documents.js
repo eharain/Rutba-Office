@@ -2466,7 +2466,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // Queries & Connections → Edit: the query whole, steps and all.
     queryInfo: (v, a) => JSON.stringify(v.queries().find((q) => q.id === a.id) || null),
     // PivotTable Fields: the rows, columns and values of a pivot changed, and the pivot laid out again.
-    pivotLayout: (v, a) => { v.setPivotLayout(a.name, { rows: a.rows || [], cols: a.cols || [], values: a.values || [] }); },
+    pivotLayout: (v, a) => { v.setPivotLayout(a.name, { rows: a.rows || [], cols: a.cols || [], values: a.values || [], filters: a.filters }); },
+    groupPivot: (v, a) => { v.groupPivotField(a.name, a.field, a.by ?? null); },
     // Insert → PivotChart with the cursor in a pivot.
     insertPivotChart: (v, a) => { v.insertPivotChart({ kind: a.kind || 'column', title: a.title || '', fileName: a.fileName || null }); },
     // Insert → Slicer: what the cursor is in and its fields (for the

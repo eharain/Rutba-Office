@@ -883,7 +883,7 @@ export function PivotDialog({ onClose, onCreate, list = null, sheet = '', chart 
         <p className="rw-hint" style={{ margin: 0 }}>
           {chart
             ? t('The pivot table goes under the data and its chart beside it; the chart follows the pivot when it is refreshed or filtered.')
-            : t('The pivot table goes under the data. Data → Refresh All recalculates it from the source.')}
+            : t('The pivot table goes under the data, and the sheet goes to it with PivotTable Fields open beside it, where its Refresh button recalculates it from the source.')}
         </p>
       </div>
     </Dialog>

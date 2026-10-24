@@ -2,7 +2,9 @@
 // the sheet, its fields ticked as the pivot uses them; Product moved to
 // Columns lays the pivot out again at once, a ticked Price goes in Values,
 // a value summarised by Max says so, and the saved file keeps the new
-// layout for Excel to refresh.
+// layout for Excel to refresh. Then the Filters area shows (All) and one
+// item, the pane's own Refresh recounts an edited figure, a new pivot under
+// a long list is scrolled to with its pane open, and its dates go by month.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -81,6 +83,80 @@ export async function verifySheetPivotFields(h, { dir }) {
       } catch { return false; }
     }, 'the saved layout', 8000).then(() => true).catch(() => false);
     check('worksheets: the saved pivot keeps its new layout for Excel to lay out on opening', saved, saved ? 'colFields and dataFields in the file' : 'not in the file');
+
+    // The Filters area: Product moved there shows (All) above the pivot, then only the ink.
+    const filters = () => js(`[...document.querySelectorAll('.sh-pf-area[data-area="filters"] .sh-pf-item')].map((i) => i.dataset.field)`);
+    const setIn = (selector, value) => js(`(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) return 'no ' + ${JSON.stringify(selector)};
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(el, ${JSON.stringify(value)});
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return 'set';
+    })()`);
+    const toFilters = await setIn('.sh-pf-area[data-area="cols"] .sh-pf-item[data-field="Product"] .sh-pf-to', 'filters');
+    const filtered = await until(async () => JSON.stringify(await filters()) === '["Product"]' && (await cell('G1')) === 'Product' && (await cell('H1')) === '(All)', 'Product in Filters', 6000).then(() => true).catch(() => false);
+    check('worksheets: PivotTable Fields has a Filters area, and a field moved there shows (All) above the pivot',
+      toFilters === 'set' && filtered, JSON.stringify({ toFilters, filters: await filters(), G1: await cell('G1'), H1: await cell('H1') }));
+    const picked = await setIn('.sh-pf-area[data-area="filters"] .sh-pf-pick', 'Ink');
+    const inkOnly = await until(async () => (await cell('H1')) === 'Ink' && (await cell('H6')) === '10', 'only the ink', 6000).then(() => true).catch(() => false);
+    check('worksheets: a filter set to one item counts only that item',
+      picked === 'set' && inkOnly, JSON.stringify({ picked, H1: await cell('H1'), H4: await cell('H4'), H5: await cell('H5'), H6: await cell('H6') }));
+
+    // The pane's own Refresh: an edited source figure is counted when it is pressed, not before.
+    const session = sessionFor('sheet');
+    doc.apply({ id: session.id, ops: [{ op: 'setCell', row: 1, col: 2, value: '40' }] });
+    await wait(400);
+    const before = await cell('H4');
+    const refreshed = await js(`(() => { const b = document.querySelector('.sh-pf-refresh'); if (!b) return 'no Refresh'; b.click(); return 'clicked'; })()`);
+    const recounted = await until(async () => (await cell('H4')) === '40' && (await cell('H6')) === '46', 'the pivot refreshed', 6000).then(() => true).catch(() => false);
+    check('worksheets: the PivotTable Fields pane has its own Refresh, which recounts the pivot from its source',
+      before === '4' && refreshed === 'clicked' && recounted, JSON.stringify({ before, refreshed, H4: await cell('H4'), H6: await cell('H6') }));
+    await capture('sheet-pivot-filters.png');
+
+    // A new pivot under a long list: the sheet goes to it, its Fields pane open; its dates by month.
+    const long = path.join(dir, 'pivot-long.xlsx');
+    const serial = (m, day) => Math.round((Date.UTC(2026, m - 1, day) - Date.UTC(1899, 11, 30)) / 86400000);
+    const list = [['Date', 'Item', 'Qty']];
+    for (let i = 0; i < 60; i++) list.push([serial(1 + (i % 3), 1 + (i % 27)), 'Item ' + (i % 4), 1]);
+    fs.writeFileSync(long, buildXlsx({ sheets: [{ name: 'List', rows: list, styles: { 'A2:A61': { numFmt: 'yyyy-mm-dd' } } }] }));
+    const win2 = await open('sheets', long);
+    const js2 = (code) => win2.webContents.executeJavaScript(code);
+    const cell2 = (ref) => js2(`(document.querySelector('.sh-cell[data-ref="${ref}"]')?.textContent || '').trim()`);
+    await until(() => js2(`Boolean(document.querySelector('.sh-cell[data-ref="A2"]'))`), 'the long list', 8000);
+    const session2 = sessionFor('sheet');
+    doc.apply({ id: session2.id, ops: [{ op: 'select', row: 1, col: 0 }] });
+    await wait(300);
+    await js2(`(() => { [...document.querySelectorAll('.rw-ribbon button, .rw-tabs button, button')].find((b) => b.textContent.trim() === 'Insert')?.click(); return 1; })()`);
+    await until(() => js2(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.textContent || '').trim() === 'PivotTable'))`), 'the PivotTable button', 4000).catch(() => {});
+    await js2(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.textContent || '').trim() === 'PivotTable'); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
+    const asked = await until(() => js2(`Boolean(document.querySelector('.sh-pivot-source'))`), 'the PivotTable dialog', 5000).then(() => true).catch(() => false);
+    const setIn2 = (selector, value) => js2(`(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) return 'no ' + ${JSON.stringify(selector)};
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(el, ${JSON.stringify(value)});
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return 'set';
+    })()`);
+    await setIn2('.sh-pivot-rows', 'Date');
+    await setIn2('.sh-pivot-values', 'Qty');
+    await wait(200);
+    await js2(`(() => { document.querySelector('.sh-pivot-ok')?.click(); return 1; })()`);
+    const inSight = () => js2(`(() => {
+      const g = document.querySelector('.sh-grid')?.getBoundingClientRect();
+      const c = document.querySelector('.sh-cell[data-ref="A63"]')?.getBoundingClientRect();
+      return Boolean(g && c && c.top >= g.top && c.bottom <= g.bottom);
+    })()`);
+    const shownNew = await until(async () => (await js2(`document.querySelector('.sh-pf')?.dataset.pivot || ''`)) === 'PivotTable1' && (await inSight()), 'the new pivot in sight', 8000).then(() => true).catch(() => false);
+    const active = doc.model({ id: session2.id })?.selection?.active;
+    check('worksheets: a new PivotTable made under a long list is scrolled to and picked, with PivotTable Fields open beside it',
+      asked && shownNew && active?.row === 62 && active?.col === 0,
+      JSON.stringify({ asked, shownNew, active, A63: await cell2('A63'), pane: await js2(`document.querySelector('.sh-pf')?.dataset.pivot || null`) }));
+
+    const monthBox = await js2(`(() => { const b = document.querySelector('.sh-pf-area[data-area="rows"] .sh-pf-month input'); if (!b) return 'no By month'; b.click(); return 'clicked'; })()`);
+    const months = await until(async () => (await cell2('A64')) === 'Jan' && (await cell2('A66')) === 'Mar' && (await cell2('A67')) === 'Grand Total', 'the months', 6000).then(() => true).catch(() => false);
+    await win2.webContents.capturePage().then((img) => { if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'sheet-pivot-months.png'), img.toPNG()); });
+    check('worksheets: a date field in a pivot can be shown by month, Jan to Mar in calendar order',
+      monthBox === 'clicked' && months, JSON.stringify({ monthBox, A64: await cell2('A64'), A65: await cell2('A65'), A66: await cell2('A66'), A67: await cell2('A67'), B67: await cell2('B67') }));
     await wait(50);
   } catch (err) {
     check('worksheets: the PivotTable Fields checks ran', false, err.message);

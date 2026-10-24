@@ -79,6 +79,20 @@ function parseArea(ref, fallbackSheet = null) {
 
 const areaRef = (a) => makeRef(a.top, a.left) + ':' + makeRef(a.bottom, a.right);
 
+/** A date field grouped by months: its items, as Excel names them between the two out-of-range ones. */
+// The words between the fields of one row or column key in a label, as this
+// pivot has always joined them (a spaced long dash).
+const KEY_JOIN = ' \u2014 ';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAY_MS = 86400000;
+const EPOCH = Date.UTC(1899, 11, 30);
+/** A date serial's month, 1 to 12; '' for what is not a date. */
+const monthOf = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 1 ? new Date(EPOCH + Math.floor(v) * DAY_MS).getUTCMonth() + 1 : '');
+/** A date serial as a cache writes a date: `2026-01-03T00:00:00`. */
+const isoOf = (v) => new Date(EPOCH + Math.floor(v) * DAY_MS).toISOString().slice(0, 19);
+/** A date serial as a group's out-of-range item says it: `03/01/2026`. */
+const dayText = (v) => { const d = new Date(EPOCH + Math.floor(v) * DAY_MS); return String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + d.getUTCFullYear(); };
+
 /** The aggregate a data field asks for. `sum` is the schema's default. */
 const SUBTOTALS = new Set([
   'sum', 'count', 'countNums', 'average', 'max', 'min', 'product',
@@ -198,7 +212,14 @@ function readPivotPart(wb, sheetName, tablePart) {
       // index. Null when the cache writes the field's values literally.
       const shared = /<sharedItems\b[^>]*?(?:\/>|>([\s\S]*?)<\/sharedItems>)/.exec(body);
       const items = shared && shared[1] !== undefined ? readSharedItems(shared[1]) : null;
-      pivot.cacheFields.push({ name: unesc(a.name ?? ''), grouped: /<fieldGroup\b/.test(body), items });
+      // A date field grouped into months in its own place (base its own
+      // index, no parent) is one this editor works out; any other grouping
+      // (quarters, years, number bands, a grouped copy) it cannot.
+      const group = /<fieldGroup\b([^>]*?)(?:\/>|>([\s\S]*?)<\/fieldGroup>)/.exec(body);
+      const ga = group ? attrsOf(group[1]) : null;
+      const by = group ? attrsOf((/<rangePr\b([^>]*?)\/?>/.exec(group[2] ?? '') ?? [])[1] ?? '').groupBy : null;
+      const months = Boolean(group) && ga.par === undefined && Number(ga.base) === pivot.cacheFields.length && by === 'months';
+      pivot.cacheFields.push({ name: unesc(a.name ?? ''), grouped: Boolean(group) && !months, items, ...(months ? { group: 'months' } : {}) });
     }
   }
   const x14 = /<x14:pivotCacheDefinition\b([^>]*?)\/?>/.exec(cacheXml);
@@ -224,14 +245,20 @@ function readPivotPart(wb, sheetName, tablePart) {
   // Items hidden in a field — a filter on its row or column labels, or a
   // slicer's choice — by their index into the field's shared items.
   pivot.hidden = new Map();
+  // And each field's items in the order the table lists them: what a
+  // filter's `item` counts along.
+  pivot.itemOrder = new Map();
   pivotFields.forEach((f, fld) => {
     const set = new Set();
+    const order = [];
     for (const m of f.body.matchAll(/<item\b([^>]*?)\/?>/g)) {
       const a = attrsOf(m[1]);
       if (a.t !== undefined || a.x === undefined) continue;
+      order.push(Number(a.x));
       if (a.h === '1' || a.h === 'true') set.add(Number(a.x));
     }
     if (set.size) pivot.hidden.set(fld, set);
+    if (order.length) pivot.itemOrder.set(fld, order);
   });
 
   const indices = (block, tag) => {
@@ -254,6 +281,11 @@ function readPivotPart(wb, sheetName, tablePart) {
       });
     }
   }
+  // The Filters area sits above the location Excel stores, a blank line
+  // between (rowPageCount says how many lines it takes); the rectangle
+  // worked with here holds it, so a refresh lays it out where it was.
+  const pageRows = Number(location.rowPageCount ?? 0);
+  if (pageRows > 0) pivot.location.top = Math.max(0, pivot.location.top - pageRows - 1);
 
   const dataBlock = /<dataFields\b[^>]*>([\s\S]*?)<\/dataFields>/.exec(xml);
   if (dataBlock) {
@@ -370,27 +402,45 @@ export function computePivot(pivot, readCell) {
     if (line.every((v) => v === '' || v === null || v === undefined)) continue;
     rows.push(line);
   }
+  // A date field grouped by months is worked out by its month, 1 to 12,
+  // which sorts as the calendar does and is shown by its name.
+  const grouped = pivot.cacheFields.map((f) => f.group === 'months');
+  if (grouped.some(Boolean)) {
+    for (const line of rows) grouped.forEach((g, f) => { if (g) line[f] = monthOf(line[f]); });
+  }
+  const shownAs = (f, v) => (grouped[f] && typeof v === 'number' ? MONTHS[v - 1] ?? v : v);
+  const keyText = (fields, key) => key.map((v, i) => shownAs(fields[i], v));
 
   // Page fields filter before anything is grouped. An item index refers to
   // the field's own distinct values in source order — which is how a cache
   // numbers them — so that ordering is rebuilt here rather than guessed.
   let visible = rows;
-  for (const pf of pivot.pageFields) {
-    if (pf.item === null || !Number.isInteger(pf.fld)) continue;
+  // The item a filter chose: by the field's shared items where the cache
+  // keeps them (what the index means in the file), a month's own number in
+  // a field grouped by months, else the field's values in source order.
+  const pageChoice = (pf) => {
+    if (pf.item === null || !Number.isInteger(pf.fld)) return undefined;
+    const x = pivot.itemOrder?.get(pf.fld)?.[pf.item] ?? pf.item;
+    if (grouped[pf.fld]) return x >= 1 && x <= 12 ? x : undefined;
+    const items = pivot.cacheFields[pf.fld]?.items;
+    if (items) return items[x];
     const seen = [];
     for (const line of rows) {
       const v = line[pf.fld];
       if (!seen.some((x) => keyOf([x]) === keyOf([v]))) seen.push(v);
     }
-    const chosen = seen[pf.item];
+    return seen[pf.item];
+  };
+  for (const pf of pivot.pageFields) {
+    const chosen = pageChoice(pf);
     if (chosen === undefined) continue;
-    visible = visible.filter((line) => keyOf([line[pf.fld]]) === keyOf([chosen]));
+    visible = visible.filter((line) => keyOf([line[pf.fld] ?? '']) === keyOf([chosen]));
   }
   // Hidden items — a label filter, or a slicer's choice — leave the grid and
   // its totals, as Excel's own do.
   for (const [fld, set] of pivot.hidden ?? new Map()) {
     const items = pivot.cacheFields[fld]?.items;
-    if (!items || !set.size) continue;
+    if (!items || !set.size || grouped[fld]) continue;
     const out = new Set([...set].map((x) => items[x]).filter((v) => v !== undefined).map((v) => keyOf([v])));
     visible = visible.filter((line) => !out.has(keyOf([line[fld] ?? ''])));
   }
@@ -482,16 +532,8 @@ export function computePivot(pivot, readCell) {
   for (const pf of pivot.pageFields) {
     const field = pivot.cacheFields[pf.fld];
     put(cursor, 0, field ? field.name : 'Filter');
-    let shown = '(All)';
-    if (pf.item !== null) {
-      const seen = [];
-      for (const line of rows) {
-        const v = line[pf.fld];
-        if (!seen.some((x) => keyOf([x]) === keyOf([v]))) seen.push(v);
-      }
-      if (seen[pf.item] !== undefined) shown = seen[pf.item];
-    }
-    put(cursor, 1, shown);
+    const chosen = pageChoice(pf);
+    put(cursor, 1, chosen === undefined ? '(All)' : shownAs(pf.fld, chosen));
     cursor += 1;
   }
   // Excel leaves a blank line between the filters and the body.
@@ -524,7 +566,7 @@ export function computePivot(pivot, readCell) {
       if (multiData) put(bodyTop - 1, c, dataFieldLabel(pivot, leaf.df));
       return;
     }
-    leaf.colKey.forEach((v, level) => put(headTop + level, c, v));
+    keyText(pivot.colFields, leaf.colKey).forEach((v, level) => put(headTop + level, c, v));
     if (multiData) put(bodyTop - 1, c, dataFieldLabel(pivot, leaf.df));
     else if (!pivot.colFields.length) put(bodyTop - 1, c, dataFieldLabel(pivot, leaf.df));
   });
@@ -536,9 +578,9 @@ export function computePivot(pivot, readCell) {
       // the whole tuple. ONE put — the first cut emitted the leaf and then
       // the joined label at the same coordinate, and only survived because
       // every consumer happened to let the later write win.
-      put(r, 0, rk.join(' — '));
+      put(r, 0, keyText(pivot.rowFields, rk).join(KEY_JOIN));
     } else {
-      rk.forEach((v, level) => put(r, level, v));
+      keyText(pivot.rowFields, rk).forEach((v, level) => put(r, level, v));
     }
     allCols.forEach((leaf, j) => put(r, rowHeaderCols + j, valueAt(rk, leaf.grand ? null : leaf.colKey, leaf.df)));
   });
@@ -563,14 +605,14 @@ export function computePivot(pivot, readCell) {
     catRight: left + rowHeaderCols - 1,
     firstRow: top + bodyTop,
     lastRow: top + bodyTop + rowKeys.length - 1,
-    categories: rowKeys.map((rk) => (rk.length ? rk.map((v) => (v === '' || v === null || v === undefined ? '(blank)' : String(v))).join(' — ') : 'Total')),
+    categories: rowKeys.map((rk) => (rk.length ? keyText(pivot.rowFields, rk).map((v) => (v === '' || v === null || v === undefined ? '(blank)' : String(v))).join(KEY_JOIN) : 'Total')),
     series: leaves.map((leaf, j) => {
       const label = dataFieldLabel(pivot, leaf.df);
-      const colText = leaf.colKey.map((v) => (v === '' || v === null || v === undefined ? '(blank)' : String(v))).join(' — ');
+      const colText = keyText(pivot.colFields, leaf.colKey).map((v) => (v === '' || v === null || v === undefined ? '(blank)' : String(v))).join(KEY_JOIN);
       return {
         col: left + rowHeaderCols + j,
         nameRow: top + bodyTop - 1,
-        name: colText ? (multiData ? colText + ' — ' + label : colText) : label,
+        name: colText ? (multiData ? colText + KEY_JOIN + label : colText) : label,
         values: rowKeys.map((rk) => numberOr(valueAt(rk, leaf.colKey, leaf.df))),
       };
     }),
@@ -604,16 +646,24 @@ export function computePivot(pivot, readCell) {
  */
 export function updatePivotLocation(wb, pivot, area, { headerRows, dataRow, dataCol }) {
   const xml = wb.pkg.text(pivot.part);
+  // The Filters area's lines, and the blank under them, sit above the
+  // location Excel stores, which says how many with rowPageCount.
+  const pages = (pivot.pageFields ?? []).length;
+  const above = pages ? pages + 1 : 0;
+  const body = { ...area, top: area.top + above };
   const next = xml.replace(/<location\b([^>]*?)\/>/, (whole, a) => {
     let out = a
       .replace(/\s+ref="[^"]*"/, '')
       .replace(/\s+firstHeaderRow="[^"]*"/, '')
       .replace(/\s+firstDataRow="[^"]*"/, '')
-      .replace(/\s+firstDataCol="[^"]*"/, '');
-    out += ' ref="' + esc(areaRef(area)) + '"'
-      + ' firstHeaderRow="' + headerRows + '"'
-      + ' firstDataRow="' + dataRow + '"'
-      + ' firstDataCol="' + dataCol + '"';
+      .replace(/\s+firstDataCol="[^"]*"/, '')
+      .replace(/\s+rowPageCount="[^"]*"/, '')
+      .replace(/\s+colPageCount="[^"]*"/, '');
+    out += ' ref="' + esc(areaRef(body)) + '"'
+      + ' firstHeaderRow="' + (headerRows - above) + '"'
+      + ' firstDataRow="' + (dataRow - above) + '"'
+      + ' firstDataCol="' + dataCol + '"'
+      + (pages ? ' rowPageCount="' + pages + '" colPageCount="1"' : '');
     return '<location' + out + '/>';
   });
   if (next !== xml) wb.pkg.write_(pivot.part, next);
@@ -1188,27 +1238,60 @@ export function setPivotLayout(wb, pivot, layout, readCell) {
   const both = rowFields.find((f) => colFields.includes(f));
   if (both !== undefined) throw new Error('"' + pivot.cacheFields[both].name + '" cannot be on both axes');
   if (new Set(rowFields).size !== rowFields.length || new Set(colFields).size !== colFields.length) throw new Error('a field is on an axis once');
-
-  // A field on an axis is counted by its items, which the cache must share.
-  for (const f of [...rowFields, ...colFields]) {
-    if (!pivot.cacheFields[f].items) ensureSharedItems(wb, pivot, f, sourceValues(pivot, readCell, f));
+  // The Filters area: each field and the value it shows (none: all of them).
+  // Left out, the filters the pivot has stay, less any field now on an axis.
+  const pages = layout.pageFields === undefined ? null : layout.pageFields.map((p) => ({ fld: p.fld, value: p.value ?? null }));
+  for (const p of pages ?? []) {
+    if (!Number.isInteger(p.fld) || p.fld < 0 || p.fld >= count) throw new Error('the pivot has no field ' + p.fld);
+    if (rowFields.includes(p.fld) || colFields.includes(p.fld)) throw new Error('"' + pivot.cacheFields[p.fld].name + '" cannot be a filter and on an axis');
   }
+  if (pages && new Set(pages.map((p) => p.fld)).size !== pages.length) throw new Error('a field is a filter once');
+  const grouped = (f) => pivot.cacheFields[f]?.group === 'months';
+
+  // A field on an axis or a filter is counted by its items, which the cache must share.
+  for (const f of [...rowFields, ...colFields, ...(pages ?? []).map((p) => p.fld)]) {
+    if (!pivot.cacheFields[f].items && !grouped(f)) ensureSharedItems(wb, pivot, f, sourceValues(pivot, readCell, f));
+  }
+  // Each filter's choice as the item it is: a month by its number, else its place in the shared items.
+  const pageXml = pages ? pages.map((p) => {
+    let item = null;
+    if (p.value !== null) {
+      if (grouped(p.fld)) item = Number(p.value) >= 1 && Number(p.value) <= 12 ? Number(p.value) : null;
+      else {
+        const at = (pivot.cacheFields[p.fld].items ?? []).findIndex((x) => keyOf([x]) === keyOf([p.value]));
+        item = at < 0 ? null : at;
+      }
+      // Counted along the field's items in the table where it lists them already.
+      const order = pivot.itemOrder?.get(p.fld);
+      if (item !== null && order) item = order.includes(item) ? order.indexOf(item) : null;
+    }
+    return '<pageField fld="' + p.fld + '"' + (item === null ? '' : ' item="' + item + '"') + ' hier="-1"/>';
+  }) : null;
+  const pageSet = new Set((pages ?? []).map((p) => p.fld));
+  // A field's items in the table: a month field's fourteen (the two out of range and the twelve).
+  const itemsXmlFor = (i) => {
+    const n = grouped(i) ? 14 : (pivot.cacheFields[i].items ?? []).length;
+    let out = '';
+    for (let k = 0; k < n; k++) out += '<item x="' + k + '"/>';
+    return '<items count="' + (n + 1) + '">' + out + '<item t="default"/></items>';
+  };
 
   let xml = wb.pkg.text(pivot.part);
   const block = /<pivotFields\b[^>]*>([\s\S]*?)<\/pivotFields>/.exec(xml);
   const fields = block ? [...block[1].matchAll(/<pivotField\b([^>]*?)(?:\/>|>([\s\S]*?)<\/pivotField>)/g)].map((m) => ({ attrs: m[1], body: m[2] ?? '' })) : [];
   while (fields.length < count) fields.push({ attrs: ' showAll="0"', body: '' });
+  // A filter kept from before: its field still neither on an axis nor dropped.
+  const keptPages = pages ? null : pivot.pageFields.filter((p) => !rowFields.includes(p.fld) && !colFields.includes(p.fld)).map((p) => p.fld);
+  const isPage = (i) => (pages ? pageSet.has(i) : keptPages.includes(i));
   const fieldsXml = fields.map((f, i) => {
     let attrsText = f.attrs.replace(/\s+axis="[^"]*"/, '').replace(/\s+dataField="[^"]*"/, '');
     if (rowFields.includes(i)) attrsText = ' axis="axisRow"' + attrsText;
     else if (colFields.includes(i)) attrsText = ' axis="axisCol"' + attrsText;
+    else if (isPage(i)) attrsText = ' axis="axisPage"' + attrsText;
     if (dataFields.some((d) => d.fld === i)) attrsText += ' dataField="1"';
     let body = f.body;
-    const onAxis = rowFields.includes(i) || colFields.includes(i);
-    if (onAxis && !/<items\b/.test(body)) {
-      const items = pivot.cacheFields[i].items ?? [];
-      body = '<items count="' + (items.length + 1) + '">' + items.map((_v, k) => '<item x="' + k + '"/>').join('') + '<item t="default"/></items>' + body;
-    }
+    const onAxis = rowFields.includes(i) || colFields.includes(i) || isPage(i);
+    if (onAxis && !/<items\b/.test(body)) body = itemsXmlFor(i) + body;
     return body ? '<pivotField' + attrsText + '>' + body + '</pivotField>' : '<pivotField' + attrsText + '/>';
   }).join('');
   const pivotFieldsXml = '<pivotFields count="' + count + '">' + fieldsXml + '</pivotFields>';
@@ -1220,9 +1303,14 @@ export function setPivotLayout(wb, pivot, layout, readCell) {
   const list = (tag, items) => (items.length ? '<' + tag + ' count="' + items.length + '">' + items.map((f) => '<field x="' + f + '"/>').join('') + '</' + tag + '>' : '');
   const axisItems = (fieldsOn, tag) => {
     const first = fieldsOn.find((f) => f >= 0);
-    const n = first === undefined ? 0 : (pivot.cacheFields[first].items?.length ?? 0);
     const lines = [];
-    for (let i = 0; i < n; i++) lines.push('<i>' + (i === 0 ? '<x/>' : '<x v="' + i + '"/>') + '</i>');
+    if (first !== undefined && grouped(first)) {
+      for (let i = 1; i <= 12; i++) lines.push('<i><x v="' + i + '"/></i>');
+    } else {
+      const n = first === undefined ? 0 : (pivot.cacheFields[first].items?.length ?? 0);
+      for (let i = 0; i < n; i++) lines.push('<i>' + (i === 0 ? '<x/>' : '<x v="' + i + '"/>') + '</i>');
+    }
+    const n = lines.length;
     lines.push(n ? '<i t="grand"><x/></i>' : '<i/>');
     return '<' + tag + ' count="' + lines.length + '">' + lines.join('') + '</' + tag + '>';
   };
@@ -1232,12 +1320,13 @@ export function setPivotLayout(wb, pivot, layout, readCell) {
     + dataFields.map((d) => '<dataField name="' + esc(d.name ?? named.get(d.fld + ':' + d.subtotal) ?? defaultDataName(pivot.cacheFields[d.fld].name, d.subtotal))
       + '" fld="' + d.fld + '"' + (d.subtotal === 'sum' ? '' : ' subtotal="' + d.subtotal + '"') + ' baseField="0" baseItem="0"/>').join('')
     + '</dataFields>';
-  // A page filter on a field now on an axis or among the values gives way to it.
+  // The filters as asked for; or, asked for none, a page filter on a field
+  // now on an axis gives way to it.
   const taken = new Set([...rowFields, ...colFields]);
-  xml = xml.replace(/<pageFields\b[^>]*>([\s\S]*?)<\/pageFields>/, (whole, inner) => {
-    const kept = [...inner.matchAll(/<pageField\b[^>]*?\/>/g)].map((m) => m[0]).filter((p) => !taken.has(Number(/\bfld="(-?\d+)"/.exec(p)?.[1])));
-    return kept.length ? '<pageFields count="' + kept.length + '">' + kept.join('') + '</pageFields>' : '';
-  });
+  const oldPages = /<pageFields\b[^>]*>([\s\S]*?)<\/pageFields>/.exec(xml);
+  const pageList = pageXml ?? (oldPages ? [...oldPages[1].matchAll(/<pageField\b[^>]*?\/>/g)].map((m) => m[0]).filter((p) => !taken.has(Number(/\bfld="(-?\d+)"/.exec(p)?.[1]))) : []);
+  const pageFieldsXml = pageList.length ? '<pageFields count="' + pageList.length + '">' + pageList.join('') + '</pageFields>' : '';
+  xml = xml.replace(/<pageFields\b[^>]*>[\s\S]*?<\/pageFields>|<pageFields\b[^>]*\/>/, '');
   xml = xml
     .replace(/<pivotFields\b[^>]*>[\s\S]*?<\/pivotFields>/, () => pivotFieldsXml)
     .replace(/<rowFields\b[^>]*>[\s\S]*?<\/rowFields>|<rowFields\b[^>]*\/>/, '')
@@ -1245,11 +1334,8 @@ export function setPivotLayout(wb, pivot, layout, readCell) {
     .replace(/<colFields\b[^>]*>[\s\S]*?<\/colFields>|<colFields\b[^>]*\/>/, '')
     .replace(/<colItems\b[^>]*>[\s\S]*?<\/colItems>|<colItems\b[^>]*\/>/, '')
     .replace(/<dataFields\b[^>]*>[\s\S]*?<\/dataFields>/, '');
-  // In the schema's order: after pivotFields, the rows, the columns, then (after any page fields) the values.
-  xml = xml.replace(pivotFieldsXml, () => pivotFieldsXml + list('rowFields', rowList) + axisItems(rowList, 'rowItems') + list('colFields', colList) + axisItems(colList, 'colItems'));
-  const afterPages = /<\/pageFields>/.exec(xml);
-  if (afterPages) xml = xml.slice(0, afterPages.index + afterPages[0].length) + dataFieldsXml + xml.slice(afterPages.index + afterPages[0].length);
-  else xml = xml.replace(/<colItems\b[^>]*>[\s\S]*?<\/colItems>/, (m) => m + dataFieldsXml);
+  // In the schema's order: after pivotFields, the rows, the columns, the filters, then the values.
+  xml = xml.replace(pivotFieldsXml, () => pivotFieldsXml + list('rowFields', rowList) + axisItems(rowList, 'rowItems') + list('colFields', colList) + axisItems(colList, 'colItems') + pageFieldsXml + dataFieldsXml);
   wb.pkg.write_(pivot.part, xml);
 
   // Excel lays the rows out again from the cache when the file next opens.
@@ -1258,6 +1344,91 @@ export function setPivotLayout(wb, pivot, layout, readCell) {
     ? cacheXml.replace(/\brefreshOnLoad="[^"]*"/, 'refreshOnLoad="1"')
     : cacheXml.replace('<pivotCacheDefinition ', () => '<pivotCacheDefinition refreshOnLoad="1" ');
   if (refreshed !== cacheXml) wb.pkg.write_(pivot.cachePart, refreshed);
+  return readPivotPart(wb, pivot.sheet, pivot.part);
+}
+
+/**
+ * A date field grouped by months in its own place, as Excel's Group does
+ * (`by` 'months'), or its grouping taken away (`by` null). The cache keeps
+ * the field's dates as dates, its group's range and its fourteen items (the
+ * dates before, the twelve months, the dates after); the records index the
+ * dates; the table lists the field's items again, and the cache is asked to
+ * refresh when Excel next opens the file. Returns the pivot read again.
+ */
+export function groupPivotField(wb, pivot, fld, by, readCell) {
+  if (by !== null && by !== 'months') throw new Error('"' + by + '" is not a grouping this editor writes');
+  const field = pivot.cacheFields[fld];
+  if (!field) throw new Error('the pivot has no field ' + fld);
+  const values = sourceValues(pivot, readCell, fld);
+  const dates = values.filter((v) => typeof v === 'number' && Number.isFinite(v));
+  if (by && (!dates.length || values.some((v) => !(v === '' || (typeof v === 'number' && Number.isFinite(v)))))) {
+    throw new Error('"' + field.name + '" can be grouped by months only when every value in it is a date');
+  }
+
+  // The records: this field's value in each, as its index in the new list.
+  const recRel = wb.pkg.rels(pivot.cachePart).find((r) => String(r.Type).endsWith('/pivotCacheRecords'));
+  const recPart = recRel ? OoxmlPackage.resolveTarget(pivot.cachePart, recRel.Target) : null;
+  if (recPart && wb.pkg.has(recPart)) {
+    const old = field.items;
+    const recXml = wb.pkg.text(recPart);
+    const next = recXml.replace(/<r>([\s\S]*?)<\/r>/g, (whole, inner) => {
+      let i = 0;
+      const out = inner.replace(/<(x|n|s|b|e|m|d)\b([^>]*?)(?:\/>|>[\s\S]*?<\/\1>)/g, (child, tag, attrsText) => {
+        const at = i;
+        i += 1;
+        if (at !== fld) return child;
+        let v = tag === 'x' ? (old ? old[Number(attrsOf(attrsText).v)] : undefined) : recordValue(tag, attrsText);
+        // A date the old list kept as a date reads back as its text: matched by its serial.
+        if (typeof v === 'string' && /^\d{4}-\d\d-\d\dT/.test(v)) v = Math.round((Date.parse(v + 'Z') - EPOCH) / DAY_MS);
+        const k = values.findIndex((x) => keyOf([x]) === keyOf([v ?? '']));
+        return '<x v="' + (k < 0 ? 0 : k) + '"/>';
+      });
+      return '<r>' + out + '</r>';
+    });
+    if (next !== recXml) wb.pkg.write_(recPart, next);
+  }
+
+  // The cache field: its items, and its group when it has one.
+  const blank = values.some((v) => v === '');
+  let shared;
+  let group = '';
+  if (by) {
+    const lo = Math.min(...dates);
+    const hi = Math.max(...dates);
+    shared = '<sharedItems containsSemiMixedTypes="0" containsNonDate="0" containsDate="1" containsString="0"'
+      + (blank ? ' containsBlank="1"' : '') + ' minDate="' + isoOf(lo) + '" maxDate="' + isoOf(hi + 1) + '" count="' + values.length + '">'
+      + values.map((v) => (v === '' ? '<m/>' : '<d v="' + isoOf(v) + '"/>')).join('') + '</sharedItems>';
+    group = '<fieldGroup base="' + fld + '"><rangePr groupBy="months" startDate="' + isoOf(lo) + '" endDate="' + isoOf(hi + 1) + '"/>'
+      + '<groupItems count="14"><s v="&lt;' + dayText(lo) + '"/>' + MONTHS.map((m) => '<s v="' + m + '"/>').join('')
+      + '<s v="&gt;' + dayText(hi + 1) + '"/></groupItems></fieldGroup>';
+  } else {
+    shared = sharedItemsXml(values);
+  }
+  const cacheXml = wb.pkg.text(pivot.cachePart);
+  const at = cacheFieldAt(cacheXml, fld);
+  const head = /^<cacheField\b[^>]*?(?=\/?>)/.exec(at.xml)[0];
+  const fieldXml = head + '>' + shared + group + '</cacheField>';
+  let nextCache = cacheXml.slice(0, at.start) + fieldXml + cacheXml.slice(at.end);
+  nextCache = /\brefreshOnLoad="/.test(nextCache)
+    ? nextCache.replace(/\brefreshOnLoad="[^"]*"/, 'refreshOnLoad="1"')
+    : nextCache.replace('<pivotCacheDefinition ', () => '<pivotCacheDefinition refreshOnLoad="1" ');
+  wb.pkg.write_(pivot.cachePart, nextCache);
+
+  // The table's items for the field, when it is on an axis or a filter.
+  const xml = wb.pkg.text(pivot.part);
+  const pf = pivotFieldAt(xml, fld);
+  if (pf && /\baxis="/.test(pf.xml)) {
+    const n = by ? 14 : values.length;
+    let items = '';
+    for (let k = 0; k < n; k++) items += '<item x="' + k + '"/>';
+    const pfHead = /^<pivotField\b[^>]*?(?=\/?>)/.exec(pf.xml)[0];
+    const rest = pf.xml.replace(/^<pivotField\b[^>]*?\/?>/, '').replace(/<\/pivotField>$/, '').replace(/<items\b[^>]*>[\s\S]*?<\/items>/, '');
+    const nextPf = pfHead + '><items count="' + (n + 1) + '">' + items + '<item t="default"/></items>' + rest + '</pivotField>';
+    // A filter that chose an item of the old list shows all again.
+    const cleared = (xml.slice(0, pf.start) + nextPf + xml.slice(pf.end))
+      .replace(new RegExp('<pageField fld="' + fld + '" item="\\d+"'), () => '<pageField fld="' + fld + '"');
+    wb.pkg.write_(pivot.part, cleared);
+  }
   return readPivotPart(wb, pivot.sheet, pivot.part);
 }
 

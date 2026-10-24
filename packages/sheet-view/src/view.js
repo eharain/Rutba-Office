@@ -25,6 +25,7 @@ import {
   createPivot, planPivot, parseArea as parsePivotArea,
   pivotChartXml, readPivotChart, pivotSourceName, PIVOT_CHART_KINDS,
   sourceValues, ensureSharedItems, setPivotItemsShown, itemLabel, pivotKey, setPivotLayout,
+  groupPivotField,
 } from '@rutba/ooxml/pivot';
 import {
   readSlicers, addSlicer, removeSlicer, slicerAnchorXml, writeSlicerCacheItems, setSlicerProps as writeSlicerProps,
@@ -146,6 +147,9 @@ const ERROR_KIND = {
   '#CIRCULAR!': { kind: 'circular', reason: 'Refers to itself, directly or through other cells' },
 };
 const DEFAULT_ERROR_KIND = { kind: 'error', reason: 'The formula could not be calculated' };
+
+/** A pivot field grouped by months shows its items by these names, as Excel's do. */
+const PIVOT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export class SheetView {
   constructor(buf, { now, viewportWidth = 900, viewportHeight = 500, mode = 'light' } = {}) {
@@ -1619,6 +1623,11 @@ export class SheetView {
         valueFields: p.dataFields.map((d) => ({ field: p.cacheFields[d.fld]?.name ?? '', subtotal: d.subtotal })),
         // Which fields hold numbers, by their first value — a tick puts those in Values.
         numeric: p.source ? p.cacheFields.map((_, i) => typeof this.calc.getValue(p.source.sheet, p.source.top + 1, p.source.left + i) === 'number') : [],
+        // The Filters area: each field, the item it shows (null: all) and the items to pick from.
+        filters: p.unsupported ? [] : p.pageFields.map((pf) => this._pivotFilterInfo(p, pf)),
+        // Which fields hold dates, which a pivot can show by month, and which it does.
+        dates: p.source ? p.cacheFields.map((f, i) => f.group === 'months' || this._pivotFieldIsDate(p, i)) : [],
+        months: p.cacheFields.map((f) => f.group === 'months'),
         unsupported: p.unsupported,
       })),
       viewport: vp,
@@ -5242,9 +5251,14 @@ export class SheetView {
       this.styledCells.clear();
       this._structuralDirty = true;
       this._rebuildDerivedState();
-      shape = { name, rows: grid.height, cols: grid.width, ref: areaRef(grid.area), sheet: where.sheet };
+      shape = { name, rows: grid.height, cols: grid.width, ref: areaRef(grid.area), sheet: where.sheet, top: grid.area.top, left: grid.area.left, bottom: grid.area.bottom, right: grid.area.right };
       return this;
     }, { parts, structural: true, tracksNewParts: true });
+    // The new pivot is shown, its first cell picked, as Excel goes to it:
+    // made under a long list it would otherwise sit out of sight.
+    if (shape.sheet !== this.activeSheet) this.selectSheet(shape.sheet);
+    this.select(shape.bottom, Math.min(shape.right, shape.left + 8));
+    this.select(shape.top, shape.left);
     return shape;
   }
 
@@ -5315,27 +5329,83 @@ export class SheetView {
    * changed, by heading — `rows` and `cols` as names, `values` as
    * `{ field, subtotal }` — and the pivot laid out again at once. One undo
    * step: the definition, the cache and every cell the pivot covered before
-   * or covers now.
+   * or covers now. `filters`, when given, is the Filters area as
+   * `{ field, item }`: the item by the words its list shows, or null for all
+   * of them; left out, the filters the pivot has stay.
    */
-  setPivotLayout(name, { rows = [], cols = [], values = [] } = {}) {
-    const pivot = this.pivots().find((p) => p.name === String(name ?? '').trim());
-    if (!pivot) throw new Error('no pivot table "' + String(name ?? '').trim() + '"');
-    if (pivot.unsupported) throw new Error('"' + pivot.name + '" cannot be changed here: ' + pivot.unsupported);
-    if (pivot.sheet !== this.activeSheet) throw new Error('"' + pivot.name + '" is on sheet ' + pivot.sheet);
-    const indexOf = (label) => {
-      const i = pivot.cacheFields.findIndex((f) => f.name.toLowerCase() === String(label ?? '').toLowerCase());
-      if (i < 0) throw new Error('the pivot has no field "' + label + '"');
-      return i;
-    };
+  setPivotLayout(name, { rows = [], cols = [], values = [], filters } = {}) {
+    const pivot = this._pivotToChange(name);
+    const indexOf = (label) => this._pivotFieldIndex(pivot, label);
     const layout = {
       rowFields: rows.map(indexOf),
       colFields: cols.map(indexOf),
       dataFields: values.map((v) => ({ fld: indexOf(v.field), subtotal: v.subtotal ?? 'sum' })),
+      ...(filters === undefined ? {} : {
+        pageFields: filters.map((f) => {
+          const fld = indexOf(f.field);
+          return { fld, value: this._pivotItemValue(pivot, fld, f.item) };
+        }),
+      }),
     };
     if (!layout.dataFields.length) throw new Error('A pivot needs at least one field in Values.');
+    return this._layOutPivot(pivot, 'pivot fields', layout, (readCell) => setPivotLayout(this.workbook, pivot, layout, readCell));
+  }
+
+  /**
+   * Group a date field of a pivot by months (`by` 'months'), as Excel's
+   * Group does, or show its dates one by one again (`by` null). The pivot is
+   * laid out again at once, its months in calendar order; one undo step.
+   */
+  groupPivotField(name, field, by = 'months') {
+    const pivot = this._pivotToChange(name);
+    const fld = this._pivotFieldIndex(pivot, field);
+    const grouped = pivot.cacheFields[fld].group === 'months';
+    if (by === 'months' ? grouped : !grouped && by === null) return null;
+    if (by === 'months' && !this._pivotFieldIsDate(pivot, fld)) {
+      throw new Error('"' + pivot.cacheFields[fld].name + '" can be shown by month only when it holds dates');
+    }
+    const layout = {
+      rowFields: pivot.rowFields,
+      colFields: pivot.colFields,
+      dataFields: pivot.dataFields.map((d) => ({ fld: d.fld, subtotal: d.subtotal, name: d.name })),
+    };
+    // What the pivot will look like, for the cells it may cover.
+    const fields = pivot.cacheFields.map((f, i) => (i === fld ? { ...f, group: by === 'months' ? 'months' : undefined } : f));
+    const pages = pivot.pageFields.map((pf) => (pf.fld === fld ? { ...pf, item: null } : pf));
+    return this._layOutPivot(pivot, by ? 'group by months' : 'ungroup', { ...layout, cacheFields: fields, pageFields: pages }, (readCell) => {
+      const regrouped = groupPivotField(this.workbook, pivot, fld, by, readCell);
+      return setPivotLayout(this.workbook, regrouped, layout, readCell);
+    });
+  }
+
+  /** The pivot a Fields pane gesture changes, refused when it cannot be. */
+  _pivotToChange(name) {
+    const pivot = this.pivots().find((p) => p.name === String(name ?? '').trim());
+    if (!pivot) throw new Error('no pivot table "' + String(name ?? '').trim() + '"');
+    if (pivot.unsupported) throw new Error('"' + pivot.name + '" cannot be changed here: ' + pivot.unsupported);
+    if (pivot.sheet !== this.activeSheet) throw new Error('"' + pivot.name + '" is on sheet ' + pivot.sheet);
+    return pivot;
+  }
+
+  _pivotFieldIndex(pivot, label) {
+    const i = pivot.cacheFields.findIndex((f) => f.name.toLowerCase() === String(label ?? '').toLowerCase());
+    if (i < 0) throw new Error('the pivot has no field "' + label + '"');
+    return i;
+  }
+
+  /**
+   * A pivot changed and laid out again: `write` changes its parts and
+   * returns it read again; `preview` is the shape it will have, read for the
+   * cells it may cover, which with the cells it covers now are the undo step.
+   */
+  _layOutPivot(pivot, label, preview, write) {
     const readCell = (sheet, row, col) => this.calc.getValue(sheet, row, col);
-    // The new grid first — what it covers is the undo footprint.
-    const grid = computePivot({ ...pivot, ...layout, dataFields: layout.dataFields.map((d) => ({ ...d, name: null })) }, readCell);
+    // The new grid first, every filter showing all: what it covers is the undo footprint.
+    const pages = (preview.pageFields ?? pivot.pageFields.filter((p) => !preview.rowFields.includes(p.fld) && !preview.colFields.includes(p.fld)))
+      .map((p) => ({ fld: p.fld, item: null }));
+    const grid = computePivot({
+      ...pivot, ...preview, pageFields: pages, hidden: new Map(), dataFields: preview.dataFields.map((d) => ({ ...d, name: d.name ?? null })),
+    }, readCell);
     const touched = new Map();
     const mark = (row, col) => touched.set(row + ':' + col, { row, col });
     const old = pivot.location;
@@ -5344,8 +5414,9 @@ export class SheetView {
     const recRel = this.pkg.rels(pivot.cachePart).find((r) => String(r.Type).endsWith('/pivotCacheRecords'));
     const records = recRel ? OoxmlPackage.resolveTarget(pivot.cachePart, recRel.Target) : null;
     const parts = [...new Set([this.workbook.partNameFor(this.activeSheet), pivot.part, pivot.cachePart, ...(records ? [records] : []), ...this._pivotChartParts(pivot)])];
-    this._edit('pivot fields', null, [...touched.values()], () => {
-      const next = setPivotLayout(this.workbook, pivot, layout, readCell);
+    let shape = null;
+    this._edit(label, null, [...touched.values()], () => {
+      const next = write(readCell);
       const laid = computePivot(next, readCell);
       const wanted = new Map(laid.cells.map((c) => [c.row + ':' + c.col, c.value]));
       for (const { row, col } of touched.values()) {
@@ -5356,9 +5427,67 @@ export class SheetView {
       this._updatePivotCharts(next, laid);
       this._pivots = null;
       this._structuralDirty = true;
+      shape = { rows: laid.height, cols: laid.width };
       return this;
     }, { parts });
-    return { rows: grid.height, cols: grid.width };
+    return shape;
+  }
+
+  /** The number format a pivot field's first value is shown in. */
+  _pivotFieldFormat(pivot, fld) {
+    const src = pivot.source;
+    if (!src || !this.calc.sheets.has(src.sheet)) return 'General';
+    const index = this._styleIndexAt(src.sheet, src.top + 1, src.left + fld);
+    return index === null ? 'General' : this.styles.byStyleIndex[index]?.numFmt ?? 'General';
+  }
+
+  /** Whether a pivot field holds dates: its first value a number shown as a date. */
+  _pivotFieldIsDate(pivot, fld) {
+    const src = pivot.source;
+    if (!src || !this.calc.sheets.has(src.sheet)) return false;
+    const first = this.calc.getValue(src.sheet, src.top + 1, src.left + fld);
+    return typeof first === 'number' && isDateFormat(this._pivotFieldFormat(pivot, fld));
+  }
+
+  /** A pivot item in the words a filter list shows it in: a date as the sheet shows it. */
+  _pivotItemText(pivot, fld, v) {
+    if (typeof v === 'number' && this._pivotFieldIsDate(pivot, fld)) return formatValue(v, this._pivotFieldFormat(pivot, fld)).text;
+    return itemLabel(v);
+  }
+
+  /** A filter field's items, sorted as Excel's list sorts them: numbers, then words, then blanks. */
+  _pivotFilterItems(pivot, fld) {
+    if (pivot.cacheFields[fld]?.group === 'months') return [...PIVOT_MONTHS];
+    const readCell = (sheet, row, col) => this.calc.getValue(sheet, row, col);
+    const rank = (v) => (typeof v === 'number' ? 0 : v === '' ? 2 : 1);
+    return sourceValues(pivot, readCell, fld)
+      .sort((a, b) => rank(a) - rank(b) || (typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b), undefined, { numeric: true })))
+      .map((v) => this._pivotItemText(pivot, fld, v));
+  }
+
+  /** A filter's item, as the words its list shows, back to the value it stands for. */
+  _pivotItemValue(pivot, fld, item) {
+    if (item === null || item === undefined || item === '' || item === '(All)') return null;
+    if (pivot.cacheFields[fld]?.group === 'months') {
+      const m = typeof item === 'number' ? item : PIVOT_MONTHS.findIndex((x) => x.toLowerCase() === String(item).toLowerCase()) + 1;
+      if (!(m >= 1 && m <= 12)) throw new Error('"' + item + '" is not a month');
+      return m;
+    }
+    const readCell = (sheet, row, col) => this.calc.getValue(sheet, row, col);
+    const found = sourceValues(pivot, readCell, fld).find((v) => this._pivotItemText(pivot, fld, v) === String(item) || v === item);
+    if (found === undefined) throw new Error('"' + pivot.cacheFields[fld].name + '" has no item "' + item + '"');
+    return found;
+  }
+
+  /** The frame's Filters entry for one page field. */
+  _pivotFilterInfo(pivot, pf) {
+    const field = pivot.cacheFields[pf.fld];
+    const out = { field: field?.name ?? '', item: null, items: field && pivot.source ? this._pivotFilterItems(pivot, pf.fld) : [] };
+    if (pf.item === null || !field) return out;
+    const x = pivot.itemOrder?.get(pf.fld)?.[pf.item] ?? pf.item;
+    if (field.group === 'months') out.item = PIVOT_MONTHS[x - 1] ?? null;
+    else if (field.items && field.items[x] !== undefined) out.item = this._pivotItemText(pivot, pf.fld, field.items[x]);
+    return out;
   }
 
   /** Data → Refresh All: every pivot on this sheet that can be recomputed, and its charts. */

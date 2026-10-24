@@ -3885,12 +3885,13 @@ export default function Sheets({ app, shell, boot }) {
             </Panel>
           ) : null}
           {pivotPane ? (
-            <Panel right width={300} resizable title={t('PivotTable Fields')} actions={<Button icon="close" title={t('Close the pane — Field List opens it again')} onClick={() => setPfClosed(pivotPane.name)} />}>
+            <Panel right width={300} resizable title={t('PivotTable Fields')} actions={<><Button icon="refresh" className="sh-pf-refresh" title={t('Refresh: recalculate this pivot from its source')} onClick={() => dispatch({ op: 'refreshPivot', name: pivotPane.name })} /><Button icon="close" title={t('Close the pane. Field List opens it again.')} onClick={() => setPfClosed(pivotPane.name)} /></>}>
               <style>{PIVOT_FIELDS_CSS}</style>
               <PivotFieldsPane
                 pivot={pivotPane}
                 numeric={(field) => Boolean(pivotPane.numeric?.[(pivotPane.fields || []).indexOf(field)])}
                 onChange={(layout) => dispatch({ op: 'pivotLayout', name: pivotPane.name, ...layout })}
+                onGroup={(field, by) => dispatch({ op: 'groupPivot', name: pivotPane.name, field, by })}
               />
             </Panel>
           ) : null}
@@ -4332,6 +4333,8 @@ export default function Sheets({ app, shell, boot }) {
             const next = await dispatch({ op: 'pivot', ...spec, fileName: doc?.name });
             if (next) {
               setPivotAsk(null);
+              // The sheet has gone to the new pivot: its Fields pane opens beside it.
+              setPfClosed(null);
               toast(spec.chart ? t('PivotChart and PivotTable made — the chart follows the pivot') : t('PivotTable made under the data'), { tone: 'good', ms: 3000 });
             }
           }}
