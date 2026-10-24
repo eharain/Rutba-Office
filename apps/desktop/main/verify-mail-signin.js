@@ -10,6 +10,13 @@
 // Run alone with RUTBA_VERIFY_ONLY=mail-signin.
 
 /**
+ * How long the browsers may take to be listed. Windows is asked with reg.exe,
+ * four at once, which answer in well under a second; on a computer busy with
+ * other work (the gate's other lanes) starting them took from 6 to 30 seconds.
+ */
+const BROWSERS_MS = 60000;
+
+/**
  * @param {object} h the harness: open, check, until, wait, capture, errorsIn
  */
 export async function verifyMailSignIn(h) {
@@ -43,7 +50,7 @@ export async function verifyMailSignIn(h) {
       const a = await authLine();
       const b = await js(`(() => { const s = document.querySelector('.ml-browser select'); return s ? { options: [...s.options].map((o) => ({ value: o.value, text: o.textContent })), value: s.value } : null; })()`);
       return a?.kind === 'oauth' && b ? { auth: a, browsers: b } : null;
-    }, 'Google\'s sign-in with its browsers', 8000);
+    }, 'Google\'s sign-in with its browsers', BROWSERS_MS);
     check('mail sign-in: a Gmail address says it signs in with Google\'s own page (OAuth 2.0), and the sign-in offers the browsers on this computer, the default marked',
       Boolean(google) && /Signs in with Google's own page \(OAuth 2\.0\), in the browser you choose/.test(google.auth.text) && google.browsers.options[0].value === '' && google.browsers.options.length >= 2 && google.browsers.options.some((o) => /\(the default\)$/.test(o.text)),
       JSON.stringify(google));
@@ -59,7 +66,7 @@ export async function verifyMailSignIn(h) {
     await until(() => js(`!document.querySelector('#ml-address')`), 'the dialog closed', 4000).catch(() => {});
     await openDialog();
     await setAddress('someone.signin@gmail.com');
-    const kept = await waitFor(() => js(`document.querySelector('.ml-browser select')?.value || null`), 'the browser remembered', 8000);
+    const kept = await waitFor(() => js(`document.querySelector('.ml-browser select')?.value || null`), 'the browser remembered', BROWSERS_MS);
     check('mail sign-in: the browser chosen is remembered for the next sign-in', Boolean(other) && kept === other.value, JSON.stringify({ chosen: other, kept }));
 
     await setAddress('someone.signin@yahoo.com');

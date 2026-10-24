@@ -46,9 +46,12 @@ export function parseRegistryBrowsers(text) {
   return [...keys.values()].filter((b) => b.exe && /\.exe$/i.test(b.exe) && !/iexplore\.exe$/i.test(b.exe)).map((b) => ({ ...b, name: b.name || b.id }));
 }
 
+// reg.exe answers in a fraction of a second, but on a computer busy with
+// other work starting it took over five seconds, and a limit of five left the
+// list empty: the limit is for a reg that never answers, not a slow one.
 const run = (file, args) =>
   new Promise((resolve) => {
-    execFile(file, args, { windowsHide: true, timeout: 5000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => resolve(err ? '' : String(stdout)));
+    execFile(file, args, { windowsHide: true, timeout: 30000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => resolve(err ? '' : String(stdout)));
   });
 
 const MAC = [
@@ -81,14 +84,18 @@ export async function listBrowsers({ platform = process.platform, reg = (args) =
   if (platform === 'win32') {
     const roots = ['HKCU\\SOFTWARE\\Clients\\StartMenuInternet', 'HKLM\\SOFTWARE\\Clients\\StartMenuInternet', 'HKLM\\SOFTWARE\\WOW6432Node\\Clients\\StartMenuInternet'];
     const seen = new Set();
-    for (const root of roots) {
-      for (const b of parseRegistryBrowsers(await reg(['query', root, '/s']))) {
+    // The four reads at once, each a reg.exe of its own, taken in the same order.
+    const [choice, ...texts] = await Promise.all([
+      reg(['query', 'HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\https\\UserChoice', '/v', 'ProgId']),
+      ...roots.map((root) => reg(['query', root, '/s'])),
+    ]);
+    for (const text of texts) {
+      for (const b of parseRegistryBrowsers(text)) {
         if (seen.has(b.exe.toLowerCase())) continue;
         seen.add(b.exe.toLowerCase());
         if (exists(b.exe)) found.push(b);
       }
     }
-    const choice = await reg(['query', 'HKCU\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\https\\UserChoice', '/v', 'ProgId']);
     const progId = /ProgId\s+REG_SZ\s+(\S+)/i.exec(choice)?.[1] || null;
     found = found.map((b) => ({ ...b, isDefault: Boolean(progId && b.progId && b.progId.toLowerCase() === progId.toLowerCase()) }));
   } else if (platform === 'darwin') {
