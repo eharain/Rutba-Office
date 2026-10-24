@@ -162,9 +162,11 @@ export async function verifyOcrPdf(h, { dir }) {
 
     // The words over the first scan selected and copied, as on any PDF with text.
     await d.js(`document.querySelector('[data-tip^="Close Find"]')?.click(), 1`);
-    // The first scan's words laid on its page again once Find has closed: read at once, a busy machine had not.
-    await until(() => d.js(`(document.querySelector('.pdf-page[data-index="0"] .textLayer[data-ready]')?.textContent.length || 0) > 0`), 'the first scan\'s words on its page', 20000).catch(() => {});
-    const copied = await d.js(`(() => {
+    // The first scan's words laid on its page again once Find has closed, and
+    // selected and copied in the same turn as they are read: on a busy machine
+    // the page, back in view, could draw its words again between a read that
+    // found them and the copy that followed.
+    const selectCopy = `(() => {
       const layer = document.querySelector('.pdf-page[data-index="0"] .textLayer[data-ready]');
       if (!layer) return '';
       const r = document.createRange();
@@ -174,9 +176,12 @@ export async function verifyOcrPdf(h, { dir }) {
       const text = getSelection().toString();
       getSelection().removeAllRanges();
       return text;
-    })()`);
+    })()`;
+    const inOrder = (text) => /Rutba Office reads the words/.test(text.replace(/\s+/g, ' ')) && /delivery/.test(text);
+    let copied = '';
+    await until(async () => inOrder(copied = String((await d.js(selectCopy)) || '')), 'the first scan\'s words selected and copied', 60000).catch(() => {});
     const after = await d.js(`[...document.querySelectorAll('.pdf-page .textLayer')].map((l) => l.textContent.length)`);
-    check('ocr-pdf: the words recognised on a scan are there to select and copy, in order', /Rutba Office reads the words/.test(copied.replace(/\s+/g, ' ')) && /delivery/.test(copied), copied.slice(0, 160));
+    check('ocr-pdf: the words recognised on a scan are there to select and copy, in order', inOrder(copied), copied.slice(0, 160));
     check('ocr-pdf: the scanned pages had no text before and have it now; the typed page has what it had', before[0] === 0 && after[0] > 200 && before[1] === after[1] && before[1] > 0, JSON.stringify({ before, after }));
 
     // Undo takes the layer away, Redo puts it back.
