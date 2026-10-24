@@ -13,10 +13,10 @@ import { Workbook } from '@rutba/ooxml';
 import { SheetView } from '@rutba/sheet-view';
 
 /**
- * @param {object} h the harness: open, check, until, wait
+ * @param {object} h the harness: open, check, until, wait, doc, sessionFor
  */
 export async function verifySheetPivotFields(h, { dir }) {
-  const { open, check, until, wait } = h;
+  const { open, check, until, wait, doc, sessionFor } = h;
   const file = path.join(dir, 'pivot-fields.xlsx');
   try {
     // A list and a pivot of it — Sum of Qty by Region — as a file.
