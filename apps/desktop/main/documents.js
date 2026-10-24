@@ -2492,6 +2492,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     drawingHidden: (v, a) => { v.setDrawingHidden({ id: a.id, hidden: a.hidden !== false }); },
     allDrawingsHidden: (v, a) => { v.setAllDrawingsHidden({ hidden: Boolean(a.hidden) }); },
     renameDrawing: (v, a) => { v.renameDrawing({ id: a.id, name: a.name }); },
+    // Chart Design → Chart Title: the picked chart's title, or none.
+    chartTitle: (v, a) => { v.setChartTitle({ id: a.id, title: a.title ?? '' }); },
     // Page Layout → Themes, Colours, Fonts and Effects: one of the suite's
     // themes, a palette (or Customise Colours' twelve), a font pair (or
     // Customise Fonts' two), a format scheme.

@@ -8,7 +8,7 @@
 // that hides its gaps is a ribbon nobody fixes.
 
 import React from 'react';
-import { Ribbon, Group, Rows, Button, Separator, Select, t, tn } from '@rutba/office-ui';
+import { Ribbon, Group, Rows, Button, Separator, Select, Input, t, tn } from '@rutba/office-ui';
 import { WARP_PRESETS, WARP_MORE, warpLabel } from '@rutba/drawing/warp';
 import { catalogByCategory } from '@rutba/formula';
 import { numberFormats } from './dialogs.js';
@@ -143,6 +143,29 @@ export const CELL_STYLES = [
   [t('Comma'), { numberFormat: '#,##0.00' }],
 ];
 
+/** Chart Design's title field: the picked chart's title, set on Enter or on leaving the field. */
+function ChartTitleField({ chart, onSet }) {
+  const [text, setText] = React.useState(chart.title || '');
+  React.useEffect(() => setText(chart.title || ''), [chart.id, chart.title]);
+  const commit = () => { if (text.trim() !== (chart.title || '')) onSet(text.trim()); };
+  return (
+    <Input
+      className="rw-input sh-chart-title"
+      value={text}
+      placeholder={t('Chart title')}
+      aria-label={t('Chart title')}
+      style={{ width: 220 }}
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); commit(); }
+        if (e.key === 'Escape') setText(chart.title || '');
+      }}
+      onBlur={commit}
+    />
+  );
+}
+
 /**
  * The functions Excel lists by category. Picking one starts an edit in the
  * active cell with `=NAME(` typed, which is what Excel's Insert Function does
@@ -240,6 +263,8 @@ export default function SheetsRibbon({
         ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'shape' && arrange.picked[0].hasText ? [{ id: 'shapeFormat', label: t('Shape Format'), contextual: true }] : []),
         // Picture Format, as Excel's: there while one picture is picked.
         ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'image' ? [{ id: 'pictureFormat', label: t('Picture Format'), contextual: true }] : []),
+        // Chart Design, as Excel's: there while one chart is picked.
+        ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'chart' ? [{ id: 'chartDesign', label: t('Chart Design'), contextual: true }] : []),
       ]}
       active={tab}
       onTab={setTab}
@@ -276,6 +301,18 @@ export default function SheetsRibbon({
             <Rows>
               <Button icon="layerUp" label={t('Bring Forward')} onClick={() => dispatch({ op: 'reorderDrawings', ids: [arrange.picked[0].id], to: 'forward' })} />
               <Button icon="layerDown" label={t('Send Backward')} onClick={() => dispatch({ op: 'reorderDrawings', ids: [arrange.picked[0].id], to: 'backward' })} />
+            </Rows>
+          </Group>
+        </>
+      ) : null}
+
+      {/* ── Chart Design (contextual): the chart's title ────────────────── */}
+      {tab === 'chartDesign' && arrange.picked.length === 1 && arrange.picked[0].kind === 'chart' ? (
+        <>
+          <Group label={t('Chart Title')}>
+            <Rows>
+              <ChartTitleField chart={arrange.picked[0]} onSet={(title) => dispatch({ op: 'chartTitle', id: arrange.picked[0].id, title })} />
+              <Button icon="close" label={t('No Title')} className="sh-chart-notitle" disabled={!arrange.picked[0].title} title={t('No Title: the chart drawn without one')} onClick={() => dispatch({ op: 'chartTitle', id: arrange.picked[0].id, title: '' })} />
             </Rows>
           </Group>
         </>

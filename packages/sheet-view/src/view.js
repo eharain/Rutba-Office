@@ -1547,6 +1547,8 @@ export class SheetView {
         id: d.id, kind: d.kind, name: d.kind === 'slicer' ? d.slicerName : d.name, hidden: Boolean(d.hidden), index: d.index,
         // A shape's words, and the Transform they are laid along, for Shape Format.
         ...(d.kind === 'shape' ? { hasText: Boolean(d.descriptor?.text), textWarp: d.descriptor?.textWarp ?? null } : {}),
+        // A chart's title, for Chart Design.
+        ...(d.kind === 'chart' ? { title: d.spec?.title ?? '' } : {}),
       })),
       // What the toolbar needs: whether the buttons are live and what they say.
       history: this.history.describe(),
@@ -4448,8 +4450,14 @@ export class SheetView {
     if (this.protection().sheet) {
       throw protectionError('This sheet is protected — unprotect it before inserting objects.');
     }
+    // The selection when it is a block of its own (headings across its top,
+    // labels down its left), as Excel charts what is selected; else the
+    // block of data round the cursor.
     const active = this.selection.active;
-    const r = this._currentRegion(active.row, active.col);
+    const picked = this.selection.range;
+    const r = picked.bottom > picked.top && picked.right > picked.left
+      ? { top: picked.top, left: picked.left, bottom: picked.bottom, right: picked.right }
+      : this._currentRegion(active.row, active.col);
     if (r.bottom - r.top < 1 || r.right - r.left < 1) {
       throw new Error('Put the cursor in a block of data — headers across the top, '
         + 'categories down the first column, numbers beside them.');
@@ -4522,6 +4530,50 @@ export class SheetView {
       this.drawings.set(this.activeSheet, this._readDrawings(sheetPartName));
       this._structuralDirty = true;
     }, { parts, tracksNewParts: true });
+    return this;
+  }
+
+  /**
+   * Chart Design → Chart Title: the chart's own title set, or taken away
+   * with no words, as Excel writes each (a title first in `c:chart`, or
+   * `autoTitleDeleted`). One undo step; the chart is drawn again at once.
+   */
+  setChartTitle({ id, title = '' }) {
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected. Unprotect it before changing its charts.');
+    }
+    const d = this._drawingById(id);
+    if (d.kind !== 'chart' || !d.part || !this.pkg.has(d.part)) throw new Error('only a chart has a chart title');
+    const words = String(title ?? '').trim();
+    const xml = this.pkg.text(d.part);
+    const chart = /<(\w+:)?chart>([\s\S]*?)<\/\1chart>/.exec(xml);
+    if (!chart) throw new Error('this chart could not be read');
+    const p = chart[1] ?? '';
+    // The chart's own title and its deleted flag, not an axis's (those sit in the plot area).
+    const at = chart[2].search(new RegExp('<' + p + 'plotArea\\b'));
+    const head = at < 0 ? chart[2] : chart[2].slice(0, at);
+    const tail = at < 0 ? '' : chart[2].slice(at);
+    const bare = head
+      .replace(new RegExp('<' + p + 'title>[\\s\\S]*?</' + p + 'title>'), '')
+      .replace(new RegExp('<' + p + 'autoTitleDeleted\\b[^>]*/>'), '');
+    const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const own = words
+      ? '<' + p + 'title><' + p + 'tx><' + p + 'rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>' + esc(words)
+        + '</a:t></a:r></a:p></' + p + 'rich></' + p + 'tx><' + p + 'overlay val="0"/></' + p + 'title><' + p + 'autoTitleDeleted val="0"/>'
+      : '<' + p + 'autoTitleDeleted val="1"/>';
+    let next = xml.slice(0, chart.index) + '<' + p + 'chart>' + own + bare + tail + '</' + p + 'chart>'
+      + xml.slice(chart.index + chart[0].length);
+    if (next === xml) return this;
+    // The a: prefix the title's words are in, declared where the chart space has none.
+    if (words && !/xmlns:a="/.test(next)) {
+      next = next.replace(/<(\w+:)?chartSpace\b/, (m) => m + ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"');
+    }
+    this._edit('chart title', null, [], () => {
+      this.pkg.write_(d.part, next);
+      this.drawings.set(this.activeSheet, this._readDrawings(this.workbook.partNameFor(this.activeSheet)));
+      this._liveCharts = null;
+      this._structuralDirty = true;
+    }, { parts: [d.part] });
     return this;
   }
 

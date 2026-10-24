@@ -70,3 +70,31 @@ test('an untouched workbook with a chart saves the chart part as it was', () => 
   const reopened = SheetView.open(view.save());
   assert.equal(Workbook.open(reopened.save()).pkg.text('xl/charts/chart1.xml'), first);
 });
+
+test('Chart Design sets the chart title, takes it away, and undo puts it back', () => {
+  const view = charted();
+  const id = view.render().objects.find((o) => o.kind === 'chart').id;
+  view.setChartTitle({ id, title: 'Takings & tips, Q1' });
+  assert.equal(view.render().objects.find((o) => o.id === id).title, 'Takings & tips, Q1');
+  assert.ok(chartSvg(view).includes('Takings &amp; tips, Q1'), 'drawn with its new title');
+  let xml = Workbook.open(view.save()).pkg.text('xl/charts/chart1.xml');
+  assert.match(xml, /<c:chart><c:title>[\s\S]*<a:t>Takings &amp; tips, Q1<\/a:t>[\s\S]*<\/c:title><c:autoTitleDeleted val="0"\/>/);
+  assert.equal((xml.match(/<c:title>/g) || []).length, 1, 'one title, not two');
+
+  view.setChartTitle({ id, title: '' });
+  xml = Workbook.open(view.save()).pkg.text('xl/charts/chart1.xml');
+  assert.doesNotMatch(xml, /<c:title>/);
+  assert.match(xml, /<c:autoTitleDeleted val="1"\/>/);
+  view.undo();
+  assert.equal(view.render().objects.find((o) => o.id === id).title, 'Takings & tips, Q1');
+  assert.throws(() => view.setChartTitle({ id: 'nope', title: 'x' }));
+});
+
+test('a chart is made from the selection when a block is selected', () => {
+  const view = SheetView.open(book());
+  view.select(0, 0);
+  view.select(2, 1, { extend: true });
+  view.insertChart({ kind: 'column' });
+  const xml = Workbook.open(view.save()).pkg.text('xl/charts/chart1.xml');
+  assert.match(xml, /<c:f>Data!\$B\$2:\$B\$3<\/c:f>/, 'Jan and Feb only, as selected');
+});
