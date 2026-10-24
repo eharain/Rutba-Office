@@ -12,7 +12,9 @@
 //   Apple Mail    ~/Library/Mail, a tree of .emlx files.
 //   Windows Mail  the old Windows Live Mail store, .eml on disk.
 //
-// Nothing here writes, and nothing leaves the machine.
+// Nothing here writes, and nothing leaves the machine. Where it looks is a
+// seam (placesOf): a check or a film points it at a folder of its own, so it
+// never reads the mail of the person whose computer it runs on.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -21,7 +23,6 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const run = promisify(execFile);
-const home = os.homedir();
 const isWindows = process.platform === 'win32';
 const isMac = process.platform === 'darwin';
 
@@ -69,10 +70,24 @@ function filesIn(root, match, depth = 2, out = []) {
   return out;
 }
 
+/* ── where to look ──────────────────────────────────────────────────────── */
+
+/**
+ * The folders the other clients keep their mail under. RUTBA_MAIL_IMPORT_HOME
+ * names a folder to stand for the person's own (its AppData\Roaming and
+ * AppData\Local for Windows' two), so a check or a film can point the scan at
+ * an empty folder, or one it made; the Outlook registry is then not read.
+ */
+export function placesOf(env = process.env) {
+  const own = env.RUTBA_MAIL_IMPORT_HOME;
+  if (own) return { home: own, appData: path.join(own, 'AppData', 'Roaming'), localAppData: path.join(own, 'AppData', 'Local'), registry: false };
+  return { home: os.homedir(), appData: env.APPDATA || '', localAppData: env.LOCALAPPDATA || '', registry: true };
+}
+
 /* ── Thunderbird ────────────────────────────────────────────────────────── */
 
-const THUNDERBIRD_ROOTS = [
-  isWindows && path.join(process.env.APPDATA || '', 'Thunderbird'),
+const thunderbirdRoots = ({ home, appData }) => [
+  isWindows && appData && path.join(appData, 'Thunderbird'),
   isMac && path.join(home, 'Library', 'Thunderbird'),
   path.join(home, '.thunderbird'),
 ].filter(Boolean);
@@ -101,9 +116,9 @@ function readPrefs(file) {
   return prefs;
 }
 
-function thunderbirdAccounts() {
+function thunderbirdAccounts(places) {
   const found = [];
-  for (const root of THUNDERBIRD_ROOTS) {
+  for (const root of thunderbirdRoots(places)) {
     if (!exists(root)) continue;
     const profilesRoot = exists(path.join(root, 'Profiles')) ? path.join(root, 'Profiles') : root;
     for (const profile of dirsIn(profilesRoot)) {
@@ -160,8 +175,8 @@ function thunderbirdAccounts() {
 
 /* ── Outlook ────────────────────────────────────────────────────────────── */
 
-const OUTLOOK_DIRS = [
-  isWindows && path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'Outlook'),
+const outlookDirs = ({ home, localAppData }) => [
+  isWindows && localAppData && path.join(localAppData, 'Microsoft', 'Outlook'),
   path.join(home, 'Documents', 'Outlook Files'),
   isMac && path.join(home, 'Library', 'Group Containers'),
 ].filter(Boolean);
@@ -204,9 +219,9 @@ async function outlookServers() {
   return out;
 }
 
-function outlookDataFiles() {
+function outlookDataFiles(places) {
   const files = [];
-  for (const dir of OUTLOOK_DIRS) {
+  for (const dir of outlookDirs(places)) {
     if (!exists(dir)) continue;
     for (const file of filesIn(dir, (n) => /\.(pst|ost|olm)$/i.test(n), 2)) {
       files.push({ path: file, bytes: sizeOf(file), format: path.extname(file).slice(1).toLowerCase() });
@@ -217,7 +232,7 @@ function outlookDataFiles() {
 
 /* ── Apple Mail and Windows Live Mail ───────────────────────────────────── */
 
-function appleMail() {
+function appleMail({ home }) {
   if (!isMac) return [];
   const root = path.join(home, 'Library', 'Mail');
   if (!exists(root)) return [];
@@ -227,25 +242,27 @@ function appleMail() {
     : [];
 }
 
-function windowsLiveMail() {
-  if (!isWindows) return [];
-  const root = path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'Windows Live Mail');
+function windowsLiveMail({ localAppData }) {
+  if (!isWindows || !localAppData) return [];
+  const root = path.join(localAppData, 'Microsoft', 'Windows Live Mail');
   if (!exists(root)) return [];
   return [{ source: 'Windows Live Mail', email: 'Windows Live Mail', incoming: null, outgoing: null, stores: [{ path: root, bytes: 0, format: 'eml' }] }];
 }
 
 /* ── the offer ──────────────────────────────────────────────────────────── */
 
-export function createDiscoveryService() {
+/** @param {{ places?: () => object }} [options] where to look, read at each scan (placesOf by default) */
+export function createDiscoveryService({ places = placesOf } = {}) {
   return {
     /**
      * Everything found, without reading a single message.
      * @returns {{ accounts: [], files: [], scanned: string[] }}
      */
     scan: async () => {
-      const accounts = [...thunderbirdAccounts(), ...appleMail(), ...windowsLiveMail()];
-      const files = outlookDataFiles();
-      const servers = await outlookServers();
+      const at = places();
+      const accounts = [...thunderbirdAccounts(at), ...appleMail(at), ...windowsLiveMail(at)];
+      const files = outlookDataFiles(at);
+      const servers = at.registry ? await outlookServers() : [];
 
       if (files.length || servers.length) {
         accounts.push({
@@ -265,7 +282,7 @@ export function createDiscoveryService() {
           storeCount: a.stores.length,
         })),
         files,
-        scanned: [...THUNDERBIRD_ROOTS, ...OUTLOOK_DIRS].filter(exists),
+        scanned: [...thunderbirdRoots(at), ...outlookDirs(at)].filter(exists),
       };
     },
   };

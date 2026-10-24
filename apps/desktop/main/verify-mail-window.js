@@ -12,8 +12,14 @@
 // selected and shown in the reading pane, as Outlook does, rather than the
 // pane emptied and the list started again from the top. And the first message
 // an account sends makes its Sent, which shows in the folders at once, not
-// after the window is opened again. Run alone with RUTBA_VERIFY_ONLY=mail-window.
+// after the window is opened again. Import mail looks where the check points
+// it, never at the computer's own mail, and names the files it found and the
+// one being read without the folders they are in. Run alone with
+// RUTBA_VERIFY_ONLY=mail-window.
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { BrowserWindow } from 'electron';
 
 /**
@@ -190,6 +196,39 @@ export async function verifyMailWindow(h) {
         !sentBefore && !sentHad && sentNow, JSON.stringify({ sentBefore, sentHad, sentNow }));
     } finally {
       if (freshId) await js(`window.rutbaOffice.mail.removeAccount({ id: ${JSON.stringify(freshId)}, keepMail: false })`).catch(() => {});
+    }
+
+    // Import mail (A6.12): the scan pointed at a folder the check made, with
+    // two Outlook data files named after an address, as Outlook names them.
+    const was = process.env.RUTBA_MAIL_IMPORT_HOME;
+    const own = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-import-home-'));
+    try {
+      const outlook = path.join(own, 'AppData', 'Local', 'Microsoft', 'Outlook');
+      fs.mkdirSync(outlook, { recursive: true });
+      for (const n of ['sam@example.com.pst', 'sam@example.com - old.pst']) fs.writeFileSync(path.join(outlook, n), Buffer.alloc(256, 7));
+      process.env.RUTBA_MAIL_IMPORT_HOME = own;
+      // Every line the window shows from here on, so a box shown for a moment is read too.
+      await js(`(() => { window.__importSeen = new Set(); const note = () => { for (const n of document.querySelectorAll('.rw-dialog, [role="dialog"], .rw-toast')) window.__importSeen.add(n.textContent); }; window.__importWatch = new MutationObserver(note); window.__importWatch.observe(document.body, { childList: true, subtree: true, characterData: true }); return 1; })()`);
+      await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Send / Receive')?.click(); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Import mail'))`), 'the Import mail button', 4000);
+      await js(`[...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Import mail').click(), 1`);
+      await until(() => js(`[...document.querySelectorAll('.ml-found-item')].some((n) => n.textContent.includes('sam@example.com - old.pst'))`), 'the files found', 8000).catch(() => {});
+      const found = await js(`[...document.querySelectorAll('.ml-found-item')].map((n) => n.textContent)`);
+      // The second file chosen: the Importing box names it while it is looked inside.
+      await js(`(() => { [...document.querySelectorAll('.ml-found-item')].find((n) => n.textContent.includes('sam@example.com - old.pst'))?.click(); return 1; })()`);
+      await wait(2500);
+      const seen = await js(`(() => { window.__importWatch?.disconnect(); return [...(window.__importSeen || [])]; })()`);
+      const named = (s) => s.includes('sam@example.com - old.pst');
+      const leaks = [...found, ...seen].filter((s) => s.includes(own) || s.includes(outlook) || s.includes(os.homedir()));
+      check('mail: Import mail looks only where it is pointed and names the files it found, and the one being read, without the folders they are in',
+        found.some(named) && found.some((s) => s.includes('sam@example.com.pst')) && seen.some((s) => s.includes('Importing') && named(s)) && leaks.length === 0,
+        JSON.stringify({ found: found.length, importing: seen.some((s) => s.includes('Importing') && named(s)), leaks: leaks.map((s) => s.slice(0, 120)) }));
+      await js(`(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1; })()`);
+      await wait(300);
+    } finally {
+      if (was === undefined) delete process.env.RUTBA_MAIL_IMPORT_HOME;
+      else process.env.RUTBA_MAIL_IMPORT_HOME = was;
+      try { fs.rmSync(own, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* left in the temp folder */ }
     }
 
     const complaints = [...(await errorsIn(win))];

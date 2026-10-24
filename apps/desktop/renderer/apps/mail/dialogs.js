@@ -11,7 +11,7 @@ import {
   Button, Dialog, Field, Input, Icon, Chip, Empty, Spinner, Search, Progress, Separator, Select,
   formatBytes, formatWhen, t, tn,
 } from '@rutba/office-ui';
-import { avatarFor, displayName } from './parts.js';
+import { avatarFor, displayName, fileNameOf } from './parts.js';
 import { cleanHtml, htmlToText, LinkRow, selectionIn } from './richtext.js';
 import { signatureTextToHtml } from '@rutba/mailbox/signature';
 
@@ -404,7 +404,7 @@ export function Discovered({ scan, onImportStore, onUseAccount }) {
                 >
                   <Icon name="file" size={14} />
                   <span className="grow">
-                    <div className="what" style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{store.path}</div>
+                    <div className="what" style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{fileNameOf(store.path)}</div>
                   </span>
                   <span className="what">{formatBytes(store.bytes)}</span>
                 </button>
@@ -1213,7 +1213,7 @@ export function ImportingDialog({ path, progress }) {
           <span>{progress ? tn(progress.done, '{count} message — {folder}', '{count} messages — {folder}', { folder: progress.folder }) : t('Reading the archive…')}</span>
         </div>
         <Progress value={progress?.done ? (progress.done % 500) / 500 : 0.15} />
-        <div className="rw-hint">{path}</div>
+        <div className="rw-hint">{fileNameOf(path)}</div>
       </div>
     </Dialog>
   );

@@ -171,6 +171,16 @@ export function stripTags(html) {
     .trim();
 }
 
+/* ── files ───────────────────────────────────────────────────────────────── */
+
+/**
+ * A file's own name, without the folders it is in: what the import shows of
+ * a file found or chosen. Outlook names a data file after the account's
+ * address and keeps it under the person's own folder, so the whole path says
+ * more about them than the box needs to.
+ */
+export const fileNameOf = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop() || String(p || '');
+
 /* ── people ──────────────────────────────────────────────────────────────── */
 
 // Enough hues to tell a dozen correspondents apart at a glance, all at the same
