@@ -577,11 +577,24 @@ export default function ImageTool({ app, shell, boot }) {
       if (!hasResult) return;
       commitDraft();
       const info = FORMATS[fmt];
-      const stem = path ? basename(path).replace(/\.[^.]+$/, '') : pastedName || t('Picture');
-      const folder = path ? path.slice(0, path.length - basename(path).length) : `${(await shell.app.paths().catch(() => ({}))).pictures || ''}/`;
+      // Never the original's own name, which one Enter and Windows' replace
+      // prompt stand between the photo and its loss: "{name} edited" beside
+      // it, as Photos offers. A picture out of a document (Edit in Image) is
+      // in a scratch file, so it is offered in Pictures under the document's
+      // name instead.
+      const own = path && !editFor;
+      const stem = own
+        ? t('{name} edited', { name: basename(path).replace(/\.[^.]+$/, '') })
+        : editFor
+          ? t('Picture from {name}', { name: String(editFor.name || t('the document')).replace(/\.[^.]+$/, '') })
+          : pastedName || t('Picture');
+      const folder = own ? path.slice(0, path.length - basename(path).length) : `${(await shell.app.paths().catch(() => ({}))).pictures || ''}/`;
+      let defaultPath = `${folder}${stem}.${info.ext}`;
+      // An edited copy already there is not offered for replacing either.
+      for (let n = 2; n < 100 && (await shell.fs.stat({ path: defaultPath }).catch(() => null)); n++) defaultPath = `${folder}${stem} (${n}).${info.ext}`;
       const target = await shell.dialog.save({
         title: t('Export picture'),
-        defaultPath: `${folder}${stem}.${info.ext}`,
+        defaultPath,
         filters: [{ name: fmt.toUpperCase(), extensions: [info.ext] }],
       });
       if (!target) return;
@@ -624,7 +637,7 @@ export default function ImageTool({ app, shell, boot }) {
         setBusy(false);
       }
     },
-    [hasResult, resultSize, layered, path, pastedName, shell, toast, exportOpts, renderResult, commitDraft, format, sourceFormat]
+    [hasResult, resultSize, layered, path, pastedName, shell, toast, exportOpts, renderResult, commitDraft, format, sourceFormat, editFor]
   );
 
   const copy = useCallback(async () => {
