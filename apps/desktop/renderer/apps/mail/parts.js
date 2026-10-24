@@ -294,6 +294,34 @@ export function buildThreads(rows) {
   return threads;
 }
 
+/** Where a message lives, across accounts and folders: the one key a row is known by. */
+export const rowKey = (row) => `${row.accountId}|${row.folder}|${row.id}`;
+
+/**
+ * The message to open once some leave the list (deleted, archived, moved,
+ * marked as junk): the first after the last one removed, or, at the foot of
+ * the list, the nearest before the first one removed, as Outlook does.
+ * Null when nothing is left, or when nothing listed was removed.
+ *
+ * @param {object[]} entries the list as shown, top to bottom (conversations or messages)
+ * @param {Iterable<string>} gone the rowKey of each message removed
+ * @param {(entry: object) => object[]} rowsIn the messages an entry holds
+ * @returns {{ accountId: string, folder: string, id: string } | null}
+ */
+export function nextAfterRemoved(entries, gone, rowsIn = (e) => e.messages || [e]) {
+  const keys = new Set(gone);
+  const hit = entries.map((e) => rowsIn(e).some((r) => keys.has(rowKey(r))));
+  const last = hit.lastIndexOf(true);
+  if (last < 0) return null;
+  const first = hit.indexOf(true);
+  let pick = null;
+  for (let i = last + 1; i < entries.length && !pick; i++) if (!hit[i]) pick = entries[i];
+  for (let i = first - 1; i >= 0 && !pick; i--) if (!hit[i]) pick = entries[i];
+  // Between the first and the last removed, when they were not side by side.
+  for (let i = last - 1; i > first && !pick; i--) if (!hit[i]) pick = entries[i];
+  return pick ? { accountId: pick.accountId, folder: pick.folder, id: pick.id } : null;
+}
+
 /* ── views ───────────────────────────────────────────────────────────────── */
 
 export const FILTERS = [

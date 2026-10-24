@@ -8,7 +8,10 @@
 // stay on the message rather than moving to another. The first window still
 // has its list. Deleted from its own window, the message goes to Deleted and
 // the window closes. Deleted from the list, that row goes and the rest of the
-// list stays as it was. Run alone with RUTBA_VERIFY_ONLY=mail-window.
+// list stays as it was. Deleted from the middle of three, the one after it is
+// selected and shown in the reading pane, as Outlook does, rather than the
+// pane emptied and the list started again from the top. Run alone with
+// RUTBA_VERIFY_ONLY=mail-window.
 
 import { BrowserWindow } from 'electron';
 
@@ -128,6 +131,43 @@ export async function verifyMailWindow(h) {
       return { ready: true, button: true, gone: !${rowOf(drop)}, sameRow: Boolean(after && after.dataset.keptRow === '1'), emptied, spun, moved: after ? Math.round(after.getBoundingClientRect().top - top) : null };
     })()`);
     check('mail: a message deleted from the list leaves it alone, the list never emptied nor a spinner shown over it, the other messages the same rows', removed.ready && removed.button && removed.gone && removed.sameRow && !removed.emptied && !removed.spun, JSON.stringify(removed));
+
+    // Deleted from the middle of three (owner, 2026-10-24: "it should be
+    // selecting the next rather than first"): the third is selected and read.
+    const three = ['first', 'second', 'third'].map((n, i) => ({ n, s: `Window: the ${n} of three ${stamp}`, at: stamp + (3 - i) * 60000 }));
+    for (const { n, s, at } of three) {
+      await mail('deliverTest', { accountId, folder: 'Inbox', raw: raw.replace(subject, s).replace(`<window-${stamp}@`, `<window-three-${n}-${stamp}@`).replace(new Date(stamp).toUTCString(), new Date(at).toUTCString()) });
+    }
+    await openInbox();
+    await until(async () => (await js(`Boolean(${three.map(({ s }) => rowOf(s)).join(' && ')})`)) || (await openInbox(), await wait(400), false), 'the three messages in the list', 12000).catch(() => {});
+    const order = await js(`[...document.querySelectorAll('.ml-row .ml-subject')].map((n) => n.textContent).filter((s) => s.includes('of three')).map((s) => s.split(' ')[2])`);
+    const next = await js(`(async () => {
+      const middle = ${rowOf(three[1].s)};
+      if (!middle) return { ready: false };
+      middle.click();
+      for (let i = 0; i < 40 && !(document.querySelector('.ml-reader h2')?.textContent || '').includes(${JSON.stringify(three[1].s)}); i++) await new Promise((r) => setTimeout(r, 100));
+      const del = [...document.querySelectorAll('.rw-btn, button')].find((n) => (n.dataset.tip || n.title || n.getAttribute('aria-label') || '').trim().startsWith('Delete') && !n.disabled && n.offsetParent !== null);
+      if (!del) return { ready: true, button: false };
+      del.click();
+      for (let i = 0; i < 40 && ${rowOf(three[1].s)}; i++) await new Promise((r) => setTimeout(r, 100));
+      for (let i = 0; i < 40 && !(document.querySelector('.ml-reader h2')?.textContent || '').includes(${JSON.stringify(three[2].s)}); i++) await new Promise((r) => setTimeout(r, 100));
+      return {
+        ready: true,
+        button: true,
+        gone: !${rowOf(three[1].s)},
+        selected: [...document.querySelectorAll('.ml-row.selected .ml-subject')].map((n) => n.textContent),
+        shown: document.querySelector('.ml-reader h2')?.textContent || '',
+      };
+    })()`);
+    check('mail: deleting the middle of three selects the third and shows it in the reading pane, not an empty pane',
+      next.ready && next.button && next.gone && JSON.stringify(order) === '["first","second","third"]' && next.selected.length === 1 && next.selected[0].includes(three[2].s) && next.shown.includes(three[2].s),
+      JSON.stringify({ order, ...next }));
+    // The keys go on from there: Down moves to the message below the third, not the first.
+    win.focus();
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Up' });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Up' });
+    const up = await until(() => js(`(document.querySelector('.ml-row.selected .ml-subject')?.textContent || '').includes(${JSON.stringify(three[0].s)})`), 'Up to the first of three', 3000).then(() => true).catch(() => false);
+    check('mail: after the delete, Up goes on from the message selected, to the one above it', up, up ? 'the first of three' : await js(`document.querySelector('.ml-row.selected .ml-subject')?.textContent || 'nothing selected'`));
 
     const complaints = [...(await errorsIn(win))];
     check('mail window: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

@@ -26,7 +26,7 @@ import {
 import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
-import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags } from './mail/parts.js';
+import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, nextAfterRemoved } from './mail/parts.js';
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
@@ -495,6 +495,12 @@ export default function Mail({ app, shell }) {
     async (what, extra) => {
       const chosen = targets();
       if (!chosen.length) return;
+      // Where the list goes on once these leave it: the message after the
+      // last one removed, read at once, as Outlook does, rather than an
+      // empty pane and a list that starts again from the top.
+      const gone = chosen.map(keyOf);
+      const after = nextAfterRemoved(threads, gone, allRowsIn);
+      const stays = selected && !gone.includes(keyOf(selected));
       try {
         if (what === 'delete') {
           await overRows(chosen, async (g) => {
@@ -562,7 +568,7 @@ export default function Mail({ app, shell }) {
           await overRows(chosen, (g) => shell.mail.flag({ ...g, patch: { pinned: on } }));
         }
         setChecked(new Set());
-        if (LEAVES.includes(what) || (what === 'safeGroup' && chosen.some((r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk')))) setSelected(null);
+        if (!alone && !stays && (LEAVES.includes(what) || (what === 'safeGroup' && chosen.some((r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk'))))) setSelected(after);
         // Moved out of its folder, the message's own window has nothing left to show.
         if (alone && LEAVES.includes(what)) {
           shell.win.close({}).catch(() => {});
@@ -582,7 +588,7 @@ export default function Mail({ app, shell }) {
         await refreshList().catch(() => {});
       }
     },
-    [alone, targets, overRows, foldersFor, unified, role, shell, refreshList, loadAccounts, toast]
+    [alone, targets, overRows, foldersFor, unified, role, shell, refreshList, loadAccounts, toast, threads, allRowsIn, selected]
   );
 
   /** A double-click in the list: the message in a window of its own. */
