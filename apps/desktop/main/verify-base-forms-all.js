@@ -201,6 +201,9 @@ export async function verifyBaseFormsAll({ open, check, until, wait }, { dir }) 
         }
         await newToasts(f.name, 'adding a record');
         await js(`document.querySelector('.bs-nav-delete')?.click(), 1`);
+        // Delete asks first (2.18): yes.
+        await until(() => js(`Boolean(document.querySelector('.bs-delete-yes'))`), 'the question', 3000).catch(() => {});
+        await js(`document.querySelector('.bs-delete-yes')?.click(), 1`);
         const gone = await until(() => js(`(document.querySelector('.bs-nav-place')?.textContent || '').endsWith('of ${f.count}') || ${f.count === 0} && document.querySelector('.bs-nav-place')?.textContent === 'New record'`), 'the record deleted', 6000).then(() => true, () => false);
         if (!gone) fault(f.name, `the added record was not deleted: "${await js(`document.querySelector('.bs-nav-place')?.textContent`)}"`);
         await newToasts(f.name, 'deleting the record');
