@@ -73,7 +73,14 @@ test('a workbook without charts writes no chart part', () => {
 
 test('an edit elsewhere leaves the chart part untouched on save', () => {
   const view = SheetView.open(charted(), { viewportWidth: 1600, viewportHeight: 1400 });
-  view.setCell(1, 0, '999');
+  view.setCell(5, 5, '999');
   const saved = OoxmlPackage.read(view.save());
   assert.deepEqual(saved.read('xl/charts/chart1.xml'), OoxmlPackage.read(charted()).read('xl/charts/chart1.xml'));
+});
+
+test('an edit to a charted figure is in the chart cache on save', () => {
+  const view = SheetView.open(charted(), { viewportWidth: 1600, viewportHeight: 1400 });
+  view.setCell(1, 0, '999');
+  const chartXml = OoxmlPackage.read(view.save()).text('xl/charts/chart1.xml');
+  assert.ok(chartXml.includes('<c:pt idx="0"><c:v>999</c:v></c:pt>'), 'the new figure is cached');
 });

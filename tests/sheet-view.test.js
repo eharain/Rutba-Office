@@ -356,9 +356,11 @@ test('saving goes through the preserving path and caches formula results', () =>
   assert.ok(!view.isDirty);
 
   const diff = comparePackages(FIXTURE, out);
-  assert.deepEqual(diff.changed.map((c) => c.name), ['xl/worksheets/sheet1.xml']);
+  // B2 is charted: the chart's cache takes its new figure, as Excel's does.
+  assert.deepEqual(diff.changed.map((c) => c.name).sort(), ['xl/charts/chart1.xml', 'xl/worksheets/sheet1.xml']);
   assert.equal(diff.removed.length, 0);
-  for (const part of FRAGILE_PARTS) assert.ok(diff.identical.includes(part), part + ' disturbed by a save');
+  for (const part of FRAGILE_PARTS.filter((p) => p !== 'xl/charts/chart1.xml')) assert.ok(diff.identical.includes(part), part + ' disturbed by a save');
+  assert.match(OoxmlPackage.read(out).text('xl/charts/chart1.xml'), /<c:pt idx="0"><c:v>2000<\/c:v><\/c:pt>/);
 
   const sheetXml = OoxmlPackage.read(out).text('xl/worksheets/sheet1.xml');
   for (const el of FRAGILE_SHEET_ELEMENTS) assert.ok(sheetXml.includes('<' + el), el + ' lost on save');

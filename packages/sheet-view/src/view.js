@@ -58,8 +58,9 @@ import { consolidate as consolidateRanges, lastConsolidation, consolidateRefText
 import { createForecastSheet, forecastDefaults, forecastPreview } from './forecast-sheet.js';
 import {
   readSheetDrawings, buildChart, buildShape, buildPicture, renderSvg, scene,
-  SUPPORTED_GEOMETRY, childElements, xfrmOf, anchorBody,
+  SUPPORTED_GEOMETRY, childElements, xfrmOf, anchorBody, parseChartXml,
 } from '@rutba/drawing';
+import { refreshChartCaches, chartRefCells } from './chart-cache.js';
 import { drawingAnchorXml, chartPartXml, equationContentXml } from '@rutba/ooxml/build';
 import { ommlToMathml, ommlToLinear } from '@rutba/ooxml/math';
 import { linearToOmml } from '@rutba/ooxml/math-linear';
@@ -688,6 +689,51 @@ export class SheetView {
       // A PivotChart names the pivot it is drawn from.
       pivot: d.kind === 'chart' && d.part && this.pkg.has(d.part) ? (readPivotChart(this.pkg.text(d.part))?.name ?? null) : null,
     }));
+  }
+
+  /**
+   * What a chart's references cover now, for its caches: numbers for a
+   * numRef, each cell's text as it reads for a strRef. Null for a reference
+   * this cannot read (a name, several areas, a sheet not in the workbook).
+   */
+  _chartRead(refText, kind) {
+    const at = chartRefCells(refText);
+    if (!at || !this.calc.sheets.has(at.sheet) || at.cells.length > 100000) return null;
+    return at.cells.map(({ row, col }) => {
+      const value = this.calc.getValue(at.sheet, row, col);
+      if (kind === 'num') return isError(value) ? null : value;
+      if (value === '' || value === null || value === undefined) return '';
+      const index = this._styleIndexAt(at.sheet, row, col);
+      const code = index === null ? 'General' : this.styles.byStyleIndex[index]?.numFmt ?? 'General';
+      return formatValue(value, code).text;
+    });
+  }
+
+  /** A chart part with its caches made from the cells as they are now. */
+  _chartXmlNow(part) {
+    const xml = this.pkg.has(part) ? this.pkg.text(part) : null;
+    return xml ? refreshChartCaches(xml, (r, k) => this._chartRead(r, k)) : xml;
+  }
+
+  /**
+   * A chart as its cells have it now: read again from its part with its
+   * caches brought up to date, when any value differs from what the part
+   * was drawn from; otherwise the spec read when the sheet opened.
+   */
+  _liveChartSpec(d) {
+    if (!d.part) return d.spec;
+    const xml = this._chartXmlNow(d.part);
+    if (!xml || xml === this.pkg.text(d.part)) return d.spec;
+    this._liveCharts ??= new Map();
+    const kept = this._liveCharts.get(d.part);
+    if (kept && kept.xml === xml) return kept.spec;
+    const spec = parseChartXml(xml, {
+      mode: this.mode,
+      width: Math.max(160, Math.round(d.widthPx ?? 480)),
+      height: Math.max(120, Math.round(d.heightPx ?? 300)),
+    }) ?? d.spec;
+    this._liveCharts.set(d.part, { xml, spec });
+    return spec;
   }
 
   /**
@@ -1422,7 +1468,7 @@ export class SheetView {
           // the state its table or pivot is in now.
           slicer = this.slicerState(d.slicerName) ?? { name: d.slicerName, caption: d.slicerName, items: [], broken: 'its slicer part is missing' };
         } else if (d.spec) {
-          svg = renderSvg(buildChart({ ...d.spec, width, height, mode: this.mode, palette }));
+          svg = renderSvg(buildChart({ ...this._liveChartSpec(d), width, height, mode: this.mode, palette }));
         } else if (d.kind === 'equation' && d.omml) {
           svg = equationSvg(d.omml, { width, height, sizePt: d.sizePt, dark: this.mode === 'dark', title: d.name ?? 'Equation' });
         } else if (d.descriptor?.kind === 'shape') {
@@ -7658,6 +7704,7 @@ export class SheetView {
     // file never keeps an answer the sheet had not caught up with.
     // A draft kept for recovery (serialize) leaves the waiting alone.
     if (recalc && this.calc.calculationPending) this.calc.recalculate({ force: true });
+    const edited = this.isDirty;
     for (const key of this.dirtyCells) {
       const [sheetName, cellRef] = key.split('!');
       const input = this.calc.getInput(sheetName, ...parseRefPair(cellRef));
@@ -7703,6 +7750,24 @@ export class SheetView {
       const [sheetName, cellRef] = key.split('!');
       const [row, col] = parseRefPair(cellRef);
       this.workbook.setCellStyle(sheetName, cellRef, this._styleIndexAt(sheetName, row, col));
+    }
+
+    // Each chart's cached values as its cells have them now, as Excel
+    // writes them: a reader that draws from the cache draws what was here.
+    // A workbook saved with no change keeps its parts as they came.
+    let recached = false;
+    for (const part of edited ? this.pkg.partNames() : []) {
+      if (!/^xl\/charts\/chart\d+\.xml$/.test(part)) continue;
+      const xml = this._chartXmlNow(part);
+      if (xml !== this.pkg.text(part)) {
+        this.pkg.write_(part, xml);
+        recached = true;
+      }
+    }
+    // The drawings are read from the parts again, so the charts' own specs are what was saved.
+    if (recached) {
+      for (const { name, part } of this.workbook.sheets()) this.drawings.set(name, this._readDrawings(part));
+      this._liveCharts = null;
     }
 
     const out = this.workbook.save();
