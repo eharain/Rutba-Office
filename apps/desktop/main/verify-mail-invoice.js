@@ -120,7 +120,10 @@ export async function verifyMailInvoice(h, { dir }) {
       const view = p?.querySelector('[data-role="ocr-boxview"]')?.getBoundingClientRect();
       const box = p?.querySelector('[data-role="ocr-boxmark"]')?.getBoundingClientRect();
       const loupe = p?.querySelector('[data-role="ocr-loupe"]')?.getBoundingClientRect();
-      return p && view && box && loupe && loupe.height > 20 ? { field: p.dataset.field, head: p.textContent, x: (box.left - view.left) / view.width, y: (box.top - view.top) / view.height, loupe: Math.round(loupe.width) } : null;
+      // The page's picture loaded and laid out before the mark is measured on it: on a busy machine the
+      // loupe was drawn first, and the mark was read off a page with no height yet (y came back NaN).
+      const page = p?.querySelector('[data-role="ocr-boxview"] img');
+      return p && view && box && loupe && loupe.height > 20 && page?.complete && page.naturalHeight > 0 && view.height > 20 ? { field: p.dataset.field, head: p.textContent, x: (box.left - view.left) / view.width, y: (box.top - view.top) / view.height, loupe: Math.round(loupe.width) } : null;
     })()`), 'where the total was read', 15000);
     await capture(win, 'mail-invoice-01-total.png');
     check('mail-invoice: the total pressed shows the part of the invoice it was read from, marked on the page',
