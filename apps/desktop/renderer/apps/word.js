@@ -2668,6 +2668,18 @@ export default function Word({ app, shell, boot }) {
               onKeyDown={(e) => {
                 // Tab walks the form fields in a document protected for filling them in.
                 if (forms.pageKey(e)) return;
+                // Tab and Shift+Tab, as in Word: a list item's level, the next
+                // or previous cell (a new row from the last), or a tab typed.
+                // The page keeps the focus; F6 moves between the window's parts.
+                if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && !picked && !previewRef.current) {
+                  e.preventDefault();
+                  const pos = currentPosition();
+                  const ops = [];
+                  if (pos?.focus) ops.push({ op: 'setSelection', anchor: pos.anchor || pos.focus, focus: pos.focus });
+                  ops.push({ op: 'tabCell', back: e.shiftKey });
+                  apply(...ops);
+                  return;
+                }
                 // A picked picture goes with Delete or Backspace — its block
                 // with it when the block held nothing else.
                 if ((e.key === 'Delete' || e.key === 'Backspace') && picked) {

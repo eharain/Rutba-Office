@@ -2141,9 +2141,16 @@ export class DocView {
     const home = this._containerOf(block);
 
     if (home === null) {
-      // Prose: Tab indents, Shift+Tab outdents — the paragraph, not the caret.
+      // A list item, as in Word: Tab at its start (or across several items)
+      // moves it a level in, Shift+Tab anywhere in it a level out. Anywhere
+      // else Tab is a tab, typed at the caret; Shift+Tab outdents the
+      // paragraph.
+      const listed = typeof this.doc.getParagraphProps === 'function' && Boolean(this.doc.getParagraphProps(block)?.listType);
+      const { from, to } = this.selection;
+      if (listed && (back || from.block !== to.block || from.offset === 0)) return this.setParagraphFormat({ indentDelta: back ? -1 : 1 });
+      if (!back) return this.insertText('\t');
       if (typeof this.doc.setParagraphProp !== 'function') return this;
-      return this.setParagraphFormat({ indentDelta: back ? -1 : 1 });
+      return this.setParagraphFormat({ indentDelta: -1 });
     }
 
     if (back) {

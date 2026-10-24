@@ -208,6 +208,7 @@ import { verifyWordSplit } from './verify-word-split.js';
 import { verifyWordTypingTabs } from './verify-word-typing-tabs.js';
 import { verifyWordMarkdown } from './verify-word-markdown.js';
 import { verifyWordPageNumbers } from './verify-word-page-numbers.js';
+import { verifyWordTabKeys } from './verify-word-tab-keys.js';
 import { verifyDeckSmartArt } from './verify-deck-smartart.js';
 import { verifyWordSmartArt } from './verify-word-smartart.js';
 import { verifySheetSmartArt } from './verify-sheet-smartart.js';
@@ -5159,6 +5160,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('decksmartart')) await verifyDeckSmartArt({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('wordsmartart')) await verifyWordSmartArt({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('sheetsmartart')) await verifySheetSmartArt({ open, check, until, wait, doc, sessionFor }, { dir });
+    if (only.includes('wordtab')) await verifyWordTabKeys({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('trackformat')) await verifyWordTrackFormat({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('pivotfields')) await verifySheetPivotFields({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('sheetlists')) await verifySheetLists({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
@@ -5559,6 +5561,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('sheets', () => verifySheetPivotFields({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetLists({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('calendar', () => verifyDav({ open, check, until, wait, errorsIn }));
+  await part('word', () => verifyWordTabKeys({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('shell', () => verifyThesaurus({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDesignIdeas({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetQueries({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
