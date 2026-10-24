@@ -1112,12 +1112,13 @@ export default function WordRibbon({
             <Button icon="list" label={t('Reviewing Pane')} title={t('Every tracked change in this document')} disabled={!model?.blocks?.some((b) => b.tracked)} onClick={() => openDialog('tracked')} />
           </Group>
           <Group label={t('Changes')}>
-            <Button dropdown tall icon="check" label={t('Accept')} disabled={!trackedHere || Boolean(model?.protection?.lockedTracking)} title={t('Accept: keep this change')} onClick={(e) => menu.open(e, [
-              { label: t('Accept This Change'), run: () => act('acceptChanges') },
+            {/* This Change is the change selected (Next and Previous select one); All works wherever the caret is. */}
+            <Button dropdown tall icon="check" label={t('Accept')} disabled={!anyTracked || Boolean(model?.protection?.lockedTracking)} title={t('Accept: keep this change')} onClick={(e) => menu.open(e, [
+              { label: t('Accept This Change'), disabled: !trackedHere, run: () => act('acceptChanges') },
               { label: t('Accept All Changes'), run: () => act('acceptChanges', 'all') },
             ])} />
-            <Button dropdown tall icon="close" label={t('Reject')} disabled={!trackedHere || Boolean(model?.protection?.lockedTracking)} title={t('Reject: undo this change')} onClick={(e) => menu.open(e, [
-              { label: t('Reject This Change'), run: () => act('rejectChanges') },
+            <Button dropdown tall icon="close" label={t('Reject')} disabled={!anyTracked || Boolean(model?.protection?.lockedTracking)} title={t('Reject: undo this change')} onClick={(e) => menu.open(e, [
+              { label: t('Reject This Change'), disabled: !trackedHere, run: () => act('rejectChanges') },
               { label: t('Reject All Changes'), run: () => act('rejectChanges', 'all') },
             ])} />
             <Button icon="chevronUp" label={t('Previous')} disabled={!anyTracked} title={t('Previous tracked change')} onClick={() => act('nextChange', -1)} />

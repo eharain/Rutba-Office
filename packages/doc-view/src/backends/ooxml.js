@@ -546,6 +546,9 @@ export class OoxmlBackend {
   acceptParagraphChanges(index) { return this.doc.acceptParagraphChanges(index); }
   rejectParagraphChanges(index) { return this.doc.rejectParagraphChanges(index); }
   acceptAllChanges() { return this.doc.acceptAllChanges(); }
+  /** Every tracked change in reading order, and one of them accepted or rejected by its id. */
+  trackedChanges() { return this.doc.trackedChanges(); }
+  resolveChange(id, keep) { return this.doc.resolveChange(id, keep); }
   // The headers, footers and notes Accept All and Reject All change, named before the edit for its undo.
   trackedStoryParts() { return this.doc.trackedStoryParts(); }
   willEditPart(name) { this.doc.willEditPart(name); return this; }

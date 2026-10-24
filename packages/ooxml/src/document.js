@@ -5545,20 +5545,24 @@ export class Document {
    * paragraph to the next, which keeps the next one's properties, as Word
    * does. True when anything changed.
    */
-  _resolveParagraphChanges(index, keep) {
+  _resolveParagraphChanges(index, keep, only = null) {
     const p = this.editParagraph(index);
     if (!p) throw new Error('no paragraph at index ' + index);
     if (!/<w:(?:ins|del|rPrChange|pPrChange|moveFrom|moveTo)\b/.test(p.xml)) return false;
+    // One change only (Accept This Change): the elements carrying its id.
+    const mine = (attrsText) => only == null || String(attrs(attrsText || '')['w:id'] ?? '') === String(only);
     const pPrRe = /^(<w:p\b[^>]*>)\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?/;
     const head = pPrRe.exec(p.xml);
     let pPr = head?.[2] ?? '';
     let rest = p.xml.slice(head ? head[0].length : 0);
     // The paragraph mark: put in or taken out while tracking.
-    const markRe = /<w:(ins|del)\b[^>]*\/>/;
-    const mark = /<w:rPr\b[^>]*>(?:<w:rPrChange\b[\s\S]*?<\/w:rPrChange>|(?!<\/w:rPr>)[\s\S])*?<\/w:rPr>/.exec(pPr)?.[0]?.match(markRe)?.[1] ?? null;
+    const markRe = /<w:(ins|del)\b([^>]*)\/>/;
+    const markEl = /<w:rPr\b[^>]*>(?:<w:rPrChange\b[\s\S]*?<\/w:rPrChange>|(?!<\/w:rPr>)[\s\S])*?<\/w:rPr>/.exec(pPr)?.[0]?.match(markRe) ?? null;
+    const mark = markEl && mine(markEl[2]) ? markEl[1] : null;
     if (mark) pPr = pPr.replace(/<w:rPr\b[^>]*>(?:<w:rPrChange\b[\s\S]*?<\/w:rPrChange>|(?!<\/w:rPr>)[\s\S])*?<\/w:rPr>/, (rPr) => rPr.replace(new RegExp(markRe.source, 'g'), ''));
     // The paragraph's own formatting, changed while tracking.
-    const pChange = /<w:pPrChange\b[^>]*>([\s\S]*?)<\/w:pPrChange>/.exec(pPr);
+    const pFound = /<w:pPrChange\b([^>]*)>([\s\S]*?)<\/w:pPrChange>/.exec(pPr);
+    const pChange = pFound && mine(pFound[1]) ? [pFound[0], pFound[2]] : null;
     if (pChange && keep) pPr = pPr.replace(pChange[0], '');
     else if (pChange) {
       // Rejected: the properties it recorded, with the mark's run properties
@@ -5569,30 +5573,35 @@ export class Document {
       pPr = '<w:pPr>' + before + markProps + sect + '</w:pPr>';
     }
     // Words put in and taken out — the wrappers around runs, never a mark.
-    const ins = /<w:ins\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:ins>/g;
-    const del = /<w:del\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:del>/g;
+    const ins = /<w:ins\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:ins>/g;
+    const del = /<w:del\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:del>/g;
     rest = keep
-      ? rest.replace(ins, '$1').replace(del, '')
-      : rest.replace(ins, '').replace(del, (whole, inner) => inner
+      ? rest.replace(ins, (whole, a, inner) => (mine(a) ? inner : whole)).replace(del, (whole, a) => (mine(a) ? '' : whole))
+      : rest.replace(ins, (whole, a) => (mine(a) ? '' : whole)).replace(del, (whole, a, inner) => (!mine(a) ? whole : inner
         .replace(/<w:delText\b([^>]*)\/>/g, '<w:t$1/>')
         .replace(/<w:delText\b([^>]*)>/g, '<w:t$1>')
         .replace(/<\/w:delText>/g, '</w:t>')
         // A field taken out keeps its code in delInstrText; put back as a
         // plain instrText or the field comes back with no instruction.
-        .replace(/<(\/?)w:delInstrText\b/g, '<$1w:instrText'));
+        .replace(/<(\/?)w:delInstrText\b/g, '<$1w:instrText')));
     // Words moved: kept where they went, or put back where they were.
-    const movedFrom = /<w:moveFrom\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:moveFrom>/g;
-    const movedTo = /<w:moveTo\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:moveTo>/g;
-    rest = (keep ? rest.replace(movedFrom, '').replace(movedTo, '$1') : rest.replace(movedFrom, '$1').replace(movedTo, ''))
-      .replace(/<w:move(?:From|To)Range(?:Start|End)\b[^>]*\/>/g, '');
+    const movedFrom = /<w:moveFrom\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:moveFrom>/g;
+    const movedTo = /<w:moveTo\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:moveTo>/g;
+    rest = rest
+      .replace(movedFrom, (whole, a, inner) => (!mine(a) ? whole : keep ? '' : inner))
+      .replace(movedTo, (whole, a, inner) => (!mine(a) ? whole : keep ? inner : ''));
+    if (only == null) rest = rest.replace(/<w:move(?:From|To)Range(?:Start|End)\b[^>]*\/>/g, '');
     // Formatting changed: kept as it is now, or put back as it was.
-    const fmt = /<w:rPr\b[^>]*>((?:(?!<\/w:rPr>|<w:rPrChange\b)[\s\S])*)<w:rPrChange\b[^>]*>\s*<w:rPr\b[^>]*>([\s\S]*?)<\/w:rPr>\s*<\/w:rPrChange>\s*<\/w:rPr>|<w:rPr\b[^>]*>((?:(?!<\/w:rPr>|<w:rPrChange\b)[\s\S])*)<w:rPrChange\b[^>]*>\s*<w:rPr\b[^>]*\/>\s*<\/w:rPrChange>\s*<\/w:rPr>/g;
-    const resolve = (xml) => xml.replace(fmt, (whole, nowA, was, nowB) => {
+    const fmt = /<w:rPr\b[^>]*>((?:(?!<\/w:rPr>|<w:rPrChange\b)[\s\S])*)<w:rPrChange\b([^>]*)>\s*<w:rPr\b[^>]*>([\s\S]*?)<\/w:rPr>\s*<\/w:rPrChange>\s*<\/w:rPr>|<w:rPr\b[^>]*>((?:(?!<\/w:rPr>|<w:rPrChange\b)[\s\S])*)<w:rPrChange\b([^>]*)>\s*<w:rPr\b[^>]*\/>\s*<\/w:rPrChange>\s*<\/w:rPr>/g;
+    const resolve = (xml) => xml.replace(fmt, (whole, nowA, attrsA, was, nowB, attrsB) => {
+      if (!mine(attrsA ?? attrsB)) return whole;
       const props = keep ? (nowA ?? nowB ?? '') : (was ?? '');
       return props.trim() ? '<w:rPr>' + props + '</w:rPr>' : '';
     });
     rest = resolve(rest);
     pPr = resolve(pPr).replace(/<w:rPr\b[^>]*>\s*<\/w:rPr>/, '').replace(/^<w:pPr\b[^>]*>\s*<\/w:pPr>$/, '');
+    // One change that is not in this paragraph leaves it as it was.
+    if (only != null && head[1] + pPr + rest === p.xml) return false;
     this._spliceBody(p.start, p.end, head[1] + pPr + rest);
     this.dirty = true;
     // A mark that goes joins this paragraph to the next.
@@ -5721,6 +5730,76 @@ export class Document {
 
   rejectAllChanges() {
     return this._resolveAllChanges(false);
+  }
+
+  /**
+   * Every tracked change in the body, one entry per change in reading
+   * order, for Review → Next and Previous and This Change: words put in or
+   * taken out, formatting changed, a paragraph's own formatting changed, and
+   * a paragraph mark put in or taken out. Each says where it is in the edit
+   * space (`block`, and the text offsets `from` to `to`; a deletion, having
+   * no words on the page, is the point where they were), its `kind`
+   * ('insert', 'delete', 'format', 'paragraph', 'mark', 'move'), its id,
+   * author and date. Runs of one change with the same id are one entry.
+   */
+  trackedChanges() {
+    const trackMeta = (text) => {
+      const a = attrs(text);
+      return { id: a['w:id'] ?? '', author: a['w:author'] ? unesc(a['w:author']) : '', date: a['w:date'] ?? null };
+    };
+    const out = [];
+    const paras = this.editParagraphs();
+    for (let i = 0; i < paras.length; i++) {
+      if (!/<w:(?:ins|del|rPrChange|pPrChange|moveFrom|moveTo)\b/.test(paras[i].xml)) continue;
+      const p = this._decorate(paras[i]);
+      const here = [];
+      const byKey = new Map();
+      const note = (kind, meta, from, to, extra = {}) => {
+        const id = String(meta?.id ?? '');
+        const key = kind + ':' + id;
+        const had = byKey.get(key);
+        if (had) { had.to = Math.max(had.to, to); if (extra.text) had.text = (had.text || '') + extra.text; return; }
+        const c = { id, kind, author: meta?.author ?? '', date: meta?.date ?? null, block: i, from, to, ...extra };
+        byKey.set(key, c);
+        here.push(c);
+      };
+      let at = 0;
+      for (const r of p.runs) {
+        const len = r.text.length;
+        if (r.ins) note('insert', r.ins, at, at + len);
+        if (r.del) note('delete', r.del, at, at, { text: r.del.text ?? '' });
+        const fc = r.rPr && r.rPr.includes('<w:rPrChange') ? formatChangeOf(r.rPr) : null;
+        if (fc) note('format', fc, at, at + len);
+        at += len;
+      }
+      const pPr = /^<w:p\b[^>]*>\s*(<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?/.exec(paras[i].xml)?.[1] ?? '';
+      const pc = /<w:pPrChange\b([^>]*)>/.exec(pPr);
+      if (pc) note('paragraph', trackMeta(pc[1]), 0, at);
+      const mark = /<w:rPr\b[^>]*>(?:<w:rPrChange\b[\s\S]*?<\/w:rPrChange>|(?!<\/w:rPr>)[\s\S])*?<\/w:rPr>/.exec(pPr)?.[0]?.match(/<w:(ins|del)\b([^>]*)\/>/);
+      if (mark) note('mark', trackMeta(mark[2]), at, at, { mark: mark[1] === 'ins' ? 'inserted' : 'deleted' });
+      for (const m of paras[i].xml.matchAll(/<w:move(From|To)\b(?![^>]*\/>)([^>]*)>/g)) note('move', trackMeta(m[2]), 0, at, { moved: m[1] === 'From' ? 'from' : 'to' });
+      here.sort((a, b) => a.from - b.from || a.to - b.to);
+      out.push(...here);
+    }
+    return out;
+  }
+
+  /**
+   * Review → Accept or Reject This Change: the one change with this id,
+   * wherever its parts stand, and nothing else. True when anything changed.
+   */
+  resolveChange(id, keep) {
+    const key = String(id);
+    const quoted = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const carries = new RegExp('<w:(?:ins|del|rPrChange|pPrChange|moveFrom|moveTo)\\b[^>]*\\bw:id="' + quoted + '"');
+    let changed = false;
+    for (let i = 0; i < this.editParagraphCount();) {
+      const p = this.editParagraphs()[i];
+      const before = this.editParagraphCount();
+      if (carries.test(p.xml) && this._resolveParagraphChanges(i, keep, key)) changed = true;
+      if (this.editParagraphCount() === before) i += 1;
+    }
+    return changed;
   }
 
   _resolveAllChanges(keep) {

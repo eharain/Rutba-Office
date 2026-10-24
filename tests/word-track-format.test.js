@@ -120,6 +120,9 @@ test('a paragraph mark Word put in is not mistaken for inserted words, and Accep
   assert.deepEqual(view.blocks[0].runs.map((r) => [r.text, Boolean(r.ins)]), [['Kept ', false], ['new', true]]);
   assert.equal(view.render({ pages: false }).blocks[0].tracked.mark, 'inserted');
   view.setSelection({ block: 0, offset: 0 });
+  // One change at a time (2.18.0): the inserted words, then the mark.
+  view.acceptChanges();
+  assert.equal(view.render({ pages: false }).blocks[0].tracked.mark, 'inserted', 'the mark waits for its own Accept');
   view.acceptChanges();
   const xml = bodyOf(view);
   assert.ok(wellFormed(xml), 'written whole');
@@ -130,6 +133,9 @@ test('a paragraph mark Word put in is not mistaken for inserted words, and Accep
 test('Reject on an inserted paragraph mark joins the paragraph to the next, which keeps its own properties', () => {
   const view = withParagraph(MARK_IN);
   view.setSelection({ block: 0, offset: 0 });
+  // One change at a time (2.18.0): the inserted words go, then the mark.
+  view.rejectChanges();
+  assert.equal(view.blocks.length, 2);
   view.rejectChanges();
   const xml = bodyOf(view);
   assert.ok(wellFormed(xml));

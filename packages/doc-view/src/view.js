@@ -3130,10 +3130,72 @@ export class DocView {
     // The headers, footers and notes Accept All changes are named first, so its undo puts them back too.
     if (all) for (const name of this.doc.trackedStoryParts?.() || []) this.doc.willEditPart?.(name);
     return this._edit('accept changes', null, () => {
-      const changed = all ? this.doc.acceptAllChanges() : this.doc.acceptParagraphChanges(this.focus.block);
+      const changed = all ? this.doc.acceptAllChanges() : this._resolveThisChange(true);
       this._invalidate();
       return changed;
     });
+  }
+
+  /**
+   * Every tracked change in reading order (see `Document.trackedChanges`).
+   * Empty for a backend that does not track changes.
+   */
+  trackedChangeList() {
+    return typeof this.doc.trackedChanges === 'function' ? this.doc.trackedChanges() : [];
+  }
+
+  /**
+   * The change the selection is on: the first one the selection touches, or
+   * the one the caret stands in or at the edge of. Null when there is none.
+   */
+  changeAtSelection() {
+    const { from, to } = this.selection;
+    const key = (block, offset) => block * 1e9 + offset;
+    const a = key(from.block, from.offset);
+    const b = key(to.block, to.offset);
+    return this.trackedChangeList().find((c) => key(c.block, c.from) <= b && key(c.block, c.to) >= a) ?? null;
+  }
+
+  /**
+   * Review → Next and Previous: the next change after the selection (or
+   * the one before it), selected, so This Change acts on it; round to the
+   * first or the last at the end. Returns the change, or null when there
+   * are none.
+   */
+  nextChange(direction = 1) {
+    const list = this.trackedChangeList();
+    if (!list.length) return null;
+    const { from, to } = this.selection;
+    const key = (block, offset) => block * 1e9 + offset;
+    const start = key(from.block, from.offset);
+    const end = key(to.block, to.offset);
+    // The change already selected is passed over, not found again.
+    const same = (c) => key(c.block, c.from) === start && key(c.block, c.to) === end;
+    let pick;
+    if (direction >= 0) pick = list.find((c) => !same(c) && (key(c.block, c.from) > start || (key(c.block, c.from) === start && key(c.block, c.to) > end))) ?? list[0];
+    else pick = [...list].reverse().find((c) => !same(c) && key(c.block, c.from) < start) ?? list[list.length - 1];
+    this.setSelection({ block: pick.block, offset: pick.from }, { block: pick.block, offset: pick.to });
+    return pick;
+  }
+
+  /**
+   * Accept (`keep`) or reject the change at the selection, and that one
+   * only. With none there, the next in the caret's paragraph (or its first),
+   * as This Change in Word reaches the change in the line the caret is on.
+   */
+  _resolveThisChange(keep) {
+    const { focus } = this;
+    const inLine = this.trackedChangeList().filter((c) => c.block === focus.block);
+    const change = this.changeAtSelection() ?? inLine.find((c) => c.from >= focus.offset) ?? inLine[0] ?? null;
+    if (!change || typeof this.doc.resolveChange !== 'function') return false;
+    const changed = this.doc.resolveChange(change.id, keep);
+    // The caret where the change was, which may now be shorter.
+    if (changed) {
+      this._invalidate();
+      const b = Math.min(change.block, this.blocks.length - 1);
+      this.collapseTo({ block: b, offset: Math.min(change.from, this.block(b)?.text.length ?? 0) });
+    }
+    return changed;
   }
 
   /**
@@ -3146,7 +3208,7 @@ export class DocView {
     }
     if (all) for (const name of this.doc.trackedStoryParts?.() || []) this.doc.willEditPart?.(name);
     return this._edit('reject changes', null, () => {
-      const changed = all ? this.doc.rejectAllChanges() : this.doc.rejectParagraphChanges(this.focus.block);
+      const changed = all ? this.doc.rejectAllChanges() : this._resolveThisChange(false);
       this._invalidate();
       return changed;
     });

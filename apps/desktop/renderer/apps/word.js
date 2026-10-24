@@ -2317,11 +2317,14 @@ export default function Word({ app, shell, boot }) {
           await apply({ op: 'rejectChanges', all: arg === 'all' });
           return;
         case 'nextChange': {
-          const list = blocks.filter((b) => b.tracked).map((b) => b.index);
-          if (!list.length) return toast(t('No tracked changes in this document.'), { ms: 4000 });
-          const next = arg > 0 ? list.find((n) => n > at) ?? list[0] : [...list].reverse().find((n) => n < at) ?? list[list.length - 1];
-          await apply({ op: 'setSelection', anchor: { block: next, offset: 0 }, focus: { block: next, offset: 0 } });
-          pageRef.current?.querySelector(`[data-block="${next}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          // The engine selects the next change itself, one change at a time,
+          // so This Change acts on it; the page shows it selected.
+          if (!blocks.some((b) => b.tracked)) return toast(t('No tracked changes in this document.'), { ms: 4000 });
+          const pos = currentPosition();
+          const ops = pos?.focus ? [{ op: 'setSelection', anchor: pos.anchor || pos.focus, focus: pos.focus }] : [];
+          const answer = await apply(...ops, { op: 'nextChange', direction: arg > 0 ? 1 : -1 });
+          const next = answer?.result?.block ?? answer?.model?.selection?.focus?.block ?? answer?.patch?.selection?.focus?.block ?? null;
+          if (next != null) pageRef.current?.querySelector(`[data-block="${next}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
           return;
         }
         default:
