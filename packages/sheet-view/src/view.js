@@ -7205,29 +7205,61 @@ export class SheetView {
     const t = this._filterTarget(tableName);
     const idx = this._tableColumnIndex(t, columnName);
     const list = values === null || values === undefined ? null : [...values].map(String);
-    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
     this._edit('filter', null, [], () => {
       t.setFilter(idx, list);
-      const filters = t.filters();
-      const top = t.top + t.headerRowCount;
-      const bottom = t.bottom - t.totalsRowCount;
-      const hidden = new Set();
-      for (let r = top; r <= bottom; r++) {
-        for (const [cid, vals] of filters) {
-          if (!vals || !vals.length) continue;
-          if (!vals.includes(this.displayValue(r, t.left + cid).text)) {
-            hidden.add(r);
-            break;
-          }
-        }
-      }
-      this.workbook.setRowsHidden(this.activeSheet, top, bottom, hidden);
-      // Row heights are part-derived; the grid must collapse what just hid.
-      const xml = this.workbook.snapshotParts([sheetPartName])[sheetPartName];
-      this.geometry.set(this.activeSheet, SheetGeometry.fromSheetXml(xml));
-      this._structuralDirty = true;
+      this._hideFiltered(t);
     }, { parts: t.parts });
     this.filterPanel = null;
+    return this;
+  }
+
+  /** The rows of a list its filters exclude hidden, and the rest shown. */
+  _hideFiltered(t) {
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    const filters = t.filters();
+    const top = t.top + t.headerRowCount;
+    const bottom = t.bottom - t.totalsRowCount;
+    const hidden = new Set();
+    for (let r = top; r <= bottom; r++) {
+      for (const [cid, vals] of filters) {
+        if (!vals || !vals.length) continue;
+        if (!vals.includes(this.displayValue(r, t.left + cid).text)) {
+          hidden.add(r);
+          break;
+        }
+      }
+    }
+    this.workbook.setRowsHidden(this.activeSheet, top, bottom, hidden);
+    // Row heights are part-derived; the grid must collapse what just hid.
+    const xml = this.workbook.snapshotParts([sheetPartName])[sheetPartName];
+    this.geometry.set(this.activeSheet, SheetGeometry.fromSheetXml(xml));
+    this._structuralDirty = true;
+  }
+
+  /**
+   * The filter menu's Sort A to Z and Z to A: the list's rows under its
+   * heading sorted by one of its columns, its heading and totals rows left
+   * where they are, and its filters applied again to the rows as they now
+   * stand, so the rows hidden are still the ones the filters exclude. One
+   * undo step.
+   */
+  sortFilterColumn(tableName, columnName, ascending = true) {
+    const t = this._filterTarget(tableName);
+    const idx = this._tableColumnIndex(t, columnName);
+    const top = t.top + t.headerRowCount;
+    const bottom = t.bottom - t.totalsRowCount;
+    this.filterPanel = null;
+    if (bottom <= top) return this;
+    const touched = [];
+    for (let r = top; r <= bottom; r++) {
+      for (let c = t.left; c <= t.right; c++) touched.push({ row: r, col: c });
+    }
+    this._edit('sort', null, touched, () => {
+      this.selection.collapseTo(top, t.left);
+      this.selection.extendTo(bottom, t.right);
+      this.sortSelection({ keys: [{ col: t.left + idx, ascending: ascending !== false }] });
+      this._hideFiltered(t);
+    }, { parts: t.parts });
     return this;
   }
 

@@ -47,6 +47,7 @@ import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook,
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
 import { CfIcon, barStyle, CF_GLYPHS_CSS } from './sheets/cf-glyphs.js';
+import { filterHeads, FilterArrow, FilterMenu, FILTER_CSS } from './sheets/filter-panel.js';
 import { SmartArtDialog, SMARTART_CSS } from '../smartart-dialog.js';
 import { layoutSmartArt } from '../smartart.js';
 import { formulaReferences, pointSpan, rangeText, rangeOf, cycleAbsolute, REF_COLOURS } from '@rutba/sheet-view/formula-refs';
@@ -167,6 +168,8 @@ export default function Sheets({ app, shell, boot }) {
    * or the box a new thread starts in — and which comment is being edited.
    */
   const [card, setCard] = useState(null);
+  /** A heading's filter arrow pressed: where it is on screen, for its menu to open under. */
+  const [filterAt, setFilterAt] = useState(null);
   /** The Comments pane's filter: every thread, the open ones, or the resolved. */
   const [commentFilter, setCommentFilter] = useState('all');
   /** Page Break Preview: a break being dragged — its axis, where it was, where the pointer is. */
@@ -1731,6 +1734,17 @@ export default function Sheets({ app, shell, boot }) {
     );
   };
 
+  /** The filter arrows: every filtered list's heading cells, keyed by "row:col". */
+  const headsAt = useMemo(() => filterHeads(model?.tables), [model?.tables]);
+  const openFilter = useCallback((head, at) => {
+    setFilterAt(at);
+    dispatch({ op: 'filterPanel', table: head.table, column: head.column });
+  }, [dispatch]);
+  const closeFilter = useCallback(() => {
+    setFilterAt(null);
+    dispatch({ op: 'filterPanel', table: null });
+  }, [dispatch]);
+
   /** Sparklines in view, keyed by "row:col" so a cell paints its own without scanning the list. */
   const sparkAt = useMemo(() => {
     const m = new Map();
@@ -1812,10 +1826,11 @@ export default function Sheets({ app, shell, boot }) {
 
   const cellNode = (cell, dy = 0, dx = 0) => {
     const spark = sparkAt.get(cell.row + ':' + cell.col);
+    const head = headsAt.get(cell.row + ':' + cell.col);
     return (
       <div
         key={cell.ref}
-        className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}${cell.thread ? (cell.thread.done ? ' threaded resolved' : ' threaded') : ''}${cell.bar ? ' barred' : ''}${cell.icon ? ' iconed' : ''}`}
+        className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}${cell.thread ? (cell.thread.done ? ' threaded resolved' : ' threaded') : ''}${cell.bar ? ' barred' : ''}${cell.icon ? ' iconed' : ''}${head ? ' filter-head' : ''}`}
         data-ref={cell.ref}
         style={dy || dx ? (() => { const s = spillStyle(cell); return { ...s, top: cell.y - dy, left: s.left - dx }; })() : spillStyle(cell)}
         onMouseDown={(e) => {
@@ -1842,6 +1857,8 @@ export default function Sheets({ app, shell, boot }) {
         {/* Its conditional formatting's data bar, under its words, and its icon set's icon. */}
         {cell.bar ? <span className="sh-cf-bar" style={barStyle(cell.bar, cell.width)} /> : null}
         {cell.icon ? <CfIcon icon={cell.icon} height={cell.height} /> : null}
+        {/* Data → Filter's arrow in a heading cell; a funnel once its column filters. */}
+        {head ? <FilterArrow head={head} onOpen={openFilter} /> : null}
         {cell.thread ? (
           <span
             className="sh-thread-mark"
@@ -3545,7 +3562,7 @@ export default function Sheets({ app, shell, boot }) {
       ) : (
         <div className={`sh${model.rtl ? ' rtl' : ''}${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0}
           role="group" aria-label={model.activeSheet || undefined} aria-activedescendant={srCell ? srCell.id : undefined} data-f6-home="" ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
-          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + OCR_CSS + PICTURE_DATA_CSS + RECEIPT_ROW_CSS}</style>
+          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS + FILTER_CSS + OCR_CSS + PICTURE_DATA_CSS + RECEIPT_ROW_CSS}</style>
           {srCell ? (
             <div className="sh-sr" role="grid" aria-label={model.activeSheet || undefined} aria-rowcount={-1} aria-colcount={-1}>
               <div role="row" aria-rowindex={srCell.row + 1}>
@@ -3822,6 +3839,22 @@ export default function Sheets({ app, shell, boot }) {
             </div>
           </div>
           {splitBars()}
+          {model.filterPanel && filterAt ? (
+            <FilterMenu
+              key={model.filterPanel.table + '|' + model.filterPanel.column}
+              panel={model.filterPanel}
+              at={filterAt}
+              onClose={closeFilter}
+              onApply={async (values) => {
+                setFilterAt(null);
+                await dispatch({ op: 'applyFilter', table: model.filterPanel.table, column: model.filterPanel.column, values });
+              }}
+              onSort={async (ascending) => {
+                setFilterAt(null);
+                await dispatch({ op: 'sortFilter', table: model.filterPanel.table, column: model.filterPanel.column, ascending });
+              }}
+            />
+          ) : null}
           {errorsPane()}
           {watchPane()}
           {commentsPane()}
