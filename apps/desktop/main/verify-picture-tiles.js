@@ -1,10 +1,14 @@
 // Pictures: a tile for a picture the platform has no thumbnail for — an
 // SVG on Windows, any large photo on Linux — is the picture itself, drawn
 // by the window at the tile's size and handed to the platform to keep,
-// rather than the kind's icon. Run alone with RUTBA_VERIFY_ONLY=picturetiles.
+// rather than the kind's icon. And a tile's own menu acts on the tile
+// right-clicked: with nothing on show, and with another picture on show
+// beside the folder's grid, its Copy the path copies that tile's path.
+// Run alone with RUTBA_VERIFY_ONLY=picturetiles.
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { clipboard } from '@rutba/office-shell/electron/clipboard';
 import { gradientPng } from './sample-picture.js';
 
 const DRAWING = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">'
@@ -34,6 +38,40 @@ export async function verifyPictureTiles({ open, check, until, wait, errorsIn },
     check('pictures: a picture the platform has no tile for is drawn by the window at the tile\'s size, not shown as an icon, and kept for next time',
       shown && !tile.icon && tile.w > 0 && tile.w <= 256 && tile.h <= 256 && kept,
       `${tile.src === 'blob' ? 'drawn by the window' : tile.src === 'rutba' ? 'from the platform' : 'an icon'} (${tile.w}×${tile.h}); kept: ${kept}`);
+    // The tile's menu, with nothing on show: Copy the path copies the
+    // tile's own path, where it did nothing before.
+    const clipWas = await clipboard().readText();
+    const viaMenu = async (name, item) => {
+      await js(`(() => { const t = document.querySelector('.pv-tile[data-name=${JSON.stringify(name)}]'); const r = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 10 })); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})))`), 'the tile\'s menu', 3000);
+      const enabled = await js(`!([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)}))?.disabled)`);
+      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(item)})).click(); return 1; })()`);
+      return enabled;
+    };
+    const norm = (p) => String(p || '').replace(/\\/g, '/').toLowerCase();
+    const drawing = path.join(root, 'b-drawing.svg');
+    await clipboard().writeText('');
+    const enabledNone = await viaMenu('b-drawing.svg', 'Copy the path');
+    const copiedNone = await until(async () => norm(await clipboard().readText()) === norm(drawing), 'the path copied', 3000).then(() => true).catch(() => false);
+    // With the photo on show and the grid beside it: the drawing's tile.
+    await js(`document.querySelector('.pv-tile[data-name="a-photo.png"]')?.click(), 1`);
+    await until(() => js(`Boolean(document.querySelector('.pv-image'))`), 'the photo on show', 6000);
+    await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'View')?.click(); return 1; })()`);
+    await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Grid'))`), 'the Grid button', 3000);
+    const gridWasOn = await js(`Boolean(document.querySelector('.pv-image') && document.querySelector('.pv-tile[data-name="b-drawing.svg"]'))`);
+    if (!gridWasOn) await js(`[...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Grid').click(), 1`);
+    await until(() => js(`Boolean(document.querySelector('.pv-tile[data-name="b-drawing.svg"]'))`), 'the grid beside the photo', 4000);
+    await clipboard().writeText('');
+    await viaMenu('b-drawing.svg', 'Copy the path');
+    await wait(300);
+    const copiedBeside = await clipboard().readText();
+    const stillShown = await js(`Boolean(document.querySelector('.pv-image')) && document.querySelector('.pv-tile.active')?.dataset.name === 'a-photo.png'`);
+    if (!gridWasOn) await js(`[...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Grid')?.click(), 1`);
+    await clipboard().writeText(clipWas || '');
+    check('pictures: a tile\'s menu acts on the tile right-clicked, with nothing on show and beside another picture',
+      enabledNone && copiedNone && norm(copiedBeside) === norm(drawing) && stillShown,
+      JSON.stringify({ enabledNone, copiedNone, copiedBeside: path.basename(copiedBeside || ''), stillShown }));
+
     const complaints = await errorsIn(win);
     check('pictures: the tiles report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     void wait;

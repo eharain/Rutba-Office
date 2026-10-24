@@ -623,32 +623,38 @@ export default function Pictures({ app, shell, boot }) {
       'view.filmstrip': { label: t('Filmstrip'), icon: 'list', run: () => setView({ filmstrip: !filmstrip }) },
       'view.fullscreen': { label: t('Full screen'), icon: 'maximize', key: 'F11', run: () => shell.win.fullscreen({}) },
       'media.animation': { label: frozen ? t('Resume animation') : t('Hold this frame'), icon: frozen ? 'play' : 'pause', run: toggleAnimation },
-      'file.edit': { label: t('Edit this picture'), icon: 'wand', run: () => current && shell.win.create({ app: 'image', file: current }) },
+      // These take the file they act on: the picture on show unless a
+      // tile's own menu names the tile right-clicked.
+      'file.edit': { label: t('Edit this picture'), icon: 'wand', run: (p = current) => p && shell.win.create({ app: 'image', file: p }) },
       // Pictures plays a clip itself: Video is where it is edited, so it opens in the editor.
-      'file.video': { label: t('Open in Video'), icon: 'video', run: () => current && shell.win.create({ app: 'video', file: current, query: { edit: 1 } }) },
+      'file.video': { label: t('Open in Video'), icon: 'video', run: (p = current) => p && shell.win.create({ app: 'video', file: p, query: { edit: 1 } }) },
       // A PDF met among the pictures opens in the PDF app, to work on its pages.
-      'file.pdf': { label: t('Open in PDF'), icon: 'pdf', run: () => current && shell.win.create({ app: 'pdf', file: current }) },
-      'file.reveal': { label: t('Show in folder'), icon: 'folderOpen', run: () => current && shell.shell.showInFolder({ path: current }) },
+      'file.pdf': { label: t('Open in PDF'), icon: 'pdf', run: (p = current) => p && shell.win.create({ app: 'pdf', file: p }) },
+      'file.reveal': { label: t('Show in folder'), icon: 'folderOpen', run: (p = current) => p && shell.shell.showInFolder({ path: p }) },
       'file.text': { label: t('Copy Text from Picture'), icon: 'scanText', when: () => isStill && !showOpen, run: () => current && pictureText.read(current, async () => pixelsOf(await loadPicture(fileUrl(current)))) },
       'file.textLanguages': { label: t('Text Languages…'), icon: 'globe', run: () => pictureText.setAsking(true) },
       'file.copy': {
         label: t('Copy the path'),
         icon: 'copy',
-        run: () => current && shell.clipboard.writeText({ text: current }).then(() => toast(t('Path copied'))),
+        run: (p = current) => p && shell.clipboard.writeText({ text: p }).then(() => toast(t('Path copied'))),
       },
       'file.trash': {
         label: t('Move to trash'),
         icon: 'trash',
         key: 'Delete',
-        run: async () => {
-          if (!current) return;
-          await shell.fs.remove({ path: current });
+        run: async (p = current) => {
+          if (!p) return;
+          await shell.fs.remove({ path: p });
           toast(t('Moved to the trash'), { tone: 'good' });
           const dir = folder;
-          // The next file takes its place, so a folder can be weeded
-          // without going back to the grid for each one.
-          const next = files[at + 1] || files[at - 1] || null;
-          setCurrent(next ? next.path : null);
+          // The next file takes the place of the one on show, so a folder
+          // can be weeded without going back to the grid for each one. A
+          // tile trashed beside it leaves the picture on show where it is.
+          if (p === current) {
+            const next = files[at + 1] || files[at - 1] || null;
+            setCurrent(next ? next.path : null);
+          }
+          held.current.delete(p);
           list(dir);
         },
       },
@@ -669,7 +675,16 @@ export default function Pictures({ app, shell, boot }) {
 
   const rotation = spin * 90;
   const openAt = useCallback((f) => goTo(files.indexOf(f)), [goTo, files]);
-  const tileMenu = useCallback((e) => menu.open(e, menuItems(commands, ['file.edit', 'file.reveal', 'file.copy', '-', 'file.trash'])), [menu, commands]);
+  // A tile's menu acts on the tile right-clicked, not the picture on show,
+  // and works with nothing on show. A clip opens in Video and a PDF in the
+  // PDF app, as their own buttons do.
+  const tileMenu = useCallback((e, file) => {
+    if (!file) return;
+    const k = kindOf(file.path);
+    const open = k === 'video' || k === 'audio' ? 'file.video' : k === 'pdf' ? 'file.pdf' : 'file.edit';
+    const ids = [open, 'file.reveal', 'file.copy', '-', 'file.trash'];
+    menu.open(e, menuItems(commands, ids).map((item, i) => (item === '-' ? item : { ...item, disabled: false, run: () => commands[ids[i]].run(file.path) })));
+  }, [menu, commands]);
 
   const tools = (
     <Tools
@@ -1291,7 +1306,7 @@ function LengthBadge({ file }) {
 const Tile = React.memo(function Tile({ file, active, size, rating = 0, onOpen, onMenu, shell }) {
   const kind = kindOf(file.path);
   return (
-    <button type="button" className={`pv-tile${active ? ' active' : ''}`} data-kind={kind} data-name={file.name} style={{ width: size, height: size }} onClick={onOpen} onContextMenu={onMenu} title={file.name}>
+    <button type="button" className={`pv-tile${active ? ' active' : ''}`} data-kind={kind} data-name={file.name} style={{ width: size, height: size }} onClick={onOpen} onContextMenu={(e) => onMenu?.(e, file)} title={file.name}>
       <Thumb file={file} shell={shell} />
       {kind === 'video' || kind === 'audio' ? (
         <span className="pv-tile-badge"><Icon name={kind === 'audio' ? 'volume' : 'play'} size={11} /></span>
