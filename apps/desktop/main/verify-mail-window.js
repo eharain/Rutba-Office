@@ -10,8 +10,9 @@
 // the window closes. Deleted from the list, that row goes and the rest of the
 // list stays as it was. Deleted from the middle of three, the one after it is
 // selected and shown in the reading pane, as Outlook does, rather than the
-// pane emptied and the list started again from the top. Run alone with
-// RUTBA_VERIFY_ONLY=mail-window.
+// pane emptied and the list started again from the top. And the first message
+// an account sends makes its Sent, which shows in the folders at once, not
+// after the window is opened again. Run alone with RUTBA_VERIFY_ONLY=mail-window.
 
 import { BrowserWindow } from 'electron';
 
@@ -168,6 +169,28 @@ export async function verifyMailWindow(h) {
     win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Up' });
     const up = await until(() => js(`(document.querySelector('.ml-row.selected .ml-subject')?.textContent || '').includes(${JSON.stringify(three[0].s)})`), 'Up to the first of three', 3000).then(() => true).catch(() => false);
     check('mail: after the delete, Up goes on from the message selected, to the one above it', up, up ? 'the first of three' : await js(`document.querySelector('.ml-row.selected .ml-subject')?.textContent || 'nothing selected'`));
+
+    // The first send makes Sent (A6.13): an account with no Sent yet, a
+    // message sent from it, and Sent among its folders without a reload.
+    const fresh = `sent.window.${stamp}@checks.example`;
+    let freshId = null;
+    try {
+      await js(`window.rutbaOffice.mail.addAccounts({ text: ${JSON.stringify(`Email,Password,Name,IMAP server,IMAP port,SMTP server,SMTP port\r\n${fresh},pw,Sent Check,mail.checks.example,993,mail.checks.example,587\r\n`)} })`);
+      freshId = (await js(`window.rutbaOffice.mail.accounts()`)).find((a) => a.email === fresh)?.id || null;
+      // A message arrives, so the window lists the account and its Inbox.
+      await mail('deliverTest', { accountId: freshId, folder: 'Inbox', raw: raw.replace(subject, `Window: hello ${stamp}`).replace(`<window-${stamp}@`, `<window-sent-${stamp}@`) });
+      await until(() => js(`Boolean(document.querySelector('.ml-accounts [title=${JSON.stringify(fresh)}]'))`), 'the new account in the sidebar', 8000);
+      await js(`document.querySelector('.ml-accounts [title=${JSON.stringify(fresh)}]').click(), 1`);
+      await until(() => js(`Boolean(document.querySelector('[title="Inbox"]'))`), 'its Inbox', 6000);
+      const sentBefore = await js(`Boolean(document.querySelector('[title="Sent"]'))`);
+      const sentHad = (await mail('folders', { accountId: freshId })).some((f) => f.role === 'sent');
+      await mail('queue', { accountId: freshId, draft: { to: 'amina@work.example', subject: `Window: the first sent ${stamp}`, text: 'Thank you.' }, holdSeconds: 0 });
+      const sentNow = await until(() => js(`Boolean(document.querySelector('[title="Sent"]'))`), 'Sent among the folders', 8000).then(() => true).catch(() => false);
+      check('mail: the first message an account sends makes Sent, which shows among its folders without a reload',
+        !sentBefore && !sentHad && sentNow, JSON.stringify({ sentBefore, sentHad, sentNow }));
+    } finally {
+      if (freshId) await js(`window.rutbaOffice.mail.removeAccount({ id: ${JSON.stringify(freshId)}, keepMail: false })`).catch(() => {});
+    }
 
     const complaints = [...(await errorsIn(win))];
     check('mail window: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

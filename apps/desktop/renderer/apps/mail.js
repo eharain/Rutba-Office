@@ -390,6 +390,10 @@ export default function Mail({ app, shell }) {
       toast(t('Sent to {to}', { to }), { tone: 'good' });
       shell.mail.outbox().then(setOutbox).catch(() => {});
       refreshList();
+      // The first message sent makes Sent: the folders are read again so it
+      // shows at once, not after the window is opened again.
+      loadAccounts();
+      setFolderTick((n) => n + 1);
     });
     const offFailed = shell.on('mail:sendFailed', ({ message: why, gaveUp }) => {
       toast(gaveUp ? t('Could not send: {why}. The message is back in Drafts.', { why }) : t('Send failed, trying again: {why}', { why }), {
@@ -775,6 +779,7 @@ export default function Mail({ app, shell }) {
         await shell.mail.send({ accountId: item.accountId, draft: item.draft });
         toast(t('Sent to {to}', { to: item.draft?.to || t('recipient') }), { tone: 'good' });
         refreshList();
+        setFolderTick((n) => n + 1);
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 7000 });
       } finally {
