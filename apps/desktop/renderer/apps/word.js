@@ -236,7 +236,9 @@ const HIGHLIGHT_CSS = {
 function bandLines(model, band, fallback = []) {
   const part = model?.bands?.[band === 'header' ? 'headers' : 'footers']?.default;
   if (!part) return fallback;
-  const lines = (part.paragraphs || []).map((p) => p.text ?? (p.runs || []).map((r) => r.text ?? '').join(''));
+  // A page number field reads back as the {PAGE} or {PAGES} that wrote it.
+  const token = (r) => (r.field === 'PAGE' ? '{PAGE}' : r.field === 'NUMPAGES' ? '{PAGES}' : r.text ?? '');
+  const lines = (part.paragraphs || []).map((p) => ((p.runs || []).some((r) => r.field) ? p.runs.map(token).join('') : p.text ?? (p.runs || []).map(token).join('')));
   return lines.length ? lines : fallback;
 }
 
@@ -3648,18 +3650,35 @@ function Band({ kind, bands, section, onEdit, page = 1, of = null, top = 0, heig
       onDoubleClick={onEdit}
       title={kind === 'header' ? t('Double-click to edit the header') : t('Double-click to edit the footer')}
     >
-      {paragraphs.map((p, i) => (
-        <p key={i} className="wd-band-line" style={{ textAlign: p.align === 'both' ? 'justify' : p.align || undefined }}>
-          {(p.runs || []).map((r, j) => {
-            const text = r.field === 'PAGE' ? String(page) : r.field === 'NUMPAGES' ? (count ? String(count) : '') : r.text ?? '';
-            return (
-              <span key={j} style={{ fontWeight: r.bold ? 700 : undefined, fontStyle: r.italic ? 'italic' : undefined, textDecoration: r.underline ? 'underline' : undefined }}>
-                {withTabs(text)}
-              </span>
-            );
-          })}
-        </p>
-      ))}
+      {paragraphs.map((p, i) => {
+        const pieces = (p.runs || []).map((r) => ({ r, text: r.field === 'PAGE' ? String(page) : r.field === 'NUMPAGES' ? (count ? String(count) : '') : r.text ?? '' }));
+        const span = ({ r, text }, j) => (
+          <span key={j} style={{ fontWeight: r.bold ? 700 : undefined, fontStyle: r.italic ? 'italic' : undefined, textDecoration: r.underline ? 'underline' : undefined }}>
+            {text}
+          </span>
+        );
+        if (!pieces.some((x) => x.text.includes('\t'))) {
+          return (
+            <p key={i} className="wd-band-line" style={{ textAlign: p.align === 'both' ? 'justify' : p.align || undefined }}>
+              {pieces.map(({ r, text }, j) => span({ r, text: withTabs(text) }, j))}
+            </p>
+          );
+        }
+        // A tab moves to the centre, a second to the right, as the band's
+        // stops (and Word's Header and Footer styles) put them.
+        const cells = [[]];
+        for (const { r, text } of pieces) {
+          text.split('\t').forEach((part, k) => {
+            if (k > 0 && cells.length < 3) cells.push([]);
+            if (part) cells[cells.length - 1].push({ r, text: part });
+          });
+        }
+        return (
+          <p key={i} className="wd-band-line wd-band-tabbed">
+            {cells.map((cell, c) => <span key={c} className="wd-band-cell">{cell.map(span)}</span>)}
+          </p>
+        );
+      })}
     </div>
   );
 }
@@ -4576,6 +4595,9 @@ const CSS = `
 /* Headers and footers sit in the margins, greyed while the body has the caret. */
 .wd-band { position: absolute; left: 0; right: 0; z-index: 1; color: #777; font-size: 13px; line-height: 1.35; user-select: none; cursor: default; }
 .wd-band .wd-band-line { margin: 0; padding: 0 var(--wd-margin-right, 96px) 0 var(--wd-margin-left, 96px); min-height: 1.2em; white-space: pre-wrap; }
+.wd-band .wd-band-tabbed { display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 8px; }
+.wd-band .wd-band-cell:nth-child(2) { text-align: center; }
+.wd-band .wd-band-cell:nth-child(3) { text-align: end; }
 .wd-band:hover { color: #333; }
 .wd.mode-web .wd-band, .wd.mode-draft .wd-band, .wd.mode-read .wd-band, .wd.mode-outline .wd-band { display: none; }
 :root[data-theme='dark'] .wd-page { background: #f7f7f5; }

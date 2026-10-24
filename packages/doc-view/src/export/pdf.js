@@ -355,9 +355,29 @@ function drawBand(page, doc, paragraphs, { xPx, yPx, widthPx }) {
   for (const p of paragraphs || []) {
     const fragment = { sizePx: BAND_SIZE_PX, lineHeightPx: lh, align: p.align || null, weight: 'normal' };
     const text = p.text ?? (p.runs || []).map((r) => r.text).join('');
-    drawParagraphLines(page, doc, {
-      lines: [{ text, start: 0, end: text.length }], fragment, runs: p.runs || [], xPx, yPx: y, widthPx,
-    });
+    // A tab moves to the centre, a second to the right, as on the page:
+    // each part of the line drawn in its own place across the width.
+    const parts = [];
+    let at = 0;
+    for (const piece of text.split('\t')) {
+      if (parts.length < 3) parts.push({ start: at, end: at + piece.length });
+      else parts[2].end = at + piece.length;
+      at += piece.length + 1;
+    }
+    if (parts.length === 1) {
+      drawParagraphLines(page, doc, {
+        lines: [{ text, start: 0, end: text.length }], fragment, runs: p.runs || [], xPx, yPx: y, widthPx,
+      });
+    } else {
+      parts.forEach((part, k) => {
+        const piece = text.slice(part.start, part.end).replace(/\t/g, ' ');
+        if (!piece) return;
+        const runs = (p.runs || []).map((r) => ({ ...r, text: String(r.text ?? '').replace(/\t/g, ' ') }));
+        drawParagraphLines(page, doc, {
+          lines: [{ text: piece, start: part.start, end: part.end }], fragment: { ...fragment, align: ['left', 'center', 'right'][k] }, runs, xPx, yPx: y, widthPx,
+        });
+      });
+    }
     y += lh;
   }
   return y - yPx;

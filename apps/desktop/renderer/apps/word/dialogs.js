@@ -177,6 +177,9 @@ export function TablePropertiesDialog({ current, onClose, onApply }) {
 
 /* ── headers and footers ─────────────────────────────────────────────────── */
 
+/** What Of total puts in: the page number, "of" and the count of pages. */
+const OF_TOTAL = '{PAGE} of {PAGES}';
+
 /**
  * A header or footer is lines of text, with the fields a page needs.
  *
@@ -188,7 +191,22 @@ export function BandDialog({ band, current, onClose, onApply }) {
   const [lines, setLines] = useState(() => (current || []).join('\n'));
   const name = band === 'header' ? t('Header') : t('Footer');
 
-  const insert = (token) => setLines((t) => (t ? `${t}${t.endsWith('\n') ? '' : ' '}${token}` : token));
+  // A field goes in at the end, a space before it only when the line does
+  // not end in one already ("Page " then Of total is "Page {PAGE} of {PAGES}").
+  // Of total after a page number finishes it rather than adding a second.
+  const insert = (token) => setLines((t) => {
+    if (token === OF_TOTAL && /\{PAGE\}\s*$/.test(t)) return t.replace(/\s*$/, '') + ' of {PAGES}';
+    return t ? `${t}${/\s$/.test(t) ? '' : ' '}${token}` : token;
+  });
+  // Tab types a tab, as the hint says; Shift+Tab still moves on.
+  const onKeyDown = (e) => {
+    if (e.key !== 'Tab' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+    e.preventDefault();
+    const el = e.currentTarget;
+    const { selectionStart: from, selectionEnd: to, value } = el;
+    setLines(value.slice(0, from) + '\t' + value.slice(to));
+    requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = from + 1; });
+  };
 
   return (
     <Dialog
@@ -211,12 +229,14 @@ export function BandDialog({ band, current, onClose, onApply }) {
             rows={4}
             value={lines}
             onChange={(e) => setLines(e.target.value)}
+            onKeyDown={onKeyDown}
+            data-role="band-text"
             autoFocus
           />
         </Field>
         <div className="ml-toolbar">
           <Button icon="file" label={t('Page number')} onClick={() => insert('{PAGE}')} />
-          <Button icon="file" label={t('Of total')} onClick={() => insert('{PAGE} of {PAGES}')} />
+          <Button icon="file" label={t('Of total')} onClick={() => insert(OF_TOTAL)} />
           <Button icon="clock" label={t('Date')} onClick={() => insert('{DATE}')} />
           <Button icon="word" label={t('File name')} onClick={() => insert('{FILENAME}')} />
         </div>

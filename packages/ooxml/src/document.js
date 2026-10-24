@@ -655,6 +655,42 @@ const HEADER_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/r
 const FOOTER_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
 /** What makes a band un-editable as plain text — flattening these loses them. */
 const BAND_STRUCTURE = /<w:(fldSimple|fldChar|sdt)\b/;
+/**
+ * A page number or the count of pages, as the header and footer box writes
+ * them: a simple field, which the box reads back as {PAGE} or {PAGES} and
+ * writes again. A band holding only these is edited as text like any other.
+ */
+const BAND_PAGE_FIELD = /<w:fldSimple\b[^>]*\bw:instr="\s*(?:PAGE|NUMPAGES)\b[^"]*"[^>]*>[\s\S]*?<\/w:fldSimple>/g;
+/** {PAGE}, {PAGES} and {NUMPAGES} in a line of the header and footer box. */
+const BAND_TOKEN = /\{(PAGE|PAGES|NUMPAGES)\}/;
+
+/**
+ * One line of the header and footer box as a paragraph: its words in the
+ * line's own look, {PAGE} and {PAGES} as the PAGE and NUMPAGES fields Word
+ * reads (2.17.1 wrote the braces as words, so no page, print or PDF ever
+ * showed a number). A line holding a tab is given a centre stop and a right
+ * stop at the text's width, as Word's Header and Footer styles have: a tab
+ * moves to the centre, a second to the right.
+ */
+function bandParagraphXml(line, { pPr = '', rPr = null, widthTwips = 9026 } = {}) {
+  let props = pPr || '';
+  if (line.includes('\t') && !/<w:tabs\b/.test(props)) {
+    const tabs = '<w:tabs><w:tab w:val="center" w:pos="' + Math.round(widthTwips / 2) + '"/><w:tab w:val="right" w:pos="' + Math.round(widthTwips) + '"/></w:tabs>';
+    // w:tabs follows w:pStyle, w:keepNext and the rest of that group, and leads w:spacing, w:ind and w:jc.
+    props = !props ? '<w:pPr>' + tabs + '</w:pPr>'
+      : /<w:(?:spacing|ind|jc|rPr)\b/.test(props) ? props.replace(/<w:(?:spacing|ind|jc|rPr)\b/, (m) => tabs + m)
+        : props.replace(/<\/w:pPr>$/, () => tabs + '</w:pPr>');
+  }
+  const body = String(line).split(/(\{(?:PAGE|PAGES|NUMPAGES)\})/).filter((piece) => piece !== '').map((piece) => {
+    const field = BAND_TOKEN.exec(piece);
+    if (field && field[0] === piece) {
+      const instr = field[1] === 'PAGE' ? 'PAGE' : 'NUMPAGES';
+      return '<w:fldSimple w:instr=" ' + instr + ' "><w:r>' + (rPr || '') + '<w:t>1</w:t></w:r></w:fldSimple>';
+    }
+    return renderRun(rPr, piece);
+  }).join('');
+  return '<w:p>' + props + body + '</w:p>';
+}
 /** The watermark's paragraph: the one holding a VML text path. */
 // The watermark's paragraph: the words' text path, or the picture's shape,
 // which Word names WordPictureWatermark and a number.
@@ -4315,7 +4351,7 @@ export class Document {
       return {
         exists: true,
         lines: band.paragraphs.map((p) => p.text),
-        structural: BAND_STRUCTURE.test(this.pkg.text(band.part)),
+        structural: BAND_STRUCTURE.test(this.pkg.text(band.part).replace(BAND_PAGE_FIELD, '')),
       };
     };
     return { header: info(bands.headers), footer: info(bands.footers) };
@@ -4431,10 +4467,14 @@ export class Document {
     const texts = (Array.isArray(lines) ? lines : [String(lines ?? '')]).map((l) => String(l));
     const bands = this.headerFooters();
     const existing = (which === 'header' ? bands.headers : bands.footers).default ?? null;
+    // The width between the margins, where a line's right-hand tab stop goes.
+    const sect = this.section().sectPrXml || '';
+    const margin = (side) => Number(new RegExp('<w:pgMar\\b[^>]*\\bw:' + side + '="(-?\\d+)"').exec(sect)?.[1] ?? 1440);
+    const widthTwips = Math.max(1440, Number(/<w:pgSz\b[^>]*\bw:w="(\d+)"/.exec(sect)?.[1] ?? 11906) - margin('left') - margin('right'));
 
     if (existing) {
       const xml = this.pkg.text(existing.part);
-      if (BAND_STRUCTURE.test(xml)) {
+      if (BAND_STRUCTURE.test(xml.replace(BAND_PAGE_FIELD, ''))) {
         throw new Error('This ' + which + ' carries a field or a content control — editing it as text would flatten that.');
       }
       // The watermark's paragraph is the band's shape, not its words: it
@@ -4448,10 +4488,7 @@ export class Document {
         const pPr = /<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(src);
         return { pPr: pPr ? pPr[0] : '', rPr: firstRunProps(src) };
       };
-      const body = texts.map((t, i) => {
-        const s = shape(i);
-        return '<w:p>' + s.pPr + (t === '' ? '' : renderRun(s.rPr, t)) + '</w:p>';
-      }).join('') || '<w:p/>';
+      const body = texts.map((t, i) => bandParagraphXml(t, { ...shape(i), widthTwips })).join('') || '<w:p/>';
       const root = /^([\s\S]*?<w:(?:hdr|ftr)\b[^>]*>)[\s\S]*(<\/w:(?:hdr|ftr)>[\s\S]*)$/.exec(xml);
       if (!root) throw new Error('unrecognised ' + which + ' part: ' + existing.part);
       this.pkg.write_(existing.part, root[1] + watermark + body + root[2]);
@@ -4460,7 +4497,7 @@ export class Document {
     }
 
     // No band yet: a part, a content type, a relationship, a reference.
-    return this._addBand(which, texts.map((t) => '<w:p>' + (t === '' ? '' : renderRun(null, t)) + '</w:p>').join('') || '<w:p/>');
+    return this._addBand(which, texts.map((t) => bandParagraphXml(t, { widthTwips })).join('') || '<w:p/>');
   }
 
   /** A new default band around the paragraphs given: its part, content type, relationship and `sectPr` reference. */

@@ -63,7 +63,8 @@ function parseBand(xml) {
         continue;
       }
       const runXml = piece[0];
-      if (!/<w:t\b/.test(runXml)) continue;
+      // A run of only a tab is words too: the tab that moves "Page 1" to the right.
+      if (!/<w:t\b|<w:tab\s*\/>/.test(runXml)) continue;
       const [run] = parseRuns(runXml);
       if (run) parts.push({ field: null, text: run.text, bold: run.bold, italic: run.italic, underline: run.underline });
     }
