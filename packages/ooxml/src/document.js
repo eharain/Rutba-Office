@@ -84,7 +84,7 @@ export {
 } from './runs.js';
 export { splitParagraphChange, joinParagraphChange, withParagraphChange, paragraphChangeOf } from './revisions.js';
 import {
-  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults, mergeFieldsOnly, foldsToRuns, langElement, LAYOUT_BREAK,
+  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults, mergeFieldsOnly, foldsToRuns, langElement, LAYOUT_BREAK, COMMENT_MARKS, formatChangeOf,
 } from './runs.js';
 import { installReferences } from './references.js';
 
@@ -4406,11 +4406,18 @@ export class Document {
    * locked field paragraph is exactly the kind a colleague wants to remark
    * on.
    */
-  addComment(index, { author = '', text }) {
+  addComment(index, { author = '', text, offset = null, toIndex = null, toOffset = null }) {
     const body = String(text ?? '').trim();
     if (!body) throw new Error('a comment needs some words');
     const p = this.editParagraph(index);
     if (!p) throw new Error('no paragraph at index ' + index);
+    // Words to anchor it to (Review → New Comment over a selection): the
+    // comment's range marks go round them, as Word writes them.
+    const last = toIndex == null ? index : Number(toIndex);
+    if (offset != null && toOffset != null && (last > index || Number(toOffset) > Number(offset))) {
+      const done = this._addRangeComment(index, Number(offset), last, Number(toOffset), { author, text: body });
+      if (done) return this;
+    }
 
     this.registerCommentUndo();
     const part = 'word/comments.xml';
@@ -4431,6 +4438,46 @@ export class Document {
       this._spliceBody(p.end - '</w:p>'.length, p.end - '</w:p>'.length, reference);
     }
     return this;
+  }
+
+  /**
+   * A comment over some words: from `offset` in paragraph `index` to
+   * `toOffset` in paragraph `toIndex` (edit-space indices). The words' runs
+   * carry the comment (runs.js `comments`), so the marks are written round
+   * them and stay round them through later edits; the reference follows the
+   * last paragraph's words. False, with nothing written, when either end is
+   * in a paragraph that cannot be rebuilt (a complex field, a control): the
+   * caller then anchors the comment at the paragraph as before.
+   */
+  _addRangeComment(index, offset, toIndex, toOffset, { author, text }) {
+    const firstP = this.editParagraph(index);
+    const lastP = this.editParagraph(toIndex);
+    if (!firstP || !lastP || firstP.structural || lastP.structural) return false;
+    this.registerCommentUndo();
+    const part = 'word/comments.xml';
+    const xml = this.pkg.text(part);
+    let id = 0;
+    for (const m of xml.matchAll(/<w:comment\b[^>]*\bw:id="(\d+)"/g)) id = Math.max(id, Number(m[1]));
+    for (const m of this.xml.matchAll(/<w:comment(?:RangeStart|RangeEnd|Reference)\b[^>]*\bw:id="(\d+)"/g)) id = Math.max(id, Number(m[1]));
+    id += 1;
+    const stamp = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const entry = '<w:comment w:id="' + id + '" w:author="' + esc(String(author)) + '" w:date="' + stamp + '">'
+      + '<w:p>' + renderRun(null, text) + '</w:p></w:comment>';
+    this.pkg.write_(part, xml.replace('</w:comments>', () => entry + '</w:comments>'));
+
+    const key = String(id);
+    const across = toIndex > index;
+    const first = this.editParagraph(index);
+    this._setRuns(first, withComment(first.runs, offset, across ? Infinity : toOffset, key), across ? { noEnd: [key] } : null);
+    if (across) {
+      const lastNow = this.editParagraph(toIndex);
+      this._setRuns(lastNow, withComment(lastNow.runs, 0, toOffset, key), { noStart: [key] });
+    }
+    const end = this.editParagraph(toIndex);
+    const reference = '<w:r><w:commentReference w:id="' + id + '"/></w:r>';
+    if (/^<w:p\b[^>]*\/>$/.test(end.xml)) this._spliceBody(end.start, end.end, end.open + reference + '</w:p>');
+    else this._spliceBody(end.end - '</w:p>'.length, end.end - '</w:p>'.length, reference);
+    return true;
   }
 
   /**
@@ -5833,7 +5880,11 @@ export class Document {
       // (runs.js `foldMergeFields`), so the paragraph is not locked.
       .filter((tag) => tag !== 'w:fldChar' || !mergeFieldsOnly(p.xml))
       // A citation's content control is a field the model owns as a run too.
-      .filter((tag) => tag !== 'w:sdt' || !foldsToRuns(p.xml, 'w:sdt'));
+      .filter((tag) => tag !== 'w:sdt' || !foldsToRuns(p.xml, 'w:sdt'))
+      // A comment's range marks between the runs are the model's own since
+      // comments were anchored to words (runs.js `comments`); only one
+      // inside a link, a tracked change or a field still locks the paragraph.
+      .filter((tag) => tag !== 'w:commentRangeStart' || !commentMarksAtTop(ownXml));
     // A paragraph INSIDE a body-level content control carries no sdt tag of
     // its own; it is read-only for the same reason one that does is.
     if (p.inSdt && !structural.includes('w:sdt')) structural.push('w:sdt');
@@ -6095,6 +6146,10 @@ export class Document {
       // pinned at the paragraph's start, it keeps the paragraph's first words
       // inside the region however the paragraph is rebuilt.
       if (childTag === 'w:permStart') return;
+      // A comment's range marks are written back round the runs that carry
+      // the comment (runs.js `commentMarkPlan`); kept here too, the range
+      // would close twice.
+      if (childTag === 'w:commentRangeStart' || childTag === 'w:commentRangeEnd') return;
       // An equation is a run the model OWNS since equations were read (a
       // character of the text, written back verbatim by renderRuns) — kept
       // here as well, it would be written twice.
@@ -6199,9 +6254,46 @@ export class Document {
     return kept.join('');
   }
 
-  _setRuns(p, runs) {
-    const rebuilt = p.open + (p.pPr ?? '') + this._leadFragments(p) + renderRuns(runs) + this._keptFragments(p) + '</w:p>';
+  _setRuns(p, runs, carry = null) {
+    const comments = this._commentMarksFor(p.start, p.end, runs, p.xml, carry);
+    const rebuilt = p.open + (p.pPr ?? '') + this._leadFragments(p) + renderRuns(runs, comments ? { comments } : null) + this._keptFragments(p) + '</w:p>';
     this._spliceBody(p.start, p.end, rebuilt);
+  }
+
+  /**
+   * Where a rebuilt paragraph's comment marks go (runs.js `commentMarkPlan`),
+   * from where the same comments' marks stand in the rest of the body: a
+   * range that began in an earlier paragraph has its start there, one that
+   * goes on has its end later, and runs carrying a comment whose marks both
+   * stand elsewhere (words copied from it) are not in its range. `carry`
+   * adds ids that go on past this paragraph (`noEnd`) or began before it
+   * (`noStart`), for a range being made or a paragraph being split.
+   * Null when the paragraph has no comment ranges at all.
+   */
+  _commentMarksFor(start, end, runs, ownXml, carry = null) {
+    const ids = new Set();
+    for (const r of runs) for (const id of r.comments || []) ids.add(String(id));
+    const marked = new Set([...String(ownXml).matchAll(COMMENT_MARKS)].map((m) => m[2]));
+    for (const id of marked) ids.add(id);
+    // A range being made keeps its mark here even with no words of this paragraph in it.
+    for (const id of [...(carry?.noStart || []), ...(carry?.noEnd || [])]) { ids.add(String(id)); marked.add(String(id)); }
+    if (!ids.size) return null;
+    const { body } = this._body();
+    const noStart = new Set((carry?.noStart || []).map(String));
+    const noEnd = new Set((carry?.noEnd || []).map(String));
+    const strip = new Set();
+    for (const id of ids) {
+      const quoted = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const sides = (kind) => [...body.matchAll(new RegExp('<w:commentRange' + kind + '\\b[^>]*?\\bw:id="' + quoted + '"', 'g'))]
+        .filter((m) => m.index < start || m.index >= end)
+        .map((m) => (m.index < start ? 'before' : 'after'));
+      const s = sides('Start');
+      const e = sides('End');
+      if (s.includes('after') || e.includes('before')) { strip.add(id); continue; }
+      if (s.includes('before')) noStart.add(id);
+      if (e.includes('after')) noEnd.add(id);
+    }
+    return { noStart, noEnd, strip, marked };
   }
 
   _split(p, runIndex, offset) {
@@ -6223,8 +6315,20 @@ export class Document {
     // paragraph makes a new last paragraph, which is still inside, as in Word.
     const kept = this._keptFragments(p);
     const ends = kept.match(/<w:permEnd\b[^>]*\/>/g) || [];
-    const first = p.open + (p.pPr ?? '') + this._leadFragments(p) + renderRuns(before) + kept.replace(/<w:permEnd\b[^>]*\/>/g, '') + '</w:p>';
-    const second = p.open + (p.pPr ?? '') + renderRuns(after) + ends.join('') + '</w:p>';
+    // A comment's range cut by the split runs on from the first half into the second.
+    const plan = this._commentMarksFor(p.start, p.end, p.runs, p.xml);
+    let firstMarks = null;
+    let secondMarks = null;
+    if (plan) {
+      const carried = (runs) => new Set(runs.filter((r) => r.text !== '').flatMap((r) => (r.comments || []).map(String)));
+      const inFirst = carried(before);
+      const inSecond = carried(after);
+      const across = [...inFirst].filter((id) => inSecond.has(id));
+      firstMarks = { ...plan, noEnd: new Set([...plan.noEnd, ...across]) };
+      secondMarks = { ...plan, noStart: new Set([...plan.noStart, ...across]), marked: new Set() };
+    }
+    const first = p.open + (p.pPr ?? '') + this._leadFragments(p) + renderRuns(before, firstMarks ? { comments: firstMarks } : null) + kept.replace(/<w:permEnd\b[^>]*\/>/g, '') + '</w:p>';
+    const second = p.open + (p.pPr ?? '') + renderRuns(after, secondMarks ? { comments: secondMarks } : null) + ends.join('') + '</w:p>';
     this._spliceBody(p.start, p.end, first + second);
   }
 
@@ -6243,9 +6347,11 @@ export class Document {
         'these paragraphs have content between them (a table or a content control); merging would delete it',
       );
     }
+    const runs = [...p.runs, ...next.runs];
+    const comments = this._commentMarksFor(p.start, next.end, runs, p.xml + next.xml);
     const merged = p.open + (p.pPr ?? '')
       + this._leadFragments(p) + this._leadFragments(next)
-      + renderRuns([...p.runs, ...next.runs])
+      + renderRuns(runs, comments ? { comments } : null)
       + this._keptFragments(p) + this._keptFragments(next)
       + '</w:p>';
     this._spliceBody(p.start, next.end, merged);
@@ -7800,6 +7906,46 @@ export function resolveTrackedXml(xml, keep) {
     return props.trim() ? '<w:rPr>' + props + '</w:rPr>' : '';
   });
   return out.replace(/<w:pPr\b[^>]*>\s*<\/w:pPr>/g, '');
+}
+
+/**
+ * A paragraph's runs with comment `id` on the words from text offset `from`
+ * to `to` (Infinity for the paragraph's end): a run of words is cut at
+ * either end; a field, a control, an equation or a note reference, being
+ * one thing, is in the range whole when any of it is.
+ */
+function withComment(runs, from, to, id) {
+  const out = [];
+  let seen = 0;
+  const add = (r) => ({ ...r, comments: [...new Set([...(r.comments || []), id])] });
+  for (const r of runs) {
+    const len = r.text.length;
+    const start = seen;
+    const end = seen + len;
+    seen = end;
+    const atomic = r.field || r.control || r.math || r.noteRef || r.noteMark;
+    // A deletion has no words of its own: it is in the range when it stands inside it.
+    if (len === 0) { out.push(r.del && start > from && start < to ? add(r) : r); continue; }
+    if (end <= from || start >= to) { out.push(r); continue; }
+    if (atomic || (start >= from && end <= to)) { out.push(add(r)); continue; }
+    const a = Math.max(from, start) - start;
+    const b = Math.min(to, end) - start;
+    if (a > 0) out.push({ ...r, text: r.text.slice(0, a) });
+    out.push(add({ ...r, text: r.text.slice(a, b) }));
+    if (b < len) out.push({ ...r, text: r.text.slice(b) });
+  }
+  return out;
+}
+
+/**
+ * Whether every comment range mark in a paragraph stands between its runs,
+ * where the run model carries it (runs.js `comments`), rather than inside a
+ * link, a tracked change, a field or a control, where it does not.
+ */
+function commentMarksAtTop(paragraphXml) {
+  const all = (String(paragraphXml).match(COMMENT_MARKS) || []).length;
+  const outer = String(paragraphXml).replace(/<w:(hyperlink|ins|del|fldSimple|sdt|smartTag|customXml|moveFrom|moveTo)\b(?![^>]*\/>)[^>]*>[\s\S]*?<\/w:\1>/g, '');
+  return (outer.match(COMMENT_MARKS) || []).length === all;
 }
 
 // ---- one style's look, for Modify Style ------------------------------------

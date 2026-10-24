@@ -4146,7 +4146,9 @@ function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
       // `data-name` are what the page's Ctrl+click handler reads to follow a
       // REF to its bookmark (`gotoBookmark`), without the engine's frame
       // having to carry anything more than the run already does.
-      className={[run.field ? 'wd-field' : null, run.field?.kind === 'xe' || run.field?.kind === 'ta' ? 'wd-xe' : null, run.field && MERGE_KINDS.has(run.field.kind) ? 'wd-mergefield' : null, run.link ? 'wd-link' : null, run.ins ? 'wd-ins' : null].filter(Boolean).join(' ') || undefined}
+      className={[run.field ? 'wd-field' : null, run.field?.kind === 'xe' || run.field?.kind === 'ta' ? 'wd-xe' : null, run.field && MERGE_KINDS.has(run.field.kind) ? 'wd-mergefield' : null, run.link ? 'wd-link' : null, run.ins ? 'wd-ins' : null, run.comments?.length ? 'wd-commented' : null].filter(Boolean).join(' ') || undefined}
+      // The words a comment is about, marked as Word marks them.
+      data-comments={run.comments?.length ? run.comments.join(' ') : undefined}
       data-kind={run.field && MERGE_KINDS.has(run.field.kind) ? run.field.kind : undefined}
       data-instr={run.field ? run.field.instr : undefined}
       data-xe={run.field?.kind === 'xe' || run.field?.kind === 'ta' ? '{ ' + run.field.instr.trim() + ' }' : undefined}
@@ -4652,6 +4654,7 @@ const CSS = `
 .wd-tab[data-leader="hyphen"] { background: linear-gradient(currentColor, currentColor) 0 calc(100% - 3px) / 3px 1px repeat-x; }
 .wd-tab[data-leader="underscore"] { border-bottom: 1px solid currentColor; }
 .wd-marker { color: #555; margin-right: 6px; user-select: none; }
+.wd-commented { background: rgba(250, 204, 21, 0.32); box-shadow: inset 0 -1px 0 rgba(202, 138, 4, 0.75); }
 /* A picture: click to pick it; a picked one wears the accent. A float sits
    beside the words; one with no wrap sits behind or in front of them. */
 .wd-image { cursor: default; }

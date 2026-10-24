@@ -3,8 +3,8 @@
  *
  * Preserved from the first commit and never shown; now the frame carries
  * them, each anchored to the paragraph its range starts in, and the page can
- * mark them. The write side stays deliberately closed: paragraphs carrying
- * comment anchors are structural, so an edit cannot orphan a range.
+ * mark them. Since 2.18.0 a paragraph carrying comment ranges is editable:
+ * its runs carry the ranges, so an edit cannot orphan one.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -55,12 +55,17 @@ test('a document without a comments part reports none, cheaply', () => {
   assert.deepEqual(frame.comments, []);
 });
 
-test('the commented paragraph stays structural — the range cannot be orphaned', () => {
+// 2.18.0 (A3.5): the range marks are the run model's own, so the commented
+// paragraph takes typing, and the ranges stay round its words.
+test('the commented paragraph takes typing, and both ranges stay round its words', () => {
   const view = commented();
-  assert.equal(view.block(1).structural, true);
-  assert.ok(view.block(1).structuralTags.includes('w:commentRangeStart'));
+  assert.equal(view.block(1).structural, false);
   view.collapseTo({ block: 1, offset: 3 });
-  assert.throws(() => view.insertText('x'), /commentRangeStart/);
+  view.insertText(' new');
+  assert.equal(view.block(1).text, 'The new balance is 4,200');
+  const xml = OoxmlPackage.read(view.save()).text('word/document.xml');
+  assert.match(xml, /<w:commentRangeStart w:id="1"\/><w:commentRangeStart w:id="2"\/><w:r><w:t xml:space="preserve">The new balance is 4,200<\/w:t><\/w:r><w:commentRangeEnd w:id="1"\/><w:commentRangeEnd w:id="2"\/>/);
+  assert.equal((xml.match(/<w:commentReference w:id="[12]"\/>/g) || []).length, 2, 'each reference once');
 });
 
 // -------------------------------------------------------------- authoring --
@@ -101,14 +106,18 @@ test('a second comment gets the next id; undoing the first-ever comment empties 
   assert.equal(view.render().comments.length, 0, 'and the first — the part is empty, not orphaned');
 });
 
-test('a comment lands even on a structural paragraph, without unlocking it', () => {
+test('a third comment on a paragraph that already has two keeps all three ranges', () => {
   const view = commented();
   view.collapseTo({ block: 1, offset: 0 });
-  view.addComment('third voice on the locked line', { author: 'C' });
+  view.addComment('third voice on the same line', { author: 'C' });
   const frame = view.render();
   assert.equal(frame.comments.length, 3);
   assert.equal(frame.comments[2].blockIndex, 1);
-  assert.equal(view.block(1).structural, true, 'still locked — the ranges are still there');
+  assert.equal(view.block(1).structural, false);
+  const xml = OoxmlPackage.read(view.save()).text('word/document.xml');
+  for (const id of ['1', '2', '3']) {
+    assert.equal((xml.match(new RegExp('<w:commentRange(?:Start|End) w:id="' + id + '"/>', 'g')) || []).length, 2, 'comment ' + id + ' has its two marks');
+  }
 });
 
 test('editing elsewhere leaves the comments and their anchors intact', () => {

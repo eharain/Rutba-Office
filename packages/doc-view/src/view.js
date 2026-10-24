@@ -2626,8 +2626,26 @@ export class DocView {
       throw new Error('this document backend does not support comments');
     }
     if (typeof this.doc.registerCommentUndo === 'function') this.doc.registerCommentUndo();
+    // The words it is about: the selection, or with none the word at the
+    // caret, as Word anchors a comment. A caret between words, or in an
+    // empty paragraph, comments on the paragraph.
+    let { from, to } = this.selection;
+    if (this.collapsed) {
+      const words = this.block(from.block)?.text || '';
+      let a = from.offset;
+      let b = from.offset;
+      while (a > 0 && /[\p{L}\p{N}'_-]/u.test(words[a - 1])) a -= 1;
+      while (b < words.length && /[\p{L}\p{N}'_-]/u.test(words[b])) b += 1;
+      from = { block: from.block, offset: a };
+      to = { block: from.block, offset: b };
+    }
+    // A selection that ends at the start of a paragraph ends with the one before.
+    while (to.block > from.block && to.offset === 0) to = { block: to.block - 1, offset: (this.block(to.block - 1)?.text || '').length };
+    const range = to.block > from.block || to.offset > from.offset
+      ? { offset: from.offset, toIndex: to.block, toOffset: to.offset }
+      : {};
     return this._edit('comment', null, () => {
-      this.doc.addComment(this.focus.block, { author, text });
+      this.doc.addComment(from.block, { author, text, ...range });
       this._invalidate();
       return this;
     });
@@ -3620,6 +3638,8 @@ export class DocView {
     // of a note carries the kind, numbered by `_notes` too.
     if (r.noteRef) out.noteRef = { ...r.noteRef, n: this._noteNumbers?.get(r) ?? null };
     if (r.noteMark) out.noteMark = r.noteMark;
+    // The comments these words are the range of, for the page to mark them.
+    if (r.comments?.length) out.comments = r.comments;
     // A field's own code and kind — REF Summary, PAGE, DATE — so the page can
     // shade it and Ctrl+click can follow a REF to its bookmark.
     if (r.field) out.field = r.field;

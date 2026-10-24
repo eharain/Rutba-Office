@@ -666,10 +666,39 @@ export function parseRuns(paragraphXml) {
   // one (a tracked edit to an equation) is never taken for a paragraph-level
   // insertion that would cut the equation in two.
   const re = /<m:oMathPara\b[^>]*>[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>|<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>|<w:ins\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:ins>|<w:del\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:del>|<w:rutbaControl w:k="(\d+)"\/>/g;
+  // A comment's range marks (`w:commentRangeStart`/`End`) at the paragraph's
+  // top level: each run between them carries the comment's id on `comments`,
+  // and renderRuns puts the marks back round the runs that carry it, so the
+  // words a comment is about stay marked however the paragraph is edited.
+  const open = new Set();
+  // A range that began in an earlier paragraph and ends in this one holds
+  // every run before its end.
+  const started = new Set();
+  for (const mark of xml.matchAll(COMMENT_MARKS)) {
+    if (mark[1] === 'Start') started.add(mark[2]);
+    else if (!started.has(mark[2])) open.add(mark[2]);
+  }
+  let tagged = 0;
+  const tag = () => {
+    if (open.size) for (let i = tagged; i < runs.length; i++) runs[i].comments = [...open];
+    tagged = runs.length;
+  };
+  const flat = (chunk) => {
+    let at = 0;
+    for (const mark of chunk.matchAll(COMMENT_MARKS)) {
+      flatRuns(chunk.slice(at, mark.index), runs);
+      tag();
+      if (mark[1] === 'Start') open.add(mark[2]);
+      else open.delete(mark[2]);
+      at = mark.index + mark[0].length;
+    }
+    flatRuns(chunk.slice(at), runs);
+    tag();
+  };
   let cursor = 0;
   let m;
   while ((m = re.exec(xml))) {
-    flatRuns(xml.slice(cursor, m.index), runs);
+    flat(xml.slice(cursor, m.index));
     if (m[0].startsWith('<m:')) runs.push(mathRun(m[0]));
     // A form field: one character, its XML whole (forms.js).
     else if (m[9] !== undefined) runs.push({ rPr: null, text: CONTROL_MARK, bold: false, italic: false, underline: false, strike: false, control: { xml: controls[Number(m[9])] } });
@@ -677,10 +706,52 @@ export function parseRuns(paragraphXml) {
     else if (m[3] !== undefined) runs.push(fieldRunFromFldSimple(m[3], m[4], complex));
     else if (m[5] !== undefined) flatInsRuns(m[6], runs, parseTrackAttrs(m[5]));
     else flatDelRuns(m[8], runs, parseTrackAttrs(m[7]));
+    tag();
     cursor = m.index + m[0].length;
   }
-  flatRuns(xml.slice(cursor), runs);
+  flat(xml.slice(cursor));
   return runs;
+}
+
+/** A comment's range mark: [whole, 'Start' | 'End', id]. */
+export const COMMENT_MARKS = /<w:commentRange(Start|End)\b[^>]*?\bw:id="([^"]*)"[^>]*\/>/g;
+
+/**
+ * Where renderRuns puts a paragraph's comment marks. For each comment id
+ * the runs carry, the start goes before the first run with it and the end
+ * after the last, unless `noStart` or `noEnd` names the id (its range began
+ * in an earlier paragraph, or goes on into a later one). An id in `strip` is
+ * written nowhere: runs copied from a range elsewhere are not in it. An id in
+ * `marked` (a mark the paragraph had) that no run carries any longer keeps
+ * the one mark a longer range still needs here.
+ */
+function commentMarkPlan(runs, { noStart = new Set(), noEnd = new Set(), strip = new Set(), marked = new Set() } = {}) {
+  const first = new Map();
+  const last = new Map();
+  runs.forEach((r, i) => {
+    for (const raw of r.comments || []) {
+      const id = String(raw);
+      if (strip.has(id)) continue;
+      if (!first.has(id)) first.set(id, i);
+      last.set(id, i);
+    }
+  });
+  const before = new Map();
+  const after = new Map();
+  const lead = [];
+  const trail = [];
+  const add = (map, i, xml) => map.set(i, [...(map.get(i) || []), xml]);
+  for (const [id, i] of first) {
+    if (!noStart.has(id)) add(before, i, '<w:commentRangeStart w:id="' + esc(id) + '"/>');
+    if (!noEnd.has(id)) add(after, last.get(id), '<w:commentRangeEnd w:id="' + esc(id) + '"/>');
+  }
+  for (const raw of marked) {
+    const id = String(raw);
+    if (first.has(id) || strip.has(id)) continue;
+    if (noStart.has(id) && !noEnd.has(id)) lead.push('<w:commentRangeEnd w:id="' + esc(id) + '"/>');
+    else if (!noStart.has(id) && noEnd.has(id)) trail.push('<w:commentRangeStart w:id="' + esc(id) + '"/>');
+  }
+  return { before, after, lead, trail };
 }
 
 // `<w:lang>` carries up to three languages, one for each kind of script a
@@ -763,7 +834,7 @@ function renderTrackWrap(tag, meta, inner) {
  * keystroke inside a link leave the link standing. An `ins`/`del` run wraps
  * in `<w:ins>`/`<w:del>` the same way — see `renderTrackWrap`.
  */
-export function renderRuns(runs) {
+export function renderRuns(runs, options = null) {
   const out = [];
   let openLink = null;
   // A deletion carries no text of its own (see `flatDelRuns`) — `del.text`
@@ -771,7 +842,19 @@ export function renderRuns(runs) {
   // place in the file. An equation is kept by its one character like any
   // text: a split at its edge leaves an empty copy on the far side, which
   // must not write the equation a second time.
-  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark || run.field || run.del || run.control)) {
+  const kept = runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark || run.field || run.del || run.control);
+  // Comment marks only when the paragraph's own rebuild asks for them (see
+  // `commentMarkPlan`); words copied elsewhere do not take a range along.
+  const marks = options?.comments ? commentMarkPlan(kept, options.comments) : null;
+  // A mark sits between runs, never inside a hyperlink's wrapper.
+  const mark = (list) => {
+    if (!list?.length) return;
+    if (openLink !== null) { out.push('</w:hyperlink>'); openLink = null; }
+    out.push(...list);
+  };
+  if (marks) mark(marks.lead);
+  for (const [i, r] of kept.entries()) {
+    if (marks) mark(marks.before.get(i));
     const link = r.link ?? null;
     if (link !== openLink) {
       if (openLink !== null) out.push('</w:hyperlink>');
@@ -795,7 +878,9 @@ export function renderRuns(runs) {
     else if (r.del) out.push(renderTrackWrap('del', r.del, '<w:r>' + (r.rPr || '') + '<w:delText xml:space="preserve">' + esc(r.del.text ?? '') + '</w:delText></w:r>'));
     else if (r.ins) out.push(renderTrackWrap('ins', r.ins, renderRun(r.rPr, r.text, r)));
     else out.push(renderRun(r.rPr, r.text, r));
+    if (marks) mark(marks.after.get(i));
   }
+  if (marks) mark(marks.trail);
   if (openLink !== null) out.push('</w:hyperlink>');
   return out.join('');
 }

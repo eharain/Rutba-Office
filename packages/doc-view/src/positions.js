@@ -214,7 +214,9 @@ export function coalesce(runs) {
       (!run.ins && !run.del && !last?.ins && !last?.del) ||
       (run.ins && last?.ins && run.ins.id === last.ins.id && run.ins.author === last.ins.author) ||
       (run.del && last?.del && run.del.id === last.del.id && run.del.author === last.del.author);
-    if (last && !marker && sameTracking && last.rPr === run.rPr && (last.link ?? null) === (run.link ?? null)) {
+    // A comment's words are its range: a run inside one never merges with one outside it.
+    const sameComments = String(last?.comments ?? '') === String(run.comments ?? '');
+    if (last && !marker && sameTracking && sameComments && last.rPr === run.rPr && (last.link ?? null) === (run.link ?? null)) {
       last.text += run.text;
       if (run.del) last.del = { ...last.del, text: (last.del.text || '') + (run.del.text || '') };
     } else out.push({ ...run });

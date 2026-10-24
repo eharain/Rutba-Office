@@ -2622,7 +2622,9 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // A border dragged on the page: the columns either side of it, or a row's height.
     setTableColumnWidths: (v, a) => v.setTableColumnWidths(a),
     setTableRowHeight: (v, a) => v.setTableRowHeight(a),
-    addComment: (v, a) => v.addComment(a.text, { author: a.author }),
+    // Signed as a tracked change is: the account at the keyboard (the screens
+    // build's invented person), not left blank as 2.17.1 left it.
+    addComment: (v, a) => v.addComment(a.text, { author: a.author || commentAuthor() }),
     deleteComments: (v, a) => v.deleteComments(Array.isArray(a.ids) ? a.ids : [a.ids]),
     // Insert → Bookmark: name a span of paragraphs, take the name off again,
     // or jump to it — the last one only moves the caret (see CLEAN_OPS).
