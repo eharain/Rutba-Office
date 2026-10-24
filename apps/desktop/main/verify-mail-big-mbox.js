@@ -16,6 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { Worker } from 'node:worker_threads';
+import { whileIndexing } from './verify-mail-index-worker.js';
 
 const COUNT = 9_000;
 const TWO_GB = 2 ** 31;
@@ -124,11 +125,12 @@ export async function verifyMailBigMbox(h) {
     await shot('mail-big-1-mbox-open.png');
 
     // Both indexed, then one search over all mail finds the message written last in each.
-    const ready = await waitFor(async () => {
-      const list = await mail('archives');
-      const ours = list.filter((a) => ids.includes(a.id));
-      return ours.length === 2 && ours.every((a) => a.index.state === 'ready') ? ours.map((a) => [a.name, a.index.done, a.index.total]) : false;
-    }, 'both archives indexed', 240000);
+    // For as long as the indexing goes on, rather than a fixed four minutes, which beside the gate's other lanes it ran past.
+    const ours = async () => (await mail('archives')).filter((a) => ids.includes(a.id));
+    const ready = await whileIndexing(wait, async () => {
+      const list = await ours();
+      return list.length === 2 && list.every((a) => a.index.state === 'ready') ? list.map((a) => [a.name, a.index.done, a.index.total]) : null;
+    }, async () => (await ours()).reduce((n, a) => n + (a.index.done || 0), 0));
     check(`mail big archives: both are indexed to their last message`, Boolean(ready) && ready.every(([, done]) => done === COUNT + 1), JSON.stringify(ready || (await mail('archives')).map((a) => [a.name, a.index])));
     await js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Search'); t?.click(); return 1; })()`);
     await js(`(() => { const el = document.querySelector('.rw-search input'); if (!el) return 'no field'; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, 'quartzberry'); el.dispatchEvent(new Event('input', { bubbles: true })); return 'typed'; })()`);
