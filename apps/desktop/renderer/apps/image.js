@@ -554,6 +554,16 @@ export default function ImageTool({ app, shell, boot }) {
 
   assetsNowRef.current = assetsNow;
 
+  // The edits as they were when last exported or put back: a picture with
+  // no layers has no project to save, so closing it asks while its edits
+  // are in no file, and so does every Edit in Image window.
+  const work = useMemo(() => ({ ops, adjust, pixels }), [ops, adjust, pixels]);
+  const workRef = useRef(work);
+  workRef.current = work;
+  const [kept, setKept] = useState(null);
+  useEffect(() => { setKept(null); }, [path]);
+  const putBackRef = useRef(null);
+
   /** What is exported or copied: the layered picture flattened, or the quick-edited one. */
   const renderResult = useCallback(async (s = 1, { ground = null } = {}) => {
     if (layeredRef.current) return renderLayered(layeredRef.current, assetsNow(), s, { ground });
@@ -574,8 +584,9 @@ export default function ImageTool({ app, shell, boot }) {
 
   const exportPicture = useCallback(
     async (fmt = format) => {
-      if (!hasResult) return;
+      if (!hasResult) return false;
       commitDraft();
+      const exported = workRef.current;
       const info = FORMATS[fmt];
       // Never the original's own name, which one Enter and Windows' replace
       // prompt stand between the photo and its loss: "{name} edited" beside
@@ -597,7 +608,7 @@ export default function ImageTool({ app, shell, boot }) {
         defaultPath,
         filters: [{ name: fmt.toUpperCase(), extensions: [info.ext] }],
       });
-      if (!target) return;
+      if (!target) return false;
       setBusy(true);
       try {
         const long = Math.max(resultSize.width, resultSize.height);
@@ -631,8 +642,11 @@ export default function ImageTool({ app, shell, boot }) {
         const said = t('Saved {name}: {width} × {height}, {size}', { name: basename(target), width: canvas.width, height: canvas.height, size: formatBytes(bytes.length) });
         if (result.fits === false) toast(t('{saved}. It could not be brought under {limit}.', { saved: said, limit: formatBytes(maxBytes) }));
         else toast(said, { tone: 'good' });
+        setKept(exported);
+        return true;
       } catch (err) {
         toast(err.message, { tone: 'bad' });
+        return false;
       } finally {
         setBusy(false);
       }
@@ -1717,7 +1731,17 @@ export default function ImageTool({ app, shell, boot }) {
   }, [shell, toast, decode, clearLayers]);
   openProjectRef.current = openProject;
 
-  useDirtyGuard({ shell, dirty: Boolean(layered) && projectDirty && !editFor, name: projectPath ? basename(projectPath) : t('Untitled picture'), onSave: saveProject });
+  const quickEdited = ops.length > 0 || !isIdentity([{ op: OPS.adjust, ...adjust }]) || !isNeutral(pixels);
+  const unsaved = layered ? projectDirty : quickEdited && kept !== work;
+  useDirtyGuard({
+    shell,
+    dirty: unsaved,
+    name: editFor
+      ? t('the picture in {name}', { name: editFor.name || t('the document') })
+      : layered ? (projectPath ? basename(projectPath) : t('Untitled picture')) : (path ? basename(path) : pastedName || t('Untitled picture')),
+    // Save puts the picture back where it came from, saves the project, or exports a picture with no layers.
+    onSave: editFor ? () => putBackRef.current?.() : layered ? saveProject : () => exportPicture(),
+  });
 
   // Autosave: while a layered picture has unsaved work, a copy in the
   // recovery folder soon after the first change and every half minute; gone
@@ -1751,6 +1775,7 @@ export default function ImageTool({ app, shell, boot }) {
 
   const putBack = useCallback(async () => {
     if (!editFor || !hasResult) return false;
+    const handed = workRef.current;
     commitDraft();
     try {
       const jpeg = /jpe?g/i.test(editFor.type) && !layeredRef.current;
@@ -1764,6 +1789,7 @@ export default function ImageTool({ app, shell, boot }) {
         return false;
       }
       setProjectDirty(false);
+      setKept(handed);
       toast(t('The picture is back in {name}.', { name: editFor.name || t('the document') }), { tone: 'good' });
       return true;
     } catch (err) {
@@ -1771,6 +1797,7 @@ export default function ImageTool({ app, shell, boot }) {
       return false;
     }
   }, [editFor, hasResult, commitDraft, renderResult, shell, toast]);
+  putBackRef.current = putBack;
 
   const undo = useCallback(() => {
     if (draft) {
@@ -2231,7 +2258,7 @@ export default function ImageTool({ app, shell, boot }) {
       app={app}
       shell={shell}
       title={title}
-      dirty={layered ? projectDirty : changed}
+      dirty={unsaved}
       menu={appMenu}
       ribbon={ribbon}
       status={

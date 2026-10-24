@@ -9,10 +9,97 @@
 // enhance moves the levels. Run alone with RUTBA_VERIFY_ONLY=image-edits.
 import fs from 'node:fs';
 import path from 'node:path';
-import { nativeImage } from 'electron';
+import { app, dialog, nativeImage } from 'electron';
 import { clipboard, readImage, writeImage } from '@rutba/office-shell/electron/clipboard';
 import { probeImage } from '@rutba/imaging/probe';
 import { straightenRect } from '@rutba/imaging/pipeline';
+
+/**
+ * Image keeps its edits (A7.2, A7.3): Export offers "{name} edited" beside
+ * the original, never the original's own name, and from an Edit in Image
+ * window a name of the document's in Pictures, not the scratch file's; and
+ * closing a window whose edits are in no file asks first, a picture without
+ * layers and an Edit in Image window alike, and once exported closes
+ * without a word. The platform's own Save and close questions are answered
+ * here, and what they were asked is read.
+ */
+async function verifyImageKeepsEdits({ open, check, until, wait, press }, { root }) {
+  const realSave = dialog.showSaveDialog;
+  const realAsk = dialog.showMessageBox;
+  const offered = [];
+  const asked = [];
+  let saveTo = null;
+  dialog.showSaveDialog = async (...args) => {
+    const opts = args.find((a) => a && typeof a === 'object' && 'defaultPath' in a) || {};
+    offered.push(opts.defaultPath || '');
+    return saveTo ? { canceled: false, filePath: saveTo } : { canceled: true, filePath: '' };
+  };
+  // Cancel: the window stays, so what it asked can be read.
+  dialog.showMessageBox = async (...args) => {
+    const opts = args.find((a) => a && typeof a === 'object' && 'buttons' in a) || {};
+    asked.push(opts.message || '');
+    return { response: 2 };
+  };
+  const flip = (js) => js(`(() => { const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.textContent || '').trim().startsWith('Flip vertical') && !n.disabled); if (!b) return false; b.click(); return true; })()`);
+  try {
+    const file = path.join(root, 'harbour.png');
+    fs.writeFileSync(file, noisyPicture(160, 100, 5).toPNG());
+    const win = await open('image', file);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`document.querySelector('.im-canvas-wrap')?.dataset.result === '160x100'`), 'the harbour picture', 10000);
+    const flipped = await flip(js);
+    await until(() => js(`[...document.querySelectorAll('.im-op')].some((n) => n.dataset.op === 'flip')`), 'the flip', 4000).catch(() => {});
+    win.focus();
+    await press(win.webContents, 'e', { modifiers: ['control'] });
+    await until(() => offered.length >= 1, 'the Export dialog', 5000).catch(() => {});
+    const name = offered[0] || '';
+    win.close();
+    await until(() => asked.length >= 1, 'the close question', 4000).catch(() => {});
+    await wait(300);
+    const askedClose = asked.length === 1 && /harbour\.png/.test(asked[0]) && !win.isDestroyed();
+    check('image: Export offers "{name} edited" beside the original, never the original\'s own name, and closing with the edit in no file asks first',
+      flipped && path.dirname(name) === path.dirname(file) && path.basename(name) === 'harbour edited.png' && askedClose,
+      JSON.stringify({ flipped, offered: path.basename(name), sameFolder: path.dirname(name) === path.dirname(file), asked }));
+    // Exported: the window closes without a word.
+    saveTo = path.join(root, 'harbour edited.png');
+    await press(win.webContents, 'e', { modifiers: ['control'] });
+    const wrote = await until(() => fs.existsSync(saveTo), 'the edited copy', 8000).then(() => true).catch(() => false);
+    await wait(400);
+    const askedBefore = asked.length;
+    win.close();
+    const closed = await until(() => win.isDestroyed(), 'the window to close', 5000).then(() => true).catch(() => false);
+    check('image: once the edit is exported, the window closes without asking, and the original is as it was',
+      wrote && closed && asked.length === askedBefore && fs.readFileSync(file).equals(noisyPicture(160, 100, 5).toPNG()), JSON.stringify({ wrote, closed, asked: asked.slice(askedBefore) }));
+    saveTo = null;
+
+    // Edit in Image: the picture is a scratch file; the window says where it came from.
+    const scratch = path.join(root, 'scratch.png');
+    fs.writeFileSync(scratch, noisyPicture(120, 80, 9).toPNG());
+    const ew = await open('image', scratch, { editFor: 'check-keeps-edits', editName: 'Quarterly report.docx', editType: 'image/png' });
+    const ejs = (code) => ew.webContents.executeJavaScript(code);
+    await until(() => ejs(`document.querySelector('.im-canvas-wrap')?.dataset.result === '120x80'`), 'the picture from the document', 10000);
+    const eflipped = await flip(ejs);
+    await until(() => ejs(`[...document.querySelectorAll('.im-op')].some((n) => n.dataset.op === 'flip')`), 'the flip there', 4000).catch(() => {});
+    ew.focus();
+    const offeredBefore = offered.length;
+    await press(ew.webContents, 'e', { modifiers: ['control'] });
+    await until(() => offered.length > offeredBefore, 'its Export dialog', 5000).catch(() => {});
+    const ename = offered[offeredBefore] || '';
+    const askedBeforeEdit = asked.length;
+    ew.close();
+    await until(() => asked.length > askedBeforeEdit, 'its close question', 4000).catch(() => {});
+    await wait(300);
+    const eAsked = asked.length === askedBeforeEdit + 1 && /Quarterly report/.test(asked[askedBeforeEdit] || '') && !ew.isDestroyed();
+    check('image: from Edit in Image, Export offers a name of the document\'s in Pictures, not the scratch file, and closing with the edit not put back asks first',
+      eflipped && /^Picture from Quarterly report( \(\d+\))?\.png$/.test(path.basename(ename)) && path.dirname(ename).toLowerCase() === app.getPath('pictures').toLowerCase() && eAsked,
+      JSON.stringify({ eflipped, offered: ename.replace(app.getPath('home'), '~'), asked: asked.slice(askedBeforeEdit) }));
+  } catch (err) {
+    check('image: the Export name and close checks ran', false, err?.message || String(err));
+  } finally {
+    dialog.showSaveDialog = realSave;
+    dialog.showMessageBox = realAsk;
+  }
+}
 
 /** A w × h picture: a diagonal gradient with grain, as BGRA for nativeImage. */
 export function noisyPicture(width, height, seed = 11) {
@@ -297,6 +384,8 @@ export async function verifyImageEdits({ open, check, until, wait, press, errors
     await until(() => ejs(`document.querySelector('.im-canvas-wrap')?.dataset.result === '90x60'`), 'the pasted picture', 8000).catch(() => {});
     const pasted = await ejs(`({ result: document.querySelector('.im-canvas-wrap')?.dataset.result || '', title: document.title })`);
     check('image: Paste opens the clipboard\'s picture as a new picture', pasted.result === '90x60', JSON.stringify(pasted));
+
+    await verifyImageKeepsEdits({ open, check, until, wait, press }, { root });
   } catch (err) {
     check('image: the quick-edit checks ran', false, err?.message || String(err));
   } finally {
