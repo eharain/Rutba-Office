@@ -42,3 +42,20 @@ export function unwrapNotes(markdown) {
   }
   return out.join('\n');
 }
+
+/**
+ * The GitHub accounts a release body would mention: "@" and a name outside
+ * code, not part of an address. GitHub lists every account a release
+ * mentions as one of its contributors and notifies it, so a folder written
+ * as @rutba\office-desktop (2.16.0) or a Lotus @SUM (2.8.0) named strangers
+ * on the release page. Written in backticks, as code, nobody is mentioned.
+ */
+export function mentionsIn(markdown) {
+  const prose = String(markdown)
+    .replace(/\r\n/g, '\n')
+    .replace(/^\s*(```|~~~)[\s\S]*?^\s*\1.*$/gm, '')
+    .replace(/`[^`\n]*`/g, '');
+  const found = new Set();
+  for (const m of prose.matchAll(/(^|[^A-Za-z0-9_.@/\\-])@([A-Za-z0-9][A-Za-z0-9-]*)/g)) found.add(`@${m[2]}`);
+  return [...found];
+}

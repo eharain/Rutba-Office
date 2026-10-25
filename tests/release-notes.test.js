@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { unwrapNotes } from '../tools/release-notes.js';
+import { unwrapNotes, mentionsIn } from '../tools/release-notes.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -63,5 +63,17 @@ test('every release note unwraps with no wrapped continuation left over', () => 
       // A continuation is an indented line of plain words, not a nested item.
       assert.ok(!/^\s{2,}[^\s\-*+\d>|]/.test(line), `${name}: a wrapped line was left: "${line.slice(0, 60)}"`);
     }
+  }
+});
+
+test('a release body mentions nobody on GitHub: an @ name outside code is found, in code or an address it is not', () => {
+  assert.deepEqual(mentionsIn('the folder @rutba\\office-desktop and @SUM, @IF'), ['@rutba', '@SUM', '@IF']);
+  assert.deepEqual(mentionsIn('in `@rutba\\office-desktop`, from no-reply@rutba.io, and\n```\n@SUM(A1)\n```\n'), []);
+});
+
+test('no release note mentions anyone on GitHub', () => {
+  const dir = path.join(root, 'docs', 'releases');
+  for (const name of fs.readdirSync(dir).filter((n) => /^v\d+\.\d+\.\d+\.md$/.test(n))) {
+    assert.deepEqual(mentionsIn(unwrapNotes(fs.readFileSync(path.join(dir, name), 'utf8'))), [], name);
   }
 });

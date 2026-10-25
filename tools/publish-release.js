@@ -39,7 +39,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { unwrapNotes } from './release-notes.js';
+import { unwrapNotes, mentionsIn } from './release-notes.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OWNER = 'eharain';
@@ -315,6 +315,12 @@ async function main() {
   // The file is wrapped for editors; the release page breaks a line wherever
   // the body does, so each paragraph goes up as one line (release-notes.js).
   const notes = unwrapNotes(notesFor(tag));
+  // A name after an @ is a GitHub account: the release page would list it
+  // as a contributor and notify it (release-notes.js mentionsIn).
+  const mentioned = mentionsIn(notes);
+  if (mentioned.length) {
+    throw new Error(`docs/releases/${tag}.md mentions ${mentioned.join(', ')} on GitHub, which would list them as the release's contributors and notify them. Put each in backticks, as code.`);
+  }
   await publishRelease({
     client: githubClient(credential()),
     dir: path.join(root, 'apps', 'desktop', 'release'),
