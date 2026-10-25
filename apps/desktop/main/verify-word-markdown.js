@@ -37,7 +37,7 @@ Reorder level
  * @param {{ dir: string }} args where the fixture is written
  */
 export async function verifyWordMarkdown({ open, check, until, wait, press, errorsIn }, { dir }) {
-  const file = path.join(dir, 'README.md');
+  const file = path.join(dir, 'markdown-kept.md');
   fs.writeFileSync(file, README);
   let win = null;
   try {
