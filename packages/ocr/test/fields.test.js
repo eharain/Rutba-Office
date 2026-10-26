@@ -321,3 +321,39 @@ test('documentFields: sums agree only when the total itself is confirmed, not wh
   assert.equal(r.checks.itemsAddUp, true);
   assert.equal(r.checks.consistent, false);
 });
+
+test('documentFields: a till\'s VAT codes after the amounts are not read into them, and the rate holds on the standard-rated items', () => {
+  const read = page([
+    [40, [['Corner Grocer', 120]]],
+    [80, [['Receipt No: 7781', 20]]],
+    [120, [['Date: 03/10/2026', 20]]],
+    [200, [['Milk', 20], ['1.20', 440], ['Z', 560]]],
+    [240, [['Bread', 20], ['1.50', 440], ['Z', 560]]],
+    [280, [['Kitchen roll', 20], ['3.00', 440], ['S', 560]]],
+    [320, [['Batteries', 20], ['7.00 S', 440]]],
+    [380, [['Subtotal', 20], ['12.70', 440]]],
+    [420, [['VAT at 20%', 20], ['2.00', 440]]],
+    [460, [['TOTAL GBP', 20], ['14.70', 440]]],
+  ], { width: 630, pageHeight: 900 });
+  const r = documentFields(read);
+  assert.deepEqual(r.items.map((i) => [i.description, i.amount, i.vatCode]), [['Milk', 1.2, 'Z'], ['Bread', 1.5, 'Z'], ['Kitchen roll', 3, 'S'], ['Batteries', 7, 'S']]);
+  assert.equal(value(r, 'total'), 14.7);
+  assert.equal(r.checks.itemsAddUp, true);
+  assert.equal(r.checks.taxRateHolds, true, '20% of the 10.00 marked S');
+  assert.equal(r.checks.consistent, true);
+  assert.equal(r.currency, 'GBP', 'from the TOTAL label, the figures naming none');
+});
+
+test('documentFields: a rate stated on its own base holds, and one that fits nothing is no fault when the sums make the total', () => {
+  const based = invoiceRows.map(([y, p]) => [y, y === 700 ? [['VAT 20% of £50.00', 1000], ['£10.00', 1300]] : p])
+    .map(([y, p]) => [y, p.map(([t, x]) => [t === '£78.00' ? '£75.00' : t, x])]);
+  const r = documentFields(page(based));
+  assert.equal(value(r, 'tax'), 10);
+  assert.equal(r.checks.taxRateHolds, true);
+  assert.equal(r.checks.consistent, true);
+  const mixed = invoiceRows.map(([y, p]) => [y, p.map(([t, x]) => [t === '£13.00' ? '£8.00' : t === '£78.00' ? '£73.00' : t, x])]);
+  const m = documentFields(page(mixed));
+  assert.equal(m.checks.totalAddsUp, true);
+  assert.equal(m.checks.taxRateHolds, null);
+  assert.equal(m.checks.consistent, true);
+});
