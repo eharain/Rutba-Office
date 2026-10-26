@@ -6,7 +6,7 @@
 // and written through the shell. Nothing already on disk is replaced without
 // asking: a clash is found before the first file is written, and the person
 // chooses Keep both, Replace or Cancel.
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog, Button, Select, Input, Progress, basename, t, tn } from '@rutba/office-ui';
 import { probeImage } from '@rutba/imaging/probe';
 import { readExif } from '@rutba/imaging/exif';
@@ -46,18 +46,47 @@ async function sizeOf(shell, file, upright) {
   }
 }
 
+/**
+ * The choices of the last batch, remembered on this computer for the next:
+ * the size, format, quality, name pattern, upright and strip. Where the
+ * pictures go is not: beside the originals, each time, unless chosen.
+ */
+const BATCH_KEY = 'pictures.batch';
+const BATCH_DEFAULTS = { mode: 'fit', percent: 50, box: { width: 1920, height: 1080 }, long: 1600, format: 'jpeg', quality: 85, pattern: '{name} (edited)', upright: true, strip: true };
+export function rememberedBatch() {
+  try {
+    const kept = JSON.parse(localStorage.getItem(BATCH_KEY) || '{}');
+    const out = { ...BATCH_DEFAULTS };
+    for (const k of Object.keys(BATCH_DEFAULTS)) {
+      const v = kept?.[k];
+      if (v == null) continue;
+      if (k === 'mode' && !SIZE_MODES.some((m) => m.id === v)) continue;
+      if (k === 'format' && v !== 'same' && !FORMATS[v]) continue;
+      if (k === 'box' && !(v && v.width > 0 && v.height > 0)) continue;
+      if (['percent', 'long', 'quality'].includes(k) && !(Number(v) > 0)) continue;
+      if (k === 'pattern' && !String(v).trim()) continue;
+      if (['upright', 'strip'].includes(k) && typeof v !== 'boolean') continue;
+      out[k] = v;
+    }
+    return out;
+  } catch {
+    return { ...BATCH_DEFAULTS };
+  }
+}
+
 export function BatchDialog({ shell, files, folder, onClose, onDone }) {
   const pictures = useMemo(() => files.filter((f) => !f.dir && canBatch(f.path)), [files]);
   const [chosen, setChosen] = useState(() => new Set(pictures.map((f) => f.path)));
-  const [mode, setMode] = useState('fit');
-  const [percent, setPercent] = useState(50);
-  const [box, setBox] = useState({ width: 1920, height: 1080 });
-  const [long, setLong] = useState(1600);
-  const [format, setFormat] = useState('jpeg');
-  const [quality, setQuality] = useState(85);
-  const [pattern, setPattern] = useState('{name} (edited)');
-  const [upright, setUpright] = useState(true);
-  const [strip, setStrip] = useState(true);
+  const last = useMemo(rememberedBatch, []);
+  const [mode, setMode] = useState(last.mode);
+  const [percent, setPercent] = useState(last.percent);
+  const [box, setBox] = useState(last.box);
+  const [long, setLong] = useState(last.long);
+  const [format, setFormat] = useState(last.format);
+  const [quality, setQuality] = useState(last.quality);
+  const [pattern, setPattern] = useState(last.pattern);
+  const [upright, setUpright] = useState(last.upright);
+  const [strip, setStrip] = useState(last.strip);
   const [out, setOut] = useState(null); // null: beside the originals
   const [run, setRun] = useState(null); // { done, total, name, written, failed, stopped }
   const stop = useRef(false);
@@ -73,6 +102,11 @@ export function BatchDialog({ shell, files, folder, onClose, onDone }) {
     const [dir] = await shell.dialog.open({ title: t('Save the pictures in'), directory: true, defaultPath: out || folder });
     if (dir) setOut(dir);
   };
+
+  // Each choice kept as it is made, for the next batch.
+  useEffect(() => {
+    try { localStorage.setItem(BATCH_KEY, JSON.stringify({ mode, percent, box, long, format, quality, pattern, upright, strip })); } catch { /* no storage, no memory */ }
+  }, [mode, percent, box, long, format, quality, pattern, upright, strip]);
 
   const start = async () => {
     stop.current = false;

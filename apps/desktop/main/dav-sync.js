@@ -40,7 +40,8 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
   const passwordOf = (id) => stores.secrets.get(secretKey(id)) || '';
   const clientFor = (acc) => createDavClient({ url: acc.url, user: acc.user, password: passwordOf(acc.id), fetch: fetchImpl });
   const announce = () => broadcast?.('dav:changed', {});
-  const listed = () => read().map(({ id, url, user, name, addedAt, lastSync, lastError, calendars, books }) => ({ id, url, user, name, addedAt, lastSync: lastSync || null, lastError: lastError || null, calendars: calendars || 0, books: books || 0 }));
+  // `needsPassword`: none is saved for it on this computer (the profile's keystore would not open here): Accounts asks for it.
+  const listed = () => read().map(({ id, url, user, name, addedAt, lastSync, lastError, calendars, books }) => ({ id, url, user, name, addedAt, lastSync: lastSync || null, lastError: lastError || null, calendars: calendars || 0, books: books || 0, needsPassword: stores.secrets.get(secretKey(id)) == null }));
   const cal = calendar?._dav || null;
   const con = contacts?._dav || null;
   const running = new Map();
@@ -72,6 +73,25 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
     const gone = new Set(state.books.filter((b) => b.account === acc.id && !hrefs.has(b.href)).map((b) => b.id));
     state.books = state.books.filter((b) => !gone.has(b.id));
     state.contacts = state.contacts.filter((c) => !gone.has(c.book));
+    defaultToABook();
+  }
+
+  /**
+   * Where a new card goes. An account added from 2.19 on, while nothing is
+   * chosen, takes new cards into its first address book, as Outlook puts
+   * new contacts in the account's: its id waits in defaultAccount until its
+   * books are in. Nothing else sends them to a server unasked: a chosen book
+   * that went leaves new cards on this computer, another account's book is
+   * never picked for it, and "This computer only" is kept as 'local', which
+   * a setup from before 2.19 was marked as once (contacts.js).
+   */
+  function defaultToABook() {
+    const state = con.state();
+    const books = state.books || [];
+    if (state.defaultBook && state.defaultBook !== 'local' && !books.some((b) => b.id === state.defaultBook)) state.defaultBook = null;
+    if (state.defaultBook || !state.defaultAccount) return;
+    const first = books.find((b) => b.account === state.defaultAccount);
+    if (first) { state.defaultBook = first.id; delete state.defaultAccount; }
   }
 
   /** One calendar: what changed here sent, then what changed there fetched. Answers counts. */
@@ -207,7 +227,8 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
   /** Sync one account, or every one. Answers what moved, per account. */
   async function sync({ id = null } = {}) {
     const out = [];
-    for (const acc of read().filter((a) => !id || a.id === id)) {
+    // Every account, but not one whose password is not saved here (Accounts asks for it): it is not tried and failed each time.
+    for (const acc of read().filter((a) => (id ? a.id === id : stores.secrets.get(secretKey(a.id)) != null))) {
       if (running.has(acc.id)) {
         // A sync asked for while one runs can be for a change that one began
         // too soon to see (an event made a moment ago): it waits for it, then
@@ -268,11 +289,34 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
       ]);
       if (!calendars.length && !books.length) throw new Error('No calendars or address books were found at that address.');
       const id = crypto.randomUUID();
-      const acc = { id, url: String(url).trim(), user, name: name || new URL(client.origin()).hostname, addedAt: Date.now(), calendars: calendars.length, books: books.length };
+      const acc = { id, url: String(url).trim(), user, name: String(name || '').trim() || new URL(client.origin()).hostname, addedAt: Date.now(), calendars: calendars.length, books: books.length };
       stores.secrets.set(secretKey(id), password);
       write([...read(), acc]);
+      if (con && books.length && !con.state().defaultBook) con.state().defaultAccount = id;
       const [result] = await sync({ id });
       return { ...listed().find((a) => a.id === id), result };
+    },
+
+    /** Call an account something else: the name the person knows it by, not its server's. */
+    rename: ({ id, name }) => {
+      const list = read();
+      const acc = list.find((a) => a.id === id);
+      if (!acc) throw new Error('That account is no longer there.');
+      const named = String(name || '').trim();
+      if (!named) throw new Error('An account needs a name.');
+      acc.name = named;
+      write(list);
+      announce();
+      return listed().find((acc) => acc.id === id);
+    },
+
+    /** An account's password typed again, kept, and the account synced with it. */
+    setPassword: async ({ id, password = '' }) => {
+      if (!read().some((a) => a.id === id)) throw new Error('That account is no longer there.');
+      stores.secrets.set(secretKey(id), String(password));
+      await sync({ id });
+      announce();
+      return listed().find((a) => a.id === id);
     },
 
     /** Take an account away, and the calendars and cards it brought. */
@@ -293,6 +337,7 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
         state.books = (state.books || []).filter((b) => !books.has(b.id));
         state.contacts = state.contacts.filter((c) => !books.has(c.book));
         if (books.has(state.defaultBook)) state.defaultBook = null;
+        if (state.defaultAccount === id) delete state.defaultAccount;
         con.save();
       }
       announce();
@@ -302,13 +347,14 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
     sync,
 
     /** The address books, and which one a new card goes to (null: this computer only). */
-    books: () => ({ books: (con?.state().books || []).map(({ id, name, account }) => ({ id, name, account })), defaultBook: con?.state().defaultBook || null }),
+    books: () => ({ books: (con?.state().books || []).map(({ id, name, account }) => ({ id, name, account })), defaultBook: con?.state().defaultBook === 'local' ? null : con?.state().defaultBook || null }),
 
     setDefaultBook: ({ id = null }) => {
       if (!con) return null;
-      con.state().defaultBook = id && (con.state().books || []).some((b) => b.id === id) ? id : null;
+      con.state().defaultBook = id && (con.state().books || []).some((b) => b.id === id) ? id : 'local';
+      delete con.state().defaultAccount;
       con.save();
-      return con.state().defaultBook;
+      return con.state().defaultBook === 'local' ? null : con.state().defaultBook;
     },
 
     stop: () => { clearInterval(every); clearTimeout(soon); },

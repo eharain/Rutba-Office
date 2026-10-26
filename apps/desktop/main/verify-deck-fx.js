@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck } from '@rutba/presentation';
+import { putShapeDown } from './verify-shape-place.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -57,12 +58,14 @@ export async function verifyDeckFx(h, { file }) {
 
     await clickRibbon('Shapes');
     await clickMenuItem('Rectangle');
+    await putShapeDown(wc);
     await until(() => model().slide.shapes.length === before + 1, 'the rectangle', 5000);
     const id = model().slide.shapes[model().slide.shapes.length - 1].id;
     await until(() => js(`Boolean(document.querySelector('.sl-hit[data-shape="${id}"]'))`), 'its hit area', 4000);
 
     // The Format pane, opened at Fill from Shape Fill.
     const opened = await clickRibbon('Shape Fill');
+    await clickMenuItem('More Fill Options…');
     await until(() => js(`Boolean(document.querySelector('.sl-format-fill'))`), 'the Format pane', 4000);
 
     // Gradient: the Gradient chip, then the pane's own angle slider.

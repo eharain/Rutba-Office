@@ -261,7 +261,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
    */
   const sealing = (p) => broadcast?.('mail:sealing', p);
   stores.vault?.attach?.({
-    useKey: (key) => store.useKey(key),
+    useKey: (key, also) => store.useKey(key, also),
     prepare: (old, next) => store.prepareReseal(old, next),
     rekey: (old, next) => store.rekey(old, next, { progress: sealing }),
   });

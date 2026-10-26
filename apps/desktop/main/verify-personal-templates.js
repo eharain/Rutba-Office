@@ -43,6 +43,15 @@ export async function verifyPersonalTemplates({ open, check, until, wait, errors
     const home = await open('home');
     const hjs = (code) => home.webContents.executeJavaScript(code);
     const listed = await until(() => hjs(`[...document.querySelectorAll('.home-template.personal')].some((b) => b.textContent.trim() === 'Letterhead')`), 'the template on Home', 6000).then(() => true).catch(() => false);
+    // A template saved while Home is open is in the row once Home has the focus again.
+    const second = path.join(documents, 'Custom Office Templates', 'Memo Later.dotx');
+    if (saved) fs.copyFileSync(template, second);
+    await hjs(`window.dispatchEvent(new Event('focus')), 1`);
+    const refreshed = await until(() => hjs(`[...document.querySelectorAll('.home-template.personal')].some((b) => b.textContent.trim() === 'Memo Later')`), 'the later template on Home', 6000).then(() => true).catch(() => false);
+    check('templates: a template saved while Home is open joins its row when Home has the focus again', refreshed,
+      String(await hjs(`[...document.querySelectorAll('.home-template.personal')].map((b) => b.textContent.trim()).join(' | ')`)));
+    try { fs.unlinkSync(second); } catch { /* left for the run's folder to take */ }
+    await hjs(`window.dispatchEvent(new Event('focus')), 1`);
     // The gallery lists it too, under Personal, as Word's File > New does.
     await hjs(`document.querySelector('.home-more')?.click(), 1`);
     await until(() => hjs(`Boolean(document.querySelector('.tg-rail-item[data-view="personal"]'))`), 'the gallery', 6000).catch(() => {});

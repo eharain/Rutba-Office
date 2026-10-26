@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { readVCards, writeVCards, readContactsCsv, displayName } from '@rutba/contacts';
+import { readVCards, writeVCards, readContactsCsvReport, decodeText, displayName } from '@rutba/contacts';
 
 const readPlain = (file, fallback) => {
   try {
@@ -33,6 +33,7 @@ const writePlainLater = async (file, value) => {
 };
 
 const norm = (s) => String(s || '').trim().toLowerCase();
+const digits = (s) => String(s || '').replace(/[^\d+]/g, '');
 
 /**
  * A card as the window shows it: the photo as a URL it can put in an <img>.
@@ -43,7 +44,9 @@ const norm = (s) => String(s || '').trim().toLowerCase();
 function present(c, { photo = true } = {}) {
   const hasPhoto = Boolean(c.photo?.data || c.photo?.uri);
   const url = !photo && c.photo?.data ? null : c.photo?.data ? `data:${c.photo.mediaType || 'image/jpeg'};base64,${c.photo.data}` : c.photo?.uri || null;
-  return { ...c, display: displayName(c), photoUrl: url, hasPhoto, photo: undefined };
+  // A card read before vCard's CELL was read as "mobile" still says "cell": shown, and edited, as the mobile it is.
+  const phones = c.phones?.some((p) => p.type === 'cell') ? c.phones.map((p) => (p.type === 'cell' ? { ...p, type: 'mobile' } : p)) : c.phones;
+  return { ...c, phones, display: displayName(c), photoUrl: url, hasPhoto, photo: undefined };
 }
 
 /** A card as the file keeps it: photo bytes as base64 text. */
@@ -67,7 +70,9 @@ export function createContactsService({ stores, broadcast, people = null }) {
   const readJson = vault ? vault.readJson : readPlain;
   const writeJson = vault ? vault.writeJson : writePlain;
   const writeJsonLater = vault ? vault.writeJsonLater : writePlainLater;
-  const state = readJson(file, { contacts: [] });
+  const blank = { contacts: [] };
+  const state = readJson(file, blank);
+  const kept = state !== blank;
   if (!Array.isArray(state.contacts)) state.contacts = [];
 
   const hooks = { local: null };
@@ -93,6 +98,17 @@ export function createContactsService({ stores, broadcast, people = null }) {
     }
     broadcast?.('contacts:changed', { count: state.contacts.length });
   };
+  // Once, the first time 2.19 opens a store kept from before it: new cards
+  // stay where they went, this computer unless a book was chosen, recorded
+  // as 'local', so the account default 2.19 brought (dav-sync.js) never
+  // starts sending them to a server unasked. A store 2.19 makes is new.
+  if (!state.newCardsSettled) {
+    state.newCardsSettled = 1;
+    if (kept) {
+      if (!(state.books || []).some((b) => b.id === state.defaultBook)) state.defaultBook = 'local';
+      save();
+    }
+  }
   // A card an account brings (dav-sync.js) names its address book in `book`;
   // a change made here to one is queued — the card's id in `dirty`, a removed
   // one's address in `deleted` — for the next sync to send.
@@ -103,11 +119,31 @@ export function createContactsService({ stores, broadcast, people = null }) {
   };
   const byId = (id) => state.contacts.find((c) => c.id === id) || null;
   const emailsOf = (c) => (c.emails || []).map((e) => norm(e.value)).filter(Boolean);
+  const phonesOf = (c) => (c.phones || []).map((p) => digits(p.value)).filter(Boolean);
+
+  /**
+   * The card already here for one coming in: the one with its address; for
+   * one with no address, the one with its name and a phone number of its, or
+   * with its name, no numbers on either and the same company. Without this a
+   * card with no address was added again on every import of the same file.
+   */
+  function sameCard(incoming) {
+    const emails = emailsOf(incoming);
+    if (emails.length) return state.contacts.find((c) => emailsOf(c).some((e) => emails.includes(e))) || null;
+    const name = norm(displayName(incoming));
+    if (!name) return null;
+    const phones = phonesOf(incoming);
+    return state.contacts.find((c) => {
+      if (norm(displayName(c)) !== name) return false;
+      const theirs = phonesOf(c);
+      if (phones.length || theirs.length) return phones.some((p) => theirs.includes(p));
+      return norm(c.org) === norm(incoming.org);
+    }) || null;
+  }
 
   /** Add a card, or fold it into the one that already has its address. */
   function merge(incoming) {
-    const emails = emailsOf(incoming);
-    const existing = emails.length ? state.contacts.find((c) => emailsOf(c).some((e) => emails.includes(e))) : null;
+    const existing = sameCard(incoming);
     const now = Date.now();
     if (!existing) {
       state.contacts.push({ ...storable(incoming), id: crypto.randomUUID(), createdAt: now, updatedAt: now });
@@ -127,8 +163,9 @@ export function createContactsService({ stores, broadcast, people = null }) {
       changed = true;
     }
     for (const list of ['emails', 'phones', 'urls']) {
+      const same = list === 'phones' ? (a, b) => digits(a) === digits(b) : (a, b) => norm(a) === norm(b);
       for (const item of incoming[list] || []) {
-        if (!(existing[list] || []).some((x) => norm(x.value) === norm(item.value))) {
+        if (!(existing[list] || []).some((x) => same(x.value, item.value))) {
           existing[list] = [...(existing[list] || []), item];
           changed = true;
         }
@@ -154,12 +191,14 @@ export function createContactsService({ stores, broadcast, people = null }) {
     return changed ? 'updated' : 'same';
   }
 
-  function readFile(target) {
-    const ext = path.extname(target).toLowerCase();
-    const text = fs.readFileSync(target, 'utf8');
-    if (ext === '.csv' || ext === '.tsv') return readContactsCsv(text);
-    return readVCards(text);
+  const isCsv = (target) => ['.csv', '.tsv'].includes(path.extname(target).toLowerCase());
+  /** A file's cards, and for a CSV what the reading did (csv.js); read as UTF-8, UTF-16 or ANSI, whichever it is. */
+  function readReport(target, columns = {}) {
+    const bytes = fs.readFileSync(target);
+    if (isCsv(target)) return readContactsCsvReport(bytes, { columns });
+    return { contacts: readVCards(decodeText(bytes)), columns: null, skipped: [], unread: [] };
   }
+  const readFile = (target, columns) => readReport(target, columns).contacts;
 
   const sorted = () => [...state.contacts].sort((a, b) => displayName(a).localeCompare(displayName(b), undefined, { sensitivity: 'base' }));
 
@@ -255,11 +294,22 @@ export function createContactsService({ stores, broadcast, people = null }) {
       return { path: target, name: path.basename(target), contacts: cards.map((c, i) => present({ ...storable(c), id: `file:${i}` })) };
     },
 
-    /** Bring a file's cards in, folding each into the card that already has its address. */
-    importFile: ({ path: target }) => {
-      const cards = readFile(target);
-      const result = { added: 0, updated: 0, same: 0, total: cards.length };
-      for (const c of cards) result[merge(c)] += 1;
+    /**
+     * A CSV as it would come in, for the person to check first: each column
+     * with what it is read as and its first value, a few of the cards, how
+     * many there are, and what is left out. `columns` ({ [index]: field })
+     * holds what the person changed.
+     */
+    peekCsv: ({ path: target, columns = {} }) => {
+      const r = readReport(target, columns);
+      return { path: target, name: path.basename(target), count: r.contacts.length, columns: r.columns, skipped: r.skipped, unread: r.unread, sample: r.contacts.slice(0, 5).map((c, i) => present({ ...storable(c), id: `file:${i}` })) };
+    },
+
+    /** Bring a file's cards in, folding each into the card that already has its address; a CSV's left-out rows and columns said. */
+    importFile: ({ path: target, columns = {} }) => {
+      const r = readReport(target, columns);
+      const result = { added: 0, updated: 0, same: 0, total: r.contacts.length, skipped: r.skipped.length, unread: r.unread };
+      for (const c of r.contacts) result[merge(c)] += 1;
       if (result.added || result.updated) save();
       return result;
     },

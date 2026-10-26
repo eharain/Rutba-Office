@@ -189,7 +189,7 @@ export default function Presenter({ shell, docId }) {
                 ))}
               </div>
             ) : (
-              <p className="pv-none">{t('No notes on this slide. Add them from the Home tab.')}</p>
+              <p className="pv-none">{t('No notes on this slide. Type them under the slide in Normal view, where it says Click to add notes.')}</p>
             )}
           </div>
         </aside>

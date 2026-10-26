@@ -56,7 +56,7 @@ test('the bill is CycloneDX 1.5 and names Electron, the shipped packages, React 
   const app = JSON.parse(fs.readFileSync(path.join(root, 'apps', 'desktop', 'package.json'), 'utf8'));
   assert.equal(bom.metadata.component.version, app.version);
   const names = bom.components.map((c) => c.name);
-  for (const want of ['electron', 'electron-updater', 'imapflow', 'nodemailer', '@rutba/ocr', '@rutba/pdf', 'react', 'react-dom', 'pdf.js', 'Liberation fonts', 'Tesseract language models (tessdata_fast)']) assert.ok(names.includes(want), want);
+  for (const want of ['electron', 'electron-updater', 'imapflow', 'nodemailer', '@tech-style/secure-keystore', '@rutba/ocr', '@rutba/pdf', 'react', 'react-dom', 'pdf.js', 'Liberation fonts', 'Tesseract language models (tessdata_fast)']) assert.ok(names.includes(want), want);
   assert.ok(!names.includes('electron-builder') && !names.includes('esbuild'), 'tools that build the installer are not in it');
   const pdfjs = bom.components.find((c) => c.name === 'pdf.js');
   assert.equal(pdfjs.version, fs.readFileSync(path.join(root, 'apps/desktop/vendor/pdfjs/VERSION'), 'utf8').match(/\d+\.\d+\.\d+/)[0]);

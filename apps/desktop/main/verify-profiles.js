@@ -221,10 +221,17 @@ export async function verifyProfiles(h) {
     const first2 = await until(() => event(setUp, 'leaving'), 'the private profile set up', 60000).catch(() => null);
     const setUpReady = event(setUp, 'ready');
     await until(async () => { const l = await profiles(); return l.profiles.find((p) => p.id === secret)?.running === false ? true : null; }, 'the private profile closed', 20000).catch(() => {});
-    const privSecrets = (() => { try { return fs.readFileSync(path.join(privateFolder, 'secrets.json'), 'utf8'); } catch { return ''; } })();
+    // Saved passwords are in the profile's keystore (D-2026-10-26-09): its key file sealed with the password, the password itself nowhere in the clear.
+    const privSecrets = (() => { try { return fs.readFileSync(path.join(privateFolder, 'keystore-key.json'), 'utf8'); } catch { return ''; } })();
+    const keystoreText = (() => {
+      const out = [];
+      const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else out.push(fs.readFileSync(p, 'latin1')); } };
+      try { walk(path.join(privateFolder, 'keystore')); } catch { /* none */ }
+      return out.join('\n');
+    })();
     const privContacts = (() => { try { return fs.readFileSync(path.join(privateFolder, 'contacts.json'), 'utf8'); } catch { return ''; } })();
     check('profiles: a profile with a password set keeps its saved passwords and address book sealed on disk',
-      Boolean(first2) && setUpReady?.passwordSet === true && setUpReady?.secretSaved === true && isSealed(privSecrets) && isSealed(privContacts) && !privContacts.includes('Private Person') && Boolean(readProfiles(base).profiles.find((p) => p.id === secret)?.lock),
+      Boolean(first2) && setUpReady?.passwordSet === true && setUpReady?.secretSaved === true && isSealed(privSecrets) && keystoreText.length > 0 && !keystoreText.includes('kept sealed') && !fs.existsSync(path.join(privateFolder, 'secrets.json')) && isSealed(privContacts) && !privContacts.includes('Private Person') && Boolean(readProfiles(base).profiles.find((p) => p.id === secret)?.lock),
       JSON.stringify({ setUpReady, sealed: [isSealed(privSecrets), isSealed(privContacts)] }));
 
     const lockShot = process.env.RUTBA_VERIFY_CAPTURE ? path.join(process.env.RUTBA_VERIFY_CAPTURE, 'profiles-lock.png') : null;

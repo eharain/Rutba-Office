@@ -197,6 +197,29 @@ test('tableCells: ruling lines decide the cells, an empty cell stays empty, and 
   assert.deepEqual(tableCells([]).cells, []);
 });
 
+test('tableCells: rules under the heading and the last row alone leave each line its own row; a title across the gutters and a column with one word keep the columns', () => {
+  // A table ruled only under its heading and after its last row: the lines are the rows, none lost.
+  const rows = [['Item', 'Qty', 'Price'], ['Pens', '12', '1.50'], ['Paper', '3', '4.75'], ['Ink', '2', '9.00']];
+  const words = [];
+  rows.forEach((r, i) => { words.push(word(r[0], 10, 10 + i * 30), word(r[1], 200, 10 + i * 30), word(r[2], 300, 10 + i * 30)); });
+  words.push(word('Total', 10, 130), word('15.25', 300, 130));
+  const rules = { horizontal: [{ y: 30, x0: 0, x1: 400, thickness: 1 }, { y: 122, x0: 0, x1: 400, thickness: 1 }], vertical: [] };
+  const t = tableCells(words, rules);
+  assert.equal(t.ruled, false);
+  assert.deepEqual(t.cells, [...rows, ['Total', '', '15.25']]);
+
+  // Ruled under every row, it is still one row a line.
+  const under = { horizontal: [4, 30, 60, 90, 122, 150].map((y) => ({ y, x0: 0, x1: 400, thickness: 1 })), vertical: [] };
+  assert.deepEqual(tableCells(words, under).cells, [...rows, ['Total', '', '15.25']]);
+
+  // A title across the columns, and a Note column with a word in one row only.
+  const titled = [word('Stock at the end of March, by shelf', 10, 0, 330), ...words.map((w) => ({ ...w, box: { ...w.box, y: w.box.y + 20 } }))];
+  titled.push(word('late', 380, 90));
+  const tt = tableCells(titled);
+  assert.equal(tt.columns.length, 4, JSON.stringify(tt.columns));
+  assert.deepEqual(tt.cells.slice(1), [[...rows[0], ''], [...rows[1], ''], [...rows[2], 'late'], [...rows[3], ''], ['Total', '', '15.25', '']]);
+});
+
 test('cropPadded and inkIn: a part of a picture with paper round it, and the ink inside a rectangle', async () => {
   const { cropPadded, inkIn } = await import('@rutba/ocr/analyse');
   const p = page(40, 30);

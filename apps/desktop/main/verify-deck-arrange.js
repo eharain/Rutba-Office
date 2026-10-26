@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck } from '@rutba/presentation';
+import { putShapeDown } from './verify-shape-place.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, capture, doc, sessionFor
@@ -80,12 +81,14 @@ export async function verifyDeckArrange(h, { file }) {
     // window's own model has them from the start, drawn with hit areas.
     await clickRibbon('Shapes');
     await clickMenuItem('Rectangle');
+    await putShapeDown(wc);
     await until(() => model().slide.shapes.length === before + 1, 'the first rectangle', 5000);
     const a = model().slide.shapes[model().slide.shapes.length - 1].id;
     await until(() => js(`Boolean(document.querySelector('.sl-hit[data-shape="${a}"]'))`), 'its hit area', 4000);
 
     await clickRibbon('Shapes');
     await clickMenuItem('Rectangle');
+    await putShapeDown(wc);
     await until(() => model().slide.shapes.length === before + 2, 'the second rectangle', 5000);
     const b = model().slide.shapes[model().slide.shapes.length - 1].id;
     await until(() => js(`Boolean(document.querySelector('.sl-hit[data-shape="${b}"]'))`), 'its hit area', 4000);

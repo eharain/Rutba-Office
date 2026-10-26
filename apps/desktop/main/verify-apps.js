@@ -97,6 +97,8 @@ import { verifyWordLanguage } from './verify-word-language.js';
 import { verifyDeckLanguage } from './verify-deck-language.js';
 import { verifyDeckMonitor } from './verify-deck-monitor.js';
 import { verifyDeckSplit } from './verify-deck-split.js';
+import { verifyDeckNotes } from './verify-deck-notes.js';
+import { verifyDeckTools } from './verify-deck-tools.js';
 import { verifyDeckRehearse } from './verify-deck-rehearse.js';
 import { verifyDeckAction } from './verify-deck-action.js';
 import { verifyDeckAlbum } from './verify-deck-album.js';
@@ -129,6 +131,7 @@ import { verifyVideoTracks } from './verify-video-tracks.js';
 import { verifyPdfApp } from './verify-pdf-app.js';
 import { verifyOcrPdf } from './verify-ocr-pdf.js';
 import { verifyPdfAnnot } from './verify-pdf-annot.js';
+import { verifyPdfMarks } from './verify-pdf-marks.js';
 import { verifyPdfForms } from './verify-pdf-forms.js';
 import { verifyPdfRedact } from './verify-pdf-redact.js';
 import { verifyPdfOutline } from './verify-pdf-outline.js';
@@ -145,6 +148,8 @@ import { verifyVideoPane } from './verify-video-pane.js';
 import { verifyPolishPass } from './verify-polish-pass.js';
 import { verifyCalendarMonth } from './verify-calendar-month.js';
 import { verifyCalendarMultiDay } from './verify-calendar-multiday.js';
+import { verifyCalendarFixes } from './verify-calendar-fixes.js';
+import { verifyContactsImport } from './verify-contacts-import.js';
 import { verifyMailServerOoo } from './verify-mail-server-ooo.js';
 import { verifyMailAccountsManager } from './verify-mail-accounts-manager.js';
 import { verifySheetDark } from './verify-sheet-dark.js';
@@ -157,6 +162,7 @@ import { verifyHighContrast } from './verify-high-contrast.js';
 import { verifyPanels } from './verify-panels.js';
 import { verifyMachine } from './verify-machine.js';
 import { verifyImageBatch } from './verify-image-batch.js';
+import { verifyImageUndo } from './verify-image-undo.js';
 import { verifyPersonalTemplates } from './verify-personal-templates.js';
 import { verifyTemplates, makeTemplateThumbs } from './verify-templates.js';
 import { verifyQrCode } from './verify-qrcode.js';
@@ -167,6 +173,7 @@ import { verifyLostMouseup } from './verify-lost-mouseup.js';
 import { verifyDialogFocus } from './verify-dialog-focus.js';
 import { verifyOpenProgram } from './verify-open-program.js';
 import { verifyPicturesMarks } from './verify-pictures-marks.js';
+import { verifyPicturesFollow } from './verify-pictures-follow.js';
 import { verifyDeckCameoRecord } from './verify-deck-cameo-record.js';
 import { verifyDeckChanges } from './verify-deck-changes.js';
 import { verifySheetQueriesMerge } from './verify-sheet-queries-merge.js';
@@ -194,6 +201,7 @@ import { verifySheetInk } from './verify-sheet-ink.js';
 import { verifyWordInk } from './verify-word-ink.js';
 import { verifyDeckNarration } from './verify-deck-narration.js';
 import { verifyDeckVideo } from './verify-deck-video.js';
+import { verifyDeckVideoCameo } from './verify-deck-video-cameo.js';
 import { verifyDeckDirection } from './verify-deck-direction.js';
 import { verifyDeckRtl } from './verify-deck-rtl.js';
 import { verifyDeckZoom } from './verify-deck-zoom.js';
@@ -215,6 +223,7 @@ import { verifyWordMarkdown } from './verify-word-markdown.js';
 import { verifyWordPageNumbers } from './verify-word-page-numbers.js';
 import { verifyWordTabKeys } from './verify-word-tab-keys.js';
 import { verifyWordModifyStyle } from './verify-word-modify-style.js';
+import { verifyWordLatentStyles } from './verify-word-latent-styles.js';
 import { verifyWordReview } from './verify-word-review.js';
 import { verifyWordSaveAs } from './verify-word-save-as.js';
 import { verifyStrictSave } from './verify-strict-save.js';
@@ -242,6 +251,7 @@ import { verifyProfiles } from './verify-profiles.js';
 import { verifyPacks } from './verify-packs.js';
 import { verifyMailWindow } from './verify-mail-window.js';
 import { verifyMailSync } from './verify-mail-sync.js';
+import { verifyKeystore } from './verify-keystore.js';
 import { verifyMailDrafts } from './verify-mail-drafts.js';
 import { verifyMailArchive } from './verify-mail-archive.js';
 import { verifyMailIndexWorker } from './verify-mail-index-worker.js';
@@ -277,6 +287,7 @@ import { verifySlicers } from './verify-slicers.js';
 import { verifySheetArrange } from './verify-sheetarrange.js';
 import { verifySheetThemes } from './verify-sheetthemes.js';
 import { verifySheetCf } from './verify-sheet-cf.js';
+import { verifySheetHelp } from './verify-sheet-help.js';
 import { verifyDeckDraw } from './verify-deck-draw.js';
 import { verifyAnalysis } from './verify-analysis.js';
 import { verifyDataTools } from './verify-datatools.js';
@@ -296,6 +307,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
  * became true instead of describing whatever the state happened to be.
  */
 import { APPS } from '@rutba/office-formats/registry';
+import { putShapeDown } from './verify-shape-place.js';
 
 // Set once the checks start closing their own windows; a close before that is not theirs.
 const closingPhase = { value: false };
@@ -1413,6 +1425,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(); return 1; })()`);
       await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Shape Fill' && !b.disabled))`), 'Shape Fill to be enabled', 4000);
       await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Shape Fill').click(); return 1; })()`);
+      // Shape Fill's menu: its colours, and More Fill Options for the Format pane.
+      await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'More Fill Options…')`), 'the Shape Fill menu', 3000).catch(() => {});
+      await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'More Fill Options…')?.click(), 1`);
       await until(() => js(`Boolean(document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]'))`), 'the Format pane', 4000);
       const accent2 = await js(`getComputedStyle(document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]')).backgroundColor`);
       await js(`(() => { document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]').click(); return 1; })()`);
@@ -4963,7 +4978,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,ai-tools,ai-reach,profiles: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,keystore,ai-tools,ai-reach,profiles: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -5011,6 +5026,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('decklanguage')) await verifyDeckLanguage({ open, check, until, wait, doc }, { dir });
     if (only.includes('monitor')) await verifyDeckMonitor({ open, check, until, wait }, { dir });
     if (only.includes('movesplit')) await verifyDeckSplit({ open, check, until, wait }, { dir });
+    if (only.includes('decknotes')) await verifyDeckNotes({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('decktools')) await verifyDeckTools({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('rehearse')) await verifyDeckRehearse({ open, check, until, wait, doc }, { dir });
     if (only.includes('deckaction')) await verifyDeckAction({ open, check, until, wait, doc }, { dir });
     if (only.includes('album')) await verifyDeckAlbum({ open, check, until, wait, doc }, { dir });
@@ -5032,6 +5049,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('picturerotate')) await verifyPictureRotate({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('image-edits')) await verifyImageEdits({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('image-edits')) await verifyImageBatch({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('image-undo')) await verifyImageUndo({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('image-layers')) await verifyImageLayers({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('image-layers')) await verifyEditInImage({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('image-tools')) await verifyImageTools({ open, check, until, wait, errorsIn }, { dir });
@@ -5047,6 +5065,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('pdf-app')) await verifyPdfApp({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('ocr-pdf')) await verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('pdf-annot')) await verifyPdfAnnot({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('pdf-marks')) await verifyPdfMarks({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('pdf-forms')) await verifyPdfForms({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('pdf-redact')) await verifyPdfRedact({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('pdf-outline')) await verifyPdfOutline({ open, check, until, wait, errorsIn }, { dir });
@@ -5065,6 +5084,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('polish')) await verifyPolishPass({ open, check, until, wait }, { dir });
     if (only.includes('calendar-month')) await verifyCalendarMonth({ open, check, until, wait }, { dir });
     if (only.includes('calendar-multiday')) await verifyCalendarMultiDay({ open, check, until, wait }, { dir });
+    if (only.includes('calendar-fixes')) await verifyCalendarFixes({ open, check, until, wait, errorsIn });
+    if (only.includes('contacts-import')) await verifyContactsImport({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('mail-server-ooo')) await verifyMailServerOoo({ open, check, until, wait, errorsIn });
     if (only.includes('mail-accounts-manager')) await verifyMailAccountsManager({ open, check, until, wait, errorsIn });
     if (only.includes('sheet-dark')) await verifySheetDark({ open, check, until, wait }, { dir });
@@ -5085,6 +5106,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('dialogfocus')) await verifyDialogFocus({ open, check, until, wait, press }, { dir });
     if (only.includes('openprogram')) await verifyOpenProgram({ open, check, until }, { dir });
     if (only.includes('picturemarks')) await verifyPicturesMarks({ open, check, until, wait, press, errorsIn }, { dir });
+    if (only.includes('picturefollow')) await verifyPicturesFollow({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('deckchanges')) await verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('querymerge')) await verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('scripts')) await verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -5111,6 +5133,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordink')) await verifyWordInk({ open, check, until, wait, capture: shotTo }, { dir });
     if (only.includes('narration')) await verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('deckvideo')) await verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir });
+    if (only.includes('deckvideocameo')) await verifyDeckVideoCameo({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('video-editor')) {
       await verifyVideoBasics({ open, check, until }, { wav: files.wav });
       await verifyVideoSplit({ open, check, until, wait, errorsIn }, { wav: files.wav });
@@ -5178,6 +5201,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordpagenumbers')) await verifyWordPageNumbers({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('wordtab')) await verifyWordTabKeys({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('wordmodifystyle')) await verifyWordModifyStyle({ open, check, until, wait, press, errorsIn }, { dir });
+    if (only.includes('wordlatentstyles')) await verifyWordLatentStyles({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('wordreview')) await verifyWordReview({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('wordsaveas')) await verifyWordSaveAs({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('strictsave')) await verifyStrictSave({ open, check, until, wait, errorsIn }, { dir });
@@ -5208,6 +5232,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('packs')) await verifyPacks({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('mail-window')) await verifyMailWindow({ open, check, until, wait, errorsIn });
     if (only.includes('mail-sync')) await verifyMailSync({ open, check, until, wait, errorsIn });
+    if (only.includes('keystore')) await verifyKeystore({ open, check, until, wait, errorsIn });
     if (only.includes('mail-drafts')) await verifyMailDrafts({ open, check, until, wait, errorsIn });
     if (only.includes('mail-archive')) await verifyMailArchive({ open, check, until, wait, errorsIn });
     if (only.includes('mail-index-worker')) await verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo });
@@ -5270,6 +5295,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('sheetarrange')) await sheetArrange();
     if (only.includes('sheetthemes')) await sheetThemes();
     if (only.includes('cfdraw')) await verifySheetCf({ open, check, until, errorsIn }, { dir });
+    if (only.includes('sheethelp')) await verifySheetHelp({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('deckdraw')) await verifyDeckDraw({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('arrange')) await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('decktabledesign')) await verifyDeckTableDesign({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -5443,6 +5469,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('slides', () => verifyDeckLanguage({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckMonitor({ open, check, until, wait }, { dir }));
   await part('slides', () => verifyDeckSplit({ open, check, until, wait }, { dir }));
+  await part('slides', () => verifyDeckNotes({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckTools({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDeckRehearse({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckAction({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckAlbum({ open, check, until, wait, doc }, { dir }));
@@ -5482,6 +5510,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('pdf', () => verifyPdfApp({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyPdfAnnot({ open, check, until, wait, errorsIn }, { dir }));
+  await part('pdf', () => verifyPdfMarks({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyPdfForms({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyPdfRedact({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyPdfOutline({ open, check, until, wait, errorsIn }, { dir }));
@@ -5507,6 +5536,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('access', () => verifyScreenReader({ open, check, until, wait, press }, { dir }));
   await part('access', () => verifyHighContrast({ open, check, until, wait, press }, { dir }));
   await part('image', () => verifyImageBatch({ open, check, until, wait, errorsIn }, { dir }));
+  await part('image', () => verifyImageUndo({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('shell', () => verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir }));
   await part('shell', () => verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows }));
   await part('shell', () => verifyQrCode({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
@@ -5517,6 +5547,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('access', () => verifyDialogFocus({ open, check, until, wait, press }, { dir }));
   await part('shell', () => verifyOpenProgram({ open, check, until }, { dir }));
   await part('pictures', () => verifyPicturesMarks({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('pictures', () => verifyPicturesFollow({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('slides', () => verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
@@ -5542,6 +5573,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => verifyWordInk({ open, check, until, wait, capture: shotTo }, { dir }));
   await part('slides', () => verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckVideoCameo({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('video', () => verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir }));
   // A minute of 1080p in under a minute is a timing: run alone, or it measures the lanes beside it.
   await part('video', () => verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
@@ -5593,6 +5625,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => verifyWordPageNumbers({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyWordTabKeys({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordModifyStyle({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('word', () => verifyWordLatentStyles({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyWordReview({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordSaveAs({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyStrictSave({ open, check, until, wait, errorsIn }, { dir }));
@@ -5603,6 +5636,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('sheets', () => verifySheetPivotFields({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetLists({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('calendar', () => verifyDav({ open, check, until, wait, errorsIn }));
+  await part('calendar', () => verifyCalendarFixes({ open, check, until, wait, errorsIn }));
+  await part('calendar', () => verifyContactsImport({ open, check, until, wait, errorsIn }, { dir }));
   await part('shell', () => verifyThesaurus({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDesignIdeas({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetQueries({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
@@ -5669,6 +5704,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('sheets', () => sheetArrange());
   await part('sheets', () => sheetThemes());
   await part('sheets', () => verifySheetCf({ open, check, until, errorsIn }, { dir }));
+  await part('sheets', () => verifySheetHelp({ open, check, until, wait, errorsIn }, { dir }));
   await part('slides', () => verifyDeckDraw({ open, check, until, wait, errorsIn }, { dir }));
   // Last of the camera's checks, for the reason given in the list above.
   await part('slides', () => verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir }));
@@ -6907,6 +6943,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await clickIn(win, 'Shapes');
     await wait(200);
     await clickMenu(win, 'Oval');
+    await putShapeDown(win.webContents);
     await until(async () => ((await deckModel()).slide?.shapes?.length ?? 0) > shapesBeforeOval, 'an oval to appear', 4000).catch(() => {});
     const ovalModel = await deckModel();
     const oval = ovalModel.slide?.shapes?.slice(-1)[0];
@@ -7388,6 +7425,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('mail', () => verifyAiReachApps({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailWindow({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailSync({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyKeystore({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailDrafts({ open, check, until, wait, errorsIn }));
   await verifyMailArchive({ open, check, until, wait, errorsIn });
   await part('mail', () => verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo }));

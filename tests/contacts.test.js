@@ -45,7 +45,7 @@ END:VCARD
   assert.equal(c.emails[0].label, 'Work', 'Apple\'s label, unwrapped from its markers');
   assert.equal(c.emails[1].label, 'Personal');
   assert.equal(c.phones[0].value, '+44 7700 900123');
-  assert.equal(c.phones[0].type, 'cell');
+  assert.equal(c.phones[0].type, 'mobile');
   assert.equal(c.addresses[0].street, '1 Long Lane, Floor 2');
   assert.equal(c.addresses[0].city, 'London');
   assert.equal(c.addresses[0].postcode, 'EC1A 9PN');
@@ -80,7 +80,7 @@ END:VCARD
   const c = cards[0];
   assert.equal(c.name.full, 'Jürgen Müller');
   assert.equal(c.phones[0].type, 'work');
-  assert.equal(c.phones[1].type, 'cell');
+  assert.equal(c.phones[1].type, 'mobile');
   assert.equal(c.emails[0].value, 'juergen@example.de');
   assert.equal(c.emails[0].pref, true);
   assert.equal(c.addresses[0].city, 'Berlin');
@@ -181,7 +181,7 @@ Kim Lee,Kim,Lee,1985-03-15,"Prefers email, calls after 3pm.",* myContacts ::: Su
   assert.equal(g[0].org, 'Tech Style Ltd');
   assert.equal(g[0].title, 'Head of Product');
   assert.equal(g[0].birthday, '1985-03-15');
-  assert.deepEqual(g[0].categories, ['myContacts', 'Suppliers']);
+  assert.deepEqual(g[0].categories, ['Suppliers'], "Google's own myContacts group is not a tag");
 
   const outlook = `First Name,Middle Name,Last Name,Company,Job Title,Business Street,Business City,Business Postal Code,Business Country/Region,Home Phone,Mobile Phone,E-mail Address,E-mail 2 Address,Notes
 Sam,,Patel,Example Org,Director,"2 High St",Leeds,LS1 1AA,United Kingdom,0113 000 0000,07700 900456,sam@example.org,sam.p@home.example,"Met at the fair"

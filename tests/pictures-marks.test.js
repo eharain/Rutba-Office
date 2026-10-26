@@ -31,3 +31,26 @@ test('Subfolders searches the folders inside, nearest first, by name or tag, as 
   assert.deepEqual((await searchTree(list, 'C:/P', { query: 'beach', limit: 1 })).map((f) => f.name), ['beach.jpg']);
   assert.deepEqual(await searchTree(list, 'C:/P', { query: '  ' }), []);
 });
+
+test('ratings and tags follow a file renamed or moved: known by its size and time, taken over only by one file that matches alone', async () => {
+  const { followMarks, fingerprintOf } = await import('../apps/desktop/renderer/apps/pictures/library.js');
+  const row = (p, size, mtime) => ({ name: p.split('/').pop(), path: p, dir: false, size, mtime });
+  assert.equal(fingerprintOf(row('C:/P/a.jpg', 1200, 1700000000123.4)), '1200:1700000000123');
+  assert.equal(fingerprintOf({ path: 'C:/P', dir: true }), null);
+  const kept = { 'C:/P/beach.jpg': { rating: 4, tags: ['Holiday'], fp: '5000:111' }, 'C:/P/old.jpg': { rating: 2 } };
+  // Renamed in the same folder: the new name takes the marks.
+  let r = followMarks(kept, [row('C:/P/Beach day.jpg', 5000, 111), row('C:/P/old.jpg', 900, 222)]);
+  assert.deepEqual(r.moves, [{ from: 'C:/P/beach.jpg', to: 'C:/P/Beach day.jpg' }]);
+  assert.deepEqual(r.fill, { 'C:/P/old.jpg': '900:222' }, 'a mark kept before fingerprints gets one');
+  // Moved to another folder, listed there.
+  r = followMarks(kept, [row('D:/Trips/beach.jpg', 5000, 111)]);
+  assert.deepEqual(r.moves, [{ from: 'C:/P/beach.jpg', to: 'D:/Trips/beach.jpg' }]);
+  // Still listed where it was: nothing to follow.
+  assert.deepEqual(followMarks(kept, [row('C:/P/beach.jpg', 5000, 111), row('C:/P/copy.jpg', 5000, 111)]).moves, []);
+  // Two files listed with the same fingerprint: neither is guessed at.
+  assert.deepEqual(followMarks(kept, [row('D:/a.jpg', 5000, 111), row('D:/b.jpg', 5000, 111)]).moves, []);
+  // A file with marks of its own keeps them.
+  assert.deepEqual(followMarks({ ...kept, 'D:/x.jpg': { rating: 1, fp: '5000:111' } }, [row('D:/x.jpg', 5000, 111)]).moves, []);
+  // Edited since (a new time): its fingerprint is brought up to date.
+  assert.deepEqual(followMarks(kept, [row('C:/P/beach.jpg', 5100, 999)]).fill, { 'C:/P/beach.jpg': '5100:999' });
+});

@@ -1276,6 +1276,12 @@ export class DocView {
       this._docStyles = undefined;
       this._styleCatalogue = undefined;
     }
+    // A style written into the styles part (a built-in one used for the first
+    // time): the window is told to take the styles again, as after Modify Style.
+    if (this.doc.stylesWritten) {
+      this.doc.stylesWritten = false;
+      this.stylesChanged = true;
+    }
     this._invalidate();
     return this;
   }

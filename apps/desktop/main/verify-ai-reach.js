@@ -126,7 +126,7 @@ export async function verifyAiReach(h) {
     await until(() => js(`Boolean(document.querySelector(${JSON.stringify(inTools)}))`), 'the account in AI Tools', 6000).catch(() => {});
     const shownInTools = await valueOf(inTools);
     check('ai reach: a mail account\'s AI tools setting is Off until chosen, offers the four steps in Mail\'s Accounts, and Read and prepare set there shows in AI Tools',
-      first.value === 'off' && first.options.join('|') === 'Off|Read|Read and prepare|Read, prepare and act' && shownInTools === 'prepare',
+      first.value === 'off' && first.options.join('|') === 'Off|Read only|Read and prepare|Read, prepare and act' && shownInTools === 'prepare',
       JSON.stringify({ first, shownInTools }));
 
     // Set in AI Tools, shown in Mail's Accounts.

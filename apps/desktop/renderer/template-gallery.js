@@ -110,22 +110,27 @@ export function TemplateGallery({ shell, app = null, onClose }) {
     onClose?.();
   };
 
+  // A search covers every template, the gallery's and one's own, whatever
+  // the rail has chosen, as Word's does; with nothing typed, the rail's choice.
+  const searching = Boolean(query.trim());
   const shown = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLocaleLowerCase();
     return data.templates.filter((tpl) => {
-      if (view === 'personal' || !kept(tpl.app)) return false;
+      if (!kept(tpl.app)) return false;
+      if (q) return [t(tpl.name), t(tpl.description), tpl.name, tpl.description].some((s) => s.toLocaleLowerCase().includes(q));
+      if (view === 'personal') return false;
       if (APP_ORDER.includes(view) && tpl.app !== view) return false;
       if (view !== 'all' && !APP_ORDER.includes(view) && !tpl.categories.includes(view)) return false;
-      if (!q) return true;
-      return [t(tpl.name), t(tpl.description), tpl.name, tpl.description].some((s) => s.toLocaleLowerCase().includes(q));
+      return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, view, query, chosen.apps]);
 
   const ownShown = useMemo(() => {
     const q = query.trim().toLocaleLowerCase();
-    return view === 'personal' || (q && view === 'all') ? personal.filter((p) => kept(p.app) && (!q || p.name.toLocaleLowerCase().includes(q))) : [];
+    if (q) return personal.filter((p) => kept(p.app) && p.name.toLocaleLowerCase().includes(q));
+    return view === 'personal' ? personal.filter((p) => kept(p.app)) : [];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personal, view, query, chosen.apps]);
 
@@ -159,7 +164,7 @@ export function TemplateGallery({ shell, app = null, onClose }) {
             {rail.map((item) => (
               <React.Fragment key={item.id}>
                 {item.heading ? <div className="tg-rail-head">{item.heading}</div> : null}
-                <button type="button" className={`tg-rail-item${view === item.id ? ' on' : ''}`} data-view={item.id} onClick={() => setView(item.id)}>
+                <button type="button" className={`tg-rail-item${view === item.id && !searching ? ' on' : ''}`} data-view={item.id} onClick={() => { setView(item.id); setQuery(''); }}>
                   {item.icon ? <Icon name={item.icon} size={15} /> : <i className="tg-dot" />}
                   <span>{item.label}</span>
                   {item.count ? <small>{item.count}</small> : null}
@@ -172,16 +177,17 @@ export function TemplateGallery({ shell, app = null, onClose }) {
               <span>{t('Templates on the web')}</span>
             </button>
           </nav>
-          <div className="tg-grid-wrap">
+          <div className="tg-grid-wrap" data-searching={searching ? 'all' : undefined}>
             {!data ? <div className="tg-wait">{t('Loading the templates…')}</div> : null}
+            {searching && data && !nothing ? <div className="tg-searched" data-role="searched-all">{t('Found among every template, yours included')}</div> : null}
             {nothing ? (
               <Empty
-                icon={view === 'personal' ? 'star' : 'find'}
-                title={view === 'personal' ? t('No templates of your own yet') : t('No templates match')}
+                icon={view === 'personal' && !searching ? 'star' : 'find'}
+                title={view === 'personal' && !searching ? t('No templates of your own yet') : t('No templates match')}
               >
-                {view === 'personal'
+                {view === 'personal' && !searching
                   ? t('Save a document as a template from the app menu (Save as Template) and it is listed here.')
-                  : t('Try other words, or look in All templates.')}
+                  : t('Try other words.')}
               </Empty>
             ) : (
               <div className="tg-grid">
@@ -259,6 +265,7 @@ const CSS = `
 .tg-card-wrap:hover .tg-page-link, .tg-page-link:focus-visible { opacity: 1; }
 .tg-page-link:hover { color: var(--accent-text, var(--accent)); }
 .tg-set { padding: 6px 20px; font-size: 12.5px; color: var(--ink-2); background: var(--sunken); border-bottom: 1px solid var(--line-soft); }
+.tg-searched { color: var(--ink-3); font-size: 12px; margin: 0 0 10px; }
 .tg-sub { color: var(--ink-3); font-size: 12.5px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tg-close {
   border: 0; background: none; color: var(--ink-3); width: 30px; height: 30px; border-radius: var(--r-2);

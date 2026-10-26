@@ -12,7 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRedaction } from '../redact.js';
 import { InspectDialog } from '../inspect.js';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, useTheme, menuItems, Input, t, tn } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, useTheme, menuItems, Input, t, tn, msg } from '@rutba/office-ui';
 import { cellInk, edgeInk } from '@rutba/office-ui/contrast';
 import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, pickSaveOtherForm, otherFormLabel, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
@@ -87,7 +87,28 @@ function withSelection(model, patch) {
   return { ...model, ...patch, cells };
 }
 
-/** What the tip layer says over a cell: its note, or where its link goes. */
+/**
+ * Why a cell shows an error, in the window's language: the reasons the
+ * engine gives Error Checking (sheet-view's ERROR_KIND), by the error each
+ * explains, so the mark on an error cell and the Error Checking pane say
+ * the same thing.
+ */
+const ERROR_REASONS = {
+  '#DIV/0!': msg('Divides by zero'),
+  '#REF!': msg('Refers to a cell that was deleted'),
+  '#NAME?': msg('Uses a name that is not defined'),
+  '#VALUE!': msg('Uses the wrong kind of value'),
+  '#N/A': msg('A lookup found nothing'),
+  '#NUM!': msg('A number that cannot be represented'),
+  '#NULL!': msg('Ranges that do not intersect'),
+  '#CIRCULAR!': msg('Refers to itself, directly or through other cells'),
+};
+const ERROR_ELSE = msg('The formula could not be calculated');
+/** The reason the engine wrote (English), in the window's language. */
+const reasonIn = (reason) => t(reason);
+const errorReason = (text) => t(ERROR_REASONS[String(text || '').trim()] || ERROR_ELSE);
+
+/** What the tip layer says over a cell: its note, where its link goes, or why it shows an error. */
 const tipFor = (cell) => {
   if (cell.thread) {
     const th = cell.thread;
@@ -96,6 +117,7 @@ const tipFor = (cell) => {
   }
   if (cell.note) return `${cell.note.author ? cell.note.author + ': ' : ''}${cell.note.text}`;
   if (cell.link) return `${cell.link.tooltip ? cell.link.tooltip + ' — ' : ''}${cell.link.href || cell.link.location} ${t('(Ctrl+click to open)')}`;
+  if (cell.isError) return `${cell.text}: ${errorReason(cell.text)}`;
   return undefined;
 };
 
@@ -2192,7 +2214,7 @@ export default function Sheets({ app, shell, boot }) {
                   <span className="sh-error-value">{err.value}</span>
                 </div>
                 {err.formula ? <div className="sh-error-formula">{err.formula}</div> : null}
-                <div className="sh-error-reason">{err.reason}</div>
+                <div className="sh-error-reason">{reasonIn(err.reason)}</div>
               </div>
             ))}
           </div>
@@ -4579,18 +4601,18 @@ function FreezeDialog({ model, sel, dispatch, onClose }) {
           ? t('Currently frozen: {rows}, {cols}.', { rows: tn(frozen.rows, '{count} row', '{count} rows'), cols: tn(frozen.cols, '{count} column', '{count} columns') })
           : t('Nothing is frozen.')}
       </p>
-      <div className="ml-found">
+      <div className="sh-fn-list">
         {choices.map((c) => (
           <button
             key={c.label}
             type="button"
-            className="ml-found-item"
+            className="sh-fn-item"
             onClick={async () => {
               await dispatch({ op: 'freeze', rows: c.rows, cols: c.cols });
               onClose();
             }}
           >
-            <span className="ml-found-logo"><Icon name="freeze" size={15} /></span>
+            <span className="sh-fn-logo"><Icon name="freeze" size={15} /></span>
             <span className="grow"><div className="who">{c.label}</div></span>
             {frozen.rows === c.rows && frozen.cols === c.cols ? <Icon name="check" size={14} /> : null}
           </button>
@@ -4942,6 +4964,16 @@ const CSS = `
 .sh.no-heads .sh-canvas { grid-template-columns: 0 auto !important; grid-template-rows: 0 auto !important; }
 .sh-cell.active { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 2; background: var(--surface); }
 .sh-cell.err { color: var(--bad); }
+/* An error cell's mark, Excel's green corner: its reason shows on hover. */
+.sh-cell.err:not(.threaded)::before { content: ''; position: absolute; top: 0; left: 0; border: 4px solid transparent; border-top-color: #1e8e3e; border-left-color: #1e8e3e; pointer-events: none; }
+.sh-fn-list { display: flex; flex-direction: column; gap: 4px; max-height: 280px; overflow: auto; margin: 4px 0 2px; }
+.sh-fn-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; text-align: start; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--chrome); font: inherit; color: var(--ink); cursor: pointer; width: 100%; }
+.sh-fn-item:hover, .sh-fn-item:focus-visible { border-color: var(--accent-line); background: var(--selected); }
+.sh-fn-item .grow { flex: 1; min-width: 0; }
+.sh-fn-item .who { font-weight: 600; font-size: 12.5px; }
+.sh-fn-item .what { color: var(--ink-3); font-size: 11.5px; }
+.sh-fn-item .fn-args { font-family: var(--mono); font-weight: 400; color: var(--ink-3); margin-inline-start: 2px; }
+.sh-fn-logo { width: 26px; height: 26px; border-radius: var(--r-1); display: grid; place-items: center; background: var(--sunken); flex: none; }
 .sh-editor-box { position: absolute; z-index: 6; background: var(--surface); }
 .sh-editor {
   position: absolute; left: 0; top: 0; width: 100%; height: 100%; box-sizing: border-box; z-index: 1;

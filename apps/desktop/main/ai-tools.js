@@ -133,9 +133,16 @@ export function createAiToolsService({ stores, dataDir = app.getPath('userData')
     const p = Number(settings.get(REMOTE_PORT_KEY, DEFAULT_PORT));
     return Number.isInteger(p) && p >= 0 && p < 65536 ? p : DEFAULT_PORT;
   };
+  // The network key, kept with the profile's saved passwords (its keystore); where nothing here can keep
+  // one, it lasts for this run only, and an AI app on another machine is given the new one at the next.
+  let runKey = '';
+  const keepKey = (k) => {
+    if (stores.secrets?.available?.()) stores.secrets.set(REMOTE_KEY, k);
+    else runKey = k;
+  };
   const key = () => {
-    let k = settings.get(REMOTE_KEY, '');
-    if (!k) { k = newKey(); settings.set(REMOTE_KEY, k); }
+    let k = (stores.secrets?.available?.() ? stores.secrets.get(REMOTE_KEY) : null) || runKey;
+    if (!k) { k = newKey(); keepKey(k); }
     return k;
   };
   // The settings the tools obey, as the window keeps them, read for every call.
@@ -326,7 +333,7 @@ export function createAiToolsService({ stores, dataDir = app.getPath('userData')
 
     /** () -> state: a new key; the old one, and every connection made with it, stop working at once. */
     renewKey: async () => {
-      settings.set(REMOTE_KEY, newKey());
+      keepKey(newKey());
       await remote?.stop();
       await sync();
       return state();

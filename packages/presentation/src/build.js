@@ -144,7 +144,7 @@ function placeholderShape(id, name, phType, phIdx, paragraphs, geometry) {
     : '';
   return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${escapeXml(name)}"/>` +
     `<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>` +
-    `<p:nvPr><p:ph type="${phType}"${phIdx != null ? ` idx="${phIdx}"` : ''}/></p:nvPr></p:nvSpPr>` +
+    `<p:nvPr><p:ph${phType ? ` type="${phType}"` : ''}${phIdx != null ? ` idx="${phIdx}"` : ''}/></p:nvPr></p:nvSpPr>` +
     `<p:spPr>${xfrm}</p:spPr>` +
     `<p:txBody><a:bodyPr/><a:lstStyle/>${(paragraphs || []).map(paragraphXml).join('') || '<a:p/>'}</p:txBody></p:sp>`;
 }
@@ -170,6 +170,19 @@ export function slideXml(slide) {
       ? slide.body.map((b) => (typeof b === 'string' ? { runs: [{ text: b }] } : b))
       : [{ runs: [{ text: String(slide.body) }] }];
     shapes.push(placeholderShape(id++, 'Content 2', slide.layout === 'title' ? 'subTitle' : 'body', 1, paragraphs, slide.bodyBox));
+  }
+  // A layout's own placeholders, each as the layout names it (its type, none for a content one, and
+  // its index), so each takes the layout's place and look: a new slide made from that layout.
+  // Named as the title and body above are (Title 1, Content 2), the rest Placeholder 3 and on.
+  let content = 0;
+  for (const ph of slide.placeholders || []) {
+    const paragraphs = Array.isArray(ph.text)
+      ? ph.text.map((b) => (typeof b === 'string' ? { runs: [{ text: b }] } : b))
+      : ph.text ? [{ runs: [{ text: String(ph.text) }] }] : [];
+    const title = ph.type === 'title' || ph.type === 'ctrTitle';
+    const named = title ? 'Title' : content++ === 0 ? 'Content' : 'Placeholder';
+    shapes.push(placeholderShape(id, `${named} ${id - 1}`, ph.type || null, ph.idx ?? null, paragraphs, null));
+    id++;
   }
   for (const box of slide.textBoxes || []) {
     shapes.push(

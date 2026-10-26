@@ -414,6 +414,7 @@ function imageXObject(up, image) {
  *   reply?: { to: string, contents: string }[],
  *   resolve?: { id: string, resolved: boolean }[],
  *   edit?: { id: string, contents: string }[],
+ *   move?: { id: string, rect: number[] }[], // a new place or size, for the kinds in MOVABLE_TYPES
  *   remove?: string[],                    // ids, as readAnnotations names them
  * }} changes
  * @param {{ author?: string, date?: Date }} [options]
@@ -575,15 +576,40 @@ function annotate(bytes, changes = {}, { author = '', date = new Date() } = {}) 
     if (a.ref) up.free(new Ref(a.ref, file.entries.get(a.ref)?.gen || 0));
   }
 
+  // Moves: a new Rect. A stamp's appearance (a signature, a tick) is drawn
+  // into the Rect it is given, so it follows; a text box's words are laid
+  // out again in the box at its new size. An edit of the same comment below
+  // starts from the moved one.
+  const moved = new Map();
+  for (const m of changes.move || []) {
+    const a = byId.get(String(m.id));
+    const rect = normRect(Array.isArray(m.rect) ? m.rect.map(Number) : null);
+    if (!a || !a.ref || removing.has(a.id) || !MOVABLE_TYPES.has(a.type) || !rect || rect.some((v) => !Number.isFinite(v))) continue;
+    if (rect[2] - rect[0] < 1 || rect[3] - rect[1] < 1) continue;
+    const dict = copyDict(file.getObject(a.ref));
+    dict.set('Rect', rect.map((v) => Math.round(v * 1000) / 1000));
+    dict.set('M', textString(stamp));
+    if (a.type === 'FreeText') {
+      const look = appearance({ type: 'FreeText', rect, contents: a.contents, fontSize: a.fontSize || 12, color: colourFromDA(textOf(file, dict.get('DA'))), borderColor: a.color });
+      const form = flateStream([
+        ['Type', new Name('XObject')], ['Subtype', new Name('Form')], ['BBox', look.rect], ['Resources', look.resources],
+      ], look.content);
+      dict.set('AP', new Dict([['N', up.add(form)]]));
+    }
+    up.set(a.ref, dict);
+    moved.set(a.id, { dict, rect });
+  }
+
   // Edits: new words, and for a text box the appearance drawn again.
   for (const e of changes.edit || []) {
     const a = byId.get(String(e.id));
     if (!a || !a.ref || removing.has(a.id)) continue;
-    const dict = copyDict(file.getObject(a.ref));
+    const dict = moved.has(a.id) ? copyDict(moved.get(a.id).dict) : copyDict(file.getObject(a.ref));
+    const rect = moved.has(a.id) ? moved.get(a.id).rect : a.rect;
     dict.set('Contents', textString(e.contents || ''));
     dict.set('M', textString(stamp));
     if (a.type === 'FreeText') {
-      const look = appearance({ type: 'FreeText', rect: a.rect, contents: e.contents, fontSize: a.fontSize || 12, color: colourFromDA(textOf(file, dict.get('DA'))), borderColor: a.color });
+      const look = appearance({ type: 'FreeText', rect, contents: e.contents, fontSize: a.fontSize || 12, color: colourFromDA(textOf(file, dict.get('DA'))), borderColor: a.color });
       const form = flateStream([
         ['Type', new Name('XObject')], ['Subtype', new Name('Form')], ['BBox', look.rect], ['Resources', look.resources],
       ], look.content);
@@ -608,6 +634,9 @@ function annotate(bytes, changes = {}, { author = '', date = new Date() } = {}) 
   return { bytes: up.toBuffer(), added };
 }
 
+/** The kinds of comment a person moves on the page: stamps (a signature, initials, a tick), text boxes (a date among them) and sticky notes. */
+const MOVABLE_TYPES = new Set(['Stamp', 'FreeText', 'Text']);
+
 function colourFromDA(da) {
   const m = /([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+rg/.exec(da || '');
   if (m) return [Number(m[1]), Number(m[2]), Number(m[3])];
@@ -616,5 +645,5 @@ function colourFromDA(da) {
 }
 
 module.exports = {
-  readAnnotations, annotate, appearance, parseDate, pdfDate, wrapLines, COMMENT_TYPES, SUBJECTS, DEFAULT_COLOURS,
+  readAnnotations, annotate, appearance, parseDate, pdfDate, wrapLines, COMMENT_TYPES, SUBJECTS, DEFAULT_COLOURS, MOVABLE_TYPES,
 };

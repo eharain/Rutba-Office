@@ -216,7 +216,7 @@ export function unsubscribeOffer(message) {
     address,
     subject,
     oneClick: oneClick && Boolean(http),
-    list: header('list-id') || message?.listId || null,
+    list: listName(header('list-id') || message?.listId),
     // What pressing the button will do, in words, before it is pressed.
     method: oneClick && http ? 'one-click' : http ? 'web' : 'email',
   };
@@ -278,4 +278,17 @@ export function insightFor(message) {
   );
 
   return { trackers, unsubscribe, auth, bulk };
+}
+
+/**
+ * A List-Id as a person reads it (RFC 2919): its name where it has one
+ * ("Weekly News" from `"Weekly News" <news.example.com>`), else the id
+ * without its angle brackets; null when there is none.
+ */
+export function listName(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const id = /<([^>]*)>/.exec(raw)?.[1]?.trim() || '';
+  const name = raw.replace(/<[^>]*>/g, '').trim().replace(/^"(.*)"$/, '$1').trim();
+  return name || id || raw;
 }

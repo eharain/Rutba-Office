@@ -4,12 +4,15 @@
 // and each slide's narration heard as it comes in — at Full HD, HD or
 // Standard, as MP4 where this machine makes one and WebM where it cannot.
 // Animations are shown finished, and an equation drawn as math is left out
-// of the frame: what a picture of the slide can hold.
+// of the frame: what a picture of the slide can hold. A cameo the camera was
+// recorded into plays that recording in its shape, as the show plays it, and
+// a narration's speaker (hidden in the show) is not drawn.
 
 import React, { useRef, useState } from 'react';
 import { Button, Dialog, Select, t } from '@rutba/office-ui';
 import { isNarration } from '@rutba/presentation/narration';
 import { recordingType } from './screen-record.js';
+import { withoutShapes } from './svg-shapes.js';
 
 export const QUALITIES = [['1920', t('Full HD (1080p)')], ['1280', t('HD (720p)')], ['852', t('Standard (480p)')]];
 
@@ -33,6 +36,44 @@ async function standalone(svg, cache = new Map()) {
   return out;
 }
 
+/** A cameo's recording, ready to play: fetched whole, so drawing it keeps the canvas the window's own. */
+async function clipOf(c) {
+  const blob = await (await fetch(c.url)).blob();
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.src = URL.createObjectURL(blob);
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('the recording did not load')), 8000);
+    video.addEventListener('loadeddata', () => { clearTimeout(timer); resolve(); }, { once: true });
+    video.addEventListener('error', () => { clearTimeout(timer); reject(new Error('the recording did not load')); }, { once: true });
+  });
+  return { ...c, video };
+}
+
+/** One cameo's recording drawn in its shape (a rectangle, an oval or a rounded one), filling it as the show's does. */
+function drawClip(g, clip, scale) {
+  const { video, geometry: b, preset, rot } = clip;
+  const vw = video.videoWidth || 16;
+  const vh = video.videoHeight || 9;
+  const x = b.x * scale;
+  const y = b.y * scale;
+  const w = b.w * scale;
+  const h = b.h * scale;
+  g.save();
+  g.translate(x + w / 2, y + h / 2);
+  if (rot) g.rotate((rot * Math.PI) / 180);
+  g.beginPath();
+  if (preset === 'ellipse') g.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
+  else if (preset === 'roundRect' && g.roundRect) g.roundRect(-w / 2, -h / 2, w, h, Math.min(w, h) * 0.16);
+  else g.rect(-w / 2, -h / 2, w, h);
+  g.clip();
+  const k = Math.max(w / vw, h / vh);
+  g.drawImage(video, -(vw * k) / 2, -(vh * k) / 2, vw * k, vh * k);
+  g.restore();
+}
+
 const imageOf = (svg) => new Promise((resolve, reject) => {
   const img = new Image();
   img.onload = () => resolve(img);
@@ -41,12 +82,14 @@ const imageOf = (svg) => new Promise((resolve, reject) => {
 });
 
 /**
- * The deck as video bytes. `slides` are `{ svg, seconds, fade, narration }`
- * — the drawing, how long it stays, whether it fades in, and its narration's
- * URL — played into a canvas of `width`×`height` and recorded. `onProgress(i)`
+ * The deck as video bytes. `slides` are `{ svg, seconds, fade, narration, clips }`:
+ * the drawing, how long it stays, whether it fades in, its narration's
+ * URL, and the cameo recordings played over it ({ url, geometry, preset,
+ * rot } in the slide's own units, `scale` turning them to the canvas's),
+ * played into a canvas of `width`×`height` and recorded. `onProgress(i)`
  * as each slide comes up; `cancelled()` stops it early.
  */
-export async function renderVideo(slides, { width, height, onProgress = () => {}, cancelled = () => false }) {
+export async function renderVideo(slides, { width, height, scale = 1, onProgress = () => {}, cancelled = () => false }) {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -79,14 +122,35 @@ export async function renderVideo(slides, { width, height, onProgress = () => {}
     let previous = null;
     let current = await imageAt(0);
     let next = imageAt(1);
-    const draw = (img, alpha = 1) => { g.globalAlpha = alpha; g.drawImage(img, 0, 0, width, height); g.globalAlpha = 1; track.requestFrame?.(); };
-    draw(current);
+    // A slide's cameo recordings, loaded while the slide before it plays.
+    const clipsAt = (i) => {
+      if (i >= slides.length) return Promise.resolve([]);
+      return Promise.all((slides[i].clips || []).map((c) => clipOf(c).catch(() => null))).then((list) => list.filter(Boolean));
+    };
+    let playing = await clipsAt(0);
+    let nextClips = clipsAt(1);
+    let first = true;
+    const draw = (img, alpha = 1, clips = []) => {
+      g.globalAlpha = alpha;
+      g.drawImage(img, 0, 0, width, height);
+      for (const c of clips) drawClip(g, c, scale);
+      g.globalAlpha = 1;
+      track.requestFrame?.();
+    };
+    const letGo = (clips) => { for (const c of clips) { c.video.pause(); URL.revokeObjectURL(c.video.src); } };
+    draw(current, 1, playing);
     rec.start(500);
     const frame = () => new Promise((r) => setTimeout(r, 1000 / 30));
     for (let i = 0; i < slides.length && !cancelled(); i++) {
       if (i > 0) { previous = current; current = await next; next = imageAt(i + 1); }
       onProgress(i);
       const s = slides[i];
+      // The slide's cameo recordings, each from its start as the slide comes in;
+      // one that will not load leaves the cameo's own picture.
+      const before = first ? [] : playing;
+      if (!first) { playing = await nextClips; nextClips = clipsAt(i + 1); }
+      first = false;
+      for (const c of playing) c.video.play().catch(() => {});
       if (s.narration) {
         try {
           const buf = await audio.decodeAudioData(await (await fetch(s.narration)).arrayBuffer());
@@ -101,10 +165,13 @@ export async function renderVideo(slides, { width, height, onProgress = () => {}
       while (!cancelled()) {
         const t = performance.now() - start;
         if (t >= s.seconds * 1000) break;
-        if (t < fadeMs) { draw(previous); draw(current, t / fadeMs); } else draw(current);
+        if (t < fadeMs) { draw(previous, 1, before); draw(current, t / fadeMs, playing); } else draw(current, 1, playing);
         await frame();
       }
+      letGo(before);
     }
+    letGo(playing);
+    nextClips.then(letGo).catch(() => {});
     rec.stop();
     await done;
     const contentType = type.split(';')[0];
@@ -140,11 +207,16 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
         const m = await shell.doc.model({ id: doc.id, slide: o.index, width });
         const s = m?.slide;
         if (!s) continue;
-        const narration = useTimings ? (s.shapes || []).find((x) => isNarration(x) && x.media?.url)?.media.url || null : null;
+        const shapes = s.shapes || [];
+        const narration = useTimings ? shapes.find((x) => isNarration(x) && x.media?.url)?.media.url || null : null;
         const timed = useTimings ? s.transition?.advanceAfter : null;
-        slides.push({ svg: s.svg, seconds: Math.max(0.5, timed ?? (Number(seconds) || 5)), fade: Boolean(s.transition && s.transition.type && s.transition.type !== 'none'), narration });
+        // The speaker is hidden in the show, so not drawn; a cameo's recording plays in its place.
+        const svg = withoutShapes(s.svg, shapes.filter(isNarration).map((x) => x.id));
+        const clips = shapes.filter((x) => x.cameoRecording && !x.hidden && x.media?.url && x.geometry)
+          .map((x) => ({ url: x.media.url, geometry: x.geometry, preset: x.preset, rot: x.geometry.rot || 0 }));
+        slides.push({ svg, seconds: Math.max(0.5, timed ?? (Number(seconds) || 5)), fade: Boolean(s.transition && s.transition.type && s.transition.type !== 'none'), narration, clips });
       }
-      const video = await renderVideo(slides, { width, height, onProgress: (i) => setBusy({ at: i + 1, of: slides.length }), cancelled: () => stop.current });
+      const video = await renderVideo(slides, { width, height, scale: width / size.width, onProgress: (i) => setBusy({ at: i + 1, of: slides.length }), cancelled: () => stop.current });
       if (stop.current) { setBusy(null); return; }
       await shell.fs.write({ path: target, bytes: video.bytes });
       toast?.(t('Video saved — {name}', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });

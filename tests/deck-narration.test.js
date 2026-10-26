@@ -72,3 +72,31 @@ test('a slide whose first effects already begin by themselves takes the call int
   assert.equal(back.slide(1).shapes.filter(isNarration).length, 1);
   assert.equal(back.animations(1)[0].kind, 'media');
 });
+
+test('Clear Narration takes the timing recording gave the slide, and leaves a slide without narration and its timing alone', () => {
+  const d = deck();
+  // As Record does: the narration, and the slide's Advance After its length.
+  narrate(d, 0, 4200);
+  d.setTransition(0, { advanceAfter: 4.2 });
+  d.setTransition(1, { advanceAfter: 7 });
+  assert.equal(d.slide(0).transition?.advanceAfter, 4.2);
+  assert.equal(d.clearNarration(0), 1);
+  assert.equal(d.slide(0).transition?.advanceAfter ?? null, null, 'its timing went with it');
+  assert.equal(d.clearNarration(1), 0, 'nothing to clear');
+  assert.equal(d.slide(1).transition?.advanceAfter, 7, 'a timing of its own stays');
+});
+
+test('the speaker keeps off a cameo: beside the default cameo in the corner, and in the corner when the cameo is elsewhere', () => {
+  const d = deck();
+  d.addCameo(0);
+  const cameo = d.slide(0).shapes.find((s) => s.cameo).geometry;
+  const one = narrate(d, 0);
+  const speaker = d.slide(0).shapes.find((s) => String(s.id) === String(one)).geometry;
+  const apart = speaker.x + speaker.w <= cameo.x || speaker.x >= cameo.x + cameo.w || speaker.y + speaker.h <= cameo.y || speaker.y >= cameo.y + cameo.h;
+  assert.ok(apart, `the speaker ${JSON.stringify(speaker)} is clear of the cameo ${JSON.stringify(cameo)}`);
+  assert.ok(speaker.x + speaker.w <= cameo.x && speaker.y > d.size.height - 80, 'just left of it, along the bottom');
+  d.addCameo(1, { x: 40, y: 40, w: 200, h: 120 });
+  const two = narrate(d, 1);
+  const corner = d.slide(1).shapes.find((s) => String(s.id) === String(two)).geometry;
+  assert.ok(corner.x > d.size.width - 80 && corner.y > d.size.height - 80, 'a cameo elsewhere leaves the corner as it was');
+});

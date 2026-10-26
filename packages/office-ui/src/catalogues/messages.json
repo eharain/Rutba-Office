@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8226,
+  "count": 8310,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -458,6 +458,12 @@
       "message": "(no grouping)",
       "where": [
         "apps/desktop/renderer/apps/base/reports.js"
+      ]
+    },
+    {
+      "message": "(no heading)",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -1213,6 +1219,12 @@
       ]
     },
     {
+      "message": "A lookup found nothing",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "A manifest (CSV and JSON) with each message's date, sender, recipients, subject, Message-ID, where it came from and the SHA-256 of what was written, and a summary page, are always written. Nothing in the mailboxes or archives is changed.",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
@@ -1321,15 +1333,15 @@
       ]
     },
     {
-      "message": "A new slide on the {name} layout, after this one",
+      "message": "A new slide on one of the deck's layouts, after the current one",
       "where": [
-        "apps/desktop/renderer/apps/slides.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
-      "message": "A new slide with this layout, after the current one",
+      "message": "A new slide on the {name} layout, after this one",
       "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -1361,6 +1373,12 @@
       "message": "A note on {cell}",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "A number that cannot be represented",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -2223,6 +2241,12 @@
       ]
     },
     {
+      "message": "Account name",
+      "where": [
+        "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
       "message": "Accounting",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -3035,6 +3059,18 @@
       ]
     },
     {
+      "message": "Address on one line",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "Address, second line",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "Address:",
       "where": [
         "apps/desktop/renderer/apps/slides/action.js",
@@ -3157,6 +3193,12 @@
       "message": "After a day…",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "After the name",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -3850,6 +3892,12 @@
       "message": "An AI app wants to write this to a database engine",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "An accent bar down the left, the words beside it",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -4575,6 +4623,7 @@
     {
       "message": "As it is",
       "where": [
+        "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/image.js"
       ]
     },
@@ -4871,6 +4920,12 @@
     },
     {
       "message": "Auto enhance: stretch the tones and ease a colour cast in one press",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Auto: the tones stretched to the full range; the colour left as it is",
       "where": [
         "apps/desktop/renderer/apps/image.js"
       ]
@@ -6376,6 +6431,12 @@
       ]
     },
     {
+      "message": "Call this account something else",
+      "where": [
+        "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
       "message": "Call with {name}",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
@@ -6541,6 +6602,7 @@
         "apps/desktop/renderer/apps/word/signature.js",
         "apps/desktop/renderer/apps/word/style-dialog.js",
         "apps/desktop/renderer/apps/word/untracked.js",
+        "apps/desktop/renderer/dav-accounts.js",
         "apps/desktop/renderer/icons-insert.js",
         "apps/desktop/renderer/object-insert.js",
         "apps/desktop/renderer/ocr-ui.js",
@@ -7338,6 +7400,12 @@
       ]
     },
     {
+      "message": "Check what each column holds. Change one that was matched wrongly, or leave it out.",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "Checking in {language}",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -7452,6 +7520,12 @@
     },
     {
       "message": "Choose a contact",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "Choose a contact first",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
       ]
@@ -8543,6 +8617,7 @@
     {
       "message": "Column",
       "where": [
+        "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -8622,6 +8697,7 @@
       "message": "Columns",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js",
+        "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/pivot-fields.js",
@@ -11261,6 +11337,7 @@
     {
       "message": "Department",
       "where": [
+        "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -11604,6 +11681,12 @@
       "message": "Divide",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Divides by zero",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -12001,6 +12084,12 @@
       "message": "Drag on the sheet to move; the handles resize and turn.",
       "where": [
         "apps/desktop/renderer/apps/sheets/objects.js"
+      ]
+    },
+    {
+      "message": "Drag on the slide to draw the shape, or click to put it down there. Esc: cancel.",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -12715,6 +12804,12 @@
       "message": "Edit the source",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
+      ]
+    },
+    {
+      "message": "Edit this one",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -14067,6 +14162,12 @@
       ]
     },
     {
+      "message": "F11: full screen. Esc: end the show.",
+      "where": [
+        "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
       "message": "Fade",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
@@ -14879,6 +14980,12 @@
       ]
     },
     {
+      "message": "First name",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "First page",
       "where": [
         "apps/desktop/renderer/apps/base/sources.js"
@@ -14895,6 +15002,12 @@
       "message": "First row used as headers",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "First value",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -15641,6 +15754,12 @@
       ]
     },
     {
+      "message": "Found among every template, yours included",
+      "where": [
+        "apps/desktop/renderer/template-gallery.js"
+      ]
+    },
+    {
       "message": "Found elsewhere in the file and removed with them: {list}.",
       "where": [
         "apps/desktop/renderer/apps/pdf/redact.js"
@@ -16075,6 +16194,12 @@
       ]
     },
     {
+      "message": "Full name",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "Full page of the same label",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
@@ -16123,6 +16248,12 @@
       "message": "Function Library",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Functions",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
     {
@@ -17990,10 +18121,23 @@
       ]
     },
     {
+      "message": "Import {count} card",
+      "plural": "Import {count} cards",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "Import {count} message",
       "plural": "Import {count} messages",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Import {name}",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -18047,6 +18191,7 @@
     {
       "message": "Importing…",
       "where": [
+        "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail/smime.js"
       ]
     },
@@ -19548,6 +19693,12 @@
       ]
     },
     {
+      "message": "Its hours beside this computer's in the day and the week",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "Its mail servers are not at {domain}: {hosts}. The password goes to them only if you agree.",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
@@ -20011,6 +20162,12 @@
       ]
     },
     {
+      "message": "Kind of the column before",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "LIVE",
       "where": [
         "apps/desktop/renderer/apps/recorder.js"
@@ -20346,6 +20503,12 @@
       ]
     },
     {
+      "message": "Last name",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "Last record",
       "where": [
         "apps/desktop/renderer/apps/base/forms.js",
@@ -20556,6 +20719,12 @@
       ]
     },
     {
+      "message": "Leave out",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "Leave out what follows the minus",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
@@ -20637,6 +20806,13 @@
       "message": "Left margin",
       "where": [
         "apps/desktop/renderer/apps/word/ruler.js"
+      ]
+    },
+    {
+      "message": "Left out {count} row with no name, address, company or phone.",
+      "plural": "Left out {count} rows with no name, address, company or phone.",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -20941,6 +21117,12 @@
       "message": "Light vertical",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Light words on the theme's dark colour",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -22990,6 +23172,12 @@
       ]
     },
     {
+      "message": "Middle name",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "Middle tones",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -23196,6 +23384,18 @@
     },
     {
       "message": "More Effects — select a shape first",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "More Fill Options…",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "More Outline Options…",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -23709,7 +23909,8 @@
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/word/blocks.js",
-        "apps/desktop/renderer/apps/word/dialogs.js"
+        "apps/desktop/renderer/apps/word/dialogs.js",
+        "apps/desktop/renderer/dav-accounts.js"
       ]
     },
     {
@@ -23791,7 +23992,8 @@
       ]
     },
     {
-      "message": "Narration cleared",
+      "message": "Narration cleared, and the timing it gave its slide",
+      "plural": "Narrations cleared from {count} slides, and the timings they gave them",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
       ]
@@ -24118,7 +24320,19 @@
       ]
     },
     {
+      "message": "New cards are sent to {book} on the server of {account}.",
+      "where": [
+        "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
       "message": "New cards go to",
+      "where": [
+        "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "New cards stay on this computer and are not sent to any server.",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
       ]
@@ -24541,6 +24755,7 @@
     {
       "message": "Nickname",
       "where": [
+        "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/word/mailings.js"
       ]
     },
@@ -24608,6 +24823,7 @@
     {
       "message": "No Outline",
       "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -25126,7 +25342,7 @@
       ]
     },
     {
-      "message": "No notes on this slide. Add them from the Home tab.",
+      "message": "No notes on this slide. Type them under the slide in Normal view, where it says Click to add notes.",
       "where": [
         "apps/desktop/renderer/apps/slides/presenter.js"
       ]
@@ -25342,6 +25558,12 @@
       "message": "No sheet is hidden",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "No slide has a narration to clear.",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -25754,8 +25976,17 @@
       "where": [
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/trust.js",
+        "apps/desktop/renderer/apps/calendar.js",
+        "apps/desktop/renderer/apps/mail/password-again.js",
         "apps/desktop/renderer/apps/talk/invite.js",
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Not read: the {names} column.",
+      "plural": "Not read: the {names} columns.",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -25830,6 +26061,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/redact.js"
@@ -25924,6 +26156,12 @@
       "message": "Nothing could be set — the desktop entry may not be installed yet.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Nothing else is lost. Each place asks for its password the next time it needs it: Mail, Calendar and Contacts servers, Talk and Data Files.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -26276,6 +26514,7 @@
         "apps/desktop/renderer/apps/word/untracked.js",
         "apps/desktop/renderer/object-insert.js",
         "apps/desktop/renderer/ocr-ui.js",
+        "apps/desktop/renderer/profiles.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/qrcode.js",
         "apps/desktop/renderer/rotation-dialog.js",
@@ -26605,6 +26844,12 @@
       "plural": "{count} regions marked for Everyone.",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "One screen: the show covers Presenter View. Alt+Tab goes between them; Esc ends the show.",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -27098,12 +27343,6 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/protect.js"
-      ]
-    },
-    {
-      "message": "Opens a second window with your notes, the next slide and a clock — put it on the other screen",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -27610,6 +27849,12 @@
       ]
     },
     {
+      "message": "PO box",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "Page",
       "where": [
         "apps/desktop/renderer/apps/pdf/found.js",
@@ -27980,6 +28225,7 @@
         "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/mail/password-again.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/restrict.js",
@@ -27993,6 +28239,12 @@
       "message": "Password (optional)",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Password for {address}",
+      "where": [
+        "apps/desktop/renderer/apps/mail/password-again.js"
       ]
     },
     {
@@ -28994,7 +29246,7 @@
       ]
     },
     {
-      "message": "Play Narrations — whether the show plays the narration recorded with it; kept in the file for PowerPoint, as this suite records none",
+      "message": "Play Narrations: whether the show plays the narration recorded on its slides (Record); off, the slides show without it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
@@ -30357,6 +30609,12 @@
       ]
     },
     {
+      "message": "Ranges that do not intersect",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "Ranges unlocked by a password when the sheet is protected:",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -30429,6 +30687,12 @@
       "message": "Read and prepare",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "Read as",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -30598,6 +30862,7 @@
     {
       "message": "Reading the file…",
       "where": [
+        "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/pictures.js"
       ]
     },
@@ -31255,9 +31520,21 @@
       ]
     },
     {
+      "message": "Refers to a cell that was deleted",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "Refers to cells",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Refers to itself, directly or through other cells",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -31936,6 +32213,7 @@
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/dav-accounts.js",
         "apps/desktop/renderer/profiles.js"
       ]
     },
@@ -33768,6 +34046,7 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/mail/password-again.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/pdf/index.js",
@@ -33784,6 +34063,7 @@
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/dav-accounts.js",
         "apps/desktop/renderer/shell.js",
         "packages/office-shell/src/electron/main.js"
       ]
@@ -34158,6 +34438,12 @@
       ]
     },
     {
+      "message": "Saved passwords need typing again",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Saved to Drafts",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -34210,6 +34496,12 @@
       ]
     },
     {
+      "message": "Saved. {address} is fetching its mail.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/password-again.js"
+      ]
+    },
+    {
       "message": "Saving writes the pages as they are now over the original file. Save a Copy keeps the original as it is.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -34220,6 +34512,7 @@
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/mail/password-again.js",
         "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
@@ -34664,6 +34957,12 @@
       "message": "Second colour: where a gradient ends",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Second time zone",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -35334,6 +35633,24 @@
       ]
     },
     {
+      "message": "Send the change",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Send the change?",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Send the invitation?",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "Send to Back",
       "where": [
         "apps/desktop/renderer/apps/image.js",
@@ -35838,6 +36155,12 @@
       ]
     },
     {
+      "message": "Shape Fill: a colour for the selected shape, no fill, or more in the Format pane",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
       "message": "Shape Fill: now no fill",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -35868,6 +36191,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Shape Outline: a colour for the selected shape's outline, no outline, or more in the Format pane",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
       ]
     },
     {
@@ -36258,6 +36587,7 @@
     {
       "message": "Show in Folder",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/redact.js"
       ]
     },
@@ -37962,8 +38292,8 @@
       ]
     },
     {
-      "message": "Split into {count} file in {folder}",
-      "plural": "Split into {count} files in {folder}",
+      "message": "Split into {count} file in {folder}: {first}",
+      "plural": "Split into {count} files in {folder}: {first} to {last}",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
       ]
@@ -40780,12 +41110,6 @@
       ]
     },
     {
-      "message": "The fill of the selected shape, in the Format pane",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "The filter has learned from {junk} junk and {good} good messages, and judges nothing until it has seen {minimum} of each. Mark messages Junk and Not junk, or learn from what is already here.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -40855,6 +41179,12 @@
       "message": "The format was not recognised.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "The formula could not be calculated",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -41325,12 +41655,6 @@
       ]
     },
     {
-      "message": "The outline of the selected shape, in the Format pane",
-      "where": [
-        "apps/desktop/renderer/apps/slides/ribbon.js"
-      ]
-    },
-    {
       "message": "The page this bookmark goes to is not in the document now",
       "where": [
         "apps/desktop/renderer/apps/pdf/nav.js"
@@ -41364,6 +41688,18 @@
       "message": "The password again",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "The password for this account is not saved on this computer, so Mail cannot fetch or send its mail. Type it again to keep it in this profile.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/password-again.js"
+      ]
+    },
+    {
+      "message": "The password for {name}, not saved on this computer",
+      "where": [
+        "apps/desktop/renderer/dav-accounts.js"
       ]
     },
     {
@@ -41404,9 +41740,21 @@
       ]
     },
     {
+      "message": "The passwords saved in this profile could not be opened on this computer.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "The picture",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "The picture across the slide, the title on a band over it",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -41454,6 +41802,18 @@
       ]
     },
     {
+      "message": "The picture on the left, the words beside it",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "The picture on the right, the words beside it",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
       "message": "The picture stays at the anchor; the canvas grows or is cut on the other sides. Nothing is scaled.",
       "where": [
         "apps/desktop/renderer/apps/image/canvas-size.js"
@@ -41463,6 +41823,12 @@
       "message": "The picture to read has no pixels.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The pictures in a row under the title",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
@@ -41698,6 +42064,12 @@
       "where": [
         "apps/desktop/renderer/apps/pdf/export.js",
         "apps/desktop/renderer/apps/pdf/ocr.js"
+      ]
+    },
+    {
+      "message": "The selected pages are already there. To move one page among them, select that page alone first.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -42001,15 +42373,33 @@
       ]
     },
     {
+      "message": "The title in the middle, the words under it",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
       "message": "The title of slide {number}:",
       "where": [
         "apps/desktop/renderer/review.js"
       ]
     },
     {
+      "message": "The title on a band of the theme's accent",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
       "message": "The title screen readers announce and File → Info shows:",
       "where": [
         "apps/desktop/renderer/review.js"
+      ]
+    },
+    {
+      "message": "The tool",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -42246,6 +42636,12 @@
       "message": "Then:",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
+      ]
+    },
+    {
+      "message": "There are no cards to export yet",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -42524,6 +42920,12 @@
       ]
     },
     {
+      "message": "These cards are from a file and not kept yet",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "These cells are part of a vertical merge — widening one row of it would tear the range.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -42587,6 +42989,18 @@
       "message": "They see your name and your note, and become a contact when they accept. Nobody is told whether an address has an account.",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
+      ]
+    },
+    {
+      "message": "They were saved in another profile and copied here, so they cannot be read in this one.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "They were saved on another computer or by another Windows account, so they cannot be read here.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -42731,6 +43145,12 @@
       ]
     },
     {
+      "message": "This card has no email address",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
       "message": "This cell has a comment. Reply to it, or delete it, before adding a note.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -42825,6 +43245,12 @@
       "message": "This computer does not let its own sound be recorded.",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/session.js"
+      ]
+    },
+    {
+      "message": "This computer has no protected store for saved passwords, and this profile has no password, so they could not be kept safely.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -43337,6 +43763,12 @@
       ]
     },
     {
+      "message": "This occurrence, or choose every one in the editor",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "This opens {host} in your browser, where the sender handles it.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -43555,6 +43987,12 @@
     },
     {
       "message": "This slide has animations",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "This slide has no narration to clear.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
       ]
@@ -43862,6 +44300,18 @@
       ]
     },
     {
+      "message": "Time zone",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Time zones",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "Timeline",
       "where": [
         "apps/desktop/renderer/apps/video/ribbon.js"
@@ -43991,6 +44441,12 @@
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Title before the name",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -44668,7 +45124,7 @@
       ]
     },
     {
-      "message": "Try other words, or look in All templates.",
+      "message": "Try other words.",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
       ]
@@ -45657,6 +46113,12 @@
       ]
     },
     {
+      "message": "Use Presenter View: starts the show, with a second window of your notes, the next slide and a clock for the other screen",
+      "where": [
+        "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
       "message": "Use Recorded Timings and Narrations",
       "where": [
         "apps/desktop/renderer/apps/slides/export-video.js"
@@ -45770,6 +46232,18 @@
       "message": "Username",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Uses a name that is not defined",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Uses the wrong kind of value",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -46318,6 +46792,7 @@
     {
       "message": "Website",
       "where": [
+        "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/home.js"
       ]
     },
@@ -46437,6 +46912,12 @@
       ]
     },
     {
+      "message": "What to call it here, such as Work or Family. Left blank, it is named after its server.",
+      "where": [
+        "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
       "message": "What to export",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js",
@@ -46473,6 +46954,12 @@
       "message": "What you will say. It scrolls above the camera while you record.",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "What {column} holds",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -49679,6 +50166,12 @@
       ]
     },
     {
+      "message": "{account}: {book}",
+      "where": [
+        "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
       "message": "{across} across, {down} down",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
@@ -50009,6 +50502,13 @@
       "plural": "{count} captions written to {name}",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "{count} card; the first as it will be kept:",
+      "plural": "{count} cards; the first few as they will be kept:",
+      "where": [
+        "apps/desktop/renderer/apps/contacts.js"
       ]
     },
     {
@@ -50514,6 +51014,13 @@
       "where": [
         "apps/desktop/renderer/apps/slides/comments.js",
         "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "{count} minute before",
+      "plural": "{count} minutes before",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
       ]
     },
     {
@@ -52136,6 +52643,19 @@
       ]
     },
     {
+      "message": "{start} to {end} in {zone}",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "{summary} has {count} person invited. A message to them with the invitation attached opens in Mail, ready to send.",
+      "plural": "{summary} has {count} people invited. A message to them with the invitation attached opens in Mail, ready to send.",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "{summary} of {field}",
       "where": [
         "apps/desktop/renderer/apps/sheets/pivot-fields.js"
@@ -52178,6 +52698,12 @@
       ]
     },
     {
+      "message": "{time} on this computer",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
       "message": "{tip}. Select Recipients first.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -52187,6 +52713,12 @@
       "message": "{title} — hidden",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "{tool} put down to show the comment you picked. Press {tool} again to go on.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {

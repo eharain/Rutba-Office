@@ -13,6 +13,7 @@ import path from 'node:path';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { putShapeDown } from './verify-shape-place.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
@@ -93,6 +94,7 @@ export async function verifyDrawingDelete(h, { dir }) {
       await clickIn(wc, 'Shapes');
       await wait(200);
       await clickMenu(wc, 'Oval');
+      await putShapeDown(wc);
       await until(() => shapes().length > before, 'an oval to land', 4000).catch(() => {});
       return shapes().slice(-1)[0];
     };

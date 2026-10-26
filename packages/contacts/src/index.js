@@ -2,4 +2,4 @@
 // address books Google and Outlook export.
 
 export { readVCards, writeVCards, writeVCard, displayName, initials, splitName } from './vcard.js';
-export { readContactsCsv, parseCsv } from './csv.js';
+export { readContactsCsv, readContactsCsvReport, parseCsv, decodeText, CSV_FIELDS } from './csv.js';

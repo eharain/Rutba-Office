@@ -20,6 +20,8 @@ import { SOUNDS, soundFile } from './sounds.js';
 import { PEN_COLOURS, PEN_WIDTHS } from './ink.js';
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
+/** A colour's little square in a menu, as the colour menus show it. */
+const swatch = (c) => React.createElement('span', { style: { display: 'inline-block', width: 16, height: 16, borderRadius: 3, background: c, border: '1px solid rgba(0,0,0,.25)' } });
 const COLOURS = [
   ['#000000', t('Black')], ['#404040', t('Dark grey')], ['#808080', t('Grey')], ['#ffffff', t('White')],
   ['#c00000', t('Dark red')], ['#ff0000', t('Red')], ['#ffc000', t('Orange')], ['#ffff00', t('Yellow')],
@@ -136,6 +138,14 @@ export default function SlidesRibbon({
   /** How many comment threads the deck holds. */
   const commentCount = (model?.comments || []).length;
   const hasShape = Boolean(selected);
+  // New Slide: the deck's own layouts, by their names, as PowerPoint lists
+  // them; the three plain ones for a deck that names none.
+  const newSlideMenu = (e) => {
+    const layouts = (model?.layouts || []).filter((l) => l.part);
+    menu.open(e, layouts.length
+      ? layouts.map((l) => ({ label: l.name || l.part, icon: 'slides', run: () => act('newSlideFrom', l) }))
+      : LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })));
+  };
   // Align and Distribute's own toggle — "Align Selected Objects" (the
   // default) or "Align to Slide" — is how the ribbon remembers which one is
   // ticked; it is a preference about the next press, not part of the file.
@@ -265,7 +275,7 @@ export default function SlidesRibbon({
             </Rows>
           </Group>
           <Group label={t('Slides')}>
-            <Button dropdown tall icon="plus" label={t('New Slide')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
+            <Button dropdown tall icon="plus" label={t('New Slide')} onClick={(e) => newSlideMenu(e)} />
             <Rows>
               <>
                 <Button dropdown icon="grid" label={t('Layout')} title={t("Layout: put this slide on another of the deck's layouts")} onClick={(e) => menu.open(e, (model?.layouts || []).map((l) => ({ label: l.name || l.part, icon: l.part === model?.slide?.layout ? 'check' : undefined, run: () => act('applyLayout', l.part) })))} />
@@ -380,8 +390,18 @@ export default function SlidesRibbon({
               { label: t('Move right (nudge)'), run: () => act('nudge', { dx: 8 }) },
             ])} disabled={!hasShape} title={need(t('Arrange the selected shape(s)'))} />
             <Button dropdown tall icon="wand" label={t('Quick Styles')} disabled={!hasShape} title={need(t('The theme\'s own looks: filled in an accent, outlined in the same'))} onClick={(e) => menu.open(e, [1, 2, 3, 4, 5, 6].map((n) => ({ label: t('Accent {n}', { n }), icon: 'shape', run: () => act('quickStyle', n) })))} />
-            <Button icon="wand" label={t('Shape Fill')} disabled={!hasShape} title={need(t('The fill of the selected shape, in the Format pane'))} onClick={() => act('formatPane')} />
-            <Button icon="shape" label={t('Shape Outline')} disabled={!hasShape} title={need(t('The outline of the selected shape, in the Format pane'))} onClick={() => act('formatPane')} />
+            <Button dropdown icon="wand" label={t('Shape Fill')} disabled={!hasShape} title={need(t('Shape Fill: a colour for the selected shape, no fill, or more in the Format pane'))} onClick={(e) => menu.open(e, [
+              ...COLOURS.map(([value, label]) => ({ label, preview: swatch(value), run: () => act('shapeFill', { color: value, alpha: 1 }) })),
+              '-',
+              { label: t('No Fill'), icon: 'close', run: () => act('shapeFill', 'none') },
+              { label: t('More Fill Options…'), run: () => act('formatPane') },
+            ])} />
+            <Button dropdown icon="shape" label={t('Shape Outline')} disabled={!hasShape} title={need(t("Shape Outline: a colour for the selected shape's outline, no outline, or more in the Format pane"))} onClick={(e) => menu.open(e, [
+              ...COLOURS.map(([value, label]) => ({ label, preview: swatch(value), run: () => act('shapeLine', { color: value }) })),
+              '-',
+              { label: t('No Outline'), icon: 'close', run: () => act('shapeLine', 'none') },
+              { label: t('More Outline Options…'), run: () => act('formatPane') },
+            ])} />
             <Button dropdown icon="wand" label={t('Shape Effects')} disabled={!hasShape} title={need(t('Shape Effects: a shadow, a glow, soft edges or a reflection on the selected shape'))} onClick={(e) => menu.open(e, [
               ...SHADOW_MENU.map(([key, label]) => ({ label, icon: key === 'none' ? 'close' : undefined, run: () => act('shapeShadow', key) })),
               '-',
@@ -477,7 +497,7 @@ export default function SlidesRibbon({
       {tab === 'insert' ? (
         <>
           <Group label={t('Slides')}>
-            <Button dropdown tall icon="plus" label={t('New Slide')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
+            <Button dropdown tall icon="plus" label={t('New Slide')} onClick={(e) => newSlideMenu(e)} />
           </Group>
           <Group label={t('Tables')}>
             <Button dropdown tall icon="table" label={t('Table')} title={t("Table: a grid of cells, in PowerPoint's own default style")} onClick={(e) => menu.open(e, TABLE_SIZES.map(([rows, cols, label]) => ({ label, icon: 'table', run: () => act('addTable', { rows, cols }) })))} />
@@ -612,7 +632,7 @@ export default function SlidesRibbon({
           </Group>
           <Group label={t('Slides')}>
             <Button tall icon="grid" label={t('Layouts')} pressed={view.pane === 'designs'} title={t("The deck's layouts in a pane — put this slide on one, or start a new slide from it")} onClick={() => act('pane', 'designs')} />
-            <Button dropdown tall icon="slides" label={t('Layout')} title={t('A new slide with this layout, after the current one')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
+            <Button dropdown tall icon="slides" label={t('New Slide')} title={t("A new slide on one of the deck's layouts, after the current one")} onClick={(e) => newSlideMenu(e)} />
             <Button
               dropdown
               tall
@@ -871,7 +891,7 @@ export default function SlidesRibbon({
               icon="check"
               label={t('Play Narrations')}
               pressed={model?.showSettings?.narration !== false}
-              title={t('Play Narrations — whether the show plays the narration recorded with it; kept in the file for PowerPoint, as this suite records none')}
+              title={t('Play Narrations: whether the show plays the narration recorded on its slides (Record); off, the slides show without it')}
               onClick={() => act('showFlag', { narration: model?.showSettings?.narration === false })}
             />
             <Button
@@ -891,7 +911,7 @@ export default function SlidesRibbon({
           </Group>
           <Group label={t('Monitors')}>
             <Button icon="grid" label={t('Monitor: {name}', { name: monitorName })} title={t("Monitor — the screen the slide show plays on; Automatic puts it on another screen than Presenter View's")} onClick={(e) => act('monitorMenu', e)} />
-            <Button icon="check" label={t('Use Presenter View')} title={t('Opens a second window with your notes, the next slide and a clock — put it on the other screen')} onClick={presentWithNotes} />
+            <Button icon="check" label={t('Use Presenter View')} title={t('Use Presenter View: starts the show, with a second window of your notes, the next slide and a clock for the other screen')} onClick={presentWithNotes} />
           </Group>
         </>
       ) : null}

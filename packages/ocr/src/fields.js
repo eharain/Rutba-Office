@@ -629,7 +629,20 @@ export function documentFields(read, options = {}) {
   };
   const items = [];
   const CURRENCY_WORDS = /rs|sar|aed|inr|pkr|usd|gbp|eur|ررس|ر\.س|د\.إ|روپے|रु|円|元/giu;
-  const itemOf = (row) => {
+  // A till's VAT code after an item's amount (S standard, Z zero, E exempt, R reduced), in a column of its
+  // own or after the figure: the item's code, not part of its amount or its name.
+  const VAT_CODE = /^\(?([SZER])\)?$/;
+  const itemOf = (whole) => {
+    let row = whole, vatCode = null;
+    const tail = row.segments[row.segments.length - 1];
+    if (tail && row.segments.length >= 2 && VAT_CODE.test(tail.text.trim())) {
+      vatCode = tail.text.trim().match(VAT_CODE)[1];
+      row = { ...row, segments: row.segments.slice(0, -1) };
+    } else if (tail && tail.words.length >= 2 && VAT_CODE.test(tail.words[tail.words.length - 1].text) && /\d/.test(westernDigits(tail.words[tail.words.length - 2].text))) {
+      vatCode = tail.words[tail.words.length - 1].text.match(VAT_CODE)[1];
+      const words = tail.words.slice(0, -1);
+      row = { ...row, segments: [...row.segments.slice(0, -1), { ...tail, words, text: joinWords(words.map((w) => w.text)) }] };
+    }
     const text = row.segments.map((sg) => sg.text).join('  ');
     if (/(?:^|\s)\d+\s?[x×X*@]\s?\S/.test(westernDigits(text)) && row.segments.length <= 1) return 'detail';
     const lastSeg = row.segments[row.segments.length - 1];
@@ -659,6 +672,7 @@ export function documentFields(read, options = {}) {
       decimals: amount.decimals,
       box: unionBox(ws),
       confidence: confidenceOf(ws),
+      ...(vatCode ? { vatCode } : {}),
     };
   };
   if (headingRow >= 0) {
@@ -717,6 +731,23 @@ export function documentFields(read, options = {}) {
   })();
   const near = (a, b) => Math.abs(a - b) < 0.005 + Math.abs(b) * 1e-9;
   const cents = (v) => Math.round(v * 100);
+  // What the rate may be of, besides the subtotal: a figure the tax's or the rate's row states ("20% of
+  // 50.00"), and the items a till marks standard rated (S), when it marks them.
+  const stated = [];
+  for (const x of hits.filter((y) => y.field === 'tax' || y.field === 'taxRate')) {
+    for (const sg of rows[x.seg.row].segments) {
+      for (const w of sg.words) {
+        const a = /%/.test(w.text) ? null : parseAmount(w.text);
+        if (a && a.value > 0 && !stated.includes(a.value)) stated.push(a.value);
+      }
+    }
+  }
+  const coded = items.filter((it) => it.vatCode);
+  const standard = coded.length ? Math.round(coded.filter((it) => it.vatCode === 'S').reduce((n, it) => n + cents(it.amount), 0)) / 100 : null;
+  const rateFits = (base, tax) => {
+    const exact = base * rate / 100;
+    return Math.abs(exact - tax) <= 0.0051 || Math.floor(exact) === tax;
+  };
   // Every sum the items can make, one reading of each item's amount a sum, the first readings preferred.
   const sums = new Map();
   if (items.length) {
@@ -748,9 +779,12 @@ export function documentFields(read, options = {}) {
           picks = sums.get(cents(itemsTo)) || null;
           checks.itemsAddUp = Boolean(picks);
         }
-        if (rate !== null && st.value !== null && tx.value !== null) {
-          const exact = st.value * rate / 100;
-          checks.taxRateHolds = Math.abs(exact - tx.value) <= 0.0051 || Math.floor(exact) === tx.value;
+        if (rate !== null && tx.value !== null) {
+          const bases = [...(st.value !== null ? [st.value] : []), ...stated.filter((v) => v !== tx.value && v !== tot.value), ...(standard !== null ? [standard] : [])];
+          if (bases.length) checks.taxRateHolds = bases.some((b) => rateFits(b, tx.value));
+          // Items at more than one rate (some zero rated, some exempt) unmarked: a rate that fits nothing the
+          // page shows is no fault when the subtotal and the tax make the total.
+          if (checks.taxRateHolds === false && checks.totalAddsUp === true) checks.taxRateHolds = null;
         }
         for (const v of Object.values(checks)) if (v !== null) score += v ? 3 : -1;
         if (st.value !== null) score += 0.5;
@@ -862,6 +896,22 @@ export function documentFields(read, options = {}) {
   const named = {};
   for (const f of AMOUNT_FIELDS) { const c = fields[f]?.text && parseAmount(fields[f].text)?.currency; if (c) named[c] = (named[c] || 0) + 1; }
   let currency = Object.entries(named).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  // Figures with no sign of their own: the currency their labels or the items' heading name ("Total (GBP)",
+  // "Amount £"), a word at a time so a name that holds the letters is not one.
+  if (!currency) {
+    const labelRows = new Set([...hits.filter((x) => AMOUNT_FIELDS.includes(x.field)).map((x) => x.seg.row), ...(headingRow >= 0 ? [headingRow] : [])]);
+    for (const r of labelRows) {
+      for (const sg of rows[r].segments) {
+        for (const w of sg.words) {
+          const core = w.text.replace(/[()[\]:,]/g, '');
+          if (!core || [...core].length > 4 || /\d/.test(westernDigits(core))) continue;
+          const hit = CURRENCIES.find(([rx]) => rx.test(core));
+          if (hit) named[hit[1]] = (named[hit[1]] || 0) + 1;
+        }
+      }
+    }
+    currency = Object.entries(named).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  }
   if (currency === 'YEN') currency = (languages || []).includes('jpn') ? 'JPY' : (languages || []).includes('chi_sim') ? 'CNY' : null;
 
   // What kind of page this is.

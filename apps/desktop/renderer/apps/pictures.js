@@ -78,7 +78,7 @@ export default function Pictures({ app, shell, boot }) {
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState('all');
   // Ratings and tags, kept on this computer; the rating filter; and the search through the folders inside.
-  const { marks, rate, tag } = useMarks(shell);
+  const { marks, rate, tag, follow: followMarks } = useMarks(shell);
   const [rated, setRated] = useState(0);
   const [deep, setDeep] = useState(false);
   const [found, setFound] = useState(null);
@@ -170,14 +170,42 @@ export default function Pictures({ app, shell, boot }) {
         setEntries(rows);
         setFolder(dir);
         setFamily('all');
+        // A marked file renamed or moved here since: its marks come with it.
+        followMarks(rows);
       } catch (err) {
         toast(err.message, { tone: 'bad' });
       } finally {
         setBusy(false);
       }
     },
-    [shell, toast]
+    [shell, toast, followMarks]
   );
+
+  // A file written into the folder while it is open (exported from Image,
+  // saved by another program, renamed in Explorer) shows when the window
+  // is come back to, and on Back to the folder: the folder listed again,
+  // quietly, the grid left as it is when nothing changed.
+  const folderRef = useRef(null);
+  folderRef.current = folder;
+  const relist = useCallback(async () => {
+    const dir = folderRef.current;
+    if (!dir) return;
+    const rows = await shell.fs.list({ path: dir, filter: VIEWABLE }).catch(() => null);
+    if (!rows || folderRef.current !== dir) return;
+    const same = (a, b) => a.length === b.length && a.every((r, i) => r.path === b[i].path && r.size === b[i].size && r.mtime === b[i].mtime);
+    setEntries((was) => (same(was, rows) ? was : rows));
+    followMarks(rows);
+  }, [shell, followMarks]);
+  useEffect(() => {
+    const onFocus = () => relist();
+    const onVisible = () => { if (document.visibilityState === 'visible') relist(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [relist]);
 
   useEffect(() => {
     const run = async () => {
@@ -204,10 +232,10 @@ export default function Pictures({ app, shell, boot }) {
     if (!deep || !folder || !query.trim()) { setFound(null); return undefined; }
     let live = true;
     const timer = setTimeout(() => {
-      searchTree((dir) => shell.fs.list({ path: dir, filter: VIEWABLE }), folder, { query, marks }).then((rows) => { if (live) setFound(rows); });
+      searchTree((dir) => shell.fs.list({ path: dir, filter: VIEWABLE }), folder, { query, marks }).then((rows) => { if (live) { setFound(rows); followMarks(rows); } });
     }, 250);
     return () => { live = false; clearTimeout(timer); };
-  }, [deep, folder, query, marks, shell]);
+  }, [deep, folder, query, marks, shell, followMarks]);
   const files = useMemo(() => arrange(deep && found ? found : entries, { query: deep && found ? '' : query, family, sort, marks, rated }), [entries, found, deep, query, family, sort, marks, rated]);
   const folders = useMemo(() => (query.trim() || rated ? [] : foldersOf(entries)), [entries, query, rated]);
   const counts = useMemo(() => countByFamily(entries), [entries]);
@@ -360,7 +388,8 @@ export default function Pictures({ app, shell, boot }) {
     setDetails(null);
     setZoom(0);
     setSpin(0);
-  }, []);
+    relist();
+  }, [relist]);
 
   /**
    * The auto-navigator.
@@ -406,18 +435,27 @@ export default function Pictures({ app, shell, boot }) {
     });
   }, [shell, showSeconds]);
 
+  // The show fills the window; F11 takes it to the whole screen and back,
+  // and the show ending puts the window back as it was.
+  const showFull = useRef(false);
   const startShow = useCallback(() => {
     if (!files.length) return;
     setShowAt(at >= 0 ? at : 0);
     setShowPaused(false);
     setShowOpen(true);
-    shell.win.fullscreen({ on: true }).catch(() => {});
-  }, [files.length, at, shell]);
+    showFull.current = false;
+  }, [files.length, at]);
+
+  const toggleShowFull = useCallback(() => {
+    showFull.current = !showFull.current;
+    shell.win.fullscreen({ on: showFull.current }).catch(() => {});
+  }, [shell]);
 
   const stopShow = useCallback(() => {
     const f = files[showAt];
     setShowOpen(false);
-    shell.win.fullscreen({ on: false }).catch(() => {});
+    if (showFull.current) shell.win.fullscreen({ on: false }).catch(() => {});
+    showFull.current = false;
     if (f) {
       setCurrent(f.path);
       setZoom(0);
@@ -487,10 +525,11 @@ export default function Pictures({ app, shell, boot }) {
       else if (e.key === ' ') { e.preventDefault(); setShowPaused((p) => !p); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); showStep(-1); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); showStep(1); }
+      else if (e.key === 'F11') { e.preventDefault(); toggleShowFull(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showOpen, stopShow, showStep]);
+  }, [showOpen, stopShow, showStep, toggleShowFull]);
 
   /* ── animated stills: hold the frame ─────────────────────────────────── */
 
@@ -726,6 +765,7 @@ export default function Pictures({ app, shell, boot }) {
           />
         ) : null}
         {showPaused ? <span className="pv-show-chip">{t('Paused')}</span> : null}
+        <span className="pv-show-hint" data-role="show-hint">{t('F11: full screen. Esc: end the show.')}</span>
         <style>{CSS}</style>
       </div>
     );
@@ -1361,7 +1401,8 @@ function Stage({ current, shown, kind, failed, playing, zoom, setZoom, rotation,
   // A zoomed picture is dragged about with the mouse, as well as scrolled.
   const drag = useRef(null);
   const onMouseDown = (e) => {
-    if (!zoom || e.button !== 0 || e.target.closest?.('.ocr-layer, .ocr-bar')) return;
+    // With Copy Text shown, a press on a line of words selects them; anywhere else on the picture drags it.
+    if (!zoom || e.button !== 0 || e.target.closest?.('.ocr-line, .ocr-bar')) return;
     drag.current = { x: e.clientX, y: e.clientY, left: ref.current.scrollLeft, top: ref.current.scrollTop };
     e.preventDefault();
   };
@@ -1569,6 +1610,9 @@ const CSS = `
 .pv-stage.viewing .rw-empty { color: #c8ccd3; }
 .pv-stage.zoomed { cursor: grab; }
 .pv-stage.zoomed:active { cursor: grabbing; }
+/* Copy Text over a zoomed picture: its lines select, the rest of it drags. */
+.pv-stage.zoomed .ocr-layer { cursor: grab; }
+.pv-stage.zoomed .ocr-layer .ocr-line { cursor: text; }
 .pv-image { max-width: 100%; max-height: 100%; object-fit: contain; display: block; image-orientation: from-image; }
 .pv-image.zoomed { max-width: none; max-height: none; }
 .pv-image.hidden { display: none; }
@@ -1644,6 +1688,12 @@ const CSS = `
 }
 .pv-show-layer.on { opacity: 1; }
 .pv-show-media { max-width: 100%; max-height: 100%; object-fit: contain; display: block; background: #000; }
+.pv-show-hint {
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); padding: 4px 12px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 11.5px; pointer-events: none;
+  animation: pv-show-hint 4s ease forwards;
+}
+@keyframes pv-show-hint { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
 .pv-show-chip {
   position: absolute; top: 16px; left: 16px; padding: 4px 10px; border-radius: 999px;
   background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em;

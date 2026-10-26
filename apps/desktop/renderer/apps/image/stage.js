@@ -12,10 +12,43 @@ import { framePoint } from '@rutba/office-ui/turned-box';
 
 const measure = () => document.createElement('canvas').getContext('2d');
 
-/** The topmost layer under (x, y) in plan pixels that shows and can be picked. */
+/**
+ * Whether a picture layer shows anything at (px, py), its upright plan
+ * pixels: a layer painted on, or a picture with see-through parts, is
+ * picked where it has paint, as Photoshop's Move picks, not wherever its
+ * box reaches. A layer drawn some other way (cropped, warped, filling the
+ * frame) answers by its box.
+ */
+let probe = null;
+function showsAt(layer, b, px, py) {
+  const img = layer.type === 'image' ? layer.src?.img : null;
+  if (!img || layer.crop || (Number(layer.zoom) || 1) > 1 || layer.corners || layer.fit || !b.w || !b.h) return true;
+  const iw = layer.src.width || img.naturalWidth || img.width;
+  const ih = layer.src.height || img.naturalHeight || img.height;
+  if (!iw || !ih) return true;
+  try {
+    probe = probe || Object.assign(document.createElement('canvas'), { width: 1, height: 1 });
+    const g = probe.getContext('2d', { willReadFrequently: true });
+    g.clearRect(0, 0, 1, 1);
+    const sx = Math.min(iw - 1, Math.max(0, Math.floor(((px - b.x) / b.w) * iw)));
+    const sy = Math.min(ih - 1, Math.max(0, Math.floor(((py - b.y) / b.h) * ih)));
+    g.drawImage(img, sx, sy, 1, 1, 0, 0, 1, 1);
+    return g.getImageData(0, 0, 1, 1).data[3] > 8;
+  } catch {
+    return true; // a picture that cannot be read back answers by its box
+  }
+}
+
+/**
+ * The topmost layer under (x, y) in plan pixels that shows and can be
+ * picked. A layer that fills the frame by itself (a cover photo or clip)
+ * is picked only where nothing else is, so a click on a layer above or
+ * below it is not taken by it.
+ */
 export function layerAt(plan, x, y, isLocked) {
   const ctx = measure();
   const ordered = [...plan.layers].sort((a, b) => (b.z || 0) - (a.z || 0));
+  let cover = null;
   for (const layer of ordered) {
     if (layer.visible === false || isLocked(layer.id)) continue;
     if (layer.type === 'adjust' && layer.fw == null && layer.fh == null) continue;
@@ -30,9 +63,12 @@ export function layerAt(plan, x, y, isLocked) {
       px = cx + (x - cx) * Math.cos(a) - (y - cy) * Math.sin(a);
       py = cy + (x - cx) * Math.sin(a) + (y - cy) * Math.cos(a);
     }
-    if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) return layer;
+    if (!(px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h)) continue;
+    if ((layer.type === 'photo' || layer.type === 'video') && !layer.fw) { cover = cover || layer; continue; }
+    if (!showsAt(layer, b, px, py)) continue;
+    return layer;
   }
-  return null;
+  return cover;
 }
 
 /** The patch a corner drag by `k` writes for a layer of any kind, before any turn is allowed for. */

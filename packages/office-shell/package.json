@@ -20,7 +20,11 @@
     "./electron/preload": "./src/electron/preload.cjs",
     "./client": "./src/client.js",
     "./runs": "./src/runs.js",
-    "./profiles": "./src/profiles.js"
+    "./profiles": "./src/profiles.js",
+    "./profile-keystore": "./src/profile-keystore.js"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "dependencies": {
+    "@tech-style/secure-keystore": "3.0.0"
+  }
 }

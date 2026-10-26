@@ -169,6 +169,9 @@ export function createProfilesService({ profile, stores, broadcast }) {
       return changed();
     },
 
+    /** A keystore put aside (another computer, account or profile): { at, why } to the first window that asks, and null after, so it is said once. */
+    keystoreNotice: () => stores.secrets?.notice?.() || null,
+
     /**
      * ({ password }) -> current. This profile asks for it before it opens from
      * now on, and its saved passwords, recent files, calendars, contacts and
@@ -183,6 +186,8 @@ export function createProfilesService({ profile, stores, broadcast }) {
       const { lock, key } = await makeLock(password);
       await stores.vault.prepare?.(key);
       profile.lock = await rekeyProfile({ base, id: profile.id, vault: stores.vault, from: null, to: key, lock, folder: stores.dir });
+      // Where nothing else here protects saved passwords, the password now does: the keystore opens.
+      stores.secrets?.refresh?.();
       return tell();
     },
 
@@ -198,13 +203,20 @@ export function createProfilesService({ profile, stores, broadcast }) {
       return tell();
     },
 
-    /** ({ old }) -> current: the files plain again (the keychain still protects saved passwords), then the lock gone. */
+    /**
+     * ({ old }) -> current: the files plain again (the system's protection
+     * still wraps the keystore's key), then the lock gone. Where nothing but
+     * the password protected that key, the keystore is put aside first, and
+     * passwords are not kept from then on (profile-keystore.js).
+     */
     removePassword: async ({ old } = {}) => {
       mustBeHere();
       if (!profile.lock) return current();
       if (!(await unlock(profile.lock, old))) throw new Error('The current password is not right.');
+      stores.secrets?.beforePasswordGoes?.();
       await stores.vault.prepare?.(null);
       profile.lock = await rekeyProfile({ base, id: profile.id, vault: stores.vault, from: null, to: null, lock: null, folder: stores.dir });
+      stores.secrets?.refresh?.();
       return tell();
     },
   };
