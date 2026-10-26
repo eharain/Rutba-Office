@@ -15,7 +15,7 @@ import { InspectDialog } from '../inspect.js';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, useTheme, menuItems, Input, t, tn } from '@rutba/office-ui';
 import { cellInk, edgeInk } from '@rutba/office-ui/contrast';
 import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
-import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, pickSaveOtherForm, otherFormLabel, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { TemplateHelp } from '../template-help.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
@@ -259,7 +259,7 @@ export default function Sheets({ app, shell, boot }) {
   });
   // File → Save as Template, from the menu made before `save` is.
   const saveRef = useRef(null);
-  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.(), extra: doc ? [{ label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) }, protection.menuItem, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'sheets', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
+  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.(), extra: doc ? [{ label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) }, { label: otherFormLabel('sheets', doc), icon: 'save', run: async () => { const picked = await pickSaveOtherForm(shell, 'sheets', doc); if (picked) saveRef.current?.(true, picked.target, picked.conformance); } }, protection.menuItem, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'sheets', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
 
   const dispatch = useCallback(
     async (...ops) => {
@@ -472,7 +472,7 @@ export default function Sheets({ app, shell, boot }) {
   }, [shell, doc]);
 
   const save = useCallback(
-    async (as = false, given = null) => {
+    async (as = false, given = null, conformance = null) => {
       if (!doc) return false;
       let target = given || doc.path;
       // An old file this cannot write back (WK1, XLS, DBF, MDB and the like):
@@ -481,12 +481,13 @@ export default function Sheets({ app, shell, boot }) {
       const cannotWrite = Boolean(doc.converted?.from) && !doc.converted.writesBack;
       if (!given && (as || !target || cannotWrite)) {
         const named = doc.path || doc.name;
-        target = await pickSave(shell, 'sheets', cannotWrite && named ? named.replace(/\.[^.\\/]+$/, '') + '.xlsx' : named);
+        target = await pickSave(shell, 'sheets', cannotWrite && named ? named.replace(/\.[^.\\/]+$/, '') + '.xlsx' : named, doc.conformance);
         // A cancelled Save As is not a save; the caller must know.
         if (!target) return false;
       }
       try {
-        const saved = await shell.doc.save({ id: doc.id, path: target });
+        // `conformance` is a Save As's choice of form; left out, the file keeps its own.
+        const saved = await shell.doc.save({ id: doc.id, path: target, ...(conformance ? { conformance } : {}) });
         // Written as a workbook, the file is no longer the old one it was opened from.
         setDoc((d) => ({ ...d, ...saved, dirty: false, converted: /\.(xlsx|xlsm|xltx)$/i.test(saved.path || '') ? null : d.converted }));
         shell.app.addRecent({ path: saved.path, app: 'sheets' }).catch(() => {});

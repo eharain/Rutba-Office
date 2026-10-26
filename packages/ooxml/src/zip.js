@@ -66,6 +66,7 @@ export class ZipEntry {
     /** original compressed bytes — the thing we write back when untouched */
     this.compressed = compressed;
     this._raw = null;
+    this._map = null;
     this.modified = false;
   }
 
@@ -73,13 +74,33 @@ export class ZipEntry {
   get data() {
     if (this._raw === null) {
       this._raw = this.method === 8 ? zlib.inflateRawSync(this.compressed) : Buffer.from(this.compressed);
+      this._mapped();
     }
     return this._raw;
+  }
+
+  /**
+   * Read through `fn`: the bytes, once inflated, are what `fn` makes of
+   * them, and the entry is still unchanged, so it writes its original bytes
+   * (a Strict part read as Transitional, strict.js). Mapped now when the
+   * bytes are already inflated, else when they are.
+   */
+  mapRead(fn) {
+    this._map = fn;
+    if (this._raw !== null) this._mapped();
+  }
+
+  _mapped() {
+    const fn = this._map;
+    if (!fn) return;
+    this._map = null;
+    this._raw = fn(this._raw);
   }
 
   /** Replacing the bytes is the only thing that marks an entry modified. */
   set data(buf) {
     const bytes = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+    this._map = null;
     this._raw = bytes;
     this.modified = true;
     this.uncompressedSize = bytes.length;
@@ -163,6 +184,8 @@ export async function inflateRawStream(compressed) {
 }
 
 const hasZlibInflate = typeof zlib?.inflateRawSync === 'function';
+/** Whether a part can be inflated where it is asked for; without, only `inflateEntries` can. */
+export const canInflateSync = hasZlibInflate;
 
 /**
  * Downstream code calls `.toString('utf8')` and friends on entry data, so on a
@@ -192,6 +215,7 @@ export async function inflateEntries(entries, { inflate } = {}) {
     entry._raw = useStream
       ? asHostBytes(await inflateRawStream(entry.compressed))
       : zlib.inflateRawSync(entry.compressed);
+    entry._mapped();
   }));
 }
 

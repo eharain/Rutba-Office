@@ -114,7 +114,7 @@ export const METHODS = {
     'viewport',     // ({ id, sheet, top, left, rows, cols }) -> { cells, geometry }
     'undo',         // ({ id }) -> { version, model }
     'redo',         // ({ id }) -> { version, model }
-    'save',         // ({ id, path }) -> { path, stat }
+    'save',         // ({ id, path, conformance? }) -> { path, stat, conformance }: 'strict' or 'transitional' chooses the form, the file's own when left out
     'export',       // ({ id, format, path, options }) -> { path }
     'search',       // ({ id, query, options }) -> [hit]
     'asset',        // ({ id, ref }) -> { url, type, name }

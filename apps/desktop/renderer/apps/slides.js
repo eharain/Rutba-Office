@@ -12,7 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, useWheelZoom, menuItems, t, tn, language } from '@rutba/office-ui';
 import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
-import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, pickSaveOtherForm, otherFormLabel, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { TemplateHelp } from '../template-help.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
@@ -504,7 +504,7 @@ export default function Slides({ app, shell, boot }) {
   });
   // File → Save as Template, from the menu made before `save` is.
   const saveRef = useRef(null);
-  const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.(), extra: doc && !presenterFor ? [protection.menuItem, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'slides', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
+  const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.(), extra: doc && !presenterFor ? [{ label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) }, { label: otherFormLabel('slides', doc), icon: 'save', run: async () => { const picked = await pickSaveOtherForm(shell, 'slides', doc); if (picked) saveRef.current?.(true, picked.target, picked.conformance); } }, protection.menuItem, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'slides', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
 
   const load = useCallback(
     async (next = index) => {
@@ -823,16 +823,17 @@ export default function Slides({ app, shell, boot }) {
   }, [shell, toast]);
 
   const save = useCallback(
-    async (as = false, given = null) => {
+    async (as = false, given = null, conformance = null) => {
       if (!doc) return false;
       let target = given || doc.path;
       if (!given && (as || !target)) {
-        target = await pickSave(shell, 'slides', doc.path || doc.name);
+        target = await pickSave(shell, 'slides', doc.path || doc.name, doc.conformance);
         // A cancelled Save As is not a save; the caller must know.
         if (!target) return false;
       }
       try {
-        const saved = await shell.doc.save({ id: doc.id, path: target });
+        // `conformance` is a Save As's choice of form; left out, the file keeps its own.
+        const saved = await shell.doc.save({ id: doc.id, path: target, ...(conformance ? { conformance } : {}) });
         setDoc((d) => ({ ...d, ...saved, dirty: false }));
         shell.app.addRecent({ path: saved.path, app: 'slides' }).catch(() => {});
         // What was saved is what this computer has now seen.
@@ -988,6 +989,8 @@ export default function Slides({ app, shell, boot }) {
       'file.new': { label: t('New'), icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'slides' }) },
       'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
       'file.save': { label: t('Save'), icon: 'save', key: 'Mod+S', run: () => save(false) },
+      // Save As, as Documents and Worksheets have it: a copy under a new name, Strict kept when the file is.
+      'file.saveAs': { label: t('Save as…'), icon: 'save', key: 'Mod+Shift+S', run: () => save(true) },
       'file.print': { label: t('Print…'), icon: 'print', key: 'Mod+P', global: true, when: () => !presentRef.current, run: () => setPrinting(true) },
       'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', run: () => actRef.current?.('undo') },
       'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', run: () => actRef.current?.('redo') },

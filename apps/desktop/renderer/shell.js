@@ -242,8 +242,40 @@ export async function openWindowMenu(e, menu, shell, { hiddenOnly = false, toast
   })));
 }
 
-export async function pickSave(shell, appKey, defaultPath) {
-  return shell.dialog.save({ title: t('Save as'), filters: filtersInLanguage(saveFilters(appKey)), defaultPath });
+/**
+ * The two forms of Open XML Documents, Worksheets and Presentations save,
+ * named as Word, Excel and PowerPoint name them: the usual one and
+ * ISO/IEC 29500 Strict.
+ */
+const OPEN_XML = {
+  word: { ext: 'docx', usual: () => t('Word Document (.docx)'), strict: () => t('Strict Open XML Document (.docx)'), asUsual: () => t('Save as Word Document…'), asStrict: () => t('Save as Strict Open XML Document…') },
+  sheets: { ext: 'xlsx', usual: () => t('Excel Workbook (.xlsx)'), strict: () => t('Strict Open XML Spreadsheet (.xlsx)'), asUsual: () => t('Save as Excel Workbook…'), asStrict: () => t('Save as Strict Open XML Spreadsheet…') },
+  slides: { ext: 'pptx', usual: () => t('PowerPoint Presentation (.pptx)'), strict: () => t('Strict Open XML Presentation (.pptx)'), asUsual: () => t('Save as PowerPoint Presentation…'), asStrict: () => t('Save as Strict Open XML Presentation…') },
+};
+
+/**
+ * Save As. A Strict file is saved as Strict, and the dialog names the form
+ * so: its Open XML filter called what Word, Excel or PowerPoint calls Strict.
+ */
+export async function pickSave(shell, appKey, defaultPath, conformance = null) {
+  const form = OPEN_XML[appKey];
+  const filters = filtersInLanguage(saveFilters(appKey)).map((f) => (form && conformance === 'strict' && f.extensions[0] === form.ext ? { ...f, name: form.strict() } : f));
+  return shell.dialog.save({ title: t('Save as'), filters, defaultPath });
+}
+
+/** File → Save as the other form's words: Strict for a file in the usual form, the usual form for a Strict one. */
+export function otherFormLabel(appKey, doc) {
+  const form = OPEN_XML[appKey];
+  return doc?.conformance === 'strict' ? form.asUsual() : form.asStrict();
+}
+
+/** File → Save as the other form: { target, conformance }, or null when the dialog is cancelled. */
+export async function pickSaveOtherForm(shell, appKey, doc) {
+  const form = OPEN_XML[appKey];
+  const strict = doc?.conformance !== 'strict';
+  const base = String(doc?.path || doc?.name || '').replace(/\.[^.\\/]+$/, '') || 'Untitled';
+  const target = await shell.dialog.save({ title: t('Save as'), filters: [{ name: strict ? form.strict() : form.usual(), extensions: [form.ext] }], defaultPath: `${base}.${form.ext}` });
+  return target ? { target, conformance: strict ? 'strict' : 'transitional' } : null;
 }
 
 /** Each app's template, by the name Office gives it. */

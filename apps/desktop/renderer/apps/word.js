@@ -16,7 +16,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { flushSync } from 'react-dom';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, Panel, useToast, useMenu, useCommands, useWheelZoom, menuItems, formatWhen, t, tn } from '@rutba/office-ui';
 import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
-import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, pickSaveOtherForm, otherFormLabel, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows } from '../shell.js';
 import { TemplateHelp } from '../template-help.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
@@ -380,6 +380,8 @@ export default function Word({ app, shell, boot }) {
     // the menu, not only from Ctrl+Shift+S.
     extra: doc ? [
       { label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) },
+      // Strict Open XML beside the usual form, as Word offers it; a Strict file offers the usual form.
+      { label: otherFormLabel('word', doc), icon: 'save', run: async () => { const picked = await pickSaveOtherForm(shell, 'word', doc); if (picked) saveRef.current?.(true, picked.target, picked.conformance); } },
       { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'word', doc?.name); if (target) saveRef.current?.(true, target); } },
       protection.menuItem,
     ] : [],
@@ -494,16 +496,17 @@ export default function Word({ app, shell, boot }) {
   }, []);
 
   const save = useCallback(
-    async (as = false, given = null) => {
+    async (as = false, given = null, conformance = null) => {
       if (!doc) return false;
       let target = given || doc.path;
       if (!given && (as || !target)) {
-        target = await pickSave(shell, 'word', doc.path || doc.name);
+        target = await pickSave(shell, 'word', doc.path || doc.name, doc.conformance);
         // A cancelled Save As is not a save; the caller must know.
         if (!target) return false;
       }
       try {
-        const saved = await shell.doc.save({ id: doc.id, path: target });
+        // `conformance` is a Save As's choice of form; left out, the file keeps its own.
+        const saved = await shell.doc.save({ id: doc.id, path: target, ...(conformance ? { conformance } : {}) });
         setDoc((d) => ({ ...d, ...saved, dirty: false }));
         shell.app.addRecent({ path: saved.path, app: 'word' }).catch(() => {});
         toast(t('Saved {name}', { name: saved.path.split(/[\\/]/).pop() }), { tone: 'good' });

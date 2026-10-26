@@ -19,7 +19,7 @@
 //     relationship, inserted text kept and deleted text left out;
 //   - the last section's page size, orientation and margins.
 
-import { readZip } from '@rutba/ooxml/zip';
+import { OoxmlPackage } from '@rutba/ooxml';
 import { parse, all, kids, first, textOf } from './xml.js';
 
 const twipsPx = (v) => (v == null || v === '' ? null : Number(v) / 15);
@@ -178,8 +178,8 @@ function readNumbering(root) {
  * and `defaults.run`, the look every run has unless it says otherwise.
  */
 export function readDocxDocument(bytes) {
-  const { entries } = readZip(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes));
-  const byName = new Map(entries.map((e) => [e.name, e]));
+  // Read through the package, so a Strict document reads as Transitional does (strict.js).
+  const { byName } = OoxmlPackage.read(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes));
   const text = (name) => (byName.has(name) ? byName.get(name).data.toString('utf8') : '');
   const docXml = text('word/document.xml');
   if (!docXml) throw new Error('Word document has no word/document.xml');
