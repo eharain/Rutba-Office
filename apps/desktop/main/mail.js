@@ -1639,7 +1639,14 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      * adds nothing, because a message's id is derived from the message.
      */
     import: ({ path: target, accountId, folders: only }) => {
-      const account = accountId ? find(accountId) : null;
+      // The same file imported again goes into the mailbox made from it the first time (A6.17):
+      // a second mailbox would hold every message twice, and "adds nothing" held only within one.
+      const samePath = (p) => {
+        const norm = (x) => path.resolve(String(x || ''));
+        return process.platform === 'win32' ? norm(p).toLowerCase() === norm(target).toLowerCase() : norm(p) === norm(target);
+      };
+      const earlier = accountId ? null : accounts().find((a) => a.local && a.imported && samePath(a.imported)) || null;
+      const account = accountId ? find(accountId) : earlier;
       const id = account
         ? account.id
         : (() => {
@@ -1678,17 +1685,17 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       }
       flush();
 
-      store.setFolders(
-        id,
-        [...seenFolders.entries()].map(([folderPath, meta]) => ({
-          path: folderPath,
-          name: folderPath.split('/').pop() || folderPath,
-          ...meta,
-        }))
-      );
+      // Into a mailbox that has folders already (imported before, or chosen): the ones it had are kept.
+      const had = account ? store.folders(id) || [] : [];
+      const seen = [...seenFolders.entries()].map(([folderPath, meta]) => ({
+        path: folderPath,
+        name: folderPath.split('/').pop() || folderPath,
+        ...meta,
+      }));
+      store.setFolders(id, [...had.map((f) => seen.find((s) => s.path === f.path) || f), ...seen.filter((s) => !had.some((f) => f.path === s.path))]);
 
       broadcast?.('mail:new', { accountId: id, count });
-      return { accountId: id, messages: count, folders: seenFolders.size };
+      return { accountId: id, messages: count, folders: seenFolders.size, again: Boolean(earlier) };
     },
 
     export: ({ accountId, folder, path: target, format = 'mbox' }) => {

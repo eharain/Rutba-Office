@@ -672,7 +672,8 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onSeveral, toast 
         provider: { id: entry.id, label: entry.tileLabel || entry.label, domain: entry.domain },
         oauth: entry.oauth || null,
         appPassword: entry.appPassword || null,
-        note: entry.note || t("{provider}'s servers, filled in — nothing was searched.", { provider: entry.tileLabel || entry.label }),
+        // "The servers for": a tile named for several services ("Outlook, Hotmail and Microsoft 365") reads as one sentence.
+        note: entry.note || t('The servers for {provider} are filled in. Nothing was searched.', { provider: entry.tileLabel || entry.label }),
         steps: [],
       });
       set({

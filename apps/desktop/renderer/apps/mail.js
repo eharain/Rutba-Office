@@ -1046,7 +1046,9 @@ export default function Mail({ app, shell }) {
         const result = await shell.mail.import({ path: target, folders: chosen });
         await loadAccounts();
         setAccountId(result.accountId);
-        toast(t('Imported {messages} into {folders}', { messages: tn(result.messages, '{count} message', '{count} messages'), folders: tn(result.folders, '{count} folder', '{count} folders') }), { tone: 'good', ms: 6000 });
+        // A file imported before goes into the same mailbox, and only what it did not hold is added.
+        if (result.again) toast(t('This file was imported before, into the same mailbox: {messages} added', { messages: tn(result.messages, '{count} new message', '{count} new messages') }), { tone: 'good', ms: 6000 });
+        else toast(t('Imported {messages} into {folders}', { messages: tn(result.messages, '{count} message', '{count} messages'), folders: tn(result.folders, '{count} folder', '{count} folders') }), { tone: 'good', ms: 6000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 7000 });
       } finally {
@@ -1754,6 +1756,8 @@ export default function Mail({ app, shell }) {
                   icon="word"
                   label={t('Signature')}
                   disabled={!account}
+                  // Greyed in All accounts: said why, rather than left to be guessed.
+                  title={account ? undefined : t('Signature: choose one account first. Each account has its own signature.')}
                   onClick={() => setDialog({ kind: 'signature', accountId: account.id })}
                 />
                 <Button
@@ -1762,6 +1766,7 @@ export default function Mail({ app, shell }) {
                   label={account?.autoReply?.enabled ? t('Out of office (on)') : t('Out of office')}
                   pressed={Boolean(account?.autoReply?.enabled)}
                   disabled={!account}
+                  title={account ? undefined : t('Out of office: choose one account first. Each account has its own automatic replies.')}
                   onClick={() => setDialog({ kind: 'ooo', accountId: account.id })}
                 />
                 <Button
@@ -1769,6 +1774,7 @@ export default function Mail({ app, shell }) {
                   icon="trash"
                   label={t('Remove')}
                   disabled={!account}
+                  title={account ? undefined : t('Remove: choose the account to remove first.')}
                   onClick={() => removeAccount(account)}
                 />
               </Group>
