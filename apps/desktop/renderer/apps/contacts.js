@@ -245,6 +245,8 @@ export default function Contacts({ app, shell, boot }) {
   useCommands(commands, [selected, draft]);
 
   const title = peek ? `${peek.name} (${peek.contacts.length})` : tn(contacts.length, '{count} contact', '{count} contacts');
+  // Why a card's buttons are greyed, said on them: a file's cards are not kept yet, or none is chosen.
+  const cardWhy = peek ? t('These cards are from a file and not kept yet') : !selected ? t('Choose a contact first') : null;
 
   /* ── the card ─────────────────────────────────────────────────────────── */
 
@@ -395,13 +397,13 @@ export default function Contacts({ app, shell, boot }) {
                 <Button tall icon="plus" label={t('New contact')} onClick={startNew} />
               </Group>
               <Group label={t('Card')}>
-                <Button tall icon="textbox" label={t('Edit')} onClick={edit} disabled={!selected || Boolean(peek)} />
-                <Button tall icon="trash" label={t('Delete')} onClick={remove} disabled={!selected || Boolean(peek)} />
-                <Button tall icon="send" label={t('Send mail')} onClick={() => writeTo(selected?.emails?.[0]?.value)} disabled={!selected?.emails?.length} />
+                <Button tall icon="textbox" label={t('Edit')} title={cardWhy || undefined} onClick={edit} disabled={!selected || Boolean(peek)} />
+                <Button tall icon="trash" label={t('Delete')} title={cardWhy || undefined} onClick={remove} disabled={!selected || Boolean(peek)} />
+                <Button tall icon="send" label={t('Send mail')} title={!selected ? t('Choose a contact first') : !selected.emails?.length ? t('This card has no email address') : undefined} onClick={() => writeTo(selected?.emails?.[0]?.value)} disabled={!selected?.emails?.length} />
               </Group>
               <Group label={t('Files')}>
                 <Button tall icon="import" label={t('Import')} title={t('A .vcf or .csv from another program')} onClick={() => importFile()} />
-                <Button tall icon="export" label={t('Export')} title={t('All cards as a .vcf')} onClick={exportAll} disabled={!contacts.length} />
+                <Button tall icon="export" label={t('Export')} title={contacts.length ? t('All cards as a .vcf') : t('There are no cards to export yet')} onClick={exportAll} disabled={!contacts.length} />
               </Group>
               <Group label={t('Accounts')}>
                 <Button tall icon="globe" label={t('Accounts')} title={t('Accounts — a CalDAV or CardDAV server (iCloud, Fastmail, Nextcloud and the like) kept in step with this computer')} onClick={() => setAccountsOpen(true)} />
