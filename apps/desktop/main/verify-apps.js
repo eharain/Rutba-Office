@@ -145,6 +145,8 @@ import { verifyVideoPane } from './verify-video-pane.js';
 import { verifyPolishPass } from './verify-polish-pass.js';
 import { verifyCalendarMonth } from './verify-calendar-month.js';
 import { verifyCalendarMultiDay } from './verify-calendar-multiday.js';
+import { verifyCalendarFixes } from './verify-calendar-fixes.js';
+import { verifyContactsImport } from './verify-contacts-import.js';
 import { verifyMailServerOoo } from './verify-mail-server-ooo.js';
 import { verifyMailAccountsManager } from './verify-mail-accounts-manager.js';
 import { verifySheetDark } from './verify-sheet-dark.js';
@@ -5064,6 +5066,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('polish')) await verifyPolishPass({ open, check, until, wait }, { dir });
     if (only.includes('calendar-month')) await verifyCalendarMonth({ open, check, until, wait }, { dir });
     if (only.includes('calendar-multiday')) await verifyCalendarMultiDay({ open, check, until, wait }, { dir });
+    if (only.includes('calendar-fixes')) await verifyCalendarFixes({ open, check, until, wait, errorsIn });
+    if (only.includes('contacts-import')) await verifyContactsImport({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('mail-server-ooo')) await verifyMailServerOoo({ open, check, until, wait, errorsIn });
     if (only.includes('mail-accounts-manager')) await verifyMailAccountsManager({ open, check, until, wait, errorsIn });
     if (only.includes('sheet-dark')) await verifySheetDark({ open, check, until, wait }, { dir });
@@ -5601,6 +5605,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('sheets', () => verifySheetPivotFields({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetLists({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('calendar', () => verifyDav({ open, check, until, wait, errorsIn }));
+  await part('calendar', () => verifyCalendarFixes({ open, check, until, wait, errorsIn }));
+  await part('calendar', () => verifyContactsImport({ open, check, until, wait, errorsIn }, { dir }));
   await part('shell', () => verifyThesaurus({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDesignIdeas({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetQueries({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
