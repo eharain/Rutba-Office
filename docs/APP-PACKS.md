@@ -172,8 +172,9 @@ The others are window code of a few hundred kilobytes.
   becomes a dependency shared by two packs, which the core then holds; it
   stays in the core either way.
 - *What the archive carries and nothing in the main process reaches*: the
-  folders of engines the windows alone use (their code is in the bundle)
-  and `mailparser`, which nothing imports. Listed at the end of the tables.
+  folders of engines the windows alone use (their code is in the bundle).
+  Listed at the end of the tables. `mailparser`, which nothing imported,
+  is no longer a dependency.
 
 <!-- app-map:begin -->
 ### The packs
@@ -195,9 +196,9 @@ Sizes as shipped before compression: the window code minified as the build makes
 | Contacts (`contacts`) | 34 KB | 19 KB | 14 KB | 0 KB | 0 KB | 0 KB | none | none | Mail | vcf | contacts (11) | none | 0 |
 | Data Files (`base`) | 4.1 MB | 201 KB | 100 KB | 2.5 MB | 1.3 MB | 0 KB | none | none | none | rbase | base (84) | none | 19 |
 | Talk (`talk`) | 80 KB | 43 KB | 37 KB | 0 KB | 0 KB | 0 KB | none | Contacts, Mail | Mail | none | talk (21) | none | 4 |
-| AI Tools (`ai`) | 164 KB | 12 KB | 58 KB | 95 KB | 0 KB | 0 KB | Text recognition (1) | none | none | none | ai (6) | list_folders, list_files, read_file, list_templates, create_from_template | 1 |
+| AI Tools (`ai`) | 165 KB | 12 KB | 58 KB | 95 KB | 0 KB | 0 KB | Text recognition (1) | none | none | none | ai (6) | list_folders, list_files, read_file, list_templates, create_from_template | 1 |
 | Text recognition (`ocr`) | 15.3 MB | 13 KB | 3 KB | 15.3 MB | 0 KB | 0 KB | none | none | none | none | ocr (4) | read_text_in_picture | 3 |
-| **Core** | 22.6 MB | 5.5 MB | 458 KB | 11.0 MB | 5.6 MB | 0 KB | | | | | app, win, fs, thumbs, dialog, shell, store, doc, dav, update, defaults, oauth, announce, print, profiles, packs, clipboard, capture (160) |  | 60 |
+| **Core** | 22.6 MB | 5.5 MB | 459 KB | 11.0 MB | 5.6 MB | 0 KB | | | | | app, win, fs, thumbs, dialog, shell, store, doc, dav, update, defaults, oauth, announce, print, profiles, packs, clipboard, capture (160) |  | 60 |
 
 All together: 52.7 MB. The window checks (`main/verify-*.js` and the smoke and screens runs, 3.5 MB) are not in these sizes.
 
@@ -269,7 +270,6 @@ electron-builder copies the folder of every dependency `apps/desktop/package.jso
 | @rutba/barcode | 27 KB | the windows only: bundled |
 | @rutba/media | 80 KB | the windows only: bundled |
 | @rutba/studio | 901 KB | the windows only: bundled |
-| mailparser | 4.8 MB | reached by nothing |
 
 ### The imports to cut (38)
 
@@ -708,6 +708,20 @@ the map's fixture shrinks as the cuts are made.
    folder). A packaged core holds only the release key, so a development
    pack never loads in an installed copy.
 
+   *Built, otherwise.* `npm start` runs with every app built in, as before.
+   The packs' window checks (`npm run verify:packs`,
+   `build/verify-packs-run.js` and `main/verify-packs.js`) make every pack
+   with a key made for the run and thrown away after it, hand the core its
+   public half (`RUTBA_PACK_PUBLIC_KEY`), and start Rutba Office twice over
+   one profile and a packs folder of Documents, Mail and AI Tools
+   (`RUTBA_PACKS_DIR`). The first start checks that an app not there has no
+   channel in the main process or the window, no tile and no window (its
+   file opens the launcher, which says it is not installed), and that the AI
+   tools follow; then Add or remove apps adds Calendar from a folder of the
+   release's pack files (`RUTBA_PACKS_SOURCE`) and removes Mail. The second
+   start has Calendar and not Mail, and Mail's files are gone. A release
+   build reads `RUTBA_PACK_KEY_FILE`.
+
 ### 5.2 The apps, in this order
 
 From the map: least entangled first, the shared code moved to the core as
@@ -889,6 +903,32 @@ computer would not load and why.
 4. **The installer.** An install with a short list of apps writes those
    packs and registers only their file types; an uninstall leaves no file
    type behind.
+
+*Built.* `node tools/check-packs.mjs` after `npm run dist` reads the
+packaged core (`release/win-unpacked/resources/app.asar`, or `--core`),
+the packs the installer carries (`build/packs/out`) and its include
+(`build/packs/installer-packs.nsh`), and exits 1 on a failure:
+
+- **The core's files by owner**, by the map's owners: the main process's
+  files, the window chunks by the app each is named after, the tiles, and
+  each engine and npm package by who reaches it (an npm package's own
+  dependencies go with it). A pack whose main module still registers the
+  core's own code is reported with how much of it the core holds; a pack
+  that carries its code fails while the core holds any file of it. The
+  window checks (`main/verify-*.js`, `main/screen-*.js`) in the core fail
+  too.
+- **Each pack alone**, copied into a folder of its own and planned as a
+  start plans it with the core's keys and version: it loads exactly
+  itself; the channels and events are the core's and its own; the windows
+  are told of it alone; its tiles, kinds of file and AI tools are its own;
+  the Open dialog offers its kinds of file only; no AI tool is offered
+  without AI Tools, and with AI Tools its own are.
+- **The installer's part for each pack** writes that pack's three things
+  only, its manifest among them, and registers its kinds of file only.
+
+Starting the running core with one pack, and installing with a short list,
+are the window checks' part (`main/verify-packs.js`) and the installer run
+at release.
 
 ### 5.7 The riskiest parts
 

@@ -22,6 +22,7 @@
     "verify:edit": "node build/bundle.js && node build/verify-edit-run.js",
     "verify:apps": "node build/bundle.js && node build/verify-apps-run.js",
     "verify:corpus": "node build/bundle.js && node build/verify-corpus-run.js",
+    "verify:packs": "node build/bundle.js && node build/verify-packs-run.js",
     "screens": "node build/bundle.js && node build/make-screens.js"
   },
   "dependencies": {
@@ -50,7 +51,6 @@
     "@rutba/templates": "*",
     "electron-updater": "^6.8.9",
     "imapflow": "^2.4.3",
-    "mailparser": "^3.9.39",
     "mysql2": "3.24.6",
     "nodemailer": "^10.1.1",
     "pg": "8.23.1"

@@ -236,6 +236,7 @@ import { verifyMailJunk } from './verify-mail-junk.js';
 import { verifyMailLinks } from './verify-mail-links.js';
 import { verifyAiTools } from './verify-ai-tools.js';
 import { verifyProfiles } from './verify-profiles.js';
+import { verifyPacks } from './verify-packs.js';
 import { verifyMailWindow } from './verify-mail-window.js';
 import { verifyMailDrafts } from './verify-mail-drafts.js';
 import { verifyMailArchive } from './verify-mail-archive.js';
@@ -5194,6 +5195,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('mail-links')) await verifyMailLinks({ open, check, until, wait, errorsIn });
     if (only.includes('ai-tools')) await verifyAiTools({ open, check, until, wait, errorsIn });
     if (only.includes('profiles')) await verifyProfiles({ open, check, until, wait, capture: shotTo });
+    if (only.includes('packs')) await verifyPacks({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('mail-window')) await verifyMailWindow({ open, check, until, wait, errorsIn });
     if (only.includes('mail-drafts')) await verifyMailDrafts({ open, check, until, wait, errorsIn });
     if (only.includes('mail-archive')) await verifyMailArchive({ open, check, until, wait, errorsIn });
