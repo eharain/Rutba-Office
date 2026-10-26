@@ -45,6 +45,9 @@ export function installPackResolution({ packsDir, coreFile }) {
       } catch (err) {
         const from = String(context.parentURL || '').toLowerCase();
         if (!isBare(specifier) || !state || !from.startsWith(state.prefix)) throw err;
+        // A require() is resolved from the module that made it whatever the
+        // context says, so the core's own require answers it.
+        if (context.conditions?.includes('require')) return { url: pathToFileURL(module.createRequire(state.core).resolve(specifier)).href, shortCircuit: true };
         return nextResolve(specifier, { ...context, parentURL: state.core });
       }
     },

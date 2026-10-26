@@ -721,8 +721,11 @@ the map's fixture shrinks as the cuts are made.
      a `module.registerHooks` resolve hook, set before the packs are
      registered) answers a bare import from inside the packs folder that
      fails as if the core's main module had made it. The pack gets the
-     core's own copy, the one the rest of the run shares. A relative
-     import a pack cannot answer stays an error.
+     core's own copy, the one the rest of the run shares. A `require()`
+     (Mail's PDF writer requires `@rutba/pdf`) is answered by the core's
+     own require, as Node resolves a require from the module that made it
+     whatever the hook is told. A relative import a pack cannot answer
+     stays an error.
    - **Copying the app in, and leaving it out of the core.**
      `build/pack-contents.js` reads the map and the renderer's list and
      works out what the app takes with it:

@@ -211,10 +211,14 @@ test('a module in a pack that imports a package it does not carry gets the core\
   fs.writeFileSync(path.join(main, 'uses-core.mjs'), "export { PACKS } from '@rutba/office-shell/contract';\n");
   fs.writeFileSync(path.join(main, 'misses-file.mjs'), "export * from './not-here.mjs';\n");
   fs.writeFileSync(path.join(main, 'misses-package.mjs'), "export * from 'no-such-package-anywhere';\n");
+  // A require() of one, as Mail's PDF writer requires @rutba/pdf, gets the core's too.
+  fs.writeFileSync(path.join(main, 'requires-core.mjs'), "import { createRequire } from 'node:module';\nexport const pdf = createRequire(import.meta.url)('@rutba/pdf');\n");
   installPackResolution({ packsDir, coreFile: path.join(ROOT, 'apps', 'desktop', 'main', 'main.js') });
   const { PACKS } = await import(pathToFileURL(path.join(main, 'uses-core.mjs')).href);
   const core = await import('@rutba/office-shell/contract');
   assert.equal(PACKS, core.PACKS, 'the very module the core has, not a second copy');
+  const { pdf } = await import(pathToFileURL(path.join(main, 'requires-core.mjs')).href);
+  assert.equal(typeof pdf.Sheet, 'function');
   await assert.rejects(import(pathToFileURL(path.join(main, 'misses-file.mjs')).href), /not-here\.mjs/);
   await assert.rejects(import(pathToFileURL(path.join(main, 'misses-package.mjs')).href), /no-such-package-anywhere/);
 });
