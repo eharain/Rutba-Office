@@ -9,7 +9,8 @@
 // and gets every calendar's, expanded, with the recurring ones' exceptions
 // applied; a file opened from disk is shown without being kept until the
 // person says so; an invitation gets its answer written as the reply the
-// organizer's calendar reads.
+// organizer's calendar reads, and the answer is remembered (`answers`, by
+// UID), so the invitation opened again says what was answered.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -89,6 +90,35 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
   };
   // `ai`: what the AI tools may do with the calendar (mcp/reach.js), kept with it; Off until chosen.
   const listed = () => state.calendars.map((c) => ({ id: c.id, name: c.name, colour: c.colour, visible: c.visible !== false, count: c.events.length, account: c.remote?.account || null, ai: c.ai || 'off' }));
+  /**
+   * This person's answer to an invitation already given: the one remembered
+   * when it was answered here, or their line in the event kept from it (an
+   * answer from before answers were remembered, or from another device).
+   * Not for a later version of the invitation (a higher SEQUENCE): that one
+   * asks again, as a changed meeting does. Answers { partstat, email }, the
+   * email being the line answered for (the first, when no mail account here
+   * is among the people invited), or null.
+   */
+  const answeredBefore = (invitation, email) => {
+    const sequence = invitation.sequence || 0;
+    const said = invitation.uid ? state.answers?.[invitation.uid] : null;
+    if (said && sequence <= (said.sequence || 0)) return { partstat: said.partstat, email: said.email || null };
+    if (!email) return null;
+    for (const cal of state.calendars) {
+      const kept = cal.events.find((e) => e.uid && e.uid === invitation.uid && !e.recurrenceId);
+      const line = kept?.attendees?.find((a) => String(a.email || '').toLowerCase() === String(email).toLowerCase());
+      if (line?.partstat && line.partstat !== 'NEEDS-ACTION' && sequence <= (kept.sequence || 0)) return { partstat: line.partstat, email: line.email };
+    }
+    return null;
+  };
+  /** An answer kept by the invitation's UID; the oldest go past a thousand. */
+  const remember = (event, partstat, email) => {
+    if (!event.uid) return;
+    const answers = { ...(state.answers || {}), [event.uid]: { partstat, email: email || null, sequence: event.sequence || 0, at: Date.now() } };
+    const uids = Object.keys(answers);
+    if (uids.length > 1000) for (const uid of uids.sort((a, b) => answers[a].at - answers[b].at).slice(0, uids.length - 1000)) delete answers[uid];
+    state.answers = answers;
+  };
   const calendarOf = (id) => state.calendars.find((c) => c.id === id) || null;
   const find = (eventId) => {
     for (const cal of state.calendars) {
@@ -262,6 +292,8 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
       const mine = myAddresses();
       const invitation = isInvitation(cal) ? cal.events[0] : null;
       const me = invitation ? invitation.attendees.find((a) => mine.includes(String(a.email || '').toLowerCase())) || null : null;
+      // The file still says NEEDS-ACTION once it is answered: the answer given is what it says now.
+      const answered = invitation ? answeredBefore(invitation, me?.email) : null;
       return {
         path: target,
         name,
@@ -269,7 +301,7 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
         count: cal.events.length,
         events: from != null && to != null ? expand(temp, from, to, name) : [],
         first: cal.events[0] ? present(temp, temp.events[0]) : null,
-        invitation: invitation ? { summary: invitation.summary, organizer: invitation.organizer, start: invitation.start, end: invitation.end, allDay: invitation.allDay, me: me ? { email: me.email, partstat: me.partstat } : null } : null,
+        invitation: invitation ? { summary: invitation.summary, organizer: invitation.organizer, start: invitation.start, end: invitation.end, allDay: invitation.allDay, me: me ? { email: me.email, partstat: answered?.partstat || me.partstat } : answered ? { email: answered.email, partstat: answered.partstat } : null } : null,
       };
     },
 
@@ -330,6 +362,7 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
         if (existing) { cal.events = cal.events.filter((x) => x !== existing); forget(cal, existing); }
       } else if (existing) { Object.assign(existing, kept, { id: existing.id, updatedAt: now, remote: existing.remote }); touch(cal, existing.uid); }
       else { cal.events.push({ ...kept, id: crypto.randomUUID(), createdAt: now, updatedAt: now }); touch(cal, kept.uid); }
+      remember(event, answer, me?.email);
       save();
       const reply = me ? writeReply(kept, { email: me.email, name: me.name, partstat: answer }) : null;
       let replyPath = null;
@@ -344,6 +377,8 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
         organizer: event.organizer,
         subject: `${verb}: ${event.summary || 'Invitation'}`,
         replyPath,
+        // The file's size, for the message it goes on to show.
+        replySize: reply ? Buffer.byteLength(reply, 'utf8') : 0,
         me: me ? me.email : null,
       };
     },
@@ -358,7 +393,7 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
       const file = path.join(stores.dir, 'outgoing', `invite-${Date.now().toString(36)}.ics`);
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, text, 'utf8');
-      return { path: file, to: event.attendees.map((a) => a.email).filter(Boolean), subject: `Invitation: ${event.summary || 'Event'}` };
+      return { path: file, size: Buffer.byteLength(text, 'utf8'), to: event.attendees.map((a) => a.email).filter(Boolean), subject: `Invitation: ${event.summary || 'Event'}` };
     },
 
     // The sync's own way in (dav-sync.js): not a window's, so not in the shell's contract.

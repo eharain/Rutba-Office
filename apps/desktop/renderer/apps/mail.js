@@ -1112,7 +1112,7 @@ export default function Mail({ app, shell }) {
         const r = await shell.calendar.respond({ text: invitation.text, partstat });
         setInvitation((i) => (i ? { ...i, answered: partstat } : i));
         if (r.replyPath && r.organizer?.email) {
-          setCompose({ to: r.organizer.email, subject: r.subject, text: '', attachments: [{ filename: 'reply.ics', path: r.replyPath, size: 0 }] });
+          setCompose({ to: r.organizer.email, subject: r.subject, text: '', attachments: [{ filename: 'reply.ics', path: r.replyPath, size: r.replySize || 0 }] });
         }
         toast(r.kept ? t('Added to your calendar; the reply is ready to send.') : t('Declined; the reply is ready to send.'), { tone: 'good', ms: 6000 });
       } catch (err) {
@@ -1184,7 +1184,7 @@ export default function Mail({ app, shell }) {
     const q = new URLSearchParams(window.location.search);
     if (!q.get('to') && !q.get('attach')) return;
     const attach = q.get('attach');
-    setCompose({ to: q.get('to') || '', subject: q.get('subject') || '', text: '', attachments: attach ? [{ filename: attach.split(/[\\/]/).pop(), path: attach, size: 0 }] : [] });
+    setCompose({ to: q.get('to') || '', subject: q.get('subject') || '', text: '', attachments: attach ? [{ filename: attach.split(/[\\/]/).pop(), path: attach, size: Number(q.get('size')) || 0 }] : [] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
