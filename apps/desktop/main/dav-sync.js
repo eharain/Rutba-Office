@@ -72,6 +72,19 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
     const gone = new Set(state.books.filter((b) => b.account === acc.id && !hrefs.has(b.href)).map((b) => b.id));
     state.books = state.books.filter((b) => !gone.has(b.id));
     state.contacts = state.contacts.filter((c) => !gone.has(c.book));
+    defaultToABook();
+  }
+
+  /**
+   * Where a new card goes, until the person chooses: the first address book
+   * an account brought, once there is one, as Outlook puts new contacts in
+   * the account's. "This computer only", chosen, is kept as 'local'.
+   */
+  function defaultToABook() {
+    const state = con.state();
+    const books = state.books || [];
+    if (state.defaultBook === 'local' || books.some((b) => b.id === state.defaultBook)) return;
+    state.defaultBook = books[0]?.id || null;
   }
 
   /** One calendar: what changed here sent, then what changed there fetched. Answers counts. */
@@ -268,11 +281,24 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
       ]);
       if (!calendars.length && !books.length) throw new Error('No calendars or address books were found at that address.');
       const id = crypto.randomUUID();
-      const acc = { id, url: String(url).trim(), user, name: name || new URL(client.origin()).hostname, addedAt: Date.now(), calendars: calendars.length, books: books.length };
+      const acc = { id, url: String(url).trim(), user, name: String(name || '').trim() || new URL(client.origin()).hostname, addedAt: Date.now(), calendars: calendars.length, books: books.length };
       stores.secrets.set(secretKey(id), password);
       write([...read(), acc]);
       const [result] = await sync({ id });
       return { ...listed().find((a) => a.id === id), result };
+    },
+
+    /** Call an account something else: the name the person knows it by, not its server's. */
+    rename: ({ id, name }) => {
+      const list = read();
+      const acc = list.find((a) => a.id === id);
+      if (!acc) throw new Error('That account is no longer there.');
+      const named = String(name || '').trim();
+      if (!named) throw new Error('An account needs a name.');
+      acc.name = named;
+      write(list);
+      announce();
+      return listed().find((a) => a.id === id);
     },
 
     /** Take an account away, and the calendars and cards it brought. */
@@ -292,7 +318,7 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
         const books = new Set((state.books || []).filter((b) => b.account === id).map((b) => b.id));
         state.books = (state.books || []).filter((b) => !books.has(b.id));
         state.contacts = state.contacts.filter((c) => !books.has(c.book));
-        if (books.has(state.defaultBook)) state.defaultBook = null;
+        if (books.has(state.defaultBook)) { state.defaultBook = null; defaultToABook(); }
         con.save();
       }
       announce();
@@ -302,13 +328,13 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
     sync,
 
     /** The address books, and which one a new card goes to (null: this computer only). */
-    books: () => ({ books: (con?.state().books || []).map(({ id, name, account }) => ({ id, name, account })), defaultBook: con?.state().defaultBook || null }),
+    books: () => ({ books: (con?.state().books || []).map(({ id, name, account }) => ({ id, name, account })), defaultBook: con?.state().defaultBook === 'local' ? null : con?.state().defaultBook || null }),
 
     setDefaultBook: ({ id = null }) => {
       if (!con) return null;
-      con.state().defaultBook = id && (con.state().books || []).some((b) => b.id === id) ? id : null;
+      con.state().defaultBook = id && (con.state().books || []).some((b) => b.id === id) ? id : 'local';
       con.save();
-      return con.state().defaultBook;
+      return con.state().defaultBook === 'local' ? null : con.state().defaultBook;
     },
 
     stop: () => { clearInterval(every); clearTimeout(soon); },

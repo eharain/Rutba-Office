@@ -259,11 +259,12 @@ export const METHODS = {
   // Calendar and contacts accounts: CalDAV and CardDAV servers kept in step.
   dav: [
     'accounts',       // () -> [{ id, url, user, name, lastSync, lastError, calendars, books }]
-    'add',            // ({ url, user, password, name }) -> account, its calendars and cards brought in
+    'add',            // ({ url, user, password, name }) -> account, its calendars and cards brought in; named after its server when no name is given
+    'rename',         // ({ id, name }) -> account
     'remove',         // ({ id }) -> { removed }   its calendars and cards with it
     'sync',           // ({ id }) -> [{ id, sent, received, removed, conflicts } | { id, error }]
     'books',          // () -> { books, defaultBook }
-    'setDefaultBook', // ({ id }) -> id   where a new card goes; null for this computer only
+    'setDefaultBook', // ({ id }) -> id   where a new card goes; null for this computer only (until chosen, an account's first book)
   ],
   update: [
     'state',        // () -> { state, version, available, percent, automatic }

@@ -112,13 +112,18 @@ test('Cards: a new card goes to the address book chosen for new cards, a change 
   try {
     const book = server.bookPath('friends');
     await dav.add({ url: server.url, user: 'ann', password: 'secret' });
-    const local = contacts.save({ contact: { name: { full: 'Kept Here', given: 'Kept', family: 'Here' }, emails: [{ value: 'kept@example.com' }] } });
     const [{ id }] = dav.books().books;
+    assert.equal(dav.books().defaultBook, id, 'until one is chosen, new cards go to the account\'s book');
+    dav.setDefaultBook({ id: null });
+    assert.equal(dav.books().defaultBook, null);
+    const local = contacts.save({ contact: { name: { full: 'Kept Here', given: 'Kept', family: 'Here' }, emails: [{ value: 'kept@example.com' }] } });
+    await dav.sync();
+    assert.equal(dav.books().defaultBook, null, '"This computer only", chosen, stays chosen through a sync');
     dav.setDefaultBook({ id });
     const card = contacts.save({ contact: { name: { full: 'Ann Novak', given: 'Ann', family: 'Novak' }, emails: [{ value: 'ann@example.com' }], phones: [], addresses: [] } });
     await dav.sync();
     const items = () => [...server.collections.get(book).items.values()].map((i) => i.data);
-    assert.equal(items().length, 1, 'the card made before a book was chosen stays on this computer');
+    assert.equal(items().length, 1, 'the card made while this computer was chosen stays on this computer');
     assert.match(items()[0], /FN:Ann Novak/);
     contacts.save({ contact: { ...contacts.get({ id: card.id }), title: 'Editor' } });
     await dav.sync();
@@ -146,6 +151,33 @@ test('A wrong password is refused with why; removing an account takes away the c
     assert.deepEqual(calendar.calendars().map((c) => c.name), ['My calendar']);
     assert.deepEqual(contacts.list(), []);
     await assert.rejects(setup().dav.add({ url: 'http://example.com', user: 'a', password: 'b' }), /HTTPS/, 'plain HTTP only for this computer');
+  } finally {
+    await server.close();
+  }
+});
+
+test('An account is called what the person names it, renamed later, and its calendars keep their AI tools setting', async () => {
+  const server = await startDavServer();
+  const { calendar, contacts, dav } = setup();
+  try {
+    const plain = await dav.add({ url: server.url, user: 'ann', password: 'secret' });
+    assert.equal(plain.name, '127.0.0.1', 'with no name given, its server\'s');
+    dav.remove({ id: plain.id });
+    const added = await dav.add({ url: server.url, user: 'ann', password: 'secret', name: '  Family  ' });
+    assert.equal(added.name, 'Family');
+    const cal = calendar.calendars().find((c) => c.account === added.id);
+    calendar.saveCalendar({ calendar: { id: cal.id, ai: 'read' } });
+    const renamed = dav.rename({ id: added.id, name: 'Home' });
+    assert.equal(renamed.name, 'Home');
+    assert.deepEqual(dav.accounts().map((a) => a.name), ['Home']);
+    await dav.sync();
+    assert.deepEqual(dav.accounts().map((a) => a.name), ['Home'], 'a sync keeps the name');
+    assert.equal(calendar.calendars().find((c) => c.id === cal.id).ai, 'read');
+    assert.equal(dav.books().defaultBook, contacts.books().find((b) => b.server).id);
+    assert.throws(() => dav.rename({ id: added.id, name: ' ' }), /needs a name/);
+    assert.throws(() => dav.rename({ id: 'gone', name: 'X' }), /no longer there/);
+    dav.remove({ id: added.id });
+    assert.equal(dav.books().defaultBook, null, 'its book gone, new cards stay here');
   } finally {
     await server.close();
   }
