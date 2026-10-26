@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8101,
+  "count": 8140,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1056,6 +1056,12 @@
       ]
     },
     {
+      "message": "A folder name cannot hold \"{character}\".",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "A folder of my choosing…",
       "where": [
         "apps/desktop/renderer/apps/image/batch.js"
@@ -1282,6 +1288,12 @@
       "message": "A new list needs a name to be saved under.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A new name for {folder}",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -4458,6 +4470,18 @@
       "message": "As its words need",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "As mail arrives",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "As mail arrives: the mail server says at once when mail comes, where it can",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -10722,6 +10746,18 @@
       ]
     },
     {
+      "message": "Delete folder",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Delete folder…",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Delete inside the selection",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -10806,6 +10842,12 @@
       "message": "Delete the comment from {author}",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Delete the folder {folder}?",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -13310,6 +13352,13 @@
       ]
     },
     {
+      "message": "Every minute",
+      "plural": "Every {count} minutes",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Every month",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -13947,6 +13996,12 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Fetch by itself",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -17372,6 +17427,12 @@
       ]
     },
     {
+      "message": "How often Mail fetches new mail by itself, so rules and automatic replies run without Get mail",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "How often {table} is read",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
@@ -19226,6 +19287,12 @@
       ]
     },
     {
+      "message": "It is deleted here and at the server.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "It is not in your own folders: it may be another person's file or one of the computer's own. What is read goes into this database, and with it if it is sent on.",
       "where": [
         "apps/desktop/renderer/apps/base/trust.js"
@@ -19364,6 +19431,13 @@
       "message": "Its tables",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "Its {count} message is deleted for good, here and at the server.",
+      "plural": "Its {count} messages are deleted for good, here and at the server.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -21673,6 +21747,12 @@
       ]
     },
     {
+      "message": "Make folder",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Make the paper see-through",
       "where": [
         "apps/desktop/renderer/apps/pdf/fields.js"
@@ -23890,6 +23970,18 @@
       "message": "New field",
       "where": [
         "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "New folder",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "New folder…",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -26428,6 +26520,12 @@
       "message": "Only when it is not the address itself.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Only with Get mail",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -31564,6 +31662,7 @@
     {
       "message": "Rename",
       "where": [
+        "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -31581,6 +31680,18 @@
       "message": "Rename Section…",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Rename folder",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Rename folder…",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -40523,6 +40634,66 @@
       ]
     },
     {
+      "message": "The mail server would not change the marks. The messages show as the server has them.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
+      "message": "The mail server would not copy to {folder}. The copy made here is taken back.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
+      "message": "The mail server would not delete from {folder}. What it keeps is back in the folder.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
+      "message": "The mail server would not delete the folder {folder}. It comes back with the next fetch.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
+      "message": "The mail server would not keep a copy of your sent message in {folder}. The copy here is kept.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
+      "message": "The mail server would not make a change made here. Mail shows what the server has.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
+      "message": "The mail server would not make the folder {folder}.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
+      "message": "The mail server would not move the message to {folder}. It is back where the server keeps it.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
+      "message": "The mail server would not move {count} messages to {folder}. They are back where the server keeps them.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
+      "message": "The mail server would not rename the folder {folder}. It keeps its name.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/parts.js"
+      ]
+    },
+    {
       "message": "The mail server's certificate is not valid",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
@@ -40665,6 +40836,18 @@
       "message": "The name of the document's author, from its properties",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "The name of the folder to make in {folder}",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "The name of the new folder",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -41549,6 +41732,13 @@
       ]
     },
     {
+      "message": "The {count} folder inside it goes too.",
+      "plural": "The {count} folders inside it go too.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "The {count} result of the search {query}",
       "plural": "The {count} results of the search {query}",
       "where": [
@@ -41684,6 +41874,12 @@
       "message": "There are no slides to zoom to.",
       "where": [
         "apps/desktop/renderer/apps/slides/zoom.js"
+      ]
+    },
+    {
+      "message": "There is a folder called {name} there already.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -42568,10 +42764,22 @@
       ]
     },
     {
+      "message": "This mail service",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "This makes {count} file, in a folder you choose. This document is not changed.",
       "plural": "This makes {count} files, in a folder you choose. This document is not changed.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "This message does not offer one-click unsubscribe.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -44680,6 +44888,12 @@
     },
     {
       "message": "Unsubscribe request queued.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Unsubscribe request sent to {host}.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
       ]
@@ -50402,6 +50616,12 @@
       ]
     },
     {
+      "message": "{folder} is deleted.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "{font} (theme)",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -50424,6 +50644,18 @@
       "message": "{group} — {name} (exit), {trigger}",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "{host} could not be reached. Try again later.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "{host} did not accept the request. Try again later, or use the link in the message.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -51225,6 +51457,12 @@
       "message": "{pen} — draw over the cells",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "{provider} does not let other programs send its automatic replies. Rutba Office can send them instead.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
