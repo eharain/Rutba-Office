@@ -8,6 +8,10 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, t, tn, language } from '@rutba/office-ui';
 import { CONDITION_RULES, ruleSpec, validationSpec } from './rule-specs.js';
+import { FUNCTION_CATALOG } from '@rutba/formula';
+
+/** What each function takes and does, by name, from the engine's own catalogue. */
+const FUNCTION_HELP = new Map(FUNCTION_CATALOG.map((f) => [f.name, f]));
 
 /* ── number formats ──────────────────────────────────────────────────────── */
 
@@ -415,9 +419,9 @@ export function GoToDialog({ onClose, onGo, names = [] }) {
           <Input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onGo(text.trim()); }} autoFocus placeholder="C12" />
         </Field>
         {names.length ? (
-          <div className="ml-found">
+          <div className="sh-fn-list">
             {names.slice(0, 8).map((n) => (
-              <button key={n.name} type="button" className="ml-found-item" onClick={() => onGo(n.name)}>
+              <button key={n.name} type="button" className="sh-fn-item" onClick={() => onGo(n.name)}>
                 <span className="grow"><div className="who">{n.name}</div><div className="what">{n.ref || ''}</div></span>
               </button>
             ))}
@@ -600,17 +604,25 @@ export function HeaderFooterDialog({ current = null, onClose, onSet }) {
   );
 }
 
-/** Insert Function: Excel's categories, a pick starts `=NAME(` in the active cell. */
+/**
+ * Insert Function: Excel's categories, each function with what it takes and
+ * what it does, as Excel's dialog shows them; a pick starts `=NAME(` in the
+ * active cell. The search finds a function by its name or by what it does.
+ */
 export function FunctionDialog({ onClose, onPick, catalogue }) {
   const categories = Object.keys(catalogue);
   const [category, setCategory] = useState(categories[0]);
   const [filter, setFilter] = useState('');
-  const names = filter.trim()
-    ? [...new Set(Object.values(catalogue).flat())].filter((n) => n.includes(filter.trim().toUpperCase()))
+  const q = filter.trim();
+  const names = q
+    ? [...new Set(Object.values(catalogue).flat())].filter((n) => {
+      const help = FUNCTION_HELP.get(n)?.help || '';
+      return n.includes(q.toUpperCase()) || t(help).toLocaleLowerCase().includes(q.toLocaleLowerCase());
+    })
     : catalogue[category] || [];
   return (
-    <Dialog title={t('Insert function')} width={480} onClose={onClose} actions={<Button label={t('Cancel')} onClick={onClose} />}>
-      <div className="ml-form">
+    <Dialog title={t('Insert function')} width={520} onClose={onClose} actions={<Button label={t('Cancel')} onClick={onClose} />}>
+      <div className="ml-form sh-fn">
         <Field label={t('Search')}>
           <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t('Type part of a name')} autoFocus />
         </Field>
@@ -621,13 +633,19 @@ export function FunctionDialog({ onClose, onPick, catalogue }) {
             </Select>
           </Field>
         )}
-        <div className="ml-found" style={{ maxHeight: 260, overflow: 'auto' }}>
-          {names.map((n) => (
-            <button key={n} type="button" className="ml-found-item" onClick={() => onPick(n)}>
-              <span className="ml-found-logo"><Icon name="formula" size={15} /></span>
-              <span className="grow"><div className="who">{n}</div></span>
-            </button>
-          ))}
+        <div className="sh-fn-list" role="group" aria-label={t('Functions')}>
+          {names.map((n) => {
+            const f = FUNCTION_HELP.get(n);
+            return (
+              <button key={n} type="button" className="sh-fn-item" data-function={n} onClick={() => onPick(n)}>
+                <span className="sh-fn-logo"><Icon name="formula" size={15} /></span>
+                <span className="grow">
+                  <div className="who">{n}<span className="fn-args">{f?.args || '()'}</span></div>
+                  {f?.help ? <div className="what">{t(f.help)}</div> : null}
+                </span>
+              </button>
+            );
+          })}
           {names.length ? null : <Empty title={t('No function by that name')} />}
         </div>
       </div>

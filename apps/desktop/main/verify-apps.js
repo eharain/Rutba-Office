@@ -281,6 +281,7 @@ import { verifySlicers } from './verify-slicers.js';
 import { verifySheetArrange } from './verify-sheetarrange.js';
 import { verifySheetThemes } from './verify-sheetthemes.js';
 import { verifySheetCf } from './verify-sheet-cf.js';
+import { verifySheetHelp } from './verify-sheet-help.js';
 import { verifyDeckDraw } from './verify-deck-draw.js';
 import { verifyAnalysis } from './verify-analysis.js';
 import { verifyDataTools } from './verify-datatools.js';
@@ -5278,6 +5279,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('sheetarrange')) await sheetArrange();
     if (only.includes('sheetthemes')) await sheetThemes();
     if (only.includes('cfdraw')) await verifySheetCf({ open, check, until, errorsIn }, { dir });
+    if (only.includes('sheethelp')) await verifySheetHelp({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('deckdraw')) await verifyDeckDraw({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('arrange')) await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('decktabledesign')) await verifyDeckTableDesign({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -5682,6 +5684,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('sheets', () => sheetArrange());
   await part('sheets', () => sheetThemes());
   await part('sheets', () => verifySheetCf({ open, check, until, errorsIn }, { dir }));
+  await part('sheets', () => verifySheetHelp({ open, check, until, wait, errorsIn }, { dir }));
   await part('slides', () => verifyDeckDraw({ open, check, until, wait, errorsIn }, { dir }));
   // Last of the camera's checks, for the reason given in the list above.
   await part('slides', () => verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir }));
