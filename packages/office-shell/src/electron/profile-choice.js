@@ -55,7 +55,7 @@ export function settleProfile({ name = 'Rutba Office' } = {}) {
   }
   app.setPath('userData', folder);
   app.setPath('sessionData', folder);
-  settled = { base, baseNamed: Boolean(named), id: profile.id, name: profile.name, colour: profile.colour, folder, lock: profile.lock || null, count: list.profiles.length, isDefault: profile.id === DEFAULT_ID };
+  settled = { base, baseNamed: Boolean(named), id: profile.id, name: profile.name, colour: profile.colour, folder, lock: profile.lock || null, rekey: profile.rekey || null, count: list.profiles.length, isDefault: profile.id === DEFAULT_ID };
   return settled;
 }
 

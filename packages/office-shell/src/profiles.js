@@ -28,7 +28,8 @@
 // "Default", so nothing is moved. A profile made later lives in
 // <base>\Profiles\<id>. The list names each profile, its colour, its folder,
 // the one that opens first and the one used last, and, for a profile with a
-// password, the salt and a verifier: never the password, never the key.
+// password, the salt and a verifier: never the password, never the key
+// (while a password change is under way, each key sealed with the other).
 //
 // Nothing here needs Electron, so the engine tests and the AI tools (run as
 // Node) read the same list the windows do.
@@ -356,6 +357,40 @@ export function seal(key, text) {
 
 export const isSealed = (text) => typeof text === 'string' && text.startsWith('{"rutbaSealed":');
 
+// Chromium's own folders and those of other profiles (under Default's) hold nothing sealed.
+const NOT_SEALED_HERE = new Set([PROFILES_DIR, 'Cache', 'Code Cache', 'GPUCache', 'DawnGraphiteCache', 'DawnWebGPUCache', 'Local Storage', 'Session Storage', 'Service Worker', 'IndexedDB', 'blob_storage', 'Crashpad', 'Network', 'Shared Dictionary', 'shared_proto_db', 'WebStorage', 'Partitions', 'thumbnails', 'recovery']);
+
+/** Every .json file in a profile's folder that is sealed, whoever covers it. */
+export function sealedFilesIn(folder) {
+  const out = [];
+  const head = Buffer.alloc(16);
+  const walk = (dir, top) => {
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (!(top && NOT_SEALED_HERE.has(e.name))) walk(p, false);
+      } else if (e.isFile() && e.name.endsWith('.json')) {
+        try {
+          const fd = fs.openSync(p, 'r');
+          let n = 0;
+          try { n = fs.readSync(fd, head, 0, 16, 0); } finally { fs.closeSync(fd); }
+          if (isSealed(head.subarray(0, n).toString('utf8'))) out.push(p);
+        } catch {
+          /* gone while looked at */
+        }
+      }
+    }
+  };
+  walk(folder, true);
+  return out;
+}
+
 /** A sealed text opened, or an error when the key is not the one it was sealed with. */
 export function unseal(key, text) {
   if (!key) throw new Error('This profile is locked.');
@@ -374,9 +409,14 @@ export function unseal(key, text) {
  * changes cannot land after the file was sealed again. A sealed file met
  * without its key is never written over: its reads give the fallback and
  * its writes are refused, so nothing in it is lost.
+ *
+ * `also` names keys a file may still be sealed with while a password change
+ * stopped midway is finished (finishRekey): read with any of them, written
+ * with `key` alone, and forgotten once every file is sealed again.
  */
-export function createVault({ key = null } = {}) {
+export function createVault({ key = null, also = [] } = {}) {
   let current = key ? Buffer.from(key) : null;
+  let older = (also || []).filter(Boolean).map((k) => Buffer.from(k));
   const covered = new Set();
   const held = new Set();
   const chains = new Map();
@@ -421,7 +461,7 @@ export function createVault({ key = null } = {}) {
         return null;
       }
       if (!isSealed(raw)) return raw;
-      const plain = openWith(raw, [current]);
+      const plain = openWith(raw, [current, ...older]);
       if (plain === null) held.add(file);
       return plain;
     },
@@ -449,9 +489,14 @@ export function createVault({ key = null } = {}) {
         await fs.promises.rename(tmp, file);
       });
     },
-    /** Every covered file sealed with a new key (or left plain, with none). */
-    async rekey(next) {
-      const old = current;
+    /**
+     * Every covered file sealed with a new key (or left plain, with none).
+     * `folder`: any other file found sealed in the profile's folder is sealed
+     * again too, so a file no service covered this run is not left with a
+     * key about to be forgotten. `step('file')` is told after each file.
+     */
+    async rekey(next, { folder = null, step = null } = {}) {
+      const keys = [current, ...older];
       current = next ? Buffer.from(next) : null;
       const files = [];
       for (const p of covered) {
@@ -473,6 +518,7 @@ export function createVault({ key = null } = {}) {
           walk(p);
         }
       }
+      if (folder) for (const f of sealedFilesIn(folder)) if (!files.includes(f)) files.push(f);
       let done = 0;
       for (const file of files) {
         await queue(file, async () => {
@@ -483,15 +529,110 @@ export function createVault({ key = null } = {}) {
             return;
           }
           // Sealed with the old key, or by a write queued just before with the new one.
-          const plain = isSealed(raw) ? openWith(raw, [old, current]) : raw;
+          const plain = isSealed(raw) ? openWith(raw, [...keys, current]) : raw;
           if (plain === null) return;
           writeRaw(file, sealed(plain));
           held.delete(file);
           done += 1;
         });
+        await step?.('file');
       }
+      older = [];
       return { files: done };
     },
   };
   return vault;
+}
+
+/* ── a password changed safely ──────────────────────────────────────────── */
+
+// Setting, changing or taking away a password seals every covered file
+// again. A stop midway (a crash, the power going) must never leave files
+// sealed with a key the lock in force no longer gives. So the change is
+// written down in the profile's entry before any file is touched (`rekey`:
+// the new lock, and each key sealed with the other), the lock in force
+// stays the old one until every file is sealed again, and the new lock goes
+// in, and the note goes, in the one last write. A change found half done at
+// the next open is finished then: either password opens the profile, the
+// note gives the other key, and the files are sealed again before anything
+// of the profile is used (finishRekey).
+
+const wrapKey = (key, other) => seal(key, Buffer.from(other).toString('base64'));
+const unwrapKey = (key, text) => {
+  try {
+    return text ? Buffer.from(unseal(key, text), 'base64') : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Whether opening a profile asks for a password: it has one, or one is being set. */
+export const needsPassword = (p) => Boolean(p?.lock || p?.rekey?.lock);
+
+/**
+ * What a password opens of a profile's entry: { key, rekey }, `key` the one
+ * its files are written with from now on and `rekey` ({ from, to }, the old
+ * key and the new) when a change was stopped midway, for finishRekey; null
+ * when the password is not the profile's, old or new.
+ */
+export async function unlockProfile(p, password) {
+  const r = p?.rekey || null;
+  if (!r) {
+    const key = await unlock(p?.lock, password);
+    return key ? { key, rekey: null } : null;
+  }
+  let from = p.lock ? await unlock(p.lock, password) : null;
+  let to = null;
+  if (from) to = r.lock ? unwrapKey(from, r.toSealed) : null;
+  else {
+    to = r.lock ? await unlock(r.lock, password) : null;
+    if (!to) return null;
+    from = p.lock ? unwrapKey(to, r.fromSealed) : null;
+  }
+  // A note whose keys do not open each other is not one this code wrote: the lock in force stays.
+  if ((p.lock && !from) || (r.lock && !to)) return from ? { key: from, rekey: null } : null;
+  return { key: to, rekey: { from, to } };
+}
+
+/** The new lock in force and the note gone, in one write. */
+function commitRekey(base, id) {
+  const list = readProfiles(base);
+  const p = entry(list, id);
+  if (p.rekey) p.lock = p.rekey.lock || null;
+  delete p.rekey;
+  writeProfiles(base, list);
+  return p.lock;
+}
+
+/**
+ * A profile's password set (`from` null), changed, or taken away (`to` and
+ * `lock` null): the note, every file `vault` covers and every sealed file in
+ * `folder` sealed again with `to`, then the new lock. Answers the lock in
+ * force. `step(name)` hears each step reached ('noted', 'file' after each
+ * file, 'sealed'): the tests stop the change at each, as a crash would.
+ */
+export async function rekeyProfile({ base, id, vault, from = null, to = null, lock = null, folder = null, step = null }) {
+  const list = readProfiles(base);
+  const p = entry(list, id);
+  p.rekey = {
+    lock: lock || null,
+    ...(from && to ? { toSealed: wrapKey(from, to), fromSealed: wrapKey(to, from) } : {}),
+    started: new Date().toISOString(),
+  };
+  writeProfiles(base, list);
+  await step?.('noted');
+  await vault.rekey(to, { folder, step });
+  await step?.('sealed');
+  return commitRekey(base, id);
+}
+
+/**
+ * A change found half done, finished: the vault was opened with the new key
+ * and the old one beside it (createVault({ key: to, also: [from] })); every
+ * file is sealed with the new key, then the new lock goes in. Answers the
+ * lock in force.
+ */
+export async function finishRekey({ base, id, vault, keys, folder = null }) {
+  await vault.rekey(keys?.to || null, { folder });
+  return commitRekey(base, id);
 }
