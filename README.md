@@ -271,8 +271,18 @@ Everything else:
 
 - No account, no telemetry, no crash reports. Your documents, your mail, and
   what you do with them never leave this computer.
-- Mail passwords go to the operating system's keystore — DPAPI, Keychain,
-  libsecret — never to a file the application can read back in clear text.
+- Saved passwords, sign-in tokens and keys (mail, calendar and contacts
+  servers, Talk, Data Files' databases, stream keys, certificates' keys, the
+  AI tools' network key) are kept in each profile's own keystore, never in
+  clear text. Its key is random, linked to the profile's own long id and
+  wrapped by the operating system's protection (DPAPI on Windows, the
+  Keychain on macOS, the secret service on Linux); a profile with a password
+  seals it with that password as well. Copied to another computer, another
+  Windows account or another profile, the keystore will not open: Office puts
+  it aside, says so once, and asks for each password again when it is next
+  needed. Where the system offers no real protection (Linux with no keyring),
+  passwords are kept only in a profile with a password, and Office says so
+  where you would save one.
 - Message bodies render in a sandboxed frame with no scripts, no same-origin
   access, and a policy that blocks every remote fetch. Remote images load only
   when you ask, per message, so a tracking pixel cannot report that you opened

@@ -35,6 +35,7 @@ export function AccountsDialog({ shell, kind = 'calendar', toast, onClose }) {
   const [error, setError] = useState('');
   // The account being renamed, and the name typed so far.
   const [renaming, setRenaming] = useState(null);
+  const [again, setAgain] = useState({});
 
   const refresh = useCallback(async () => {
     setAccounts((await shell.dav.accounts()) || []);
@@ -80,6 +81,19 @@ export function AccountsDialog({ shell, kind = 'calendar', toast, onClose }) {
       refresh();
     }
   };
+  // A password not saved on this computer any more, typed again here.
+  const savePassword = async (id) => {
+    setBusy(id);
+    try {
+      await shell.dav.setPassword({ id, password: again[id] || '' });
+      setAgain({ ...again, [id]: '' });
+    } catch (err) {
+      toast?.(String(err?.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), { tone: 'warn', ms: 5000 });
+    } finally {
+      setBusy(null);
+      refresh();
+    }
+  };
   const remove = async (id) => {
     await shell.dav.remove({ id });
     refresh();
@@ -109,6 +123,12 @@ export function AccountsDialog({ shell, kind = 'calendar', toast, onClose }) {
               <div className="dav-status" style={{ fontSize: 12, color: a.lastError ? 'var(--bad, #c62828)' : 'inherit' }}>
                 {a.lastError ? a.lastError : t('{calendars}, {books} · synced {when}', { calendars: tn(a.calendars, '{count} calendar', '{count} calendars'), books: tn(a.books, '{count} address book', '{count} address books'), when: ago(a.lastSync) })}
               </div>
+              {a.needsPassword ? (
+                <div className="dav-password-again" style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+                  <Input className="dav-password-again-input" type="password" placeholder={t('Password')} aria-label={t('The password for {name}, not saved on this computer', { name: a.name })} value={again[a.id] || ''} onChange={(e) => setAgain({ ...again, [a.id]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') savePassword(a.id); }} />
+                  <Button label={t('Save')} className="dav-password-again-save" disabled={Boolean(busy)} onClick={() => savePassword(a.id)} />
+                </div>
+              ) : null}
             </div>
             {renaming?.id === a.id ? (
               <>

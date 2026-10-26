@@ -209,3 +209,22 @@ test('A sync asked for while one runs runs again after it, so an event made in b
     await server.close();
   }
 });
+
+test('An account whose password is not saved on this computer any more says so, and the password typed again is kept and syncs', async () => {
+  const server = await startDavServer();
+  const { stores, dav } = setup();
+  try {
+    const added = await dav.add({ url: server.url, user: 'ann', password: 'secret' });
+    assert.equal(dav.accounts()[0].needsPassword, false);
+    // As after the profile's keystore was put aside (another computer, D-2026-10-26-09).
+    stores.secrets.delete(`dav:${added.id}`);
+    assert.equal(dav.accounts()[0].needsPassword, true);
+    await assert.rejects(dav.setPassword({ id: 'gone', password: 'x' }), /no longer there/);
+    const back = await dav.setPassword({ id: added.id, password: 'secret' });
+    assert.equal(back.needsPassword, false);
+    assert.equal(back.lastError, null);
+    assert.equal(stores.secrets.get(`dav:${added.id}`), 'secret');
+  } finally {
+    await server.close();
+  }
+});

@@ -6,7 +6,11 @@
 //                      calendar accounts (addresses and servers, never their
 //                      passwords), AI Tools' switch and folders, Data Files'
 //                      allowed sources, the personal dictionary
-//   secrets.json       saved passwords and sign-in tokens (store.js)
+//   keystore\, keystore-key.json, profile-id.json
+//                      saved passwords and sign-in tokens, in the profile's
+//                      own keystore, its key linked to the profile's long id
+//                      (profile-keystore.js); secrets.json, where they were
+//                      kept before, is moved in once and goes
 //   recent.json        the recent files
 //   mail\              every account's folders, messages and attachments
 //                      (@rutba/mailbox store; its search index is in memory)

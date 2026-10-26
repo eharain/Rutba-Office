@@ -15,7 +15,7 @@ import { filtersInLanguage } from './registry-words.js';
 import { TemplateGallery } from './template-gallery.js';
 import { AiBadge, AiToolsDialog, AiConfirm, AI_TOOLS_CSS } from './ai-tools.js';
 import { useChosenApps } from './apps-choice.js';
-import { ProfileBadge, ManageProfiles, PROFILES_CSS, useProfiles, profileName, openManageProfiles } from './profiles.js';
+import { ProfileBadge, ManageProfiles, KeystoreNotice, PROFILES_CSS, useProfiles, profileName, openManageProfiles } from './profiles.js';
 
 /**
  * The languages the windows can be shown in, each named in its own words
@@ -399,6 +399,7 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
       {aiTools ? <AiToolsDialog shell={shell} onClose={() => setAiTools(false)} /> : null}
       <AiConfirm shell={shell} />
       {profilesOpen ? <ManageProfiles shell={shell} mode={profilesOpen.mode} onClose={() => setProfilesOpen(null)} /> : null}
+      <KeystoreNotice shell={shell} />
       {ribbon}
       <Body>{children}</Body>
       <StatusBar>

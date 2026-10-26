@@ -841,11 +841,13 @@ linked and the fields as last described.
 database's password and the values of web headers marked secret are kept by
 the program on the computer, in that computer's protected store, never in
 `rutba_links.settings` or anywhere else in the file. Rutba Office keeps them
-in the operating system's protected store through Electron's `safeStorage`
-(DPAPI on Windows, the Keychain on macOS, libsecret on Linux) under the
-names `base-link:<link id>`, `base-source:<link id>` and
+in the profile's own keystore, whose key is wrapped by the operating system's
+protection through Electron's `safeStorage` (DPAPI on Windows, the Keychain
+on macOS, the secret service on Linux), under the names
+`base-link:<link id>`, `base-source:<link id>` and
 `base-source:<link id>:<header name>`. A file sent to someone else carries no
-secret: they enter their own.
+secret: they enter their own. A keystore that will not open on this computer
+is put aside, and the database asks for its password again.
 
 ### 9.1 What each link keeps
 

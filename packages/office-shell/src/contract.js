@@ -258,13 +258,14 @@ export const METHODS = {
   ],
   // Calendar and contacts accounts: CalDAV and CardDAV servers kept in step.
   dav: [
-    'accounts',       // () -> [{ id, url, user, name, lastSync, lastError, calendars, books }]
+    'accounts',       // () -> [{ id, url, user, name, lastSync, lastError, calendars, books, needsPassword }]
     'add',            // ({ url, user, password, name }) -> account, its calendars and cards brought in; named after its server when no name is given
     'rename',         // ({ id, name }) -> account
     'remove',         // ({ id }) -> { removed }   its calendars and cards with it
     'sync',           // ({ id }) -> [{ id, sent, received, removed, conflicts } | { id, error }]
     'books',          // () -> { books, defaultBook }
     'setDefaultBook', // ({ id }) -> id   where a new card goes; null for this computer only (until chosen, the first book of an account added from 2.19 on; a store from before keeps this computer)
+    'setPassword',    // ({ id, password }) -> account   its password typed again (not saved on this computer any more), and a sync
   ],
   update: [
     'state',        // () -> { state, version, available, percent, automatic }
@@ -484,6 +485,7 @@ export const METHODS = {
     'setPassword',  // ({ password }) -> current
     'changePassword', // ({ old, password }) -> current
     'removePassword', // ({ old }) -> current
+    'keystoreNotice', // () -> { at, why } | null   saved passwords that could not be opened on this computer, given to one window once
   ],
   ai: [
     'state',        // () -> { mode: 'off' | 'session' | 'always', folders, connect: { command, args, env }, log, connections: [{ client, clientVersion, where, since, last, lastTool, pid }], reach: 'local' | 'remote', remote: { port, key, addresses, listening, error } | null }

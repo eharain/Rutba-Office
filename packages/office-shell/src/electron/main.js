@@ -358,7 +358,8 @@ export function createShell({
       }
       ({ key, rekey } = opened);
     }
-    stores = createStores({ vault: createVault({ key, also: rekey ? [rekey.from] : [] }) });
+    // The profile's saved passwords, in its own keystore linked to its long id (profile-keystore.js).
+    stores = createStores({ vault: createVault({ key, also: rekey ? [rekey.from] : [] }), profile });
     key = null;
 
     // Thumbnails live in the profile, keyed by the file they are of, so a

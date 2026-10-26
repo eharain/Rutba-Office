@@ -41,6 +41,7 @@ import { textToHtml } from './mail/richtext.js';
 import { isArchiveId, ArchiveBanner, ExportHoldDialog, SearchHelp, installArchiveStyles, indexedCount } from './mail/archive.js';
 import { CertificatesDialog, installSmimeStyles } from './mail/smime.js';
 import { BulkAccountsDialog, installBulkStyles } from './mail/accounts-bulk.js';
+import { PasswordAgain } from './mail/password-again.js';
 
 installStyles();
 installArchiveStyles();
@@ -2430,6 +2431,8 @@ export default function Mail({ app, shell }) {
         </Dialog>
       ) : null}
 
+      {/* An account whose password is not saved here: asked for, not failed at every fetch. */}
+      <PasswordAgain shell={shell} accounts={accounts} toast={toast} onSaved={async (a) => { await loadAccounts(); shell.mail.sync({ accountId: a.id }).catch(() => {}); }} />
       {dialog?.kind === 'accounts' ? (
         <AccountsDialog
           shell={shell}

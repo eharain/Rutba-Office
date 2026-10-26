@@ -89,6 +89,34 @@ export function ProfileBadge({ shell, always = false }) {
   );
 }
 
+/**
+ * Saved passwords that could not be opened on this computer (the profile's
+ * keystore was made on another computer or Windows account, or copied from
+ * another profile, D-2026-10-26-09): said once, in the first window that
+ * asks. Each place asks for its own password when it is next used.
+ */
+export function KeystoreNotice({ shell }) {
+  const [notice, setNotice] = useState(null);
+  useEffect(() => {
+    let live = true;
+    Promise.resolve(shell.profiles?.keystoreNotice?.()).then((n) => { if (live && n) setNotice(n); }).catch(() => {});
+    return () => { live = false; };
+  }, [shell]);
+  if (!notice) return null;
+  const close = () => setNotice(null);
+  const why = notice.why === 'other-profile'
+    ? t('They were saved in another profile and copied here, so they cannot be read in this one.')
+    : notice.why === 'unprotected'
+      ? t('This computer has no protected store for saved passwords, and this profile has no password, so they could not be kept safely.')
+      : t('They were saved on another computer or by another Windows account, so they cannot be read here.');
+  return (
+    <Dialog title={t('Saved passwords need typing again')} width={480} className="pf-keystore-notice" onClose={close} actions={<Button primary label={t('OK')} className="pf-keystore-ok" onClick={close} />}>
+      <p style={{ marginTop: 0 }}>{t('The passwords saved in this profile could not be opened on this computer.')} {why}</p>
+      <p className="rw-hint" style={{ marginBottom: 0 }}>{t('Nothing else is lost. Each place asks for its password the next time it needs it: Mail, Calendar and Contacts servers, Talk and Data Files.')}</p>
+    </Dialog>
+  );
+}
+
 /** Set, change or take away this profile's password. */
 export function PasswordDialog({ shell, mode, profile, onClose, onDone }) {
   const [old, setOld] = useState('');

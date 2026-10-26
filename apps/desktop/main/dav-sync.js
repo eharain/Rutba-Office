@@ -40,7 +40,8 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
   const passwordOf = (id) => stores.secrets.get(secretKey(id)) || '';
   const clientFor = (acc) => createDavClient({ url: acc.url, user: acc.user, password: passwordOf(acc.id), fetch: fetchImpl });
   const announce = () => broadcast?.('dav:changed', {});
-  const listed = () => read().map(({ id, url, user, name, addedAt, lastSync, lastError, calendars, books }) => ({ id, url, user, name, addedAt, lastSync: lastSync || null, lastError: lastError || null, calendars: calendars || 0, books: books || 0 }));
+  // `needsPassword`: none is saved for it on this computer (the profile's keystore would not open here): Accounts asks for it.
+  const listed = () => read().map(({ id, url, user, name, addedAt, lastSync, lastError, calendars, books }) => ({ id, url, user, name, addedAt, lastSync: lastSync || null, lastError: lastError || null, calendars: calendars || 0, books: books || 0, needsPassword: stores.secrets.get(secretKey(id)) == null }));
   const cal = calendar?._dav || null;
   const con = contacts?._dav || null;
   const running = new Map();
@@ -226,7 +227,8 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
   /** Sync one account, or every one. Answers what moved, per account. */
   async function sync({ id = null } = {}) {
     const out = [];
-    for (const acc of read().filter((a) => !id || a.id === id)) {
+    // Every account, but not one whose password is not saved here (Accounts asks for it): it is not tried and failed each time.
+    for (const acc of read().filter((a) => (id ? a.id === id : stores.secrets.get(secretKey(a.id)) != null))) {
       if (running.has(acc.id)) {
         // A sync asked for while one runs can be for a change that one began
         // too soon to see (an event made a moment ago): it waits for it, then
@@ -304,6 +306,15 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
       if (!named) throw new Error('An account needs a name.');
       acc.name = named;
       write(list);
+      announce();
+      return listed().find((acc) => acc.id === id);
+    },
+
+    /** An account's password typed again, kept, and the account synced with it. */
+    setPassword: async ({ id, password = '' }) => {
+      if (!read().some((a) => a.id === id)) throw new Error('That account is no longer there.');
+      stores.secrets.set(secretKey(id), String(password));
+      await sync({ id });
       announce();
       return listed().find((a) => a.id === id);
     },
