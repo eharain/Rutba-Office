@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8017,
+  "count": 8051,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -936,6 +936,24 @@
       ]
     },
     {
+      "message": "A database in your own folders",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
+      "message": "A database on a network share, on {server}",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
+      "message": "A database outside your own folders",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
       "message": "A date is written yyyy-mm-dd.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -987,6 +1005,30 @@
       "message": "A figure needs the points it has left",
       "where": [
         "apps/desktop/renderer/apps/slides/points.js"
+      ]
+    },
+    {
+      "message": "A file at a web address, on {host}",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
+      "message": "A file in your own folders",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
+      "message": "A file on a network share, on {server}",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
+      "message": "A file outside your own folders",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
       ]
     },
     {
@@ -1721,6 +1763,12 @@
       ]
     },
     {
+      "message": "A web address answering JSON, on {host}",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
       "message": "A web address starts http:// or https://, an e-mail address mailto:.",
       "where": [
         "apps/desktop/renderer/apps/slides/action.js"
@@ -1778,6 +1826,12 @@
       "message": "A workbook must contain at least one visible worksheet.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A {engine} engine at {host}",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
       ]
     },
     {
@@ -3515,6 +3569,12 @@
       "message": "Allow carriage returns (multiple paragraphs)",
       "where": [
         "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Allow for this database",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
       ]
     },
     {
@@ -8723,6 +8783,12 @@
       ]
     },
     {
+      "message": "Connecting tells {host} that this database was opened, and from where.",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
       "message": "Connecting…",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
@@ -12876,6 +12942,12 @@
       ]
     },
     {
+      "message": "Enter Owner Password…",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Enter formatting for number",
       "where": [
         "apps/desktop/renderer/apps/word/list-dialog.js"
@@ -12890,6 +12962,7 @@
     {
       "message": "Enter password…",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/protect.js"
       ]
     },
@@ -19100,6 +19173,12 @@
       ]
     },
     {
+      "message": "It is not in your own folders: it may be another person's file or one of the computer's own. What is read goes into this database, and with it if it is sent on.",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
       "message": "It is shown as plain text, with its links and pictures left out: an encrypted message that is not signed by someone trusted could have been changed on the way to send its words elsewhere.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
@@ -19571,6 +19650,18 @@
       "message": "Key kept {hint}",
       "where": [
         "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
+      "message": "Key or token for {table}",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "Key or token…",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -25255,8 +25346,21 @@
       "message": "Not now",
       "where": [
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/trust.js",
         "apps/desktop/renderer/apps/talk/invite.js",
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Not read: {source} waits for you to allow this database's sources on this computer.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "Not read: {source} waits for you to allow this database's sources on this computer. The copy here is as it was at {time}.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -26505,6 +26609,12 @@
       "message": "Opened from {was}. This build cannot write {was}, so Save asks where to keep it as a .xlsx.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Opening a network share makes Windows send your sign-in to {server}.",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
       ]
     },
     {
@@ -29365,6 +29475,12 @@
       ]
     },
     {
+      "message": "Protected with a password",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "Protected: read only",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -29826,6 +29942,18 @@
       ]
     },
     {
+      "message": "Read from these places?",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
+      "message": "Read into {tables}",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
       "message": "Read only",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
@@ -29895,6 +30023,12 @@
       "message": "Reading accounts…",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Reading it tells {host} that this database was opened, and from where.",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
       ]
     },
     {
@@ -34624,6 +34758,12 @@
       ]
     },
     {
+      "message": "Sent only to {where}",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "Sent to",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -36646,6 +36786,12 @@
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Someone whose role may change the design allows this database's sources on this computer.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -39233,6 +39379,12 @@
       ]
     },
     {
+      "message": "That is the owner password: every change is allowed now.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
       "message": "That is the table's own edge — there is no cell beyond it to join.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -39674,6 +39826,12 @@
       ]
     },
     {
+      "message": "The database at {where}",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
       "message": "The database has no tables to show.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -39968,6 +40126,12 @@
       "message": "The invitation to {email} is withdrawn.",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "The key is kept in this computer's protected store, never in the file, and only for this address.",
+      "where": [
+        "apps/desktop/renderer/apps/base/sources.js"
       ]
     },
     {
@@ -41614,15 +41778,15 @@
       ]
     },
     {
-      "message": "This PDF is protected with a password, and changing the pages of a protected PDF is not built yet.",
+      "message": "This PDF is protected in a way that lets it be read here, but not changed or saved.",
       "where": [
-        "apps/desktop/renderer/engine-words.js"
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
-      "message": "This PDF is protected, so its pages can be read but not changed or saved yet.",
+      "message": "This PDF is protected with a password, and changing the pages of a protected PDF is not built yet.",
       "where": [
-        "apps/desktop/renderer/apps/pdf/index.js"
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -41812,6 +41976,12 @@
       "message": "This database is protected. Sign in to open it.",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "This database reads records from the places below when it opens and on a schedule. They were not linked on this computer, so nothing has been read from them yet. Allow them only if you know where this database came from.",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
       ]
     },
     {
@@ -45240,6 +45410,12 @@
       ]
     },
     {
+      "message": "What is read goes into this database, and with it if it is sent on.",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
       "message": "What is shown",
       "where": [
         "apps/desktop/renderer/apps/recorder.js"
@@ -45497,6 +45673,30 @@
       "message": "Who you are where {table} is read from",
       "where": [
         "apps/desktop/renderer/apps/base/sources.js"
+      ]
+    },
+    {
+      "message": "Whoever protected this PDF allows only some changes to it.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Whoever protected this PDF does not allow comments on it. Enter its owner password to add them.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Whoever protected this PDF does not allow it to be changed. Enter its owner password to change it.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Whoever protected this PDF does not allow its form to be filled. Enter its owner password to fill it.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -46188,6 +46388,12 @@
       ]
     },
     {
+      "message": "Your answer is kept for this file on this computer. Until you allow them, its tables keep the copies they have and are not read.",
+      "where": [
+        "apps/desktop/renderer/apps/base/trust.js"
+      ]
+    },
+    {
       "message": "Your browser opens at auth.rutba.io to sign in, as everywhere on Rutba.",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
@@ -46659,6 +46865,12 @@
       "message": "all of these",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
+      ]
+    },
+    {
+      "message": "allows only some changes. Enter its owner password to make any change.",
+      "where": [
+        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -50301,13 +50513,8 @@
     {
       "message": "{name} is protected with a password, and it stays closed until the password is given.",
       "where": [
+        "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/protect.js"
-      ]
-    },
-    {
-      "message": "{name} is protected with a password. Opening a PDF that needs a password to be read is not built yet.",
-      "where": [
-        "apps/desktop/renderer/apps/pdf/index.js"
       ]
     },
     {
@@ -50895,7 +51102,8 @@
     {
       "message": "{user} at {host}, database {database}.",
       "where": [
-        "apps/desktop/renderer/apps/base/links.js"
+        "apps/desktop/renderer/apps/base/links.js",
+        "apps/desktop/renderer/apps/base/trust.js"
       ]
     },
     {
