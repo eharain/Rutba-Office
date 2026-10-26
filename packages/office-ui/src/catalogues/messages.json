@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8221,
+  "count": 8226,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1454,7 +1454,7 @@
       ]
     },
     {
-      "message": "A profile can ask for a password before it opens. Its saved passwords, recent files, calendars, contacts and Talk messages are then sealed with it.",
+      "message": "A profile can ask for a password before it opens. Its saved passwords, recent files, mail, calendars, contacts and Talk messages are then sealed with it.",
       "where": [
         "apps/desktop/renderer/profiles.js"
       ]
@@ -27401,6 +27401,12 @@
       ]
     },
     {
+      "message": "Out of office: choose one account first. Each account has its own automatic replies.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Out of office…",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -31896,6 +31902,12 @@
       "message": "Remove “{word}”",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Remove: choose the account to remove first.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -36643,6 +36655,12 @@
       "message": "Signature saved",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Signature: choose one account first. Each account has its own signature.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -41749,6 +41767,12 @@
       ]
     },
     {
+      "message": "The servers for {provider} are filled in. Nothing was searched.",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
       "message": "The shape has no words to play paragraph by paragraph",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -43031,6 +43055,12 @@
       "message": "This file has no objects a PDF reader can find.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This file was imported before, into the same mailbox: {messages} added",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
@@ -47416,6 +47446,12 @@
       ]
     },
     {
+      "message": "Your mail: {done} of {total} files done",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Your name",
       "where": [
         "apps/desktop/renderer/apps/base/people.js",
@@ -51621,7 +51657,7 @@
       ]
     },
     {
-      "message": "{name} will ask for this password before it opens. Its saved passwords, recent files, calendars, contacts and Talk messages are sealed with it, so another person using this Windows account cannot read them. Mail is not sealed with it yet.",
+      "message": "{name} will ask for this password before it opens. Its saved passwords, recent files, mail, calendars, contacts and Talk messages are sealed with it, so another person using this Windows account cannot read them.",
       "where": [
         "apps/desktop/renderer/profiles.js"
       ]
@@ -52002,12 +52038,6 @@
       "message": "{provider} wants an app password rather than the account's own",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
-      ]
-    },
-    {
-      "message": "{provider}'s servers, filled in — nothing was searched.",
-      "where": [
-        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
