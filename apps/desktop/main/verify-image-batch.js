@@ -123,6 +123,8 @@ export async function verifyImageBatch({ open, check, until, wait, errorsIn }, {
       third.sum?.written === 3 && listed.join('|') === '01 alpha.png|02 bravo.jpg|03 charlie.png' && alpha?.png && bravo?.orientation === 1 && bravo.width === 67 && bravo.height === 100,
       JSON.stringify({ third, listed, alpha, bravo }));
     await closeDialog();
+    // The choices are remembered for the next batch: forgotten again, so a later check starts from the defaults.
+    await js(`(() => { try { localStorage.removeItem('pictures.batch'); } catch {} return 1; })()`);
     const complaints = await errorsIn(win);
     check('pictures: Batch edit reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

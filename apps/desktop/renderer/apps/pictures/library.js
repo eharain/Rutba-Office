@@ -125,6 +125,56 @@ export async function searchTree(list, root, { query = '', marks = null, depth =
   return out;
 }
 
+/**
+ * What a file's ratings and tags know it by besides its path: its size and
+ * the time it was last changed, which renaming or moving it in Explorer
+ * leaves as they were. Null for a folder, or a row without them.
+ */
+export function fingerprintOf(row) {
+  if (!row || row.dir || !Number.isFinite(Number(row.size)) || !Number.isFinite(Number(row.mtime)) || row.size == null || row.mtime == null) return null;
+  return `${Number(row.size)}:${Math.round(Number(row.mtime))}`;
+}
+
+const kept = (m) => Boolean(m && (m.rating || m.tags?.length));
+
+/**
+ * Ratings and tags that follow a file renamed or moved outside the window.
+ * Marks are kept by path, so each also keeps the file's fingerprint; a
+ * folder listed answers:
+ *   `fill`:  `{ path: fingerprint }` for each marked file listed whose
+ *             fingerprint is not kept yet, or has changed (the file edited);
+ *   `moves`: `[{ from, to }]`: a file listed with no marks of its own whose
+ *             fingerprint is that of exactly one marked file that is not
+ *             listed here, and no other file listed shares it.
+ * A move is only a candidate: the caller takes it when `from` is no longer
+ * there, so a copy leaves its original's marks where they are.
+ */
+export function followMarks(marks, rows) {
+  const fill = {};
+  const moves = [];
+  if (!marks || !rows?.length) return { fill, moves };
+  const listed = new Set(rows.map((r) => r.path));
+  const here = new Map();
+  for (const r of rows) {
+    const fp = fingerprintOf(r);
+    if (!fp) continue;
+    here.set(fp, (here.get(fp) || 0) + 1);
+    if (kept(marks[r.path]) && marks[r.path].fp !== fp) fill[r.path] = fp;
+  }
+  const away = new Map();
+  for (const [p, m] of Object.entries(marks)) {
+    if (!kept(m) || !m.fp || listed.has(p)) continue;
+    away.set(m.fp, away.has(m.fp) ? null : p);
+  }
+  for (const r of rows) {
+    const fp = fingerprintOf(r);
+    if (!fp || kept(marks[r.path]) || here.get(fp) !== 1) continue;
+    const from = away.get(fp);
+    if (from) moves.push({ from, to: r.path });
+  }
+  return { fill, moves };
+}
+
 /** The folders inside a folder, by name, for the tiles that lead into them. */
 export function foldersOf(entries) {
   return entries.filter((e) => e.dir).slice().sort(byName);
