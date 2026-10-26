@@ -116,9 +116,15 @@ function cluster(values, near) {
  * A table from the words of a picture of one and the ruling lines drawn in
  * it. Where the rules make a grid (two or more of each way), its cells are
  * the boxes between them; where they do not (a table set with space alone),
- * rows are the lines of words and columns the white strips every row
- * leaves, as `columns` finds for a page but row by row. Each word lands in
- * the cell its centre falls in; a cell's words are joined in reading order.
+ * rows are the lines of words and columns the white strips the rows leave,
+ * as `columns` finds for a page but row by row. Rules one way only are rows
+ * or columns when they hold every word and (for rows) one line between
+ * each two, as a table ruled under each row is; rules under the heading and
+ * the last row alone are not, and the lines are the rows. A line or two
+ * across the gutters (a title, a note, a long name) do not join the columns
+ * either side; a column with a word in only a row or two is kept. Each word
+ * lands in the cell its centre falls in; a cell's words are joined in
+ * reading order.
  *
  * @param {object[]} words
  * @param {{ horizontal: object[], vertical: object[] }} [rules]
@@ -136,13 +142,22 @@ export function tableCells(words, rules = { horizontal: [], vertical: [] }, { rt
   const hy = cluster((rules.horizontal || []).map((r) => r.y), Math.max(3, h / 3));
   const vx = cluster((rules.vertical || []).map((r) => r.x), Math.max(3, h / 3));
   const ruled = hy.length >= 2 && vx.length >= 2;
-  if (hy.length >= 2) rowEdges = hy;
-  if (vx.length >= 2) colEdges = vx;
 
   // A ruled table's rules can be read as strokes of their own (a bar, a dash): they are not words.
   if (ruled) words = words.filter((w) => !/^[|│¦_\-\u2014\u2013=]+$/.test(w.text));
   if (!words.length) return { rows: [], columns: [], cells: [], confidence: [], ruled };
   const lines = groupLines(words, { rtl });
+  if (ruled) {
+    rowEdges = hy;
+    colEdges = vx;
+  } else {
+    // Rules one way only: the rows (or columns) they make when every word is
+    // between the first and the last, and (rows) no two lines share a band.
+    const ys = lines.map((l) => centreY(l.box));
+    if (hy.length >= 2 && ys.every((y) => y >= hy[0] && y < hy[hy.length - 1])
+      && hy.slice(1).every((y1, i) => ys.filter((y) => y >= hy[i] && y < y1).length <= 1)) rowEdges = hy;
+    if (vx.length >= 2 && words.every((w) => centreX(w.box) >= vx[0] && centreX(w.box) < vx[vx.length - 1])) colEdges = vx;
+  }
   if (!rowEdges) {
     // Rows from the lines of words: a boundary halfway between each line and the next.
     const bands = lines.map((l) => ({ y0: l.box.y, y1: l.box.y + l.box.height }));
@@ -151,10 +166,23 @@ export function tableCells(words, rules = { horizontal: [], vertical: [] }, { rt
     rowEdges.push(bottom + 1);
   }
   if (!colEdges) {
-    // Columns from the white every row leaves: no line may cross a boundary.
+    // Columns from the white the rows leave. A quarter of the lines may cross
+    // a gutter (from four lines up), as a title or a long name does. Inside a
+    // strip that few lines cross, the gutter is the white of its own least
+    // crossed runs: two such runs either side of a column with a word in
+    // only a row or two leave that column standing. White that reaches the
+    // table's edge (under a title wider than the table) is margin.
     const cov = coverage(lines, left, right);
-    const splits = gaps(cov, left, 0, Math.max(3, Math.round(h * 0.8)));
-    colEdges = [left - 1, ...splits.map((g) => (g.x0 + g.x1) / 2), right + 1];
+    const most = lines.length >= 4 ? Math.floor(lines.length / 4) : 0;
+    const wide = Math.max(3, Math.round(h * 0.8));
+    const splits = [];
+    for (const g of gaps(cov, left, most, wide)) {
+      const strip = cov.subarray(g.x0 - left, g.x1 - left);
+      const low = Math.min(...strip);
+      const runs = gaps(strip, g.x0, low, Math.max(2, Math.round(wide / 2))).filter((r) => r.x0 > left && r.x1 < right);
+      for (const r of runs) splits.push((r.x0 + r.x1) / 2);
+    }
+    colEdges = [left - 1, ...splits, right + 1];
   }
 
   const rows = [];
