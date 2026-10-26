@@ -146,13 +146,18 @@ export function useRibbonKeys({ ref, tabs, active, onTab, collapsed, peek }) {
       setMode((m) => (m ? null : { level: 'tabs', typed: '' }));
     };
     const off = () => { armed.current = false; if (ref.current) delete ref.current.dataset.kbd; };
+    // A press of the pointer disarms as well as one of the mouse: a canvas
+    // that cancels pointerdown (Image's Alt+click tools) never sends the
+    // mousedown, and the Alt let go after it would bring the letters up.
     window.addEventListener('keydown', down, true);
     window.addEventListener('keyup', up, true);
     window.addEventListener('mousedown', off, true);
+    window.addEventListener('pointerdown', off, true);
     return () => {
       window.removeEventListener('keydown', down, true);
       window.removeEventListener('keyup', up, true);
       window.removeEventListener('mousedown', off, true);
+      window.removeEventListener('pointerdown', off, true);
     };
   }, [ref]);
 
@@ -257,11 +262,13 @@ export function useRibbonKeys({ ref, tabs, active, onTab, collapsed, peek }) {
     const away = (e) => { if (!e.target.closest?.('.rw-keytips')) stop(); };
     window.addEventListener('keydown', key, true);
     window.addEventListener('mousedown', away, true);
+    window.addEventListener('pointerdown', away, true);
     window.addEventListener('blur', stop);
     window.addEventListener('resize', stop);
     return () => {
       window.removeEventListener('keydown', key, true);
       window.removeEventListener('mousedown', away, true);
+      window.removeEventListener('pointerdown', away, true);
       window.removeEventListener('blur', stop);
       window.removeEventListener('resize', stop);
     };

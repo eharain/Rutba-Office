@@ -503,7 +503,9 @@ export default function ImageTool({ app, shell, boot }) {
   const setLevels = (patch) => changePixels((s) => ({ ...s, levels: { ...NEUTRAL_LEVELS, ...(s.levels || {}), ...patch } }), 'levels');
   const setCurve = (points) => changePixels((s) => ({ ...s, curve: { ...(s.curve || {}), [channel]: points } }), 'curve');
 
-  const autoFix = useCallback(() => {
+  // Auto enhance: the tones and the colour cast; Levels' own Auto: the tones only,
+  // the Temperature and Tint left as they were set.
+  const autoTone = useCallback((levelsOnly) => {
     // Worked out from the picture as it is shown before tone, then put on
     // the sliders, where each can be taken further or back.
     // Inside a selection: from what is selected, as it shows.
@@ -519,9 +521,15 @@ export default function ImageTool({ app, shell, boot }) {
       data = base.getContext('2d').getImageData(0, 0, base.width, base.height);
     }
     const found = autoEnhance(data);
+    if (levelsOnly) {
+      changePixels((s) => ({ ...s, levels: found.levels }), 'levels');
+      return;
+    }
     changePixels((s) => ({ ...s, levels: found.levels, temperature: found.temperature, tint: found.tint }));
     toast(t('Enhanced: the tones stretched to the full range and the colour cast eased.'), { tone: 'good' });
   }, [toast]);
+  const autoFix = useCallback(() => autoTone(false), [autoTone]);
+  const autoLevels = useCallback(() => autoTone(true), [autoTone]);
 
   const openSection = useCallback((id) => {
     setOpen((s) => new Set([...s, id]));
@@ -669,8 +677,9 @@ export default function ImageTool({ app, shell, boot }) {
 
   /* ── the layered picture ───────────────────────────────────────────── */
 
-  // While there are layers, every change to them or to the picture's quick
-  // edits is an undo step; a run of one change (a drag, a slider) is one.
+  // Every change to the layers or to the picture's quick edits is an undo
+  // step, with layers or without (a slider, Auto enhance, a crop); a run of
+  // one change (a drag, a slider) is one.
   useEffect(() => {
     const now = { doc: layered, ops, adjust, pixels, sel: selection };
     const prev = prevState.current;
@@ -683,14 +692,14 @@ export default function ImageTool({ app, shell, boot }) {
       h.skip = false;
       return;
     }
-    if (!layered && !prev.doc) return;
+    const project = Boolean(layered || prev.doc);
     const key = h.key;
     h.key = null;
     const at = Date.now();
     if (key && key === h.lastKey && (key.startsWith('drag:') || key.startsWith('type:') || at - h.lastAt < 900)) {
       h.lastAt = at;
       if (bits && h.undo.length) h.undo[h.undo.length - 1] = { ...h.undo[h.undo.length - 1], bits: mergeBits(h.undo[h.undo.length - 1].bits, bits) };
-      setProjectDirty(true);
+      if (project) setProjectDirty(true);
       return;
     }
     h.undo.push(bits ? { ...prev, bits } : prev);
@@ -699,7 +708,7 @@ export default function ImageTool({ app, shell, boot }) {
     h.redo = [];
     h.lastKey = key;
     h.lastAt = at;
-    setProjectDirty(true);
+    if (project) setProjectDirty(true);
   }, [layered, ops, adjust, pixels, selection]);
 
   // A layer that is gone is no longer chosen.
@@ -2490,7 +2499,7 @@ export default function ImageTool({ app, shell, boot }) {
                             </label>
                           ))}
                           <div className="im-sec-actions">
-                            <Button label={t('Auto')} onClick={autoFix} />
+                            <Button label={t('Auto')} title={t('Auto: the tones stretched to the full range; the colour left as it is')} onClick={autoLevels} />
                             <Button label={t('Reset levels')} onClick={() => changePixels((s) => ({ ...s, levels: null }), 'levels')} />
                           </div>
                         </div>

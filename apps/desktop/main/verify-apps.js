@@ -159,6 +159,7 @@ import { verifyHighContrast } from './verify-high-contrast.js';
 import { verifyPanels } from './verify-panels.js';
 import { verifyMachine } from './verify-machine.js';
 import { verifyImageBatch } from './verify-image-batch.js';
+import { verifyImageUndo } from './verify-image-undo.js';
 import { verifyPersonalTemplates } from './verify-personal-templates.js';
 import { verifyTemplates, makeTemplateThumbs } from './verify-templates.js';
 import { verifyQrCode } from './verify-qrcode.js';
@@ -5034,6 +5035,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('picturerotate')) await verifyPictureRotate({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('image-edits')) await verifyImageEdits({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('image-edits')) await verifyImageBatch({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('image-undo')) await verifyImageUndo({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('image-layers')) await verifyImageLayers({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('image-layers')) await verifyEditInImage({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('image-tools')) await verifyImageTools({ open, check, until, wait, errorsIn }, { dir });
@@ -5511,6 +5513,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('access', () => verifyScreenReader({ open, check, until, wait, press }, { dir }));
   await part('access', () => verifyHighContrast({ open, check, until, wait, press }, { dir }));
   await part('image', () => verifyImageBatch({ open, check, until, wait, errorsIn }, { dir }));
+  await part('image', () => verifyImageUndo({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('shell', () => verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir }));
   await part('shell', () => verifyTemplates({ open, check, until, wait, errorsIn, doc }, { dir, windows }));
   await part('shell', () => verifyQrCode({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
