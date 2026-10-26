@@ -72,19 +72,21 @@ export function designIdeas(scene, { colors = {} } = {}) {
   };
 
   if (pictures.length === 1 && (title || bodies.length)) {
+    // Beside the words the picture is fitted whole, as it is (a chart, a
+    // screenshot, a face loses nothing to a crop); across the slide it fills it.
     const pic = pictures[0];
     const half = Math.round(W * 0.46);
     ideas.push({
       id: 'picture-right',
       name: 'The picture on the right, the words beside it',
-      moves: [{ shape: pic.id, ...cover(pic, { x: W - half, y: 0, w: half, h: H }) }, ...words({ x: m, y: Math.round(H * 0.1), w: W - half - 2 * m, h: Math.round(H * 0.8) })],
+      moves: [{ shape: pic.id, geometry: fitInside(pic, { x: W - half, y: m, w: half - m, h: H - 2 * m }) }, ...words({ x: m, y: Math.round(H * 0.1), w: W - half - 2 * m, h: Math.round(H * 0.8) })],
       adds: [],
       colours: [],
     });
     ideas.push({
       id: 'picture-left',
       name: 'The picture on the left, the words beside it',
-      moves: [{ shape: pic.id, ...cover(pic, { x: 0, y: 0, w: half, h: H }) }, ...words({ x: half + m, y: Math.round(H * 0.1), w: W - half - 2 * m, h: Math.round(H * 0.8) })],
+      moves: [{ shape: pic.id, geometry: fitInside(pic, { x: m, y: m, w: half - m, h: H - 2 * m }) }, ...words({ x: half + m, y: Math.round(H * 0.1), w: W - half - 2 * m, h: Math.round(H * 0.8) })],
       adds: [],
       colours: [],
     });

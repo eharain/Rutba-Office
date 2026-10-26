@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
+import { putShapeDown } from './verify-shape-place.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, doc, sessionFor
@@ -41,10 +42,12 @@ export async function verifyDeck3d(h, { dir }) {
     await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 1`), 'the slides', 8000);
     await ribbon('Shapes');
     await menu('Rectangle');
+    await putShapeDown(wc);
     await until(() => model().slide.shapes.length === 1, 'the rectangle', 5000);
     const id = model().slide.shapes[0].id;
     const shape = () => model().slide.shapes.find((s) => String(s.id) === String(id));
     await ribbon('Shape Fill');
+    await menu('More Fill Options…');
     await until(() => js(`Boolean(document.querySelector('.sl-format-fill'))`), 'the Format pane', 4000);
     await js(`(() => { [...document.querySelectorAll('.sl-format-fill .sl-chip')].find((b) => b.textContent.trim() === 'Pattern')?.click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sl-pattern[data-pattern="dkUpDiag"]'))`), 'the pattern gallery', 4000).catch(() => {});

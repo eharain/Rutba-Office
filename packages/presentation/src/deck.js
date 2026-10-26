@@ -3719,9 +3719,28 @@ export class Deck {
     const entry = this.slideParts[index];
     if (!entry) throw new RangeError(`no slide at index ${index}`);
     this.clearNarration(index);
-    const { id } = this.addMedia(index, { kind: 'audio', data, contentType, poster, name: NARRATION_NAME, x: this.size.width - 64, y: this.size.height - 64, w: 48, h: 48 });
+    const at = this.#narrationPlace(index);
+    const { id } = this.addMedia(index, { kind: 'audio', data, contentType, poster, name: NARRATION_NAME, x: at.x, y: at.y, w: 48, h: 48 });
     this.#writeSlide(entry.part, withNarration(this.pkg.text(entry.part), id, durationMs));
     return id;
+  }
+
+  /**
+   * Where a narration's speaker goes: the bottom right corner, as PowerPoint
+   * puts it, unless a cameo (or its recording) is there, as the default
+   * cameo is; then just left of the cameo, at the same height, or the
+   * bottom left corner when there is no room.
+   */
+  #narrationPlace(index) {
+    const W = this.size.width;
+    const H = this.size.height;
+    const size = 48;
+    const cameos = this.slide(index).shapes.filter((x) => (x.cameo || x.cameoRecording) && x.geometry).map((x) => x.geometry);
+    const clear = (x, y) => cameos.every((g) => x + size <= g.x || x >= g.x + g.w || y + size <= g.y || y >= g.y + g.h);
+    const tries = [{ x: W - 64, y: H - 64 }];
+    for (const g of cameos) tries.push({ x: Math.round(g.x - size - 16), y: H - 64 });
+    tries.push({ x: 16, y: H - 64 });
+    return tries.find((p) => p.x >= 0 && clear(p.x, p.y)) || tries[0];
   }
 
   /**
@@ -4546,8 +4565,14 @@ export class Deck {
    * a slide that points at a layout the deck does not have is a slide that
    * opens blank in PowerPoint.
    *
+   * Named a layout (`layoutPart`) with `fromLayout`, the slide gets that layout's own
+   * placeholders, as PowerPoint's New Slide gives them: the title its words,
+   * the first text or content placeholder the body, the others empty, the
+   * date, footer and slide number left to the layout, and a picture, chart
+   * or table placeholder left out (this makes no empty ones of those).
+   *
    * @param {number} after index to insert after; -1 puts it first
-   * @param {{ layout?: 'title'|'obj'|'blank', title?: string, body?: string|string[] }} [spec]
+   * @param {{ layout?: 'title'|'obj'|'blank', layoutPart?: string, fromLayout?: boolean, title?: string, body?: string|string[] }} [spec]
    * @returns {number} the index of the new slide
    */
   insertSlide(after = this.slideCount - 1, spec = {}) {
@@ -4555,7 +4580,22 @@ export class Deck {
     const newPart = `ppt/slides/slide${n}.xml`;
 
     const { layout = 'obj', title = '', body = '' } = spec;
-    const content = { layout, ...(layout === 'blank' ? {} : { title, body }) };
+    let content = { layout, ...(layout === 'blank' ? {} : { title, body }) };
+    if (spec.fromLayout && spec.layoutPart && /^ppt\/slideLayouts\/slideLayout\d+\.xml$/.test(spec.layoutPart) && this.pkg.has(spec.layoutPart)) {
+      const placeholders = [];
+      let bodyGiven = false;
+      for (const m of this.pkg.text(spec.layoutPart).matchAll(/<p:ph\b([^>]*?)\/?>/g)) {
+        const type = /\btype="([^"]+)"/.exec(m[1])?.[1] || null;
+        const idx = /\bidx="(\d+)"/.exec(m[1])?.[1] ?? null;
+        if (['dt', 'ftr', 'sldNum', 'pic', 'chart', 'tbl', 'dgm', 'media', 'clipArt', 'sldImg', 'hdr'].includes(type)) continue;
+        if (placeholders.some((p) => p.type === type && p.idx === idx)) continue;
+        const isTitle = type === 'title' || type === 'ctrTitle';
+        const text = isTitle ? title : !bodyGiven && layout !== 'blank' ? body : '';
+        if (!isTitle) bodyGiven = true;
+        placeholders.push({ type, idx, text });
+      }
+      content = { placeholders };
+    }
     this.pkg.addPart(newPart, Buffer.from(slideXml(content), 'utf8'), CT.slide);
 
     // The layout of the slide we are inserting after, or of the first slide, or

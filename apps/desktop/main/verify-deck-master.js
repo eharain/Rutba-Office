@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
+import { putShapeDown } from './verify-shape-place.js';
 
 const MASTER = 'ppt/slideMasters/slideMaster1.xml';
 const CONTENT = 'ppt/slideLayouts/slideLayout2.xml';
@@ -112,6 +113,7 @@ export async function verifyDeckMaster(h, { dir }) {
     await tab('Insert');
     const shapes = await clickRibbon('Shapes');
     const rect = await clickMenuItem('Rectangle');
+    await putShapeDown(wc);
     const banded = await until(() => [0, 1, 2].every((i) => (model(i).slide.underlay || []).length === 1), 'the master\'s rectangle under every slide', 6000).catch(() => false);
     check('slides: a shape inserted on the master is drawn under every slide, not added to one', shapes === 'clicked' && rect === 'clicked' && banded === true && model(1).slide.shapes.length === 2,
       `${shapes}/${rect}; underlay ${[0, 1, 2].map((i) => (model(i).slide.underlay || []).length).join(',')}; slide 2 shapes ${model(1).slide.shapes.length}`);

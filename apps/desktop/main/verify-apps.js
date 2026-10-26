@@ -98,6 +98,7 @@ import { verifyDeckLanguage } from './verify-deck-language.js';
 import { verifyDeckMonitor } from './verify-deck-monitor.js';
 import { verifyDeckSplit } from './verify-deck-split.js';
 import { verifyDeckNotes } from './verify-deck-notes.js';
+import { verifyDeckTools } from './verify-deck-tools.js';
 import { verifyDeckRehearse } from './verify-deck-rehearse.js';
 import { verifyDeckAction } from './verify-deck-action.js';
 import { verifyDeckAlbum } from './verify-deck-album.js';
@@ -200,6 +201,7 @@ import { verifySheetInk } from './verify-sheet-ink.js';
 import { verifyWordInk } from './verify-word-ink.js';
 import { verifyDeckNarration } from './verify-deck-narration.js';
 import { verifyDeckVideo } from './verify-deck-video.js';
+import { verifyDeckVideoCameo } from './verify-deck-video-cameo.js';
 import { verifyDeckDirection } from './verify-deck-direction.js';
 import { verifyDeckRtl } from './verify-deck-rtl.js';
 import { verifyDeckZoom } from './verify-deck-zoom.js';
@@ -303,6 +305,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
  * became true instead of describing whatever the state happened to be.
  */
 import { APPS } from '@rutba/office-formats/registry';
+import { putShapeDown } from './verify-shape-place.js';
 
 // Set once the checks start closing their own windows; a close before that is not theirs.
 const closingPhase = { value: false };
@@ -1420,6 +1423,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(); return 1; })()`);
       await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Shape Fill' && !b.disabled))`), 'Shape Fill to be enabled', 4000);
       await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Shape Fill').click(); return 1; })()`);
+      // Shape Fill's menu: its colours, and More Fill Options for the Format pane.
+      await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === 'More Fill Options…')`), 'the Shape Fill menu', 3000).catch(() => {});
+      await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'More Fill Options…')?.click(), 1`);
       await until(() => js(`Boolean(document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]'))`), 'the Format pane', 4000);
       const accent2 = await js(`getComputedStyle(document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]')).backgroundColor`);
       await js(`(() => { document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]').click(); return 1; })()`);
@@ -5019,6 +5025,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('monitor')) await verifyDeckMonitor({ open, check, until, wait }, { dir });
     if (only.includes('movesplit')) await verifyDeckSplit({ open, check, until, wait }, { dir });
     if (only.includes('decknotes')) await verifyDeckNotes({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('decktools')) await verifyDeckTools({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('rehearse')) await verifyDeckRehearse({ open, check, until, wait, doc }, { dir });
     if (only.includes('deckaction')) await verifyDeckAction({ open, check, until, wait, doc }, { dir });
     if (only.includes('album')) await verifyDeckAlbum({ open, check, until, wait, doc }, { dir });
@@ -5124,6 +5131,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordink')) await verifyWordInk({ open, check, until, wait, capture: shotTo }, { dir });
     if (only.includes('narration')) await verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('deckvideo')) await verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir });
+    if (only.includes('deckvideocameo')) await verifyDeckVideoCameo({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('video-editor')) {
       await verifyVideoBasics({ open, check, until }, { wav: files.wav });
       await verifyVideoSplit({ open, check, until, wait, errorsIn }, { wav: files.wav });
@@ -5458,6 +5466,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('slides', () => verifyDeckMonitor({ open, check, until, wait }, { dir }));
   await part('slides', () => verifyDeckSplit({ open, check, until, wait }, { dir }));
   await part('slides', () => verifyDeckNotes({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckTools({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDeckRehearse({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckAction({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckAlbum({ open, check, until, wait, doc }, { dir }));
@@ -5560,6 +5569,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => verifyWordInk({ open, check, until, wait, capture: shotTo }, { dir }));
   await part('slides', () => verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await part('slides', () => verifyDeckVideoCameo({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('video', () => verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir }));
   // A minute of 1080p in under a minute is a timing: run alone, or it measures the lanes beside it.
   await part('video', () => verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
@@ -6929,6 +6939,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await clickIn(win, 'Shapes');
     await wait(200);
     await clickMenu(win, 'Oval');
+    await putShapeDown(win.webContents);
     await until(async () => ((await deckModel()).slide?.shapes?.length ?? 0) > shapesBeforeOval, 'an oval to appear', 4000).catch(() => {});
     const ovalModel = await deckModel();
     const oval = ovalModel.slide?.shapes?.slice(-1)[0];

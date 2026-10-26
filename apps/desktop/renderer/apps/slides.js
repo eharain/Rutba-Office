@@ -10,7 +10,7 @@
 // rewrites one slide's XML and leaves every other part of the file alone.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, useWheelZoom, menuItems, t, tn, language } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, useWheelZoom, menuItems, t, tn, msg, language } from '@rutba/office-ui';
 import { StartPage, START_PAGE_CSS, wantsStart } from '../start-page.js';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, pickSaveOtherForm, otherFormLabel, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { TemplateHelp } from '../template-help.js';
@@ -253,6 +253,12 @@ export default function Slides({ app, shell, boot }) {
   const [animPainter, setAnimPainter] = useState(null);
   // Set when a presenter window is driving, so this one follows rather than leads.
   const [led, setLed] = useState(false);
+  /** Insert → Shapes: the shape chosen, waiting to be drawn on the slide by a drag (or put down by a click). */
+  const [placing, setPlacing] = useState(null);
+  /** The Design Idea last applied: its slide, the deck's version just after, and which idea. */
+  const ideaRef = useRef(null);
+  const ledRef = useRef(false);
+  ledRef.current = led;
   /**
    * How the deck is shown. None of it is in the file: the view mode, the
    * rulers, gridlines and guides, whether the notes strip shows, a zoom
@@ -960,7 +966,10 @@ export default function Slides({ app, shell, boot }) {
     await shell.win.create({ app: 'slides', query: { presenter: doc.id } });
     await shell.present.set({ id: doc.id, index, step: 0, running: true, blank: false });
     setPresent(true);
-  }, [shell, doc, index]);
+    // With one screen the show covers the presenter's window: said once, with the way between them.
+    const screens = await Promise.resolve(shell.win.displays?.()).catch(() => null);
+    if (Array.isArray(screens) && screens.length === 1) toast(t('One screen: the show covers Presenter View. Alt+Tab goes between them; Esc ends the show.'), { ms: 6000 });
+  }, [shell, doc, index, toast]);
 
   const exportAs = useCallback(
     async (format, options = null) => {
@@ -1054,7 +1063,12 @@ export default function Slides({ app, shell, boot }) {
   useEffect(() => {
     if (!present) return undefined;
     const onKey = (e) => {
-      if (e.key === 'Escape') setPresent(false);
+      if (e.key === 'Escape') {
+        // A show with Presenter View ends for both windows: the shared position says so, or the
+        // presenter's next word would start it again.
+        if (ledRef.current || presenterOpen.current) shell.present.set({ running: false }).catch(() => {});
+        setPresent(false);
+      }
       // The show steps over a hidden slide rather than landing on it, and
       // through a slide's animations a click at a time before leaving it.
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown' || e.key === 'Enter') showKeys.current.next();
@@ -1386,7 +1400,22 @@ export default function Slides({ app, shell, boot }) {
       // or Designs (the deck's layouts). Asking for the one that is open closes it.
       case 'pane': patchView((v) => ({ pane: v.pane === arg ? null : arg })); return;
       // Design → Design Ideas: one of the layouts the pane drew, applied to the slide.
-      case 'designIdea': await apply({ op: 'applyDesignIdea', slide: index, idea: arg }); return;
+      case 'designIdea': {
+        // Another idea tried straight after one, nothing else changed: the
+        // first is taken back, so the ideas are tried in turn on the slide as
+        // it was and do not pile up on each other (one undo step each).
+        const last = ideaRef.current;
+        // Busy while it is tried: the ideas pane keeps the slide's ideas as they were.
+        ideaRef.current = { slide: index, version: null, idea: arg, busy: true };
+        if (last && !last.busy && last.slide === index && last.version === doc?.version && doc?.canUndo) {
+          const back = await shell.doc.undo({ id: doc.id, slide: index, width: 1280, master: masterPart });
+          setDoc(back);
+          setModel(back.model);
+        }
+        const next = await apply({ op: 'applyDesignIdea', slide: index, idea: arg });
+        ideaRef.current = next ? { slide: index, version: next.version, idea: arg } : null;
+        return;
+      }
       // The Format pane opens (and stays open) from Shape Fill and Shape Outline.
       case 'formatPane': patchView({ pane: 'format' }); return;
       case 'editPoints': editPoints(selectedShape); return;
@@ -1750,7 +1779,7 @@ export default function Slides({ app, shell, boot }) {
         // A slide after this one on the chosen layout, with the words a new
         // slide of that kind starts with.
         const kind = arg.type === 'title' ? 'title' : arg.type === 'blank' || !arg.placeholders?.length ? 'blank' : 'obj';
-        const next = await apply({ op: 'insertSlide', after: index, layout: kind, layoutPart: arg.part, ...(kind === 'blank' ? {} : { title: t('New slide'), body: kind === 'title' ? '' : [t('Point one')] }) });
+        const next = await apply({ op: 'insertSlide', after: index, layout: kind, layoutPart: arg.part, fromLayout: true, ...(kind === 'blank' ? {} : { title: t('New slide'), body: kind === 'title' ? '' : [t('Point one')] }) });
         if (next) setIndex(Math.min(index + 1, (next.model?.count || index + 2) - 1));
         return;
       }
@@ -2143,14 +2172,31 @@ export default function Slides({ app, shell, boot }) {
       case 'releases': shell.shell.openExternal({ url: SITE.releases }); return;
       case 'shortcuts': setShortcutsOpen(true); return;
       case 'addShape': {
-        // Placed in the middle of the slide at a hand's size, then selected so
-        // Arrange and the font controls act on it at once.
+        // Chosen from Shapes: drawn on the slide next, by a drag, as PowerPoint
+        // draws one (ShapeDraw below). Drawn: the box it was drawn in, or at a
+        // hand's size round the point clicked; then selected so Arrange and
+        // the font controls act on it at once.
+        if (typeof arg === 'string') {
+          setPlacing(arg);
+          toast(t('Drag on the slide to draw the shape, or click to put it down there. Esc: cancel.'), { ms: 3500 });
+          return;
+        }
+        setPlacing(null);
+        const { preset, box, at, flip } = arg;
         const W = model?.size?.width || 1280;
         const H = model?.size?.height || 720;
-        const w = arg === 'line' ? 320 : 240;
-        const h = arg === 'line' ? 0 : 160;
-        const next = await apply({ op: 'addShape', slide: index, preset: arg, x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h });
+        let g = box;
+        if (!g) {
+          const w = preset === 'line' ? 320 : 240;
+          const h = preset === 'line' ? 0 : 160;
+          const cx = at ? at.x : W / 2;
+          const cy = at ? at.y : H / 2;
+          g = { x: Math.max(0, Math.min(W - w, cx - w / 2)), y: Math.max(0, Math.min(H - h, cy - h / 2)), w, h };
+        }
+        const next = await apply({ op: 'addShape', slide: index, preset, x: Math.round(g.x), y: Math.round(g.y), w: Math.round(g.w), h: Math.round(g.h) });
         const added = next?.model?.slide?.shapes?.slice(-1)[0];
+        // A line drawn up from where it began slopes the other way.
+        if (added && flip) await apply({ op: 'flipShapes', slide: index, ids: [added.id], axis: 'vertical' });
         if (added) setSelected(added.id);
         return;
       }
@@ -2967,6 +3013,14 @@ export default function Slides({ app, shell, boot }) {
                   {view.cameoPreview && !preview ? <><style>{CAMEO_CSS}</style><CameoLayer shapes={slide.shapes} /></> : null}
                   {/* Videos and sounds: a play bar under each, as PowerPoint draws one. */}
                   {!model.masterView ? <StageMedia shapes={slide.shapes} /> : null}
+                  {placing ? (
+                    <ShapeDraw
+                      size={model.size}
+                      preset={placing}
+                      onDone={(spec) => act('addShape', { preset: placing, ...spec })}
+                      onCancel={() => setPlacing(null)}
+                    />
+                  ) : null}
                   {/* Draw: the pen surface while a pen, the Eraser or the Lasso is in hand; the Ruler on its own otherwise. */}
                   {ink.tool && !model.masterView ? (
                     <InkSurface
@@ -3415,7 +3469,7 @@ export default function Slides({ app, shell, boot }) {
                   <ChangesPane changes={deckChanges} onGo={(i) => setIndex(i)} onDismiss={() => setDeckChanges((c) => ({ ...c, list: [] }))} />
                 </>
               ) : view.pane === 'ideas' ? (
-                <IdeasPane shell={shell} doc={doc} index={index} act={act} />
+                <IdeasPane shell={shell} doc={doc} index={index} act={act} tried={ideaRef.current} />
               ) : (
                 <FormatPane shape={selectedShape} theme={slide?.theme} act={act} />
               )}
@@ -4264,9 +4318,25 @@ function LayersPane({ slide, selected, selectedIds = [], onSelect, onToggle, act
  * pictures suit, each drawn as the slide would be; a click applies one. Asked
  * for again whenever the slide or the deck changes.
  */
-function IdeasPane({ shell, doc, index, act }) {
+/** The Design Ideas' names in the window's language, by idea (the engine names them in English). */
+const IDEA_NAMES = {
+  'picture-right': msg('The picture on the right, the words beside it'),
+  'picture-left': msg('The picture on the left, the words beside it'),
+  'picture-band': msg('The picture across the slide, the title on a band over it'),
+  'pictures-row': msg('The pictures in a row under the title'),
+  'title-band': msg("The title on a band of the theme's accent"),
+  'side-bar': msg('An accent bar down the left, the words beside it'),
+  centred: msg('The title in the middle, the words under it'),
+  'deep-ground': msg("Light words on the theme's dark colour"),
+};
+const ideaName = (idea) => (IDEA_NAMES[idea.id] ? t(IDEA_NAMES[idea.id]) : idea.name);
+
+function IdeasPane({ shell, doc, index, act, tried = null }) {
   const [ideas, setIdeas] = useState(null);
+  // An idea just tried: the ideas stay those of the slide as it was, the tried one marked.
+  const trying = Boolean(tried && tried.slide === index && (tried.busy || tried.version === doc?.version));
   useEffect(() => {
+    if (trying && ideas) return undefined;
     let live = true;
     setIdeas(null);
     Promise.resolve(shell.doc.designIdeas({ id: doc.id, slide: index, width: 220 })).then((list) => { if (live) setIdeas(list || []); }).catch(() => { if (live) setIdeas([]); });
@@ -4277,9 +4347,9 @@ function IdeasPane({ shell, doc, index, act }) {
   return (
     <div className="sl-ideas">
       {ideas.map((idea) => (
-        <button key={idea.id} type="button" className="sl-idea" data-idea={idea.id} data-tip={idea.name} onClick={() => act('designIdea', idea.id)}>
+        <button key={idea.id} type="button" className={`sl-idea${trying && tried.idea === idea.id ? ' on' : ''}`} aria-pressed={trying && tried.idea === idea.id} data-idea={idea.id} data-tip={ideaName(idea)} onClick={() => act('designIdea', idea.id)}>
           <span className="sl-idea-pic" dangerouslySetInnerHTML={{ __html: idea.svg || '' }} />
-          <span className="sl-idea-name">{idea.name}</span>
+          <span className="sl-idea-name">{ideaName(idea)}</span>
         </button>
       ))}
     </div>
@@ -4454,6 +4524,9 @@ const CSS = `
 .sl-ideas { display: flex; flex-direction: column; gap: 10px; padding: 8px; }
 .sl-idea { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; cursor: pointer; text-align: start; }
 .sl-idea:hover { border-color: var(--accent); }
+.sl-shape-draw { position: absolute; inset: 0; z-index: 30; cursor: crosshair; }
+.sl-shape-draw-box { position: absolute; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); pointer-events: none; }
+.sl-idea.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .sl-idea-pic svg { display: block; width: 100%; height: auto; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
 .sl-idea-name { font-size: 12px; opacity: .8; }
 .sl-ideas-note { padding: 12px; opacity: .75; font-size: 13px; }
@@ -4734,6 +4807,58 @@ function NotesStrip({ index, notes, style, onSave }) {
         timer.current = setTimeout(flush, 800);
       }}
     />
+  );
+}
+
+/**
+ * Insert → Shapes, drawn: over the slide while a shape waits to be drawn, a
+ * crosshair; a drag draws the shape in the box dragged (Shift keeps it as
+ * wide as it is high), a click puts it down at its usual size there, and
+ * Esc or a press outside the slide puts it away. Points are the slide's own.
+ */
+function ShapeDraw({ size, preset, onDone, onCancel }) {
+  const ref = useRef(null);
+  const [box, setBox] = useState(null);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onCancel(); } };
+    const onAway = (e) => { if (ref.current && !ref.current.contains(e.target) && !e.target.closest?.('.rw-menu, .rw-ribbon')) onCancel(); };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('mousedown', onAway, true);
+    return () => { window.removeEventListener('keydown', onKey, true); window.removeEventListener('mousedown', onAway, true); };
+  }, [onCancel]);
+  const pointAt = (e) => {
+    const r = ref.current.getBoundingClientRect();
+    const k = size.width / Math.max(1, r.width);
+    return { x: Math.max(0, Math.min(size.width, (e.clientX - r.left) * k)), y: Math.max(0, Math.min(size.height, (e.clientY - r.top) * k)) };
+  };
+  const shaped = (a, b, square) => {
+    let dx = b.x - a.x, dy = b.y - a.y;
+    if (square && preset !== 'line') { const d = Math.max(Math.abs(dx), Math.abs(dy)); dx = Math.sign(dx || 1) * d; dy = Math.sign(dy || 1) * d; }
+    return { x: Math.min(a.x, a.x + dx), y: Math.min(a.y, a.y + dy), w: Math.abs(dx), h: Math.abs(dy), flip: preset === 'line' && dx !== 0 && dy !== 0 && (dx > 0) !== (dy > 0) };
+  };
+  const onMouseDown = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const from = pointAt(e);
+    setBox({ x: from.x, y: from.y, w: 0, h: 0 });
+    const move = (ev) => { const b = shaped(from, pointAt(ev), ev.shiftKey); setBox(b); };
+    const up = (ev) => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      const b = shaped(from, pointAt(ev), ev.shiftKey);
+      setBox(null);
+      // A press with next to no drag is a click: the shape at its usual size there.
+      if (Math.max(b.w, b.h) < 6) onDone({ at: from });
+      else onDone({ box: { x: b.x, y: b.y, w: preset === 'line' ? b.w : Math.max(1, b.w), h: preset === 'line' ? b.h : Math.max(1, b.h) }, flip: b.flip });
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+  return (
+    <div ref={ref} className="sl-shape-draw" data-role="shape-draw" data-preset={preset} onMouseDown={onMouseDown}>
+      {box ? <div className="sl-shape-draw-box" style={{ left: box.x, top: box.y, width: box.w, height: box.h }} /> : null}
+    </div>
   );
 }
 

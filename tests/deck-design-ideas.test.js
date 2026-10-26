@@ -1,7 +1,7 @@
 /**
  * Design → Design Ideas: layouts a slide's own content suits, worked out by
- * the deck — the picture beside the words with a crop that keeps its
- * proportions, the picture across the slide under a title band, the title on
+ * the deck: the picture beside the words whole, its proportions kept,
+ * the picture across the slide under a title band, the title on
  * an accent band, a side bar, the title centred, light words on the dark
  * colour — previewed as a changed scene and applied by the deck's methods.
  */
@@ -41,16 +41,19 @@ test('A slide of words is offered a title band, a side bar, the title centred an
   assert.ok(title.geometry.y < band.geometry.h);
 });
 
-test('A slide with a picture puts it beside the words, cropped to keep its proportions, or across the slide under a title band', () => {
+test('A slide with a picture puts it beside the words whole, its proportions kept, or across the slide under a title band', () => {
   const d = pictured();
   assert.deepEqual(d.designIdeas(0).map((i) => i.id), ['picture-right', 'picture-left', 'picture-band']);
   d.applyDesignIdea(0, 'picture-right');
   const pic = d.slide(0).shapes.find((x) => x.kind === 'picture');
-  assert.equal(Math.round(pic.geometry.x + pic.geometry.w), Math.round(d.slide(0).size.width), 'to the right edge');
-  assert.equal(pic.geometry.y, 0);
-  assert.equal(Math.round(pic.geometry.h), Math.round(d.slide(0).size.height));
-  assert.match(xml(d), /<a:blip\b[^>]*\/><a:srcRect l="\d+" r="\d+"\/>/, 'the sides cropped equally, after the blip');
-  assert.ok(Math.abs(pic.crop.l - pic.crop.r) < 1e-9 && pic.crop.l > 0.1);
+  const W = d.slide(0).size.width;
+  assert.ok(pic.geometry.x > W / 2 && pic.geometry.x + pic.geometry.w <= W + 1, 'in the right half');
+  assert.ok(Math.abs(pic.geometry.w / pic.geometry.h - 4 / 3) < 0.02, 'its own proportions');
+  assert.doesNotMatch(xml(d), /<a:srcRect\b[^>]*[ltrb]="[1-9]/, 'nothing of it cropped away');
+  // Another idea tried on the same slide moves it again, its proportions still its own, to the left.
+  d.applyDesignIdea(0, 'picture-left');
+  const left = d.slide(0).shapes.find((x) => x.kind === 'picture');
+  assert.ok(left.geometry.x + left.geometry.w < W / 2 && Math.abs(left.geometry.w / left.geometry.h - 4 / 3) < 0.02);
 
   const e = pictured();
   e.applyDesignIdea(0, 'picture-band');
