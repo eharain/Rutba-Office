@@ -371,3 +371,193 @@ Not imports, so nothing to cut, but a pack that is absent must not be offered: t
 | Contacts | none | Mail: `apps/desktop/renderer/apps/contacts.js:217` |
 | Talk | Mail (2): `apps/desktop/renderer/apps/talk/invite.js:88 mail.accounts`; Contacts (1): `apps/desktop/renderer/apps/talk/invite.js:98 contacts.suggest` | Mail: `apps/desktop/renderer/apps/talk/invite.js:191` |
 <!-- app-map:end -->
+
+## 2. The pack format
+
+A pack is three things side by side in the core's packs folder
+(`resources/packs/` beside `app.asar` in an installed copy):
+
+```
+mail.asar             the pack's files: an Electron archive
+mail.asar.unpacked/   the files the operating system reads from disk (tiles), when there are any
+mail.pack.json        the signed manifest
+```
+
+**Why an Electron archive (asar).** `@electron/asar` is already in the
+tree: electron-builder uses it to make `app.asar`, and the lockfile has it
+(3.4.1) as electron-builder's dependency. It is used only when packs are
+made, at build time. At run time Electron reads into an `.asar` by path, so
+a pack's main module is imported straight from its archive, its neighbours
+import each other, and a file beside it is read by `import.meta.url`
+(checked under Electron 44 with two packs made by `tools/make-packs.mjs`:
+both imported and answered from inside their archives, and a spoiled one
+was refused). The format is a JSON table followed by the files' bytes, so
+the core reads the table and hashes the files itself (`readArchive` in the
+loader, no dependency at run time). A zip would need unpacking into a
+writable place before any code ran; a plain folder would make a partial or
+mixed copy hard to see and slow to check (on Windows, opening a file is
+what costs, and a pack of hundreds of files is then hundreds of opens;
+the archive is one). A pack's own `package.json`, at the root of its
+archive, says `"type": "module"`.
+
+**The manifest file** (`<id>.pack.json`):
+
+```json
+{
+  "format": "rutba-office-pack",
+  "keyId": "3f0c2a9b81d4e6f7",
+  "manifest": { "format": 1, "id": "mail", "name": "Mail", "version": "...", "...": "..." },
+  "signature": "<Ed25519 signature of the manifest, base64>"
+}
+```
+
+| Field of `manifest` | What it is |
+|---|---|
+| `format` | 1. A core refuses a format it does not read. |
+| `id` | The app's key, as the registry and the windows use it (`mail`, `word`, `base`); the pack's files are named by it. |
+| `name` | The name shown in a refusal and in Add or remove apps. |
+| `version` | The version it was built with. It must equal the core's. |
+| `needs` | Packs that must be installed and good for this one to load (refused otherwise, with their names). |
+| `uses` | Packs whose features this one offers when they are installed, and hides when not (a PDF attachment's note in Mail uses PDF and text recognition). Never refused for. |
+| `archive` | `<id>.asar`, in the same folder. |
+| `main` | The IPC entry module in the archive. It exports `register(core)` and answers the namespaces it serves (section 5). |
+| `windows` | The window module in the archive, which `renderer/index.js` imports for a window of this app. |
+| `ipc` | `{ namespace: [method, ...] }`: the channels this pack adds. The core registers them, and the preload's bridge offers them, only when the pack is loaded. |
+| `events` | The events it sends (`mail:new`). |
+| `tiles` | `[{ app, icon }]`: the taskbar tile and the file types' icon, unpacked, because Windows reads them from disk. |
+| `fileTypes` | The registry rows it adds: `ext`, `name`, `mimeType`, `role`, `icon`. |
+| `tools` | The AI tools it adds (`create_document`). |
+| `files` | Every file in the archive and beside it: `{ path: { size, sha512, unpacked } }`, SHA-512 in base64, paths relative with forward slashes. |
+
+**The signature** is Ed25519 (`crypto.sign(null, ...)` in `node:crypto`)
+over the manifest as canonical JSON: keys in order at every level, no
+spaces, a key whose value is undefined left out, UTF-8. `canonical()` in
+the loader is the one definition; the signer imports it. The whole of the
+manifest is signed, the files' hashes with it, so a changed file shows as
+a hash that differs and a changed manifest as a signature that fails.
+`keyId` (the first 16 hex digits of the SHA-256 of the public key's SPKI
+form) is a label for people; the core does not trust it and tries each key
+it holds, so it can carry the next key before the last is retired.
+
+**The rules the loader keeps** (section 4): the manifest is believed only
+once its signature holds; the id is the file's name; the version is the
+core's; every path is relative, with no `..`; the archive is in the same
+folder; the archive holds exactly the files listed, no more, no fewer, and
+no links; the unpacked folder holds exactly the unpacked files listed;
+every file has its listed size and SHA-512; `main` and `windows` are files
+of the pack; and everything in `needs` loaded too.
+
+## 3. Making and signing packs
+
+```
+node tools/make-pack-key.mjs <folder outside the repository>
+node tools/make-packs.mjs --tree <built tree> --out <folder> [--key <file>] [--version <v>] [--only mail,calendar]
+```
+
+`tools/make-pack-key.mjs` makes an Ed25519 key pair: `pack-key.pem`, the
+private half (PKCS #8, written readable only by its owner where the system
+allows) and `pack-key.pub.pem`, the public half (SPKI). It refuses a folder
+inside the repository and never overwrites a key. It prints the public half
+and its id, never the private one. The real key is made once and kept with
+the other release secrets; its public half is the one the core carries
+(a file in the core, public, committed with the move).
+
+`tools/make-packs.mjs` reads a built tree with one folder per pack, named by
+its id. In each, `pack.json` says what the pack is, and every other file is
+the pack:
+
+```json
+{
+  "name": "Mail",
+  "needs": [],
+  "uses": ["calendar", "contacts", "pdf", "ocr"],
+  "main": "main/index.js",
+  "windows": "renderer/mail.js",
+  "unpack": ["tiles"],
+  "ipc": { "mail": ["accounts", "list", "send"], "discover": ["scan"] },
+  "events": ["mail:new", "mail:progress"],
+  "tiles": [{ "app": "mail", "icon": "tiles/mail.ico" }],
+  "fileTypes": [{ "ext": "eml", "name": "Email Message", "mimeType": "message/rfc822", "role": "Editor", "icon": "tiles/filetypes/mail.ico" }],
+  "tools": []
+}
+```
+
+For each it writes the archive with `@electron/asar` (the `unpack` folders
+beside it), reads the archive back and checks it holds what was listed,
+hashes every file, and writes the signed `<id>.pack.json`. The version is
+the repository's `package.json` version unless `--version` names another.
+The private key comes from `--key <file>`, or `RUTBA_PACK_KEY` (the PEM
+text), or `RUTBA_PACK_KEY_FILE`; a key file inside the repository is refused
+before it is read. At the move, `@electron/asar` is named in the root
+`devDependencies` at the version the lockfile already has, so the build
+does not lean on how npm hoists electron-builder's dependencies.
+
+`tests/packs.test.js` makes a key pair in memory, a small built tree in a
+temporary folder (Contacts; Mail, which needs Contacts, with a tile kept on
+disk and a file past a megabyte; text recognition) and packs from it, and
+throws all of it away. Nothing secret is in the repository.
+
+## 4. The core's loader
+
+`packages/office-shell/src/electron/packs.js`, not yet wired into
+`main.js`:
+
+```js
+import { findPacks } from '@rutba/office-shell/electron/packs'; // export added with the move
+const { packs, refused } = findPacks({ dir, publicKey, version });
+```
+
+- `dir`: the packs folder; none there means no packs and nothing refused.
+- `publicKey`: the key packs must be signed with (a KeyObject, PEM or DER),
+  or a list of keys.
+- `version`: the core's own version.
+
+It answers `packs`, in an order that puts what a pack needs before it, each
+with what the core loads: `main` and `windows` (paths into the archive,
+which `import()` takes under Electron), `ipc`, `events`, `tiles` (paths on
+disk), `fileTypes`, `tools`, `needs` and `uses`. And `refused`, each with
+the pack's id, its manifest file, a code (`unreadable`, `format`,
+`signature`, `id`, `version`, `missing`, `unknown`, `changed`, `needs`) and a
+sentence for a person, for example:
+
+- The Mail pack is version 2.0.0 and this Rutba Office is 2.0.1. A pack
+  must match the Rutba Office it runs in: update it with Add or remove apps.
+- The mail pack is not signed by Rutba, or was changed after it was
+  signed. It was not loaded.
+- The Contacts pack's file main/index.js has been changed since it was
+  signed. It may have been tampered with; install the pack again with Add
+  or remove apps.
+- The Mail pack holds a file its manifest does not list: main/payload.js.
+  It may have been tampered with.
+- The Mail pack was not loaded. It needs contacts, which is not installed:
+  add it with Add or remove apps. (Or: which could not be loaded either.)
+
+A refused pack's name comes from its file until its signature holds, so a
+forged manifest cannot choose the words shown. A pack is refused in turn
+when one it needs is refused. Under Electron the archive is read with
+`original-fs`, which sees an `.asar` as the file it is; under Node (the
+tests) with `node:fs`.
+
+**Cost.** Every file of every installed pack is hashed at each start. The
+archive is opened once per pack and read in megabyte pieces. Measured on
+the development computer while other work ran: text recognition (28 files,
+15.4 MB) and Mail (its engine, `imapflow` and `nodemailer`, 431 files,
+3.6 MB) checked together in 210 to 280 ms. With every pack installed
+(about 30 MB of packs) that is under half a second, run beside the first
+window's start rather than before it, since no pack's IPC is needed until
+its window asks. If it ever matters, a pack checked once can be trusted by
+the archive's size and time until either changes; the full check stays for
+after an update and for Add or remove apps.
+
+**The tests** (`tests/packs.test.js`): good packs load in order with paths
+into their archives; no folder, no packs; a pack of another version refused,
+naming both; a file changed inside the archive refused, and the pack that
+needs it refused in turn; a file changed beside the archive refused; a pack
+signed with another key refused, and either of two keys accepted; a
+manifest edited after signing refused; a pack whose needs are missing
+refused, naming them; a file not in the manifest refused, in the archive (an
+archive made again with one more file) or beside it; a missing archive or
+file refused; a signed manifest naming a path out of its folder, or another
+id than its file's, refused; the private key never read from or written
+into the repository; the loader's reading of an archive agrees with
+Electron's own tool; the signed bytes do not depend on the order of keys.
