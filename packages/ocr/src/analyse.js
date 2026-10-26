@@ -51,8 +51,16 @@ function integrals({ width, height, data }) {
  * judges each pixel against the mean and spread of its neighbourhood, so
  * a page lit unevenly, or with a shadow down its fold, keeps its text.
  * 'auto' picks Sauvola when the paper's brightness varies across the page.
+ *
+ * Sauvola can only tell ink from paper where its window holds some of
+ * both: inside a stroke wider than the window there is no contrast, the
+ * threshold falls below the ink, and the stroke is left hollow, an
+ * outline. A heavy face (Arial Black, Impact, a price on a label) has
+ * strokes a third of its letters' height, so given the text's height
+ * (`textHeight`, in this picture's pixels) the window is never narrower
+ * than two and a half letters, which no stroke fills.
  */
-export function binarise(grey, { method = 'auto', window = 0, k = 0.2 } = {}) {
+export function binarise(grey, { method = 'auto', window = 0, k = 0.2, textHeight = 0 } = {}) {
   const { width, height, data } = grey;
   const out = new Uint8Array(width * height);
   const use = method === 'auto' ? (unevenPaper(grey) ? 'sauvola' : 'otsu') : method;
@@ -61,7 +69,7 @@ export function binarise(grey, { method = 'auto', window = 0, k = 0.2 } = {}) {
     for (let i = 0; i < data.length; i++) out[i] = data[i] <= t ? 0 : 255;
     return { width, height, data: out, method: 'otsu', threshold: t };
   }
-  const r = Math.max(7, (window || Math.round(Math.min(width, height) / 40)) >> 1);
+  const r = Math.max(7, (window || Math.round(Math.min(width, height) / 40)) >> 1, Math.round(textHeight * 1.25));
   const { s, q, w } = integrals(grey);
   const R = 128;
   for (let y = 0; y < height; y++) {
@@ -97,6 +105,47 @@ export function unevenPaper({ width, height, data }) {
     }
   }
   return Math.max(...bright) - Math.min(...bright) > 40;
+}
+
+/**
+ * Whether the picture is light letters on a dark ground: a screenshot in a
+ * dark theme, a sign, a price on a black label. Everything after this is
+ * made for dark ink on light paper (the paper's evenness is its brightest
+ * tenth, Sauvola's ink is what is darker than its neighbours, a letter is a
+ * blob of ink), so such a picture is turned to its negative first; read as
+ * it is, its dark ground looked like paper lit unevenly, and Sauvola drew
+ * each light letter as a dark outline, two strokes where there was one.
+ *
+ * The ground is the darker of the picture's two levels (Otsu) when it
+ * covers most of the picture and most of its edges, and the light level's
+ * blobs are the letters: of the letter-sized blobs of each level, the light
+ * ones stand taller in all (the dark ones are then only the holes in an o or
+ * a 6). The last keeps a photographed page on a dark desk as it is.
+ */
+export function darkPaper(grey) {
+  const { width, height, data } = grey;
+  const t = otsu(grey);
+  let dark = 0;
+  for (let i = 0; i < data.length; i++) if (data[i] <= t) dark++;
+  if (dark * 2 <= data.length) return false;
+  let edge = 0, edgeDark = 0;
+  const at = (x, y) => { edge++; if (data[y * width + x] <= t) edgeDark++; };
+  for (let x = 0; x < width; x++) { at(x, 0); if (height > 1) at(x, height - 1); }
+  for (let y = 1; y < height - 1; y++) { at(0, y); if (width > 1) at(width - 1, y); }
+  if (edgeDark * 2 <= edge) return false;
+  const level = (inkDark) => {
+    const out = new Uint8Array(data.length);
+    for (let i = 0; i < data.length; i++) out[i] = (data[i] <= t) === inkDark ? 0 : 255;
+    return letterBlobs({ width, height, data: out }, { line: true }).reduce((n, b) => n + b.height, 0);
+  };
+  return level(false) >= level(true);
+}
+
+/** The negative of a grey picture. */
+export function invert(grey) {
+  const out = new Uint8Array(grey.width * grey.height);
+  for (let i = 0; i < out.length; i++) out[i] = 255 - grey.data[i];
+  return { width: grey.width, height: grey.height, data: out };
 }
 
 /** The ink pixels of a binary picture, every `step`th in each direction. */
@@ -315,15 +364,26 @@ export function components({ width, height, data }) {
 }
 
 /**
+ * The blobs of ink that look like letters: not specks, not rules, not
+ * pictures. On a page a letter is under a quarter of the page's height and
+ * width; in a picture of one `line` (a price cut from a label, a heading)
+ * it can be most of the picture's height.
+ */
+function letterBlobs(binary, { line = false } = {}) {
+  const tall = line ? binary.height : binary.height / 4, wide = line ? binary.width / 2 : binary.width / 4;
+  return components(binary).filter((b) => b.height >= 4 && b.width >= 2 && b.height < tall && b.width < wide && b.width / b.height < 6 && b.height / b.width < 8);
+}
+
+/**
  * The height of the page's text in pixels: the median height of the blobs
  * that look like letters (not specks, not rules, not pictures), each
  * counted by its ink, so the dots of Arabic script and the parts of a Han
  * character, small and many, do not pull it down. 0 when there is no text
  * to measure.
  */
-export function textHeight(binary) {
-  const blobs = components(binary).filter((b) => b.height >= 4 && b.width >= 2 && b.height < binary.height / 4 && b.width < binary.width / 4 && b.width / b.height < 6 && b.height / b.width < 8);
-  if (blobs.length < 5) return 0;
+export function textHeight(binary, { least = 5, line = false } = {}) {
+  const blobs = letterBlobs(binary, { line });
+  if (blobs.length < least) return 0;
   blobs.sort((a, b) => a.height - b.height);
   const half = blobs.reduce((n, b) => n + b.pixels, 0) / 2;
   let acc = 0;

@@ -258,6 +258,26 @@ test('recognize: a page turned two and a half degrees is turned back first, its 
   }
 });
 
+test('recognize: heavy figures, prices in Arial Black, Impact, Segoe UI Black and others, small and large, on white, on a dark ground and on paper lit from one side, are read exactly', async () => {
+  // Each a picture of one line, as Copy Text is handed a price cut from a label or a screenshot
+  // (drawn by Windows' own text renderer). Read as they came, a dark ground was taken for paper lit
+  // unevenly and each light letter drawn as its outline, and a heavy stroke on uneven paper was
+  // left hollow: "£1.65" came back as "", "21.05" or "£1°65", a "1" as "/" and "1".
+  const host = createOcrHost({ threads: 2 });
+  try {
+    const figures = JSON.parse(fixture('figures.json').toString('utf8'));
+    const read = await Promise.all(figures.map((f) => host.recognize(fixture(f.file), { languages: ['eng'] })));
+    const wrong = figures
+      .map((f, i) => ({ f, got: read[i].text.replace(/\s+/g, ' ').trim() }))
+      .filter(({ f, got }) => got !== f.text)
+      .map(({ f, got }) => `${f.face} ${f.px}px, ${f.ground}: "${f.text}" read as "${got}"`);
+    assert.deepEqual(wrong, []);
+    figures.forEach((f, i) => assert.equal(read[i].prepared.inverted, /^(white|light) on/.test(f.ground), `${f.file}: read as its negative only when light on dark`));
+  } finally {
+    await host.stop();
+  }
+});
+
 test('recognize: Urdu and Arabic keep their own comma where the model reads a Latin one', async () => {
   const host = createOcrHost({ threads: 1 });
   try {

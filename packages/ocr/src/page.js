@@ -4,18 +4,23 @@
 // back into the picture's own coordinates.
 //
 // The preparation, each step skipped when it would change nothing:
+//   turned to its negative when it is light letters on a dark ground (a dark
+//     theme, a sign, a price on a black label), as everything after is made
+//     for dark ink on light paper;
 //   turned back level when the text is turned by two degrees or more (the
 //     engine reads a smaller tilt as well itself, and turning a soft scan
 //     by resampling it costs more than the tilt: docs/OCR.md);
-//   scaled when the text is very small (a screenshot) or very large (a poster,
-//     a 600 dpi scan), towards the height the models read best;
-//   handed over as ink and paper (Sauvola) when the paper is lit unevenly,
+//   scaled when the text is very small (a screenshot, a price cut from one)
+//     or very large (a poster, a 600 dpi scan), towards the height the
+//     models read best;
+//   handed over as ink and paper (Sauvola, its window wider than the
+//     heaviest stroke) when the paper is lit unevenly,
 //     and otherwise as grey, which the engine thresholds itself.
 
 import { checkLanguages } from './languages.js';
 import { isPng, decodePng } from './png.js';
 import { toGrey } from './pixels.js';
-import { binarise, estimateSkew, rotate, unrotatePoint, scale, textHeight, unevenPaper, rulings, cropPadded, inkIn, fitToInk } from './analyse.js';
+import { binarise, estimateSkew, rotate, unrotatePoint, scale, textHeight, unevenPaper, darkPaper, invert, rulings, cropPadded, inkIn, fitToInk } from './analyse.js';
 import { tableCells } from './layout.js';
 import { documentFields } from './fields.js';
 import { findCheckboxes } from './checkboxes.js';
@@ -33,7 +38,7 @@ import { PSM } from './engine.js';
  */
 function readTable(engine, { grey, prepared, how, langs, dpi, result, map }) {
   const level = how.turn ? rotate(grey, -how.turn) : grey;
-  const binary = binarise(level, { method: how.uneven ? 'sauvola' : 'otsu' });
+  const binary = binarise(level, { method: how.uneven ? 'sauvola' : 'otsu', textHeight: how.letters });
   const rules = rulings(binary);
   const rtl = result.lines.filter((l) => l.direction === 'rtl').length > result.lines.length / 2;
   // Boxes on the level picture: the rules were found there.
@@ -109,6 +114,15 @@ export function picture(image) {
 const SMALL = 10;
 const LARGE = 64;
 const TARGET = 20;
+/**
+ * A picture of one line (a price, a label cut from a screenshot) is measured
+ * by its letters' full height, a figure's or a capital's, not a page's
+ * lower-case: under LINE_SMALL it is scaled up towards LINE_TARGET. Small
+ * heavy figures most of all are read better larger: their counters and
+ * decimal points are a pixel or two.
+ */
+const LINE_SMALL = 14;
+const LINE_TARGET = 36;
 /** A page turned by this many degrees or more is turned back before reading. */
 const TURN = 2;
 /** Analysis looks at a copy of at most this many pixels; the answer does not need more. */
@@ -116,19 +130,25 @@ const LOOK = 3e6;
 
 /**
  * What to do to a grey picture before reading it: the angle to turn it back,
- * the factor to scale it by, and whether to hand over ink and paper.
+ * the factor to scale it by, whether to hand over ink and paper, and
+ * whether to read its negative.
  */
 export function plan(grey, { deskew = true, rescale = true } = {}) {
   const shrink = Math.min(1, Math.sqrt(LOOK / (grey.width * grey.height)));
-  const look = shrink < 1 ? scale(grey, shrink) : grey;
+  let look = shrink < 1 ? scale(grey, shrink) : grey;
+  const negative = darkPaper(look);
+  if (negative) look = invert(look);
   const uneven = unevenPaper(look);
   const binary = binarise(look, { method: uneven ? 'sauvola' : 'otsu' });
   const angle = deskew ? estimateSkew(binary) : 0;
   const height = textHeight(binary) / shrink;
+  // A picture of one line has letters too tall for a page's: measured as a line, for its scale and Sauvola's window.
+  const letters = height || textHeight(binary, { least: 2, line: true }) / shrink;
   let factor = 1;
   if (rescale && height > 0 && height < SMALL) factor = Math.min(4, TARGET / height);
   else if (rescale && height > LARGE) factor = Math.max(0.25, TARGET * 1.6 / height);
-  return { angle, turn: Math.abs(angle) >= TURN ? angle : 0, factor: Math.round(factor * 100) / 100, uneven, textHeight: Math.round(height) };
+  else if (rescale && !height && letters > 0 && letters < LINE_SMALL) factor = Math.min(4, LINE_TARGET / letters);
+  return { angle, turn: Math.abs(angle) >= TURN ? angle : 0, factor: Math.round(factor * 100) / 100, uneven, negative, textHeight: Math.round(height), letters: Math.round(letters) };
 }
 
 /**
@@ -149,11 +169,13 @@ export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto'
   const langs = checkLanguages(languages);
   const started = Date.now();
   const pixels = picture(image);
-  const grey = toGrey(pixels);
-  const how = plan(grey, { deskew, rescale });
+  const seen = toGrey(pixels);
+  const how = plan(seen, { deskew, rescale });
+  // Light letters on a dark ground are read as their negative, dark on light, as everything after expects.
+  const grey = how.negative ? invert(seen) : seen;
   let prepared = how.turn ? rotate(grey, -how.turn) : grey;
   if (how.factor !== 1) prepared = scale(prepared, how.factor);
-  if (how.uneven) prepared = binarise(prepared, { method: 'sauvola' });
+  if (how.uneven) prepared = binarise(prepared, { method: 'sauvola', textHeight: how.letters * how.factor });
   const { json } = engine.read(prepared, { languages: langs, dpi: dpi ? dpi * how.factor : 0, psm: PSM[mode] ?? PSM.auto });
   // A box in what was read, back in the picture: unscaled, then turned as the picture is turned.
   const map = (b) => {
@@ -163,12 +185,20 @@ export function recognizePage(engine, { image, languages, dpi = 0, mode = 'auto'
     const xs = corners.map((c) => c.x), ys = corners.map((c) => c.y);
     return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
   };
-  const result = fromEngine(json, { width: pixels.width, height: pixels.height, languages: langs, angle: how.angle, map });
+  let result = fromEngine(json, { width: pixels.width, height: pixels.height, languages: langs, angle: how.angle, map });
+  // A picture of one line the engine found nothing in, though there are letters in it: its page analysis
+  // can take a short line of heavy figures for a picture and drop it. Read again as the one line it is,
+  // at its own size.
+  if (!result.words.length && !how.textHeight && how.letters && !how.turn && mode === 'auto') {
+    const own = how.uneven ? binarise(grey, { method: 'sauvola', textHeight: how.letters }) : grey;
+    const again = fromEngine(engine.read(own, { languages: langs, dpi, psm: PSM.line }).json, { width: pixels.width, height: pixels.height, languages: langs, angle: how.angle });
+    if (again.words.length) result = again;
+  }
   // Each word's box drawn in to its own ink, side to side, on a page read as it lies (a box mapped back
   // from a turned reading is a turned box's bounds, wider than the word by its slant): what Find marks
   // and a selection covers is then the word on the page, in Arabic script as in Latin.
-  if (!how.turn) fitToInk(binarise(grey), result.words);
-  result.prepared = { turned: how.turn, factor: how.factor, binarised: how.uneven, textHeight: how.textHeight };
+  if (!how.turn) fitToInk(binarise(grey, { textHeight: how.letters }), result.words);
+  result.prepared = { turned: how.turn, factor: how.factor, binarised: how.uneven, inverted: how.negative, textHeight: how.textHeight };
   if (table) result.table = readTable(engine, { grey, prepared, how, langs, dpi, result, map });
   if (document) {
     const sparse = fromEngine(engine.read(prepared, { languages: langs, dpi: dpi ? dpi * how.factor : 0, psm: PSM.sparse }).json, { width: pixels.width, height: pixels.height, languages: langs, map });
