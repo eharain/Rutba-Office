@@ -215,6 +215,8 @@ export function seedMessages(now = Date.now()) {
  * seeded store is produced by the same code a person's archive goes through.
  */
 export async function seedMail({ stores, mail, name = 'smoke-seed' }) {
+  // Mail not installed (a packs check's start without it): nothing to seed.
+  if (!mail?.import) return null;
   const { writeMbox } = await import('@rutba/mailbox/mbox');
   // The import names the account and the folder after the file, so this string
   // ends up in the sidebar, the window title, the search box and the status
