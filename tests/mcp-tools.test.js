@@ -162,11 +162,16 @@ test('the network only by choice: one file of the AI tools listens, remote.js, a
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.js'));
   assert.ok(files.includes('node.js') && files.includes('tools.js') && files.includes('protocol.js') && files.includes('remote.js'), files.join(','));
   const NET = /(?:from\s+|require\(\s*|import\(\s*)['"](?:node:)?(?:net|http|https|http2|dgram|tls|dns)['"]/;
-  for (const f of files.filter((name) => name !== 'remote.js')) {
+  for (const f of files.filter((name) => name !== 'remote.js' && name !== 'channel.js')) {
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     assert.doesNotMatch(src, NET, `${f} brings in a networking module`);
     assert.doesNotMatch(src, /\.listen\s*\(/, `${f} listens on a port`);
   }
+  // The channel to the running copy (channel.js) is a named pipe, or a socket file: never a port.
+  const channel = fs.readFileSync(path.join(dir, 'channel.js'), 'utf8');
+  assert.doesNotMatch(channel, /(?:from\s+)['"](?:node:)?(?:http|https|http2|dgram|tls|dns)['"]/);
+  assert.deepEqual([...channel.matchAll(/\.listen\s*\(([^,)]*)/g)].map((m) => m[1].trim()), ['where']);
+  assert.match(channel, /\\\\\\\\\.\\\\pipe\\\\rutba-office-ai-/);
   const ai = fs.readFileSync(path.join(dir, '..', 'ai-tools.js'), 'utf8');
   assert.doesNotMatch(ai, NET, 'ai-tools.js brings in a networking module');
   // Off the network unless the person chooses it.

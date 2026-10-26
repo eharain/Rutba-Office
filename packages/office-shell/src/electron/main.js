@@ -505,3 +505,5 @@ export function createShell({
 }
 
 export { fileUrl, holdBlob, releaseBlob, blobUrl, sendEvent, broadcast, path };
+// The bytes behind a held blob, for the main process's own readers (the AI tools read an attachment so).
+export { heldBlob } from './blobs.js';

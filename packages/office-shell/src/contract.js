@@ -489,6 +489,13 @@ export const METHODS = {
     'removeFolder', // ({ path }) -> state
     'setReach',     // ({ reach: 'local' | 'remote', port? }) -> state   this computer only, or other machines too, with a key
     'renewKey',     // () -> state   a new key; the old one stops working at once
+    // What each mail account, archive, calendar, address book, database and folder allows (D-2026-10-26-06):
+    // one setting, kept with the thing, shown in its own app's settings and in AI Tools.
+    'things',       // () -> { addon, things: [{ kind, id, name, step, steps, server?, local?, role?, protected? }] }
+    'setStep',      // ({ kind, id, step, role? }) -> { kind, id, step, steps, role }   'off' | 'read' | 'prepare' | 'act'
+    'stepOf',       // ({ kind, id }) -> { addon, step, steps, role }
+    'pending',      // () -> [{ id, at, kind, thing, fields, body, draft, change }]   what the tools asked to do, waiting for the person
+    'answer',       // ({ id, choice: 'act' | 'draft' | 'cancel' }) -> { choice, outcome | error }
   ],
   clipboard: [
     'writeText',    // ({ text }) -> void
@@ -541,6 +548,8 @@ export const EVENTS = [
   'mail:syncState',   // { accountId, offline, error, at }   an account's fetches and changes reaching its server, or not
   'theme:changed',    // { dark }
   'profiles:changed', // { id, name, colour, count, protected }   a profile made, renamed, coloured or removed, here or in another running profile
+  'ai:changed',       // { kind, id, step }    a thing's AI tools setting changed, in its own app or in AI Tools
+  'ai:pending',       // [{ id, kind, thing, fields, body, draft }]   what the AI tools asked to do, waiting for the person's press
   'update:state',     // { state, version, available, percent, automatic, snoozed, snoozedVersion, arrived }
   'capture:command',  // { command: 'stop' | 'pause' }   a recording's global key or tray icon was used
   'picture:returned', // { token, bytes, contentType, width, height }   Edit in Image saved the picture back

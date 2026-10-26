@@ -303,6 +303,31 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
       return summary(id);
     },
 
+    /**
+     * A database opened for the AI tools (mcp/reach-tools.js), held apart
+     * from any window's and let go with close: a protected one as the role
+     * chosen for the tools on this computer (Base.asTools), never signed in
+     * as anyone. Its linked tables are read when the tools ask for one.
+     */
+    openForTools: ({ file, role = null }) => {
+      const head = Buffer.alloc(16);
+      const fd = fs.openSync(file, 'r');
+      try { fs.readSync(fd, head, 0, 16, 0); } finally { fs.closeSync(fd); }
+      if (!isSqlite(head)) throw new Error(`${path.basename(file)} is not a database.`);
+      const id = hold(file, null);
+      const { base } = get(id);
+      if (base.isProtected()) {
+        try {
+          if (!role) throw new Error(`${path.basename(file)} is protected, and no role has been chosen for the AI tools. An Admin chooses one in Data Files, in the database's AI tools.`);
+          base.asTools(role);
+        } catch (err) {
+          letGo(id);
+          throw err;
+        }
+      }
+      return summary(id);
+    },
+
     close: ({ id }) => ({ closed: letGo(id) }),
 
     summary: ({ id }) => summary(id),

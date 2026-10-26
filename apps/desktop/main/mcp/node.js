@@ -12,12 +12,20 @@
 // and cannot read its standard input). The settings it obeys are the
 // application's, read afresh for each call, so the person's switch in Rutba
 // Office decides.
+//
+// Files it reads and makes itself. Mail, calendars, address books and Data
+// Files databases it asks the running Rutba Office of its profile for, over
+// a local channel (channel.js): with that copy closed, those tools say so,
+// and one that needs the person's press says nothing was done. A profile
+// with a password is reached only while it is open and unlocked there.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { createServer, serve } from './protocol.js';
-import { writeConnection } from './access.js';
-import { profileDir } from './profile-dir.js';
+import { writeConnection, alive } from './access.js';
+import { profileDir, profileEntryOf } from './profile-dir.js';
+import { createChannelClient } from './channel.js';
+import { needsPassword } from '@rutba/office-shell/profiles';
 import { makeTools, versionOf, INSTRUCTIONS } from './make-tools.js';
 
 export async function main() {
@@ -37,7 +45,28 @@ export async function main() {
       return {};
     }
   };
-  const tools = makeTools({ settings, dataDir });
+  // Mail, calendars, address books and databases: asked of the running Rutba
+  // Office of this profile over its channel (channel.js), which holds them.
+  const channel = createChannelClient({ folder: dataDir, isAlive: alive });
+  const reach = { call: (name, args) => channel.request('call', { name, args }) };
+  // A profile with a password: nothing of it, its folders included, while it
+  // is not open and unlocked in a running Rutba Office (D-2026-10-26-06).
+  const locked = async () => {
+    let entry = null;
+    try {
+      entry = profileEntryOf(dataDir);
+    } catch {
+      entry = null;
+    }
+    if (!needsPassword(entry)) return null;
+    try {
+      if ((await channel.request('hello'))?.unlocked) return null;
+    } catch {
+      // Not running, or the tools off there: refused below either way.
+    }
+    return 'This profile has a password, so the AI tools reach nothing of it, its folders included, unless it is open and unlocked in Rutba Office. Open Rutba Office in this profile and enter its password, then ask again.';
+  };
+  const tools = makeTools({ settings, dataDir, reach, locked });
   // Who is connected, for the AI Tools window and the badge in every window's
   // title bar: what the AI app says it is, from where, since when, its last call.
   const pid = process.pid;
@@ -52,6 +81,7 @@ export async function main() {
     onCall: (tool) => writeConnection(dataDir, pid, { last: new Date().toISOString(), lastTool: String(tool || '').slice(0, 60) }),
   });
   await serve(server, process.stdin, process.stdout);
+  channel.close();
   process.exit(0);
 }
 

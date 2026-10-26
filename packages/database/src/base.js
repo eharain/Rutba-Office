@@ -1078,6 +1078,22 @@ export class Base {
     return this.person();
   }
 
+  /**
+   * The AI tools at work in a protected database, as the role an Admin chose
+   * for them on this computer (D-2026-10-26-06): no person and no password,
+   * the role's rights and never more, and never the design.
+   */
+  asTools(role) {
+    if (!this.isProtected()) throw new Error('This database is not protected.');
+    const r = this.db.prepare('SELECT name, rights FROM rutba_roles WHERE name = ?').get(String(role ?? ''));
+    if (!r) throw new Error(`There is no role called ${role}.`);
+    const rights = normalRights(JSON.parse(r.rights));
+    if (r.name === ADMIN || rights.design) throw new Error('The AI tools never work as a role that may change the design.');
+    this.access = { person: { id: 0, name: 'AI tools', role: r.name }, rights, full: false, seeing: null };
+    this._applyViews();
+    return this.person();
+  }
+
   _admin() {
     const me = this.person();
     if (!me || me.role !== ADMIN || me.seeing) throw new Error('Only an Admin can change people and roles.');

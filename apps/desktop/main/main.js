@@ -44,6 +44,7 @@ import { createDavService } from './dav-sync.js';
 import { createPdfService } from './pdf.js';
 import { createOcrService } from './ocr.js';
 import { createAiToolsService } from './ai-tools.js';
+import { checkTransport } from './check-smtp.js';
 import { createLiveService } from './live.js';
 import { createTalkService } from './talk.js';
 import { createBaseService } from './base.js';
@@ -107,7 +108,13 @@ async function renameRecent({ stores, doc, path: from, name }) {
 
   if (to !== from) fs.renameSync(from, to);
   // A database renamed here reads what it read before (A2.18).
-  if (to !== from && /\.rbase$/i.test(from)) baseTrust(stores).carry(from, to, { move: true });
+  if (to !== from && /\.rbase$/i.test(from)) {
+    baseTrust(stores).carry(from, to, { move: true });
+    // And what it allows the AI tools, kept by its place too (mcp/reach.js).
+    const ai = stores.settings.get('ai.tools.databases', {}) || {};
+    const was = Object.keys(ai).find((p) => p.toLowerCase() === from.toLowerCase());
+    if (was) stores.settings.set('ai.tools.databases', Object.fromEntries(Object.entries(ai).map(([p, v]) => [p === was ? to : p, v])));
+  }
   return stores.recent.rename({ path: from, to });
 }
 
@@ -238,8 +245,9 @@ createShell({
       pdf: createPdfService(),
       // Text recognition on threads of its own: Recognise Text, Copy Text from Picture, Data from Picture.
       ocr: createOcrService(),
-      // The AI Tools window: the switch, the folders, the log (ai-tools.js).
-      ai: createAiToolsService({ stores }),
+      // The AI Tools window: the switch, the folders, the log, and what each mail account,
+      // calendar, address book, database and folder allows the tools (ai-tools.js).
+      ai: createAiToolsService({ stores, broadcast, services: () => services }),
       // Recorder → Go Live: the destinations, their keys in the keystore, the publishers (live.js).
       live: createLiveService({ stores }),
       // Talk: messages and calls with contacts, through the introducer (talk.js).
@@ -268,6 +276,8 @@ createShell({
         userData: stores.dir,
         oauth,
         contacts,
+        // The app checks' way out: nothing sent, or to the test server a check starts on this computer (check-smtp.js).
+        ...(process.env.RUTBA_OFFICE_VERIFY_APPS ? { smtp: checkTransport() } : {}),
       }),
       // The calendar answers an invitation through a message mail sends.
       contacts,
