@@ -193,7 +193,8 @@ export function unsubscribeOffer(message) {
   const targets = [...String(raw).matchAll(/<([^>]+)>/g)].map((m) => m[1].trim());
   const http = targets.find((t) => /^https?:/i.test(t)) || null;
   const mailto = targets.find((t) => /^mailto:/i.test(t)) || null;
-  const oneClick = /one-click/i.test(header('list-unsubscribe-post') || '');
+  // RFC 8058 asks for an https address: a one-click POST is never sent in the clear.
+  const oneClick = /one-click/i.test(header('list-unsubscribe-post') || '') && /^https:/i.test(http || '');
 
   if (!http && !mailto) return null;
 

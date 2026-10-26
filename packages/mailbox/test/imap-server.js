@@ -18,7 +18,7 @@ import { OID } from '../src/smime/oids.js';
 import { pem } from '../src/smime/cert.js';
 
 /** A self-signed certificate for 127.0.0.1, made now: { key, cert } in PEM. */
-function certificate() {
+export function certificate() {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
   const name = seq(set(seq(oid(OID.commonName), utf8('127.0.0.1'))));
   const sigAlg = algorithm(OID.ecdsaWithSHA256, false);

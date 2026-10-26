@@ -176,8 +176,9 @@ const fromDateInput = (value) => {
  * as Outlook's own "once per sender while away".
  */
 /** Why an account's mail server cannot send the replies itself, in words. */
-export function sieveReason(code) {
+export function sieveReason(code, answer = null) {
   switch (code) {
+    case 'provider': return t('{provider} does not let other programs send its automatic replies. Rutba Office can send them instead.', { provider: answer?.provider || t('This mail service') });
     case 'no-vacation': return t('This mail server cannot send automatic replies itself.');
     case 'no-tls': return t('This mail server offers no secure connection for its filters.');
     case 'auth': return t('The mail server did not accept your sign-in for its filters.');
@@ -234,7 +235,7 @@ export function OutOfOfficeDialog({ shell, accounts, accountId, onClose, onSaved
       const patch = { enabled: form.enabled, start: form.start || null, end: form.end || null, subject: form.subject, message: form.message, contactsOnly: form.contactsOnly, sentTo, where };
       if (where === 'server') {
         const r = await shell.mail.serverAutoReply({ accountId: id, action: form.enabled ? 'on' : 'off', settings: { subject: form.subject, message: form.message, start: form.start || null, end: form.end || null } });
-        if (!r.supported) throw new Error(sieveReason(r.reason));
+        if (!r.supported) throw new Error(sieveReason(r.reason, r));
       } else if (server?.on) {
         // Moved to Rutba Office's own: the server's is turned off, so nobody hears twice.
         await shell.mail.serverAutoReply({ accountId: id, action: 'off' });
@@ -282,7 +283,7 @@ export function OutOfOfficeDialog({ shell, accounts, accountId, onClose, onSaved
           <input type="radio" name="ml-ooo-where" checked={form.where === 'server'} disabled={!server?.supported} onChange={() => set({ where: 'server' })} />
           <span>
             <strong>{t('Your mail server')}</strong>
-            <small>{server === null ? t('Asking your mail server…') : server.supported ? t('Replies go out with this computer off too.') : sieveReason(server.reason)}</small>
+            <small>{server === null ? t('Asking your mail server…') : server.supported ? t('Replies go out with this computer off too.') : sieveReason(server.reason, server)}</small>
           </span>
         </label>
         <label className="ml-ooo-way" data-where="office">

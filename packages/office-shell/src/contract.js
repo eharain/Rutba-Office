@@ -185,6 +185,7 @@ export const METHODS = {
     'search',       // ({ accountId, query, limit }) -> [header]
     'unified',      // ({ role, query }) -> one list across every account
     'insight',      // ({ accountId, folder, id }) -> { trackers, unsubscribe, auth, bulk }
+    'unsubscribe',  // ({ accountId, folder, id }) -> { done, status?, reason? }  the one RFC 8058 one-click POST
     'files',        // ({ accountId, query }) -> every attachment in the mailbox
     'people',       // ({ accountId }) -> the addresses seen, ranked
     'markAllRead',  // ({ accountId, folder }) -> { changed }

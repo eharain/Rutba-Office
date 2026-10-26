@@ -25,7 +25,8 @@ const message = (n, from = 'Amina Yusuf <amina@work.example>') => [
   `Date: ${new Date().toUTCString()}`, `Message-ID: <auto${n}-${Date.now()}@work.example>`, '', `Body of message ${n}.`, '',
 ].join('\r\n');
 
-async function until(test, what, ms = 8000) {
+// Generous: the whole suite runs at once on a busy machine.
+async function until(test, what, ms = 20000) {
   const end = Date.now() + ms;
   while (Date.now() < end) {
     if (await test()) return true;

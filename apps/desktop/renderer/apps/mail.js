@@ -1210,14 +1210,22 @@ export default function Mail({ app, shell }) {
       });
       if (response !== 0) return;
 
-      if (offer.method === 'email' || (!offer.http && offer.address)) {
+      if (offer.method === 'one-click') {
+        // The one request the question named, sent from here: not the browser.
+        const host = new URL(offer.http).hostname;
+        const r = selected ? await shell.mail.unsubscribe({ accountId: selected.accountId, folder: selected.folder, id: selected.id }).catch(() => ({ done: false, reason: 'unreachable' })) : { done: false, reason: 'not-offered' };
+        if (r.done) toast(t('Unsubscribe request sent to {host}.', { host }), { tone: 'good' });
+        else if (r.reason === 'refused') toast(t('{host} did not accept the request. Try again later, or use the link in the message.', { host }), { tone: 'bad', ms: 8000 });
+        else if (r.reason === 'unreachable') toast(t('{host} could not be reached. Try again later.', { host }), { tone: 'bad', ms: 8000 });
+        else toast(t('This message does not offer one-click unsubscribe.'), { tone: 'bad' });
+      } else if (offer.method === 'email' || (!offer.http && offer.address)) {
         await doSend({ to: offer.address, subject: offer.subject, text: 'Please remove this address from the list.' }, null);
         toast(t('Unsubscribe request queued.'), { tone: 'good' });
       } else {
         await shell.shell.openExternal({ url: offer.http });
       }
     },
-    [shell, doSend, toast]
+    [shell, doSend, toast, selected]
   );
 
   /* ── commands ─────────────────────────────────────────────────────────── */

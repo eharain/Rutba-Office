@@ -16,7 +16,8 @@ import { MailStore, messageKey } from '@rutba/mailbox/store';
 import { parseMessage, attachmentFileName } from '@rutba/mailbox/mime';
 import { scan, read as readArchive, identify } from '@rutba/mailbox/import';
 import { writeMbox } from '@rutba/mailbox/mbox';
-import { insightFor } from './mail-insight.js';
+import { insightFor, unsubscribeOffer } from './mail-insight.js';
+import { oneClickUnsubscribe } from './mail-unsubscribe.js';
 import { createArchiveDesk, isArchive } from './mail-archive.js';
 import { createSmimeDesk } from './mail-smime.js';
 import { setupAccount } from './mail-setup.js';
@@ -86,6 +87,17 @@ function classify(name) {
   for (const s of SPECIAL) if (s.test.test(leaf)) return s;
   return { role: 'folder', icon: 'folder', order: 9 };
 }
+
+/** Hosted mail with no ManageSieve, by the provider found when the account was set up or by its server's name. */
+const NO_SIEVE = [
+  { label: 'Gmail', providers: ['google'], host: /(^|\.)(gmail|googlemail)\.com$/i },
+  { label: 'Outlook', providers: ['microsoft', 'microsoft365'], host: /(^|\.)(outlook\.com|office365\.com|hotmail\.com|live\.com)$/i },
+  { label: 'Yahoo', providers: ['yahoo'], host: /(^|\.)yahoo\.com$/i },
+  { label: 'AOL', providers: ['aol'], host: /(^|\.)aol\.com$/i },
+  { label: 'iCloud', providers: ['icloud'], host: /(^|\.)(me\.com|icloud\.com)$/i },
+];
+const hostedWithoutSieve = (account) =>
+  NO_SIEVE.find((p) => p.providers.includes(account.provider) || p.host.test(String(account.imap?.host || '')))?.label || null;
 
 /** The roles a server names with SPECIAL-USE (RFC 6154), which beat a folder's name: Gmail's "[Gmail]/Bin" is its Trash. */
 const SPECIAL_USE = { '\\Inbox': 'inbox', '\\Drafts': 'drafts', '\\Sent': 'sent', '\\Junk': 'junk', '\\Trash': 'trash', '\\Archive': 'archive' };
@@ -236,7 +248,7 @@ function isKnownContact(contacts, address) {
   }
 }
 
-export function createMailService({ stores, holdBlob, broadcast, userData, oauth = null, contacts = null, now = () => Date.now(), smtp = null, autoFetch = Boolean(process.versions.electron) }) {
+export function createMailService({ stores, holdBlob, broadcast, userData, oauth = null, contacts = null, now = () => Date.now(), smtp = null, autoFetch = Boolean(process.versions.electron), unsubscribeAgent = undefined }) {
   const store = new MailStore(path.join(userData, 'mail'));
   const transport = smtp || (CHECK_RUN ? fakeTransport() : defaultTransport());
 
@@ -1220,6 +1232,20 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     },
 
     /**
+     * One-click unsubscribe (RFC 8058), sent from here: the one POST the
+     * window says it sends (mail-unsubscribe.js). The offer is read again
+     * from the message itself, not taken from the window. A list without
+     * one-click is written to or opened in the browser by the window, as
+     * before. Answers { done, status?, reason? }.
+     */
+    unsubscribe: async ({ accountId, folder, id }) => {
+      const message = isArchive(accountId) ? await desk.message({ accountId, folder, id }) : store.get(accountId, folder, id);
+      const offer = message ? unsubscribeOffer(message) : null;
+      if (offer?.method !== 'one-click') return { done: false, reason: 'not-offered' };
+      return oneClickUnsubscribe(offer.http, { agent: unsubscribeAgent });
+    },
+
+    /**
      * Every attachment in the mailbox, newest first.
      *
      * A person looking for "that spreadsheet Ali sent" is not looking for a
@@ -1472,6 +1498,11 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     serverAutoReply: async ({ accountId, action = 'state', settings = null }) => {
       const account = find(accountId);
       if (account.local) return { supported: false, reason: 'local' };
+      // Gmail, Outlook, Yahoo and iCloud keep their automatic replies in their
+      // own settings, with no ManageSieve to reach them by: said at once, not
+      // after a wait for a server that never answers.
+      const hosted = account.sieve?.host ? null : hostedWithoutSieve(account);
+      if (hosted) return { supported: false, reason: 'provider', provider: hosted };
       if (account.auth === 'oauth' || account.imap?.auth === 'oauth') return { supported: false, reason: 'oauth' };
       const host = account.sieve?.host || account.imap?.host;
       if (!host) return { supported: false, reason: 'no-server' };
