@@ -365,12 +365,22 @@ export async function verifyImageEdits({ open, check, until, wait, press, errors
     await capture('image-edits-filters.png');
     check('image: Red eye records the spot clicked as an edit, and Sharpen is on the Filters tab', (await ops()).includes('redeye'), JSON.stringify(await ops()));
 
-    // Undo takes the last edit back.
+    // Undo takes the last edit back, one at a time (a slider is an undo step
+    // of its own since a picture with no layers takes its sliders back one
+    // at a time): first the Sharpen just set, then the red-eye spot.
     const count = (await ops()).length;
+    const sharpenAt = () => js(`(() => { const i = document.querySelector('[data-slider="sharpen"] input'); return i ? Number(i.value) : null; })()`);
     await js(`document.body.focus(), 1`);
     await press(wc, 'z', { modifiers: ['control'] });
-    await until(async () => (await ops()).length === count - 1, 'one edit undone', 3000).catch(() => {});
-    check('image: Ctrl+Z takes the last edit back', (await ops()).length === count - 1, `${count} → ${(await ops()).length}`);
+    await until(async () => (await sharpenAt()) === 0, 'the sharpen undone', 3000).catch(() => {});
+    const firstUndo = { sharpen: await sharpenAt(), edits: (await ops()).length };
+    await js(`document.body.focus(), 1`);
+    await press(wc, 'z', { modifiers: ['control'] });
+    await until(async () => (await ops()).length === count - 1, 'the red-eye spot undone', 3000).catch(() => {});
+    const secondUndo = await ops();
+    check('image: Ctrl+Z takes the last edit back',
+      firstUndo.sharpen === 0 && firstUndo.edits === count && secondUndo.length === count - 1 && !secondUndo.includes('redeye'),
+      `sharpen 40 → ${firstUndo.sharpen} with ${count} → ${firstUndo.edits} edits; then ${JSON.stringify(secondUndo)}`);
 
     const complaints = await errorsIn(win);
     check('image: the quick edits report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

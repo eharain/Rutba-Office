@@ -30,12 +30,14 @@ export function useProfiles(shell) {
   return { me, list, reload: load };
 }
 
-/** The circle with a profile's first letter, in its colour. */
+/**
+ * The circle with a profile's first letter, in its colour. The letter is drawn
+ * (::before), not written: a button that shows the mark beside the name is
+ * named by the name, and a letter in its text would be read as part of it.
+ */
 export function ProfileMark({ profile, size = 18 }) {
   return (
-    <span className="pf-mark" aria-hidden="true" style={{ '--pf-colour': profile?.colour || 'var(--accent)', width: size, height: size, fontSize: Math.round(size * 0.55) }}>
-      {initialOf(profile)}
-    </span>
+    <span className="pf-mark" aria-hidden="true" style={{ '--pf-colour': profile?.colour || 'var(--accent)', width: size, height: size, fontSize: Math.round(size * 0.55) }} data-initial={initialOf(profile)} />
   );
 }
 
@@ -77,9 +79,10 @@ export function ProfileBadge({ shell, always = false }) {
     const r = e.currentTarget.getBoundingClientRect();
     menu.open({ preventDefault() {}, stopPropagation() {}, currentTarget: e.currentTarget, type: 'click', detail: e.detail, clientX: r.left, clientY: r.bottom + 4 }, profileMenuItems(shell, list, toast));
   };
+  // Its spoken name holds the name it shows (WCAG 2.5.3, label in name); the two-profile tip already does.
   return (
     <>
-      <button type="button" className="rw-btn ghost pf-badge" data-tip={tip} aria-label={tip} aria-haspopup="menu" data-profile={me.id} style={{ '--pf-colour': me.colour }} onClick={open}>
+      <button type="button" className="rw-btn ghost pf-badge" data-tip={tip} aria-label={me.count > 1 ? tip : `${profileName(me)}: ${tip}`} aria-haspopup="menu" data-profile={me.id} style={{ '--pf-colour': me.colour }} onClick={open}>
         <ProfileMark profile={me} size={18} />
         <span className="pf-badge-name">{profileName(me)}</span>
         {me.protected ? <Icon name="lock" size={11} /> : null}
@@ -322,6 +325,7 @@ export function ManageProfiles({ shell, mode = null, onClose }) {
 }
 
 export const PROFILES_CSS = `
+.pf-mark::before { content: attr(data-initial); }
 .pf-mark { display: inline-grid; place-items: center; border-radius: 50%; background: var(--pf-colour); color: #fff; font-weight: 600; line-height: 1; flex: none; }
 .pf-badge { display: inline-flex; align-items: center; gap: 6px; max-width: 180px; padding: 0 8px 0 4px; }
 .pf-badge-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }

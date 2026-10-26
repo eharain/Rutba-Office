@@ -15,9 +15,14 @@ export async function verifyPicturesFollow({ open, check, until, wait, press, er
     const root = path.join(dir, 'follow-folder');
     const moved = path.join(root, 'Moved');
     fs.mkdirSync(moved, { recursive: true });
-    const px = (c) => pngOf(Array.from({ length: 8 }, () => Array.from({ length: 8 }, () => c)));
-    fs.writeFileSync(path.join(root, 'alpha.png'), px([200, 40, 40, 255]));
-    fs.writeFileSync(path.join(root, 'bravo.png'), px([40, 200, 40, 255]));
+    const px = (c, n = 8) => pngOf(Array.from({ length: n }, () => Array.from({ length: n }, () => c)));
+    // Marks follow a file by its size and time; two pictures alike in both are told apart by
+    // neither, and none is followed. Written in one millisecond, alpha and bravo were alike: a
+    // size of their own each, and times an hour apart.
+    fs.writeFileSync(path.join(root, 'alpha.png'), px([200, 40, 40, 255], 8));
+    fs.writeFileSync(path.join(root, 'bravo.png'), px([40, 200, 40, 255], 12));
+    const hourAgo = new Date(Date.now() - 3600000);
+    fs.utimesSync(path.join(root, 'alpha.png'), hourAgo, hourAgo);
     const win = await open('pictures', root);
     const wc = win.webContents;
     const js = (code) => wc.executeJavaScript(code);
@@ -42,8 +47,8 @@ export async function verifyPicturesFollow({ open, check, until, wait, press, er
     await wait(100);
     await js(`document.querySelector('.pv-tag-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })), 1`);
     await until(() => js(`Boolean(document.querySelector('.pv-tag[data-tag="garden"]'))`), 'the tag', 3000).catch(() => {});
-    // The fingerprint is read a moment after the mark is set.
-    await wait(600);
+    // The fingerprint is read a moment after the mark is set, and kept a moment after that.
+    await until(() => js(`window.rutbaOffice.store.get({ key: 'pictures.marks', fallback: {} }).then((m) => Object.entries(m || {}).some(([p, v]) => /bravo\\.png$/.test(p) && Boolean(v?.fp)))`), 'the fingerprint kept', 6000).catch(() => {});
     await press(wc, 'Escape');
     await until(async () => (await starsOn('bravo.png')) === '3', 'the stars on the tile', 4000).catch(() => {});
 

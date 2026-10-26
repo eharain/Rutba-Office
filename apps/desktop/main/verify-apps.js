@@ -6684,7 +6684,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await wait(120);
     await pushLabel('Insert Function');
     await until(() => js(`Boolean(document.querySelector('.rw-dialog'))`), 'the function dialog', 3000).catch(() => {});
-    await js(`[...document.querySelectorAll('.rw-dialog .ml-found-item')].find((b) => b.textContent.trim() === 'SUM')?.click(), 'picked'`);
+    // Each function is listed with what it takes and does, so it is found by its name, not its row's text.
+    await until(() => js(`Boolean(document.querySelector('.rw-dialog .sh-fn-item[data-function="SUM"]'))`), 'SUM in the list', 3000).catch(() => {});
+    await js(`document.querySelector('.rw-dialog .sh-fn-item[data-function="SUM"]')?.click(), 'picked'`);
     await until(() => js(`(document.querySelector('.sh-editor')?.value || '').startsWith('=SUM(')`), 'the edit to start', 4000).catch(() => {});
     const editor = await js(`document.querySelector('.sh-editor')?.value ?? null`);
     check('sheets: Formulas → Insert Function → SUM starts the edit with =SUM(', editor === '=SUM(', `editor ${JSON.stringify(editor)}`);
@@ -6827,7 +6829,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await js(`[...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Choose…')?.click(), 'choose'`);
     await wait(300);
     const chosen = await js(`(() => {
-      const item = [...document.querySelectorAll('.rw-dialog .ml-found-item')].find((b) => /Freeze the top row/.test(b.textContent));
+      const item = [...document.querySelectorAll('.rw-dialog .sh-fn-item')].find((b) => /Freeze the top row/.test(b.textContent));
       if (!item) return 'no such choice';
       item.click();
       return 'chose';
