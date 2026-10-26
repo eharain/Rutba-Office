@@ -5,14 +5,31 @@
 // with a table, and a picture written and read back through the system
 // clipboard, the suite's clipboard service reaching it from a window, and a
 // global shortcut held and let go. What was on the person's clipboard is put
-// back at the end. Run alone with RUTBA_VERIFY_ONLY=machine; it runs only
-// where the system adapters are in use.
+// back at the end. Run alone with RUTBA_VERIFY_ONLY=machine. In the
+// machine lane the system adapters must be the ones in use; a whole run in
+// one process (no lane) has the stand-ins like every check run, and puts
+// them aside for these checks only, putting them back after.
 
 import { clipboard as electronClipboard, globalShortcut, nativeImage } from 'electron';
-import { clipboard as adapter, readHTML, readImage, writeParts, writeImage } from '@rutba/office-shell/electron/clipboard';
-import { shortcuts } from '@rutba/office-shell/electron/shortcuts';
+import { clipboard as adapter, readHTML, readImage, writeParts, writeImage, useClipboard, systemClipboard } from '@rutba/office-shell/electron/clipboard';
+import { shortcuts, useShortcuts, systemShortcuts } from '@rutba/office-shell/electron/shortcuts';
 
-export async function verifyMachine({ open, check, until }) {
+export async function verifyMachine(h) {
+  const lane = process.env.RUTBA_VERIFY_LANE || 'all';
+  const was = { clipboard: adapter(), shortcuts: shortcuts() };
+  const stood = was.clipboard.kind !== 'system' || was.shortcuts.kind !== 'system';
+  if (lane !== 'all' || !stood) return machineChecks(h);
+  useClipboard(systemClipboard);
+  useShortcuts(systemShortcuts);
+  try {
+    return await machineChecks(h);
+  } finally {
+    useClipboard(was.clipboard);
+    useShortcuts(was.shortcuts);
+  }
+}
+
+async function machineChecks({ open, check, until }) {
   const c = adapter();
   if (c.kind !== 'system' || shortcuts().kind !== 'system') {
     check('machine: the system adapters are in use in the machine lane', false, `clipboard ${c.kind}, shortcuts ${shortcuts().kind}`);
