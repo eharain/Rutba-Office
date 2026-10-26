@@ -26,6 +26,15 @@
 // would keep the old bytes, the words under the marks among them. Applying
 // writes a new file of the window's pages with what the marks covered taken
 // out of each page's content, and the window opens it.
+//
+// A file protected with a password is opened here locked, and unlocked with
+// the password the window's Password dialog was given (unlock): it is held
+// with the file, in memory, for reading again what is written into it, and
+// goes when the window closes; nothing writes it anywhere. Everything
+// written from a protected file keeps its protection: an update is
+// encrypted as the file is, and a new file of its pages (Save, Extract,
+// Split, a recovery copy, a redacted or smaller copy) is written under the
+// same Encrypt dictionary, so the same passwords open it.
 
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -126,7 +135,7 @@ function redactWindowWith(get, pages, images = {}, title) {
 
 export function createPdfService() {
   let next = 1;
-  /** id -> { file, path, name, owner } */
+  /** id -> { file, path, name, owner, password } */
   const open = new Map();
 
   const forget = (owner) => {
@@ -152,7 +161,10 @@ export function createPdfService() {
   const describe = (id, entry) => {
     const { file } = entry;
     const pages = [];
-    for (let i = 0; i < file.pageCount; i++) {
+    // A locked file's page tree can be out of sight (in an encrypted object stream): its pages come once it is unlocked.
+    let count = 0;
+    try { count = file.pageCount; } catch (err) { if (!file.locked) throw err; }
+    for (let i = 0; i < count; i++) {
       const p = file.pageInfo(i);
       pages.push({ width: p.width, height: p.height, rotate: p.rotate });
     }
@@ -163,11 +175,24 @@ export function createPdfService() {
       size: file.buf.length,
       version: file.version,
       encrypted: file.encrypted,
+      locked: file.locked,
+      access: file.access,
+      permissions: file.permissions,
+      problem: file.securityProblem,
       repaired: file.repaired,
       title: file.info().title || '',
       pages,
     };
   };
+
+  /** A file written from an open one, read as its source was: with the password it was unlocked with. */
+  const reopen = (entry, bytes) => {
+    const file = openPdf(bytes, { password: entry.password || '' });
+    file.pages();
+    return file;
+  };
+  /** The password of the protected file the pages named come from, to read again what is made of them. */
+  const passwordOf = (pages) => (pages || []).map((p) => open.get(p.source)).find((e) => e?.file.security)?.password || '';
 
   return {
     /** Read a PDF (from disk, or bytes a window holds) and keep it for its window. */
@@ -177,14 +202,32 @@ export function createPdfService() {
       let pdf;
       try {
         pdf = openPdf(data);
-        pdf.pages();
+        if (!pdf.locked) pdf.pages();
       } catch (err) {
         throw readFailure(err, label);
       }
       const id = `p${next++}`;
-      const entry = { file: pdf, path: file || null, name: label, owner: win?.id ?? null };
+      const entry = { file: pdf, path: file || null, name: label, owner: win?.id ?? null, password: '' };
       open.set(id, entry);
       watch(win);
+      return describe(id, entry);
+    },
+
+    /**
+     * A protected file opened with its password (the user's or the owner's):
+     * read from then on decrypted, the password held with it in memory. A
+     * password that is not right answers `wrong`, the file as it was.
+     */
+    unlock: ({ id, password }) => {
+      const entry = get(id);
+      const access = entry.file.unlock(String(password ?? ''));
+      if (!access) return { ...describe(id, entry), wrong: true };
+      entry.password = String(password ?? '');
+      try {
+        entry.file.pages();
+      } catch (err) {
+        throw readFailure(err, entry.name);
+      }
       return describe(id, entry);
     },
 
@@ -216,11 +259,10 @@ export function createPdfService() {
      */
     addText: ({ id, pages }, win) => {
       const entry = get(id);
-      const { bytes, pages: written } = addTextLayer(entry.file.buf, pages || []);
-      const file = openPdf(bytes);
-      file.pages();
+      const { bytes, pages: written } = addTextLayer(entry.file, pages || []);
+      const file = reopen(entry, bytes);
       const newId = `p${next++}`;
-      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true };
+      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true, password: entry.password };
       open.set(newId, added);
       return { ...describe(newId, added), written, bytes: new Uint8Array(bytes) };
     },
@@ -236,11 +278,10 @@ export function createPdfService() {
      */
     annotate: ({ id, changes, author }, win) => {
       const entry = get(id);
-      const { bytes, added: made } = annotate(entry.file.buf, changes || {}, { author: author || userName() });
-      const file = openPdf(bytes);
-      file.pages();
+      const { bytes, added: made } = annotate(entry.file, changes || {}, { author: author || userName() });
+      const file = reopen(entry, bytes);
       const newId = `p${next++}`;
-      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true };
+      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true, password: entry.password };
       open.set(newId, added);
       return { ...describe(newId, added), added: made, annotations: readAnnotations(file), fields: readFields(file), bytes: new Uint8Array(bytes) };
     },
@@ -252,7 +293,7 @@ export function createPdfService() {
      */
     redactPlan: ({ sources }) => (sources || []).flatMap((id) => {
       const entry = get(id);
-      return redactionPlan(entry.file.buf).map((p) => ({ ...p, source: id, data: new Uint8Array(p.data) }));
+      return redactionPlan(entry.file).map((p) => ({ ...p, source: id, data: new Uint8Array(p.data) }));
     }),
 
     /**
@@ -285,10 +326,11 @@ export function createPdfService() {
      */
     compressPlan: ({ pages, dpi }) => {
       const items = (pages || []).map((p) => ({ file: get(p.source).file, page: Number(p.page), rotate: p.rotate }));
-      const whole = wholeSource(items) ? items[0].file.buf : assemble(items);
+      // The pages as one file, read (a protected one with its password) for both steps.
+      const whole = wholeSource(items) ? items[0].file : openPdf(assemble(items), { password: passwordOf(pages) });
       const token = `c${next++}`;
       compressing.set(token, whole);
-      return { token, size: whole.length, plan: compressPlan(whole, { dpi }).map((p) => ({ ...p, data: new Uint8Array(p.data) })) };
+      return { token, size: whole.buf.length, plan: compressPlan(whole, { dpi }).map((p) => ({ ...p, data: new Uint8Array(p.data) })) };
     },
 
     /** Reduce File Size, second step: the pictures handed back, the file written whole to `path`. */
@@ -320,11 +362,10 @@ export function createPdfService() {
      */
     fill: ({ id, values }, win) => {
       const entry = get(id);
-      const { bytes, changed } = fillFields(entry.file.buf, values || {});
-      const file = openPdf(bytes);
-      file.pages();
+      const { bytes, changed } = fillFields(entry.file, values || {});
+      const file = reopen(entry, bytes);
       const newId = `p${next++}`;
-      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true };
+      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true, password: entry.password };
       open.set(newId, added);
       return { ...describe(newId, added), changed, annotations: readAnnotations(file), fields: readFields(file), bytes: new Uint8Array(bytes) };
     },
@@ -336,11 +377,10 @@ export function createPdfService() {
      */
     addCheckboxes: ({ id, boxes }, win) => {
       const entry = get(id);
-      const { bytes, added: made } = addCheckboxes(entry.file.buf, boxes || []);
-      const file = openPdf(bytes);
-      file.pages();
+      const { bytes, added: made } = addCheckboxes(entry.file, boxes || []);
+      const file = reopen(entry, bytes);
       const newId = `p${next++}`;
-      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true };
+      const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true, password: entry.password };
       open.set(newId, added);
       return { ...describe(newId, added), added: made, annotations: readAnnotations(file), fields: readFields(file), bytes: new Uint8Array(bytes) };
     },
@@ -349,11 +389,13 @@ export function createPdfService() {
     text: ({ id, page }) => get(id).file.pageText(Number(page) || 0),
 
     /** A file on disk read and described without keeping it: for the checks, and for a page count before inserting. */
-    inspect: async ({ path: file }) => {
-      const pdf = openPdf(fs.readFileSync(file));
+    inspect: async ({ path: file, password = '' }) => {
+      const pdf = openPdf(fs.readFileSync(file), { password });
       return {
-        pages: Array.from({ length: pdf.pageCount }, (_, i) => ({ ...pdf.pageInfo(i), text: pdf.pageText(i) })),
+        pages: pdf.locked ? [] : Array.from({ length: pdf.pageCount }, (_, i) => ({ ...pdf.pageInfo(i), text: pdf.pageText(i) })),
         encrypted: pdf.encrypted,
+        locked: pdf.locked,
+        access: pdf.access,
         title: pdf.info().title || '',
       };
     },

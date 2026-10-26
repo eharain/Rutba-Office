@@ -31,6 +31,12 @@
 // process removes what the marks cover from each page's content and writes
 // the window's pages whole as a new file, which the window opens.
 //
+// A PDF protected with a password asks for it (the Password dialog, as the
+// other apps ask), pdf.js draws with it and the main process reads the file
+// with it, both holding it in memory for that file only. Everything written
+// keeps the protection, and what the file's permissions do not allow is
+// refused in a sentence, until its owner password is given.
+//
 // Saving is careful, as a page tool's must be: Save asks before it replaces
 // the file the pages came from (once a window), and offers to save a copy.
 // While there is unsaved work, a copy is kept in the recovery folder for
@@ -188,7 +194,12 @@ export default function PdfApp({ app, shell, boot }) {
   const scrollToRef = useRef(null);
 
   const hasDoc = pages.length > 0;
-  const protectedFile = Object.values(sources).some((s) => s.info.encrypted);
+  // Protection: a file read with its password, one that could not be (locked: read here, never written), and what its permissions allow.
+  const sourceList = Object.values(sources);
+  const protectedFile = sourceList.some((s) => s.info.encrypted);
+  const lockedFile = sourceList.some((s) => s.info.locked);
+  const allowed = (kind) => !lockedFile && sourceList.every((s) => s.info.permissions?.[kind] !== false);
+  const restricted = protectedFile && !lockedFile && !['assemble', 'change', 'comment', 'fill'].every(allowed);
 
   /* ── sources ────────────────────────────────────────────────────────── */
 
@@ -200,9 +211,9 @@ export default function PdfApp({ app, shell, boot }) {
    * inserted into another document (`insert`) are refused from a protected
    * file before anything is asked.
    */
-  const addSource = useCallback(async (file, { bytes = null, label = null, insert = false } = {}) => {
+  const addSource = useCallback(async (file, { bytes = null, label = null, insert = false, password: known = null } = {}) => {
     const raw = bytes || (await shell.fs.read({ path: file })).bytes;
-    const info = await shell.pdf.open(bytes ? { bytes: raw, name: label || basename(file || '') || t('Recovered PDF') } : { path: file });
+    let info = await shell.pdf.open(bytes ? { bytes: raw, name: label || basename(file || '') || t('Recovered PDF') } : { path: file });
     if (insert && info.encrypted) {
       shell.pdf.close({ id: info.id }).catch(() => {});
       const e = new Error(t('{name} is protected, and its pages cannot be inserted yet.', { name: info.name }));
@@ -210,9 +221,10 @@ export default function PdfApp({ app, shell, boot }) {
       throw e;
     }
     let doc;
-    let password = null;
+    let password = known;
     try {
       doc = await openDocument(raw, {
+        password: known,
         ask: insert ? null : async ({ wrong }) => {
           password = await askPassword({ name: info.name, wrong });
           return password;
@@ -228,6 +240,21 @@ export default function PdfApp({ app, shell, boot }) {
       throw new Error(t('{name} could not be drawn: {reason}', { name: info.name, reason: err.message }));
     } finally {
       passwordAsked();
+    }
+    // The main process reads the file with the password pdf.js took, for its comments, fields, bookmarks and every change.
+    if (info.locked && password !== null) {
+      const unlocked = await shell.pdf.unlock({ id: info.id, password });
+      if (!unlocked.wrong) info = unlocked;
+    }
+    // Read here but not there (a protection it cannot read): the pages as pdf.js finds them, to read only.
+    if (!info.pages.length && doc.numPages) {
+      const pages = [];
+      for (let i = 0; i < doc.numPages; i++) {
+        const page = await doc.getPage(i + 1);
+        const [x0, y0, x1, y1] = page.view;
+        pages.push({ width: Math.abs(x1 - x0), height: Math.abs(y1 - y0), rotate: page.rotate || 0 });
+      }
+      info = { ...info, pages };
     }
     const [annots, fields, nav] = await Promise.all([
       shell.pdf.annotations({ id: info.id }).catch(() => []),
@@ -249,12 +276,12 @@ export default function PdfApp({ app, shell, boot }) {
   const lastOpen = useRef(null);
 
   /** Open a PDF as this window's document. */
-  const openPdf = useCallback(async (file, { bytes = null, recovered = null } = {}) => {
+  const openPdf = useCallback(async (file, { bytes = null, recovered = null, password = null } = {}) => {
     lastOpen.current = { file, bytes, recovered };
     setBusy(t('Opening…'));
     setFailed(null);
     try {
-      const source = await addSource(file, { bytes, label: recovered?.name });
+      const source = await addSource(file, { bytes, label: recovered?.name, password });
       const list = pagesOf(source.id, source.info);
       setPages(list);
       pagesRef.current = list;
@@ -330,20 +357,61 @@ export default function PdfApp({ app, shell, boot }) {
   const chosen = useCallback(() => chosenKeys(pagesRef.current, selectedRef.current, currentRef.current), []);
   const numbersOf = (keys) => keys.map((k) => pagesRef.current.findIndex((p) => p.key === k) + 1);
 
-  const guardLocked = useCallback(() => {
-    if (!protectedFile) return false;
-    toast(t('This PDF is protected, so its pages can be read but not changed or saved yet.'), { tone: 'bad', ms: 6000 });
+  /**
+   * Whether a change is refused, said in a sentence: a file that could not
+   * be read with its password is read only; a protected file's permissions
+   * name what its owner allows: 'assemble' (pages moved, turned, deleted,
+   * inserted, extracted), 'change' (its content), 'comment', 'fill' (its
+   * form), and 'save', which any of them allows.
+   */
+  const guardLocked = useCallback((kind = 'change') => {
+    const list = Object.values(sourcesRef.current);
+    if (list.some((s) => s.info.locked)) {
+      toast(t('This PDF is protected in a way that lets it be read here, but not changed or saved.'), { tone: 'bad', ms: 6000 });
+      return true;
+    }
+    if (kind === 'save' || list.every((s) => s.info.permissions?.[kind] !== false)) return false;
+    if (kind === 'comment') toast(t('Whoever protected this PDF does not allow comments on it. Enter its owner password to add them.'), { tone: 'bad', ms: 7000 });
+    else if (kind === 'fill') toast(t('Whoever protected this PDF does not allow its form to be filled. Enter its owner password to fill it.'), { tone: 'bad', ms: 7000 });
+    else toast(t('Whoever protected this PDF does not allow it to be changed. Enter its owner password to change it.'), { tone: 'bad', ms: 7000 });
     return true;
-  }, [protectedFile, toast]);
+  }, [toast]);
+
+  /** The owner password, for a protected file whose permissions keep some changes back: asked for, and every change allowed once it is right. */
+  const enterOwnerPassword = useCallback(async () => {
+    const list = Object.values(sourcesRef.current).filter((s) => s.info.encrypted && !s.info.locked && s.info.access !== 'owner');
+    if (!list.length) return;
+    let wrong = false;
+    try {
+      for (;;) {
+        const password = await askPassword({ name: list[0].name, wrong, sub: t('allows only some changes. Enter its owner password to make any change.') });
+        if (password === null) return;
+        const answers = await Promise.all(list.map((s) => shell.pdf.unlock({ id: s.id, password })));
+        if (answers.every((a) => a.access === 'owner')) {
+          const next = { ...sourcesRef.current };
+          list.forEach((s, i) => { next[s.id] = { ...s, info: answers[i], password }; });
+          sourcesRef.current = next;
+          setSources(next);
+          toast(t('That is the owner password: every change is allowed now.'), { tone: 'good', ms: 4000 });
+          return;
+        }
+        wrong = true;
+      }
+    } catch (err) {
+      toast(err.message, { tone: 'bad', ms: 6000 });
+    } finally {
+      passwordAsked();
+    }
+  }, [askPassword, passwordAsked, shell, toast]);
 
   const rotate = useCallback((by) => {
-    if (guardLocked()) return;
+    if (guardLocked('assemble')) return;
     const keys = chosen();
     if (keys.length) edit(rotatePages(pagesRef.current, keys, by));
   }, [chosen, edit, guardLocked]);
 
   const removePages = useCallback(() => {
-    if (guardLocked()) return;
+    if (guardLocked('assemble')) return;
     const keys = chosen();
     if (!keys.length) return;
     if (keys.length >= pagesRef.current.length) {
@@ -358,7 +426,7 @@ export default function PdfApp({ app, shell, boot }) {
   }, [chosen, edit, guardLocked, toast]);
 
   const movePicked = useCallback((to, key) => {
-    if (guardLocked()) return;
+    if (guardLocked('assemble')) return;
     const sel = selectedRef.current;
     const keys = sel.includes(key) ? pagesRef.current.filter((p) => sel.includes(p.key)).map((p) => p.key) : [key];
     edit(movePages(pagesRef.current, keys, to), { select: keys, current: key });
@@ -366,7 +434,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   /** Pages of other files: after the last picked page, or at the end. */
   const insertFiles = useCallback(async (files, { at = null, announce = true } = {}) => {
-    if (guardLocked() || !files.length) return;
+    if (guardLocked('assemble') || !files.length) return;
     setBusy(t('Reading…'));
     const added = [];
     try {
@@ -467,8 +535,9 @@ export default function PdfApp({ app, shell, boot }) {
       for (const [id, written] of out.bySource) {
         if (!written.length) continue;
         const { bytes, written: pagesWritten, ...info } = await shell.pdf.addText({ id, pages: written });
-        const doc = await openDocument(bytes);
-        const source = { id: info.id, name: info.name, path: sourcesRef.current[id]?.path || null, info, doc, annots: sourcesRef.current[id]?.annots || [], fields: sourcesRef.current[id]?.fields || [], nav: sourcesRef.current[id]?.nav || null };
+        const password = sourcesRef.current[id]?.password || null;
+        const doc = await openDocument(bytes, { password });
+        const source = { id: info.id, name: info.name, path: sourcesRef.current[id]?.path || null, info, doc, annots: sourcesRef.current[id]?.annots || [], fields: sourcesRef.current[id]?.fields || [], nav: sourcesRef.current[id]?.nav || null, password };
         sourcesRef.current = { ...sourcesRef.current, [info.id]: source };
         setSources((s) => ({ ...s, [info.id]: source }));
         swap[id] = info.id;
@@ -523,7 +592,9 @@ export default function PdfApp({ app, shell, boot }) {
     return next;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const writeChanges = async (list, { pick = false } = {}) => {
-    if (guardLocked()) return null;
+    // Check boxes made and redaction marks change the file; a value fills its form; the rest are comments.
+    const redacting = list.some((x) => (x.changes?.add || []).some((a) => a.type === 'Redact'));
+    if (guardLocked(list.some((x) => x.checkboxes) || redacting ? 'change' : list.some((x) => x.values) ? 'fill' : 'comment')) return null;
     const swap = {};
     let first = null;
     try {
@@ -536,9 +607,9 @@ export default function PdfApp({ app, shell, boot }) {
           : values
             ? await shell.pdf.fill({ id, values })
             : await shell.pdf.annotate({ id, changes });
-        const doc = await openDocument(bytes);
         const old = sourcesRef.current[id];
-        const source = { id: info.id, name: info.name, path: old?.path || null, info, doc, annots: annotations, fields, nav: old?.nav || null };
+        const doc = await openDocument(bytes, { password: old?.password || null });
+        const source = { id: info.id, name: info.name, path: old?.path || null, info, doc, annots: annotations, fields, nav: old?.nav || null, password: old?.password || null };
         sourcesRef.current = { ...sourcesRef.current, [info.id]: source };
         setSources((s) => ({ ...s, [info.id]: source }));
         swap[id] = info.id;
@@ -611,7 +682,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   /** A markup button: the words already selected are marked at once; otherwise the tool stays in hand for the next selection. */
   const pressTool = useCallback((which) => {
-    if (guardLocked()) return;
+    if (guardLocked(/^redact/.test(which) ? 'change' : 'comment')) return;
     if (MARKUP_TOOLS.has(which) && markSelection(which)) return;
     setTool((now) => (now === which ? null : which));
     setPicked(null);
@@ -626,7 +697,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   /** A shape drawn, or a place chosen for a note, on a page. */
   const onCreate = useCallback((d) => {
-    if (guardLocked()) return;
+    if (guardLocked(/^redact/.test(d.tool) ? 'change' : ['stamp', 'date', 'check'].includes(d.tool) ? 'fill' : 'comment')) return;
     if (d.tool === 'note' || d.tool === 'text') { setNoteDraft({ ...d, colour: colourOf(d.tool) }); return; }
     if (d.tool === 'stamp') {
       if (!signature) return;
@@ -664,7 +735,7 @@ export default function PdfApp({ app, shell, boot }) {
   }, [guardLocked, colourOf, changeComments, signature]);
 
   const fillField = useCallback((sourceId, field, value) => {
-    if (guardLocked()) return;
+    if (guardLocked('fill')) return;
     changeComments([{ source: sourceId, values: { [field.id]: value } }]);
   }, [guardLocked, changeComments]);
 
@@ -779,7 +850,7 @@ export default function PdfApp({ app, shell, boot }) {
         if (response === 2) here = false;
         else if (response === 0 && !(await saveRef.current?.())) here = false;
       }
-      if (here) await openPdf(out);
+      if (here) await openPdf(out, { password: Object.values(sourcesRef.current).find((s) => s.password)?.password || null });
       else await shell.win.create({ app: 'pdf', file: out });
       const parts = [tn(removed.pages, 'Redacted {count} page.', 'Redacted {count} pages.')];
       if (removed.images) parts.push(tn(removed.images, '{count} picture under a mark could not be painted out and was left off its page.', '{count} pictures under marks could not be painted out and were left off their pages.'));
@@ -794,7 +865,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   /** Fill & Sign: the signature or initials kept from last time, or the dialog to make them. */
   const sign = useCallback((kind, { fresh = false } = {}) => {
-    if (guardLocked()) return;
+    if (guardLocked('fill')) return;
     const kept = fresh ? null : savedSignature(kind);
     if (kept) { setSignature(kept); setTool('stamp'); setPicked(null); return; }
     setSigning(kind);
@@ -883,7 +954,7 @@ export default function PdfApp({ app, shell, boot }) {
   }, [shell]);
 
   const saveTo = useCallback(async (target) => {
-    if (guardLocked()) return false;
+    if (guardLocked('save')) return false;
     setBusy(t('Saving…'));
     try {
       await writeTo(target, pagesRef.current);
@@ -904,7 +975,7 @@ export default function PdfApp({ app, shell, boot }) {
   }, [guardLocked, writeTo, shell, toast]);
 
   const saveAs = useCallback(async () => {
-    if (!pagesRef.current.length || guardLocked()) return false;
+    if (!pagesRef.current.length || guardLocked('save')) return false;
     const folder = path ? dirname(path) : (await shell.app.paths().catch(() => ({}))).documents || '';
     const stem = path ? stemOf(path) : stemOf(name || '') || t('Untitled');
     const target = await shell.dialog.save({ title: t('Save as'), defaultPath: joinPath(folder, `${stem}.pdf`), filters: PDF_FILTER() });
@@ -914,7 +985,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   /** Save: to the file it came from only once the person has said so; Save As otherwise. */
   const save = useCallback(async () => {
-    if (!pagesRef.current.length || guardLocked()) return false;
+    if (!pagesRef.current.length || guardLocked('save')) return false;
     if (!path) return saveAs();
     if (confirmed.current !== path) {
       const { response } = await shell.dialog.message({
@@ -934,7 +1005,7 @@ export default function PdfApp({ app, shell, boot }) {
   saveRef.current = save;
 
   const extract = useCallback(async () => {
-    if (guardLocked()) return;
+    if (guardLocked('assemble')) return;
     const keys = chosen();
     if (!keys.length) return;
     const list = pagesRef.current.filter((p) => keys.includes(p.key));
@@ -960,6 +1031,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   const split = useCallback(async ({ every = null, picked = false }) => {
     setSplitOpen(false);
+    if (guardLocked('assemble')) return;
     const list = pagesRef.current;
     const starts = picked ? list.map((p, i) => (selectedRef.current.includes(p.key) ? i : -1)).filter((i) => i > 0) : null;
     const groups = splitGroups(list.length, { every, starts });
@@ -982,7 +1054,7 @@ export default function PdfApp({ app, shell, boot }) {
     } finally {
       setBusy(null);
     }
-  }, [path, name, shell, writeTo, toast]);
+  }, [path, name, shell, writeTo, toast, guardLocked]);
 
   /** Export as Pictures: each page chosen written as a PNG or a JPEG into a folder. */
   const exportPictures = useCallback(async ({ scope, format, dpi }) => {
@@ -1298,7 +1370,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   const copied = useRef({ at: 0, pages: null });
   useEffect(() => {
-    if (!hasDoc || !dirty || protectedFile) return undefined;
+    if (!hasDoc || !dirty || lockedFile) return undefined;
     const since = Date.now() - copied.current.at;
     const wait = copied.current.at ? Math.max(0, AUTOSAVE_EVERY_MS - since) : AUTOSAVE_FIRST_MS;
     const timer = setTimeout(async () => {
@@ -1312,7 +1384,7 @@ export default function PdfApp({ app, shell, boot }) {
       }
     }, wait);
     return () => clearTimeout(timer);
-  }, [pages, dirty, hasDoc, name, path, shell, protectedFile]);
+  }, [pages, dirty, hasDoc, name, path, shell, lockedFile]);
   useEffect(() => {
     const away = () => { shell.doc.dropCopy({ key: copyKey.current }).catch(() => {}); };
     window.addEventListener('pagehide', away);
@@ -1321,7 +1393,7 @@ export default function PdfApp({ app, shell, boot }) {
 
   /* ── commands ───────────────────────────────────────────────────────── */
 
-  const canEdit = hasDoc && !protectedFile;
+  const canEdit = hasDoc && !lockedFile;
   const commands = useMemo(() => ({
     'file.new': { label: t('New window'), icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'pdf' }) },
     'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
@@ -1457,7 +1529,7 @@ export default function PdfApp({ app, shell, boot }) {
           </Group>
           <Group label={t('Split and Merge')}>
             <Button tall icon="scissors" label={t('Split')} title={t('Split: this PDF into several files, by a number of pages or at the selected pages')} disabled={!canEdit || pages.length < 2} onClick={() => setSplitOpen(true)} data-role="split" />
-            <Button tall icon="pdf" label={t('Merge Files')} title={t('Merge Files: other PDFs added at the end, or combined into a new one')} disabled={protectedFile} onClick={() => mergeFiles()} data-role="merge" />
+            <Button tall icon="pdf" label={t('Merge Files')} title={t('Merge Files: other PDFs added at the end, or combined into a new one')} disabled={!allowed('assemble')} onClick={() => mergeFiles()} data-role="merge" />
           </Group>
         </>
       ) : null}
@@ -1582,7 +1654,7 @@ export default function PdfApp({ app, shell, boot }) {
       <Spacer />
       {pickedLabel ? <Chip>{pickedLabel}</Chip> : null}
       {currentSize ? <Chip>{t('{width} × {height} mm', { width: Math.round(currentSize.width / 72 * 25.4), height: Math.round(currentSize.height / 72 * 25.4) })}</Chip> : null}
-      {protectedFile ? <Chip>{t('Protected: read only')}</Chip> : null}
+      {lockedFile ? <Chip>{t('Protected: read only')}</Chip> : protectedFile ? <Chip>{t('Protected with a password')}</Chip> : null}
       {hasDoc ? <ZoomSlider value={zoom} min={ZOOM_MIN} max={4} onChange={setZoomByHand} onReset={() => setZoomByHand(1)} /> : null}
     </>
   );
@@ -1666,13 +1738,19 @@ export default function PdfApp({ app, shell, boot }) {
             />
           ) : null}
           <div className="pdf-main">
-            {protectedFile ? <div className="pdf-notice">{t('This PDF is protected, so its pages can be read but not changed or saved yet.')}</div> : null}
-            {tab === 'redact' && !protectedFile ? (
+            {lockedFile ? <div className="pdf-notice">{t('This PDF is protected in a way that lets it be read here, but not changed or saved.')}</div> : null}
+            {restricted ? (
+              <div className="pdf-notice" data-role="pdf-restricted">
+                {t('Whoever protected this PDF allows only some changes to it.')}
+                <Button icon="lock" label={t('Enter Owner Password…')} data-role="pdf-owner-password" onClick={enterOwnerPassword} />
+              </div>
+            ) : null}
+            {tab === 'redact' && allowed('change') ? (
               <div className="pdf-notice info" data-role="redact-notice">
                 {t('Marks show what will be removed; nothing is removed until you apply them. Applying saves a new file and leaves the original as it is.')}
               </div>
             ) : null}
-            {tab === 'fill' && !protectedFile ? (
+            {tab === 'fill' && allowed('fill') ? (
               <div className="pdf-notice info" data-role="sign-notice">
                 {tool === 'stamp' ? t('Click the page where your {kind} goes, or drag out the box it fills. Press Esc to put it down.', { kind: signature?.kind === 'initials' ? t('initials') : t('signature') }) : t('Type into the form\'s fields, tick its boxes and choose from its lists. A signature placed here is a picture of your signature, not a digital signature: it does not prove who signed, or that the PDF has not changed since.')}
               </div>

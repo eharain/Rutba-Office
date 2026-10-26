@@ -78,7 +78,7 @@ export function SecretInput({ value, onChange, className = '', invalid = false, 
  * password is being checked (100,000 rounds of hashing take a moment) OK
  * says so and nothing can be pressed twice.
  */
-export function PasswordPrompt({ name, wrong = false, attempt = 0, checking = false, onCancel, onSubmit }) {
+export function PasswordPrompt({ name, wrong = false, attempt = 0, checking = false, sub = null, onCancel, onSubmit }) {
   const [password, setPassword] = useState('');
   const input = useRef(null);
   useEffect(() => {
@@ -108,7 +108,7 @@ export function PasswordPrompt({ name, wrong = false, attempt = 0, checking = fa
           <span className="pw-badge"><Icon name="lock" size={18} /></span>
           <div className="pw-prompt-words">
             <div className="pw-file" data-tip={name}>{name}</div>
-            <div className="pw-sub">{t('is protected. Enter the password to open it.')}</div>
+            <div className="pw-sub">{sub || t('is protected. Enter the password to open it.')}</div>
           </div>
         </div>
         <label className="pw-label" htmlFor="pw-open-password">{t('Password')}</label>
@@ -138,16 +138,17 @@ export function PasswordPrompt({ name, wrong = false, attempt = 0, checking = fa
 /**
  * The window's password gate: `ask` shows the Password dialog and resolves
  * with what was typed (or null for Cancel); the dialog stays up, marked as
- * checking, until the next `ask` or `done`.
+ * checking, until the next `ask` or `done`. `sub` words the line under
+ * the file's name, when the password is asked for something besides opening.
  */
 export function usePasswordGate() {
   const [state, setState] = useState(null);
   const resolver = useRef(null);
   const ask = useCallback(
-    ({ name, wrong }) =>
+    ({ name, wrong, sub = null }) =>
       new Promise((resolve) => {
         resolver.current = resolve;
-        setState((s) => ({ name, wrong: Boolean(wrong), checking: false, attempt: (s?.attempt || 0) + (wrong ? 1 : 0) }));
+        setState((s) => ({ name, wrong: Boolean(wrong), sub, checking: false, attempt: (s?.attempt || 0) + (wrong ? 1 : 0) }));
       }),
     []
   );

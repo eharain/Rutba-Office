@@ -307,12 +307,13 @@ export const METHODS = {
   // The PDF app: the files a window has open, read once, and new PDFs made
   // from their pages without drawing anything (apps/desktop/main/pdf.js).
   pdf: [
-    'open',         // ({ path } | { bytes, name }) -> { id, name, path, size, version, encrypted, repaired, title, pages: [{ width, height, rotate }] }
+    'open',         // ({ path } | { bytes, name }) -> { id, name, path, size, version, encrypted, locked, access, permissions, problem, repaired, title, pages: [{ width, height, rotate }] }
+    'unlock',       // ({ id, password }) -> open's answer, or with { wrong: true }: a protected file read with its password (the user's or the owner's), held in memory with it
     'close',        // ({ id }) -> { closed }
     'assemble',     // ({ pages: [{ source, page, rotate }], path, title }) -> { path, size } | { bytes, size }: written whole, or handed back
     'text',         // ({ id, page }) -> string: the words a page's content draws
     'addText',      // ({ id, pages: [{ page, lines: [{ words: [{ text, x, y, width, size, angle }] }] }] }) -> { id, ...open's answer, written, bytes }: an invisible text layer as an incremental update, a new source
-    'inspect',      // ({ path }) -> { pages: [{ width, height, rotate, text }], encrypted, title }: a file read and let go, for the checks
+    'inspect',      // ({ path, password }) -> { pages: [{ width, height, rotate, text }], encrypted, locked, access, title }: a file read and let go, for the checks
     'annotations',  // ({ id }) -> [{ id, page, type, rect, contents, author, modified, color, quads, ink, line, arrow, replyTo, status, ... }]: the comments on every page
     'annotate',     // ({ id, changes: { add, reply, resolve, edit, remove }, author }) -> { id, ...open's answer, added, annotations, fields, bytes }: comments changed as an incremental update, a new source
     'fields',       // ({ id }) -> [{ id, name, type, value, options, multiline, readOnly, widgets: [{ id, page, rect, onState, state }], ... }]: the form's fields
