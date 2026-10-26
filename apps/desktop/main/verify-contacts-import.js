@@ -41,9 +41,15 @@ function fixtures(dir) {
 export async function verifyContactsImport({ open, check, until, wait, errorsIn }, { dir }) {
   const fx = fixtures(dir);
   let server = null;
+  // The cards the address book held before: the ones the imports add go at the end, so the
+  // Contacts checks after this one find the book as the run made it (their .vcf holds Kim Lee
+  // and Sam Patel too, which a second import rightly adds nobody for).
+  let win = null;
+  let held = null;
   try {
-    const win = await open('contacts', fx.outlook);
+    win = await open('contacts', fx.outlook);
     const js = (code) => win.webContents.executeJavaScript(code);
+    held = await js(`window.rutbaOffice.contacts.list({}).then((l) => l.map((c) => c.id))`).catch(() => null);
     const click = (sel, text) => js(`(() => { const b = [...document.querySelectorAll(${JSON.stringify(sel)})].find((x) => x.textContent.trim() === ${JSON.stringify(text)}); b?.click(); return Boolean(b); })()`);
     const clickLike = (sel, re) => js(`(() => { const b = [...document.querySelectorAll(${JSON.stringify(sel)})].find((x) => ${re}.test(x.textContent.trim())); b?.click(); return Boolean(b); })()`);
     const type = (sel, value) => js(`(() => { const i = document.querySelector(${JSON.stringify(sel)}); if (!i) return false; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, ${JSON.stringify(value)}); i.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
@@ -151,5 +157,13 @@ export async function verifyContactsImport({ open, check, until, wait, errorsIn 
     check('contacts: the import and accounts checks ran', false, err.message);
   } finally {
     await server?.close();
+    if (win && !win.isDestroyed() && held) {
+      await win.webContents.executeJavaScript(`(async () => {
+        const held = new Set(${JSON.stringify(held)});
+        const added = (await window.rutbaOffice.contacts.list({})).map((c) => c.id).filter((id) => !held.has(id));
+        if (added.length) await window.rutbaOffice.contacts.remove({ ids: added });
+        return added.length;
+      })()`).catch(() => {});
+    }
   }
 }
