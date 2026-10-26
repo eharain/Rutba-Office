@@ -45,7 +45,7 @@ export const MOVED_FILE = path.join(PACKS_DIR, 'moved.json');
 const ROOT = path.resolve(APP, '..', '..');
 
 /** The apps whose code is in their own pack, not in the core's archive. */
-export const CARRY_CODE = ['talk'];
+export const CARRY_CODE = ['talk', 'ocr', 'base', 'calendar', 'contacts', 'pdf', 'pictures', 'image', 'word', 'sheets', 'slides'];
 
 /** The apps a person picks on the installer's page; Text recognition and AI Tools are packs too, but never the one app installed. */
 export const ADD_ONS = ['ai', 'ocr'];
@@ -53,14 +53,18 @@ export const ADD_ONS = ['ai', 'ocr'];
 /** The main module of a pack whose code is still in the core. */
 const shim = (name) => `// ${name}'s pack. Its code is still in the core's archive in this version,\n// so it registers the core's own (main/app-packs.js, builtIn).\nexport function register(core) {\n  return core.builtIn(core);\n}\n`;
 
-/** A folder copied, without the tests and notes a package keeps beside its code. */
-function copyTree(from, to) {
+/**
+ * A folder copied, without the tests and notes a package keeps beside its
+ * code. An npm package keeps the copies of its own dependencies it holds
+ * (`nested`); a workspace package's node_modules are links to the others.
+ */
+function copyTree(from, to, { nested = false } = {}) {
   for (const ent of fs.readdirSync(from, { withFileTypes: true })) {
-    if (ent.isDirectory() && ['test', 'tests', '.git', 'node_modules'].includes(ent.name)) continue;
+    if (ent.isDirectory() && ['test', 'tests', '.git', ...(nested ? [] : ['node_modules'])].includes(ent.name)) continue;
     if (!ent.isDirectory() && /\.(md|map)$/i.test(ent.name)) continue;
     const a = path.join(from, ent.name);
     const b = path.join(to, ent.name);
-    if (ent.isDirectory()) copyTree(a, b);
+    if (ent.isDirectory()) copyTree(a, b, { nested });
     else {
       fs.mkdirSync(to, { recursive: true });
       fs.copyFileSync(a, b);
@@ -71,8 +75,9 @@ function copyTree(from, to) {
 /**
  * The code of an app that carries it, into its pack's folder: its main-process
  * files under main/ as they lie in the core, its window chunks under
- * renderer/chunks/ (served at the address the core imports them by), and its
- * packages under node_modules/. Answers the pack's main module.
+ * renderer/chunks/ (served at the address the core imports them by), a worker
+ * its window starts by name under renderer/, and its packages under
+ * node_modules/. Answers the pack's main module.
  */
 function carry(folder, c, rendererOut) {
   for (const file of c.main) {
@@ -80,14 +85,34 @@ function carry(folder, c, rendererOut) {
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.copyFileSync(path.join(ROOT, file), to);
   }
-  for (const chunk of c.chunks) {
+  for (const chunk of [...c.chunks, ...(c.workers || [])]) {
     const to = path.join(folder, 'renderer', ...chunk.split('/'));
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.copyFileSync(path.join(rendererOut, ...chunk.split('/')), to);
   }
-  for (const name of c.npm) copyTree(path.join(ROOT, 'node_modules', name), path.join(folder, 'node_modules', name));
+  for (const name of c.npm) copyTree(path.join(ROOT, 'node_modules', name), path.join(folder, 'node_modules', name), { nested: true });
   for (const p of c.packages) copyTree(path.join(ROOT, 'packages', p.dir), path.join(folder, 'node_modules', p.name));
+  for (const s of c.split || []) {
+    for (const f of s.files) {
+      const to = path.join(folder, 'node_modules', ...s.name.split('/'), ...f.split('/'));
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      fs.copyFileSync(path.join(ROOT, 'packages', s.dir, ...f.split('/')), to);
+    }
+  }
   return `main/${c.register.slice('apps/desktop/main/'.length)}`;
+}
+
+/**
+ * Folders of a carried package that stay on disk beside the pack's archive,
+ * as electron-builder.config.cjs unpacks them beside the core's: text
+ * recognition's engine and models, read by its worker threads.
+ */
+const UNPACKED = { '@rutba/ocr': ['vendor'] };
+
+/** The folders of a pack's carried code to leave unpacked. */
+function unpackedOf(c) {
+  const names = [...(c.npm || []), ...(c.packages || []).map((p) => p.name), ...(c.split || []).map((s) => s.name)];
+  return names.flatMap((n) => (UNPACKED[n] || []).map((d) => `node_modules/${n}/${d}`));
 }
 
 /** One pack's built folder, as tools/make-packs.mjs reads it. */
@@ -110,7 +135,7 @@ function treeFor(id, tree, toolNames, contents = null, rendererOut = path.join(A
     if (!copy(path.join(APP, 'resources', 'filetypes', path.basename(t.icon)), path.join(folder, ...t.icon.split('/')))) throw new Error(`${id}: the icon ${t.icon} for .${t.ext} is not in resources/filetypes.`);
   }
   const { id: _id, ...said } = d;
-  const unpack = [tiles.length ? 'tiles' : null, d.fileTypes.length ? 'filetypes' : null].filter(Boolean);
+  const unpack = [tiles.length ? 'tiles' : null, d.fileTypes.length ? 'filetypes' : null, ...(contents ? unpackedOf(contents) : [])].filter(Boolean);
   fs.writeFileSync(path.join(folder, 'pack.json'), `${JSON.stringify({ ...said, tiles, main, unpack }, null, 2)}\n`);
   return folder;
 }

@@ -34,7 +34,7 @@ import { frameOf } from './pictures/frames.js';
 import { durationOf, peekLength } from './pictures/durations.js';
 import { nextIndex, formatLength, advanceAfter } from './pictures/show.js';
 import { useMarks, useFolderCount } from './pictures/marks.js';
-import { BatchDialog, canBatch } from './image/batch.js';
+import { BatchDialog, canBatch } from './pictures/batch.js';
 import { usePictureText, PictureTextBar, OcrLanguagesDialog, TextOverLayer, pixelsOf, loadPicture, OCR_CSS } from '../ocr-ui.js';
 
 const INTERVALS = [

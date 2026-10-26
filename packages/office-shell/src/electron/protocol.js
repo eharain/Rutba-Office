@@ -216,6 +216,16 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
             break;
           }
         }
+      } else if (!rel.startsWith('packs/') && !fs.existsSync(path.join(root, ...rel.split('/')))) {
+        // A file a pack's window starts by name (Worksheets' scripts worker):
+        // the core's copy when it has one, else the loaded pack's.
+        for (const [id, archive] of Object.entries(packRoots())) {
+          if (fs.existsSync(path.join(archive, 'renderer', ...rel.split('/')))) {
+            base = path.resolve(archive, 'renderer');
+            fromPack = id;
+            break;
+          }
+        }
       }
       if (rel.startsWith('packs/')) {
         const [, id, ...rest] = rel.split('/');

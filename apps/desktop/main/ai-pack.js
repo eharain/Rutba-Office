@@ -8,7 +8,7 @@ import { createAiToolsService } from './ai-tools.js';
 
 /** The services the tools reach, as they stand when asked: those of the apps installed. */
 export function servicesFor(packs) {
-  return () => ({ mail: packs.service('mail'), calendar: packs.service('calendar'), contacts: packs.service('contacts'), base: packs.service('base') });
+  return () => ({ mail: packs.service('mail'), calendar: packs.service('calendar'), contacts: packs.service('contacts'), base: packs.service('base'), ocr: packs.service('ocr') });
 }
 
 export function register({ stores, broadcast, packs, onRecentRenamed }) {

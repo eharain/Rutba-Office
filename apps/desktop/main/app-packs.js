@@ -259,5 +259,25 @@ export async function registerPacks(p, context, { services: served = {}, record 
   return served;
 }
 
+/**
+ * One pack's services alone, when it is in the plan: for a program that
+ * needs one app's code and not the rest (the AI tools run as Node want text
+ * recognition). Null when the pack is not installed or would not start.
+ * @param {Plan} p
+ * @param {string} id
+ * @param {object} [context]   what its register is handed
+ */
+export async function packService(p, id, context = {}) {
+  const pack = p.packs.find((x) => x.id === id);
+  if (!pack) return null;
+  try {
+    const mod = pack.main ? await import(pathToFileURL(pack.main).href) : await BUILT_IN[id]?.();
+    const builtIn = BUILT_IN[id] ? async (core) => (await BUILT_IN[id]()).register(core) : null;
+    return (await mod?.register?.({ ...context, pack: { id: pack.id, name: pack.name }, builtIn })) || null;
+  } catch {
+    return null;
+  }
+}
+
 /** The pack ids in the launcher's order, the apps' first. */
 export const PACK_ORDER = PACKS.map((p) => p.id);

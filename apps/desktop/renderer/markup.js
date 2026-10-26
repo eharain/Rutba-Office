@@ -1,4 +1,5 @@
-// A slide's SVG, put on the page once per drawing.
+// A slide's SVG, put on the page once per drawing. The core's, beside the
+// design galleries (design.js) that draw with it.
 //
 // React 19 writes `innerHTML` again whenever a `dangerouslySetInnerHTML`
 // object is new — and `{ __html: svg }` written inline is new on every

@@ -15,7 +15,7 @@ import path from 'node:path';
 import { SheetView } from '@rutba/sheet-view';
 import { decodeText } from '@rutba/office-formats/text';
 import { parseDelimited, sourceFromRows } from '@rutba/ooxml/mailmerge';
-import { Base } from '@rutba/database';
+import { Base } from '@rutba/database/base';
 
 const WORKBOOKS = new Set(['.xlsx', '.xlsm', '.xltx']);
 const DELIMITED = { '.csv': null, '.tsv': '\t', '.tab': '\t', '.txt': null };

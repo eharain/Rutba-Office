@@ -14,7 +14,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { playTransition } from './motion.js';
 import { sequence, applyState, playGroup, triggered } from './animate.js';
-import { Markup, FILL } from './markup.js';
+import { Markup, FILL } from '../../markup.js';
 import { ShowMedia } from './media.js';
 import { CameoLayer, CAMEO_CSS } from './cameo.js';
 import { isNarration } from '@rutba/presentation/narration';

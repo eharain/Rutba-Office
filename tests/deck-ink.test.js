@@ -10,7 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Deck, buildPptx, renderSlide } from '@rutba/presentation';
-import { recognise, alongRuler, strokeLook, isInk } from '../apps/desktop/renderer/apps/slides/ink-geometry.js';
+import { recognise, alongRuler, strokeLook, isInk } from '../apps/desktop/renderer/ink-geometry.js';
 
 const blank = () => Deck.open(buildPptx({ title: 'Ink', slides: [{ layout: 'blank' }] }));
 

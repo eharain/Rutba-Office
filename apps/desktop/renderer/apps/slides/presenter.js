@@ -13,7 +13,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button, Icon, Spinner, Empty, t } from '@rutba/office-ui';
 import { clickCount, applyState } from './animate.js';
-import { Markup, FILL } from './markup.js';
+import { Markup, FILL } from '../../markup.js';
 
 /**
  * The nearest slide from `from` in the direction of `delta` (±1) that is not

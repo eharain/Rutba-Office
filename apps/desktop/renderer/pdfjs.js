@@ -1,6 +1,7 @@
 // Drawing PDF pages in the window: pdf.js (Mozilla, Apache-2.0), vendored in
 // apps/desktop/vendor/pdfjs and served from the app's own files, loaded the
-// first time a PDF is shown. It parses and draws in a worker of its own, so
+// first time a PDF is shown. The core's, not PDF's: Mail reads the words on
+// a PDF attachment and Worksheets a PDF bill with it, PDF installed or not. It parses and draws in a worker of its own, so
 // a large file never holds the window; nothing here reaches the network.
 //
 // One pdf.js document per source file, pages fetched once, and every draw
@@ -198,4 +199,27 @@ export async function pageImage(doc, index, { rotate = 0, dpi = 150 }) {
   await page.render({ canvasContext: ctx, canvas, viewport, background: '#ffffff' }).promise;
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
   return { url: URL.createObjectURL(blob), width: viewport.width / (dpi / 72), height: viewport.height / (dpi / 72) };
+}
+
+const MAX_DPI = 300;
+const MAX_SIDE = 4200;
+
+/**
+ * A page drawn to pixels for reading, and the viewport that drew it; at up to
+ * `maxDpi` (a bill is read as well at 200 dots per inch, and sooner).
+ */
+export async function pagePixels(doc, index, { maxDpi = MAX_DPI } = {}) {
+  const page = await getPage(doc, index);
+  const unit = page.getViewport({ scale: 1 });
+  const dpi = Math.min(maxDpi, (MAX_SIDE / Math.max(unit.width, unit.height)) * 72);
+  const viewport = page.getViewport({ scale: dpi / 72 });
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.floor(viewport.width));
+  canvas.height = Math.max(1, Math.floor(viewport.height));
+  const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: ctx, canvas, viewport, background: '#ffffff' }).promise;
+  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  return { pixels: { width: canvas.width, height: canvas.height, data: image.data }, viewport, dpi };
 }

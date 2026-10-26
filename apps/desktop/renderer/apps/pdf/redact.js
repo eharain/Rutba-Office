@@ -11,7 +11,7 @@
 import React from 'react';
 import { Button, Dialog, Icon, language, t, tn } from '@rutba/office-ui';
 import { findAll } from '@rutba/editing/find';
-import { drawText, getPage } from './pdfjs.js';
+import { drawText, getPage } from '../../pdfjs.js';
 import { joinLines } from './annots.js';
 
 /**

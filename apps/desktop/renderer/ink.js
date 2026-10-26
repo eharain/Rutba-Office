@@ -5,6 +5,8 @@
 // slide that a stroke started along it follows; Ink to Shape turns a drawn
 // rectangle, oval or triangle into that shape; Ink Replay draws the
 // strokes again in the order they were made.
+//
+// The core's: Documents and Worksheets draw with it too.
 
 import React, { useEffect, useRef, useState } from 'react';
 import { t } from '@rutba/office-ui';

@@ -18,7 +18,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Dialog, Input, t } from '@rutba/office-ui';
-import { getPage } from './pdfjs.js';
+import { getPage } from '../../pdfjs.js';
 
 /** A page's pdf.js viewport at a scale and turn, once the page is read. */
 export function usePageViewport(source, entry, scale) {

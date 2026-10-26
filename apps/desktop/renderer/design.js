@@ -5,6 +5,9 @@
 // draws the stage — so a theme is picked by looking at this deck in it, not
 // at a stock picture. A pick is one operation on the deck (one undo step);
 // the theme part is rewritten and every slide follows.
+//
+// The core's: Worksheets uses the custom colours and fonts dialogs, and Image
+// the font list.
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button, Dialog, Gallery, Icon, t } from '@rutba/office-ui';

@@ -83,12 +83,13 @@ const workerOptions = {
 };
 
 /**
- * Image: the worker that works a picture's pixels (tone, detail, a batch's
- * conversions) off the window's thread. Served from the app like app.js.
+ * The worker that works a picture's pixels (Image's tone and detail, a batch's
+ * conversions in Image and Pictures) off the window's thread. The core's,
+ * served from the app like app.js.
  */
 const imageWorkerOptions = {
   ...shared,
-  entryPoints: [path.join(app, 'renderer', 'apps', 'image', 'worker.js')],
+  entryPoints: [path.join(app, 'renderer', 'imaging', 'worker.js')],
   outfile: path.join(out, 'image-worker.js'),
   minify: !dev,
   sourcemap: false,
@@ -176,18 +177,28 @@ async function run() {
   console.log(`built in ${Date.now() - started} ms: app.js ${(size / 1024).toFixed(0)} KB, ${chunks.length} chunks ${(chunked / 1024).toFixed(0)} KB`);
 }
 
-/** Each output file of the renderer and its inputs, by their paths from the repository's root. */
+/**
+ * Each output file of the renderer and its inputs, by their paths from the
+ * repository's root; the outputs each imports (statically, or when asked:
+ * `import()`); and the source each entry output starts from (the window
+ * modules among them), so the packs can tell which windows reach a chunk.
+ */
 function writeMeta(metafile) {
   const root = path.resolve(app, '..', '..');
   const posix = (p) => p.split(path.sep).join('/');
+  const outRel = (file) => posix(path.relative(out, path.resolve(file)));
   const outputs = {};
+  const imports = {};
+  const entries = {};
   for (const [file, o] of Object.entries(metafile.outputs)) {
     if (!file.endsWith('.js')) continue;
-    const rel = posix(path.relative(out, path.resolve(file)));
+    const rel = outRel(file);
     outputs[rel] = Object.keys(o.inputs).map((i) => posix(path.relative(root, path.resolve(i))));
+    imports[rel] = (o.imports || []).filter((i) => !i.external && i.path.endsWith('.js')).map((i) => ({ path: outRel(i.path), kind: i.kind === 'dynamic-import' ? 'dynamic' : 'static' }));
+    if (o.entryPoint) entries[rel] = posix(path.relative(root, path.resolve(o.entryPoint)));
   }
   fs.mkdirSync(path.dirname(RENDERER_META), { recursive: true });
-  fs.writeFileSync(RENDERER_META, `${JSON.stringify({ outputs }, null, 1)}\n`);
+  fs.writeFileSync(RENDERER_META, `${JSON.stringify({ outputs, imports, entries }, null, 1)}\n`);
 }
 
 // Run when called, not when another build script imports the file's names.

@@ -4,7 +4,7 @@
 // image worker (tool-jobs.js) and only drawn here.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { toolOff } from './work.js';
+import { toolOff } from '../../imaging/work.js';
 
 /** The outline of a selection, worked out off the window's thread: a Float32Array of segments, or null. */
 export function useOutline(selection) {

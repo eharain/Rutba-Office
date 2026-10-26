@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Dialog, Spinner, t, tn } from '@rutba/office-ui';
 import { OcrLanguagePicker, chosenOcrLanguages, rememberOcrLanguages, ocrLanguageNames, pixelsOf, loadPicture } from '../../ocr-ui.js';
-import { fileUrl } from '../pictures/library.js';
+import { fileUrl } from '../../file-urls.js';
 
 /** Below this, a cell's least sure word is worth a second look. */
 const CHECK_BELOW = 75;

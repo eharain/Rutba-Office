@@ -29,7 +29,7 @@ import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS } from '@rutba/office-form
 import { MailingsTab } from './mailings.js';
 import { CitationsGroup } from './references.js';
 import { IndexGroup } from './references-index.js';
-import { PEN_COLOURS, PEN_WIDTHS } from '../slides/ink-geometry.js';
+import { PEN_COLOURS, PEN_WIDTHS } from '../../ink-geometry.js';
 import { ToaGroup } from './references-toa.js';
 import { captionsExtra } from './references-figures.js';
 import { MODEL_VIEWS } from '@rutba/imaging/model3d';

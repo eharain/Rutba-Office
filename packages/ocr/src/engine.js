@@ -16,9 +16,9 @@ import { modelOf } from './languages.js';
 
 const BUILD = 'tesseract-core-simd-lstm';
 
-/** Inside an installed app the engine and models sit beside the archive, unpacked. */
+/** Inside an installed app the engine and models sit beside the archive, unpacked: the core's, or Text recognition's pack's. */
 function unpacked(p) {
-  const u = p.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');
+  const u = p.replace(/\.asar([\\/])/, '.asar.unpacked$1');
   return u !== p && fs.existsSync(u) ? u : p;
 }
 

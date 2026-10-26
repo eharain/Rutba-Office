@@ -16,7 +16,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, t, formatWhen } from '@rutba/office-ui';
-import { getPage } from './pdfjs.js';
+import { getPage } from '../../pdfjs.js';
 
 /** Tools that act on the words selected. */
 export const MARKUP_TOOLS = new Set(['highlight', 'underline', 'strike', 'redact-text']);

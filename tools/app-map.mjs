@@ -53,28 +53,34 @@ const MAIN_HOMES = [
   [/^ai-tools\.js$|^mcp\//, 'ai'],
   [/^live\.js$/, 'recorder'],
   [/^talk(-[\w-]+)?\.js$/, 'talk'],
-  [/^present\.js$|^legacy-deck(-kept)?\.js$/, 'slides'],
-  [/^mailmerge-source\.js$/, 'word'],
+  // The old .ppt reader (legacy-deck*.js) and mail merge's sources
+  // (mailmerge-source.js) are the document service's, so the core's.
+  [/^present\.js$/, 'slides'],
 ];
 /**
  * Engines whose files go each by who reaches them rather than as one: text
  * recognition's engine and data are one pack's, the result helpers the
  * windows read are shared; Data Files' databases are its own, the gallery
- * the core's. The others move whole until the move itself splits them.
+ * the core's; Data Files' engine is its own but for the file reader
+ * (`@rutba/database/base`) Documents' mail merge reads a database with. The
+ * others move whole until the move itself splits them.
  */
-const SPLIT_PACKAGES = new Set(['ocr', 'templates']);
+const SPLIT_PACKAGES = new Set(['ocr', 'templates', 'database']);
 
-/** Files in the renderer's shared folder that are one app's own. */
-const RENDERER_HOMES = { 'ai-tools.js': 'ai', 'ocr-ui.js': 'ocr' };
+/**
+ * Files in the renderer's shared folder that are one app's own. Text
+ * recognition's window part (ocr-ui.js) is the core's: the five apps that
+ * read text show it, and its calls go to the ocr namespace, which says Text
+ * recognition is not installed when it is not.
+ */
+const RENDERER_HOMES = { 'ai-tools.js': 'ai' };
 
 /** Entry points no import reaches: workers started by name, a program run on its own. */
 const EXTRA_ENTRIES = {
   renderer: {
-    // build/bundle.js builds both as bundles of their own (scripts-worker.js, image-worker.js).
+    // build/bundle.js builds it as a bundle of its own (scripts-worker.js).
     sheets: [`${RENDERER}/apps/sheets/scripts-worker.js`],
-    image: [`${RENDERER}/apps/image/worker.js`],
     ai: [`${RENDERER}/ai-tools.js`],
-    ocr: [`${RENDERER}/ocr-ui.js`],
   },
   main: {
     // The AI tools for an AI app on this computer: Rutba Office's program run as Node.
@@ -82,7 +88,8 @@ const EXTRA_ENTRIES = {
   },
 };
 const CORE_ENTRIES = {
-  renderer: [`${RENDERER}/index.js`],
+  // The image worker (image-worker.js, a bundle of its own) is the core's: Image and Pictures' batch conversion both start it.
+  renderer: [`${RENDERER}/index.js`, `${RENDERER}/imaging/worker.js`],
   main: [`${MAIN}/main.js`, 'packages/office-shell/src/electron/preload.js'],
 };
 /** The core's own wiring: what it imports from an app here is the registration the loader takes over. */
@@ -109,7 +116,7 @@ const CHECK_PACK = [
 /** The heavy parts, named so their size and owner are read off the map. */
 const HEAVY = [
   { what: "Text recognition's engine and language data", dirs: ['packages/ocr/vendor'] },
-  { what: 'pdf.js, which draws PDF pages (copied beside the bundle)', dirs: [`${DESKTOP}/vendor/pdfjs`], through: `${RENDERER}/apps/pdf/pdfjs.js` },
+  { what: 'pdf.js, which draws PDF pages (copied beside the bundle)', dirs: [`${DESKTOP}/vendor/pdfjs`], through: `${RENDERER}/pdfjs.js` },
   { what: "Data Files' ready-made and sample databases", dirs: ['packages/templates/data-files'] },
   { what: 'The template gallery: files and thumbnails', dirs: ['packages/templates/files', 'packages/templates/thumbs'], through: 'packages/templates/src/catalogue.js' },
   { what: 'The words in Urdu, Arabic and Hindi', dirs: ['packages/office-ui/src/catalogues'] },
@@ -504,7 +511,7 @@ function npmClosure(name, from = 'node_modules', seen = new Set()) {
 async function rendererOutput() {
   const result = await esbuild.build({
     absWorkingDir: ROOT,
-    entryPoints: [`${RENDERER}/index.js`, `${RENDERER}/apps/sheets/scripts-worker.js`, `${RENDERER}/apps/image/worker.js`],
+    entryPoints: [`${RENDERER}/index.js`, `${RENDERER}/apps/sheets/scripts-worker.js`, `${RENDERER}/imaging/worker.js`],
     bundle: true,
     write: false,
     metafile: true,

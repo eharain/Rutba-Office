@@ -15,7 +15,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { makeKeyPair } from '../tools/make-pack-key.mjs';
 import { mapImports, ROOT } from '../tools/app-map.mjs';
-import { packContents, rendererOwners } from '../apps/desktop/build/pack-contents.js';
+import { packContents, rendererOwners, windowReach, npmOwners } from '../apps/desktop/build/pack-contents.js';
 import { makeAppPacks } from '../apps/desktop/build/make-app-packs.js';
 import { planPacks, readPackKeys } from '../apps/desktop/main/app-packs.js';
 import { readArchive } from '../packages/office-shell/src/electron/packs.js';
@@ -60,6 +60,93 @@ test('a move is refused, with the import to cut, when a chunk mixes an app\'s co
   const owners = rendererOwners(g, mixed);
   assert.deepEqual([...owners.get(TALK_CHUNK)], ['talk']);
   assert.ok(owners.get('chunks/chunk-MIXED001.js').has('talk') && owners.get('chunks/chunk-MIXED001.js').size > 1);
+});
+
+/** A renderer build with what imports what: the launcher, Talk's window, a chunk only Talk reaches and one the launcher shares. */
+const build = {
+  outputs: {
+    'app.js': ['apps/desktop/renderer/index.js', 'apps/desktop/renderer/start-page.js'],
+    'chunks/talk-REACHED1.js': ['apps/desktop/renderer/apps/talk.js'],
+    'chunks/chunk-ONLYTALK.js': ['apps/desktop/renderer/apps/talk/call.js', 'apps/desktop/renderer/protect.js'],
+    'chunks/chunk-SHARED02.js': ['apps/desktop/renderer/share.js'],
+  },
+  imports: {
+    'app.js': [{ path: 'chunks/talk-REACHED1.js', kind: 'dynamic' }, { path: 'chunks/chunk-SHARED02.js', kind: 'static' }],
+    'chunks/talk-REACHED1.js': [{ path: 'chunks/chunk-ONLYTALK.js', kind: 'static' }, { path: 'chunks/chunk-SHARED02.js', kind: 'static' }],
+    'chunks/chunk-ONLYTALK.js': [],
+    'chunks/chunk-SHARED02.js': [],
+  },
+  entries: { 'app.js': 'apps/desktop/renderer/index.js', 'chunks/talk-REACHED1.js': 'apps/desktop/renderer/apps/talk.js' },
+};
+
+test('a chunk only an app\'s window reaches goes with the app, a file of the core\'s in it too; one the launcher shares stays', async () => {
+  const reach = windowReach(build, { talk: 'apps/desktop/renderer/apps/talk.js', mail: 'apps/desktop/renderer/apps/mail.js' });
+  assert.deepEqual([...reach.get('app.js')], ['core']);
+  assert.deepEqual([...reach.get('chunks/talk-REACHED1.js')], ['talk']);
+  assert.deepEqual([...reach.get('chunks/chunk-ONLYTALK.js')], ['talk']);
+  assert.deepEqual([...reach.get('chunks/chunk-SHARED02.js')].sort(), ['core', 'talk']);
+  const { talk } = await packContents(['talk'], { g, meta: build });
+  assert.deepEqual(talk.chunks.sort(), ['chunks/chunk-ONLYTALK.js', 'chunks/talk-REACHED1.js']);
+  // Talk's code in the shared chunk is refused, with what reaches it.
+  const shared = structuredClone(build);
+  shared.outputs['chunks/chunk-SHARED02.js'].push('apps/desktop/renderer/apps/talk/invite.js');
+  await assert.rejects(packContents(['talk'], { g, meta: shared }), /chunks\/chunk-SHARED02\.js holds talk's code \(apps\/desktop\/renderer\/apps\/talk\/invite\.js\) and is reached by core too/);
+});
+
+test('text recognition carries its engine and models and the code of its package; the core keeps the helpers the windows read', async () => {
+  const { ocr } = await packContents(['ocr'], { g, meta: { outputs: {}, imports: {}, entries: {} } });
+  assert.deepEqual(ocr.main, ['apps/desktop/main/ocr-pack.js', 'apps/desktop/main/ocr.js']);
+  const [engine] = ocr.split;
+  assert.equal(engine.name, '@rutba/ocr');
+  assert.ok(['package.json', 'src/engine.js', 'src/worker.js', 'src/languages.js', 'vendor/tessdata/eng.traineddata'].every((f) => engine.files.includes(f)));
+  assert.ok(ocr.core.includes('node_modules/@rutba/ocr/vendor/tessdata/eng.traineddata'));
+  assert.ok(ocr.core.includes('node_modules/@rutba/ocr/src/engine.js'));
+  for (const kept of ['languages.js', 'record.js', 'png.js']) assert.ok(!ocr.core.includes(`node_modules/@rutba/ocr/src/${kept}`), kept);
+});
+
+/** A renderer build of the named apps' window chunks alone, each reached from the launcher. */
+function windowsBuild(ids) {
+  const out = (id) => `chunks/${id}-WINDOW01.js`;
+  return {
+    outputs: Object.fromEntries(ids.map((id) => [out(id), [`apps/desktop/renderer/apps/${id}.js`]])),
+    imports: Object.fromEntries(ids.map((id) => [out(id), []])),
+    entries: Object.fromEntries(ids.map((id) => [out(id), `apps/desktop/renderer/apps/${id}.js`])),
+  };
+}
+
+test('Worksheets carries the scripts worker its window starts by name; the image worker Image and Pictures share stays in the core', async () => {
+  const { sheets, image } = await packContents(['sheets', 'image'], { g, meta: windowsBuild(['sheets', 'image']) });
+  assert.deepEqual(sheets.workers, ['scripts-worker.js']);
+  assert.ok(sheets.core.includes('build/out/scripts-worker.js'));
+  assert.deepEqual(image.workers, []);
+  assert.ok(!image.core.includes('build/out/image-worker.js'));
+});
+
+test('a move is refused when a file left in the core imports one the pack would take', async () => {
+  const main = new Map(g.graphs.main);
+  main.set('apps/desktop/main/main.js', [...(main.get('apps/desktop/main/main.js') || []), { to: 'apps/desktop/main/talk.js', spec: './talk.js', line: 1, kind: 'import-statement' }]);
+  const reaching = { ...g, graphs: { ...g.graphs, main } };
+  await assert.rejects(packContents(['talk'], { g: reaching, meta }), /apps\/desktop\/main\/main\.js imports apps\/desktop\/main\/talk\.js, which would go with talk's pack/);
+  // The document service's own readers are the core's: Documents and Presentations take only their register modules and the show.
+  const { word, slides } = await packContents(['word', 'slides'], { g, meta: windowsBuild(['word', 'slides']) });
+  assert.deepEqual(word.main, ['apps/desktop/main/word-pack.js']);
+  assert.deepEqual(slides.main, ['apps/desktop/main/present.js', 'apps/desktop/main/slides-pack.js']);
+});
+
+test('Data Files carries its engine and sample databases; the core keeps the file reader mail merge reads a database with', async () => {
+  const { base } = await packContents(['base'], { g, meta: windowsBuild(['base']) });
+  const engine = base.split.find((s) => s.name === '@rutba/database');
+  assert.ok(engine && ['src/index.js', 'src/samples.js', 'src/base.js'].every((f) => engine.files.includes(f)));
+  assert.ok(base.core.includes('node_modules/@rutba/database/src/samples.js'));
+  assert.ok(base.core.includes('node_modules/@rutba/templates/data-files/active.js'));
+  for (const kept of ['base.js', 'types.js', 'query-design.js']) assert.ok(!base.core.includes(`node_modules/@rutba/database/src/${kept}`), kept);
+});
+
+test('an npm package two apps need stays in the core; one only Data Files needs goes with it', () => {
+  const owners = npmOwners(g);
+  assert.equal(owners.get('pg'), 'base');
+  assert.equal(owners.get('mysql2'), 'base');
+  assert.equal(owners.get('iconv-lite'), 'core');
 });
 
 test('Talk\'s pack holds its code, its main module is its own register module, and moved.json lists what the core leaves out', () => {

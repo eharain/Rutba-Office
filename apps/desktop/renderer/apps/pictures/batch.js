@@ -11,7 +11,7 @@ import { Dialog, Button, Select, Input, Progress, basename, t, tn } from '@rutba
 import { probeImage } from '@rutba/imaging/probe';
 import { readExif } from '@rutba/imaging/exif';
 import { planBatch, keepBoth, nameFromPattern, sizeFor, folderOf, formatOf, FORMATS } from '@rutba/imaging/batch';
-import { convertOff } from './work.js';
+import { convertOff } from '../../imaging/work.js';
 
 /** What the worker can decode: the pictures a batch takes. */
 export const BATCH_EXTS = ['.jpg', '.jpeg', '.jpe', '.png', '.webp', '.bmp', '.gif', '.avif'];

@@ -51,7 +51,7 @@ import {
 import { findAll } from '@rutba/editing/find';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
 import { usePasswordGate } from '../../protect.js';
-import { openDocument, pageText, pageImage } from './pdfjs.js';
+import { openDocument, pageText, pageImage } from '../../pdfjs.js';
 import {
   pagesOf, rotatePages, deletePages, insertPages, movePages, rangeKeys, rangeText, chosenKeys, shownSize, splitGroups,
 } from './pages.js';

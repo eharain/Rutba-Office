@@ -27,7 +27,7 @@ import { PivotFieldsPane, PIVOT_FIELDS_CSS } from './sheets/pivot-fields.js';
 import { ScriptsPane, SCRIPTS_CSS, runInWorker, recordLines, recordedScript } from './sheets/scripts.js';
 import { QueryEditor, QueriesPane, rememberSource, cleanError } from './sheets/queries.js';
 import { SITE } from '@rutba/office-formats/registry';
-import { SymbolDialog } from './word/dialogs.js';
+import { SymbolDialog } from '../symbol-dialog.js';
 import { useSheetsReview } from './sheets/review.js';
 import {
   GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
@@ -35,7 +35,7 @@ import {
   ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog, ConsolidateDialog, ForecastDialog,
 } from './sheets/dialogs.js';
 import { WorkbookGallery, SHEET_DESIGN_CSS } from './sheets/design.js';
-import { CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
+import { CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from '../design.js';
 import { SlicerPanel, InsertSlicersDialog, ObjectHandles, RotateHandle, SelectionPane, angleAt, followPointer, OBJECTS_CSS } from './sheets/objects.js';
 import { IconsDialog } from '../icons-insert.js';
 import { QrDialog, qrOf } from '../qrcode.js';
@@ -43,8 +43,8 @@ import { RotationDialog } from '../rotation-dialog.js';
 import { DataFromPictureDialog, PICTURE_DATA_CSS } from './sheets/picture-data.js';
 import { ReceiptDialog, RECEIPT_ROW_CSS } from './sheets/receipt-row.js';
 import { OCR_CSS } from '../ocr-ui.js';
-import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise } from './slides/ink.js';
-import { EquationDialog, EQUATION_CSS } from './word/equations.js';
+import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise } from '../ink.js';
+import { EquationDialog, EQUATION_CSS } from '../equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
 import { CfIcon, barStyle, CF_GLYPHS_CSS } from './sheets/cf-glyphs.js';
 import { filterHeads, FilterArrow, FilterMenu, FILTER_CSS } from './sheets/filter-panel.js';

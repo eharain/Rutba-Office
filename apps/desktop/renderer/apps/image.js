@@ -32,7 +32,7 @@ import { rectSelection, ellipseSelection, polygonSelection, combineSelection, in
 import { cloneOffset } from '@rutba/imaging/paint';
 import { AppFrame, useAppMenu, pickOpen, useFileDrop, useDirtyGuard } from '../shell.js';
 import { drawBase, drawMarks } from './image/draw.js';
-import { pixelsOff, toolOff } from './image/work.js';
+import { pixelsOff, toolOff } from '../imaging/work.js';
 import { ToolBar, OptionsBar, TOOLS, DEFAULT_OPTIONS, TOOLS_CSS } from './image/tools.js';
 import { ToolStage, TOOL_STAGE_CSS } from './image/tool-stage.js';
 import { Stroke, layOnce, colourPaint, restoreBits } from './image/painter.js';

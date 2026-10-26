@@ -21,12 +21,34 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createServer, serve } from './protocol.js';
 import { writeConnection, alive } from './access.js';
 import { profileDir, profileEntryOf } from './profile-dir.js';
 import { createChannelClient } from './channel.js';
 import { needsPassword } from '@rutba/office-shell/profiles';
 import { makeTools, versionOf, INSTRUCTIONS } from './make-tools.js';
+import { planPacks, readPackKeys, packService } from '../app-packs.js';
+import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
+
+/**
+ * Text recognition, for the tool that reads the words in a picture: from its
+ * pack, checked as a start of Rutba Office checks it, when it is installed
+ * (the packs folder beside the archive, or a check run's); in a copy run
+ * from the source, the core's own code. Null when it is not installed.
+ */
+async function ocrService() {
+  const app = fileURLToPath(new URL('../../', import.meta.url));
+  const packaged = /\.asar[\\/]?$/.test(app);
+  const named = process.env.RUTBA_PACKS_DIR ? path.resolve(process.env.RUTBA_PACKS_DIR) : null;
+  const beside = packaged ? path.join(app, '..', 'packs') : null;
+  const dir = named || (beside && fs.existsSync(beside) ? beside : null);
+  const keys = readPackKeys(path.join(app, 'build', 'out', 'pack-keys.json'));
+  if (!packaged && process.env.RUTBA_PACK_PUBLIC_KEY) keys.push(fs.readFileSync(process.env.RUTBA_PACK_PUBLIC_KEY, 'utf8'));
+  const plan = planPacks({ dir, keys, version: versionOf() });
+  if (dir) installPackResolution({ packsDir: dir, coreFile: fileURLToPath(import.meta.url) });
+  return (await packService(plan, 'ocr'))?.ocr || null;
+}
 
 export async function main() {
   // Standard output carries the protocol and nothing else.
@@ -66,7 +88,8 @@ export async function main() {
     }
     return 'This profile has a password, so the AI tools reach nothing of it, its folders included, unless it is open and unlocked in Rutba Office. Open Rutba Office in this profile and enter its password, then ask again.';
   };
-  const tools = makeTools({ settings, dataDir, reach, locked });
+  let ocr = null;
+  const tools = makeTools({ settings, dataDir, reach, locked, ocr: () => (ocr ||= ocrService()) });
   // Who is connected, for the AI Tools window and the badge in every window's
   // title bar: what the AI app says it is, from where, since when, its last call.
   const pid = process.pid;

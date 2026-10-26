@@ -15,9 +15,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Dialog, Icon, Spinner, t, tn } from '@rutba/office-ui';
 import { RECORD_FIELDS, documentRecord, recordCells, shownValue } from '@rutba/ocr/record';
 import { OcrLanguagePicker, OcrLimits, BoxPreview, BoxLoupe, chosenOcrLanguages, rememberOcrLanguages, ocrLanguageNames, pixelsOf, pixelsUrl, loadPicture, readDocument } from '../../ocr-ui.js';
-import { fileUrl } from '../pictures/library.js';
-import { openDocument } from '../pdf/pdfjs.js';
-import { pagePixels } from '../pdf/ocr.js';
+import { fileUrl } from '../../file-urls.js';
+import { openDocument, pagePixels } from '../../pdfjs.js';
 
 /** The pages of one PDF read at most: a bundle of receipts scanned together. */
 const MAX_PAGES = 20;

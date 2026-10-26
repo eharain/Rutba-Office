@@ -26,10 +26,7 @@ export function chosenFindFields() {
 function rememberFindFields(on) {
   try { localStorage.setItem(FIELDS_KEY, on ? 'yes' : 'no'); } catch { /* asked again next time */ }
 }
-import { getPage, pageText } from './pdfjs.js';
-
-const MAX_DPI = 300;
-const MAX_SIDE = 4200;
+import { getPage, pageText, pagePixels } from '../../pdfjs.js';
 
 /** Whether pdf.js finds text on a page already. */
 export async function hasText(doc, index) {
@@ -38,26 +35,6 @@ export async function hasText(doc, index) {
   } catch {
     return false;
   }
-}
-
-/**
- * A page drawn to pixels for reading, and the viewport that drew it; at up to
- * `maxDpi` (a bill is read as well at 200 dots per inch, and sooner).
- */
-export async function pagePixels(doc, index, { maxDpi = MAX_DPI } = {}) {
-  const page = await getPage(doc, index);
-  const unit = page.getViewport({ scale: 1 });
-  const dpi = Math.min(maxDpi, (MAX_SIDE / Math.max(unit.width, unit.height)) * 72);
-  const viewport = page.getViewport({ scale: dpi / 72 });
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.floor(viewport.width));
-  canvas.height = Math.max(1, Math.floor(viewport.height));
-  const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  await page.render({ canvasContext: ctx, canvas, viewport, background: '#ffffff' }).promise;
-  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  return { pixels: { width: canvas.width, height: canvas.height, data: image.data }, viewport, dpi };
 }
 
 /**

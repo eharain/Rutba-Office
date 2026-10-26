@@ -4,8 +4,9 @@
 // The packs are made for the run and signed with a key made for it and
 // thrown away after it; the core is handed the public half
 // (RUTBA_PACK_PUBLIC_KEY), as a run from the source may be. The packs
-// folder starts with Documents, Mail, AI Tools and Talk, which carries its
-// own code (build/make-app-packs.js, CARRY_CODE); the release's file for
+// folder starts with Documents, Mail, AI Tools, Talk, Text recognition and
+// Data Files, all but Mail and AI Tools carrying their own code
+// (build/make-app-packs.js, CARRY_CODE), as Calendar, added later, does; the release's file for
 // every pack is in a folder of its own, which Add or remove apps adds from
 // (RUTBA_PACKS_SOURCE). The first start adds Calendar and removes Mail; the
 // second sees the change. Everything is in a temporary folder, removed
@@ -36,7 +37,7 @@ const publicKey = path.join(tmp, 'pack-key.pub.pem');
 fs.writeFileSync(publicKey, pair.publicPem);
 const built = await makeAppPacks({ privateKey: crypto.createPrivateKey(pair.privatePem), version, release, root: path.join(tmp, 'packs'), keysFile: path.join(tmp, 'pack-keys.json'), installerFile: path.join(tmp, 'installer-packs.nsh') });
 fs.mkdirSync(installed, { recursive: true });
-for (const id of ['word', 'mail', 'ai', 'talk']) {
+for (const id of ['word', 'mail', 'ai', 'talk', 'ocr', 'base']) {
   const f = packFiles(id);
   for (const name of [f.archive, f.unpacked, f.manifest]) {
     if (fs.existsSync(path.join(built.out, name))) fs.cpSync(path.join(built.out, name), path.join(installed, name), { recursive: true });

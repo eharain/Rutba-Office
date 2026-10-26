@@ -21,7 +21,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { paintFrame, layerBounds, layerHandles, withLayerStateAt, scaleFromDrag, resizePatch } from '@rutba/studio/host';
 import { resizeCentred, rotationAt } from '@rutba/studio/layers';
 import { t } from '@rutba/office-ui';
-import { keepTurnedCorner } from '../image/stage.js';
+import { keepTurnedCorner } from '../../turned-corner.js';
 
 /** The kinds of clip that are drawn on the frame. */
 const PICTURE = new Set(['video', 'image', 'text', 'shape', 'icon', 'wordart']);

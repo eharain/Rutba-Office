@@ -14,7 +14,7 @@
 import { dabSprite, dabSpacing, DabWalker } from '@rutba/imaging/paint';
 import { affineAt, mapPoint } from '@rutba/studio/layers';
 import { makeCanvas, ctx2d, copyCanvas, clampRect, grab, selectionCanvas, editable, touched } from './bitmaps.js';
-import { toolOff } from './work.js';
+import { toolOff } from '../../imaging/work.js';
 
 const sprites = new Map();
 

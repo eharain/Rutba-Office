@@ -48,7 +48,7 @@ const sameFile = (a, b) => (process.platform === 'win32' ? String(a).toLowerCase
 /**
  * @param {object} o
  * @param {object} o.stores       this profile's stores
- * @param {() => object} [o.services]  the running copy's services (mail, calendar, contacts, base), asked when used
+ * @param {() => object} [o.services]  the running copy's services (mail, calendar, contacts, base, ocr), asked when used
  * @param {(event: string, payload: any) => void} [o.broadcast]
  */
 export function createAiToolsService({ stores, dataDir = app.getPath('userData'), pid = process.pid, services = () => ({}), broadcast = () => {} }) {
@@ -179,7 +179,7 @@ export function createAiToolsService({ stores, dataDir = app.getPath('userData')
         // The tools' modules are loaded the first time the network is chosen, not at every start.
         const { makeTools, versionOf, INSTRUCTIONS } = await import('./mcp/make-tools.js');
         remote = createRemote({
-          tools: makeTools({ settings: snapshot, dataDir, isAlive: (p) => p === pid, reach: { call: reachCall } }),
+          tools: makeTools({ settings: snapshot, dataDir, isAlive: (p) => p === pid, reach: { call: reachCall }, ocr: async () => (services() || {}).ocr || null }),
           version: versionOf(),
           instructions: INSTRUCTIONS,
           allowed,

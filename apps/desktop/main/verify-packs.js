@@ -2,13 +2,17 @@
 // the same profile by build/verify-packs-run.js: a packs folder of a few
 // signed packs, and a folder of the release's pack files to add from.
 //
-// The first start has Documents, Mail, AI Tools and Talk. An app not there has no
+// The first start has Documents, Mail, AI Tools, Talk, Text recognition and
+// Data Files. An app not there has no
 // channel in the main process and none in the window's bridge, no tile, and
 // no window: a file of its kind opens the launcher, which says it is not
 // installed. Add or remove apps adds Calendar from the folder and removes
 // Mail. The second start has Calendar and not Mail, and Mail's files are
-// gone from the packs folder. Talk carries its own code: the core is told
-// so, its window opens, and its window's chunk is served from its pack.
+// gone from the packs folder. Talk, Text recognition, Data Files,
+// Documents and Calendar carry their own code: the core is told so, their
+// windows open, Talk's and Documents' windows' chunks are served from their
+// packs, and text recognition reads a picture with the engine and models in
+// its pack.
 //
 // RUTBA_PACKS_PHASE says which start this is (first or next). Run with
 // RUTBA_VERIFY_ONLY=packs.
@@ -42,8 +46,8 @@ function answered(id) {
 export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir }) {
   const phase = process.env.RUTBA_PACKS_PHASE || 'first';
   const packsDir = process.env.RUTBA_PACKS_DIR;
-  const has = phase === 'first' ? ['word', 'mail', 'ai', 'talk'] : ['word', 'calendar', 'ai', 'talk'];
-  const absent = phase === 'first' ? ['calendar', 'sheets', 'base'] : ['mail', 'sheets', 'base'];
+  const has = phase === 'first' ? ['word', 'mail', 'ai', 'talk', 'ocr', 'base'] : ['word', 'calendar', 'ai', 'talk', 'ocr', 'base'];
+  const absent = phase === 'first' ? ['calendar', 'sheets', 'contacts'] : ['mail', 'sheets', 'contacts'];
   const name = (s) => `packs (${phase} start): ${s}`;
   let home = null;
   try {
@@ -53,7 +57,7 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
 
     // What this start loaded, in the window and in the main process.
     const told = await js(`(window.rutbaOffice.__contract.packs || []).map((p) => p.id).sort()`);
-    const bridge = await js(`(${JSON.stringify([...has, ...absent])}).map((id) => ({ id, ns: { word: null, mail: 'mail', ai: 'ai', calendar: 'calendar', sheets: null, talk: 'talk', base: 'base' }[id] })).filter((x) => x.ns).map((x) => [x.id, Boolean(window.rutbaOffice[x.ns])])`);
+    const bridge = await js(`(${JSON.stringify([...has, ...absent])}).map((id) => ({ id, ns: { word: null, mail: 'mail', ai: 'ai', calendar: 'calendar', sheets: null, talk: 'talk', base: 'base', ocr: 'ocr', contacts: 'contacts' }[id] })).filter((x) => x.ns).map((x) => [x.id, Boolean(window.rutbaOffice[x.ns])])`);
     const inBridge = Object.fromEntries(bridge);
     check(name(`the windows are told of ${has.join(', ')} alone`), JSON.stringify(told) === JSON.stringify([...has].sort()), JSON.stringify(told));
     check(name('an app not installed has no channel in the window\'s bridge, an installed one has its own'),
@@ -65,7 +69,7 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
 
     // The tiles: the installed apps only (a check run turns every app on in Choose apps).
     const tiles = await js(`[...document.querySelectorAll('.home-card')].map((c) => c.dataset.app).sort()`);
-    const apps = has.filter((id) => id !== 'ai').sort();
+    const apps = has.filter((id) => !['ai', 'ocr'].includes(id)).sort();
     check(name(`the launcher's tiles are ${apps.join(' and ')}`), JSON.stringify(tiles) === JSON.stringify(apps), JSON.stringify(tiles));
 
     // The AI tools read what this start loaded.
@@ -100,31 +104,44 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
       check(name('Add or remove apps lists every pack, adds Calendar from the folder and writes Mail down to go, and offers to restart'),
         rows === 15 && adding && removing && restart && fs.existsSync(path.join(packsDir, packFiles('calendar').manifest)) && JSON.stringify(pendingRemovals(packsDir)) === '["mail"]',
         JSON.stringify({ rows, adding, removing, restart, pending: pendingRemovals(packsDir) }));
-      // The last app is kept: with Mail and Talk going, Documents is the last; Talk is then kept after all.
-      const last = await js(`window.rutbaOffice.packs.remove({ id: 'talk' }).then(() => window.rutbaOffice.packs.remove({ id: 'word' })).then(() => 'removed', (e) => e.message)`);
-      const kept = await js(`window.rutbaOffice.packs.keep({ id: 'talk' }).then(() => 1, (e) => e.message)`);
+      // The last app is kept: with Mail, Talk and Data Files going, Documents is the last (Text recognition is not an app); the two are then kept after all.
+      const last = await js(`window.rutbaOffice.packs.remove({ id: 'talk' }).then(() => window.rutbaOffice.packs.remove({ id: 'base' })).then(() => window.rutbaOffice.packs.remove({ id: 'word' })).then(() => 'removed', (e) => e.message)`);
+      const kept = await js(`Promise.all(['talk', 'base'].map((id) => window.rutbaOffice.packs.keep({ id }))).then(() => 1, (e) => e.message)`);
       check(name('the last app cannot be removed'), /Keep one app at least/.test(last) && kept === 1 && JSON.stringify(pendingRemovals(packsDir)) === '["mail"]', `${last} | ${JSON.stringify(pendingRemovals(packsDir))}`);
       // Talk, from its own pack: its code, its window, and its window's chunk.
       const code = await js(`(window.rutbaOffice.__contract.packs || []).find((p) => p.id === 'talk')?.code || null`);
-      check(name('the core is told Talk carries its own code, and Documents\' is still the core\'s'),
-        code === 'own' && (await js(`(window.rutbaOffice.__contract.packs || []).find((p) => p.id === 'word')?.code || null`)) === 'core', String(code));
-      const talk = await open('talk');
-      const tjs = (c) => talk.webContents.executeJavaScript(c);
-      const shown = await until(() => tjs(`/app=talk/.test(location.search) && document.body.innerText.length > 0`), 'the Talk window', 15000).then(() => true).catch(() => false);
-      // The chunk's name, from the pack's own archive; fetched from the window at the core's address for it.
-      const chunk = fs.readdirSync(path.join(packsDir, packFiles('talk').archive, 'renderer', 'chunks')).find((n) => /^talk-[A-Z0-9]+\.js$/.test(n)) || null;
-      const served = chunk
-        ? await tjs(`fetch(new URL('/chunks/${chunk}', location.href)).then((r) => ({ chunk: ${JSON.stringify(chunk)}, status: r.status, pack: r.headers.get('x-rutba-pack') }))`)
-        : { chunk: null };
-      check(name('Talk opens, its window\'s chunk served from its own pack'), shown && served.status === 200 && served.pack === 'talk', JSON.stringify(served));
-      talk.destroy();
+      const codes = await js(`Object.fromEntries((window.rutbaOffice.__contract.packs || []).map((p) => [p.id, p.code]))`);
+      check(name('the core is told Talk, Text recognition, Data Files and Documents carry their own code, and Mail\'s is still the core\'s'),
+        code === 'own' && codes.ocr === 'own' && codes.base === 'own' && codes.word === 'own' && codes.mail === 'core', JSON.stringify(codes));
+      // Text recognition from its pack: a small picture of nothing read by its engine, on its threads.
+      const read = await js(`window.rutbaOffice.ocr.recognize({ image: { width: 64, height: 32, data: new Uint8Array(64 * 32 * 4).fill(255) }, languages: ['eng'], job: 'packs-check' }).then((r) => ({ ok: true, text: r.text, ms: r.ms }), (e) => ({ ok: false, error: e.message }))`);
+      check(name('text recognition reads a picture with the engine and models in its own pack'), read.ok === true, JSON.stringify(read));
+      // Data Files' window, from its pack.
+      const base = await open('base');
+      const baseShown = await until(() => base.webContents.executeJavaScript(`/app=base/.test(location.search) && document.body.innerText.length > 0`), 'the Data Files window', 15000).then(() => true).catch(() => false);
+      check(name('Data Files opens from its own pack'), baseShown, base.webContents.getURL().split('?')[1] || '');
+      base.destroy();
+      // Talk's and Documents' windows, each with its window's chunk served from its own pack.
+      for (const [id, said] of [['talk', 'Talk'], ['word', 'Documents']]) {
+        const win = await open(id);
+        const wjs = (c) => win.webContents.executeJavaScript(c);
+        const shown = await until(() => wjs(`new URLSearchParams(location.search).get('app') === ${JSON.stringify(id)} && document.body.innerText.length > 0`), `the ${said} window`, 15000).then(() => true).catch(() => false);
+        // The chunk's name, from the pack's own archive; fetched from the window at the core's address for it.
+        const chunk = fs.readdirSync(path.join(packsDir, packFiles(id).archive, 'renderer', 'chunks')).find((n) => n.startsWith(`${id}-`) && n.endsWith('.js')) || null;
+        const served = chunk
+          ? await wjs(`fetch(new URL('/chunks/${chunk}', location.href)).then((r) => ({ chunk: ${JSON.stringify(chunk)}, status: r.status, pack: r.headers.get('x-rutba-pack') }))`)
+          : { chunk: null };
+        check(name(`${said} opens, its window's chunk served from its own pack`), shown && served.status === 200 && served.pack === id, JSON.stringify(served));
+        win.destroy();
+      }
     } else {
       const f = packFiles('mail');
       const left = [f.manifest, f.archive, f.unpacked].filter((n) => fs.existsSync(path.join(packsDir, n)));
       check(name('Mail\'s files are gone from the packs folder, and nothing is left to remove'), left.length === 0 && pendingRemovals(packsDir).length === 0, JSON.stringify({ left, pending: pendingRemovals(packsDir) }));
       const calendar = await open('calendar');
       const shown = await until(() => calendar.webContents.executeJavaScript(`/app=calendar/.test(location.search) && document.body.innerText.length > 0`), 'the Calendar window', 15000).then(() => true).catch(() => false);
-      check(name('Calendar, added, opens'), shown, calendar.webContents.getURL().split('?')[1] || '');
+      const calendarCode = await js(`(window.rutbaOffice.__contract.packs || []).find((p) => p.id === 'calendar')?.code || null`);
+      check(name('Calendar, added, carries its own code and opens'), shown && calendarCode === 'own', `${calendarCode} | ${calendar.webContents.getURL().split('?')[1] || ''}`);
       calendar.destroy();
     }
     await wait(200);

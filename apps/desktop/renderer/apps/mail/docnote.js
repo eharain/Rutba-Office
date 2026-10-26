@@ -15,8 +15,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Icon, Spinner, t, language } from '@rutba/office-ui';
 import { invoiceNote } from '@rutba/ocr/record';
 import { BoxLoupe, BoxPreview, OcrLimits, OCR_CSS, chosenOcrLanguages, loadPicture, pixelsOf, pixelsUrl, readDocument } from '../../ocr-ui.js';
-import { openDocument } from '../pdf/pdfjs.js';
-import { pagePixels } from '../pdf/ocr.js';
+import { openDocument, pagePixels } from '../../pdfjs.js';
 
 /** The reading kept with a message is of this shape; another is read again. */
 const VERSION = 1;

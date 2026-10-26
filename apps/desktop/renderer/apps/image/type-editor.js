@@ -16,7 +16,7 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { Button, Icon, t } from '@rutba/office-ui';
 import { faceOf, stackOf, inkOf, sizeOf, sizeFracOf, isBold } from '@rutba/studio/type';
-import { FONT_CHOICES } from '../slides/design.js';
+import { FONT_CHOICES } from '../../design.js';
 
 /**
  * The text box over the layer. `layer` is the compiled layer from the

@@ -9,7 +9,7 @@
 
 import React, { useState } from 'react';
 import { Button, Dialog, Select, t } from '@rutba/office-ui';
-import { getPage } from './pdfjs.js';
+import { getPage } from '../../pdfjs.js';
 
 export const DPI_CHOICES = [72, 96, 150, 200, 300, 600];
 

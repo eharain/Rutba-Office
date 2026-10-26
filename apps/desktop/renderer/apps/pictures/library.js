@@ -262,15 +262,5 @@ export function neighbours(index, count, { radius = 2, loop = true } = {}) {
   return out;
 }
 
-const b64url = (s) => {
-  const bytes = new TextEncoder().encode(s);
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-};
-
-/** The file itself, decoded by Chromium straight from disk. */
-export const fileUrl = (p) => `rutba://file/${b64url(p)}`;
-
-/** The file's thumbnail, made once by the platform and kept. */
-export const thumbUrl = (p, size = 256) => `rutba://thumb/${b64url(p)}?s=${size}`;
+// The addresses of a file and of its thumbnail are the core's (file-urls.js): Worksheets uses them too.
+export { fileUrl, thumbUrl } from '../../file-urls.js';

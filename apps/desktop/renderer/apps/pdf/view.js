@@ -9,7 +9,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { t } from '@rutba/office-ui';
-import { drawPage, drawText } from './pdfjs.js';
+import { drawPage, drawText } from '../../pdfjs.js';
 import { shownSize } from './pages.js';
 
 /** CSS pixels a point at 100%: a PDF's 72 to the inch on a 96 to the inch screen. */

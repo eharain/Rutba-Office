@@ -43,7 +43,7 @@ import { TOOL_PACK, TOOL_NEEDS, LOADED_KEY, toolOffered } from '../apps/desktop/
 import { TOOL_LIST } from '../apps/desktop/main/mcp/tools.js';
 import { REACH_TOOL_LIST } from '../apps/desktop/main/mcp/reach-tools.js';
 import { ROOT, homeOf, mapImports } from './app-map.mjs';
-import { rendererOwners } from '../apps/desktop/build/pack-contents.js';
+import { rendererOwners, windowReach, asBuild, appWindows } from '../apps/desktop/build/pack-contents.js';
 
 const DESKTOP = path.join(ROOT, 'apps', 'desktop');
 const IDS = PACKS.map((p) => p.id);
@@ -110,12 +110,15 @@ function dependenciesOf(name) {
 /**
  * Who owns a file the core ships, by its path in the archive: the map's
  * owner for the sources and the engines, an npm package's owner for what that
- * package brings with it, a renderer chunk by what went into it (the
- * renderer's outputs, when given) or else by the app it is named after.
- * Anything no single app owns is the core's.
+ * package brings with it, a renderer chunk by the windows that reach it (the
+ * renderer's build, when it says what imports what), by what went into it
+ * (its outputs alone), or else by the app it is named after. Anything no
+ * single app owns is the core's.
  */
 export function ownerResolver(g, outputs = null) {
-  const chunkOwners = outputs ? rendererOwners(g, outputs) : new Map();
+  const build = outputs ? asBuild(outputs) : null;
+  const reach = build ? windowReach(build, appWindows()) : null;
+  const chunkOwners = reach || (build ? rendererOwners(g, build.outputs) : new Map());
   const workspace = workspacePackages();
   // An npm package reached by one owner brings its own dependencies with it.
   const npmOwner = new Map();
@@ -144,7 +147,6 @@ export function ownerResolver(g, outputs = null) {
     m = /^build\/out\/chunks\/([a-z]+)-[A-Z0-9]+\.js$/.exec(p);
     if (m) return isPack(m[1]) ? m[1] : 'core';
     if (p === 'build/out/scripts-worker.js') return 'sheets';
-    if (p === 'build/out/image-worker.js') return 'image';
     m = /^resources\/apps\/([a-z]+)\.ico$/.exec(p);
     if (m) return isPack(m[1]) ? m[1] : 'core';
     m = /^node_modules\/((?:@[^/]+\/)?[^/]+)\/(.*)$/.exec(p);
@@ -316,7 +318,7 @@ export async function checkPacks({ core, packsDir, keysFile = null, installer = 
   const ownerOf = ownerResolver(g, outputs);
   const owners = filesByOwner(files, ownerOf);
   // The renderer files that mix an app's code with another's: the core's, so an app that carries its own code must have none in them.
-  const mixed = outputs ? [...rendererOwners(g, outputs)].filter(([out, o]) => files.has(`build/out/${out}`) && o.size > 1 && [...o].some(isPack)) : [];
+  const mixed = outputs ? [...rendererOwners(g, asBuild(outputs).outputs)].filter(([out, o]) => files.has(`build/out/${out}`) && ownerOf(`build/out/${out}`) === 'core' && [...o].some(isPack)) : [];
   // The packaged checks (smoke.js and what it seeds) stay; the window checks and the screens build run from the source.
   const unwanted = [...files.keys()].filter((p) => /^main\/(verify-|screen-)/.test(p));
   if (unwanted.length) failures.push(`The core carries the window checks: ${unwanted.slice(0, 5).join(', ')}.`);
@@ -392,7 +394,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   }
   try {
     const meta = option(args, '--meta') || path.join(DESKTOP, 'build', 'meta', 'renderer.json');
-    const outputs = fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')).outputs : null;
+    const outputs = fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')) : null;
     const r = await checkPacks({ core, packsDir, keysFile: option(args, '--keys'), installer: fs.existsSync(installer) ? installer : null, version: option(args, '--version'), outputs });
     console.log(report(r));
     const json = option(args, '--json');

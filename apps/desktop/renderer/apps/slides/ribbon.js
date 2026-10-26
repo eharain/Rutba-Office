@@ -14,10 +14,10 @@ import { WARP_PRESETS, WARP_MORE, warpLabel } from '@rutba/drawing/warp';
 import { TRANSITION_GALLERY, TRANSITION_OPTIONS, galleryKeyOf, optionOf, describeTransition } from './motion.js';
 import { ANIMATION_GALLERY, EFFECT_MENU, ANIMATION_OPTIONS } from './animate.js';
 import { MODEL_VIEWS } from '@rutba/imaging/model3d';
-import { RibbonStrip } from './design.js';
+import { RibbonStrip } from '../../design.js';
 import { wordArtMenu } from '../../wordart.js';
 import { SOUNDS, soundFile } from './sounds.js';
-import { PEN_COLOURS, PEN_WIDTHS } from './ink.js';
+import { PEN_COLOURS, PEN_WIDTHS } from '../../ink.js';
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
 /** A colour's little square in a menu, as the colour menus show it. */

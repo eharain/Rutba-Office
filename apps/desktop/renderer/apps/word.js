@@ -39,7 +39,7 @@ import {
 import { DefineListDialog } from './word/list-dialog.js';
 import { ModifyStyleDialog } from './word/style-dialog.js';
 import { lineBoxes, rectOf, zoomOf } from './word/pages.js';
-import { MathRun, mathHostOf, EQUATION_CSS, EquationDialog, clipOf, CLIP_TYPE } from './word/equations.js';
+import { MathRun, mathHostOf, EQUATION_CSS, EquationDialog, clipOf, CLIP_TYPE } from '../equations.js';
 import { useMailings, installMailingsStyles } from './word/mailings.js';
 import { useEnvelopesLabels, installEnvelopeStyles } from './word/envelopes.js';
 import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
@@ -56,7 +56,7 @@ import { SplitPane, SPLIT_CSS } from './word/split.js';
 import { ObjectDialog, OBJECT_CSS, objectIcon, typeOfExt, appOfProgId } from '../object-insert.js';
 import { SmartArtDialog, SMARTART_CSS } from '../smartart-dialog.js';
 import { layoutSmartArt } from '../smartart.js';
-import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, recognise } from './slides/ink.js';
+import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, recognise } from '../ink.js';
 import { SignatureSetupDialog, signatureLinePng, SIGNATURE_CSS } from './word/signature.js';
 import {
   drawingLayer, geomOf, spacerStyles, blockCss, turnCss, TextBox, GroupBox, DrawingLayer, DrawingFrame, SelectionPane,

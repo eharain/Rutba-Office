@@ -15,7 +15,7 @@ import { numberFormats } from './dialogs.js';
 import { recentSources } from './queries.js';
 import { MARGIN_PRESETS as PRINT_MARGINS } from '../../print.js';
 import { wordArtMenu } from '../../wordart.js';
-import { PEN_COLOURS, PEN_WIDTHS } from '../slides/ink-geometry.js';
+import { PEN_COLOURS, PEN_WIDTHS } from '../../ink-geometry.js';
 
 /** The palette a toolbar offers before it offers a colour picker. */
 const SWATCHES = [
