@@ -2426,7 +2426,9 @@ export default function Mail({ app, shell }) {
 
       {dialog?.kind === 'accounts' ? (
         <AccountsDialog
+          shell={shell}
           accounts={accounts}
+          archives={archives}
           onClose={() => setDialog(null)}
           onAdd={() => setDialog({ kind: 'account' })}
           onRemove={(a) => removeAccount(a)}

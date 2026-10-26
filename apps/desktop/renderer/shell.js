@@ -13,7 +13,7 @@ import { pathOf } from '@rutba/office-shell/client';
 import { WhatsNew } from './whatsnew.js';
 import { filtersInLanguage } from './registry-words.js';
 import { TemplateGallery } from './template-gallery.js';
-import { AiBadge, AiToolsDialog, AI_TOOLS_CSS } from './ai-tools.js';
+import { AiBadge, AiToolsDialog, AiConfirm, AI_TOOLS_CSS } from './ai-tools.js';
 import { useChosenApps } from './apps-choice.js';
 import { ProfileBadge, ManageProfiles, PROFILES_CSS, useProfiles, profileName, openManageProfiles } from './profiles.js';
 
@@ -363,7 +363,9 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
         onMenu={menu?.open}
       />
       <style>{PROFILES_CSS}</style>
-      {aiTools ? <><style>{AI_TOOLS_CSS}</style><AiToolsDialog shell={shell} onClose={() => setAiTools(false)} /></> : null}
+      <style>{AI_TOOLS_CSS}</style>
+      {aiTools ? <AiToolsDialog shell={shell} onClose={() => setAiTools(false)} /> : null}
+      <AiConfirm shell={shell} />
       {profilesOpen ? <ManageProfiles shell={shell} mode={profilesOpen.mode} onClose={() => setProfilesOpen(null)} /> : null}
       {ribbon}
       <Body>{children}</Body>

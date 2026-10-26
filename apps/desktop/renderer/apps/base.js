@@ -19,6 +19,7 @@ import { SignIn, ProtectDialog, PasswordDialog, SeeingBanner, PeopleView, PEOPLE
 import { LinkDialog, LinkedBar, LinkPasswordDialog, ClashesDialog, LINKS_CSS } from './base/links.js';
 import { SourceDialog, SourceSignInDialog, SourceKeysDialog, SOURCES_CSS } from './base/sources.js';
 import { SourcesQuestion, TRUST_CSS } from './base/trust.js';
+import { AiToolsButton, AiToolsDialog as AiToolsDatabaseDialog } from './base/ai-tools.js';
 
 /** The ready-made databases the start screen offers, in the engine's order (packages/database/src/templates.js). */
 const TEMPLATES = [
@@ -510,6 +511,7 @@ export default function Databases({ app, shell, boot }) {
   const [naming, setNaming] = useState(null);
   // Protect this database, and your own password (D-2026-10-22-11).
   const [protecting, setProtecting] = useState(false);
+  const [aiTools, setAiTools] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   // Link to a database engine, and a link's password on a computer that has not kept it (D-2026-10-22-13).
   const [linking, setLinking] = useState(false);
@@ -919,6 +921,7 @@ export default function Databases({ app, shell, boot }) {
             {design ? <button type="button" className="bs-table bs-link-engine" onClick={() => setLinking(true)}><Icon name="link" size={14} /><span>{t('Link to a database engine')}</span></button> : null}
             {design ? <button type="button" className="bs-table bs-link-source" onClick={() => setSourcing(true)}><Icon name="import" size={14} /><span>{t('Link to a file or web address')}</span></button> : null}
             {!access.protected && design ? <button type="button" className="bs-table bs-protect" onClick={() => setProtecting(true)}><Icon name="shield" size={14} /><span>{t('Protect this database')}</span></button> : null}
+            {(design && !access.protected) || (isAdmin && !access.person?.seeing) ? <AiToolsButton shell={shell} db={db} onOpen={() => setAiTools(true)} /> : null}
             {isAdmin && !access.person?.seeing ? <button type="button" className={`bs-table bs-people-open${view === 'people' ? ' on' : ''}`} data-view="people" onClick={() => setView('people')}><Icon name="contacts" size={14} /><span>{t('People and roles')}</span></button> : null}
             {access.person ? (
               <div className="bs-me" data-me={access.person.name}>
@@ -1040,6 +1043,7 @@ export default function Databases({ app, shell, boot }) {
           <p className="bs-hint">{t('Each sheet\'s first row names its fields. Dates and amounts come in as the sheet formats them.')}</p>
         </Dialog>
       ) : null}
+      {aiTools ? <AiToolsDatabaseDialog shell={shell} db={db} onClose={() => setAiTools(false)} /> : null}
       {protecting ? <ProtectDialog shell={shell} db={db} onDone={(s) => { show(s); setProtecting(false); setView('people'); }} onClose={() => setProtecting(false)} toast={toast} /> : null}
       {linking ? <LinkDialog shell={shell} db={db} onDone={(s, first) => { show(s); setLinking(false); if (first) { setTable(first); setView('data'); } }} onClose={() => setLinking(false)} toast={toast} /> : null}
       {sourcing ? <SourceDialog shell={shell} db={db} onDone={(s, made) => { show(s); setSourcing(false); if (made) { setTable(made); setView('data'); } }} onClose={() => setSourcing(false)} toast={toast} /> : null}

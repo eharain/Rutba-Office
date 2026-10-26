@@ -14,6 +14,7 @@ import {
 import { avatarFor, displayName, fileNameOf } from './parts.js';
 import { cleanHtml, htmlToText, LinkRow, selectionIn } from './richtext.js';
 import { signatureTextToHtml } from '@rutba/mailbox/signature';
+import { AiStepPicker } from '../../ai-tools.js';
 
 /* ── signature ────────────────────────────────────────────────────────────── */
 
@@ -1379,9 +1380,11 @@ export function JunkDialog({ shell, accountId, accounts = [], onClose, onSaved, 
 /**
  * Every account, as Add account's counterpart: each with what it is (an
  * account on a server, or a mailbox brought in from a file), its Signature,
- * its Out of office and Remove; and Add account for another.
+ * its Out of office and Remove; and Add account for another. Each, and each
+ * archive opened in place, with what the AI tools may do with it (ai-tools.js:
+ * the same setting AI Tools lists).
  */
-export function AccountsDialog({ accounts, onClose, onAdd, onRemove, onSignature, onOutOfOffice }) {
+export function AccountsDialog({ shell, accounts, archives = [], onClose, onAdd, onRemove, onSignature, onOutOfOffice }) {
   return (
     <Dialog
       title={t('Accounts')}
@@ -1403,9 +1406,20 @@ export function AccountsDialog({ accounts, onClose, onAdd, onRemove, onSignature
               <strong>{a.name || a.email}</strong>
               <small>{a.local ? t('{address}, brought in from a file', { address: a.email }) : a.autoReply?.enabled ? t('{address}, automatic replies on', { address: a.email }) : a.email}</small>
             </span>
+            <AiStepPicker shell={shell} kind="mail" id={a.id} name={a.email} className="ml-account-ai" />
             <Button ghost label={t('Signature')} className="ml-account-signature" onClick={() => onSignature(a)} />
             {a.local ? null : <Button ghost label={t('Out of office')} className="ml-account-ooo" onClick={() => onOutOfOffice(a)} />}
             <Button ghost icon="trash" label={t('Remove')} className="ml-account-remove" onClick={() => onRemove(a)} />
+          </li>
+        ))}
+        {archives.map((a) => (
+          <li key={a.id} className="ml-account-row ml-archive-row" data-archive={a.id}>
+            <Icon name="archive" size={18} />
+            <span className="ml-account-words">
+              <strong>{a.name}</strong>
+              <small>{t('An archive opened in place, read only')}</small>
+            </span>
+            <AiStepPicker shell={shell} kind="archive" id={a.id} name={a.name} className="ml-account-ai" />
           </li>
         ))}
       </ul>
