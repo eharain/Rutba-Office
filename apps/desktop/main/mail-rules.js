@@ -120,17 +120,59 @@ export function planRules(rows, rules) {
 }
 
 /**
+ * What a plan does to the store alone: an account with no server, or a
+ * caller that passes no `act` of its own.
+ */
+function storeActs(store, accountId) {
+  const putAll = (folder, ids, to) => {
+    let n = 0;
+    for (const id of ids) {
+      const message = store.get(accountId, folder, id);
+      if (!message) continue;
+      store.put(accountId, to, message, { force: true });
+      n++;
+    }
+    if (n) store.upsertFolder(accountId, { path: to, name: String(to).split('/').pop() });
+    return n;
+  };
+  // The messages leaving each folder, taken out of it together at the end.
+  const gone = new Map();
+  const leaving = (folder, ids) => gone.set(folder, [...(gone.get(folder) || []), ...ids]);
+  return {
+    flags: (folder, ids, patch) => store.setFlagsMany(accountId, folder, ids, patch),
+    copy: (folder, ids, to) => putAll(folder, ids, to),
+    move: (folder, ids, to) => {
+      const n = putAll(folder, ids, to);
+      leaving(folder, ids);
+      return n;
+    },
+    remove: (folder, ids) => leaving(folder, ids),
+    finish: () => { for (const [folder, ids] of gone) store.removeMany(accountId, folder, ids); },
+  };
+}
+
+/**
  * Carry out a plan against the store.
  *
  * @param {object} deps `store`, and `folderFor(accountId, role)` so "trash"
- *   resolves to whatever this account actually calls its Trash.
+ *   resolves to whatever this account actually calls its Trash. `act`, when
+ *   given ({ flags, copy, move, remove }, each over a folder's ids), is how
+ *   the changes are made instead: Mail's own, which tells the server too.
  * @returns {{ moved, starred, read, deleted, matched }}
  */
-export function applyPlan(plan, { store, accountId, folderFor }) {
+export function applyPlan(plan, { store, accountId, folderFor, act = null }) {
   const tally = { matched: plan.length, moved: 0, starred: 0, read: 0, deleted: 0, pinned: 0 };
-  // The messages leaving each folder, taken out of it together at the end.
-  const gone = new Map();
-  const leaving = (folder) => { if (!gone.has(folder)) gone.set(folder, []); return gone.get(folder); };
+  const how = act || storeActs(store, accountId);
+  // Grouped, so each folder is written once however many messages a rule touched.
+  const flags = new Map();
+  const copies = new Map();
+  const moves = new Map();
+  const removes = new Map();
+  const add = (map, key, id, extra) => {
+    if (!map.has(key)) map.set(key, { ...extra, ids: [] });
+    map.get(key).ids.push(id);
+  };
+  const mark = (row, patch) => add(flags, `${row.folder}\u0001${JSON.stringify(patch)}`, row.id, { folder: row.folder, patch });
 
   for (const { row, actions } of plan) {
     // A message can only be moved once, and moving it makes every later action
@@ -142,32 +184,29 @@ export function applyPlan(plan, { store, accountId, folderFor }) {
     for (const action of actions) {
       switch (action.type) {
         case 'star':
-          store.setFlags(accountId, row.folder, row.id, { flagged: true });
+          mark(row, { flagged: true });
           tally.starred++;
           break;
         case 'pin':
-          store.setFlags(accountId, row.folder, row.id, { pinned: true });
+          mark(row, { pinned: true });
           tally.pinned++;
           break;
         case 'markRead':
-          store.setFlags(accountId, row.folder, row.id, { unread: false });
+          mark(row, { unread: false });
           tally.read++;
           break;
         case 'markUnread':
-          store.setFlags(accountId, row.folder, row.id, { unread: true });
+          mark(row, { unread: true });
           break;
         case 'move':
           destination = action.value;
           break;
-        case 'copy': {
-          const message = store.get(accountId, row.folder, row.id);
-          if (message && action.value) {
-            store.put(accountId, action.value, message, { force: true });
-            store.upsertFolder(accountId, { path: action.value, name: String(action.value).split('/').pop() });
+        case 'copy':
+          if (action.value) {
+            add(copies, `${row.folder}\u0001${action.value}`, row.id, { folder: row.folder, to: action.value });
             tally.moved++;
           }
           break;
-        }
         case 'junk':
           destination = folderFor(accountId, 'junk') || 'Junk';
           break;
@@ -185,22 +224,20 @@ export function applyPlan(plan, { store, accountId, folderFor }) {
     }
 
     if (remove) {
-      leaving(row.folder).push(row.id);
+      add(removes, row.folder, row.id, { folder: row.folder });
       tally.deleted++;
       continue;
     }
     if (destination && destination !== row.folder) {
-      const message = store.get(accountId, row.folder, row.id);
-      if (message) {
-        store.put(accountId, destination, message, { force: true });
-        leaving(row.folder).push(row.id);
-        store.upsertFolder(accountId, { path: destination, name: String(destination).split('/').pop() });
-        tally.moved++;
-      }
+      add(moves, `${row.folder}\u0001${destination}`, row.id, { folder: row.folder, to: destination });
+      tally.moved++;
     }
   }
 
-  // Each folder messages left is written once, however many left it.
-  for (const [folder, ids] of gone) store.removeMany(accountId, folder, ids);
+  for (const { folder, patch, ids } of flags.values()) how.flags(folder, ids, patch);
+  for (const { folder, to, ids } of copies.values()) how.copy(folder, ids, to);
+  for (const { folder, to, ids } of moves.values()) how.move(folder, ids, to);
+  for (const { folder, ids } of removes.values()) how.remove(folder, ids);
+  how.finish?.();
   return tally;
 }

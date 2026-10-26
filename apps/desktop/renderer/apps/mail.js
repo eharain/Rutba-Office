@@ -26,7 +26,7 @@ import {
 import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
-import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, nextAfterRemoved } from './mail/parts.js';
+import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, nextAfterRemoved, syncProblemWords } from './mail/parts.js';
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
@@ -402,11 +402,19 @@ export default function Mail({ app, shell }) {
       });
       shell.mail.outbox().then(setOutbox).catch(() => {});
     });
+    // A change the mail server would not make: said, and the list shown as the server has it.
+    const offProblem = shell.on('mail:syncProblem', (p) => {
+      toast(syncProblemWords(p), { tone: 'bad', ms: 9000 });
+      loadAccounts();
+      refreshList();
+      setFolderTick((n) => n + 1);
+    });
     return () => {
       offProgress?.();
       offNew?.();
       offSent?.();
       offFailed?.();
+      offProblem?.();
     };
   }, [shell, loadAccounts, refreshList, toast]);
 

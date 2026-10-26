@@ -164,12 +164,14 @@ export const METHODS = {
     'attachmentReading', // ({ accountId, folder, id, index }) -> reading | null: what was read from an attachment (an invoice's details) when its message was opened
     'keepReading', // ({ accountId, folder, id, index, reading }) -> { kept: 'message' | 'run' }: kept with the message, so it is not read again
     'folders',      // ({ accountId }) -> [folder]
-    'sync',         // ({ accountId, folder, limit }) -> { added, total }
+    'sync',         // ({ accountId, folder, limit }) -> { added, total }   the changes made here sent, then what is new fetched by UID, with marks and deletions made at the server elsewhere
     'messages',     // ({ accountId, folder, offset, limit, query }) -> { rows, total }
     'message',      // ({ accountId, uid, folder }) -> message
-    'flag',         // ({ accountId, folder, uids, add, remove }) -> void
-    'move',         // ({ accountId, folder, uids, to }) -> void
-    'delete',       // ({ accountId, folder, uids }) -> void
+    'flag',         // ({ accountId, folder, ids, patch }) -> counts   read, unread, flagged here and at the server; a pin here only
+    'move',         // ({ accountId, folder, ids, to }) -> { moved }   here and at the server
+    'delete',       // ({ accountId, folder, ids, toTrash }) -> { deleted, trash? }   for good (EXPUNGE at the server), or to the Trash with toTrash
+    'flushChanges', // ({ accountId }) -> { left, error? }   the changes made here sent to the server now
+    'syncState',    // ({ accountId }) -> { waiting, offline, error, at }   where the account stands with its server
     'serverAutoReply', // ({ accountId, action: 'state' | 'on' | 'off', settings }) -> { supported, on, settings?, reason? }   the mail server's own out of office, over ManageSieve
     'send',         // ({ accountId, draft }) -> { messageId }
     'saveDraft',    // ({ accountId, draft }) -> { id }
@@ -528,6 +530,8 @@ export const EVENTS = [
   'dav:changed',      // {}                  an account synced, was added or was removed
   'mail:sent',        // { id, to }
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
+  'mail:syncProblem', // { accountId, kind, folder, to, count }   a change the mail server refused, put back as the server has it
+  'mail:syncState',   // { accountId, offline, error, at }   an account's fetches and changes reaching its server, or not
   'theme:changed',    // { dark }
   'profiles:changed', // { id, name, colour, count, protected }   a profile made, renamed, coloured or removed, here or in another running profile
   'update:state',     // { state, version, available, percent, automatic, snoozed, snoozedVersion, arrived }
