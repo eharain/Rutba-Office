@@ -11,8 +11,9 @@
 // database, a web address answering JSON) are kept as copies the same way,
 // read only: each read replaces their records.
 //
-// Nothing here is made in a file until it has a copy: a database with no
-// links has no rutba_sync, and opens and works exactly as before.
+// Design version 7 (A2.20) gives every file these tables and columns as it
+// opens, empty while nothing is kept as a copy; 2.18.0 made them only when a
+// table was first kept as one, still as version 6.
 
 import crypto from 'node:crypto';
 import { q } from './types.js';
@@ -30,7 +31,7 @@ CREATE INDEX IF NOT EXISTS rutba_sync_key ON rutba_sync (tbl, kj);
 CREATE TABLE IF NOT EXISTS rutba_clashes (id INTEGER PRIMARY KEY, tbl TEXT NOT NULL COLLATE NOCASE, kj TEXT, at TEXT NOT NULL, action TEXT NOT NULL, mine TEXT, theirs TEXT, why TEXT);
 `;
 
-/** The design a copy needs, given to a file the first time it keeps one; an older rutba_linked gains its columns. */
+/** The design a copy needs, given to every file as it opens (design version 7); an older rutba_linked gains its columns. */
 export function ensureSync(base) {
   base.db.exec(SYNC_DESIGN);
   const cols = new Set(base.db.prepare('PRAGMA table_info(rutba_linked)').all().map((c) => c.name));

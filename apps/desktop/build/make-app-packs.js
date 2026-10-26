@@ -31,6 +31,7 @@ import { describePack } from '../main/app-packs.js';
 import { packFileName } from '../main/packs-service.js';
 import { packFiles, packSize } from '@rutba/office-shell/electron/pack-install';
 import { TOOL_LIST } from '../main/mcp/tools.js';
+import { REACH_TOOL_LIST } from '../main/mcp/reach-tools.js';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const PACKS_DIR = path.join(APP, 'build', 'packs');
@@ -252,7 +253,7 @@ export async function makeAppPacks({ privateKey, version, only = null, release =
   const out = path.join(root, 'out');
   fs.rmSync(tree, { recursive: true, force: true });
   fs.rmSync(out, { recursive: true, force: true });
-  const toolNames = TOOL_LIST.map((t) => t.name);
+  const toolNames = [...TOOL_LIST, ...REACH_TOOL_LIST].map((t) => t.name);
   const ids = PACKS.map((p) => p.id).filter((id) => !only || only.includes(id));
   for (const id of ids) treeFor(id, tree, toolNames);
   const made = await makePacks({ tree, out, version, privateKey });

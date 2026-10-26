@@ -4,15 +4,17 @@
 // ends when the Rutba Office that turned them on closes, or always. The
 // setting is read afresh for every call, so switching it off takes effect at
 // once, mid-conversation. Every call is kept in a log the person can read in
-// the AI Tools window: the tool, the files it named, whether it was done and
-// how long it took, and never a file's contents.
+// the AI Tools window: the tool, the files it named or the mail account,
+// calendar, address book or database it used and the step that needed,
+// whether it was done and how long it took, and never what it read.
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { folderEntries, allows, refusalFor, FOLDERS_KEY } from './reach.js';
 
 export const MODE_KEY = 'ai.tools.mode';
 export const SESSION_KEY = 'ai.tools.sessionPid';
-export const FOLDERS_KEY = 'ai.tools.folders';
+export { FOLDERS_KEY };
 export const MODES = ['off', 'session', 'always'];
 export const LOG_FILE = 'ai-tools-log.jsonl';
 const LOG_KEEP = 500;
@@ -48,10 +50,14 @@ export function openNow(settings, { isAlive = alive } = {}) {
   };
 }
 
-/** The folders the tools may use, as saved: absolute paths, resolved. */
-export function foldersOf(settings) {
-  const list = Array.isArray(settings?.[FOLDERS_KEY]) ? settings[FOLDERS_KEY] : [];
-  return [...new Set(list.filter((f) => typeof f === 'string' && path.isAbsolute(f)).map((f) => path.resolve(f)))];
+/**
+ * The folders the tools may read, as saved: absolute paths, resolved. Each
+ * folder has its own step (reach.js): `want` 'prepare' gives those the tools
+ * may also make new files in. A folder given before 2.19 (a path alone)
+ * allows both, as it did.
+ */
+export function foldersOf(settings, want = 'read') {
+  return [...new Set(folderEntries(settings?.[FOLDERS_KEY]).filter((f) => path.isAbsolute(f.path) && allows(f.step, want)).map((f) => path.resolve(f.path)))];
 }
 
 const inside = (folder, p) => {
@@ -88,9 +94,22 @@ export function resolveIn(folders, given) {
   return full;
 }
 
-/** A path for a new file: in the folders, and not a file already there (the tools never overwrite). */
-export function newFileIn(folders, given, extensions) {
-  const full = resolveIn(folders, given);
+/**
+ * A path for a new file: in the folders, and not a file already there (the
+ * tools never overwrite). One in a folder set to Read only (`readOnly`) is
+ * refused, naming the folder and where its setting is.
+ */
+export function newFileIn(folders, given, extensions, readOnly = []) {
+  let full;
+  try {
+    full = resolveIn(folders, given);
+  } catch (err) {
+    let inRead = null;
+    try { inRead = readOnly.length ? resolveIn(readOnly, given) : null; } catch { inRead = null; }
+    if (!inRead) throw err;
+    const folder = readOnly.find((f) => insideAny([f], inRead));
+    throw new Error(refusalFor('folder', folder, 'read', 'prepare'));
+  }
   const ext = path.extname(full).toLowerCase();
   if (extensions && !extensions.includes(ext)) throw new Error(`The file must end in ${extensions.join(' or ')}.`);
   if (fs.existsSync(full)) throw new Error(`${path.basename(full)} already exists, and the AI tools never overwrite a file. Choose another name.`);

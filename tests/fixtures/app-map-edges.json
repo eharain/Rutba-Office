@@ -3,8 +3,10 @@
     "apps/desktop/main/documents.js -> apps/desktop/main/legacy-deck.js",
     "apps/desktop/main/documents.js -> apps/desktop/main/mailmerge-source.js",
     "apps/desktop/main/mcp/make-tools.js -> apps/desktop/main/ocr.js",
+    "apps/desktop/renderer/apps/base/ai-tools.js -> apps/desktop/renderer/ai-tools.js",
     "apps/desktop/renderer/apps/image.js -> apps/desktop/renderer/ocr-ui.js",
     "apps/desktop/renderer/apps/image/type-editor.js -> apps/desktop/renderer/apps/slides/design.js",
+    "apps/desktop/renderer/apps/mail/dialogs.js -> apps/desktop/renderer/ai-tools.js",
     "apps/desktop/renderer/apps/mail/docnote.js -> apps/desktop/renderer/apps/pdf/ocr.js",
     "apps/desktop/renderer/apps/mail/docnote.js -> apps/desktop/renderer/apps/pdf/pdfjs.js",
     "apps/desktop/renderer/apps/mail/docnote.js -> apps/desktop/renderer/ocr-ui.js",
@@ -37,6 +39,7 @@
     "apps/desktop/renderer/apps/video/stage.js -> apps/desktop/renderer/apps/image/stage.js",
     "apps/desktop/renderer/apps/word.js -> apps/desktop/renderer/apps/slides/ink.js",
     "apps/desktop/renderer/apps/word/ribbon.js -> apps/desktop/renderer/apps/slides/ink-geometry.js",
+    "apps/desktop/renderer/dav-accounts.js -> apps/desktop/renderer/ai-tools.js",
     "apps/desktop/renderer/shell.js -> apps/desktop/renderer/ai-tools.js"
   ],
   "owners": {

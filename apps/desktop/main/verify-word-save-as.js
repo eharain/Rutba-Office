@@ -48,8 +48,9 @@ export async function verifyWordSaveAs({ open, check, until, wait, press, errors
     const listed = await items();
     const where = (label) => listed.findIndex((s) => s.startsWith(label) && !s.startsWith(label + ' '));
     const at = where('Save as…');
+    // Save as Strict Open XML Document… (2.19.0) sits between them.
     check('word: the app menu offers Save as… beside Open… and Save as Template…',
-      at > where('Open…') && where('Open…') >= 0 && listed[at + 1]?.startsWith('Save as Template…'),
+      at > where('Open…') && where('Open…') >= 0 && listed[at + 1]?.startsWith('Save as Strict Open XML Document…') && listed[at + 2]?.startsWith('Save as Template…'),
       JSON.stringify(listed.slice(0, 8)));
 
     globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: copy });

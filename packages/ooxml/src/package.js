@@ -22,7 +22,8 @@
  * honest boundary, and it is why the editor roadmap and the fidelity roadmap are
  * different roadmaps.
  */
-import { readZip, writeZip, ZipEntry, inflateEntries, precompressEntries } from './zip.js';
+import { readZip, writeZip, ZipEntry, inflateEntries, precompressEntries, canInflateSync } from './zip.js';
+import { isStrictRels, isMappedPart, partToTransitional, partToStrict, dateSystem } from './strict.js';
 
 const RELS_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
 const CT_NS = 'http://schemas.openxmlformats.org/package/2006/content-types';
@@ -76,9 +77,17 @@ export class OoxmlPackage {
     this.comment = comment;
     this.byName = new Map(entries.map((e) => [e.name, e]));
     this._contentTypes = null;
+    /**
+     * 'strict' for an ISO/IEC 29500 Strict package, read as Transitional
+     * (strict.js); 'transitional' otherwise. `saveConformance` is what a
+     * save writes, the package's own form unless a Save As chooses the
+     * other.
+     */
+    this.conformance = 'transitional';
+    this.saveConformance = null;
   }
 
-  static read(buf) {
+  static read(buf, { settle = true } = {}) {
     if (!Buffer.isBuffer(buf) || buf.length < 22 || buf.readUInt16LE(0) !== 0x4b50) {
       // The first real corpus contained a zero-byte .docx; 'missing zip
       // signature' sent someone hunting for a parser bug that was not there.
@@ -90,7 +99,54 @@ export class OoxmlPackage {
     if (!pkg.byName.has('[Content_Types].xml')) {
       throw new OoxmlError('not an OOXML package: [Content_Types].xml missing');
     }
+    // Where nothing can be inflated yet (a browser), readAsync settles it once it has.
+    if (settle && canInflateSync) pkg._settleConformance();
     return pkg;
+  }
+
+  /**
+   * A Strict package's parts read as Transitional, each mapped as it is
+   * first inflated and still unchanged, so the engines read one form and a
+   * part nothing edits is written back as it came.
+   */
+  _settleConformance() {
+    const rels = this.byName.get('_rels/.rels');
+    if (!rels || !isStrictRels(rels.data.toString('utf8'))) return;
+    this.conformance = 'strict';
+    const context = {};
+    const map = (name) => (bytes) => Buffer.from(partToTransitional(name, bytes.toString('utf8'), context), 'utf8');
+    rels.mapRead(map('_rels/.rels'));
+    try {
+      context.main = this.mainDocument();
+      if (context.main.startsWith('xl/') && this.has(context.main)) context.dates = dateSystem(this.text(context.main));
+    } catch {
+      /* a package with no main part to name: its parts are mapped all the same */
+    }
+    for (const entry of this.entries) if (entry !== rels && isMappedPart(entry.name)) entry.mapRead(map(entry.name));
+  }
+
+  /**
+   * The entries a save writes, in the form it writes: the package's own, or
+   * the one `saveConformance` names. Saved as Strict, a part an engine
+   * changed is mapped back to Strict, and every part when the package was
+   * Transitional; saved as Transitional from Strict, every part is written
+   * as it was read.
+   */
+  _entriesFor(entries) {
+    const target = this.saveConformance || this.conformance;
+    if (target === 'transitional' && this.conformance === 'transitional') return entries;
+    let main = null;
+    try { main = this.mainDocument(); } catch { /* none to mark */ }
+    return entries.map((entry) => {
+      if (!isMappedPart(entry.name)) return entry;
+      if (target === 'strict' && this.conformance === 'strict' && !entry.modified) return entry;
+      if (target === 'transitional' && entry.modified) return entry;
+      const text = entry.data.toString('utf8');
+      const next = target === 'strict' ? partToStrict(entry.name, text, { main }) : text;
+      const copy = Object.create(entry);
+      copy.data = Buffer.from(next, 'utf8');
+      return copy;
+    });
   }
 
   /**
@@ -116,8 +172,9 @@ export class OoxmlPackage {
    * @returns {Promise<OoxmlPackage>}
    */
   static async readAsync(bytes, options = {}) {
-    const pkg = OoxmlPackage.read(toBuffer(bytes));
+    const pkg = OoxmlPackage.read(toBuffer(bytes), { settle: false });
     await inflateEntries(pkg.entries, options);
+    pkg._settleConformance();
     return pkg;
   }
 
@@ -177,7 +234,7 @@ export class OoxmlPackage {
   write() {
     // Held back while `saveAsync` lets an engine flush its parts.
     if (this._holdWrite) return null;
-    return writeZip(this.entries, this.comment);
+    return writeZip(this._entriesFor(this.entries), this.comment);
   }
 
   /**
@@ -203,7 +260,10 @@ export class OoxmlPackage {
     for (const [i, entry] of this.entries.entries()) {
       if (entry._deflatedFor === snapshot[i]._raw) Object.assign(snapshot[i], { _deflated: entry._deflated, _deflatedFor: entry._deflatedFor });
     }
-    return writeZip(snapshot, this.comment);
+    // The parts mapped to the form this save writes, deflated off the thread too.
+    const written = this._entriesFor(snapshot);
+    await precompressEntries(written.filter((entry, i) => entry !== snapshot[i]));
+    return writeZip(written, this.comment);
   }
 
   has(name) { return this.byName.has(name); }

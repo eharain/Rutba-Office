@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrowserWindow, ipcMain, nativeTheme, screen } from 'electron';
-import { unlock } from '../profiles.js';
+import { unlockProfile } from '../profiles.js';
 import { speakAs, t } from './words.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -75,7 +75,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.rut
 }
 
 /**
- * Asks for a protected profile's password. Resolves with its key once the
+ * Asks for a protected profile's password. Resolves with { key, rekey } once the
  * right one is typed, or null when the person cancels or closes the window.
  * `onWindow` hears of the window (a second launch brings it to the front).
  */
@@ -106,12 +106,12 @@ export function askProfilePassword({ profile, iconPath = null, onWindow = null }
     });
     win.setMenu(null);
     onWindow?.(win);
-    const finish = (key) => {
+    const finish = (opened) => {
       if (done) return;
       done = true;
       ipcMain.removeHandler('rutba-office/profile-lock:open');
       ipcMain.removeHandler('rutba-office/profile-lock:cancel');
-      resolve(key);
+      resolve(opened);
       if (!win.isDestroyed()) win.destroy();
     };
     // Tried one at a time: a second press while scrypt works is not a second guess.
@@ -121,9 +121,10 @@ export function askProfilePassword({ profile, iconPath = null, onWindow = null }
       if (!password) return { ok: false, error: t('Type the profile’s password.') };
       trying = true;
       try {
-        const key = await unlock(profile.lock, password);
-        if (!key) return { ok: false, error: t('That password is not right. Try again.') };
-        finish(key);
+        // A change of password a crash stopped midway opens with the old password or the new (profiles.js).
+        const opened = await unlockProfile(profile, password);
+        if (!opened) return { ok: false, error: t('That password is not right. Try again.') };
+        finish(opened);
         return { ok: true };
       } finally {
         trying = false;

@@ -1,7 +1,8 @@
 # AI Tools
 
 Rutba Office can let an AI app on the same computer make and read documents,
-workbooks, presentations and PDFs. It does this through the Model Context
+workbooks, presentations and PDFs, and use the mail accounts, calendars,
+address books and databases you allow, each to the step you choose. It does this through the Model Context
 Protocol (MCP), which many AI apps support. The tools are off until you turn
 them on.
 
@@ -92,6 +93,98 @@ and so is a path that leads out through a link. They never overwrite or delete
 a file: a file they make must have a name of its own. That leaves nothing to
 undo and nothing to confirm.
 
+## What the tools may reach
+
+Beyond the folders, the tools can work with mail, calendars, contacts and
+Data Files databases. Each mail account, archive, calendar, address book,
+database and folder has its own setting, and everything is **Off** until you
+choose. The setting is kept with the thing itself and shown in two places:
+in its own app's settings, and in AI Tools under **What the tools may reach**.
+A change in either place shows in the other at once.
+
+| Step | What it allows |
+| :-- | :-- |
+| Off | The tools cannot see it. |
+| Read only | The tools may read it, and change nothing. |
+| Read and prepare | The tools may also prepare new things that stay on this computer: drafts, events, contacts, files and records. Nothing is sent. |
+| Read, prepare and act | The tools may also ask to do something that leaves this computer or tells another person: send a message, send an invitation or answer one, add a contact to an address book kept on a server, or write to a table linked to a database engine. Each one is shown to you first, and done only when you press its button. |
+
+Where each setting is:
+
+| Thing | Its own settings | Steps it can have |
+| :-- | :-- | :-- |
+| Mail account | Mail, **Manage accounts**, beside the account | All four. A mailbox brought in from a file has no server to send through, so it stops at Read and prepare. |
+| Archive opened in place | Mail, **Manage accounts**, under the accounts | Off or Read only. An archive is never written to. |
+| Calendar | Calendar, **Accounts** | All four. |
+| Address book | Contacts, **Accounts** | All four. |
+| Data Files database | Data Files, **AI tools** in the side panel | All four, and for a protected database the role the tools work as. The setting is kept on this computer, not in the file. |
+| Folder | AI Tools, under Folders | Off, Read only, or Read and prepare. Folders chosen before this version keep what they allowed: Read and prepare. |
+
+Nothing the tools do deletes or moves anything, at any step. A refusal names
+the thing and says where its setting is, for example: "The AI tools may not
+do that with the mail account ana@example.com: it is set to Read only, and this
+needs Read, prepare and act. Its setting is in Mail under Accounts, or in AI
+Tools."
+
+### The tools, and the step each needs
+
+| Tool | Needs |
+| :-- | :-- |
+| `list_allowed`: what is not Off, and what each allows | |
+| `search_mail`, `list_mail_folders`, `list_messages`, `read_message`, `read_attachment` | Read |
+| `create_draft`: a draft kept in the account | Read and prepare |
+| `send_message`: shown first, with Send, Keep as draft and Cancel | Read, prepare and act |
+| `confirmation_answer`: what became of a request still waiting | |
+| `list_events`, `read_event` | Read |
+| `create_event`: in a calendar on this computer | Read and prepare |
+| `create_event` in a calendar kept on a server, shown first | Read, prepare and act |
+| `send_invitation`, `answer_invitation`: shown first | Read, prepare and act, on the calendar and on the mail account it goes from |
+| `search_contacts`, `read_contact` | Read |
+| `create_contact`: in the address book on this computer | Read and prepare |
+| `create_contact` in an address book kept on a server, shown first | Read, prepare and act |
+| `list_tables`, `read_records` | Read |
+| `add_record`, `change_record`: never the design | Read and prepare |
+| `add_record`, `change_record` in a table linked to a database engine, shown first | Read, prepare and act |
+
+An attachment the tools add to a message comes only from a folder they may
+read. A protected database is reached only as a role an Admin chose for the
+tools in Data Files, and never as one that may change the design.
+
+### Shown to you first
+
+A message, an invitation or its answer, a contact for a server, or a change
+for a database engine is shown in every Rutba Office window, with what it
+would do: who it goes to, the subject, the words, the attachments. It has
+three buttons:
+
+- **Send** (or the action's own word) does it, and only then.
+- **Keep as draft** keeps a message, an invitation or an answer as a draft in
+  the mail account, and an event or a contact on this computer, and sends
+  nothing. A change for a database engine has no draft.
+- **Cancel** does nothing.
+
+The AI app waits for the press for under a minute. If you have not pressed
+anything by then, it is told the request is waiting, with its id, and can ask
+again with `confirmation_answer`. A request nobody answers is withdrawn after
+half an hour, and one still waiting when Rutba Office closes is withdrawn,
+with nothing done either way.
+
+### Rutba Office must be open
+
+The tools an AI app starts on this computer read and make files themselves.
+For mail, calendars, contacts and databases they ask the Rutba Office open in
+the same profile, over a channel only that profile's tools can use: a named
+pipe on this computer, with a key the running copy writes in the profile
+folder for that run. Nothing listens on the network for it. With Rutba Office
+closed, those tools say so; one that needs your press says that nothing was
+done and nothing waits.
+
+### A profile with a password
+
+The tools reach nothing of a profile that has a password, its folders
+included, unless that profile is open and unlocked in Rutba Office. With
+**Always on** and Rutba Office closed, every call is refused.
+
 ## Seeing what they do
 
 - **Badge.** While the tools are on, every window's title bar shows a badge,
@@ -100,7 +193,9 @@ undo and nothing to confirm.
   version it gave, that it is on this computer, when it connected, and its
   last call.
 - **Log.** AI Tools also lists what the tools have done: the tool, the files
-  it named, and whether it worked. The log never holds a file's contents. It
+  it named or the account, calendar, address book or database it used and the
+  step that allowed it, and whether it worked. The log never holds what was
+  read: no file's contents, no message, event, contact or record. It
   is kept in `ai-tools-log.jsonl` in Rutba Office's profile folder, and only
   the last 500 calls are kept.
 
@@ -146,6 +241,7 @@ longer exists is refused, and the AI app shows why.
   windows, not here.
 - **Video projects.**
 - **Working in a document that is open in a window.**
-- **Mail, Calendar and Contacts.** These are left out on purpose.
-- **Connections from another machine.** Rutba Office will offer them only as a
-  separate setting, off by default, that only you can turn on.
+- **Changing or answering what is already there** in a calendar or an address
+  book, beyond answering an invitation. The tools add new events and contacts.
+- **A choice per AI app.** Every AI app connected to a profile has the same
+  settings.

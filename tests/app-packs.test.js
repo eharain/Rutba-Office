@@ -16,7 +16,7 @@ import { fileAssociations } from '../packages/office-formats/src/registry.js';
 import { makePacks } from '../tools/make-packs.mjs';
 import { makeKeyPair } from '../tools/make-pack-key.mjs';
 import { describePack, planPacks, registerPacks, packView, readPackKeys, BUILT_IN } from '../apps/desktop/main/app-packs.js';
-import { TOOL_PACK, toolOffered, toolsOf, LOADED_KEY } from '../apps/desktop/main/pack-tools.js';
+import { TOOL_PACK, TOOL_NEEDS, toolOffered, toolsOf, LOADED_KEY } from '../apps/desktop/main/pack-tools.js';
 
 const VERSION = '9.9.9';
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-app-packs-'));
@@ -261,4 +261,18 @@ test('the AI tools offered are those of the packs loaded, and none without AI To
   for (const n of some) assert.ok(['ai', 'word'].includes(TOOL_PACK[n]), n);
   assert.ok(toolsOf('word', names).includes('create_document'));
   assert.ok(!toolsOf('word', names).includes('create_workbook'));
+});
+
+test('a tool that reaches into an app is offered only while that app is installed too', async () => {
+  const { REACH_TOOL_LIST } = await import('../apps/desktop/main/mcp/reach-tools.js');
+  const reach = REACH_TOOL_LIST.map((t) => t.name);
+  const offered = (loaded) => reach.filter((n) => toolOffered(n, { [LOADED_KEY]: loaded }));
+  // Every tool that reaches an app names it, and names only apps there are.
+  for (const n of reach) for (const id of TOOL_NEEDS[n] || []) assert.ok(PACKS.some((p) => p.id === id), `${n}: ${id}`);
+  assert.deepEqual(offered(['ai']).sort(), ['confirmation_answer', 'list_allowed']);
+  assert.ok(offered(['ai', 'mail']).includes('send_message'));
+  assert.ok(!offered(['ai', 'mail']).includes('send_invitation'), 'an invitation needs a calendar too');
+  assert.ok(offered(['ai', 'mail', 'calendar']).includes('send_invitation'));
+  assert.ok(!offered(['mail', 'calendar', 'contacts', 'base']).length, 'none without AI Tools');
+  assert.deepEqual(offered(['ai', 'base']).filter((n) => !['confirmation_answer', 'list_allowed'].includes(n)).sort(), ['add_record', 'change_record', 'list_tables', 'read_records']);
 });

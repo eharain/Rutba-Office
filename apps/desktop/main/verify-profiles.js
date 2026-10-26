@@ -9,7 +9,8 @@
 // setting made here, nor this one its; a second launch of it goes to the one
 // running; neither the first profile nor an open one can be removed, and the
 // second, once closed, can, its folder gone. A password set here from the
-// dialog seals this profile's files and comes off again. A profile with a
+// dialog seals this profile's files, its mail among them, and comes off
+// again. A profile with a
 // password asks for it before it opens: a wrong one is refused, the right
 // one opens it, and what it saved is there. Run alone with
 // RUTBA_VERIFY_ONLY=profiles.
@@ -150,6 +151,27 @@ export async function verifyProfiles(h) {
     contactId = contact?.id || null;
     await js(`window.rutbaOffice.app.addRecent({ path: ${JSON.stringify(path.join(scratch, 'Sealed report.docx'))}, app: 'word' })`).catch(() => {});
     const contactsFile = path.join(base, 'contacts.json');
+    // Mail too: a message kept before the password is sealed with the rest, and still read.
+    const mailWord = `Sealed mail ${Date.now()}`;
+    const mailAccount = await js(`window.rutbaOffice.mail.accounts().then((a) => a[0]?.id || null)`).catch(() => null);
+    const mailRaw = ['From: Amina Yusuf <amina@work.example>', 'To: You <you@example.com>', `Subject: ${mailWord}`, `Date: ${new Date().toUTCString()}`, `Message-ID: <sealed-${Date.now()}@example.org>`, '', `${mailWord}, the body.`, ''].join('\r\n');
+    if (mailAccount) await js(`window.rutbaOffice.mail.deliverTest(${JSON.stringify({ accountId: mailAccount, folder: 'Inbox', raw: mailRaw })})`).catch(() => {});
+    const mailInClear = () => {
+      const hits = [];
+      const walk = (dir) => {
+        let list = [];
+        try { list = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const e of list) {
+          const p = path.join(dir, e.name);
+          if (e.isDirectory()) walk(p);
+          else if (fs.readFileSync(p).includes(Buffer.from(mailWord))) hits.push(path.relative(base, p));
+        }
+      };
+      walk(path.join(base, 'mail'));
+      return hits;
+    };
+    const mailListed = async () => ((await js(`window.rutbaOffice.mail.messages(${JSON.stringify({ accountId: mailAccount, folder: 'Inbox', limit: 200 })})`).catch(() => null))?.rows || []).some((r) => r.subject === mailWord);
+    const mailBefore = mailInClear().length;
     await until(() => { try { return fs.readFileSync(contactsFile, 'utf8').includes('Sealed Person') || null; } catch { return null; } }, 'the card written', 5000).catch(() => {});
     await click('.pf-set-password');
     await until(() => js(`Boolean(document.querySelector('.pf-password-dialog .pf-new'))`), 'Set a Password', 5000).catch(() => {});
@@ -169,6 +191,10 @@ export async function verifyProfiles(h) {
       /not the same/.test(mismatch) && /cannot be recovered/.test(warned) && locked && Boolean(lock?.salt && lock?.verifier) && !listText.includes('check-pass-1')
         && sealedNow && !fs.readFileSync(contactsFile, 'utf8').includes('Sealed Person') && isSealed(fs.readFileSync(path.join(base, 'recent.json'), 'utf8')),
       JSON.stringify({ mismatch, locked, lock: Boolean(lock) }));
+    const mailSealed = mailInClear();
+    const mailRead = await mailListed();
+    check('profiles: Set a Password seals Mail too: the message, its index line and the folder list are on disk only sealed, and Mail still reads it',
+      Boolean(mailAccount) && mailBefore > 0 && mailSealed.length === 0 && mailRead, JSON.stringify({ mailAccount: Boolean(mailAccount), mailBefore, inClear: mailSealed, mailRead }));
     const stillThere = await js(`window.rutbaOffice.contacts.list({ query: 'Sealed Person' }).then((l) => l.length)`);
     await until(() => js(`Boolean(document.querySelector('.pf-remove-password'))`), 'Remove Password', 4000).catch(() => {});
     await click('.pf-remove-password');
@@ -182,6 +208,8 @@ export async function verifyProfiles(h) {
     check('profiles: Remove Password asks for the current one, refuses a wrong one, then leaves the files plain and readable again',
       stillThere === 1 && /not right/.test(wrongOld) && unlocked && !readProfiles(base).profiles[0].lock && fs.readFileSync(contactsFile, 'utf8').includes('Sealed Person'),
       JSON.stringify({ stillThere, wrongOld, unlocked }));
+    const mailPlainAgain = mailInClear().length > 0 && (await mailListed());
+    check('profiles: with the password taken off, Mail is plain on disk again and still reads', mailPlainAgain, String(mailPlainAgain));
     await click('.pf-dialog .rw-dialog-foot button');
 
     // A profile with a password asks for it before it opens.

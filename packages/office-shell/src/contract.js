@@ -120,7 +120,7 @@ export const METHODS = {
     'viewport',     // ({ id, sheet, top, left, rows, cols }) -> { cells, geometry }
     'undo',         // ({ id }) -> { version, model }
     'redo',         // ({ id }) -> { version, model }
-    'save',         // ({ id, path }) -> { path, stat }
+    'save',         // ({ id, path, conformance? }) -> { path, stat, conformance }: 'strict' or 'transitional' chooses the form, the file's own when left out
     'export',       // ({ id, format, path, options }) -> { path }
     'search',       // ({ id, query, options }) -> [hit]
     'asset',        // ({ id, ref }) -> { url, type, name }
@@ -170,12 +170,17 @@ export const METHODS = {
     'attachmentReading', // ({ accountId, folder, id, index }) -> reading | null: what was read from an attachment (an invoice's details) when its message was opened
     'keepReading', // ({ accountId, folder, id, index, reading }) -> { kept: 'message' | 'run' }: kept with the message, so it is not read again
     'folders',      // ({ accountId }) -> [folder]
-    'sync',         // ({ accountId, folder, limit }) -> { added, total }
+    'sync',         // ({ accountId, folder, limit }) -> { added, total }   the changes made here sent, then what is new fetched by UID, with marks and deletions made at the server elsewhere
     'messages',     // ({ accountId, folder, offset, limit, query }) -> { rows, total }
     'message',      // ({ accountId, uid, folder }) -> message
-    'flag',         // ({ accountId, folder, uids, add, remove }) -> void
-    'move',         // ({ accountId, folder, uids, to }) -> void
-    'delete',       // ({ accountId, folder, uids }) -> void
+    'flag',         // ({ accountId, folder, ids, patch }) -> counts   read, unread, flagged here and at the server; a pin here only
+    'move',         // ({ accountId, folder, ids, to }) -> { moved }   here and at the server
+    'delete',       // ({ accountId, folder, ids, toTrash }) -> { deleted, trash? }   for good (EXPUNGE at the server), or to the Trash with toTrash
+    'flushChanges', // ({ accountId }) -> { left, error? }   the changes made here sent to the server now
+    'syncState',    // ({ accountId }) -> { waiting, offline, error, at }   where the account stands with its server
+    'fetchSettings',    // () -> { every, push }   how Mail fetches by itself: every so many minutes (0 only with Get mail), and as the server says mail came
+    'setFetchSettings', // ({ every, push }) -> the same, changed
+    'fetchNow',     // () -> { accounts }   every account fetched now, quietly, as the Mail window opens
     'serverAutoReply', // ({ accountId, action: 'state' | 'on' | 'off', settings }) -> { supported, on, settings?, reason? }   the mail server's own out of office, over ManageSieve
     'send',         // ({ accountId, draft }) -> { messageId }
     'saveDraft',    // ({ accountId, draft }) -> { id }
@@ -186,10 +191,14 @@ export const METHODS = {
     'search',       // ({ accountId, query, limit }) -> [header]
     'unified',      // ({ role, query }) -> one list across every account
     'insight',      // ({ accountId, folder, id }) -> { trackers, unsubscribe, auth, bulk }
+    'unsubscribe',  // ({ accountId, folder, id }) -> { done, status?, reason? }  the one RFC 8058 one-click POST
     'files',        // ({ accountId, query }) -> every attachment in the mailbox
     'people',       // ({ accountId }) -> the addresses seen, ranked
     'markAllRead',  // ({ accountId, folder }) -> { changed }
     'emptyFolder',  // ({ accountId, folder }) -> { removed }
+    'createFolder', // ({ accountId, parent, name }) -> { path }  made at the server too
+    'renameFolder', // ({ accountId, folder, name }) -> { path }  with the folders inside it
+    'deleteFolder', // ({ accountId, folder }) -> { folders, removed }  with what is inside it
     'queue',        // ({ accountId, draft, at, holdSeconds }) -> outbox item
     'outbox',       // () -> items still waiting to go
     'unsend',       // ({ id }) -> the item, taken back
@@ -427,7 +436,8 @@ export const METHODS = {
     'documentData', // ({ id, name? | layout?, keys?, limit? }) -> { layout, letterhead, documents }   one a record
     'lookup',       // ({ id, table, field, show }) -> [{ value, text }]   a lookup list's choices
     'lookupPage',   // ({ id, table, field, search?, values?, limit? }) -> { items: [{ value, text }], more }   a long list a page at a time, searched, or given records' words
-    'saveAs',       // ({ id, file }) -> summary   a copy at file, then the one open
+    'saveAs',       // ({ id, file }) -> summary   a copy at file, then the one open; another program's database made a Data Files copy (summary.copied)
+    'allowChanges', // ({ id }) -> summary   another program's database opened so its records can be changed in place (A2.20)
   ],
   // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).
   talk: [
@@ -486,6 +496,13 @@ export const METHODS = {
     'removeFolder', // ({ path }) -> state
     'setReach',     // ({ reach: 'local' | 'remote', port? }) -> state   this computer only, or other machines too, with a key
     'renewKey',     // () -> state   a new key; the old one stops working at once
+    // What each mail account, archive, calendar, address book, database and folder allows (D-2026-10-26-06):
+    // one setting, kept with the thing, shown in its own app's settings and in AI Tools.
+    'things',       // () -> { addon, things: [{ kind, id, name, step, steps, server?, local?, role?, protected? }] }
+    'setStep',      // ({ kind, id, step, role? }) -> { kind, id, step, steps, role }   'off' | 'read' | 'prepare' | 'act'
+    'stepOf',       // ({ kind, id }) -> { addon, step, steps, role }
+    'pending',      // () -> [{ id, at, kind, thing, fields, body, draft, change }]   what the tools asked to do, waiting for the person
+    'answer',       // ({ id, choice: 'act' | 'draft' | 'cancel' }) -> { choice, outcome | error }
   ],
   // Add or remove apps (docs/APP-PACKS.md 5.4): the packs on this computer, and changes to them for the next start.
   packs: [
@@ -542,8 +559,13 @@ export const EVENTS = [
   'dav:changed',      // {}                  an account synced, was added or was removed
   'mail:sent',        // { id, to }
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
+  'mail:syncProblem', // { accountId, kind, folder, to, count }   a change the mail server refused, put back as the server has it
+  'mail:syncState',   // { accountId, offline, error, at }   an account's fetches and changes reaching its server, or not
+  'mail:sealing',     // { done, total }   the mail store being sealed again with the profile's password (set, changed or taken away)
   'theme:changed',    // { dark }
   'profiles:changed', // { id, name, colour, count, protected }   a profile made, renamed, coloured or removed, here or in another running profile
+  'ai:changed',       // { kind, id, step }    a thing's AI tools setting changed, in its own app or in AI Tools
+  'ai:pending',       // [{ id, kind, thing, fields, body, draft }]   what the AI tools asked to do, waiting for the person's press
   'update:state',     // { state, version, available, percent, automatic, snoozed, snoozedVersion, arrived }
   'capture:command',  // { command: 'stop' | 'pause' }   a recording's global key or tray icon was used
   'picture:returned', // { token, bytes, contentType, width, height }   Edit in Image saved the picture back
@@ -611,6 +633,11 @@ export const EVENT_PACK = {
   'mail:new': 'mail',
   'mail:sent': 'mail',
   'mail:sendFailed': 'mail',
+  'mail:syncProblem': 'mail',
+  'mail:syncState': 'mail',
+  'mail:sealing': 'mail',
+  'ai:changed': 'ai',
+  'ai:pending': 'ai',
   'present:state': 'slides',
   'contacts:changed': 'contacts',
   'calendar:changed': 'calendar',

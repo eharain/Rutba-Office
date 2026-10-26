@@ -87,7 +87,8 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
     cal.dirty = (cal.dirty || []).filter((u) => u !== event.uid);
     hooks.local?.();
   };
-  const listed = () => state.calendars.map((c) => ({ id: c.id, name: c.name, colour: c.colour, visible: c.visible !== false, count: c.events.length, account: c.remote?.account || null }));
+  // `ai`: what the AI tools may do with the calendar (mcp/reach.js), kept with it; Off until chosen.
+  const listed = () => state.calendars.map((c) => ({ id: c.id, name: c.name, colour: c.colour, visible: c.visible !== false, count: c.events.length, account: c.remote?.account || null, ai: c.ai || 'off' }));
   const calendarOf = (id) => state.calendars.find((c) => c.id === id) || null;
   const find = (eventId) => {
     for (const cal of state.calendars) {
@@ -149,7 +150,7 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
 
     saveCalendar: ({ calendar }) => {
       const kept = calendar.id ? calendarOf(calendar.id) : null;
-      if (kept) Object.assign(kept, { name: calendar.name ?? kept.name, colour: calendar.colour ?? kept.colour, visible: calendar.visible ?? kept.visible });
+      if (kept) Object.assign(kept, { name: calendar.name ?? kept.name, colour: calendar.colour ?? kept.colour, visible: calendar.visible ?? kept.visible, ai: calendar.ai ?? kept.ai });
       else state.calendars.push({ id: crypto.randomUUID(), name: calendar.name || 'Calendar', colour: calendar.colour || COLOURS[state.calendars.length % COLOURS.length], visible: true, events: [] });
       save();
       return listed();

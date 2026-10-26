@@ -700,6 +700,26 @@ class Session {
     this.keyCache = null;
   }
 
+  /** The package the engine saves from, where it has one. */
+  get pkg() {
+    return this.engine?.pkg ?? this.engine?.workbook?.pkg ?? this.engine?.doc?.doc?.pkg ?? null;
+  }
+
+  /**
+   * The form Save writes: 'strict' (ISO/IEC 29500 Strict Open XML) or
+   * 'transitional'. A file opened as Strict is saved as Strict, unless a
+   * Save As chooses the usual form.
+   */
+  get conformance() {
+    const pkg = this.pkg;
+    return pkg?.saveConformance || pkg?.conformance || 'transitional';
+  }
+
+  set conformance(form) {
+    const pkg = this.pkg;
+    if (pkg && (form === 'strict' || form === 'transitional')) pkg.saveConformance = form;
+  }
+
   /** Encrypt with Password set or cleared; '' or null clears it. */
   setPassword(password) {
     this.password = password ? String(password) : null;
@@ -756,7 +776,7 @@ class Session {
    * workbook's sheets are deflated.
    */
   async fileBytesAsync(ext = null) {
-    const pkg = this.engine?.pkg ?? this.engine?.workbook?.pkg ?? this.engine?.doc?.doc?.pkg ?? null;
+    const pkg = this.pkg;
     let plain = typeof pkg?.saveAsync === 'function'
       ? Buffer.from(await pkg.saveAsync(() => this.engine.save()))
       : Buffer.from(this.engine.save());
@@ -781,6 +801,7 @@ class Session {
       converted: this.converted,
       readOnly: false,
       encrypted: Boolean(this.password),
+      conformance: this.conformance,
       canUndo: Boolean(this.engine?.canUndo),
       canRedo: Boolean(this.engine?.canRedo),
     };
@@ -3585,13 +3606,15 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       return { ...session.meta(), model: modelOf(session, { width, slide, master }) };
     },
 
-    save: ({ id, path: target, warmed = false }) => {
+    save: ({ id, path: target, conformance = null, warmed = false }) => {
       const session = get(id);
+      // Save As Strict Open XML, or as the usual form: what this save and the ones after it write.
+      if (conformance) session.conformance = conformance;
       // The password's key spun on its thread first: spun here it held every
       // window for a fifth of a second when Save came soon after Encrypt.
       // With the key ready, or no password, Save is as it was.
       // Waited once: should the thread fail, the save spins the key itself, as before.
-      if (!warmed && !session.keyReady()) return session.warmKey().then(() => service.save({ id, path: target, warmed: true }));
+      if (!warmed && !session.keyReady()) return session.warmKey().then(() => service.save({ id, path: target, conformance, warmed: true }));
       const to = target || session.path;
       if (!to) throw new Error('This document has never been saved, so it needs a name.');
       const ext = path.extname(to).toLowerCase();
@@ -3623,8 +3646,9 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
      * `save`, the compression off the main thread. An edit made while it
      * runs is not in the file, and leaves the document marked unsaved.
      */
-    saveAsync: async ({ id, path: target }) => {
+    saveAsync: async ({ id, path: target, conformance = null }) => {
       const session = get(id);
+      if (conformance) session.conformance = conformance;
       const to = target || session.path;
       if (!to) throw new Error('This document has never been saved, so it needs a name.');
       const ext = path.extname(to).toLowerCase();

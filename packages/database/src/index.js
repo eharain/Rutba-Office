@@ -1,7 +1,7 @@
-export { Base, DESIGN_VERSION } from './base.js';
+export { Base, DESIGN_VERSION, unknownKeys } from './base.js';
 export { FIELD_TYPES, columnSql, toStored } from './types.js';
-export { importRows, importSheets, inferType } from './import.js';
-export { designToSql, criterionSql, joinsFor, splitNamedExpression } from './query-design.js';
+export { importRows, importSheets, inferType, copyForeign } from './import.js';
+export { designToSql, criterionSql, joinsFor, splitNamedExpression, designerDesign } from './query-design.js';
 export { expressionSql, fieldsNamed, FUNCTION_NAMES } from './expression.js';
 export { wizardForm, labelFor, shownField, valueFromControl, GRID, fitForm, placeControl, takeOff, putBack, relabel, fieldsOff } from './form-design.js';
 export { wizardReport, reportData, total, totalFields, withTotal } from './report-design.js';

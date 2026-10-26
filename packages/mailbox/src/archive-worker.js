@@ -92,8 +92,10 @@ let syncing = Promise.resolve();
 
 const ACCOUNT_OPS = {
   /** Every account's part of the index up to date (a folder changed since is indexed again). */
-  sync({ accounts = [] }) {
+  sync({ accounts = [], keys = null }) {
     const run = async () => {
+      // A profile with a password: the store's files open with the keys the main process holds now.
+      if (keys) store.useKeys(keys);
       const live = new Set(accounts.map((a) => a.id));
       for (const a of accounts) await runSliced(store.indexSteps(a.id, { name: a.name || a.id }), { slice: SLICE_MS });
       // An account no longer listed takes its part of the index with it.

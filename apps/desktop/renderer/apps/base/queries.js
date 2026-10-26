@@ -10,7 +10,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Input, Select, Dialog, Spinner, useMenu, t, tn } from '@rutba/office-ui';
 import { useGridFilter, FilterBar, ColumnFilter, selectionItems } from './filters.js';
-import { splitNamedExpression } from '@rutba/database/query-design';
+import { designerDesign } from '@rutba/database/query-design';
 import { canDesign } from './people.js';
 
 /** The Field list's own choice that turns its cell into an expression box. */
@@ -22,22 +22,6 @@ const blank = () => ({ table: '', field: '', exprText: null, show: true, sort: '
 const DECIMALS = () => [['', t('As it comes')], ...[0, 1, 2, 3, 4, 5, 6].map((n) => [String(n), tn(n, '{count} place', '{count} places')])];
 /** A column in use: a field chosen, or an expression typed. */
 const used = (c) => Boolean((c.table && c.field) || (c.exprText !== null && c.exprText !== undefined && c.exprText.trim()));
-
-/** A design from what the designer holds, the empty columns left out. */
-function designOf(tables, columns, totals) {
-  return {
-    tables,
-    columns: columns.filter(used).map((c) => ({
-      ...(c.exprText !== null && c.exprText !== undefined ? splitNamedExpression(c.exprText) : { table: c.table, field: c.field }),
-      show: c.show,
-      sort: c.sort || null,
-      total: totals ? c.total || 'group' : null,
-      // Rounded where the person said so: an average spend to 2 places.
-      ...(c.decimals !== '' && c.decimals !== null && c.decimals !== undefined ? { decimals: Number(c.decimals) } : {}),
-      criteria: c.criteria.filter((x, i, all) => x.trim() || all.slice(i + 1).some((y) => y.trim())),
-    })),
-  };
-}
 
 export function QueryDesigner({ shell, db, name, onSaved, toast }) {
   const [tables, setTables] = useState([]);
@@ -53,6 +37,8 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
   const [editing, setEditing] = useState(!name);
   const [loaded, setLoaded] = useState(null);
   const [sqlEdit, setSqlEdit] = useState(null);
+  // The saved design as it was read, for what it holds that the designer does not set (A2.20).
+  const [kept, setKept] = useState({});
 
   // A saved query opens with its design; a new one with nothing in it.
   useEffect(() => {
@@ -62,6 +48,7 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
     setError('');
     setEditing(!name);
     setLoaded(null);
+    setKept({});
     if (!name) { setTables([]); setColumns([blank()]); setTotals(false); return undefined; }
     shell.base.queries({ id: db.id }).then((all) => {
       const found = all.find((x) => x.name === name);
@@ -71,6 +58,7 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
       setTotals((d.columns || []).some((c) => c.total));
       setColumns([...(d.columns || []).map((c) => ({ ...blank(), ...c, exprText: c.expr ? (c.as ? `${c.as}: ${c.expr}` : c.expr) : null, sort: c.sort || '', total: c.total || 'group', decimals: Number.isInteger(c.decimals) ? String(c.decimals) : '', criteria: [...(c.criteria || []), '', ''].slice(0, Math.max(2, (c.criteria || []).length)) })), blank()]);
       setLoaded(d);
+      setKept(d);
     }).catch((e) => toast(e.message, { tone: 'bad' }));
     return () => { live = false; };
   }, [shell, db.id, name, toast]);
@@ -84,9 +72,11 @@ export function QueryDesigner({ shell, db, name, onSaved, toast }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shell, db.id, tables]);
 
-  const design = useMemo(() => designOf(tables, columns, totals), [tables, columns, totals]);
+  const design = useMemo(() => designerDesign(tables, columns, totals, kept), [tables, columns, totals, kept]);
   const setColumn = (i, patch) => setColumns((cs) => {
-    const next = cs.map((c, k) => (k === i ? { ...c, ...patch } : c));
+    // Another field chosen is headed by its own name, not by the heading the one before it had.
+    const moved = (c) => (patch.field !== undefined && patch.field !== c.field) || (patch.table !== undefined && patch.table !== c.table);
+    const next = cs.map((c, k) => (k === i ? { ...c, ...patch, ...(moved(c) ? { as: undefined } : {}) } : c));
     // A field chosen (or an expression begun) on the last line opens another below it.
     const last = next[next.length - 1];
     return last.field || last.exprText !== null ? [...next, blank()] : next;

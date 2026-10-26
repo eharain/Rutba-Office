@@ -242,15 +242,17 @@ test('a large copy read by its updated-at field: only what changed is read, and 
   }
 });
 
-test('a file with no links is as it was: no sync tables, and its tables work as before', () => {
+// Design version 7 (A2.20): every file has the copies' tables and columns, empty until a table is kept as a copy.
+test('a file with no links has the copies tables empty, and its tables work as before', () => {
   const dir = tmp('sync-none-');
   try {
     const b = Base.open(path.join(dir, 'plain.rbase'));
     b.createTable({ name: 'Notes', fields: [{ name: 'Text', type: 'text' }] });
     b.insert('Notes', { Text: 'hello' });
-    assert.equal(b.hasDesignTable('rutba_sync'), false);
-    assert.equal(b.hasDesignTable('rutba_clashes'), false);
-    assert.deepEqual(b.db.prepare('PRAGMA table_info(rutba_linked)').all().map((c) => c.name), ['tbl', 'link', 'remote', 'key', 'caption', 'position']);
+    assert.equal(b.hasDesignTable('rutba_sync'), true);
+    assert.equal(b.hasDesignTable('rutba_clashes'), true);
+    assert.equal(b.db.prepare('SELECT count(*) AS n FROM rutba_sync').get().n, 0);
+    assert.deepEqual(b.db.prepare('PRAGMA table_info(rutba_linked)').all().map((c) => c.name), ['tbl', 'link', 'remote', 'key', 'caption', 'position', 'mode', 'stamp', 'synced']);
     assert.equal(b.rows('Notes')[0].Text, 'hello');
     b.close();
   } finally {

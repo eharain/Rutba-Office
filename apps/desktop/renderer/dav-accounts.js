@@ -3,10 +3,12 @@
 // or why it could not; one is added with the server's address, a user name
 // and a password (an app password, for iCloud and the like), and its
 // calendars and address books come in at once. In Contacts, where a new card
-// goes is chosen here too.
+// goes is chosen here too, and in both what the AI tools may do with each
+// calendar or address book (ai-tools.js: the same settings AI Tools lists).
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Dialog, Field, Input, Select, t, tn } from '@rutba/office-ui';
+import { AiThingsList } from './ai-tools.js';
 
 const ago = (ms) => {
   if (!ms) return t('not yet');
@@ -88,6 +90,7 @@ export function AccountsDialog({ shell, kind = 'calendar', toast, onClose }) {
             </Select>
           </Field>
         ) : null}
+        <AiThingsList shell={shell} kind={kind === 'contacts' ? 'book' : 'calendar'} title={kind === 'contacts' ? t('AI tools: address books') : t('AI tools: calendars')} />
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontWeight: 600 }}>{t('Add an account')}</div>
           <Field label={t('Server')} hint={t('A CalDAV or CardDAV server: iCloud (caldav.icloud.com), Fastmail, Nextcloud, Synology, Radicale and the like.')}>

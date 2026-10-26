@@ -179,8 +179,8 @@ export function createContactsService({ stores, broadcast, people = null }) {
       return c ? present(c) : null;
     },
 
-    /** Keep a card: a new one, or a changed one by id. */
-    save: ({ contact }) => {
+    /** Keep a card: a new one, or a changed one by id. A new one goes to `book` when named ('local': this computer only). */
+    save: ({ contact, book: into = undefined }) => {
       const now = Date.now();
       if (contact.id && byId(contact.id)) {
         const kept = byId(contact.id);
@@ -192,7 +192,8 @@ export function createContactsService({ stores, broadcast, people = null }) {
         return present(kept);
       }
       // A new card goes to the address book chosen for new cards, when an account set one.
-      const book = state.defaultBook && (state.books || []).some((b) => b.id === state.defaultBook) ? state.defaultBook : undefined;
+      if (into !== undefined && into !== 'local' && !(state.books || []).some((b) => b.id === into)) throw new Error('That address book is no longer there.');
+      const book = into !== undefined ? (into === 'local' ? undefined : into) : state.defaultBook && (state.books || []).some((b) => b.id === state.defaultBook) ? state.defaultBook : undefined;
       const fresh = { ...storable(contact), id: crypto.randomUUID(), createdAt: now, updatedAt: now, photoUrl: undefined, hasPhoto: undefined, display: undefined, book, remote: undefined };
       state.contacts.push(fresh);
       touch(fresh);
@@ -299,6 +300,28 @@ export function createContactsService({ stores, broadcast, people = null }) {
     },
 
     count: () => state.contacts.length,
+
+    /**
+     * The address books: the cards kept on this computer only ('local'), then
+     * each one a server keeps in step (dav-sync.js), each with what the AI
+     * tools may do with it (`ai`, mcp/reach.js), kept with it: Off until chosen.
+     */
+    books: () => [
+      { id: 'local', name: null, server: false, account: null, ai: state.ai || 'off', count: state.contacts.filter((c) => !c.book).length },
+      ...(state.books || []).map((b) => ({ id: b.id, name: b.name, server: true, account: b.account || null, ai: b.ai || 'off', count: state.contacts.filter((c) => c.book === b.id).length })),
+    ],
+
+    /** ({ id, ai }) -> true: one address book's AI tools setting. */
+    setBookAi: ({ id, ai }) => {
+      if (id === 'local') state.ai = ai;
+      else {
+        const b = (state.books || []).find((x) => x.id === id);
+        if (!b) throw new Error('That address book is no longer there.');
+        b.ai = ai;
+      }
+      save();
+      return true;
+    },
 
     // The sync's own way in (dav-sync.js): not a window's, so not in the shell's contract.
     _dav: { state: () => state, save, hooks, storable, forWriting },

@@ -8,16 +8,21 @@
  * from one source, so the OpenDocument reader is judged against the same
  * content. Excel's own cached results sit in the .xlsx; the engine's
  * calculation is held to them below.
+ *
+ * tools/make-strict-fixtures.ps1 has Word, Excel and PowerPoint save the
+ * same three again as Strict Open XML (ISO/IEC 29500 Strict), and the
+ * Strict files are held to everything the Transitional ones are.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDocumentService } from '../apps/desktop/main/documents.js';
 import { formatValue, localeShortDate } from '@rutba/formula/numfmt';
 
 const RICH = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'rich');
+const STRICT = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'strict');
 const doc = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }) });
 
 /** The active sheet's model after selecting a sheet, with the whole sheet in view. */
@@ -28,9 +33,8 @@ function sheet(id, name) {
 const cell = (m, ref) => m.cells.find((c) => c.ref === ref);
 const text = (m, ref) => cell(m, ref)?.text;
 
-for (const ext of ['xlsx', 'ods']) {
-  const file = join(RICH, `showcase.${ext}`);
-  test(`the showcase workbook (.${ext}): every sheet, every reference, every format`, { skip: !existsSync(file) && 'fixture not generated' }, () => {
+for (const [ext, file] of [['xlsx', join(RICH, 'showcase.xlsx')], ['ods', join(RICH, 'showcase.ods')], ['xlsx', join(STRICT, 'showcase-strict.xlsx')]]) {
+  test(`the showcase workbook (${basename(file)}): every sheet, every reference, every format`, { skip: !existsSync(file) && 'fixture not generated' }, () => {
     const s = doc.open({ path: file });
     try {
       // Office's OpenDocument export writes "Data types" as "Data_types".
@@ -91,8 +95,7 @@ for (const ext of ['xlsx', 'ods']) {
   });
 }
 
-const deckFile = join(RICH, 'showcase.pptx');
-test('the showcase deck: shapes with fills, a table, two charts drawn, a picture, notes, sections and a hidden slide', { skip: !existsSync(deckFile) && 'fixture not generated' }, () => {
+for (const deckFile of [join(RICH, 'showcase.pptx'), join(STRICT, 'showcase-strict.pptx')]) test(`the showcase deck (${basename(deckFile)}): shapes with fills, a table, two charts drawn, a picture, notes, sections and a hidden slide`, { skip: !existsSync(deckFile) && 'fixture not generated' }, () => {
   const s = doc.open({ path: deckFile });
   try {
     assert.equal(s.model.count, 8, 'eight slides');
@@ -140,8 +143,7 @@ test('the showcase deck: shapes with fills, a table, two charts drawn, a picture
   }
 });
 
-const docFile = join(RICH, 'showcase.docx');
-test('the showcase document: styles, lists, a table, a picture, floating shapes, notes, a comment, fields, a landscape section, a watermark', { skip: !existsSync(docFile) && 'fixture not generated' }, () => {
+for (const docFile of [join(RICH, 'showcase.docx'), join(STRICT, 'showcase-strict.docx')]) test(`the showcase document (${basename(docFile)}): styles, lists, a table, a picture, floating shapes, notes, a comment, fields, a landscape section, a watermark`, { skip: !existsSync(docFile) && 'fixture not generated' }, () => {
   const s = doc.open({ path: docFile });
   try {
     const m = s.model;

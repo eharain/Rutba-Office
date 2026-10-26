@@ -308,6 +308,38 @@ export function buildThreads(rows) {
 export const rowKey = (row) => `${row.accountId}|${row.folder}|${row.id}`;
 
 /**
+ * A change the mail server refused (mail:syncProblem), in words: what it
+ * would not do, and that the messages show as the server has them.
+ */
+export function syncProblemWords({ kind, folder, to, count = 1 } = {}) {
+  const name = (p) => String(p || '').split('/').pop() || String(p || '');
+  const where = { folder: name(to || folder) };
+  const n = Math.max(1, count || 1);
+  switch (kind) {
+    case 'move':
+      return n === 1
+        ? t('The mail server would not move the message to {folder}. It is back where the server keeps it.', where)
+        : t('The mail server would not move {count} messages to {folder}. They are back where the server keeps them.', { ...where, count: n });
+    case 'copy':
+      return t('The mail server would not copy to {folder}. The copy made here is taken back.', where);
+    case 'flags':
+      return t('The mail server would not change the marks. The messages show as the server has them.');
+    case 'expunge':
+      return t('The mail server would not delete from {folder}. What it keeps is back in the folder.', where);
+    case 'append':
+      return t('The mail server would not keep a copy of your sent message in {folder}. The copy here is kept.', where);
+    case 'create':
+      return t('The mail server would not make the folder {folder}.', where);
+    case 'rename':
+      return t('The mail server would not rename the folder {folder}. It keeps its name.', { folder: name(folder) });
+    case 'deleteFolder':
+      return t('The mail server would not delete the folder {folder}. It comes back with the next fetch.', { folder: name(folder) });
+    default:
+      return t('The mail server would not make a change made here. Mail shows what the server has.');
+  }
+}
+
+/**
  * The message to open once some leave the list (deleted, archived, moved,
  * marked as junk): the first after the last one removed, or, at the foot of
  * the list, the nearest before the first one removed, as Outlook does.
@@ -435,6 +467,7 @@ export const CSS = `
   font-size: 10px; color: var(--ink-3); background: var(--sunken); border-radius: 3px;
   padding: 0 5px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.ml-drop.over > .rw-item { background: var(--selected-strong); box-shadow: inset 0 0 0 1px var(--accent); }
 .ml-thread-children { background: var(--sunken); }
 .ml-thread-children .ml-row { padding-left: 34px; border-bottom-color: transparent; }
 

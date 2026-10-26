@@ -1,6 +1,7 @@
 // Which profile folder the AI tools work in (node.js), apart so tests can ask
 // it without starting the tools.
 
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { readProfiles, findProfile, profileFolder, profileArg } from '@rutba/office-shell/profiles';
@@ -28,4 +29,18 @@ export function profileDir({ argv = process.argv.slice(2), env = process.env } =
   const profile = findProfile(readProfiles(base), asked);
   if (!profile) throw new Error(`Rutba Office has no profile "${asked}". Open AI Tools in the profile you want and copy its lines again.`);
   return profileFolder(base, profile);
+}
+
+/**
+ * The entry of the profile whose folder this is, from its base folder's
+ * list: Default's for a base folder, one under Profiles for the rest; null
+ * when the folder is not a profile's. Read afresh for each call, so a
+ * password set while the tools run counts at once.
+ */
+export function profileEntryOf(folder) {
+  const full = path.resolve(folder);
+  if (fs.existsSync(path.join(full, 'profiles.json')) || !/^profiles$/i.test(path.basename(path.dirname(full)))) {
+    return findProfile(readProfiles(full), 'default');
+  }
+  return findProfile(readProfiles(path.dirname(path.dirname(full))), path.basename(full));
 }

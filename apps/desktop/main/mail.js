@@ -12,11 +12,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { MailStore } from '@rutba/mailbox/store';
+import { MailStore, messageKey } from '@rutba/mailbox/store';
 import { parseMessage, attachmentFileName } from '@rutba/mailbox/mime';
 import { scan, read as readArchive, identify } from '@rutba/mailbox/import';
 import { writeMbox } from '@rutba/mailbox/mbox';
-import { insightFor } from './mail-insight.js';
+import { insightFor, unsubscribeOffer } from './mail-insight.js';
+import { oneClickUnsubscribe } from './mail-unsubscribe.js';
 import { createArchiveDesk, isArchive } from './mail-archive.js';
 import { createSmimeDesk } from './mail-smime.js';
 import { setupAccount } from './mail-setup.js';
@@ -25,6 +26,7 @@ import { unicodeFont } from './system-fonts.js';
 import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
 import { planAutoReplies, buildReply } from './mail-ooo.js';
+import { createMailSync, flagsFor } from './mail-sync.js';
 import { openSieve, turnOn as sieveOn, turnOff as sieveOff, readState as sieveState } from '@rutba/mailbox/managesieve';
 import { junkSettings, junkVerdict, learn as learnJunk, listSender as listJunkSender, listRecipient as listJunkRecipient, groupAddressOf, listEntry, tldEntry, JUNK_LEVELS, JUNK_REASONS, JUNK_ENCODINGS, ready as junkReady, MIN_LEARNED } from './mail-junk.js';
 
@@ -84,6 +86,27 @@ function classify(name) {
   const leaf = String(name).split(/[/.]/).pop();
   for (const s of SPECIAL) if (s.test.test(leaf)) return s;
   return { role: 'folder', icon: 'folder', order: 9 };
+}
+
+/** Hosted mail with no ManageSieve, by the provider found when the account was set up or by its server's name. */
+const NO_SIEVE = [
+  { label: 'Gmail', providers: ['google'], host: /(^|\.)(gmail|googlemail)\.com$/i },
+  { label: 'Outlook', providers: ['microsoft', 'microsoft365'], host: /(^|\.)(outlook\.com|office365\.com|hotmail\.com|live\.com)$/i },
+  { label: 'Yahoo', providers: ['yahoo'], host: /(^|\.)yahoo\.com$/i },
+  { label: 'AOL', providers: ['aol'], host: /(^|\.)aol\.com$/i },
+  { label: 'iCloud', providers: ['icloud'], host: /(^|\.)(me\.com|icloud\.com)$/i },
+];
+const hostedWithoutSieve = (account) =>
+  NO_SIEVE.find((p) => p.providers.includes(account.provider) || p.host.test(String(account.imap?.host || '')))?.label || null;
+
+/** The roles a server names with SPECIAL-USE (RFC 6154), which beat a folder's name: Gmail's "[Gmail]/Bin" is its Trash. */
+const SPECIAL_USE = { '\\Inbox': 'inbox', '\\Drafts': 'drafts', '\\Sent': 'sent', '\\Junk': 'junk', '\\Trash': 'trash', '\\Archive': 'archive' };
+
+/** A stored folder's role and icon: the server's word for it where it gave one, else its name's. */
+function classifyFolder(f) {
+  const role = SPECIAL_USE[f?.specialUse];
+  const s = role ? SPECIAL.find((x) => x.role === role) : null;
+  return s ? { role: s.role, icon: s.icon, order: s.order } : classify(f?.name || f?.path || '');
 }
 
 /**
@@ -191,6 +214,24 @@ async function composeRaw({ account, draft }) {
     .build();
 }
 
+/**
+ * Does this account's server put what it sends in Sent itself? Gmail and
+ * Microsoft's do (a second copy from here would show twice); most others do
+ * not, and Mail keeps the copy there (IMAP APPEND). An account can say which
+ * with `sentCopy` ('server' or 'append'); otherwise the provider, the server's
+ * names, and Gmail's own IMAP extension (seen when it was last fetched) decide.
+ */
+export function serverKeepsSent(account) {
+  if (account?.sentCopy === 'server') return true;
+  if (account?.sentCopy === 'append') return false;
+  if (account?.server?.gmail) return true;
+  const domain = String(account?.email || '').split('@')[1] || '';
+  const provider = account?.provider || knownProvider(domain)?.id || null;
+  if (['google', 'microsoft', 'microsoft365'].includes(provider)) return true;
+  const hosts = `${account?.imap?.host || ''} ${account?.smtp?.host || ''}`.toLowerCase();
+  return /(^|[\s.])(imap|smtp)\.gmail\.com\b|\bgooglemail\.com\b|\boffice365\.com\b|\boutlook\.com\b/.test(hosts);
+}
+
 /** A check run's own transport: nothing leaves the process, and every send succeeds at once. */
 function fakeTransport() {
   return { async send() { return { messageId: `check-${crypto.randomUUID()}` }; } };
@@ -207,9 +248,24 @@ function isKnownContact(contacts, address) {
   }
 }
 
-export function createMailService({ stores, holdBlob, broadcast, userData, oauth = null, contacts = null, now = () => Date.now(), smtp = null }) {
+export function createMailService({ stores, holdBlob, broadcast, userData, oauth = null, contacts = null, now = () => Date.now(), smtp = null, autoFetch = Boolean(process.versions.electron), unsubscribeAgent = undefined }) {
   const store = new MailStore(path.join(userData, 'mail'));
   const transport = smtp || (CHECK_RUN ? fakeTransport() : defaultTransport());
+
+  /*
+   * Sealed with the profile's password (D-2026-10-26-02): the store is given
+   * the profile's key (none without a password) and seals every file it
+   * writes; when the password is set, changed or taken away it seals every
+   * file again, a folder at a time, saying how far it has gone
+   * (mail:sealing), and a run a crash stopped carries on as Mail starts.
+   */
+  const sealing = (p) => broadcast?.('mail:sealing', p);
+  stores.vault?.attach?.({
+    useKey: (key) => store.useKey(key),
+    prepare: (old, next) => store.prepareReseal(old, next),
+    rekey: (old, next) => store.rekey(old, next, { progress: sealing }),
+  });
+  if (store.resealPending()) setTimeout(() => store.resumeReseal({ progress: sealing }).catch(() => {}), 0).unref?.();
 
   const accounts = () => stores.settings.get('mail.accounts', []);
   const setAccounts = (list) => {
@@ -293,7 +349,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
   }
 
   /** ImapFlow is loaded when an account is actually used, not at start-up. */
-  async function imapFor(account) {
+  async function imapFor(account, extra = {}) {
     const { ImapFlow } = await import('imapflow');
     const client = new ImapFlow({
       host: account.imap.host,
@@ -303,10 +359,39 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       auth: await credentialsFor(account),
       logger: false,
       tls: { rejectUnauthorized: account.imap.rejectUnauthorized !== false },
+      ...extra,
     });
     await client.connect();
     return client;
   }
+
+  // The account's changes at its server, and its server's here (mail-sync.js).
+  const mailSync = createMailSync({
+    store,
+    account: (id) => live(id),
+    connect: imapFor,
+    broadcast,
+    describe: (f) => ({ path: f.path, name: f.name, delimiter: f.delimiter || '/', specialUse: f.specialUse || null, ...classifyFolder({ name: f.name, path: f.path, specialUse: f.specialUse }) }),
+    // A Gmail server says so in its capabilities: it keeps its own Sent copies.
+    seen: (accountId, capabilities) => {
+      const gmail = Boolean(capabilities?.has?.('X-GM-EXT-1'));
+      const account = accounts().find((a) => a.id === accountId);
+      if (account && Boolean(account.server?.gmail) !== gmail) service.updateAccount({ id: accountId, patch: { server: { ...(account.server || {}), gmail } } });
+    },
+    // Rules, the junk filter and automatic replies, over what arrived, before the connection closes.
+    arrived: async (accountId, arrived) => {
+      let filed = null;
+      let autoReplied = 0;
+      let junked = 0;
+      for (const { folder: where, ids } of arrived) {
+        const r = await runArrivalPipeline(accountId, where, ids);
+        if (r.filed) filed = filed ? Object.fromEntries(Object.entries(r.filed).map(([k, v]) => [k, v + (filed[k] || 0)])) : r.filed;
+        autoReplied += r.autoReplied;
+        junked += r.junked;
+      }
+      return { filed, autoReplied, junked };
+    },
+  });
 
   /**
    * The folder this account calls its Trash, its Junk, its Archive.
@@ -315,11 +400,95 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
    * how mail gets lost.
    */
   const folderFor = (accountId, role) =>
-    (store.folders(accountId) || []).find((f) => classify(f.name || f.path).role === role)?.path || null;
+    (store.folders(accountId) || []).find((f) => classifyFolder(f).role === role)?.path || null;
 
-  /** A folder's role — inbox, junk, trash… — by the name the account gives it. */
+  /** A folder's role (inbox, junk, trash and the rest) by what the account calls it. */
   const roleOf = (accountId, folderPath) =>
-    classify((store.folders(accountId) || []).find((f) => f.path === folderPath)?.name || folderPath).role;
+    classifyFolder((store.folders(accountId) || []).find((f) => f.path === folderPath) || { path: folderPath }).role;
+
+  /** What the account's server puts between a folder's name and the one it is in. */
+  const delimiterOf = (accountId) => (store.folders(accountId) || []).find((f) => f.delimiter)?.delimiter || '/';
+
+  /** A folder's name as typed, or why it cannot be one. */
+  const folderName = (name, delimiter) => {
+    const clean = String(name || '').trim();
+    if (!clean) throw new Error('A folder needs a name.');
+    if (clean.includes(delimiter) || /[*%\u0000-\u001f]/.test(clean)) throw new Error('A folder name cannot hold that character.');
+    return clean;
+  };
+
+  /** Is there a folder of this name already (in any case: most servers will not hold both)? */
+  const folderThere = (accountId, folderPath) =>
+    (store.folders(accountId) || []).some((f) => f.path.toLowerCase() === folderPath.toLowerCase()) || store.hasFolder(accountId, folderPath);
+
+  /** The folders the account itself works with (the Inbox, Sent, Drafts, Trash, Junk): never renamed or deleted here. */
+  const keptFolder = (accountId, folderPath) => ['inbox', 'sent', 'drafts', 'trash', 'junk'].includes(roleOf(accountId, folderPath)) || /^inbox$/i.test(folderPath);
+
+  /**
+   * The account Mail keeps in step with its server, or null for one with
+   * none: an imported mailbox (local) and an archive opened in place change
+   * only here.
+   */
+  const live = (accountId) => {
+    if (isArchive(accountId)) return null;
+    const a = accounts().find((x) => x.id === accountId);
+    return a && !a.local && a.imap?.host ? a : null;
+  };
+
+  /**
+   * Messages filed in another folder, here and at the server: the change on
+   * the line first, then the store. `shape` makes the copy the folder keeps
+   * (the junk filter's note on, or off); `junk` tells the server's filter.
+   */
+  function fileMessages(accountId, folder, ids, to, { junk: verdict = null, shape = (m) => m } = {}) {
+    if (!ids?.length || folder === to) return 0;
+    const change = mailSync.record(accountId, { kind: 'move', folder, to, items: mailSync.itemsOf(accountId, folder, ids), junk: verdict });
+    const moved = [];
+    for (const id of ids) {
+      const message = store.get(accountId, folder, id);
+      if (!message) continue;
+      // Its UID was its old folder's; the server says the new one.
+      store.put(accountId, to, { ...shape(message), uid: null }, { force: true });
+      moved.push(id);
+    }
+    // The folder they left is written once, however many moved.
+    if (moved.length) store.removeMany(accountId, folder, moved);
+    if (!(store.folders(accountId) || []).some((f) => f.path === to)) store.upsertFolder(accountId, { path: to, name: to.split('/').pop(), ...classify(to) });
+    if (change) mailSync.kick(accountId);
+    return moved.length;
+  }
+
+  /** Marks changed here and at the server (a pin is Rutba Office's own, kept here alone). */
+  function markMessages(accountId, folder, ids, patch) {
+    const { add, remove } = flagsFor(patch);
+    const change = add.length || remove.length ? mailSync.record(accountId, { kind: 'flags', folder, items: mailSync.itemsOf(accountId, folder, ids), add, remove }) : null;
+    store.setFlagsMany(accountId, folder, ids, patch);
+    if (change) mailSync.kick(accountId);
+  }
+
+  /** Deleted for good, here and at the server (IMAP \Deleted and EXPUNGE). */
+  function expungeMessages(accountId, folder, ids) {
+    if (!ids?.length) return;
+    const change = mailSync.record(accountId, { kind: 'expunge', folder, items: mailSync.itemsOf(accountId, folder, ids) });
+    store.removeMany(accountId, folder, ids);
+    if (change) mailSync.kick(accountId);
+  }
+
+  /** The rules' changes, made as the window's are: at the server too. */
+  const ruleActs = (accountId) => ({
+    flags: (folder, ids, patch) => markMessages(accountId, folder, ids, patch),
+    copy: (folder, ids, to) => {
+      const change = mailSync.record(accountId, { kind: 'copy', folder, to, items: mailSync.itemsOf(accountId, folder, ids) });
+      for (const id of ids) {
+        const message = store.get(accountId, folder, id);
+        if (message) store.put(accountId, to, { ...message, uid: null }, { force: true });
+      }
+      store.upsertFolder(accountId, { path: to, name: String(to).split('/').pop() });
+      if (change) mailSync.kick(accountId);
+    },
+    move: (folder, ids, to) => fileMessages(accountId, folder, ids, to),
+    remove: (folder, ids) => expungeMessages(accountId, folder, ids),
+  });
 
   /**
    * The junk settings for an account and what the filter has learned. Outlook
@@ -385,7 +554,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const isContact = (address) => isKnownContact(contacts, address);
       const to = folderFor(accountId, 'junk') || 'Junk';
       const kept = [];
-      const gone = [];
+      const notes = new Map();
       for (const row of rows) {
         const message = store.get(accountId, folder, row.id);
         const verdict = message ? junkVerdict(message, settings, { isContact }) : { junk: false };
@@ -393,13 +562,11 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
           kept.push(row);
           continue;
         }
-        store.put(accountId, to, { ...message, junk: { why: verdict.why, reason: JUNK_REASONS[verdict.why], score: verdict.score } }, { force: true });
-        gone.push(row.id);
+        notes.set(row.id, { why: verdict.why, reason: JUNK_REASONS[verdict.why], score: verdict.score });
         junked++;
       }
-      // Taken out of the Inbox in one write of its index, not one a message.
-      if (gone.length) store.removeMany(accountId, folder, gone);
-      if (junked) store.upsertFolder(accountId, { path: to, name: to.split('/').pop(), ...classify(to) });
+      // Taken out of the Inbox in one write of its index, not one a message, and filed at the server too.
+      if (notes.size) fileMessages(accountId, folder, [...notes.keys()], to, { junk: true, shape: (m) => ({ ...m, junk: notes.get(m.id) }) });
       rows = kept;
     }
     const freshMessages = rows.map((r) => store.get(accountId, folder, r.id)).filter(Boolean);
@@ -408,7 +575,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     const rules = stores.settings.get('mail.rules', []);
     if (rules.some((r) => r.enabled !== false)) {
       const plan = planRules(rows.map((r) => ({ ...r, folder })), rules);
-      if (plan.length) filed = applyPlan(plan, { store, accountId, folderFor });
+      if (plan.length) filed = applyPlan(plan, { store, accountId, folderFor, act: ruleActs(accountId) });
     }
 
     let autoReplied = 0;
@@ -846,73 +1013,31 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     folders: ({ accountId }) => {
       const stored = store.folders(accountId);
       return stored
-        .map((f) => ({ ...f, ...classify(f.name || f.path), ...store.counts(accountId, f.path) }))
+        .map((f) => ({ ...f, ...classifyFolder(f), ...store.counts(accountId, f.path) }))
         .sort((a, b) => a.order - b.order || a.path.localeCompare(b.path));
     },
 
-    /** Pull new mail. Live accounts only; an imported archive has nothing to pull. */
+    /**
+     * Fetch an account's mail (mail-sync.js): the changes made here sent
+     * first, then what is new in the Inbox, in `folder` if one is named and
+     * in every folder fetched before, by UID from the last one seen, with the
+     * marks and deletions made at the server elsewhere. One fetch of an
+     * account at a time; asked again meanwhile, the next one is shared. An
+     * imported mailbox has nothing to fetch.
+     *
+     * Rules and automatic replies both run on arrival, over what has just
+     * arrived rather than over the whole folder: re-running either across
+     * 50,000 old messages every fetch would be a different and much slower
+     * feature. See runArrivalPipeline.
+     */
     sync: async ({ accountId, folder, limit = 300 }) => {
       const account = find(accountId);
       if (account.local) return { added: 0, total: store.counts(accountId, folder || 'Inbox').total, local: true };
-
-      const client = await imapFor(account);
-      let added = 0;
-      // What each folder took in, for the arrival pipeline to run over.
-      const arrived = [];
-      try {
-        const list = await client.list();
-        const folders = list
-          .filter((f) => !f.flags?.has?.('\\Noselect'))
-          .map((f) => ({ path: f.path, name: f.name, ...classify(f.name) }));
-        store.setFolders(accountId, folders);
-
-        const targets = folder ? folders.filter((f) => f.path === folder) : folders.filter((f) => f.role === 'inbox');
-        for (const target of targets) {
-          const lock = await client.getMailboxLock(target.path);
-          try {
-            const total = client.mailbox.exists;
-            if (!total) continue;
-            const from = Math.max(1, total - limit + 1);
-            const batch = [];
-            const ids = [];
-            arrived.push({ folder: target.path, ids });
-            for await (const msg of client.fetch(`${from}:*`, { uid: true, flags: true, source: true })) {
-              const parsed = parseMessage(msg.source);
-              parsed.uid = msg.uid;
-              parsed.unread = !msg.flags?.has?.('\\Seen');
-              parsed.flagged = Boolean(msg.flags?.has?.('\\Flagged'));
-              batch.push(parsed);
-              if (batch.length >= 50) {
-                added += store.putMany(accountId, target.path, batch.splice(0), { ids });
-                broadcast?.('mail:progress', { accountId, folder: target.path, done: added, total, phase: 'fetch' });
-              }
-            }
-            if (batch.length) added += store.putMany(accountId, target.path, batch, { ids });
-          } finally {
-            lock.release();
-          }
-        }
-      } finally {
-        await client.logout().catch(() => {});
-      }
-      // Rules and automatic replies both run on arrival, over what has just
-      // arrived rather than over the whole folder — re-running either across
-      // 50,000 old messages every fetch would be a different and much slower
-      // feature. See runArrivalPipeline.
-      // Each folder under its own name — the server's Inbox is "INBOX" —
-      // and the tallies added up.
-      let filed = null;
-      let autoReplied = 0;
-      let junked = 0;
-      for (const { folder: path, ids } of arrived) {
-        const r = await runArrivalPipeline(accountId, path, ids);
-        if (r.filed) filed = filed ? Object.fromEntries(Object.entries(r.filed).map(([k, v]) => [k, v + (filed[k] || 0)])) : r.filed;
-        autoReplied += r.autoReplied;
-        junked += r.junked;
-      }
-
-      if (added) broadcast?.('mail:new', { accountId, folder, count: added, filed, junked });
-      return { added, filed, autoReplied, junked, total: store.counts(accountId, folder || 'Inbox').total };
+      const r = await mailSync.fetch(accountId, { folder: folder || null, limit });
+      const total = store.counts(accountId, folder || folderFor(accountId, 'inbox') || 'INBOX').total;
+      // A fetch that brought nothing new can still have marks or deletions from elsewhere to show.
+      if (r.added || r.changed) broadcast?.('mail:new', { accountId, folder, count: r.added || 0, filed: r.filed || null, junked: r.junked || 0 });
+      return { added: r.added || 0, filed: r.filed || null, autoReplied: r.autoReplied || 0, junked: r.junked || 0, total };
     },
 
     /**
@@ -951,7 +1076,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const rows = [];
       for (const account of accounts()) {
         const folders = store.folders(account.id) || [];
-        const wanted = folders.filter((f) => (role === 'all' ? true : classify(f.name || f.path).role === role));
+        const wanted = folders.filter((f) => (role === 'all' ? true : classifyFolder(f).role === role));
         for (const folder of wanted) {
           const page = store.list(account.id, folder.path, { limit: 1000, query, unreadOnly });
           for (const row of page.rows) {
@@ -1013,7 +1138,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const rules = only || stores.settings.get('mail.rules', []);
       const { rows } = store.list(accountId, folder, { limit: 100000 });
       const plan = planRules(rows.map((r) => ({ ...r, folder })), rules);
-      const tally = applyPlan(plan, { store, accountId, folderFor });
+      const tally = applyPlan(plan, { store, accountId, folderFor, act: ruleActs(accountId) });
       if (tally.matched) broadcast?.('mail:new', { accountId, folder, count: 0 });
       return tally;
     },
@@ -1021,15 +1146,73 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     /** Mark a whole folder read — the button every list needs and few have. */
     markAllRead: ({ accountId, folder }) => {
       const { rows } = store.list(accountId, folder, { limit: 100000, unreadOnly: true });
-      store.setFlagsMany(accountId, folder, rows.map((row) => row.id), { unread: false });
+      markMessages(accountId, folder, rows.map((row) => row.id), { unread: false });
       return { changed: rows.length };
     },
 
-    /** Empty a folder. Only ever offered for Trash and Junk. */
+    /**
+     * Empty a folder, for good, here and at the server. Only ever offered for
+     * Trash and Junk. What it deletes there is what is here: a message that
+     * reached the server since the last fetch is not deleted unseen.
+     */
     emptyFolder: ({ accountId, folder }) => {
       const { rows } = store.list(accountId, folder, { limit: 100000 });
-      store.removeMany(accountId, folder, rows.map((row) => row.id));
+      expungeMessages(accountId, folder, rows.map((row) => row.id));
       return { removed: rows.length };
+    },
+
+    /**
+     * A folder made, here and at the server: `name` inside `parent`, or at
+     * the top. The server's separator between folder names is the one the
+     * account's folders already use.
+     */
+    createFolder: ({ accountId, parent = null, name }) => {
+      const delimiter = delimiterOf(accountId);
+      const clean = folderName(name, delimiter);
+      const to = parent ? `${parent}${delimiter}${clean}` : clean;
+      if (folderThere(accountId, to)) throw new Error('There is a folder of that name already.');
+      const change = mailSync.record(accountId, { kind: 'create', folder: to });
+      store.upsertFolder(accountId, { path: to, name: clean, delimiter, ...classify(to) });
+      if (change) mailSync.kick(accountId);
+      return { path: to };
+    },
+
+    /** A folder given a new name, with the folders inside it, here and at the server. */
+    renameFolder: ({ accountId, folder, name }) => {
+      if (keptFolder(accountId, folder)) throw new Error('That folder keeps its name.');
+      const delimiter = delimiterOf(accountId);
+      const clean = folderName(name, delimiter);
+      const cut = folder.lastIndexOf(delimiter);
+      const to = cut < 0 ? clean : `${folder.slice(0, cut)}${delimiter}${clean}`;
+      if (to === folder) return { path: folder };
+      if (folderThere(accountId, to)) throw new Error('There is a folder of that name already.');
+      const change = mailSync.record(accountId, { kind: 'rename', folder, to, delimiter });
+      store.renameFolder(accountId, folder, to, delimiter);
+      if (change) mailSync.kick(accountId);
+      return { path: to };
+    },
+
+    /**
+     * A folder deleted, with the folders inside it and every message in
+     * them, here and at the server. The window asks first, saying how many.
+     */
+    deleteFolder: ({ accountId, folder }) => {
+      if (keptFolder(accountId, folder)) throw new Error('That folder cannot be deleted.');
+      const delimiter = delimiterOf(accountId);
+      // The folders inside first, deepest first: a server deletes one folder at a time.
+      const gone = (store.folders(accountId) || [])
+        .map((f) => f.path)
+        .filter((p) => p === folder || p.startsWith(`${folder}${delimiter}`))
+        .sort((a, b) => b.length - a.length);
+      let removed = 0;
+      let queued = false;
+      for (const p of gone) {
+        removed += store.counts(accountId, p).total || 0;
+        if (mailSync.record(accountId, { kind: 'deleteFolder', folder: p })) queued = true;
+        store.removeFolder(accountId, p);
+      }
+      if (queued) mailSync.kick(accountId);
+      return { folders: gone.length, removed };
     },
 
     message: ({ accountId, folder, id }) => {
@@ -1041,7 +1224,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       for (const a of message.attachments || []) {
         if (!a.inline || !a.stored || !a.contentId) continue;
         try {
-          const bytes = fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored));
+          const bytes = store.attachmentBytes(accountId, folder, id, a.stored);
           // The next message read replaces these: nothing draws them after.
           inline[a.contentId] = holdBlob(bytes, a.type, a.filename, { group: 'mail-message', generation: `${accountId}|${folder}|${id}` }).url;
         } catch {
@@ -1061,6 +1244,20 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     insight: ({ accountId, folder, id }) => {
       const message = store.get(accountId, folder, id);
       return message ? insightFor(message) : null;
+    },
+
+    /**
+     * One-click unsubscribe (RFC 8058), sent from here: the one POST the
+     * window says it sends (mail-unsubscribe.js). The offer is read again
+     * from the message itself, not taken from the window. A list without
+     * one-click is written to or opened in the browser by the window, as
+     * before. Answers { done, status?, reason? }.
+     */
+    unsubscribe: async ({ accountId, folder, id }) => {
+      const message = isArchive(accountId) ? await desk.message({ accountId, folder, id }) : store.get(accountId, folder, id);
+      const offer = message ? unsubscribeOffer(message) : null;
+      if (offer?.method !== 'one-click') return { done: false, reason: 'not-offered' };
+      return oneClickUnsubscribe(offer.http, { agent: unsubscribeAgent });
     },
 
     /**
@@ -1132,8 +1329,9 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       return { total: rows.length, rows: rows.slice(0, limit) };
     },
 
+    /** Read and unread, flagged: here and at the server. A pin is Rutba Office's own, kept here alone. */
     flag: ({ accountId, folder, ids, patch }) => {
-      store.setFlagsMany(accountId, folder, ids || [], patch);
+      markMessages(accountId, folder, ids || [], patch || {});
       return store.counts(accountId, folder);
     },
 
@@ -1145,19 +1343,16 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const into = roleOf(accountId, to);
       const teach = into === 'junk' && from !== 'junk' ? true : from === 'junk' && into !== 'junk' && into !== 'trash' ? false : null;
       let settings = teach === null ? null : junk(accountId);
-      const moved = [];
-      for (const id of ids || []) {
-        const message = store.get(accountId, folder, id);
-        if (!message) continue;
-        const { junk: _note, ...clean } = message;
-        if (settings) settings = learnJunk(settings, clean, teach);
-        store.put(accountId, to, into === 'junk' ? message : clean, { force: true });
-        moved.push(id);
+      const clean = ({ junk: _note, ...rest }) => rest;
+      if (settings) {
+        for (const id of ids || []) {
+          const message = store.get(accountId, folder, id);
+          if (message) settings = learnJunk(settings, clean(message), teach);
+        }
       }
-      // The folder they left is written once, however many moved.
-      if (moved.length) store.removeMany(accountId, folder, moved);
+      // Filed here and at the server; Junk and Not junk tell the server's filter too.
+      fileMessages(accountId, folder, ids || [], to, { junk: teach, shape: into === 'junk' ? (m) => m : clean });
       if (settings) saveModel(settings.model);
-      store.upsertFolder(accountId, { path: to, name: to.split('/').pop() });
       return { moved: (ids || []).length };
     },
 
@@ -1257,8 +1452,17 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       return { ...junkView(settings, accountId), added: { junk: settings.model.junk - before.junk, good: settings.model.good - before.good } };
     },
 
-    delete: ({ accountId, folder, ids }) => {
-      store.removeMany(accountId, folder, ids || []);
+    /**
+     * Deleted for good, here and at the server. The window sends a message
+     * to the Trash with `move`, and calls this for one in the Trash already
+     * or with Delete permanently; with `toTrash` it does that move itself,
+     * to the Trash the account has, and deletes for good only when there is
+     * none.
+     */
+    delete: ({ accountId, folder, ids, toTrash = false }) => {
+      const trash = toTrash ? folderFor(accountId, 'trash') : null;
+      if (trash && trash !== folder) return { deleted: service.move({ accountId, folder, ids, to: trash }).moved, trash };
+      expungeMessages(accountId, folder, ids || []);
       return { deleted: (ids || []).length };
     },
 
@@ -1309,6 +1513,11 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     serverAutoReply: async ({ accountId, action = 'state', settings = null }) => {
       const account = find(accountId);
       if (account.local) return { supported: false, reason: 'local' };
+      // Gmail, Outlook, Yahoo and iCloud keep their automatic replies in their
+      // own settings, with no ManageSieve to reach them by: said at once, not
+      // after a wait for a server that never answers.
+      const hosted = account.sieve?.host ? null : hostedWithoutSieve(account);
+      if (hosted) return { supported: false, reason: 'provider', provider: hosted };
       if (account.auth === 'oauth' || account.imap?.auth === 'oauth') return { supported: false, reason: 'oauth' };
       const host = account.sieve?.host || account.imap?.host;
       if (!host) return { supported: false, reason: 'no-server' };
@@ -1337,37 +1546,50 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       // sends through is a local, imported account (seed-mail's mbox), the
       // one kind of account that never has one to store.
       const credentials = CHECK_RUN ? { user: account.imap?.user || account.email } : await credentialsFor(account);
-      // Signed and/or encrypted: the message is made here, protected, and sent as it is.
-      let protectedRaw = null;
+      const list = (v) => String(v || '').split(',').map((s) => (/<([^>]+)>/.exec(s)?.[1] || s).trim()).filter(Boolean);
+      const recipients = [...list(draft.to), ...list(draft.cc), ...list(draft.bcc)];
+      // The message as it goes: made here, so the copy kept in Sent is it.
+      let made = null;
       if (draft.smime?.sign || draft.smime?.encrypt) {
-        const list = (v) => String(v || '').split(',').map((s) => (/<([^>]+)>/.exec(s)?.[1] || s).trim()).filter(Boolean);
-        const recipients = [...list(draft.to), ...list(draft.cc), ...list(draft.bcc)];
+        // Signed and/or encrypted: the message is made here, protected, and sent as it is.
         const raw = await composeRaw({ account, draft });
-        protectedRaw = smime.protectOutgoing(raw, { sign: Boolean(draft.smime.sign), encrypt: Boolean(draft.smime.encrypt), from: account.email, recipients: [...list(draft.to), ...list(draft.cc)], bcc: list(draft.bcc) });
-        draft = { ...draft, raw: protectedRaw, envelope: { from: account.email, to: recipients } };
+        made = smime.protectOutgoing(raw, { sign: Boolean(draft.smime.sign), encrypt: Boolean(draft.smime.encrypt), from: account.email, recipients: [...list(draft.to), ...list(draft.cc)], bcc: list(draft.bcc) });
+        draft = { ...draft, raw: made, envelope: { from: account.email, to: recipients } };
+      } else if (live(accountId) && !draft.raw) {
+        // An account with a server keeps the very bytes that went in its Sent there.
+        try {
+          made = await composeRaw({ account, draft });
+          draft = { ...draft, raw: made, envelope: { from: account.email, to: recipients } };
+        } catch {
+          made = null;
+        }
       }
       const info = await transport.send({ account, credentials, draft });
-      if (protectedRaw) {
-        // The Sent copy is the message as it went, so it is read as its recipients read it.
-        const stored = parseMessage(protectedRaw);
-        stored.unread = false;
-        store.put(accountId, 'Sent', stored);
-        store.upsertFolder(accountId, { path: 'Sent', name: 'Sent', role: 'sent' });
-        return { messageId: info.messageId };
-      }
       // A sent message belongs in Sent whether or not the server puts it there.
-      const extra = [];
-      if (draft.inReplyTo) extra.push(`In-Reply-To: <${draft.inReplyTo}>`);
-      if (draft.references?.length) extra.push(`References: ${draft.references.map((r) => `<${r}>`).join(' ')}`);
-      for (const [k, v] of Object.entries(draft.headers || {})) extra.push(`${k}: ${v}`);
-      const stored = parseMessage(
-        `From: ${account.email}\r\nTo: ${draft.to}\r\nSubject: ${draft.subject || ''}\r\n` +
-          `Date: ${new Date(now()).toUTCString()}\r\nMessage-ID: <${info.messageId || crypto.randomUUID()}>\r\n` +
-          `${extra.length ? extra.join('\r\n') + '\r\n' : ''}\r\n${draft.text || ''}`
-      );
+      let stored;
+      if (made) {
+        // The Sent copy is the message as it went, so it is read as its recipients read it.
+        stored = parseMessage(made);
+      } else {
+        const extra = [];
+        if (draft.inReplyTo) extra.push(`In-Reply-To: <${draft.inReplyTo}>`);
+        if (draft.references?.length) extra.push(`References: ${draft.references.map((r) => `<${r}>`).join(' ')}`);
+        for (const [k, v] of Object.entries(draft.headers || {})) extra.push(`${k}: ${v}`);
+        stored = parseMessage(
+          `From: ${account.email}\r\nTo: ${draft.to}\r\nSubject: ${draft.subject || ''}\r\n` +
+            `Date: ${new Date(now()).toUTCString()}\r\nMessage-ID: <${info.messageId || crypto.randomUUID()}>\r\n` +
+            `${extra.length ? extra.join('\r\n') + '\r\n' : ''}\r\n${draft.text || ''}`
+        );
+      }
       stored.unread = false;
-      store.put(accountId, 'Sent', stored);
-      store.upsertFolder(accountId, { path: 'Sent', name: 'Sent', role: 'sent' });
+      const sent = folderFor(accountId, 'sent') || 'Sent';
+      const id = store.put(accountId, sent, stored) || messageKey(stored);
+      if (!(store.folders(accountId) || []).some((f) => f.path === sent)) store.upsertFolder(accountId, { path: sent, name: sent.split('/').pop(), role: 'sent' });
+      // And in Sent at the server, unless the server keeps its own copy of what it sends (Gmail, Outlook).
+      if (made && live(accountId) && !serverKeepsSent(account)) {
+        const file = store.writeOutgoing(accountId, `${id}.eml`, Buffer.isBuffer(made) ? made : Buffer.from(made));
+        if (mailSync.record(accountId, { kind: 'append', folder: sent, file, id, messageId: stored.messageId || null })) mailSync.kick(accountId);
+      }
       return { messageId: info.messageId };
     },
 
@@ -1417,7 +1639,14 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      * adds nothing, because a message's id is derived from the message.
      */
     import: ({ path: target, accountId, folders: only }) => {
-      const account = accountId ? find(accountId) : null;
+      // The same file imported again goes into the mailbox made from it the first time (A6.17):
+      // a second mailbox would hold every message twice, and "adds nothing" held only within one.
+      const samePath = (p) => {
+        const norm = (x) => path.resolve(String(x || ''));
+        return process.platform === 'win32' ? norm(p).toLowerCase() === norm(target).toLowerCase() : norm(p) === norm(target);
+      };
+      const earlier = accountId ? null : accounts().find((a) => a.local && a.imported && samePath(a.imported)) || null;
+      const account = accountId ? find(accountId) : earlier;
       const id = account
         ? account.id
         : (() => {
@@ -1456,17 +1685,17 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       }
       flush();
 
-      store.setFolders(
-        id,
-        [...seenFolders.entries()].map(([folderPath, meta]) => ({
-          path: folderPath,
-          name: folderPath.split('/').pop() || folderPath,
-          ...meta,
-        }))
-      );
+      // Into a mailbox that has folders already (imported before, or chosen): the ones it had are kept.
+      const had = account ? store.folders(id) || [] : [];
+      const seen = [...seenFolders.entries()].map(([folderPath, meta]) => ({
+        path: folderPath,
+        name: folderPath.split('/').pop() || folderPath,
+        ...meta,
+      }));
+      store.setFolders(id, [...had.map((f) => seen.find((s) => s.path === f.path) || f), ...seen.filter((s) => !had.some((f) => f.path === s.path))]);
 
       broadcast?.('mail:new', { accountId: id, count });
-      return { accountId: id, messages: count, folders: seenFolders.size };
+      return { accountId: id, messages: count, folders: seenFolders.size, again: Boolean(earlier) };
     },
 
     export: ({ accountId, folder, path: target, format = 'mbox' }) => {
@@ -1499,7 +1728,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const message = store.get(accountId, folder, id);
       const a = message?.attachments?.[index];
       if (!a?.stored) return null;
-      const bytes = fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored));
+      const bytes = store.attachmentBytes(accountId, folder, id, a.stored);
       // The window saves under this name, so it is one that cannot leave the
       // folder it is saved into, whatever the sender wrote.
       const name = attachmentFileName(a.filename);
@@ -1538,7 +1767,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
           await client?.logout().catch(() => {});
         }
       }
-      const text = rebuildSource(message, (a) => fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored)));
+      const text = rebuildSource(message, (a) => store.attachmentBytes(accountId, folder, id, a.stored));
       return { text, bytes: new TextEncoder().encode(text), from: 'rebuilt', reason };
     },
 
@@ -1560,7 +1789,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const message = store.get(accountId, folder, id);
       const a = message?.attachments?.[index];
       if (!a?.stored) return null;
-      return { name: a.filename, type: a.type, text: fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored), 'utf8') };
+      return { name: a.filename, type: a.type, text: store.attachmentBytes(accountId, folder, id, a.stored).toString('utf8') };
     },
 
     search: ({ accountId, query, limit }) => store.search(accountId, query, { limit }),
@@ -1571,6 +1800,12 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      * platform contract — nothing outside this file and its tests calls it.
      */
     pumpOutbox: () => pumpOutbox(),
+
+    /** The account's changes sent to its server now: { left } still waiting (the server away), { error } why. */
+    flushChanges: ({ accountId }) => mailSync.flush(accountId),
+
+    /** Where the account stands with its server: { waiting, offline, error, at }. */
+    syncState: ({ accountId }) => mailSync.state(accountId),
   };
 
   // Signed and encrypted mail (mail-smime.js): one's own certificates, other
@@ -1661,10 +1896,11 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     service.removeAccount = (args = {}) => {
       store.dropIndex(args.id);
       desk.dropAccount({ id: args.id }).catch(() => {});
+      mailSync.unwatch(args.id).catch(() => {});
       return remove(args);
     };
   }
-  for (const name of ['move', 'delete', 'markAllRead', 'emptyFolder', 'notJunk', 'runRules', 'export', 'listRecipient']) {
+  for (const name of ['move', 'delete', 'markAllRead', 'emptyFolder', 'createFolder', 'renameFolder', 'deleteFolder', 'notJunk', 'runRules', 'export', 'listRecipient']) {
     const own = service[name];
     service[name] = (args = {}) => (isArchive(args.accountId) ? desk.readOnly() : own(args));
   }
@@ -1710,6 +1946,68 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
   // Anything left over from the last run — including one that fell due while
   // the application was closed — goes out now.
   pumpOutbox().catch(() => {});
+
+  /*
+   * Mail fetches by itself (A6.2): a moment after Rutba Office starts, when
+   * the Mail window opens, every few minutes after (mail.fetchEvery, in
+   * minutes; 0 is only when Get mail is pressed), and, where the server
+   * offers IDLE, as soon as it says mail came (mail.push). So rules and the
+   * automatic replies run while Rutba Office is running, with nobody pressing
+   * Get mail. Each account is fetched by one job at a time (mail-sync.js);
+   * a fetch that fails is quiet, said in the account's state, not a box. A
+   * check run fetches by itself only from a server on this computer.
+   */
+  const FETCH_EVERY = 5;
+  const fetchEvery = () => {
+    const v = Number(stores.settings.get('mail.fetchEvery', FETCH_EVERY));
+    return Number.isFinite(v) && v >= 0 ? Math.min(v, 24 * 60) : FETCH_EVERY;
+  };
+  const pushOn = () => stores.settings.get('mail.push', true) !== false;
+  const fetchesByItself = (a) =>
+    Boolean(live(a.id)) &&
+    (!CHECK_RUN || /^(127\.0\.0\.1|localhost|::1)$/i.test(String(a.imap?.host || ''))) &&
+    (a.auth === 'oauth' || a.imap?.auth === 'oauth' || Boolean(stores.secrets.get(passwordKey(a.id))));
+  const fetchAll = () => {
+    let n = 0;
+    for (const a of accounts()) {
+      if (!fetchesByItself(a)) continue;
+      n++;
+      service.sync({ accountId: a.id }).catch(() => {});
+      if (pushOn()) mailSync.watch(a.id, (id) => service.sync({ accountId: id }).catch(() => {})).catch(() => {});
+    }
+    return n;
+  };
+  let fetchTimer = null;
+  const schedule = () => {
+    clearTimeout(fetchTimer);
+    fetchTimer = null;
+    const every = fetchEvery();
+    if (!autoFetch || !every) return;
+    fetchTimer = setTimeout(() => {
+      fetchAll();
+      schedule();
+    }, every * 60_000);
+    fetchTimer.unref?.();
+  };
+  Object.assign(service, {
+    /** How Mail fetches by itself: { every: minutes (0 only with Get mail), push: as the server says mail came }. */
+    fetchSettings: () => ({ every: fetchEvery(), push: pushOn() }),
+    setFetchSettings: ({ every = fetchEvery(), push = pushOn() } = {}) => {
+      const minutes = Math.max(0, Math.min(24 * 60, Math.round(Number(every) || 0)));
+      stores.settings.set('mail.fetchEvery', minutes);
+      stores.settings.set('mail.push', Boolean(push));
+      if (!push) for (const a of accounts()) mailSync.unwatch(a.id).catch(() => {});
+      schedule();
+      if (autoFetch && push) fetchAll();
+      return service.fetchSettings();
+    },
+    /** Every account fetched now, quietly (the Mail window opening): how many were asked. */
+    fetchNow: () => ({ accounts: autoFetch ? fetchAll() : 0 }),
+  });
+  if (autoFetch) {
+    setTimeout(fetchAll, CHECK_RUN ? 500 : 5000).unref?.();
+    schedule();
+  }
 
   return service;
 }

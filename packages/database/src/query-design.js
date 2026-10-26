@@ -36,6 +36,40 @@ export function splitNamedExpression(cell) {
   return m ? { as: m[1].trim(), expr: m[2].trim() } : { as: null, expr: s };
 }
 
+/** A column's keys the query designer sets, and the ones of its own it holds while the column is on screen. */
+const DESIGNER_SETS = ['table', 'field', 'expr', 'show', 'sort', 'total', 'decimals', 'criteria'];
+const DESIGNER_HOLDS = ['exprText'];
+
+/**
+ * The design the query designer saves: `columns` as it holds them (a field
+ * chosen, or an expression typed as "Name: expression" in `exprText`), the
+ * empty ones left out. What a column or the design has that the designer
+ * does not set (a field column's heading, or a key a newer version wrote)
+ * is kept as it was (A2.20), `kept` the design's own such keys.
+ */
+export function designerDesign(tables, columns, totals, kept = {}) {
+  const used = (c) => Boolean((c.table && c.field) || (c.exprText !== null && c.exprText !== undefined && String(c.exprText).trim()));
+  const top = Object.fromEntries(Object.entries(kept || {}).filter(([k]) => k !== 'tables' && k !== 'columns' && k !== 'sql'));
+  return {
+    ...top,
+    tables,
+    columns: columns.filter(used).map((c) => {
+      const expression = c.exprText !== null && c.exprText !== undefined;
+      const other = Object.fromEntries(Object.entries(c).filter(([k]) => !DESIGNER_SETS.includes(k) && !DESIGNER_HOLDS.includes(k) && !(expression && k === 'as')));
+      return {
+        ...other,
+        ...(expression ? splitNamedExpression(c.exprText) : { table: c.table, field: c.field }),
+        show: c.show,
+        sort: c.sort || null,
+        total: totals ? c.total || 'group' : null,
+        // Rounded where the person said so: an average spend to 2 places.
+        ...(c.decimals !== '' && c.decimals !== null && c.decimals !== undefined ? { decimals: Number(c.decimals) } : {}),
+        criteria: (c.criteria || []).filter((x, i, all) => String(x).trim() || all.slice(i + 1).some((y) => String(y).trim())),
+      };
+    }),
+  };
+}
+
 /** The aggregate each total names, in SQL. */
 const AGGREGATES = { sum: 'SUM', avg: 'AVG', count: 'COUNT', min: 'MIN', max: 'MAX' };
 /** A total's heading, as the designer's Total list names it: "Average of Total", "Sum of Quantity". */

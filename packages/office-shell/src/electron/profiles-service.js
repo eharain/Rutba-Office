@@ -15,7 +15,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { app, shell as electronShell } from 'electron';
 import {
-  readProfiles, profileFolder, makeProfile, renameProfile, setProfileColour, setOpenFirst, setProfileLock,
+  readProfiles, profileFolder, makeProfile, renameProfile, setProfileColour, setOpenFirst, rekeyProfile,
   removeProfile, removalRefused, isRunning, folderSize, makeLock, unlock, markUsed, PROFILES_FILE, DEFAULT_ID, COLOURS,
 } from '../profiles.js';
 
@@ -172,17 +172,17 @@ export function createProfilesService({ profile, stores, broadcast }) {
     /**
      * ({ password }) -> current. This profile asks for it before it opens from
      * now on, and its saved passwords, recent files, calendars, contacts and
-     * Talk messages are sealed with a key made from it. The lock is written
-     * first, then the files sealed: a stop between the two leaves a profile
-     * that asks for the password and still reads its plain files.
+     * Talk messages are sealed with a key made from it. Each of the three is
+     * written down first and the new lock put in last (profiles.js,
+     * rekeyProfile): a stop midway is finished at the next open, with either
+     * password, and no file is left sealed with a key the lock does not give.
      */
     setPassword: async ({ password } = {}) => {
       mustBeHere();
       if (profile.lock) throw new Error('This profile already has a password. Change it instead.');
       const { lock, key } = await makeLock(password);
-      setProfileLock(base, profile.id, lock);
-      profile.lock = lock;
-      await stores.vault.rekey(key);
+      await stores.vault.prepare?.(key);
+      profile.lock = await rekeyProfile({ base, id: profile.id, vault: stores.vault, from: null, to: key, lock, folder: stores.dir });
       return tell();
     },
 
@@ -190,11 +190,11 @@ export function createProfilesService({ profile, stores, broadcast }) {
     changePassword: async ({ old, password } = {}) => {
       mustBeHere();
       if (!profile.lock) throw new Error('This profile has no password yet.');
-      if (!(await unlock(profile.lock, old))) throw new Error('The current password is not right.');
+      const from = await unlock(profile.lock, old);
+      if (!from) throw new Error('The current password is not right.');
       const { lock, key } = await makeLock(password);
-      setProfileLock(base, profile.id, lock);
-      profile.lock = lock;
-      await stores.vault.rekey(key);
+      await stores.vault.prepare?.(key);
+      profile.lock = await rekeyProfile({ base, id: profile.id, vault: stores.vault, from, to: key, lock, folder: stores.dir });
       return tell();
     },
 
@@ -203,9 +203,8 @@ export function createProfilesService({ profile, stores, broadcast }) {
       mustBeHere();
       if (!profile.lock) return current();
       if (!(await unlock(profile.lock, old))) throw new Error('The current password is not right.');
-      await stores.vault.rekey(null);
-      setProfileLock(base, profile.id, null);
-      profile.lock = null;
+      await stores.vault.prepare?.(null);
+      profile.lock = await rekeyProfile({ base, id: profile.id, vault: stores.vault, from: null, to: null, lock: null, folder: stores.dir });
       return tell();
     },
   };

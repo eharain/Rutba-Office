@@ -8,6 +8,7 @@
 
 import { createMailService } from './mail.js';
 import { createDiscoveryService } from './discover.js';
+import { checkTransport } from './check-smtp.js';
 
 /** The address book as Mail reaches it: no cards while Contacts is absent. */
 export function contactsFor(packs) {
@@ -24,6 +25,8 @@ export function register(core) {
       userData: stores.dir,
       oauth,
       contacts: contactsFor(packs),
+      // The app checks' way out: nothing sent, or to the test server a check starts on this computer (check-smtp.js).
+      ...(process.env.RUTBA_OFFICE_VERIFY_APPS ? { smtp: checkTransport() } : {}),
     }),
     // What other mail clients have left on this computer.
     discover: createDiscoveryService(),

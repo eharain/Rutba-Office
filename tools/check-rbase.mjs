@@ -17,15 +17,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /** The design version this checker knows: the specification's version. */
-export const SPEC_VERSION = 6;
+export const SPEC_VERSION = 7;
 
 /** The field types of section 2.2. */
 export const FIELD_TYPES = ['autonumber', 'text', 'longtext', 'number', 'integer', 'currency', 'date', 'datetime', 'yesno'];
 
 /**
- * The design tables of section 3: the version that added each, whether it is
- * made only when first needed, and its columns (those a file must have; the
- * `later` ones were added within the version and may be absent).
+ * The design tables of section 3: the version that added each and its
+ * columns. `later` columns came with design version 7 (`laterSince`); a file
+ * of version 6 written by Rutba Office 2.18.0 may have them or not, as it
+ * may have the tables of version 7.
  */
 export const DESIGN_TABLES = {
   rutba_meta: { since: 1, columns: ['key', 'value'] },
@@ -41,9 +42,9 @@ export const DESIGN_TABLES = {
   rutba_people: { since: 5, columns: ['id', 'name', 'role', 'hash', 'account', 'created'] },
   rutba_trail: { since: 5, columns: ['n', 'at', 'person', 'tbl', 'row', 'action', 'detail'] },
   rutba_links: { since: 6, columns: ['id', 'name', 'engine', 'settings', 'position'] },
-  rutba_linked: { since: 6, columns: ['tbl', 'link', 'remote', 'key', 'caption', 'position'], later: ['mode', 'stamp', 'synced'] },
-  rutba_sync: { since: 6, whenNeeded: true, columns: ['tbl', 'rid', 'kj', 'hash', 'state', 'n', 'since'] },
-  rutba_clashes: { since: 6, whenNeeded: true, columns: ['id', 'tbl', 'kj', 'at', 'action', 'mine', 'theirs', 'why'] },
+  rutba_linked: { since: 6, columns: ['tbl', 'link', 'remote', 'key', 'caption', 'position'], later: ['mode', 'stamp', 'synced'], laterSince: 7 },
+  rutba_sync: { since: 7, columns: ['tbl', 'rid', 'kj', 'hash', 'state', 'n', 'since'] },
+  rutba_clashes: { since: 7, columns: ['id', 'tbl', 'kj', 'at', 'action', 'mine', 'theirs', 'why'] },
 };
 
 const ENGINES = ['postgres', 'mysql'];
@@ -152,18 +153,19 @@ function check(db, problem, note, out) {
   const cols = {};
   for (const [name, t] of Object.entries(DESIGN_TABLES)) {
     if (!hasTable(name)) {
-      if (t.since <= v && !t.whenNeeded) problem(`${name} is missing: a file of design version ${v} has it.`);
+      if (t.since <= v) problem(`${name} is missing: a file of design version ${v} has it.`);
       continue;
     }
     const have = columnsOf(name).map((c) => c.name);
     cols[name] = new Set(have);
     for (const c of t.columns) if (!cols[name].has(c)) problem(`${name} has no column ${c}.`);
+    if (t.laterSince && t.laterSince <= v) for (const c of t.later) if (!cols[name].has(c)) problem(`${name} has no column ${c}: a file of design version ${v} has it.`);
     for (const c of have) if (!t.columns.includes(c) && !(t.later || []).includes(c)) note(`${name} has a column this specification does not name, ${c}: a reader keeps it.`);
   }
   for (const name of tableNames) {
     if (/^rutba_/i.test(name) && !DESIGN_TABLES[name]) note(`${name} is a design table this specification does not name: a reader ignores it and keeps it.`);
   }
-  if (hasTable('rutba_sync') && cols.rutba_linked) {
+  if (v < DESIGN_TABLES.rutba_linked.laterSince && hasTable('rutba_sync') && cols.rutba_linked) {
     for (const c of DESIGN_TABLES.rutba_linked.later) if (!cols.rutba_linked.has(c)) problem(`rutba_linked has no column ${c}, which a file with rutba_sync has.`);
   }
   const read = (table, order = '') => (hasTable(table) ? all(`SELECT * FROM ${table}${order}`) : []);

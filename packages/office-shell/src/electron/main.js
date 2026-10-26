@@ -13,7 +13,7 @@ import { app, BrowserWindow, Menu, dialog, nativeTheme, shell as electronShell }
 import path from 'node:path';
 import fs from 'node:fs';
 import { createStores } from './store.js';
-import { createVault, profileArg } from '../profiles.js';
+import { createVault, profileArg, needsPassword, finishRekey } from '../profiles.js';
 import { askProfilePassword } from './profile-lock.js';
 import { createProfilesService } from './profiles-service.js';
 import { LINK_SCHEME, parseLink } from '../links.js';
@@ -357,16 +357,21 @@ export function createShell({
     // A profile with a password asks for it before anything of it is read:
     // the key it makes opens the files sealed with it. Cancelled, this Rutba
     // Office goes and the profile is left as it was.
+    // A password change a crash stopped midway (profiles.js, rekeyProfile)
+    // is finished once every service has its files: until then the vault
+    // reads them with the old key and the new.
     let key = null;
-    if (profile?.lock) {
-      key = await askProfilePassword({ profile, iconPath, onWindow: (w) => { lockWindow = w; } });
+    let rekey = null;
+    if (needsPassword(profile)) {
+      const opened = await askProfilePassword({ profile, iconPath, onWindow: (w) => { lockWindow = w; } });
       lockWindow = null;
-      if (!key) {
+      if (!opened) {
         app.quit();
         return;
       }
+      ({ key, rekey } = opened);
     }
-    stores = createStores({ vault: createVault({ key }) });
+    stores = createStores({ vault: createVault({ key, also: rekey ? [rekey.from] : [] }) });
     key = null;
 
     // Thumbnails live in the profile, keyed by the file they are of, so a
@@ -454,6 +459,16 @@ export function createShell({
     } catch (err) {
       record('namespaces', err);
     }
+    if (rekey) {
+      try {
+        profile.lock = await finishRekey({ base: profile.base, id: profile.id, vault: stores.vault, keys: rekey, folder: stores.dir });
+        profile.rekey = null;
+      } catch (err) {
+        // Left noted: the next open tries again, and the old key still reads what was not sealed again.
+        record('profiles', err);
+      }
+      rekey = null;
+    }
     // Merged per namespace, not over it. A host that adds one method to a
     // namespace the shell already has — printing a document beside printing
     // a window — must not take the shell's own methods away with it.
@@ -516,3 +531,5 @@ export function createShell({
 }
 
 export { fileUrl, holdBlob, releaseBlob, blobUrl, sendEvent, broadcast, path };
+// The bytes behind a held blob, for the main process's own readers (the AI tools read an attachment so).
+export { heldBlob } from './blobs.js';

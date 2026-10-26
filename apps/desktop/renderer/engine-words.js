@@ -97,6 +97,13 @@ export const ENGINE_WORDS = [
   msg('That PDF is no longer open.'),
   msg('{name} is not a PDF.'),
   msg('{name} could not be read as a PDF: {reason}'),
+  // packages/database/src/base.js and apps/desktop/main/base.js: files made elsewhere (A2.20)
+  msg('This database was made by a newer version of Rutba Office (design version {version}; this one knows up to {known}). Update Rutba Office to open it. Nothing in it was changed.'),
+  msg('This database says its design version is "{version}", which no version of Rutba Office writes. It was not opened, and nothing in it was changed.'),
+  msg('This database was made by another program. Open it to read it, or make a Data Files copy of it to change its design.'),
+  msg('This database was made by another program, so its design is not changed here. Make a Data Files copy of it to change its design.'),
+  msg('This database was made by another program and is open read only. Allow changes to change its records.'),
+  msg('The Data Files copy needs a file of its own. Choose another name or folder.'),
   // packages/pdf/src/textlayer.js (through apps/desktop/main/pdf.js)
   msg('A text layer cannot be added to a PDF protected with a password.'),
   msg('This PDF\'s cross-references are damaged, so a text layer cannot be added to it as it is. Save a copy first, then recognise the copy.'),

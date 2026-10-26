@@ -44,6 +44,7 @@ import { verifyBaseEngineLink } from './verify-base-engine-link.js';
 import { verifyBaseEngineCopy } from './verify-base-engine-copy.js';
 import { verifyBaseSources } from './verify-base-sources.js';
 import { verifyBaseTrust } from './verify-base-trust.js';
+import { verifyBaseElsewhere } from './verify-base-elsewhere.js';
 import { verifyBaseFormLists } from './verify-base-form-lists.js';
 import { verifyBaseFormsAll } from './verify-base-forms-all.js';
 import { verifyBaseOrigin } from './verify-base-origin.js';
@@ -216,6 +217,7 @@ import { verifyWordTabKeys } from './verify-word-tab-keys.js';
 import { verifyWordModifyStyle } from './verify-word-modify-style.js';
 import { verifyWordReview } from './verify-word-review.js';
 import { verifyWordSaveAs } from './verify-word-save-as.js';
+import { verifyStrictSave } from './verify-strict-save.js';
 import { verifyDeckSmartArt } from './verify-deck-smartart.js';
 import { verifyWordSmartArt } from './verify-word-smartart.js';
 import { verifySheetSmartArt } from './verify-sheet-smartart.js';
@@ -235,9 +237,11 @@ import { verifyWordTable } from './verify-word-table.js';
 import { verifyMailJunk } from './verify-mail-junk.js';
 import { verifyMailLinks } from './verify-mail-links.js';
 import { verifyAiTools } from './verify-ai-tools.js';
+import { verifyAiReach, verifyAiReachApps } from './verify-ai-reach.js';
 import { verifyProfiles } from './verify-profiles.js';
 import { verifyPacks } from './verify-packs.js';
 import { verifyMailWindow } from './verify-mail-window.js';
+import { verifyMailSync } from './verify-mail-sync.js';
 import { verifyMailDrafts } from './verify-mail-drafts.js';
 import { verifyMailArchive } from './verify-mail-archive.js';
 import { verifyMailIndexWorker } from './verify-mail-index-worker.js';
@@ -4959,7 +4963,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,ai-tools,profiles: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,ai-tools,ai-reach,profiles: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -5132,6 +5136,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('base-engine-copy')) await verifyBaseEngineCopy({ open, check, until, wait }, { dir });
     if (only.includes('base-sources')) await verifyBaseSources({ open, check, until, wait }, { dir });
     if (only.includes('base-trust')) await verifyBaseTrust({ open, check, until, wait }, { dir });
+    if (only.includes('base-elsewhere')) await verifyBaseElsewhere({ open, check, until, wait }, { dir });
     if (only.includes('base-form-lists')) await verifyBaseFormLists({ open, check, until, wait }, { dir });
     if (only.includes('base-origin')) await verifyBaseOrigin({ open, check, until, wait }, { dir });
     if (only.includes('base-reports')) await verifyBaseReports({ open, check, until, wait }, { dir });
@@ -5175,6 +5180,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordmodifystyle')) await verifyWordModifyStyle({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('wordreview')) await verifyWordReview({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('wordsaveas')) await verifyWordSaveAs({ open, check, until, wait, press, errorsIn }, { dir });
+    if (only.includes('strictsave')) await verifyStrictSave({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('decksmartart')) await verifyDeckSmartArt({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('wordsmartart')) await verifyWordSmartArt({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('sheetsmartart')) await verifySheetSmartArt({ open, check, until, wait, doc, sessionFor }, { dir });
@@ -5194,9 +5200,14 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('junk')) await verifyMailJunk({ open, check, until, wait, errorsIn });
     if (only.includes('mail-links')) await verifyMailLinks({ open, check, until, wait, errorsIn });
     if (only.includes('ai-tools')) await verifyAiTools({ open, check, until, wait, errorsIn });
+    if (only.includes('ai-reach')) {
+      await verifyAiReach({ open, check, until, wait, errorsIn });
+      await verifyAiReachApps({ open, check, until, wait, errorsIn });
+    }
     if (only.includes('profiles')) await verifyProfiles({ open, check, until, wait, capture: shotTo });
     if (only.includes('packs')) await verifyPacks({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('mail-window')) await verifyMailWindow({ open, check, until, wait, errorsIn });
+    if (only.includes('mail-sync')) await verifyMailSync({ open, check, until, wait, errorsIn });
     if (only.includes('mail-drafts')) await verifyMailDrafts({ open, check, until, wait, errorsIn });
     if (only.includes('mail-archive')) await verifyMailArchive({ open, check, until, wait, errorsIn });
     if (only.includes('mail-index-worker')) await verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo });
@@ -5548,6 +5559,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('base', () => verifyBaseEngineCopy({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseSources({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseTrust({ open, check, until, wait }, { dir }));
+  await part('base', () => verifyBaseElsewhere({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseFormLists({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseOrigin({ open, check, until, wait }, { dir }));
   await part('base', () => verifyBaseReports({ open, check, until, wait }, { dir }));
@@ -5583,6 +5595,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => verifyWordModifyStyle({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyWordReview({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordSaveAs({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('word', () => verifyStrictSave({ open, check, until, wait, errorsIn }, { dir }));
   await part('slides', () => verifyDeckSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetSmartArt({ open, check, until, wait, doc, sessionFor }, { dir }));
@@ -7371,7 +7384,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('mail', () => verifyMailAccountsManager({ open, check, until, wait, errorsIn }));
   // AI Tools and S/MIME run inside Mail's section, so they are counted as its part.
   await part('mail', () => verifyAiTools({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyAiReach({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyAiReachApps({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailWindow({ open, check, until, wait, errorsIn }));
+  await part('mail', () => verifyMailSync({ open, check, until, wait, errorsIn }));
   await part('mail', () => verifyMailDrafts({ open, check, until, wait, errorsIn }));
   await verifyMailArchive({ open, check, until, wait, errorsIn });
   await part('mail', () => verifyMailIndexWorker({ open, check, until, wait, errorsIn, capture: shotTo }));

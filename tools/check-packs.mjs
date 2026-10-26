@@ -35,8 +35,9 @@ import { packFiles } from '../packages/office-shell/src/electron/pack-install.js
 import { PACKS, NAMESPACE_PACK, EVENT_PACK, coreMethods } from '../packages/office-shell/src/contract.js';
 import { fileAssociations, openFilters, APP_EXTENSIONS, OLD_EXTENSIONS } from '../packages/office-formats/src/registry.js';
 import { planPacks, readPackKeys } from '../apps/desktop/main/app-packs.js';
-import { TOOL_PACK, LOADED_KEY, toolOffered } from '../apps/desktop/main/pack-tools.js';
+import { TOOL_PACK, TOOL_NEEDS, LOADED_KEY, toolOffered } from '../apps/desktop/main/pack-tools.js';
 import { TOOL_LIST } from '../apps/desktop/main/mcp/tools.js';
+import { REACH_TOOL_LIST } from '../apps/desktop/main/mcp/reach-tools.js';
 import { ROOT, homeOf, mapImports } from './app-map.mjs';
 
 const DESKTOP = path.join(ROOT, 'apps', 'desktop');
@@ -201,7 +202,7 @@ function aloneIn(packsDir, ids, into) {
 }
 
 /** What one pack started alone offers, and what of it is another app's. */
-export function checkAlone({ id, packsDir, keys, version, scratch, toolNames = TOOL_LIST.map((t) => t.name) }) {
+export function checkAlone({ id, packsDir, keys, version, scratch, toolNames = [...TOOL_LIST, ...REACH_TOOL_LIST].map((t) => t.name) }) {
   const failures = [];
   const fail = (what) => failures.push(`${nameOf(id)} alone: ${what}`);
   const manifest = JSON.parse(fs.readFileSync(path.join(packsDir, packFiles(id).manifest), 'utf8')).manifest;
@@ -243,9 +244,15 @@ export function checkAlone({ id, packsDir, keys, version, scratch, toolNames = T
   const offered = toolNames.filter((n) => toolOffered(n, settings));
   for (const n of offered) if (!mine.has(TOOL_PACK[n] || 'ai')) fail(`offers the AI tool ${n}, which is ${nameOf(TOOL_PACK[n] || 'ai')}'s`);
   if (!mine.has('ai') && offered.length) fail(`offers AI tools without AI Tools: ${offered.join(', ')}`);
+  // With AI Tools: no tool that reaches into an app that is not there.
   const withAi = { [LOADED_KEY]: [...plan.ids(), 'ai'] };
+  for (const n of toolNames.filter((x) => toolOffered(x, withAi))) {
+    const missing = (TOOL_NEEDS[n] || []).filter((x) => !withAi[LOADED_KEY].includes(x));
+    if (missing.length) fail(`offers the AI tool ${n} with ${missing.map(nameOf).join(' and ')} not installed`);
+  }
   const tools = toolNames.filter((n) => (TOOL_PACK[n] || 'ai') === id);
-  for (const n of tools) if (!toolOffered(n, withAi)) fail(`its own AI tool ${n} is not offered with AI Tools there`);
+  const reachable = (n) => (TOOL_NEEDS[n] || []).every((x) => withAi[LOADED_KEY].includes(x));
+  for (const n of tools.filter(reachable)) if (!toolOffered(n, withAi)) fail(`its own AI tool ${n} is not offered with AI Tools there`);
 
   return { id, loaded: plan.ids(), channels, tiles: loaded.flatMap((p) => p.tiles || []).length, fileTypes: loaded.flatMap((p) => p.fileTypes || []).length, tools, failures };
 }

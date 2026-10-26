@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { Base } from '../packages/database/src/index.js';
+import { Base, replaceRows, markSynced, reconcile } from '../packages/database/src/index.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SAMPLES_DIR = path.join(ROOT, 'docs', 'data-files-format', 'samples');
@@ -120,6 +120,26 @@ function protection(base) {
   base.update('Customers', id, { Notes: 'This change is in the trail.' });
 }
 
+/**
+ * Design version 7's copies and sources (section 9): a CSV file's rows kept
+ * as a copy, an engine's table kept as a copy with a change made here still
+ * to send, and one read live, of which nothing is in the file. The addresses
+ * are examples; no secret is kept.
+ */
+function copiesAndSources(base) {
+  const csv = base.saveLink({ name: 'Price list', engine: 'file', settings: { where: 'C:/Example/prices.csv', sheet: null, header: 1, every: 15 } });
+  const priceFields = [{ name: 'Item', type: 'text' }, { name: 'Price', type: 'currency' }];
+  base.linkTable({ table: 'Prices', link: csv, remote: { sheet: null }, key: null, fields: priceFields, mode: 'copy' });
+  replaceRows(base, 'Prices', [{ Item: 'Tea', Price: 2.5 }, { Item: 'Cake', Price: 3.25 }], priceFields);
+  markSynced(base, 'Prices');
+  const pg = base.saveLink({ name: 'Head office', engine: 'postgres', settings: { host: 'db.example.com', port: 5432, database: 'shop', user: 'reader', ssl: true } });
+  const stockFields = [{ name: 'id', type: 'integer' }, { name: 'Item', type: 'text' }, { name: 'Count', type: 'integer' }];
+  base.linkTable({ table: 'Stock', link: pg, remote: { schema: 'public', name: 'stock' }, key: 'id', fields: stockFields, mode: 'copy' });
+  reconcile(base, 'Stock', { rows: [{ id: 1, Item: 'Tea', Count: 40 }, { id: 2, Item: 'Cake', Count: 12 }] }, { fields: stockFields, key: 'id' });
+  base.update('Stock', 2, { Count: 11 });
+  base.linkTable({ table: 'Orders Live', link: pg, remote: { schema: 'public', name: 'orders' }, key: 'id', fields: [{ name: 'id', type: 'integer' }, { name: 'Total', type: 'currency' }] });
+}
+
 /** A database made by `make` at `file`, then left as one self-contained file in rollback journal mode. */
 function build(file, make) {
   for (const s of ['', '-wal', '-shm', '-journal']) fs.rmSync(file + s, { force: true });
@@ -135,13 +155,14 @@ function build(file, make) {
   return file;
 }
 
-/** Make the three samples in `dir`. Answers their paths. */
+/** Make the four samples in `dir`. Answers their paths. */
 export function makeSamples(dir = SAMPLES_DIR) {
   fs.mkdirSync(dir, { recursive: true });
   return [
     build(path.join(dir, 'plain-tables.rbase'), (b) => tablesAndRecords(b)),
     build(path.join(dir, 'query-form-report.rbase'), (b) => { tablesAndRecords(b); designs(b); }),
     build(path.join(dir, 'protected.rbase'), (b) => { tablesAndRecords(b); designs(b); protection(b); }),
+    build(path.join(dir, 'copies-and-sources.rbase'), (b) => { tablesAndRecords(b); copiesAndSources(b); }),
   ];
 }
 
