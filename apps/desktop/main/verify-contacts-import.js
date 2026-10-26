@@ -104,8 +104,10 @@ export async function verifyContactsImport({ open, check, until, wait, errorsIn 
     await wait(150);
     await js(`document.querySelector('.dav-add').click(), 'add'`);
     await until(() => js(`Boolean(document.querySelector('.dav-account .dav-name'))`), 'the account listed', 10000).catch(() => {});
-    const added = await js(`({ name: document.querySelector('.dav-account .dav-name')?.textContent, book: document.querySelector('.dav-default-book')?.selectedOptions[0]?.textContent, error: document.querySelector('.dav-error')?.textContent || '' })`);
-    check('contacts: an account is called what the person names it, and new cards go to its address book', added.name === 'Family' && added.book === 'Friends', JSON.stringify(added));
+    await until(() => js(`Boolean(document.querySelector('.dav-default-where'))`), 'where new cards go', 4000).catch(() => {});
+    const added = await js(`({ name: document.querySelector('.dav-account .dav-name')?.textContent, book: document.querySelector('.dav-default-book')?.selectedOptions[0]?.textContent, where: document.querySelector('.dav-default-where')?.textContent || '', error: document.querySelector('.dav-error')?.textContent || '' })`);
+    check('contacts: an account added in a new profile is called what the person names it, and new cards go to its address book, said plainly',
+      added.name === 'Family' && added.book === 'Family: Friends' && /sent to Friends on the server of Family/.test(added.where), JSON.stringify(added));
     await js(`document.querySelector('.dav-rename-start')?.click(), 'rename'`);
     await until(() => js(`Boolean(document.querySelector('input.dav-rename'))`), 'the name to change', 3000).catch(() => {});
     await type('input.dav-rename', 'Home');
@@ -114,6 +116,11 @@ export async function verifyContactsImport({ open, check, until, wait, errorsIn 
     await until(() => js(`document.querySelector('.dav-account .dav-name')?.textContent === 'Home'`), 'the new name', 4000).catch(() => {});
     const renamed = await js(`(async () => ({ shown: document.querySelector('.dav-account .dav-name')?.textContent, kept: (await window.rutbaOffice.dav.accounts()).map((a) => a.name) }))()`);
     check('contacts: Rename in Accounts changes the account\'s name', renamed.shown === 'Home' && JSON.stringify(renamed.kept) === '["Home"]', JSON.stringify(renamed));
+    await js(`(() => { const s = document.querySelector('.dav-default-book'); if (!s) return false; Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, ''); s.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+    await until(() => js(`/stay on this computer/.test(document.querySelector('.dav-default-where')?.textContent || '')`), 'new cards kept here', 4000).catch(() => {});
+    const here = await js(`(async () => ({ where: document.querySelector('.dav-default-where')?.textContent || '', label: document.querySelector('.dav-default-book option:not([value=""])')?.textContent, kept: (await window.rutbaOffice.dav.books()).defaultBook }))()`);
+    check('contacts: "This computer only" chosen in Accounts says new cards stay here, and books carry their account\'s name',
+      /stay on this computer and are not sent/.test(here.where) && here.label === 'Home: Friends' && here.kept === null, JSON.stringify(here));
     await js(`[...document.querySelectorAll('.dav-account .rw-btn')].find((b) => b.textContent.trim() === 'Remove')?.click(), 'removed'`);
     await until(() => js(`!document.querySelector('.dav-account')`), 'the account gone', 4000).catch(() => {});
     await click('.rw-dialog .rw-btn', 'Close');

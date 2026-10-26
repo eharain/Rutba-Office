@@ -264,7 +264,7 @@ export const METHODS = {
     'remove',         // ({ id }) -> { removed }   its calendars and cards with it
     'sync',           // ({ id }) -> [{ id, sent, received, removed, conflicts } | { id, error }]
     'books',          // () -> { books, defaultBook }
-    'setDefaultBook', // ({ id }) -> id   where a new card goes; null for this computer only (until chosen, an account's first book)
+    'setDefaultBook', // ({ id }) -> id   where a new card goes; null for this computer only (until chosen, the first book of an account added from 2.19 on; a store from before keeps this computer)
   ],
   update: [
     'state',        // () -> { state, version, available, percent, automatic }

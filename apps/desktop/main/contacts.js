@@ -70,7 +70,9 @@ export function createContactsService({ stores, broadcast, people = null }) {
   const readJson = vault ? vault.readJson : readPlain;
   const writeJson = vault ? vault.writeJson : writePlain;
   const writeJsonLater = vault ? vault.writeJsonLater : writePlainLater;
-  const state = readJson(file, { contacts: [] });
+  const blank = { contacts: [] };
+  const state = readJson(file, blank);
+  const kept = state !== blank;
   if (!Array.isArray(state.contacts)) state.contacts = [];
 
   const hooks = { local: null };
@@ -96,6 +98,17 @@ export function createContactsService({ stores, broadcast, people = null }) {
     }
     broadcast?.('contacts:changed', { count: state.contacts.length });
   };
+  // Once, the first time 2.19 opens a store kept from before it: new cards
+  // stay where they went, this computer unless a book was chosen, recorded
+  // as 'local', so the account default 2.19 brought (dav-sync.js) never
+  // starts sending them to a server unasked. A store 2.19 makes is new.
+  if (!state.newCardsSettled) {
+    state.newCardsSettled = 1;
+    if (kept) {
+      if (!(state.books || []).some((b) => b.id === state.defaultBook)) state.defaultBook = 'local';
+      save();
+    }
+  }
   // A card an account brings (dav-sync.js) names its address book in `book`;
   // a change made here to one is queued — the card's id in `dirty`, a removed
   // one's address in `deleted` — for the next sync to send.

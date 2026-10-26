@@ -76,15 +76,21 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
   }
 
   /**
-   * Where a new card goes, until the person chooses: the first address book
-   * an account brought, once there is one, as Outlook puts new contacts in
-   * the account's. "This computer only", chosen, is kept as 'local'.
+   * Where a new card goes. An account added from 2.19 on, while nothing is
+   * chosen, takes new cards into its first address book, as Outlook puts
+   * new contacts in the account's: its id waits in defaultAccount until its
+   * books are in. Nothing else sends them to a server unasked: a chosen book
+   * that went leaves new cards on this computer, another account's book is
+   * never picked for it, and "This computer only" is kept as 'local', which
+   * a setup from before 2.19 was marked as once (contacts.js).
    */
   function defaultToABook() {
     const state = con.state();
     const books = state.books || [];
-    if (state.defaultBook === 'local' || books.some((b) => b.id === state.defaultBook)) return;
-    state.defaultBook = books[0]?.id || null;
+    if (state.defaultBook && state.defaultBook !== 'local' && !books.some((b) => b.id === state.defaultBook)) state.defaultBook = null;
+    if (state.defaultBook || !state.defaultAccount) return;
+    const first = books.find((b) => b.account === state.defaultAccount);
+    if (first) { state.defaultBook = first.id; delete state.defaultAccount; }
   }
 
   /** One calendar: what changed here sent, then what changed there fetched. Answers counts. */
@@ -284,6 +290,7 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
       const acc = { id, url: String(url).trim(), user, name: String(name || '').trim() || new URL(client.origin()).hostname, addedAt: Date.now(), calendars: calendars.length, books: books.length };
       stores.secrets.set(secretKey(id), password);
       write([...read(), acc]);
+      if (con && books.length && !con.state().defaultBook) con.state().defaultAccount = id;
       const [result] = await sync({ id });
       return { ...listed().find((a) => a.id === id), result };
     },
@@ -318,7 +325,8 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
         const books = new Set((state.books || []).filter((b) => b.account === id).map((b) => b.id));
         state.books = (state.books || []).filter((b) => !books.has(b.id));
         state.contacts = state.contacts.filter((c) => !books.has(c.book));
-        if (books.has(state.defaultBook)) { state.defaultBook = null; defaultToABook(); }
+        if (books.has(state.defaultBook)) state.defaultBook = null;
+        if (state.defaultAccount === id) delete state.defaultAccount;
         con.save();
       }
       announce();
@@ -333,6 +341,7 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
     setDefaultBook: ({ id = null }) => {
       if (!con) return null;
       con.state().defaultBook = id && (con.state().books || []).some((b) => b.id === id) ? id : 'local';
+      delete con.state().defaultAccount;
       con.save();
       return con.state().defaultBook === 'local' ? null : con.state().defaultBook;
     },

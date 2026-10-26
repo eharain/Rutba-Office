@@ -4,8 +4,10 @@
 // and a password (an app password, for iCloud and the like), and its
 // calendars and address books come in at once. Each is called what the
 // person names it (the server's name when left blank), and Rename changes
-// that later. In Contacts, where a new card goes is chosen here too (an
-// account's first address book until it is), and in both what the AI tools
+// that later. In Contacts, where a new card goes is chosen here too, and
+// said in a sentence: this computer, or which account's server (an account
+// added from 2.19 on takes them until chosen; a setup from before keeps
+// them here, dav-sync.js). In both, what the AI tools
 // may do with each calendar or address book (ai-tools.js: the same settings
 // AI Tools lists).
 
@@ -40,6 +42,17 @@ export function AccountsDialog({ shell, kind = 'calendar', toast, onClose }) {
   }, [shell, kind]);
   useEffect(() => { refresh(); }, [refresh]);
   useEffect(() => shell.on('dav:changed', refresh), [shell, refresh]);
+
+  // An address book named with its account, since two servers may each call theirs "Contacts".
+  const accountOf = (b) => accounts.find((a) => a.id === b.account)?.name || '';
+  const bookLabel = (b) => (accountOf(b) ? t('{account}: {book}', { account: accountOf(b), book: b.name }) : b.name);
+  /** Where a new card goes, said plainly: kept here, or sent to which account's server. */
+  const where = ({ books: list, defaultBook }) => {
+    const b = list.find((x) => x.id === defaultBook);
+    return b
+      ? t('New cards are sent to {book} on the server of {account}.', { book: b.name, account: accountOf(b) || b.name })
+      : t('New cards stay on this computer and are not sent to any server.');
+  };
 
   const add = async () => {
     if (!url.trim()) return;
@@ -108,10 +121,10 @@ export function AccountsDialog({ shell, kind = 'calendar', toast, onClose }) {
           </div>
         )) : <div style={{ opacity: 0.75 }}>{t('No accounts yet. Your calendars and contacts stay on this computer until you add one.')}</div>}
         {kind === 'contacts' && books.books.length ? (
-          <Field label={t('New cards go to')}>
+          <Field label={t('New cards go to')} hint={<span className="dav-default-where">{where(books)}</span>}>
             <Select className="dav-default-book" value={books.defaultBook || ''} onChange={async (e) => { await shell.dav.setDefaultBook({ id: e.target.value || null }); refresh(); }}>
               <option value="">{t('This computer only')}</option>
-              {books.books.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              {books.books.map((b) => <option key={b.id} value={b.id}>{bookLabel(b)}</option>)}
             </Select>
           </Field>
         ) : null}
