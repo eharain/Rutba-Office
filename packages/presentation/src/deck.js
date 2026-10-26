@@ -3724,7 +3724,12 @@ export class Deck {
     return id;
   }
 
-  /** Record → Clear → narration: the slide's recorded voice taken off, its timing with it. Answers how many went. */
+  /**
+   * Record → Clear → narration: the slide's recorded voice taken off, and
+   * the timing recording it gave the slide with it (its Advance After). A
+   * slide with no narration is left as it is, its timing too. Answers how
+   * many went.
+   */
   clearNarration(index) {
     const entry = this.slideParts[index];
     if (!entry) return 0;
@@ -3734,6 +3739,7 @@ export class Deck {
       this.removeShapeAnimations(index, sid);
       this.removeShape(index, sid);
     }
+    if (ids.length) this.setTransition(index, { advanceAfter: null });
     return ids.length;
   }
 

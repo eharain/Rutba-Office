@@ -85,6 +85,16 @@ export async function verifyDeckNarration(h, { dir }) {
     await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Clear Narration on All Slides'))`), 'the menu', 3000).catch(() => {});
     await pick('Clear Narration on All Slides');
     const noNarration = await until(() => !model(0).slide?.shapes?.some(named) && !model(1).slide?.shapes?.some(named), 'the narration cleared', 5000).then(() => true).catch(() => false);
+    // The timing each narration gave its slide went with it, and the window said so.
+    const timingWent = await until(() => model(0).slide?.transition?.advanceAfter == null && model(1).slide?.transition?.advanceAfter == null, 'the narrated timings cleared', 5000).then(() => true).catch(() => false);
+    const saidCleared = await until(() => js(`[...document.querySelectorAll('.rw-toast')].map((n) => n.textContent).join(' | ')`).then((s) => (/Narrations cleared from 2 slides/.test(s) ? s : null)), 'the toast', 4000).catch(() => null);
+    // Again, with nothing left to clear: said so, not "cleared".
+    await press('Record', 'Clear Recording');
+    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Clear Narration on Current Slide'))`), 'the menu', 3000).catch(() => {});
+    await pick('Clear Narration on Current Slide');
+    const saidNone = await until(() => js(`[...document.querySelectorAll('.rw-toast')].map((n) => n.textContent).join(' | ')`).then((s) => (/has no narration to clear/.test(s) ? s : null)), 'the nothing-to-clear toast', 4000).catch(() => null);
+    check('presentations: Clear Narration takes the timing each narration gave its slide with it, and says so only when there was narration',
+      timingWent && Boolean(saidCleared) && Boolean(saidNone), JSON.stringify({ timingWent, saidCleared, saidNone }));
     await press('Record', 'Clear Recording');
     await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Clear Timings on All Slides'))`), 'the menu', 3000).catch(() => {});
     await pick('Clear Timings on All Slides');

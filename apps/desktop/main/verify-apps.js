@@ -97,6 +97,7 @@ import { verifyWordLanguage } from './verify-word-language.js';
 import { verifyDeckLanguage } from './verify-deck-language.js';
 import { verifyDeckMonitor } from './verify-deck-monitor.js';
 import { verifyDeckSplit } from './verify-deck-split.js';
+import { verifyDeckNotes } from './verify-deck-notes.js';
 import { verifyDeckRehearse } from './verify-deck-rehearse.js';
 import { verifyDeckAction } from './verify-deck-action.js';
 import { verifyDeckAlbum } from './verify-deck-album.js';
@@ -5014,6 +5015,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('decklanguage')) await verifyDeckLanguage({ open, check, until, wait, doc }, { dir });
     if (only.includes('monitor')) await verifyDeckMonitor({ open, check, until, wait }, { dir });
     if (only.includes('movesplit')) await verifyDeckSplit({ open, check, until, wait }, { dir });
+    if (only.includes('decknotes')) await verifyDeckNotes({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('rehearse')) await verifyDeckRehearse({ open, check, until, wait, doc }, { dir });
     if (only.includes('deckaction')) await verifyDeckAction({ open, check, until, wait, doc }, { dir });
     if (only.includes('album')) await verifyDeckAlbum({ open, check, until, wait, doc }, { dir });
@@ -5449,6 +5451,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('slides', () => verifyDeckLanguage({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckMonitor({ open, check, until, wait }, { dir }));
   await part('slides', () => verifyDeckSplit({ open, check, until, wait }, { dir }));
+  await part('slides', () => verifyDeckNotes({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDeckRehearse({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckAction({ open, check, until, wait, doc }, { dir }));
   await part('slides', () => verifyDeckAlbum({ open, check, until, wait, doc }, { dir }));

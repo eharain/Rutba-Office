@@ -72,3 +72,16 @@ test('a slide whose first effects already begin by themselves takes the call int
   assert.equal(back.slide(1).shapes.filter(isNarration).length, 1);
   assert.equal(back.animations(1)[0].kind, 'media');
 });
+
+test('Clear Narration takes the timing recording gave the slide, and leaves a slide without narration and its timing alone', () => {
+  const d = deck();
+  // As Record does: the narration, and the slide's Advance After its length.
+  narrate(d, 0, 4200);
+  d.setTransition(0, { advanceAfter: 4.2 });
+  d.setTransition(1, { advanceAfter: 7 });
+  assert.equal(d.slide(0).transition?.advanceAfter, 4.2);
+  assert.equal(d.clearNarration(0), 1);
+  assert.equal(d.slide(0).transition?.advanceAfter ?? null, null, 'its timing went with it');
+  assert.equal(d.clearNarration(1), 0, 'nothing to clear');
+  assert.equal(d.slide(1).transition?.advanceAfter, 7, 'a timing of its own stays');
+});

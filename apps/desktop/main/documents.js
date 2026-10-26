@@ -2796,7 +2796,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     setTransitionSound: (d, a) => d.setTransitionSound(a.slide, a.sound == null ? null : { ...a.sound, data: a.sound.data ? (Buffer.isBuffer(a.sound.data) ? a.sound.data : Buffer.from(a.sound.data)) : undefined }),
     // Record: a slide's narration (its WAV and length), and taking narration or timings off.
     addNarration: (d, a) => d.addNarration(a.slide, { data: Buffer.from(a.data), contentType: a.contentType || 'audio/wav', durationMs: Number(a.durationMs) || 0, poster: { data: Buffer.from(a.poster), contentType: 'image/png' } }),
-    clearNarration: (d, a) => d.clearNarration(a.slide),
+    // Clear Narration on one slide or several (`slides`): answers how many narrations went, so the window says so only when there were any.
+    clearNarration: (d, a) => (Array.isArray(a.slides) ? a.slides.reduce((n, i) => n + d.clearNarration(Number(i)), 0) : d.clearNarration(a.slide)),
     // Insert → Object: a document from this computer, or a new blank one, embedded with its icon.
     addObject: (d, a) => d.addObject(a.slide, { data: a.data ? Buffer.from(a.data) : (a.ext === 'xlsx' ? TEMPLATES.sheet() : a.ext === 'pptx' ? TEMPLATES.deck() : TEMPLATES.doc()), ext: a.ext, name: a.name, icon: Buffer.from(a.icon), x: a.x, y: a.y, w: a.w, h: a.h }),
     addMedia: (d, a) => {

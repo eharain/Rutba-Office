@@ -1952,9 +1952,17 @@ export default function Slides({ app, shell, boot }) {
       // Record → Clear: narration or timings, on this slide or all of them.
       case 'clearRecording': {
         const slides = arg.endsWith('All') ? (model?.outline || []).map((o) => o.index) : [index];
-        const ops = slides.map((slide) => (arg.startsWith('narration') ? { op: 'clearNarration', slide } : { op: 'setTransition', slide, spec: { advanceAfter: null } }));
-        if (ops.length) await apply(...ops);
-        toast(arg.startsWith('narration') ? t('Narration cleared') : t('Timings cleared'), { ms: 2000 });
+        if (!slides.length) return;
+        if (arg.startsWith('narration')) {
+          // A narration goes with the timing it gave its slide; said only when there was one.
+          const next = await apply({ op: 'clearNarration', slides });
+          if (!next) return;
+          const went = Number(next.opResult) || 0;
+          toast(went ? tn(went, 'Narration cleared, and the timing it gave its slide', 'Narrations cleared from {count} slides, and the timings they gave them') : (arg.endsWith('All') ? t('No slide has a narration to clear.') : t('This slide has no narration to clear.')), { ms: 2500 });
+          return;
+        }
+        await apply(...slides.map((slide) => ({ op: 'setTransition', slide, spec: { advanceAfter: null } })));
+        toast(t('Timings cleared'), { ms: 2000 });
         return;
       }
       // Draw: which tool is in hand — null for Select, 'eraser', 'lasso', or a pen by its id.
@@ -3350,7 +3358,15 @@ export default function Slides({ app, shell, boot }) {
                 placeholder={t('Click to add notes')}
                 onBlur={async (e) => { if (e.target.value !== (slide.notes || '')) await apply({ op: 'setNotes', slide: index, text: e.target.value }); }}
               />
-            ) : slide?.notes && view.notes !== false ? <div className="sl-notes" style={view.notesHeight ? { height: view.notesHeight, maxHeight: 'none' } : undefined}>{slide.notes}</div> : null}
+            ) : slide && !masterPart && view.notes !== false ? (
+              <NotesStrip
+                key={`strip-${index}`}
+                index={index}
+                notes={slide.notes || ''}
+                style={view.notesHeight ? { height: view.notesHeight, maxHeight: 'none' } : undefined}
+                onSave={(at, text) => apply({ op: 'setNotes', slide: at, text })}
+              />
+            ) : null}
           </Content>
 
           {view.pane && model ? (
@@ -4453,9 +4469,12 @@ const CSS = `
 .sl-rich > div { margin: 0; }
 .sl-rich > div[data-bullet]::before { content: attr(data-bullet); display: inline-block; min-width: 1.1em; margin-inline-end: 0.25em; }
 .sl-notes {
-  border-top: 1px solid var(--line); background: var(--chrome); padding: 9px 18px;
-  font-size: 12.5px; color: var(--ink-2); max-height: 110px; overflow: auto; white-space: pre-wrap;
+  display: block; width: 100%; box-sizing: border-box; margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0;
+  background: var(--chrome); padding: 9px 18px; font: inherit; font-size: 12.5px; color: var(--ink); line-height: 1.45;
+  height: 72px; min-height: 40px; max-height: 110px; overflow: auto; white-space: pre-wrap; resize: none; outline: none; flex: none;
 }
+.sl-notes::placeholder { color: var(--ink-3); }
+.sl-notes:focus { background: var(--surface); }
 
 .sl-hit.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 /* The primary of a multi-selection — the one Font/Paragraph act on — wears
@@ -4667,6 +4686,54 @@ function PartNameDialog({ name: current, kind, onClose, onApply }) {
         <input className="rw-input sl-partname" autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) onApply(name.trim()); }} />
       </Field>
     </Dialog>
+  );
+}
+
+/**
+ * The notes under the slide in Normal view, typed where they are shown, as
+ * PowerPoint's notes pane is ("Click to add notes" while empty). Kept as
+ * typing pauses, when the box is left, and when another slide is chosen,
+ * for the slide they were typed on; notes changed elsewhere (an undo, Notes
+ * Page) show unless the box is being typed in. One per slide (keyed by it).
+ */
+function NotesStrip({ index, notes, style, onSave }) {
+  const [text, setText] = useState(notes);
+  const typing = useRef(false);
+  const timer = useRef(null);
+  const pending = useRef(null);
+  const saved = useRef(notes);
+  const keep = useRef(onSave);
+  keep.current = onSave;
+  saved.current = notes;
+  useEffect(() => { if (!typing.current) setText(notes); }, [notes]);
+  const flush = () => {
+    clearTimeout(timer.current);
+    const value = pending.current;
+    pending.current = null;
+    if (value != null && value !== saved.current) keep.current(index, value);
+  };
+  // A slide chosen before the pause is over: what was typed is kept all the same.
+  useEffect(() => () => flush(), []);
+  return (
+    <textarea
+      className="sl-notes"
+      data-role="slide-notes"
+      data-slide={index}
+      style={style}
+      value={text}
+      placeholder={t('Click to add notes')}
+      aria-label={t('Notes')}
+      spellCheck
+      onFocus={() => { typing.current = true; }}
+      onBlur={() => { typing.current = false; flush(); }}
+      onChange={(e) => {
+        const value = e.target.value;
+        setText(value);
+        pending.current = value;
+        clearTimeout(timer.current);
+        timer.current = setTimeout(flush, 800);
+      }}
+    />
   );
 }
 
