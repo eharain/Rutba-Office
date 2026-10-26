@@ -821,6 +821,38 @@ The launcher's Choose apps becomes Add or remove apps.
   person: there Add or remove apps runs the installer elevated, with the
   usual prompt, rather than writing the folder itself.
 
+*Built.* `main/packs-service.js` is the `packs` namespace (`list`, `add`,
+`remove`, `keep`, `restart`), and the launcher's **Add or remove apps…**
+opens it (`renderer/packs-dialog.js`); the launcher also says which app a
+file or a window asked for is not installed, and which packs on this
+computer would not load and why.
+
+- **Add** fetches the release's file for the core's own version
+  (`${SITE.releases}/download/v<version>/Rutba-Office-<version>-<id>.pack`),
+  or takes the pack from a folder named by `RUTBA_PACKS_SOURCE` (loose
+  packs or the release's files: the checks use this). A release file is
+  refused if it holds anything but that pack's three things. The pack is
+  checked in a staging folder by the loader, with the core's keys and
+  version, and put in place with its manifest last; it loads at the next
+  start. Offline, or a file missing from the release, is said in plain
+  words, and nothing is put in place.
+- **Remove** writes the pack down to go (`pending.json` in the packs
+  folder); the next start deletes it before the loader runs, and leaves it
+  out even when another running copy still holds its files. **Keep** takes
+  that back. A pack added in this run and removed again goes at once. The
+  last app cannot be removed: uninstalling is Windows Settings' job.
+- **Restart** starts Rutba Office again. In a copy installed for everyone
+  the folder is not the person's to write: the checked packs wait in the
+  staging folder, and Restart runs one PowerShell script with the
+  administrator's permission (`Start-Process -Verb RunAs`) that waits for
+  Rutba Office to close, puts the packs in place or deletes them, registers
+  or lets go of their kinds of file for the machine, and starts it again.
+- In a per-user copy the kinds of file of a pack added are registered for
+  the person at once, and a pack removed lets go of its own at once, except
+  those an app that stays opens too. Restart writes `Packs` for the next
+  installer. A copy with every app built in says there is nothing to add
+  or remove.
+
 ### 5.5 Updates
 
 - electron-updater still fetches the one installer of the new version and

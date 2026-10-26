@@ -13,6 +13,7 @@ import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop, templatesFolder
 import { WhatsNew } from '../whatsnew.js';
 import { TemplateGallery } from '../template-gallery.js';
 import { useChosenApps, AppsChooser } from '../apps-choice.js';
+import { PacksNotice, PacksDialog } from '../packs-dialog.js';
 import { useProfiles, profileName } from '../profiles.js';
 
 /** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
@@ -65,6 +66,8 @@ export default function Home({ app, shell }) {
   const chosen = useChosenApps(shell);
   const [choosing, setChoosing] = useState(() => new URLSearchParams(location.search).has('apps'));
   const has = (key) => chosen.apps.includes(key);
+  // Add or remove apps (packs-dialog.js; ?packs opens with it).
+  const [packing, setPacking] = useState(() => new URLSearchParams(location.search).has('packs'));
   // The other profiles, for a recent file's Open in (profiles.js).
   const { list: profiles } = useProfiles(shell);
   const others = (profiles?.profiles || []).filter((p) => !p.current);
@@ -150,6 +153,7 @@ export default function Home({ app, shell }) {
       <style>{CSS}</style>
       {gallery ? <TemplateGallery shell={shell} onClose={() => setGallery(false)} /> : null}
       {choosing ? <AppsChooser chosen={chosen.apps} addons={chosen.addons} onClose={() => setChoosing(false)} onChoose={async (keys, addons) => { setChoosing(false); await chosen.choose(keys, addons); toast(t('{n} apps on', { n: keys.length }), { tone: 'good', ms: 3000 }); }} /> : null}
+      {packing ? <PacksDialog shell={shell} onClose={() => setPacking(false)} /> : null}
       <div className="home">
         <header className="home-hero">
           <div>
@@ -172,6 +176,7 @@ export default function Home({ app, shell }) {
         </header>
 
         <Announcement shell={shell} />
+        <PacksNotice onAdd={() => setPacking(true)} />
 
         {/* Once, until a choice is made: all the apps are on, and they can be fewer. */}
         {chosen.loaded && !chosen.made ? (
@@ -235,6 +240,7 @@ export default function Home({ app, shell }) {
             <h2>{t('Apps')}</h2>
             <Spacer />
             <Button ghost icon="grid" label={t('Choose apps…')} className="home-apps-btn" title={t('Choose which apps are shown and open their kinds of file')} onClick={() => setChoosing(true)} />
+            <Button ghost icon="download" label={t('Add or remove apps…')} className="home-packs-btn" title={t('Put apps on this computer or take them off')} onClick={() => setPacking(true)} />
           </div>
           <div className="home-grid">
             {chosen.apps.map((key) => (

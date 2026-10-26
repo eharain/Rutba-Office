@@ -25,7 +25,6 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
-import { app } from 'electron';
 import { PACKS } from '@rutba/office-shell/contract';
 import { packFiles, packSize, packsIn, canWriteIn, pendingRemovals, markRemoval, unmarkRemoval, stagePack, installStaged } from '@rutba/office-shell/electron/pack-install';
 import { readZip } from '@rutba/ooxml/zip';
@@ -77,11 +76,14 @@ export function unpackPackFile(bytes, id, into) {
 export function elevatedScript({ pid, dir, exe, removals = [], additions = [] }) {
   const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
   const lines = ['$ErrorActionPreference = \'Continue\'', `Wait-Process -Id ${Number(pid)} -Timeout 60 -ErrorAction SilentlyContinue`];
-  for (const id of removals) {
+  for (const gone of removals) {
+    const { id, types = [] } = typeof gone === 'string' ? { id: gone } : gone;
     const f = packFiles(id);
     lines.push(`Remove-Item -LiteralPath ${q(path.join(dir, f.manifest))} -Force -ErrorAction SilentlyContinue`);
     lines.push(`Remove-Item -LiteralPath ${q(path.join(dir, f.archive))} -Force -ErrorAction SilentlyContinue`);
     lines.push(`Remove-Item -LiteralPath ${q(path.join(dir, f.unpacked))} -Recurse -Force -ErrorAction SilentlyContinue`);
+    // Its kinds of file let go of, as the uninstaller does: no longer offered under Open with.
+    for (const t of types) lines.push(`Remove-ItemProperty -Path ${q(`HKLM:\\Software\\Classes\\.${t.ext}\\OpenWithProgids`)} -Name ${q(t.name)} -ErrorAction SilentlyContinue`);
   }
   for (const { id, staging, types = [] } of additions) {
     const f = packFiles(id);
@@ -112,9 +114,10 @@ export function elevatedScript({ pid, dir, exe, removals = [], additions = [] })
  * @param {string|null} o.dir  the packs folder, or null when every app is built in
  * @param {string} [o.source]  a folder of packs to add from, rather than the release
  * @param {Function} [o.fetchImpl]
+ * @param {object} [o.app]   Electron's app: told to start again (relaunch, quit), and whether this is an installed copy
  * @param {object} [o.sizes]   each pack's size as the build measured it, for one not here yet
  */
-export function createPacksService({ plan, stores, broadcast = () => {}, version, keys, dir, source = process.env.RUTBA_PACKS_SOURCE || null, fetchImpl = (...a) => fetch(...a), sizes = {}, staging = path.join(os.tmpdir(), `rutba-office-packs-${process.pid}`) }) {
+export function createPacksService({ plan, stores, broadcast = () => {}, version, keys, dir, source = process.env.RUTBA_PACKS_SOURCE || null, fetchImpl = (...a) => fetch(...a), sizes = {}, app = null, staging = path.join(os.tmpdir(), `rutba-office-packs-${process.pid}`) }) {
   const managed = Boolean(dir);
   const registry = Boolean(process.platform === 'win32' && app?.isPackaged && !process.env.RUTBA_VERIFY && !process.env.RUTBA_OFFICE_VERIFY_APPS);
   /** Added in this run, for the next start: in the packs folder already, or staged for the administrator's step. */
@@ -258,7 +261,7 @@ export function createPacksService({ plan, stores, broadcast = () => {}, version
           pid: process.pid,
           dir,
           exe: process.execPath,
-          removals: [...goingElevated],
+          removals: [...goingElevated].map((id) => ({ id, types: plan.packs.find((p) => p.id === id)?.fileTypes || [] })),
           additions: [...adding.entries()].filter(([, a]) => a.staged).map(([id, a]) => ({ id, staging: a.staged, types: a.types })),
         }));
         const asked = await new Promise((resolve) => {
@@ -268,11 +271,11 @@ export function createPacksService({ plan, stores, broadcast = () => {}, version
           child.on('exit', (code) => resolve(code === 0));
         });
         if (!asked) throw new Error('Windows did not give permission to change the apps of a copy installed for everyone. Nothing was changed; try again, or ask whoever looks after this computer.');
-        app.quit();
+        app?.quit();
         return { restarting: true, elevated: true };
       }
-      app.relaunch();
-      app.quit();
+      app?.relaunch();
+      app?.quit();
       return { restarting: true, elevated: false };
     },
   };

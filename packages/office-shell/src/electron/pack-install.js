@@ -187,7 +187,8 @@ export function stagePack({ from, id, staging, publicKey, version, present = [],
   if (fs.existsSync(path.join(from, f.unpacked))) copy(path.join(from, f.unpacked), path.join(staging, f.unpacked));
   const { packs, refused } = findPacks({ dir: staging, publicKey, version, present });
   const bad = refused.find((r) => r.id === id);
-  if (bad) throw Object.assign(new Error(bad.reason), { code: bad.code });
+  // The loader's words, said of an install rather than a start.
+  if (bad) throw Object.assign(new Error(bad.reason.replace(/It was not loaded\.$/, 'It was not installed.')), { code: bad.code });
   const pack = packs.find((p) => p.id === id);
   if (!pack) throw new Error(`The ${name} pack could not be checked.`);
   return pack;

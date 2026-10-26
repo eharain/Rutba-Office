@@ -37,7 +37,7 @@ import { createAnnouncementService } from './announce.js';
 import { createDefaultsService } from './defaults.js';
 import { createDavService } from './dav-sync.js';
 import { createPacksService } from './packs-service.js';
-import { planPacks, registerPacks, packView, readPackKeys, PACK_ORDER } from './app-packs.js';
+import { planPacks, registerPacks, packView, readPackKeys, readPackSizes, PACK_ORDER } from './app-packs.js';
 import { LOADED_KEY } from './pack-tools.js';
 import { recordPacks } from './file-types.js';
 
@@ -61,8 +61,9 @@ function packsDir() {
 }
 
 /** The keys a pack must be signed with: the build's, in the core; a copy run from the source may be handed a development key's public half. */
+const PACK_KEYS_FILE = path.join(app, 'build', 'out', 'pack-keys.json');
 function packKeys() {
-  const keys = readPackKeys(path.join(app, 'build', 'out', 'pack-keys.json'));
+  const keys = readPackKeys(PACK_KEYS_FILE);
   if (!electron.isPackaged && process.env.RUTBA_PACK_PUBLIC_KEY) keys.push(fs.readFileSync(process.env.RUTBA_PACK_PUBLIC_KEY, 'utf8'));
   return keys;
 }
@@ -295,7 +296,7 @@ createShell({
     // with whichever of the two apps are installed (dav-sync.js keeps to those).
     services.dav = createDavService({ stores, calendar: view.service('calendar'), contacts: view.service('contacts'), broadcast });
     // Add or remove apps (packs-service.js).
-    services.packs = createPacksService({ plan, stores, broadcast, version: electron.getVersion(), keys: packKeys(), dir: plan.source === 'files' ? plan.dir : null });
+    services.packs = createPacksService({ plan, stores, broadcast, version: electron.getVersion(), keys: packKeys(), dir: plan.source === 'files' ? plan.dir : null, sizes: readPackSizes(PACK_KEYS_FILE), app: electron });
     return services;
   },
 
