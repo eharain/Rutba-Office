@@ -13,6 +13,7 @@ import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Panel, Content, Field, Input, Select, Dialog,
   useToast, useCommands, useMenu, menuItems, t, tn, language, numberTag,
 } from '@rutba/office-ui';
+import { localToUtc, utcToLocal, ianaZone, offsetMinutes } from '@rutba/calendar/tz';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
 import { AccountsDialog } from '../dav-accounts.js';
 
@@ -95,6 +96,46 @@ const clock = (ms) => {
   return `${d.getHours()}:${pad(d.getMinutes())}`;
 };
 
+/* ── time zones ────────────────────────────────────────────────────────── */
+
+/** This computer's zone, as Intl names it. */
+const LOCAL_ZONE = (() => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+})();
+/** Every zone the runtime knows, this computer's among them. */
+const ZONES = (() => {
+  let all = [];
+  try {
+    all = Intl.supportedValuesOf('timeZone');
+  } catch {
+    /* an older runtime: this computer's zone and UTC */
+  }
+  return [...new Set([LOCAL_ZONE, 'UTC', ...all])].sort();
+})();
+/** A zone as a person reads it: its place, without the underscores. */
+const zonePlace = (zone) => String(zone || '').split('/').pop().replace(/_/g, ' ');
+/** "UTC+5:30", the offset a zone keeps at an instant. */
+const zoneOffset = (zone, at) => {
+  const m = offsetMinutes(zone, at);
+  return `UTC${m < 0 ? '-' : '+'}${Math.floor(Math.abs(m) / 60)}${Math.abs(m) % 60 ? `:${pad(Math.abs(m) % 60)}` : ''}`;
+};
+/** The zones for a list to choose from, each with its offset on a day: "Europe/London (UTC+1)". */
+const zoneChoices = (at) => ZONES.map((zone) => ({ zone, label: `${zone.replace(/_/g, ' ')} (${zoneOffset(zone, at)})` }));
+/** An instant's date and time on a zone's clock: { date: '2026-10-26', time: '09:30' }. */
+function wallIn(ms, zone) {
+  const p = utcToLocal(ms, zone);
+  return { date: `${p.y}-${pad(p.m)}-${pad(p.d)}`, time: `${pad(p.H)}:${pad(p.M)}` };
+}
+/** An instant's time on a zone's clock, as the hours down the side show it: "14:30". */
+const clockIn = (ms, zone) => {
+  const p = utcToLocal(ms, zone);
+  return `${p.H}:${pad(p.M)}`;
+};
+
 /** The range a view shows, as instants. */
 function rangeFor(view, cursor) {
   if (view === 'month') {
@@ -135,30 +176,53 @@ function blankForm(at, allDay = false) {
   const end = new Date(start.getTime() + 3600000);
   return {
     id: null, calendarId: null, summary: '', location: '', description: '',
-    allDay, date: isoDate(start), time: isoTime(start), endDate: isoDate(end), endTime: isoTime(end),
+    allDay, date: isoDate(start), time: isoTime(start), endDate: isoDate(end), endTime: isoTime(end), zone: LOCAL_ZONE,
     repeat: 'none', repeatUntil: '', reminder: '15', attendees: '', original: null, rule: null, scope: 'all',
   };
 }
 
-function formFrom(event, original = null) {
+/** The reminders the editor offers, in minutes before the start. */
+const REMINDERS = [['0', t('At the time')], ['5', t('5 minutes before')], ['15', t('15 minutes before')], ['30', t('30 minutes before')], ['60', t('1 hour before')], ['1440', t('1 day before')]];
+
+/**
+ * An event in the editor. A recurring one opened from one of its
+ * occurrences (`original`, with the occurrence's own `slot`) is edited as
+ * that occurrence until the person chooses every one: its own day and time
+ * shown, the series' kept beside them for when they do. Times are on the
+ * event's own zone's clock.
+ */
+function formFrom(event, original = null, slot = null) {
   const s = event.start;
   const e = event.end || event.start;
-  const start = event.allDay ? new Date(`${s.date}T00:00:00`) : new Date(s.at);
-  const end = event.allDay ? new Date(`${e.date}T00:00:00`) : new Date(e.at);
-  if (event.allDay) end.setDate(end.getDate() - 1);
+  const zone = (!event.allDay && ianaZone(s.tzid)) || LOCAL_ZONE;
+  /** A start and an end as the form's four fields. */
+  const whenOf = (startAt, endAt) => {
+    if (event.allDay) {
+      // All-day instants are UTC midnights of the dates; the last day is the one before the end.
+      const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+      return { date: day(startAt), time: '09:00', endDate: day(Math.max(startAt, endAt - DAY)), endTime: '10:00' };
+    }
+    const a = wallIn(startAt, zone);
+    const b = wallIn(endAt, zone);
+    return { date: a.date, time: a.time, endDate: b.date, endTime: b.time };
+  };
+  const series = whenOf(s.at, e.at);
+  const one = event.rrule && original != null && slot ? whenOf(slot.start, slot.end) : null;
   const rule = event.rrule;
   const repeat = !rule ? 'none' : rule.freq === 'DAILY' && rule.interval === 1 ? 'daily' : rule.freq === 'WEEKLY' && rule.interval === 1 && !(rule.byDay?.length > 1) ? 'weekly' : rule.freq === 'WEEKLY' && rule.byDay?.length === 5 ? 'weekdays' : rule.freq === 'MONTHLY' && rule.interval === 1 ? 'monthly' : rule.freq === 'YEARLY' && rule.interval === 1 ? 'yearly' : 'custom';
+  const reminder = event.alarms?.[0]?.before != null ? String(event.alarms[0].before) : event.alarms?.length ? 'kept' : 'none';
   return {
     id: event.id, calendarId: event.calendarId, summary: event.summary || '', location: event.location || '', description: event.description || '',
-    allDay: Boolean(event.allDay), date: isoDate(start), time: isoTime(start), endDate: isoDate(end), endTime: isoTime(end),
-    repeat, repeatUntil: rule?.until?.date || '', reminder: event.alarms?.[0]?.before != null ? String(event.alarms[0].before) : 'none',
-    attendees: (event.attendees || []).map((a) => a.email).filter(Boolean).join(', '), original, rule: rule || null, scope: 'all',
+    allDay: Boolean(event.allDay), ...(one || series), zone, seriesWhen: series, oneWhen: one,
+    repeat, repeatUntil: rule?.until?.date || '', reminder, reminderWas: reminder, alarms: event.alarms || [],
+    attendees: (event.attendees || []).map((a) => a.email).filter(Boolean).join(', '), original, rule: rule || null, scope: one ? 'this' : 'all',
     uid: event.uid, sequence: event.sequence, organizer: event.organizer, extra: event.extra, exdates: event.exdates, rdates: event.rdates, recurrenceId: event.recurrenceId,
   };
 }
 
-/** The form back into an event the service keeps. */
-function eventFrom(form, tz) {
+/** The form back into an event the service keeps: its times on the chosen zone's clock. */
+function eventFrom(form) {
+  const tz = form.zone || LOCAL_ZONE;
   const [y, m, d] = form.date.split('-').map(Number);
   const [ey, em, ed] = (form.endDate || form.date).split('-').map(Number);
   let start;
@@ -171,11 +235,12 @@ function eventFrom(form, tz) {
   } else {
     const [H, M] = (form.time || '09:00').split(':').map(Number);
     const [eH, eM] = (form.endTime || form.time || '10:00').split(':').map(Number);
-    const s = new Date(y, m - 1, d, H, M);
-    let e = new Date(ey, em - 1, ed, eH, eM);
-    if (e <= s) e = new Date(s.getTime() + 3600000);
-    start = { date: form.date, time: `${pad(H)}:${pad(M)}:00`, tzid: tz, utc: false, allDay: false, at: s.getTime() };
-    end = { date: isoDate(e), time: `${pad(e.getHours())}:${pad(e.getMinutes())}:00`, tzid: tz, utc: false, allDay: false, at: e.getTime() };
+    const sAt = localToUtc({ y, m, d, H, M }, tz);
+    let eAt = localToUtc({ y: ey, m: em, d: ed, H: eH, M: eM }, tz);
+    if (eAt <= sAt) eAt = sAt + 3600000;
+    const e = wallIn(eAt, tz);
+    start = { date: form.date, time: `${pad(H)}:${pad(M)}:00`, tzid: tz, utc: false, allDay: false, at: sAt };
+    end = { date: e.date, time: `${e.time}:00`, tzid: tz, utc: false, allDay: false, at: eAt };
   }
   const until = form.repeatUntil ? { date: form.repeatUntil, time: null, tzid: null, utc: false, allDay: true, at: new Date(`${form.repeatUntil}T00:00:00Z`).getTime() } : null;
   const weekday = (new Date(y, m - 1, d).getDay() + 0) % 7;
@@ -193,7 +258,8 @@ function eventFrom(form, tz) {
     id: form.id, uid: form.uid, sequence: form.sequence, organizer: form.organizer, extra: form.extra || [], exdates: form.exdates || [], rdates: form.rdates || [], recurrenceId: form.recurrenceId || null,
     summary: form.summary.trim() || '(no title)', location: form.location.trim(), description: form.description.trim(),
     allDay: form.allDay, start, end, rrule: rules[form.repeat] ?? null,
-    alarms: form.reminder && form.reminder !== 'none' ? [{ action: 'DISPLAY', before: Number(form.reminder), at: null, related: 'START', description: null }] : [],
+    // The reminders as they were while the choice is unchanged (a second one, one at a set time); the one chosen otherwise.
+    alarms: form.reminder === form.reminderWas && form.alarms ? form.alarms : form.reminder && form.reminder !== 'none' && form.reminder !== 'kept' ? [{ action: 'DISPLAY', before: Number(form.reminder), at: null, related: 'START', description: null }] : [],
     attendees, status: 'CONFIRMED',
   };
 }
@@ -222,9 +288,19 @@ export default function Calendar({ app, shell, boot }) {
   const [file, setFile] = useState(null);
   const [form, setForm] = useState(null);
   const [opened, setOpened] = useState(null);
+  // An event just saved with people invited: the offer to send them the invitation.
+  const [offer, setOffer] = useState(null);
   const [tab, setTab] = useState('home');
   const [now, setNow] = useState(() => Date.now());
-  const tz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
+  // A second zone's hours beside this computer's in the day and the week, as Outlook shows one; the choice is kept.
+  const [secondZone, setSecondZone] = useState(null);
+  useEffect(() => {
+    shell.store.get({ key: 'calendar.secondZone', fallback: null }).then((v) => { if (v && ianaZone(v)) setSecondZone(v); }).catch(() => {});
+  }, [shell]);
+  const chooseSecondZone = useCallback((zone) => {
+    setSecondZone(zone || null);
+    shell.store.set({ key: 'calendar.secondZone', value: zone || null }).catch(() => {});
+  }, [shell]);
   const range = useMemo(() => rangeFor(view, cursor), [view, cursor]);
   const today = useMemo(() => startOfDay(new Date(now)), [now]);
 
@@ -276,6 +352,8 @@ export default function Calendar({ app, shell, boot }) {
   /* ── actions ──────────────────────────────────────────────────────────── */
 
   const go = useCallback((n) => setCursor((c) => (view === 'month' ? new Date(c.getFullYear(), c.getMonth() + n, 1) : addDays(c, n * (view === 'week' ? 7 : view === 'day' ? 1 : 30)))), [view]);
+  /** The small month's arrows: the main view a month on or back, on the same day of the month where there is one. */
+  const shiftMonth = useCallback((n) => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + n, Math.min(c.getDate(), new Date(c.getFullYear(), c.getMonth() + n + 1, 0).getDate()))), []);
   const newEvent = useCallback((at = null, allDay = false) => setForm({ ...blankForm(at, allDay), calendarId: calendars.find((c) => c.visible)?.id || calendars[0]?.id || null }), [calendars]);
 
   const openSlot = useCallback(
@@ -297,15 +375,17 @@ export default function Calendar({ app, shell, boot }) {
   const saveForm = useCallback(async () => {
     if (!form) return;
     try {
-      const event = eventFrom(form, tz);
-      await shell.calendar.save({ calendarId: form.calendarId, event, scope: form.scope, original: form.original });
+      const event = eventFrom(form);
+      const saved = await shell.calendar.save({ calendarId: form.calendarId, event, scope: form.scope, original: form.original });
       setForm(null);
       setOpened(null);
       await refresh();
+      // People on the list: the message with the invitation offered, as the Invite field's hint says.
+      if (saved?.attendees?.length) setOffer({ id: saved.id, summary: saved.summary, count: saved.attendees.length, fresh: !form.id });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
-  }, [form, shell, tz, refresh, toast]);
+  }, [form, shell, refresh, toast]);
 
   const removeOpened = useCallback(
     async (scope = 'all') => {
@@ -350,7 +430,7 @@ export default function Calendar({ app, shell, boot }) {
       try {
         const r = await shell.calendar.respond({ path: file.path, partstat });
         if (r.replyPath && r.organizer?.email) {
-          shell.win.create({ app: 'mail', query: { to: r.organizer.email, subject: r.subject, attach: r.replyPath } });
+          shell.win.create({ app: 'mail', query: { to: r.organizer.email, subject: r.subject, attach: r.replyPath, size: r.replySize } });
         }
         setFile(null);
         await refresh();
@@ -362,15 +442,18 @@ export default function Calendar({ app, shell, boot }) {
     [file, shell, refresh, toast]
   );
 
-  const invite = useCallback(async () => {
-    if (!opened?.event?.attendees?.length) return;
+  /** A message to the people invited, with the invitation attached, opened in Mail. */
+  const sendInvitation = useCallback(async (id) => {
     try {
-      const r = await shell.calendar.invitationFile({ id: opened.event.id });
-      shell.win.create({ app: 'mail', query: { to: r.to.join(', '), subject: r.subject, attach: r.path } });
+      const r = await shell.calendar.invitationFile({ id });
+      shell.win.create({ app: 'mail', query: { to: r.to.join(', '), subject: r.subject, attach: r.path, size: r.size } });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
-  }, [opened, shell, toast]);
+  }, [shell, toast]);
+  const invite = useCallback(() => {
+    if (opened?.event?.attendees?.length) sendInvitation(opened.event.id);
+  }, [opened, sendInvitation]);
 
   const toggleCalendar = useCallback(
     async (cal) => {
@@ -644,10 +727,14 @@ export default function Calendar({ app, shell, boot }) {
   const timeGrid = (days) => {
     const allDay = visible.filter((s) => s.allDay);
     const timed = visible.filter((s) => !s.allDay);
+    // The second zone's hours: what its clock says at each of this computer's hours on the first day shown.
+    const two = secondZone && secondZone !== LOCAL_ZONE;
+    const first = days[0];
     return (
-      <div className="cal-time">
+      <div className={`cal-time${two ? ' two' : ''}`}>
         <div className="cal-time-head">
-          <div className="cal-gutter" />
+          {two ? <div className="cal-gutter cal-zone-name" title={secondZone}>{zonePlace(secondZone)}</div> : null}
+          <div className={`cal-gutter${two ? ' cal-zone-name' : ''}`} title={two ? LOCAL_ZONE : undefined}>{two ? zonePlace(LOCAL_ZONE) : null}</div>
           {days.map((d) => (
             <div key={isoDate(d)} className={`cal-col-head${sameDay(d, today) ? ' today' : ''}`}>
               <span className="dn">{DAYS[weekIndex(d)]}</span> <span className="dd">{d.getDate()}</span>
@@ -656,6 +743,7 @@ export default function Calendar({ app, shell, boot }) {
           ))}
         </div>
         <div className="cal-allday">
+          {two ? <div className="cal-gutter" /> : null}
           <div className="cal-gutter">{t('all day')}</div>
           {days.map((d) => (
             <div key={isoDate(d)} className="cal-allday-cell" onClick={() => newEvent(new Date(d.getFullYear(), d.getMonth(), d.getDate()), true)}>
@@ -675,6 +763,11 @@ export default function Calendar({ app, shell, boot }) {
             el.scrollTop = Math.max(0, Math.max(0, Math.min(8, ...firsts.map((h) => h - 1))) * HOUR_PX - 10);
           }}
         >
+          {two ? (
+            <div className="cal-gutter cal-zone-hours">
+              {Array.from({ length: 24 }, (_, h) => <div key={h} className="cal-hour" style={{ height: HOUR_PX }}>{h ? clockIn(new Date(first.getFullYear(), first.getMonth(), first.getDate(), h).getTime(), secondZone) : ''}</div>)}
+            </div>
+          ) : null}
           <div className="cal-gutter">
             {Array.from({ length: 24 }, (_, h) => <div key={h} className="cal-hour" style={{ height: HOUR_PX }}>{h ? `${h}:00` : ''}</div>)}
           </div>
@@ -764,6 +857,34 @@ export default function Calendar({ app, shell, boot }) {
   /* ── dialogs ──────────────────────────────────────────────────────────── */
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  /** The start moved, and the end with it: the event keeps its length, as Outlook's does. */
+  const moveStart = (patch) => setForm((f) => {
+    const at = (date, time) => {
+      const [y, m, d] = String(date || '').split('-').map(Number);
+      const [H, M] = String(time || '00:00').split(':').map(Number);
+      return Date.UTC(y, m - 1, d, H || 0, M || 0);
+    };
+    const next = { ...f, ...patch };
+    const length = at(f.endDate || f.date, f.allDay ? null : f.endTime) - at(f.date, f.allDay ? null : f.time);
+    const end = at(next.date, next.allDay ? null : next.time) + Math.max(0, length);
+    // Half typed (a date being cleared to type another): the end stays until there is a start.
+    if (!Number.isFinite(end)) return next;
+    const iso = new Date(end).toISOString();
+    return { ...next, endDate: iso.slice(0, 10), endTime: next.allDay ? next.endTime : iso.slice(11, 16) };
+  });
+  /** Only this occurrence, or every one: the day and time shown follow, unless they were changed. */
+  const setScope = (scope) => setForm((f) => {
+    const was = scope === 'all' ? f.oneWhen : f.seriesWhen;
+    const next = scope === 'all' ? f.seriesWhen : f.oneWhen;
+    const untouched = was && ['date', 'time', 'endDate', 'endTime'].every((k) => f[k] === was[k]);
+    return { ...f, scope, ...(untouched && next ? next : {}) };
+  });
+  const formAt = form && !form.allDay ? (() => {
+    const [y, m, d] = form.date.split('-').map(Number);
+    const [H, M] = (form.time || '09:00').split(':').map(Number);
+    return localToUtc({ y, m, d, H, M }, form.zone || LOCAL_ZONE);
+  })() : null;
+  const occurrence = form && form.id && form.rule && form.original != null;
   const editor = form ? (
     <Dialog
       title={form.id ? t('Edit event') : t('New event')}
@@ -778,12 +899,28 @@ export default function Calendar({ app, shell, boot }) {
     >
       <div className="cal-form">
         <Input className="rw-input cal-title" value={form.summary} placeholder={t('Title')} autoFocus onChange={(e) => set({ summary: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') saveForm(); }} />
+        {occurrence ? (
+          <Field label={t('Change')}>
+            <Select className="cal-scope" value={form.scope} onChange={(e) => setScope(e.target.value)}>
+              <option value="this">{t('Only this occurrence')}</option>
+              <option value="all">{t('Every occurrence')}</option>
+            </Select>
+          </Field>
+        ) : null}
         <label className="cal-check"><input type="checkbox" checked={form.allDay} onChange={(e) => set({ allDay: e.target.checked })} /> {t('All day')}</label>
         <div className="cal-when">
-          <Field label={t('Starts')}><div className="cal-dt"><Input type="date" value={form.date} onChange={(e) => set({ date: e.target.value, endDate: form.endDate < e.target.value ? e.target.value : form.endDate })} />{form.allDay ? null : <Input type="time" aria-label={t('Start time')} value={form.time} onChange={(e) => set({ time: e.target.value })} />}</div></Field>
+          <Field label={t('Starts')}><div className="cal-dt"><Input type="date" value={form.date} onChange={(e) => moveStart({ date: e.target.value })} />{form.allDay ? null : <Input type="time" aria-label={t('Start time')} value={form.time} onChange={(e) => moveStart({ time: e.target.value })} />}</div></Field>
           <Field label={t('Ends')}><div className="cal-dt"><Input type="date" value={form.endDate} onChange={(e) => set({ endDate: e.target.value })} />{form.allDay ? null : <Input type="time" aria-label={t('End time')} value={form.endTime} onChange={(e) => set({ endTime: e.target.value })} />}</div></Field>
         </div>
+        {form.allDay ? null : (
+          <Field label={t('Time zone')} hint={form.zone !== LOCAL_ZONE && formAt != null ? t('{time} on this computer', { time: new Date(formAt).toLocaleString(language(), { weekday: 'short', hour: '2-digit', minute: '2-digit' }) }) : null}>
+            <Select className="cal-zone" value={form.zone || LOCAL_ZONE} onChange={(e) => set({ zone: e.target.value })}>
+              {zoneChoices(formAt ?? Date.now()).map((z) => <option key={z.zone} value={z.zone}>{z.label}</option>)}
+            </Select>
+          </Field>
+        )}
         <div className="cal-when">
+          {form.scope === 'this' && occurrence ? null : (
           <Field label={t('Repeat')}>
             <Select value={form.repeat} onChange={(e) => set({ repeat: e.target.value })}>
               <option value="none">{t('Does not repeat')}</option>
@@ -795,26 +932,51 @@ export default function Calendar({ app, shell, boot }) {
               {form.rule ? <option value="custom">{t('As it is ({freq})', { freq: form.rule.freq.toLowerCase() })}</option> : null}
             </Select>
           </Field>
-          {form.repeat !== 'none' ? <Field label={t('Until')} hint={t('Blank for no end')}><Input type="date" value={form.repeatUntil} onChange={(e) => set({ repeatUntil: e.target.value })} /></Field> : <Field label={t('Reminder')}><Select value={form.reminder} onChange={(e) => set({ reminder: e.target.value })}><option value="none">{t('None')}</option><option value="0">{t('At the time')}</option><option value="5">{t('5 minutes before')}</option><option value="15">{t('15 minutes before')}</option><option value="30">{t('30 minutes before')}</option><option value="60">{t('1 hour before')}</option><option value="1440">{t('1 day before')}</option></Select></Field>}
-        </div>
-        {form.id && form.rule && form.original != null ? (
-          <Field label={t('Change')}>
-            <Select value={form.scope} onChange={(e) => set({ scope: e.target.value })}>
-              <option value="this">{t('Only this occurrence')}</option>
-              <option value="all">{t('Every occurrence')}</option>
+          )}
+          {/* A repeating event keeps its Reminder beside its Until. */}
+          <Field label={t('Reminder')}>
+            <Select className="cal-reminder" value={form.reminder} onChange={(e) => set({ reminder: e.target.value })}>
+              <option value="none">{t('None')}</option>
+              {REMINDERS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+              {form.reminder !== 'none' && form.reminder !== 'kept' && !REMINDERS.some(([v]) => v === form.reminder) ? <option value={form.reminder}>{tn(Number(form.reminder), '{count} minute before', '{count} minutes before')}</option> : null}
+              {form.reminderWas === 'kept' ? <option value="kept">{t('As it is')}</option> : null}
             </Select>
           </Field>
+        </div>
+        {form.repeat !== 'none' && !(form.scope === 'this' && occurrence) ? (
+          <div className="cal-when">
+            <Field label={t('Until')} hint={t('Blank for no end')}><Input type="date" value={form.repeatUntil} onChange={(e) => set({ repeatUntil: e.target.value })} /></Field>
+          </div>
         ) : null}
         <Field label={t('Location')}><Input value={form.location} placeholder={t('Where')} onChange={(e) => set({ location: e.target.value })} /></Field>
         <Field label={t('Calendar')}>
           <Select value={form.calendarId || ''} onChange={(e) => set({ calendarId: e.target.value })}>{calendars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
         </Field>
-        <Field label={t('Invite')} hint={t('Addresses, separated by commas. Saving with people on the list offers a message with the invitation attached.')}><Input value={form.attendees} placeholder="kim@example.com, sam@example.org" onChange={(e) => set({ attendees: e.target.value })} /></Field>{/* words-ok: example addresses */}
+        <Field label={t('Invite')} hint={t('Addresses, separated by commas. Saving with people on the list offers a message with the invitation attached.')}><Input className="cal-invitees" value={form.attendees} placeholder="kim@example.com, sam@example.org" onChange={(e) => set({ attendees: e.target.value })} /></Field>{/* words-ok: example addresses */}
         <Field label={t('Notes')}><textarea className="rw-input cal-notes" rows={3} value={form.description} onChange={(e) => set({ description: e.target.value })} /></Field>
       </div>
     </Dialog>
   ) : null;
 
+  const offerBox = offer ? (
+    <Dialog
+      title={offer.fresh ? t('Send the invitation?') : t('Send the change?')}
+      width={420}
+      className="cal-offer"
+      onClose={() => setOffer(null)}
+      actions={
+        <>
+          <Button label={t('Not now')} onClick={() => setOffer(null)} />
+          <Button primary className="cal-offer-send" icon="send" label={offer.fresh ? t('Send invitation') : t('Send the change')} onClick={() => { const id = offer.id; setOffer(null); sendInvitation(id); }} />
+        </>
+      }
+    >
+      <p className="cal-offer-text">{tn(offer.count, '{summary} has {count} person invited. A message to them with the invitation attached opens in Mail, ready to send.', '{summary} has {count} people invited. A message to them with the invitation attached opens in Mail, ready to send.', { summary: offer.summary })}</p>
+    </Dialog>
+  ) : null;
+
+  // The event's own zone, when it is not this computer's: its times on that clock too.
+  const openedZone = opened?.event && !opened.slot.allDay ? ianaZone(opened.event.start?.tzid) : null;
   const detail = opened ? (
     <Dialog
       title={opened.slot.summary}
@@ -831,7 +993,7 @@ export default function Calendar({ app, shell, boot }) {
             {opened.event?.rrule ? <Button label={t('Delete this one')} onClick={() => removeOpened('this')} /> : null}
             <Button label={opened.event?.rrule ? t('Delete all') : t('Delete')} onClick={() => removeOpened('all')} />
             {opened.event?.attendees?.length ? <Button label={t('Send invitation')} onClick={invite} /> : null}
-            <Button primary label={t('Edit')} onClick={() => { setForm(formFrom(opened.event, opened.slot.original)); setOpened(null); }} />
+            <Button primary label={opened.event?.rrule ? t('Edit this one') : t('Edit')} title={opened.event?.rrule ? t('This occurrence, or choose every one in the editor') : undefined} onClick={() => { setForm(formFrom(opened.event, opened.slot.original, opened.slot)); setOpened(null); }} />
           </>
         )
       }
@@ -845,6 +1007,7 @@ export default function Calendar({ app, shell, boot }) {
               : `${new Date(opened.slot.start).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} – ${clock(opened.slot.end)}`}
           </span>
         </div>
+        {openedZone && openedZone !== LOCAL_ZONE ? <div className="cal-detail-line cal-detail-zone"><Icon name="globe" size={14} /><span>{t('{start} to {end} in {zone}', { start: clockIn(opened.slot.start, openedZone), end: clockIn(opened.slot.end, openedZone), zone: zonePlace(openedZone) })}</span></div> : null}
         {opened.event?.rule && opened.event.rule !== 'Does not repeat' ? <div className="cal-detail-line"><Icon name="refresh" size={14} /><span>{opened.event.rule}</span></div> : null}
         {opened.slot.location ? <div className="cal-detail-line"><Icon name="globe" size={14} /><span>{opened.slot.location}</span></div> : null}
         {opened.event?.attendees?.length ? <div className="cal-detail-line"><Icon name="contacts" size={14} /><span>{opened.event.attendees.map((a) => `${a.name || a.email}${a.partstat && a.partstat !== 'NEEDS-ACTION' ? ` (${ANSWERS[a.partstat] ?? a.partstat.toLowerCase()})` : ''}`).join(', ')}</span></div> : null}
@@ -899,9 +1062,19 @@ export default function Calendar({ app, shell, boot }) {
               </Group>
             </>
           ) : (
-            <Group label={t('Calendars')}>
-              <Button tall icon="plus" label={t('New calendar')} onClick={addCalendar} />
-            </Group>
+            <>
+              <Group label={t('Calendars')}>
+                <Button tall icon="plus" label={t('New calendar')} onClick={addCalendar} />
+              </Group>
+              <Group label={t('Time zones')}>
+                <Field label={t('Second time zone')}>
+                  <Select className="cal-second-zone" value={secondZone || ''} onChange={(e) => chooseSecondZone(e.target.value)} title={t('Its hours beside this computer\'s in the day and the week')}>
+                    <option value="">{t('None')}</option>
+                    {zoneChoices(Date.now()).filter((z) => z.zone !== LOCAL_ZONE).map((z) => <option key={z.zone} value={z.zone}>{z.label}</option>)}
+                  </Select>
+                </Field>
+              </Group>
+            </>
           )}
         </Ribbon>
       }
@@ -910,7 +1083,7 @@ export default function Calendar({ app, shell, boot }) {
       {accountsOpen ? <AccountsDialog shell={shell} kind="calendar" toast={toast} onClose={() => setAccountsOpen(false)} /> : null}
       <Panel width={220} resizable>
         <div className="cal-side">
-          <MiniMonth cursor={cursor} today={today} onPick={(d) => { setCursor(d); if (view === 'month') setView('day'); }} />
+          <MiniMonth cursor={cursor} today={today} onPick={(d) => { setCursor(d); if (view === 'month') setView('day'); }} onShift={shiftMonth} />
           <div className="cal-cals">
             <div className="cal-cals-head">{t('My calendars')}</div>
             {calendars.map((c) => (
@@ -963,21 +1136,28 @@ export default function Calendar({ app, shell, boot }) {
       </Content>
       {editor}
       {detail}
+      {offerBox}
     </AppFrame>
   );
 }
 
-function MiniMonth({ cursor, today, onPick }) {
+/** The small month beside the calendars: a day picked opens it; its arrows move the main view a month too. */
+function MiniMonth({ cursor, today, onPick, onShift }) {
   const [shown, setShown] = useState(() => new Date(cursor.getFullYear(), cursor.getMonth(), 1));
   useEffect(() => setShown(new Date(cursor.getFullYear(), cursor.getMonth(), 1)), [cursor]);
+  // The month on show moves with the main view; a view already on another month goes by the one on show.
+  const shift = (n) => {
+    const away = (shown.getFullYear() - cursor.getFullYear()) * 12 + shown.getMonth() - cursor.getMonth();
+    onShift(away + n);
+  };
   const from = startOfWeek(shown);
   const cells = Array.from({ length: 42 }, (_, i) => addDays(from, i));
   return (
     <div className="cal-mini">
       <div className="cal-mini-head">
-        <button type="button" aria-label={t('Previous month')} data-tip={t('Previous month')} onClick={() => setShown(new Date(shown.getFullYear(), shown.getMonth() - 1, 1))}>‹</button>
+        <button type="button" className="cal-mini-prev" aria-label={t('Previous month')} data-tip={t('Previous month')} onClick={() => shift(-1)}>‹</button>
         <span>{MONTHS_SHORT[shown.getMonth()]} {shown.getFullYear()}</span>
-        <button type="button" aria-label={t('Next month')} data-tip={t('Next month')} onClick={() => setShown(new Date(shown.getFullYear(), shown.getMonth() + 1, 1))}>›</button>
+        <button type="button" className="cal-mini-next" aria-label={t('Next month')} data-tip={t('Next month')} onClick={() => shift(1)}>›</button>
       </div>
       <div className="cal-mini-grid">
         {DAY_LETTERS.map((d, i) => <span key={i} className="h" aria-hidden="true">{d}</span>)}
@@ -1064,6 +1244,10 @@ const CSS = `
 .cal-time-head, .cal-allday { overflow: hidden; scrollbar-gutter: stable; }
 .cal-hours { scrollbar-gutter: stable; }
 .cal-gutter { font-size: 10.5px; color: var(--ink-3); text-align: right; padding-right: 6px; }
+/* A second zone's hours: their own column before this computer's, each headed by its place. */
+.cal-time.two .cal-time-head, .cal-time.two .cal-allday, .cal-time.two .cal-hours { grid-template-columns: 56px 56px repeat(auto-fit, minmax(0, 1fr)); }
+.cal-zone-name { align-self: end; padding-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-offer-text { margin: 0; font-size: 13px; }
 .cal-col-head { padding: 4px 6px; font-size: 12px; color: var(--ink-2); border-bottom: 1px solid var(--line); }
 .cal-col-head.today .dd { background: var(--accent-fill); color: white; border-radius: 10px; padding: 0 6px; }
 .cal-col-head .dd { font-weight: 700; }
