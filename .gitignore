@@ -12,6 +12,8 @@ build/out/
 # Build output: the bundle, the preload, and the smoke captures.
 apps/desktop/build/out/
 apps/desktop/build/smoke/
+# The app packs and the installer's include made from them (build/make-app-packs.js).
+apps/desktop/build/packs/
 # Website screenshots, from `npm run screens`. Ignored for the same reason the
 # smoke captures are, and for one more: an app given no file opens the
 # operating system's own folders, so a capture can contain whatever is on the

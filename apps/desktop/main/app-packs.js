@@ -111,6 +111,16 @@ export function readPackKeys(file) {
   }
 }
 
+/** Each pack's size as the build measured it, from the same file: what Add or remove apps says of a pack not here yet. */
+export function readPackSizes(file) {
+  try {
+    const sizes = JSON.parse(fs.readFileSync(file, 'utf8'))?.sizes;
+    return sizes && typeof sizes === 'object' ? sizes : {};
+  } catch {
+    return {};
+  }
+}
+
 /** A refusal as a window and the log say it. */
 const said = ({ id, reason }) => ({ id, name: PACKS.find((p) => p.id === id)?.name || id, reason });
 

@@ -40,6 +40,11 @@ export const WORDS = [
   ['recorder', 'Recorder'],
   ['talk', 'Talk'],
   ['base', 'Data Files'],
+  // The page that says which apps are put on the computer at all (docs/APP-PACKS.md 5.3).
+  ['ocr', 'Text recognition'],
+  ['ptitle', 'Apps to install'],
+  ['psub', 'Only the apps you tick are put on this computer.'],
+  ['plead', 'Tick the apps to install. An app not ticked is not on this computer at all; add it later from Add or remove apps in Rutba Office.'],
 ];
 
 /** The languages, by the primary language of a Windows language id. */

@@ -23,6 +23,10 @@
   Var rutbaW_recorder
   Var rutbaW_talk
   Var rutbaW_base
+  Var rutbaW_ocr
+  Var rutbaW_ptitle
+  Var rutbaW_psub
+  Var rutbaW_plead
 
 Function rutbaPickWords
   StrCpy $rutbaW_title "Choose apps"
@@ -46,6 +50,10 @@ Function rutbaPickWords
   StrCpy $rutbaW_recorder "Recorder"
   StrCpy $rutbaW_talk "Talk"
   StrCpy $rutbaW_base "Data Files"
+  StrCpy $rutbaW_ocr "Text recognition"
+  StrCpy $rutbaW_ptitle "Apps to install"
+  StrCpy $rutbaW_psub "Only the apps you tick are put on this computer."
+  StrCpy $rutbaW_plead "Tick the apps to install. An app not ticked is not on this computer at all; add it later from Add or remove apps in Rutba Office."
   ; The installer's own language, or, where it fell back to English, the system's.
   IntOp $0 $LANGUAGE & 0x3FF
   ${If} $0 == 9

@@ -112,6 +112,8 @@
   Push $R7
   !insertmacro rutbaRemoveInstalledCopy HKCU currentuser
   !insertmacro rutbaRemoveInstalledCopy HKLM allusers
+  ; Which app packs to write, before the pages show it (installer-packs.nsh).
+  !insertmacro rutbaPacksDecide
   Pop $R7
   Pop $R6
   Pop $R5
@@ -132,14 +134,27 @@
 ; on exactly the apps in use. The apps ticked and unticked are written back
 ; to the same values, and Office takes the choice from them on its next
 ; start: their tiles go, and the kinds of file they open are let go of.
-; Nothing is left uninstalled: the apps share one program, and any can be
-; turned on again from Choose apps. A silent install (an update) shows no
-; page and leaves the choice as it was.
+; An app turned off here stays installed, and can be turned on again from
+; Choose apps; which apps are installed at all is the page before this one
+; (Apps to install). A silent install (an update) shows no page and leaves
+; the choice as it was.
 
 !include "nsDialogs.nsh"
 !include "WordFunc.nsh"
 ; The page's words in Urdu, Arabic and Hindi, made from the catalogues (tools/make-installer-words.mjs).
 !include "${__FILEDIR__}\installer-words.nsh"
+; The app packs this installer carries, made from the build before electron-builder runs
+; (build/make-app-packs.js): a pack's files are written only when its box is ticked.
+!include "${PROJECT_DIR}\build\packs\installer-packs.nsh"
+
+; Apps to install (docs/APP-PACKS.md 5.3). A page before Choose apps: a box
+; for every app pack, Text recognition and AI Tools among them, all ticked on
+; a first install and ticked as installed on the next. Only the packs ticked
+; are written, and only their kinds of file registered; an app not ticked is
+; not on the computer at all, and Choose apps below shows it unticked and
+; greyed. /PACKS=mail,word on the command line chooses without the page. An
+; update, silent, writes the packs installed (Packs), and every pack when
+; updating a version with one archive, which had no Packs.
 
 ; One box. With the apps on written before (AppsOn, by Office or an earlier
 ; page): ticked when the app is one of them. With only the apps off (AppsOff,
@@ -164,11 +179,18 @@
     ${NSD_Check} $rutbaBox_${KEY}
   ${EndIf}
   ClearErrors
+  ${If} $rutbaPack_${KEY} != "1"
+    ${NSD_Uncheck} $rutbaBox_${KEY}
+    EnableWindow $rutbaBox_${KEY} 0
+  ${EndIf}
 !macroend
 
 !macro rutbaAppRead KEY
   ${NSD_GetState} $rutbaBox_${KEY} $1
-  ${If} $1 != ${BST_CHECKED}
+  ${If} $rutbaPack_${KEY} != "1"
+    ; Not installed: on in the choice, so it shows once it is added.
+    StrCpy $rutbaAppsOn "$rutbaAppsOn${KEY},"
+  ${ElseIf} $1 != ${BST_CHECKED}
     StrCpy $rutbaAppsOff "$rutbaAppsOff${KEY},"
   ${Else}
     StrCpy $rutbaAppsOn "$rutbaAppsOn${KEY},"
@@ -180,6 +202,7 @@
 ; asks for a page after the folder: the installer's UI library (MUI) is
 ; loaded there, and the uninstaller, built without the pages, never sees them.
 !macro customPageAfterChangeDir
+  Page custom rutbaPacksPageShow rutbaPacksPageLeave
   Page custom rutbaAppsPageShow rutbaAppsPageLeave
 
   Var rutbaAppsShown
@@ -206,6 +229,29 @@
   Var rutbaAddOns
   Var rutbaAddOnsBefore
   !insertmacro rutbaInstallerWords
+
+Function rutbaPacksPageShow
+  Call rutbaPickWords
+  !insertmacro MUI_HEADER_TEXT "$rutbaW_ptitle" "$rutbaW_psub"
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 20u "$rutbaW_plead"
+  Pop $0
+  !insertmacro rutbaPackBoxes
+  nsDialogs::Show
+FunctionEnd
+
+Function rutbaPacksPageLeave
+  StrCpy $2 0
+  !insertmacro rutbaPackReads
+  ${If} $2 == 0
+    MessageBox MB_OK|MB_ICONEXCLAMATION "$rutbaW_none"
+    Abort
+  ${EndIf}
+FunctionEnd
 
 Function rutbaAppsPageShow
   Call rutbaPickWords
@@ -258,6 +304,10 @@ Function rutbaAppsPageShow
     ${NSD_Check} $rutbaBox_ai
   ${EndIf}
   ClearErrors
+  ${If} $rutbaPack_ai != "1"
+    ${NSD_Uncheck} $rutbaBox_ai
+    EnableWindow $rutbaBox_ai 0
+  ${EndIf}
   nsDialogs::Show
 FunctionEnd
 
@@ -285,6 +335,7 @@ Function rutbaAppsPageLeave
   StrCpy $rutbaAddOns ""
   ${NSD_GetState} $rutbaBox_ai $1
   ${If} $1 == ${BST_CHECKED}
+  ${OrIf} $rutbaPack_ai != "1"
     StrCpy $rutbaAddOns "ai"
   ${EndIf}
   StrCpy $rutbaAppsShown "1"
@@ -293,6 +344,8 @@ FunctionEnd
 
 !macro customInstall
   !ifndef BUILD_UNINSTALLER
+  ; The app packs chosen, and only their kinds of file (installer-packs.nsh).
+  !insertmacro rutbaWritePacks
   ${If} $rutbaAppsShown == "1"
     WriteRegStr HKCU "Software\Rutba Office" "AppsOff" "$rutbaAppsOff"
     WriteRegStr HKCU "Software\Rutba Office" "AppsOn" "$rutbaAppsOn"
@@ -300,4 +353,11 @@ FunctionEnd
     WriteRegStr HKCU "Software\Rutba Office" "AppsChosenAt" "installer"
   ${EndIf}
   !endif
+!macroend
+
+; Every kind of file a pack registered is let go of, whichever packs were
+; installed: electron-builder no longer registers them, so it no longer
+; removes them either.
+!macro customUnInstall
+  !insertmacro rutbaForgetTypes
 !macroend

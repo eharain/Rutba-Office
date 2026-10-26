@@ -3,13 +3,23 @@
 // A JavaScript config rather than YAML for one reason: the file associations
 // come from the same registry the Open dialog and the launcher read, so the
 // suite cannot claim a format on the download page, offer it in the dialog, and
-// then fail to register it with Windows.
+// then fail to register it with the system.
+//
+// On Windows the installer writes the app packs a person ticks
+// (build/make-app-packs.js, resources/installer.nsh, docs/APP-PACKS.md 5.3)
+// and registers only their kinds of file, so the Windows build has no
+// associations of its own here. The portable build, the macOS disk image and
+// the Linux packages have every app built in, and claim every kind.
 
 const path = require('node:path');
 
 module.exports = async () => {
   const { fileAssociations } = await import('@rutba/office-formats/registry');
   const year = new Date().getFullYear();
+  const associations = fileAssociations().map(({ app: owner, ...a }) => ({
+    ...a,
+    icon: path.resolve(__dirname, 'resources', 'filetypes', `${a.ext === 'pdf' ? 'pdf' : owner}.ico`),
+  }));
 
   return {
     appId: 'co.techstyle.rutba.office',
@@ -31,6 +41,9 @@ module.exports = async () => {
       'resources/icon.ico',
       'resources/apps/*.ico',
       'package.json',
+      // The window checks and the screens build run from the source, never from an installed copy.
+      '!main/verify-*.js',
+      '!main/screen-*.js',
       '!**/*.map',
       '!**/test/**',
       '!**/tests/**',
@@ -61,10 +74,7 @@ module.exports = async () => {
     // The owning app decides the icon and is then dropped: electron-builder
     // validates each association against its own schema and refuses a config
     // carrying a property it does not know, which is a build that never runs.
-    fileAssociations: fileAssociations().map(({ app: owner, ...a }) => ({
-      ...a,
-      icon: path.resolve(__dirname, 'resources', 'filetypes', `${a.ext === 'pdf' ? 'pdf' : owner}.ico`),
-    })),
+    // Kept for macOS and Linux below; Windows registers each pack's own.
 
 
     protocols: [{ name: 'Rutba Office', schemes: ['rutba-office'] }],
@@ -117,6 +127,7 @@ module.exports = async () => {
         { target: 'zip', arch: ['x64', 'arm64'] },
       ],
       category: 'public.app-category.productivity',
+      fileAssociations: associations,
       icon: path.resolve(__dirname, 'resources/icon.png'),
       darkModeSupport: true,
       hardenedRuntime: false,
@@ -143,6 +154,7 @@ module.exports = async () => {
         { target: 'deb', arch: ['x64'] },
       ],
       category: 'Office',
+      fileAssociations: associations,
       // The program's name on disk: /opt/Rutba Office/rutba-office. Left to
       // itself electron-builder takes the package's scoped name.
       executableName: 'rutba-office',

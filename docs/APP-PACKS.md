@@ -770,6 +770,36 @@ each cut is made.
   bundle (an AppImage, a signed `.app`) cannot lose a pack. Choosing there
   is a later step (packs in the user's own folder).
 
+*Built.* `build/make-app-packs.js` runs after the renderer's build and
+before electron-builder (`npm run dist`). For each pack it makes a folder
+from `describePack` (its main module, its tile, the icons of its kinds of
+file, kept on disk for the taskbar and Explorer), signs it with
+`tools/make-packs.mjs` into `build/packs/out`, and writes the release's
+file for it (`Rutba-Office-<version>-<id>.pack`) beside the installers.
+The private key is read from `--key`, `RUTBA_PACK_KEY` or
+`RUTBA_PACK_KEY_FILE`, never from the repository; the public half goes
+into the core as `build/out/pack-keys.json`, with each pack's size. It
+also writes `build/packs/installer-packs.nsh`, which
+`resources/installer.nsh` includes:
+
+- **Apps to install**, a page before the apps page: a box per pack, all
+  ticked on a first install and on an update from a version with one
+  archive, the installed ones on any later run (the `Packs` value), or
+  those `/PACKS=a,b` names. One app at least must be ticked.
+- **Choose apps** greys the apps not ticked there, and treats an app not
+  installed as on, so that adding it later shows it.
+- `customInstall` writes each ticked pack (archive, then its folder, then
+  its manifest) and registers its kinds of file and nothing else; it
+  writes `Packs`. The core writes `Packs` again at each start of an
+  installed copy, from what it loaded.
+- `customUnInstall` lets go of every kind of file any pack registers. The
+  pack files go with the install folder.
+
+The Windows build has no `fileAssociations` of its own any more; the
+macOS and Linux builds keep them. The window checks and the screens
+build (`main/verify-*.js`, `main/screen-*.js`) are left out of the
+archive.
+
 ### 5.4 Add or remove apps
 
 The launcher's Choose apps becomes Add or remove apps.
