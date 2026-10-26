@@ -181,6 +181,7 @@ export function createProfilesService({ profile, stores, broadcast }) {
       mustBeHere();
       if (profile.lock) throw new Error('This profile already has a password. Change it instead.');
       const { lock, key } = await makeLock(password);
+      await stores.vault.prepare?.(key);
       profile.lock = await rekeyProfile({ base, id: profile.id, vault: stores.vault, from: null, to: key, lock, folder: stores.dir });
       return tell();
     },
@@ -192,6 +193,7 @@ export function createProfilesService({ profile, stores, broadcast }) {
       const from = await unlock(profile.lock, old);
       if (!from) throw new Error('The current password is not right.');
       const { lock, key } = await makeLock(password);
+      await stores.vault.prepare?.(key);
       profile.lock = await rekeyProfile({ base, id: profile.id, vault: stores.vault, from, to: key, lock, folder: stores.dir });
       return tell();
     },
@@ -201,6 +203,7 @@ export function createProfilesService({ profile, stores, broadcast }) {
       mustBeHere();
       if (!profile.lock) return current();
       if (!(await unlock(profile.lock, old))) throw new Error('The current password is not right.');
+      await stores.vault.prepare?.(null);
       profile.lock = await rekeyProfile({ base, id: profile.id, vault: stores.vault, from: null, to: null, lock: null, folder: stores.dir });
       return tell();
     },

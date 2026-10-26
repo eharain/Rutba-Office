@@ -104,7 +104,8 @@ export function createArchiveDesk({ stores, store, broadcast, holdBlob, insightF
 
   /** Every account's part of the index brought up to date, on its thread. */
   async function syncAccounts() {
-    await askAccounts('sync', { accounts: accounts().map((a) => ({ id: a.id, name: a.name || a.email })) });
+    // The keys the store opens its files with now (a profile with a password), handed to the thread with each sync.
+    await askAccounts('sync', { accounts: accounts().map((a) => ({ id: a.id, name: a.name || a.email })), keys: store.keys?.() || [] });
   }
 
   /** The archives still being indexed, for a search to say its answer is not yet whole. */

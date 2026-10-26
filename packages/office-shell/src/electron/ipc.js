@@ -195,6 +195,19 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   const temps = new Set();
   // The recordings capture.take made: appended to the same way, but their folder is a person's, kept.
   const takes = new Set();
+  // Scratch files go when Rutba Office does: an attachment opened from mail sealed with the
+  // profile's password is in the clear only while it may still be open, never after.
+  app.once('will-quit', () => {
+    for (const p of temps) {
+      if (takes.has(p)) continue;
+      try {
+        fs.rmSync(p, { force: true });
+        fs.rmdirSync(path.dirname(p));
+      } catch {
+        /* still open in another program, or its folder holds more */
+      }
+    }
+  });
 
   impl.fs = {
     read: async ({ path: p }) => {

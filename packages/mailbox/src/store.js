@@ -21,12 +21,40 @@
 // from before has none of them and reads as it always did: a folder with no
 // sync.json is one the server has not been matched against yet, and its first
 // fetch does that (main/mail-sync.js), keeping every message it holds.
+//
+// Sealed (2.19, D-2026-10-26-02): in a profile with a password, every file
+// here is sealed with the profile's key (sealed.js): the messages, their
+// attachments, the folder list, each index line, sync.json, changes.json
+// and outgoing/. Nothing is read from here but through this class, which
+// opens them; an attachment leaves it only as bytes (attachmentBytes), never
+// as a path to the sealed file. Without a password nothing is sealed and the
+// files are as they always were. When the key changes every file is sealed
+// again (rekey), a folder at a time, with
+//
+//   <root>/.reseal.json   the run under way: the folders done, and the key
+//                         it replaces sealed with the new one
+//
+// so a run stopped by a crash carries on at the next open (resumeReseal),
+// and no file is left sealed with a key nobody can make again.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { SearchIndex, docOf, headlineText } from './search-index.js';
 import { stripHtml } from './mime.js';
+import { sealBytes, openBytes, isSealed, sealLine, openLine, isSealedLine, sealedWith } from './sealed.js';
+
+/** The run of sealing again under way, at the store's root. */
+const RESEAL = '.reseal.json';
+/** How many files are sealed again between looks at everything else waiting. */
+const RESEAL_SLICE = 40;
+
+/** A file written whole or not at all: a crash mid-write leaves the one before. */
+function writeAtomic(file, data) {
+  const temp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temp, data);
+  fs.renameSync(temp, file);
+}
 
 // Anything a file system anywhere objects to, plus whitespace, so a stored
 // name is safe to type, safe to script over, and identical on every platform.
@@ -106,10 +134,95 @@ export class MailStore {
   /** Each message's words by folder and id, so a changed folder is indexed again without reading every message. */
   #words = new Map();
 
-  /** @param {string} root directory the store owns */
-  constructor(root) {
+  /** The profile's key files are sealed with now, or null for none; and the one it replaced while a rekey runs. */
+  #key = null;
+  #previous = [];
+
+  /**
+   * @param {string} root directory the store owns
+   * @param {{ key?: Buffer|null }} [options] the profile's key, for a profile with a password
+   */
+  constructor(root, { key = null } = {}) {
     this.root = root;
     fs.mkdirSync(root, { recursive: true });
+    this.useKey(key);
+  }
+
+  /* ── sealed with the profile's key ───────────────────────────────────── */
+
+  /** The key files are sealed with from now on (null: plain). */
+  useKey(key) {
+    this.#key = key ? Buffer.from(key) : null;
+    this.#previous = [];
+    // A run a crash stopped: the files it had not reached open with the key it was replacing, until resumeReseal ends it.
+    const marker = this.#key ? this.#readMarker() : null;
+    if (marker?.from) {
+      try {
+        this.#previous = [openBytes([this.#key], Buffer.from(marker.from, 'base64'))];
+      } catch {
+        /* not this key's run */
+      }
+    }
+    this.#cache.clear();
+  }
+
+  /** Every key that opens a file here now: the current one, and while a rekey runs the one it replaces. */
+  keys() {
+    return [this.#key, ...this.#previous].filter(Boolean);
+  }
+
+  /** The keys as `keys()` gave them, in another store on the same folder (the search thread's). */
+  useKeys(keys = []) {
+    const same = keys.length === this.keys().length && keys.every((k, i) => Buffer.from(k).equals(this.keys()[i]));
+    if (same) return;
+    this.#key = keys[0] ? Buffer.from(keys[0]) : null;
+    this.#previous = keys.slice(1).map((k) => Buffer.from(k));
+    this.#cache.clear();
+  }
+
+  /** Whether files written now are sealed. */
+  get sealed() {
+    return Boolean(this.#key);
+  }
+
+  #seal(bytes) {
+    const b = Buffer.isBuffer(bytes) ? bytes : Buffer.from(String(bytes), 'utf8');
+    return this.#key ? sealBytes(this.#key, b) : b;
+  }
+
+  #open(raw) {
+    return isSealed(raw) ? openBytes(this.keys(), raw) : raw;
+  }
+
+  /** A file's bytes as they were before they were sealed. Throws as fs does for a missing file, LockedError for one no key opens. */
+  #readBytes(file) {
+    return this.#open(fs.readFileSync(file));
+  }
+
+  #readText(file) {
+    return this.#readBytes(file).toString('utf8');
+  }
+
+  #write(file, data) {
+    fs.writeFileSync(file, this.#seal(data));
+  }
+
+  /** One index line as written: sealed alone, so the next is an append. */
+  #line(text) {
+    return this.#key ? sealLine(this.#key, text) : text;
+  }
+
+  #parseLine(line) {
+    return JSON.parse(isSealedLine(line) ? openLine(this.keys(), line) : line);
+  }
+
+  /** A folder's index written whole. */
+  #writeRows(file, rows) {
+    fs.writeFileSync(file, rows.map((r) => this.#line(JSON.stringify(r))).join('\n') + (rows.length ? '\n' : ''));
+  }
+
+  #appendRows(file, rows) {
+    if (rows.length) fs.appendFileSync(file, `${rows.map((r) => this.#line(JSON.stringify(r))).join('\n')}\n`);
   }
 
   #accountDir(accountId) {
@@ -128,7 +241,7 @@ export class MailStore {
   folders(accountId) {
     const file = path.join(this.#accountDir(accountId), 'folders.json');
     try {
-      return JSON.parse(fs.readFileSync(file, 'utf8'));
+      return JSON.parse(this.#readText(file));
     } catch {
       return [];
     }
@@ -136,7 +249,7 @@ export class MailStore {
 
   setFolders(accountId, folders) {
     const file = path.join(this.#accountDir(accountId), 'folders.json');
-    fs.writeFileSync(file, JSON.stringify(folders, null, 2));
+    this.#writeWhole(file, JSON.stringify(folders, null, 2));
     return folders;
   }
 
@@ -169,7 +282,8 @@ export class MailStore {
           const adir = path.join(dir, 'a', id);
           fs.mkdirSync(adir, { recursive: true });
           const target = path.join(adir, a.stored);
-          if (path.resolve(from) !== path.resolve(target)) fs.copyFileSync(from, target);
+          // Read and written again, not copied: sealed with the key held now, whatever the one it came with.
+          if (path.resolve(from) !== path.resolve(target)) this.#write(target, this.#readBytes(from));
           return { ...a, bytes: undefined };
         }
         return { ...a, bytes: undefined, stored: false };
@@ -177,21 +291,21 @@ export class MailStore {
       const adir = path.join(dir, 'a', id);
       fs.mkdirSync(adir, { recursive: true });
       const name = `${String(i).padStart(2, '0')}-${safe(a.filename)}`;
-      fs.writeFileSync(path.join(adir, name), Buffer.from(a.bytes));
+      this.#write(path.join(adir, name), Buffer.from(a.bytes));
       return { filename: a.filename, type: a.type, size: a.size ?? a.bytes.length, contentId: a.contentId, inline: a.inline, stored: name };
     });
 
     const record = { ...message, id, folder, attachments };
     delete record.structure; // the parse tree is not worth storing
     this.#keepOriginal(record, dir, id, message, accountId);
-    fs.writeFileSync(file, JSON.stringify(record));
+    this.#write(file, JSON.stringify(record));
     if (existed) {
       // Put again over itself (a draft saved again): its one index row is replaced, not joined by a second.
       const rows = this.#index(accountId, folder).filter((row) => row.id !== id);
       rows.push(headerOf(record, id, folder));
-      fs.writeFileSync(path.join(dir, 'index.jsonl'), rows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+      this.#writeRows(path.join(dir, 'index.jsonl'), rows);
     } else {
-      fs.appendFileSync(path.join(dir, 'index.jsonl'), `${JSON.stringify(headerOf(record, id, folder))}\n`);
+      this.#appendRows(path.join(dir, 'index.jsonl'), [headerOf(record, id, folder)]);
     }
     return id;
   }
@@ -207,7 +321,7 @@ export class MailStore {
     delete record.smimeRaw;
     if (!bytes && message.smime?.original && message.folder != null && message.id) {
       try {
-        bytes = fs.readFileSync(path.join(this.#folderDir(accountId, message.folder), 'a', message.id, name));
+        bytes = this.#readBytes(path.join(this.#folderDir(accountId, message.folder), 'a', message.id, name));
       } catch {
         bytes = null;
       }
@@ -215,7 +329,7 @@ export class MailStore {
     if (!bytes) return;
     const adir = path.join(dir, 'a', id);
     fs.mkdirSync(adir, { recursive: true });
-    fs.writeFileSync(path.join(adir, name), Buffer.from(bytes));
+    this.#write(path.join(adir, name), Buffer.from(bytes));
     record.smime = { original: name };
   }
 
@@ -224,7 +338,7 @@ export class MailStore {
     const record = this.get(accountId, folder, id);
     if (!record?.smime?.original) return null;
     try {
-      return fs.readFileSync(path.join(this.#folderDir(accountId, folder), 'a', id, record.smime.original));
+      return this.#readBytes(path.join(this.#folderDir(accountId, folder), 'a', id, record.smime.original));
     } catch {
       return null;
     }
@@ -248,18 +362,18 @@ export class MailStore {
         const adir = path.join(dir, 'a', id);
         fs.mkdirSync(adir, { recursive: true });
         const name = `${String(i).padStart(2, '0')}-${safe(a.filename)}`;
-        fs.writeFileSync(path.join(adir, name), Buffer.from(a.bytes));
+        this.#write(path.join(adir, name), Buffer.from(a.bytes));
         return { filename: a.filename, type: a.type, size: a.size ?? a.bytes.length, contentId: a.contentId, inline: a.inline, stored: name };
       });
       const record = { ...message, id, folder, attachments };
       delete record.structure;
       this.#keepOriginal(record, dir, id, message, accountId);
-      fs.writeFileSync(file, JSON.stringify(record));
-      lines.push(JSON.stringify(headerOf(record, id, folder)));
+      this.#write(file, JSON.stringify(record));
+      lines.push(headerOf(record, id, folder));
       ids?.push(id);
       added++;
     }
-    if (lines.length) fs.appendFileSync(path.join(dir, 'index.jsonl'), `${lines.join('\n')}\n`);
+    this.#appendRows(path.join(dir, 'index.jsonl'), lines);
     return added;
   }
 
@@ -296,7 +410,7 @@ export class MailStore {
     for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
       if (!line.trim()) continue;
       try {
-        rows.push(JSON.parse(line));
+        rows.push(this.#parseLine(line));
       } catch {
         // A torn last line after a crash: skip it, keep the rest.
       }
@@ -340,14 +454,20 @@ export class MailStore {
   get(accountId, folder, id) {
     const file = path.join(this.#folderDir(accountId, folder), 'm', `${id}.json`);
     try {
-      return JSON.parse(fs.readFileSync(file, 'utf8'));
+      return JSON.parse(this.#readText(file));
     } catch {
       return null;
     }
   }
 
+  /** Where an attachment's file is: sealed in a profile with a password, so read it with attachmentBytes. */
   attachmentPath(accountId, folder, id, stored) {
     return path.join(this.#folderDir(accountId, folder), 'a', id, stored);
+  }
+
+  /** An attachment's bytes, opened. Throws when it is not stored. */
+  attachmentBytes(accountId, folder, id, stored) {
+    return this.#readBytes(this.attachmentPath(accountId, folder, id, stored));
   }
 
   /** Change flags on a message; the index line is rewritten in place. */
@@ -370,13 +490,13 @@ export class MailStore {
       const message = this.get(accountId, folder, id);
       if (!message) continue;
       Object.assign(message, patch);
-      fs.writeFileSync(path.join(dir, 'm', `${id}.json`), JSON.stringify(message));
+      this.#write(path.join(dir, 'm', `${id}.json`), JSON.stringify(message));
       changed.add(id);
       messages.push(message);
     }
     if (changed.size) {
       const rows = this.#index(accountId, folder).map((r) => (changed.has(r.id) ? { ...r, ...patch } : r));
-      fs.writeFileSync(path.join(dir, 'index.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
+      this.#writeRows(path.join(dir, 'index.jsonl'), rows);
     }
     return messages;
   }
@@ -394,7 +514,7 @@ export class MailStore {
     if (!a) return false;
     if (reading === null || reading === undefined) delete a.reading;
     else a.reading = reading;
-    fs.writeFileSync(path.join(this.#folderDir(accountId, folder), 'm', `${id}.json`), JSON.stringify(message));
+    this.#write(path.join(this.#folderDir(accountId, folder), 'm', `${id}.json`), JSON.stringify(message));
     return true;
   }
 
@@ -415,7 +535,7 @@ export class MailStore {
       }
     }
     const rows = this.#index(accountId, folder).filter((r) => !gone.has(r.id));
-    fs.writeFileSync(path.join(dir, 'index.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : ''));
+    this.#writeRows(path.join(dir, 'index.jsonl'), rows);
     return true;
   }
 
@@ -537,9 +657,7 @@ export class MailStore {
 
   /** A file written whole or not at all: a crash mid-write leaves the one before. */
   #writeWhole(file, text) {
-    const temp = `${file}.${process.pid}.tmp`;
-    fs.writeFileSync(temp, text);
-    fs.renameSync(temp, file);
+    writeAtomic(file, this.#seal(text));
   }
 
   /** Does the store hold this folder (its directory), without making it? */
@@ -555,7 +673,7 @@ export class MailStore {
    */
   syncState(accountId, folder) {
     try {
-      return JSON.parse(fs.readFileSync(path.join(this.#folderDir(accountId, folder), 'sync.json'), 'utf8'));
+      return JSON.parse(this.#readText(path.join(this.#folderDir(accountId, folder), 'sync.json')));
     } catch {
       return null;
     }
@@ -586,12 +704,12 @@ export class MailStore {
       const message = this.get(accountId, folder, id);
       if (!message || message.uid === uids[id]) continue;
       message.uid = uids[id];
-      fs.writeFileSync(path.join(dir, 'm', `${id}.json`), JSON.stringify(message));
+      this.#write(path.join(dir, 'm', `${id}.json`), JSON.stringify(message));
       changed++;
     }
     if (changed) {
       const rows = this.#index(accountId, folder).map((r) => (r.id in uids ? { ...r, uid: uids[r.id] } : r));
-      fs.writeFileSync(path.join(dir, 'index.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
+      this.#writeRows(path.join(dir, 'index.jsonl'), rows);
     }
     return changed;
   }
@@ -603,7 +721,7 @@ export class MailStore {
    */
   changes(accountId) {
     try {
-      const kept = JSON.parse(fs.readFileSync(path.join(this.#accountDir(accountId), 'changes.json'), 'utf8'));
+      const kept = JSON.parse(this.#readText(path.join(this.#accountDir(accountId), 'changes.json')));
       return Array.isArray(kept.items) ? kept : { next: 1, items: [] };
     } catch {
       return { next: 1, items: [] };
@@ -633,6 +751,18 @@ export class MailStore {
     return path.join(dir, safe(name));
   }
 
+  /** A sent message's bytes kept to wait for the server, sealed like the rest: the file they are in. */
+  writeOutgoing(accountId, name, bytes) {
+    const file = this.outgoingPath(accountId, name);
+    writeAtomic(file, this.#seal(Buffer.from(bytes)));
+    return file;
+  }
+
+  /** What writeOutgoing kept, opened. */
+  readOutgoing(file) {
+    return this.#readBytes(file);
+  }
+
   /**
    * A folder renamed here, with the folders inside it (`delimiter` between
    * the names): their files moved, each message told its new folder, the
@@ -651,9 +781,9 @@ export class MailStore {
       const rows = this.#index(accountId, next).map((r) => ({ ...r, folder: next }));
       for (const r of rows) {
         const m = this.get(accountId, next, r.id);
-        if (m) fs.writeFileSync(path.join(newDir, 'm', `${r.id}.json`), JSON.stringify({ ...m, folder: next }));
+        if (m) this.#write(path.join(newDir, 'm', `${r.id}.json`), JSON.stringify({ ...m, folder: next }));
       }
-      if (rows.length) fs.writeFileSync(path.join(this.#folderDir(accountId, next), 'index.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
+      if (rows.length) this.#writeRows(path.join(this.#folderDir(accountId, next), 'index.jsonl'), rows);
     }
     this.setFolders(accountId, folders.map((f) => (inside(f.path) ? { ...f, path: to + f.path.slice(from.length), name: (to + f.path.slice(from.length)).split(delimiter).pop() } : f)));
     return true;
@@ -665,5 +795,210 @@ export class MailStore {
     this.#cache.delete(`${accountId}\u0000${folder}`);
     this.setFolders(accountId, this.folders(accountId).filter((f) => f.path !== folder));
     return true;
+  }
+
+  /* ── sealing every file again when the key changes ───────────────────── */
+
+  #marker() {
+    return path.join(this.root, RESEAL);
+  }
+
+  #readMarker() {
+    try {
+      const m = JSON.parse(fs.readFileSync(this.#marker(), 'utf8'));
+      return { from: typeof m.from === 'string' ? m.from : null, done: Array.isArray(m.done) ? m.done : [] };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Before the profile's lock changes: the run about to start written down,
+   * with the key being replaced sealed with the new one (never on its own,
+   * and not at all when a password is set or taken away: then one of the two
+   * is no key). Should anything stop between the lock changing and the last
+   * file, the next open has what it needs to carry on.
+   */
+  async prepareReseal(old, next) {
+    // A run a crash stopped is finished first: its marker holds the only copy of the key before it.
+    if (this.#readMarker()?.done.length) await this.resumeReseal();
+    const from = old && next ? sealBytes(Buffer.from(next), Buffer.from(old)).toString('base64') : null;
+    writeAtomic(this.#marker(), JSON.stringify({ v: 1, from, done: [] }));
+  }
+
+  /** A run of sealing again begun and not finished. */
+  resealPending() {
+    return fs.existsSync(this.#marker());
+  }
+
+  /**
+   * Every file sealed again with `next` (or made plain, with none), the
+   * files it replaces opened with `old`. Reads and writes go on meanwhile:
+   * a file is read with either key, a file written is sealed with the new.
+   * @param {{ progress?: (p: { done: number, total: number }) => void }} [options]
+   * @returns {Promise<{ files: number, sealed: number, unopened: number, ms: number }>}
+   */
+  async rekey(old, next, { progress } = {}) {
+    // Not prepared for (a vault used without prepare), or prepared for another run: written now.
+    const marker = this.#readMarker();
+    if (!marker || marker.done.length || (old && next && !marker.from)) await this.prepareReseal(old, next);
+    this.#key = next ? Buffer.from(next) : null;
+    this.#previous = old ? [Buffer.from(old)] : [];
+    this.#cache.clear();
+    return this.#resealAll(progress);
+  }
+
+  /**
+   * A run a crash stopped, carried on: the key it replaced read from the
+   * marker (sealed with the key held now), and every folder not yet done
+   * sealed with the key held now. Null when there is none to carry on.
+   */
+  async resumeReseal({ progress } = {}) {
+    const marker = this.#readMarker();
+    if (!marker) return null;
+    let previous = null;
+    if (marker.from && this.#key) {
+      try {
+        previous = openBytes([this.#key], Buffer.from(marker.from, 'base64'));
+      } catch {
+        // Sealed with a key this lock does not make: the lock never changed, and the files are still its.
+        previous = null;
+      }
+    }
+    this.#previous = previous ? [previous] : [];
+    this.#cache.clear();
+    return this.#resealAll(progress);
+  }
+
+  /** The units a run goes through: each account's own files, and each of its folders. */
+  #units() {
+    const units = [];
+    let accounts = [];
+    try {
+      accounts = fs.readdirSync(this.root, { withFileTypes: true }).filter((e) => e.isDirectory());
+    } catch {
+      return units;
+    }
+    for (const a of accounts) {
+      const dir = path.join(this.root, a.name);
+      units.push({ name: `${a.name}/`, dir, own: true });
+      for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (f.isDirectory() && f.name !== 'outgoing') units.push({ name: `${a.name}/${f.name}`, dir: path.join(dir, f.name), own: false });
+      }
+    }
+    return units;
+  }
+
+  /** The files of one unit, each with how it is sealed. */
+  #filesOf(unit) {
+    const out = [];
+    const add = (file, kind) => out.push({ file, kind });
+    const list = (dir) => {
+      try {
+        return fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return [];
+      }
+    };
+    // Not a write's own temporary file (writeAtomic names them <file>.<pid>.tmp).
+    const plainFile = (n) => !/\.\d+\.tmp$/.test(n);
+    if (unit.own) {
+      for (const e of list(unit.dir)) if (e.isFile() && plainFile(e.name)) add(path.join(unit.dir, e.name), 'whole');
+      for (const e of list(path.join(unit.dir, 'outgoing'))) if (e.isFile() && plainFile(e.name)) add(path.join(unit.dir, 'outgoing', e.name), 'whole');
+      return out;
+    }
+    for (const e of list(unit.dir)) {
+      if (!e.isFile() || !plainFile(e.name)) continue;
+      add(path.join(unit.dir, e.name), e.name === 'index.jsonl' ? 'lines' : 'whole');
+    }
+    for (const e of list(path.join(unit.dir, 'm'))) if (e.isFile() && plainFile(e.name)) add(path.join(unit.dir, 'm', e.name), 'whole');
+    for (const d of list(path.join(unit.dir, 'a'))) {
+      if (!d.isDirectory()) continue;
+      for (const e of list(path.join(unit.dir, 'a', d.name))) if (e.isFile() && plainFile(e.name)) add(path.join(unit.dir, 'a', d.name, e.name), 'whole');
+    }
+    return out;
+  }
+
+  /**
+   * One file sealed with the key held now, written whole or not at all; a
+   * file sealed with it already is left. Synchronous, so nothing written to
+   * the same file meanwhile can be lost between its read and its write.
+   * @returns {'sealed'|'kept'|'unopened'|'gone'}
+   */
+  #resealFile({ file, kind }) {
+    let raw;
+    try {
+      raw = fs.readFileSync(file);
+    } catch {
+      return 'gone';
+    }
+    const keys = [this.#key, ...this.#previous];
+    if (kind === 'lines') {
+      const lines = raw.toString('utf8').split('\n');
+      let changed = false;
+      const out = [];
+      for (const line of lines) {
+        if (!line.trim()) {
+          out.push(line);
+          continue;
+        }
+        const by = sealedWith(keys, line);
+        if (by === -1) return 'unopened';
+        if ((by === 0 && this.#key) || (by === null && !this.#key)) {
+          out.push(line);
+          continue;
+        }
+        const text = by === null ? line : openLine(keys, line);
+        out.push(this.#line(text));
+        changed = true;
+      }
+      if (!changed) return 'kept';
+      writeAtomic(file, out.join('\n'));
+      return 'sealed';
+    }
+    const by = sealedWith(keys, raw);
+    if (by === -1) return 'unopened';
+    if ((by === 0 && this.#key) || (by === null && !this.#key)) return 'kept';
+    const plain = by === null ? raw : openBytes(keys, raw);
+    writeAtomic(file, this.#seal(plain));
+    return 'sealed';
+  }
+
+  async #resealAll(progress) {
+    const began = Date.now();
+    const marker = this.#readMarker() || { from: null, done: [] };
+    const done = new Set(marker.done);
+    let files = 0;
+    let sealed = 0;
+    let unopened = 0;
+    let total = 0;
+    // Gone round again until a pass finds nothing new: a folder renamed or made while the run goes on is done too.
+    for (;;) {
+      const units = this.#units().filter((u) => !done.has(u.name));
+      if (!units.length) break;
+      const work = units.map((u) => ({ unit: u, files: this.#filesOf(u) }));
+      total += work.reduce((n, w) => n + w.files.length, 0);
+      for (const { unit, files: list } of work) {
+        for (let i = 0; i < list.length; i++) {
+          const r = this.#resealFile(list[i]);
+          files++;
+          if (r === 'sealed') sealed++;
+          else if (r === 'unopened') unopened++;
+          if (files % RESEAL_SLICE === 0) {
+            progress?.({ done: files, total });
+            // Everything else waiting (a window's question, a fetch) is answered between slices.
+            await new Promise((resolve) => setImmediate(resolve));
+          }
+        }
+        done.add(unit.name);
+        marker.done = [...done];
+        writeAtomic(this.#marker(), JSON.stringify({ v: 1, from: marker.from, done: marker.done }));
+      }
+    }
+    progress?.({ done: files, total });
+    fs.rmSync(this.#marker(), { force: true });
+    this.#previous = [];
+    this.#cache.clear();
+    return { files, sealed, unopened, ms: Date.now() - began };
   }
 }

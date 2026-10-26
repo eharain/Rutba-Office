@@ -96,6 +96,9 @@ export function PasswordDialog({ shell, mode, profile, onClose, onDone }) {
   const [again, setAgain] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // How far the mail store has got, sealed again with the new key: a large one takes a while.
+  const [sealing, setSealing] = useState(null);
+  useEffect(() => (busy ? shell.on?.('mail:sealing', (p) => setSealing(p)) : undefined), [busy, shell]);
   const title = mode === 'set' ? t('Set a Password') : mode === 'change' ? t('Change the Password') : t('Remove the Password');
   const go = async () => {
     setError('');
@@ -124,7 +127,7 @@ export function PasswordDialog({ shell, mode, profile, onClose, onDone }) {
       <p className="pf-lead">
         {mode === 'remove'
           ? t('{name} will open without asking, and what the password sealed is kept as before, protected by Windows for your account only.', { name: profileName(profile) })
-          : t('{name} will ask for this password before it opens. Its saved passwords, recent files, calendars, contacts and Talk messages are sealed with it, so another person using this Windows account cannot read them. Mail is not sealed with it yet.', { name: profileName(profile) })}
+          : t('{name} will ask for this password before it opens. Its saved passwords, recent files, mail, calendars, contacts and Talk messages are sealed with it, so another person using this Windows account cannot read them.', { name: profileName(profile) })}
       </p>
       {mode !== 'set' ? (
         <Field label={t('Current password')}>
@@ -144,6 +147,9 @@ export function PasswordDialog({ shell, mode, profile, onClose, onDone }) {
             <span>{t('A forgotten password cannot be recovered. Nobody, not even Rutba Office, can open what it sealed without it.')}</span>
           </p>
         </>
+      ) : null}
+      {busy && sealing?.total ? (
+        <p className="pf-sealing" role="status">{t('Your mail: {done} of {total} files done', { done: Math.min(sealing.done, sealing.total), total: sealing.total })}</p>
       ) : null}
       {error ? <p className="pf-error" role="alert">{error}</p> : null}
     </Dialog>
@@ -258,7 +264,7 @@ export function ManageProfiles({ shell, mode = null, onClose }) {
           <p className="pf-note">
             {me.protected
               ? t('This profile asks for its password before it opens.')
-              : t('A profile can ask for a password before it opens. Its saved passwords, recent files, calendars, contacts and Talk messages are then sealed with it.')}
+              : t('A profile can ask for a password before it opens. Its saved passwords, recent files, mail, calendars, contacts and Talk messages are then sealed with it.')}
           </p>
           <div className="pf-password-row">
             {me.protected ? (
@@ -311,5 +317,6 @@ export const PROFILES_CSS = `
 .pf-password-row { display: flex; gap: 8px; margin: 0 0 6px; }
 .pf-warn { display: flex; align-items: flex-start; gap: 6px; padding: 8px 10px; border-radius: var(--r-2); background: color-mix(in srgb, var(--warn) 12%, var(--sunken)); color: var(--ink-2); font-size: 12.5px; line-height: 1.45; }
 .pf-error { color: var(--bad); margin: 6px 0 0; }
+.pf-sealing { color: var(--ink-2); margin: 6px 0 0; font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .pf-password-dialog .rw-field { margin-bottom: 8px; }
 `;

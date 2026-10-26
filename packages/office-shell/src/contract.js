@@ -547,6 +547,7 @@ export const EVENTS = [
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
   'mail:syncProblem', // { accountId, kind, folder, to, count }   a change the mail server refused, put back as the server has it
   'mail:syncState',   // { accountId, offline, error, at }   an account's fetches and changes reaching its server, or not
+  'mail:sealing',     // { done, total }   the mail store being sealed again with the profile's password (set, changed or taken away)
   'theme:changed',    // { dark }
   'profiles:changed', // { id, name, colour, count, protected }   a profile made, renamed, coloured or removed, here or in another running profile
   'ai:changed',       // { kind, id, step }    a thing's AI tools setting changed, in its own app or in AI Tools

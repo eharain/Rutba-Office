@@ -252,6 +252,21 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
   const store = new MailStore(path.join(userData, 'mail'));
   const transport = smtp || (CHECK_RUN ? fakeTransport() : defaultTransport());
 
+  /*
+   * Sealed with the profile's password (D-2026-10-26-02): the store is given
+   * the profile's key (none without a password) and seals every file it
+   * writes; when the password is set, changed or taken away it seals every
+   * file again, a folder at a time, saying how far it has gone
+   * (mail:sealing), and a run a crash stopped carries on as Mail starts.
+   */
+  const sealing = (p) => broadcast?.('mail:sealing', p);
+  stores.vault?.attach?.({
+    useKey: (key) => store.useKey(key),
+    prepare: (old, next) => store.prepareReseal(old, next),
+    rekey: (old, next) => store.rekey(old, next, { progress: sealing }),
+  });
+  if (store.resealPending()) setTimeout(() => store.resumeReseal({ progress: sealing }).catch(() => {}), 0).unref?.();
+
   const accounts = () => stores.settings.get('mail.accounts', []);
   const setAccounts = (list) => {
     stores.settings.set('mail.accounts', list);
@@ -1209,7 +1224,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       for (const a of message.attachments || []) {
         if (!a.inline || !a.stored || !a.contentId) continue;
         try {
-          const bytes = fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored));
+          const bytes = store.attachmentBytes(accountId, folder, id, a.stored);
           // The next message read replaces these: nothing draws them after.
           inline[a.contentId] = holdBlob(bytes, a.type, a.filename, { group: 'mail-message', generation: `${accountId}|${folder}|${id}` }).url;
         } catch {
@@ -1572,8 +1587,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       if (!(store.folders(accountId) || []).some((f) => f.path === sent)) store.upsertFolder(accountId, { path: sent, name: sent.split('/').pop(), role: 'sent' });
       // And in Sent at the server, unless the server keeps its own copy of what it sends (Gmail, Outlook).
       if (made && live(accountId) && !serverKeepsSent(account)) {
-        const file = store.outgoingPath(accountId, `${id}.eml`);
-        fs.writeFileSync(file, Buffer.isBuffer(made) ? made : Buffer.from(made));
+        const file = store.writeOutgoing(accountId, `${id}.eml`, Buffer.isBuffer(made) ? made : Buffer.from(made));
         if (mailSync.record(accountId, { kind: 'append', folder: sent, file, id, messageId: stored.messageId || null })) mailSync.kick(accountId);
       }
       return { messageId: info.messageId };
@@ -1707,7 +1721,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const message = store.get(accountId, folder, id);
       const a = message?.attachments?.[index];
       if (!a?.stored) return null;
-      const bytes = fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored));
+      const bytes = store.attachmentBytes(accountId, folder, id, a.stored);
       // The window saves under this name, so it is one that cannot leave the
       // folder it is saved into, whatever the sender wrote.
       const name = attachmentFileName(a.filename);
@@ -1746,7 +1760,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
           await client?.logout().catch(() => {});
         }
       }
-      const text = rebuildSource(message, (a) => fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored)));
+      const text = rebuildSource(message, (a) => store.attachmentBytes(accountId, folder, id, a.stored));
       return { text, bytes: new TextEncoder().encode(text), from: 'rebuilt', reason };
     },
 
@@ -1768,7 +1782,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const message = store.get(accountId, folder, id);
       const a = message?.attachments?.[index];
       if (!a?.stored) return null;
-      return { name: a.filename, type: a.type, text: fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored), 'utf8') };
+      return { name: a.filename, type: a.type, text: store.attachmentBytes(accountId, folder, id, a.stored).toString('utf8') };
     },
 
     search: ({ accountId, query, limit }) => store.search(accountId, query, { limit }),

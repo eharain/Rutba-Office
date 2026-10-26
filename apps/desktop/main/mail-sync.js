@@ -319,7 +319,8 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
       case 'append': {
         let raw = null;
         try {
-          raw = fs.readFileSync(change.file);
+          // Sealed like the rest of the store in a profile with a password.
+          raw = store.readOutgoing(change.file);
         } catch {
           return null; // nothing left to keep
         }

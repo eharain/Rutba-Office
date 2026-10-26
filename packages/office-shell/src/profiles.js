@@ -418,6 +418,8 @@ export function createVault({ key = null, also = [] } = {}) {
   let current = key ? Buffer.from(key) : null;
   let older = (also || []).filter(Boolean).map((k) => Buffer.from(k));
   const covered = new Set();
+  // Stores that seal their own files (the mail store): { useKey, prepare, rekey }.
+  const attached = new Set();
   const held = new Set();
   const chains = new Map();
 
@@ -453,6 +455,16 @@ export function createVault({ key = null, also = [] } = {}) {
     sealed: () => Boolean(current),
     /** A file this vault keeps (sealed again when the key changes); a folder covers every .json in it. */
     cover: (p) => covered.add(p),
+    /** A store that seals its own files: given the key now, told before the lock changes, and sealing its files again in rekey. */
+    attach(store) {
+      attached.add(store);
+      store.useKey?.(current);
+      return () => attached.delete(store);
+    },
+    /** Called before the profile's lock changes to `next`, so an attached store can write down what a crash would need. */
+    async prepare(next) {
+      for (const s of attached) await s.prepare?.(current, next ? Buffer.from(next) : null);
+    },
     readText(file) {
       let raw;
       try {
@@ -537,6 +549,7 @@ export function createVault({ key = null, also = [] } = {}) {
         });
         await step?.('file');
       }
+      for (const s of attached) await s.rekey?.(keys[0], current);
       older = [];
       return { files: done };
     },
