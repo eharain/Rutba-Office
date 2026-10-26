@@ -22,8 +22,7 @@ import {
 } from '@rutba/studio/recorder';
 import { prompterProgress, PROMPTER_SPEEDS } from '@rutba/studio/intro';
 import { RecorderRig } from './session.js';
-import { RECORDER_CSS } from './css.js';
-import { PROMPTER_CSS } from './css.js';
+import { RECORDER_CSS, PROMPTER_CSS } from './css.js';
 
 const STORE_KEY = 'recorder.settings';
 const COPY_EVERY_MS = 5000;
