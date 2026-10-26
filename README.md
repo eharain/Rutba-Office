@@ -201,6 +201,8 @@ the specific places we choose to touch — which are also the places we test.
 **Read:** `.doc` `.xls` `.ppt` `.odt` `.ods` `.odp` `.rtf` `.pst` `.ost` `.olm`
 `.msg` `.emlx` and every image and video format the browser engine decodes.
 
+**Data Files:** `.rbase`, one SQLite file in an open format that anyone may implement, specified in [docs/DATA-FILES-FORMAT.md](docs/DATA-FILES-FORMAT.md).
+
 A format we can read but not write is opened by converting it into one we can —
 an `.odt` becomes a document, an `.ods` a workbook — and the title bar says so,
 so Save As is never a surprise.

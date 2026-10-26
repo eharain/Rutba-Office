@@ -44,6 +44,10 @@ The formats, and what a round trip writes:
 | ics | `@rutba/calendar` | the calendar written out again |
 | vcf | `@rutba/contacts` | the cards written out again |
 
+The Data Files format (`.rbase`) is not in the corpus: it is the suite's
+own, specified in [DATA-FILES-FORMAT.md](DATA-FILES-FORMAT.md), and
+`tools/check-rbase.mjs` says whether a file follows it.
+
 "Round-tripped equal" compares the suite's reading of the file before and
 after: for documents the text of every paragraph of the body in order and
 the number of tables and drawings; for workbooks the sheet names in order
