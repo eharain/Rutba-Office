@@ -330,6 +330,13 @@ machine's; and a chart on a slide was an empty frame. All four are fixed
 and pinned. Equations and tracked changes shown as changes were built on
 2026-09-25; OpenDocument drawings are still open, in docs/GAPS.md.
 
+`tests/fixtures/strict/` holds the same three files saved by Word, Excel and
+PowerPoint as Strict Open XML (`tools/make-strict-fixtures.ps1`), and the rich
+fixture tests hold them to the same results. `tests/strict-ooxml.test.js`
+checks the Strict reading and writing without Office, and
+`tools/check-strict-office.ps1`, run under the shared lock, has Word, Excel and
+PowerPoint open our Strict saves. What they found is in docs/OOXML-NOTES.md.
+
 ### The downloaded corpus
 
 `.corpus/samples/` (ignored by git) holds 81 real files from two public

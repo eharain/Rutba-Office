@@ -203,6 +203,8 @@ the specific places we choose to touch — which are also the places we test.
 
 **Data Files:** `.rbase`, one SQLite file in an open format that anyone may implement, specified in [docs/DATA-FILES-FORMAT.md](docs/DATA-FILES-FORMAT.md).
 
+**Strict Open XML:** `.docx`, `.xlsx` and `.pptx` in the ISO/IEC 29500 Strict form open as the usual form does and stay Strict when saved; Save as Strict Open XML in each app writes one. What real files do that the standard does not describe is in [docs/OOXML-NOTES.md](docs/OOXML-NOTES.md).
+
 A format we can read but not write is opened by converting it into one we can —
 an `.odt` becomes a document, an `.ods` a workbook — and the title bar says so,
 so Save As is never a surprise.
