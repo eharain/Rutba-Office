@@ -27,24 +27,37 @@ export const sieveString = (text) => `"${String(text ?? '').replace(/\r?\n/g, '\
 /** An instant as Sieve's currentdate compares it in UTC: "yyyy-mm-ddThh:mm:ss". */
 const utc = (when) => new Date(when).toISOString().slice(0, 19);
 
+/** Where the subject of the message answered goes in a reply's subject, as the dialog writes it. */
+export const ORIGINAL_SUBJECT = '<original subject>';
+/** The subject a reply has when the person gives none, as Rutba Office's own replies have it. */
+export const DEFAULT_SUBJECT = `Automatic reply: ${ORIGINAL_SUBJECT}`;
+
 /**
  * The script for an automatic reply: `settings` { subject, message, start,
  * end }, `addresses` the account's own, `previous` the script that was
- * active before, run after the reply.
+ * active before, run after the reply. A subject left blank is "Automatic
+ * reply: " and the subject answered, as the dialog promises, and
+ * `<original subject>` in one written is that subject too: from the
+ * variables extension (RFC 5229) where the server has it (`variables`),
+ * otherwise "Automatic reply" alone, which is as near as Sieve comes.
  */
-export function vacationScript({ subject = '', message = '', start = null, end = null }, { addresses = [], previous = null, days = REPLY_DAYS } = {}) {
+export function vacationScript({ subject = '', message = '', start = null, end = null }, { addresses = [], previous = null, days = REPLY_DAYS, variables = false } = {}) {
   const tests = [];
   if (start) tests.push(`currentdate :zone "+0000" :value "ge" "iso8601" ${sieveString(utc(start))}`);
   if (end) tests.push(`currentdate :zone "+0000" :value "le" "iso8601" ${sieveString(utc(end))}`);
-  const need = ['vacation', ...(tests.length ? ['date', 'relational'] : []), ...(previous ? ['include'] : [])];
-  const args = [`:days ${days}`];
-  if (subject.trim()) args.push(`:subject ${sieveString(subject.trim())}`);
+  const wanted = String(subject || '').trim() || DEFAULT_SUBJECT;
+  const echo = variables && wanted.includes(ORIGINAL_SUBJECT);
+  const written = echo ? wanted.split(ORIGINAL_SUBJECT).join('${subject}') : wanted.split(ORIGINAL_SUBJECT).join('').replace(/[\s:]+$/, '').trim() || 'Automatic reply';
+  const need = ['vacation', ...(echo ? ['variables'] : []), ...(tests.length ? ['date', 'relational'] : []), ...(previous ? ['include'] : [])];
+  const args = [`:days ${days}`, `:subject ${sieveString(written)}`];
   if (addresses.length) args.push(`:addresses [${addresses.map(sieveString).join(', ')}]`);
   const action = `vacation ${args.join(' ')} ${sieveString(message || '')};`;
   const lines = [
     '# Rutba Office: out of office, turned on and off from Mail.',
     `${MARK}${JSON.stringify({ subject, message, start, end, previous })}`,
     `require [${need.map(sieveString).join(', ')}];`,
+    // The subject answered, kept for the reply's own.
+    ...(echo ? ['set "subject" "";', 'if header :matches "subject" "*" { set "subject" "${1}"; }'] : []),
     tests.length === 0 ? action : tests.length === 1 ? `if ${tests[0]} {\r\n  ${action}\r\n}` : `if allof(${tests.join(', ')}) {\r\n  ${action}\r\n}`,
   ];
   if (previous) lines.push(`include :personal ${sieveString(previous)};`);
@@ -185,7 +198,8 @@ export async function turnOn(session, settings, { addresses = [] } = {}) {
   // On already: keep what it said was before.
   if (active === SCRIPT_NAME) previous = readScript(await session.get(SCRIPT_NAME))?.previous || null;
   if (previous && !scripts.some((s) => s.name === previous)) previous = null;
-  await session.put(SCRIPT_NAME, vacationScript(settings, { addresses, previous }));
+  const variables = String(session.capabilities?.SIEVE || '').split(/\s+/).includes('variables');
+  await session.put(SCRIPT_NAME, vacationScript(settings, { addresses, previous, variables }));
   await session.setActive(SCRIPT_NAME);
   return { on: true, previous };
 }

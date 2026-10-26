@@ -96,6 +96,7 @@ export async function imapServer({ users = { 'sam@checks.example': 'check' }, ca
   const sessions = new Set();
   let server = null;
   let port = 0;
+  let peak = 0;
 
   /** Every other session looking at this mailbox hears what changed (at once while it idles). */
   const tell = (name, line, except = null) => {
@@ -135,6 +136,7 @@ export async function imapServer({ users = { 'sam@checks.example': 'check' }, ca
   function session(socket) {
     const s = { socket, user: null, selected: null, readOnly: false, idling: null, pending: [], condstore: false };
     sessions.add(s);
+    peak = Math.max(peak, sessions.size);
     const write = (data) => { if (!socket.destroyed) socket.write(data); };
     s.flush = () => { if (s.pending.length) write(`${s.pending.splice(0).join('\r\n')}\r\n`); };
 
@@ -528,6 +530,9 @@ export async function imapServer({ users = { 'sam@checks.example': 'check' }, ca
     /** Back, on the same port. */
     start: () => listen(port),
     connections: () => sessions.size,
+    /** The most connections open at once since the last `resetPeak()`. */
+    peak: () => peak,
+    resetPeak: () => { peak = sessions.size; },
     idling: () => [...sessions].filter((s) => s.idling).length,
     async close() {
       for (const s of sessions) s.socket.destroy();

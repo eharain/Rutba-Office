@@ -236,7 +236,7 @@ function isKnownContact(contacts, address) {
   }
 }
 
-export function createMailService({ stores, holdBlob, broadcast, userData, oauth = null, contacts = null, now = () => Date.now(), smtp = null }) {
+export function createMailService({ stores, holdBlob, broadcast, userData, oauth = null, contacts = null, now = () => Date.now(), smtp = null, autoFetch = Boolean(process.versions.electron) }) {
   const store = new MailStore(path.join(userData, 'mail'));
   const transport = smtp || (CHECK_RUN ? fakeTransport() : defaultTransport());
 
@@ -322,7 +322,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
   }
 
   /** ImapFlow is loaded when an account is actually used, not at start-up. */
-  async function imapFor(account) {
+  async function imapFor(account, extra = {}) {
     const { ImapFlow } = await import('imapflow');
     const client = new ImapFlow({
       host: account.imap.host,
@@ -332,6 +332,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       auth: await credentialsFor(account),
       logger: false,
       tls: { rejectUnauthorized: account.imap.rejectUnauthorized !== false },
+      ...extra,
     });
     await client.connect();
     return client;
@@ -1115,6 +1116,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       return { removed: rows.length };
     },
 
+
     message: ({ accountId, folder, id }) => {
       const message = store.get(accountId, folder, id);
       if (!message) return null;
@@ -1771,6 +1773,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     service.removeAccount = (args = {}) => {
       store.dropIndex(args.id);
       desk.dropAccount({ id: args.id }).catch(() => {});
+      mailSync.unwatch(args.id).catch(() => {});
       return remove(args);
     };
   }
@@ -1820,6 +1823,68 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
   // Anything left over from the last run — including one that fell due while
   // the application was closed — goes out now.
   pumpOutbox().catch(() => {});
+
+  /*
+   * Mail fetches by itself (A6.2): a moment after Rutba Office starts, when
+   * the Mail window opens, every few minutes after (mail.fetchEvery, in
+   * minutes; 0 is only when Get mail is pressed), and, where the server
+   * offers IDLE, as soon as it says mail came (mail.push). So rules and the
+   * automatic replies run while Rutba Office is running, with nobody pressing
+   * Get mail. Each account is fetched by one job at a time (mail-sync.js);
+   * a fetch that fails is quiet, said in the account's state, not a box. A
+   * check run fetches by itself only from a server on this computer.
+   */
+  const FETCH_EVERY = 5;
+  const fetchEvery = () => {
+    const v = Number(stores.settings.get('mail.fetchEvery', FETCH_EVERY));
+    return Number.isFinite(v) && v >= 0 ? Math.min(v, 24 * 60) : FETCH_EVERY;
+  };
+  const pushOn = () => stores.settings.get('mail.push', true) !== false;
+  const fetchesByItself = (a) =>
+    Boolean(live(a.id)) &&
+    (!CHECK_RUN || /^(127\.0\.0\.1|localhost|::1)$/i.test(String(a.imap?.host || ''))) &&
+    (a.auth === 'oauth' || a.imap?.auth === 'oauth' || Boolean(stores.secrets.get(passwordKey(a.id))));
+  const fetchAll = () => {
+    let n = 0;
+    for (const a of accounts()) {
+      if (!fetchesByItself(a)) continue;
+      n++;
+      service.sync({ accountId: a.id }).catch(() => {});
+      if (pushOn()) mailSync.watch(a.id, (id) => service.sync({ accountId: id }).catch(() => {})).catch(() => {});
+    }
+    return n;
+  };
+  let fetchTimer = null;
+  const schedule = () => {
+    clearTimeout(fetchTimer);
+    fetchTimer = null;
+    const every = fetchEvery();
+    if (!autoFetch || !every) return;
+    fetchTimer = setTimeout(() => {
+      fetchAll();
+      schedule();
+    }, every * 60_000);
+    fetchTimer.unref?.();
+  };
+  Object.assign(service, {
+    /** How Mail fetches by itself: { every: minutes (0 only with Get mail), push: as the server says mail came }. */
+    fetchSettings: () => ({ every: fetchEvery(), push: pushOn() }),
+    setFetchSettings: ({ every = fetchEvery(), push = pushOn() } = {}) => {
+      const minutes = Math.max(0, Math.min(24 * 60, Math.round(Number(every) || 0)));
+      stores.settings.set('mail.fetchEvery', minutes);
+      stores.settings.set('mail.push', Boolean(push));
+      if (!push) for (const a of accounts()) mailSync.unwatch(a.id).catch(() => {});
+      schedule();
+      if (autoFetch && push) fetchAll();
+      return service.fetchSettings();
+    },
+    /** Every account fetched now, quietly (the Mail window opening): how many were asked. */
+    fetchNow: () => ({ accounts: autoFetch ? fetchAll() : 0 }),
+  });
+  if (autoFetch) {
+    setTimeout(fetchAll, CHECK_RUN ? 500 : 5000).unref?.();
+    schedule();
+  }
 
   return service;
 }

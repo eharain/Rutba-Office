@@ -7,7 +7,7 @@ export function standInSieve({ user = 'amira@checks.example', pass = 'check', va
   const scripts = new Map(Object.entries(given));
   let active = null;
   const log = [];
-  const caps = ['"IMPLEMENTATION" "Stand-in"', `"SIEVE" "fileinto ${vacation ? 'vacation ' : ''}date relational include"`, '"SASL" "PLAIN"', '"VERSION" "1.0"', 'OK "ready"'];
+  const caps = ['"IMPLEMENTATION" "Stand-in"', `"SIEVE" "fileinto ${vacation ? 'vacation ' : ''}date relational include variables"`, '"SASL" "PLAIN"', '"VERSION" "1.0"', 'OK "ready"'];
   const q = (s) => `"${String(s).replace(/[\\"]/g, (c) => `\\${c}`)}"`;
   const server = net.createServer((sock) => {
     let buf = Buffer.alloc(0);

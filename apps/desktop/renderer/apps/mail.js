@@ -422,6 +422,21 @@ export default function Mail({ app, shell }) {
     shell.mail.outbox().then(setOutbox).catch(() => {});
   }, [shell]);
 
+  // Mail fetches by itself as it opens (A6.2), and keeps doing so in the
+  // background; how often is a choice on Send / Receive. A message's own
+  // window leaves that to the main one.
+  const [fetching, setFetching] = useState({ every: 5, push: true });
+  useEffect(() => {
+    shell.mail.fetchSettings?.().then(setFetching).catch(() => {});
+    if (!alone) shell.mail.fetchNow?.().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell]);
+  const changeFetching = useCallback(
+    (patch) => shell.mail.setFetchSettings({ ...fetching, ...patch }).then(setFetching).catch((err) => toast(err.message, { tone: 'bad' })),
+    [shell, fetching, toast]
+  );
+  const fetchWhen = (every) => (every ? tn(every, 'Every minute', 'Every {count} minutes') : t('Only with Get mail'));
+
   /* ── the list, as it is actually drawn ────────────────────────────────── */
 
   const rows = useMemo(() => arrange(list.rows, prefs), [list.rows, prefs]);
@@ -1554,6 +1569,29 @@ export default function Mail({ app, shell }) {
               <Group label={t('Send and receive')}>
                 <Button tall icon="refresh" label={unified ? t('All accounts') : t('This account')} onClick={sync} disabled={!accountId} />
                 <Button icon="download" label={t('This folder')} disabled={!folder || unified} onClick={sync} />
+              </Group>
+              <Group label={t('Fetch by itself')}>
+                <Button
+                  dropdown
+                  icon="clock"
+                  className="ml-fetch-every"
+                  label={fetchWhen(fetching.every)}
+                  title={t('How often Mail fetches new mail by itself, so rules and automatic replies run without Get mail')}
+                  onClick={(e) =>
+                    menu.open(
+                      e,
+                      [1, 5, 10, 15, 30, 60, 0].map((every) => ({ label: fetchWhen(every), icon: fetching.every === every ? 'check' : undefined, run: () => changeFetching({ every }) }))
+                    )
+                  }
+                />
+                <Button
+                  icon="mail"
+                  className="ml-fetch-push"
+                  label={t('As mail arrives')}
+                  pressed={fetching.push}
+                  title={t('As mail arrives: the mail server says at once when mail comes, where it can')}
+                  onClick={() => changeFetching({ push: !fetching.push })}
+                />
               </Group>
               <Group label={t('Outbox')}>
                 <Button

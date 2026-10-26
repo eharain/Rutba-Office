@@ -705,7 +705,8 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
     watchers.set(accountId, null);
     let client = null;
     try {
-      client = await connect(account);
+      // Listening starts at once, and is begun again every few minutes so nothing between drops it.
+      client = await connect(account, { autoIdleDelay: 500, maxIdleTime: 4 * 60_000 });
       if (!client.capabilities?.has?.('IDLE')) {
         await client.logout().catch(() => {});
         watchers.delete(accountId);

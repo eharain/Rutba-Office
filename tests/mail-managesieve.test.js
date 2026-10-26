@@ -15,9 +15,18 @@ test('the script: the reply with its words, its window in UTC, and the filters t
   assert.match(s, /include :personal "my-filters";\r\n$/);
   assert.deepEqual(readScript(s), { subject: 'Away "now"', message: 'Back on Monday.\nThanks.', start: '2026-10-22T09:00:00.000Z', end: '2026-10-29T17:30:00.000Z', previous: 'my-filters' });
   // No window, no filters before it: the reply alone, needing nothing more.
+  // The subject left blank: "Automatic reply" alone where the server cannot echo the original (A6.11).
   const plain = vacationScript({ message: 'Away.' });
   assert.match(plain, /^require \["vacation"\];$/m);
-  assert.match(plain, /^vacation :days 4 "Away\.";$/m);
+  assert.match(plain, /^vacation :days 4 :subject "Automatic reply" "Away\.";$/m);
+  // And "Automatic reply: " with the subject answered, where it can (Sieve's variables).
+  const echoed = vacationScript({ message: 'Away.' }, { variables: true });
+  assert.match(echoed, /^require \["vacation", "variables"\];$/m);
+  assert.match(echoed, /^if header :matches "subject" "\*" \{ set "subject" "\$\{1\}"; \}$/m);
+  assert.match(echoed, /^vacation :days 4 :subject "Automatic reply: \$\{subject\}" "Away\.";$/m);
+  // A subject of one's own keeps its place for the original.
+  assert.match(vacationScript({ subject: 'Away: <original subject>', message: 'x' }, { variables: true }), /:subject "Away: \$\{subject\}"/);
+  assert.doesNotMatch(vacationScript({ subject: 'Away now', message: 'x' }, { variables: true }), /variables/);
   assert.equal(readScript('require "fileinto";'), null);
   assert.equal(sieveString('a\\b"c'), '"a\\\\b\\"c"');
 });
@@ -31,6 +40,8 @@ test('on and off at the server, the person\'s own filters kept and given back', 
     assert.deepEqual(await readState(session), { on: false, settings: null });
     assert.deepEqual(await turnOn(session, { message: 'Away.' }, { addresses: ['amira@checks.example'] }), { on: true, previous: 'my-filters' });
     assert.equal(server.active(), SCRIPT_NAME);
+    // The server has Sieve's variables: the subject promised is the one written (A6.11).
+    assert.match(server.scripts.get(SCRIPT_NAME), /:subject "Automatic reply: \$\{subject\}"/);
     // On again with new words: what was before is still what comes back.
     assert.deepEqual(await turnOn(session, { message: 'Still away.' }), { on: true, previous: 'my-filters' });
     const state = await readState(session);

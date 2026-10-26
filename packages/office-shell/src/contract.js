@@ -172,6 +172,9 @@ export const METHODS = {
     'delete',       // ({ accountId, folder, ids, toTrash }) -> { deleted, trash? }   for good (EXPUNGE at the server), or to the Trash with toTrash
     'flushChanges', // ({ accountId }) -> { left, error? }   the changes made here sent to the server now
     'syncState',    // ({ accountId }) -> { waiting, offline, error, at }   where the account stands with its server
+    'fetchSettings',    // () -> { every, push }   how Mail fetches by itself: every so many minutes (0 only with Get mail), and as the server says mail came
+    'setFetchSettings', // ({ every, push }) -> the same, changed
+    'fetchNow',     // () -> { accounts }   every account fetched now, quietly, as the Mail window opens
     'serverAutoReply', // ({ accountId, action: 'state' | 'on' | 'off', settings }) -> { supported, on, settings?, reason? }   the mail server's own out of office, over ManageSieve
     'send',         // ({ accountId, draft }) -> { messageId }
     'saveDraft',    // ({ accountId, draft }) -> { id }
