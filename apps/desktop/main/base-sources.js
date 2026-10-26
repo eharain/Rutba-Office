@@ -204,19 +204,23 @@ function recordsIn(answer, at) {
  * The records a web address answers in JSON, every page of them: paging by
  * a next link (`paging.next`, the answer's path to it, or the Link header)
  * or by a page number (`paging.param`, from `paging.start`). Headers are
- * sent as given, `secretOf(name)` giving those kept in the protected store.
+ * sent as given, `secretOf(name)` giving those kept in the protected store;
+ * those go only to the address's own origin, not to a next page elsewhere.
  * Answers { fields, rows, pages }.
  */
 export async function readJsonSource({ where, headers = [], records = '', paging = { kind: 'none' } }, { secretOf = () => null, fetchImpl, maxPages = 500 } = {}) {
   const first = String(where || '').trim();
   if (!isWeb(first)) throw new Error('A web address starts with https:// or http://.');
   const sent = { Accept: 'application/json' };
+  const secret = {};
   for (const h of headers || []) {
     const name = String(h?.name || '').trim();
     if (!name) continue;
     const value = h.secret ? secretOf(name) : h.value;
-    if (value != null && value !== '') sent[name] = String(value);
+    if (value != null && value !== '') (h.secret ? secret : sent)[name] = String(value);
   }
+  const origin = new URL(first).origin;
+  const headersFor = (url) => (new URL(url).origin === origin ? { ...sent, ...secret } : sent);
   const all = [];
   let url = first;
   let pages = 0;
@@ -228,7 +232,7 @@ export async function readJsonSource({ where, headers = [], records = '', paging
   if (kind === 'page') url = withPage(first, paging.param || 'page', n);
   while (url && pages < maxPages && !seen.has(url)) {
     seen.add(url);
-    const res = await fetchFrom(url, { headers: sent, fetchImpl });
+    const res = await fetchFrom(url, { headers: headersFor(url), fetchImpl });
     let answer;
     try { answer = await res.json(); } catch { throw new Error(`${hostOf(url)} did not answer in JSON.`); }
     const list = recordsIn(answer, records);

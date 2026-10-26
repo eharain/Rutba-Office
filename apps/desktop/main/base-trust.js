@@ -76,6 +76,67 @@ export function placeOf(link, opts = {}) {
   return { place: 'engine', host: String(s.host || ''), port: Number(s.port) || null, database: String(s.database || ''), user: String(s.user || '') };
 }
 
+/**
+ * Where a link's secret goes: an engine's host, port and database, a web
+ * address's origin, or another database's file. A password or token kept
+ * for one is never sent to another.
+ */
+export function destinationOf(link) {
+  const s = link?.settings || {};
+  const where = String(s.where || '').trim();
+  if (link?.engine === 'json' || (link?.engine === 'file' && isWeb(where))) {
+    try { return `${link.engine} ${new URL(where).origin}`; } catch { return `${link.engine} ${where}`; }
+  }
+  if (SOURCE_KINDS.has(link?.engine)) return `${link.engine} ${where ? placeKey(where) : ''}`;
+  return `${link?.engine} ${String(s.host || '').trim().toLowerCase()}:${Number(s.port) || ''}/${s.database || ''}`;
+}
+
+const BOUND = 'rutba-bound:';
+const unwrap = (raw) => {
+  if (typeof raw !== 'string' || !raw.startsWith(BOUND)) return null;
+  try { const b = JSON.parse(raw.slice(BOUND.length)); return b && typeof b.to === 'string' ? b : null; } catch { return null; }
+};
+
+/**
+ * The protected store's secrets, each kept with the destination it was
+ * saved for (`destinationOf`). The file says where a link goes, and a file
+ * edited elsewhere can keep a link's id and change its host or address; a
+ * secret kept for the old destination is then not handed out, and the link
+ * asks for it again. One kept before secrets had destinations is bound to
+ * the link's destination the first time it is read: reads happen only for a
+ * link this computer allows, so the person has seen that destination named
+ * in the question, or made the link here.
+ */
+export function keptSecrets(secrets) {
+  return {
+    available: () => Boolean(secrets?.available?.()),
+    /** { value, elsewhere }: the secret for `link`'s destination, or none, `elsewhere` when one is kept for another. */
+    read(key, link) {
+      const raw = secrets?.get?.(key) ?? null;
+      if (raw == null) return { value: null, elsewhere: false };
+      const b = unwrap(raw);
+      const to = destinationOf(link);
+      if (!b) {
+        try { secrets.set(key, BOUND + JSON.stringify({ to, v: raw })); } catch { /* bound at the next read */ }
+        return { value: raw, elsewhere: false };
+      }
+      return b.to === to ? { value: String(b.v ?? ''), elsewhere: false } : { value: null, elsewhere: true };
+    },
+    /** Whether a secret is kept for `link`'s destination (one from before destinations counts: it is bound as it is read). */
+    has(key, link) {
+      const raw = secrets?.get?.(key) ?? null;
+      if (raw == null) return false;
+      const b = unwrap(raw);
+      return !b || b.to === destinationOf(link);
+    },
+    /** A secret kept for `link`'s destination as the link is now. */
+    write(key, link, value) {
+      secrets.set(key, BOUND + JSON.stringify({ to: destinationOf(link), v: String(value) }));
+    },
+    delete: (key) => secrets?.delete?.(key),
+  };
+}
+
 /** A store kept in memory: a service made without this computer's settings (the engine tests) remembers for its own life. */
 export function memoryStore() {
   let kept = {};

@@ -16,7 +16,7 @@ import { Base, importRows, importSheets, buildTemplate, buildSample, originOf, p
 import { ENGINES, connectEngine as defaultConnect } from './engines/index.js';
 import { SOURCE_KINDS } from '@rutba/database';
 import { createSync, unreachable, sourceSecret, cleanSourceSettings } from './base-sync.js';
-import { createTrust, addressOf, placeOf } from './base-trust.js';
+import { createTrust, addressOf, placeOf, keptSecrets } from './base-trust.js';
 import { TEMPLATE_IDS, SAMPLE_IDS, templateNeeds, sampleNeeds, pageOf } from '@rutba/templates/data-files/active';
 import { needsFor } from '@rutba/templates/versions';
 import { readManifest } from '@rutba/templates/manifest';
@@ -33,13 +33,15 @@ export const isSqlite = (bytes) => Buffer.from(bytes.subarray(0, 16)).toString('
 
 /**
  * `secrets` keeps a linked engine's password (D-2026-10-22-13), never the
- * file; `connect` opens an engine (engines/index.js, or a stand-in in tests);
+ * file, each kept with the host or address it is for (base-trust.js,
+ * `keptSecrets`); `connect` opens an engine (engines/index.js, or a stand-in in tests);
  * `trust` is this computer's list of what each database may read
  * (base-trust.js, A2.18), kept in memory for the service's life when it is
  * not given.
  */
 export function createBaseService({ secrets = null, connect = defaultConnect, trust = createTrust() } = {}) {
   const open = new Map(); // id -> { base, file, engines: Map(link -> engine), state: Map(table -> { error, at, count }) }
+  const kept = keptSecrets(secrets);
   let next = 1;
 
   const get = (id) => {
@@ -64,7 +66,7 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
         const link = l && base.links().find((x) => x.id === l.link);
         return { ...t, mode: 'live', count: base.linkedLoaded(t.name) ? base.count(t.name) : 0, linkError: st.error || null, readAt: st.at || null, key: l?.key || null, blocked: Boolean(link) && !allowed(open.get(id), link) };
       }),
-      links: base.access?.locked || base.rights() ? [] : base.links().filter((l) => !SOURCE_KINDS.has(l.engine)).map((l) => ({ id: l.id, name: l.name, engine: l.engine, settings: l.settings, password: Boolean(secrets?.get?.(secretKey(l.id))) })),
+      links: base.access?.locked || base.rights() ? [] : base.links().filter((l) => !SOURCE_KINDS.has(l.engine)).map((l) => ({ id: l.id, name: l.name, engine: l.engine, settings: l.settings, password: kept.has(secretKey(l.id), l) })),
       // The other sources tables are read from: a file, another database, a web address answering JSON.
       sources: base.access?.locked || base.rights() ? [] : base.links().filter((l) => SOURCE_KINDS.has(l.engine)).map((l) => ({ id: l.id, name: l.name, kind: l.engine, settings: l.settings })),
       // The sources and engines this computer has not allowed it to read (A2.18), for the question that names each.
@@ -139,8 +141,10 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
   const engineFor = (o, link) => {
     if (!allowed(o, link)) return Promise.reject(notAllowed());
     if (!o.engines.has(link.id)) {
-      const password = secrets?.get?.(secretKey(link.id)) || '';
-      const p = connect(link.engine, link.settings, password);
+      // A password kept for another host, port or database (the file's link changed elsewhere) is not sent: it is asked for again.
+      const { value, elsewhere } = kept.read(secretKey(link.id), link);
+      if (elsewhere) return Promise.reject(new Error(`The password this computer keeps for ${link.name} was saved for another engine. Type it again for ${link.settings?.host || ''} if you mean to send it there.`));
+      const p = connect(link.engine, link.settings, value || '');
       o.engines.set(link.id, p);
       // A connection that failed is tried again next time, not kept.
       p.catch(() => { if (o.engines.get(link.id) === p) o.engines.delete(link.id); });
@@ -153,7 +157,7 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
     o.engines.delete(link.id);
     p?.then((x) => x.close()).catch(() => {});
   };
-  const sync = createSync({ engineFor, dropEngine, secrets, allowed });
+  const sync = createSync({ engineFor, dropEngine, secrets: kept, allowed });
   /** A linked table's records read from the engine into this window's copy, its design kept up to date. */
   const readLinked = async (o, table) => {
     const l = o.base.linked().find((x) => x.table === table);
@@ -363,7 +367,7 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
       trust.allow(o.file, o.base.links().filter((l) => l.id === linkId));
       if (password != null) {
         if (!secrets?.available?.()) throw new Error('This computer offers no protected store for the password, so the link cannot keep it.');
-        secrets.set(secretKey(linkId), String(password));
+        kept.write(secretKey(linkId), o.base.links().find((l) => l.id === linkId), String(password));
       }
       const was = o.engines.get(linkId);
       o.engines.delete(linkId);
@@ -485,8 +489,9 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
       const linkId = o.base.saveLink({ name: linkName, engine: kind, settings: clean });
       trust.allow(o.file, o.base.links().filter((l) => l.id === linkId));
       try {
-        if (kind === 'rbase' && password) secrets.set(sourceSecret(linkId), String(password));
-        for (const h of clean.headers || []) if (h.secret) secrets.set(sourceSecret(linkId, h.name), String(headers[h.name] ?? ''));
+        const made = o.base.links().find((l) => l.id === linkId);
+        if (kind === 'rbase' && password) kept.write(sourceSecret(linkId), made, String(password));
+        for (const h of clean.headers || []) if (h.secret) kept.write(sourceSecret(linkId, h.name), made, String(headers[h.name] ?? ''));
         const remote = kind === 'file' ? { sheet: got.sheet || null } : kind === 'rbase' ? { item: got.item } : {};
         const table = o.base.linkTable({ table: want, link: linkId, remote, key: null, fields: got.fields, mode: 'copy' });
         await sync.refreshSource(o, table);
@@ -519,7 +524,22 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
       if (!link || link.engine !== 'rbase') throw new Error(`${table} is not read from another database.`);
       if (!secrets?.available?.()) throw new Error('This computer offers no protected store for the password, so the source cannot keep it.');
       o.base.saveLink({ id: link.id, name: link.name, engine: link.engine, settings: cleanSourceSettings('rbase', { ...link.settings, person }) });
-      secrets.set(sourceSecret(link.id), String(password ?? ''));
+      kept.write(sourceSecret(link.id), link, String(password ?? ''));
+      await sync.refreshSource(o, table);
+      return summary(id);
+    },
+    /**
+     * A web address's keys or tokens typed again (those its headers mark
+     * secret), kept for that address as it is now, then read. Answers the summary.
+     */
+    sourceKeys: async ({ id, table, headers = {} }) => {
+      const o = get(id);
+      whole(o.base);
+      const l = o.base.linked().find((x) => x.table === table);
+      const link = l && o.base.links().find((x) => x.id === l.link);
+      if (!link || link.engine !== 'json') throw new Error(`${table} is not read from a web address.`);
+      if (!secrets?.available?.()) throw new Error('This computer offers no protected store for the key or password, so the source cannot keep it.');
+      for (const h of link.settings?.headers || []) if (h.secret && headers[h.name] != null) kept.write(sourceSecret(link.id, h.name), link, String(headers[h.name]));
       await sync.refreshSource(o, table);
       return summary(id);
     },

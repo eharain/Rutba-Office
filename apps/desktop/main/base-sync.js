@@ -16,6 +16,7 @@ import {
   SOURCE_KINDS, SOURCE_EVERY, DEFAULT_EVERY, prepareSync, pushed, refused, reconcile, replaceRows,
   pending, clashList, clashCount, dropClash, markSynced, stampMax, copyReadOnly,
 } from '@rutba/database';
+import path from 'node:path';
 import { readFileSource, readRbaseSource, readJsonSource, rbaseItems } from './base-sources.js';
 
 /** Most records a copy reads at once; past it, an updated-at field reads only what changed. */
@@ -26,6 +27,9 @@ export function unreachable(err) {
   const m = `${err?.code || ''} ${err?.message || err || ''}`;
   return Boolean(err?.unreachable) || /ECONNREFUSED|ECONNRESET|ETIMEDOUT|EPIPE|ENOTFOUND|EHOSTUNREACH|ENETUNREACH|could not be reached|Connection terminated|not queryable|connection is in closed state|PROTOCOL_CONNECTION_LOST|Client was closed|timeout/i.test(m);
 }
+
+/** The address's own name, for a message: its host. */
+const hostOf = (url) => { try { return new URL(String(url)).host; } catch { return String(url || ''); } };
 
 /** A source's secret's place in the protected store: its password, or one of its headers. */
 export const sourceSecret = (linkId, header = null) => (header ? `base-source:${linkId}:${header}` : `base-source:${linkId}`);
@@ -47,8 +51,9 @@ export function cleanSourceSettings(kind, s = {}) {
 
 /**
  * The sync side of the base service, given how it reaches an engine
- * (`engineFor`, `dropEngine`), the protected store, and whether this
- * computer allows a database to read a link (`allowed`).
+ * (`engineFor`, `dropEngine`), the protected store (`keptSecrets`, each
+ * secret kept with the destination it is for), and whether this computer
+ * allows a database to read a link (`allowed`).
  */
 export function createSync({ engineFor, dropEngine, secrets, allowed = () => true }) {
   const linkOf = (o, l) => o.base.links().find((x) => x.id === l.link) || null;
@@ -140,8 +145,17 @@ export function createSync({ engineFor, dropEngine, secrets, allowed = () => tru
   const readSource = async (link, l) => {
     const s = link.settings || {};
     if (link.engine === 'file') return readFileSource({ where: s.where, sheet: l?.remote?.sheet ?? s.sheet, header: s.header });
-    if (link.engine === 'rbase') return readRbaseSource({ where: s.where, item: l?.remote?.item }, { person: s.person, password: secrets?.get?.(sourceSecret(link.id)) || null });
-    if (link.engine === 'json') return readJsonSource(s, { secretOf: (name) => secrets?.get?.(sourceSecret(link.id, name)) || null });
+    // A secret kept for another file or address (the file's link changed elsewhere) is not sent: it is asked for again.
+    if (link.engine === 'rbase') {
+      const pw = secrets?.read?.(sourceSecret(link.id), link) || {};
+      if (pw.elsewhere) throw Object.assign(new Error(`The password this computer keeps for ${link.name} was saved for another database. Sign in again to read ${path.basename(String(s.where || ''))}.`), { who: true });
+      return readRbaseSource({ where: s.where, item: l?.remote?.item }, { person: s.person, password: pw.value || null });
+    }
+    if (link.engine === 'json') {
+      const keys = Object.fromEntries((s.headers || []).filter((h) => h.secret).map((h) => [h.name, secrets?.read?.(sourceSecret(link.id, h.name), link) || {}]));
+      if (Object.values(keys).some((k) => k.elsewhere)) throw Object.assign(new Error(`The key or token this computer keeps for ${link.name} was saved for another address. Type it again for ${hostOf(s.where)} if you mean to send it there.`), { token: true });
+      return readJsonSource(s, { secretOf: (name) => keys[name]?.value || null });
+    }
     throw new Error(`${link.engine} is not a source Data Files reads.`);
   };
 
@@ -156,9 +170,11 @@ export function createSync({ engineFor, dropEngine, secrets, allowed = () => tru
       const changed = replaceRows(base, table, got.rows, base.fields(table).map(({ readOnly, ...f }) => f));
       markSynced(base, table);
       const at = new Date().toISOString();
-      setState(o, table, { error: null, at: changed || diff || !stateOf(o, table).at ? at : stateOf(o, table).at, note: diff || null, noteAt: diff ? at : stateOf(o, table).noteAt || null });
+      setState(o, table, { error: null, at: changed || diff || !stateOf(o, table).at ? at : stateOf(o, table).at, note: diff || null, noteAt: diff ? at : stateOf(o, table).noteAt || null, who: false, token: false });
     } catch (err) {
-      setState(o, table, { error: err.message || String(err), who: Boolean(err.who) });
+      // A key or token refused, or kept for another address: the bar offers to type it again.
+      const token = Boolean(err.token || (err.refused && link.engine === 'json' && (link.settings?.headers || []).some((h) => h.secret)));
+      setState(o, table, { error: err.message || String(err), who: Boolean(err.who), token });
     }
   });
 
@@ -195,6 +211,7 @@ export function createSync({ engineFor, dropEngine, secrets, allowed = () => tru
       every: source ? Number(link.settings?.every ?? DEFAULT_EVERY) : null,
       note: st.note || null,
       who: Boolean(st.who),
+      token: Boolean(st.token),
       readOnly: Boolean(copyReadOnly(base, l)),
     };
   };

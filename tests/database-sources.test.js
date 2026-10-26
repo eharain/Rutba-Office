@@ -207,7 +207,7 @@ test('another Data Files database as a source: a table and a query read only; a 
     assert.deepEqual(svc.fields({ id, table: 'Guarded products' }).map((f) => f.name), ['ID', 'Name', 'Price']);
     assert.equal(svc.rows({ id, table: 'Guarded products' }).rows.length, 2);
     // Her password is in the protected store, not the file.
-    assert.ok([...kept.values()].includes('ann-pass'));
+    assert.ok([...kept.values()].some((v) => String(v).includes('ann-pass')));
     svc.close({ id });
     assert.ok(!fs.readFileSync(file).includes(Buffer.from('ann-pass')));
   } finally {

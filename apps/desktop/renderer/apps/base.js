@@ -17,7 +17,7 @@ import { DocumentView, DOCUMENT_CSS } from './base/documents.js';
 import { useGridFilter, FilterBar, ColumnFilter, selectionItems, FILTER_CSS } from './base/filters.js';
 import { SignIn, ProtectDialog, PasswordDialog, SeeingBanner, PeopleView, PEOPLE_CSS, canDesign, may } from './base/people.js';
 import { LinkDialog, LinkedBar, LinkPasswordDialog, ClashesDialog, LINKS_CSS } from './base/links.js';
-import { SourceDialog, SourceSignInDialog, SOURCES_CSS } from './base/sources.js';
+import { SourceDialog, SourceSignInDialog, SourceKeysDialog, SOURCES_CSS } from './base/sources.js';
 import { SourcesQuestion, TRUST_CSS } from './base/trust.js';
 
 /** The ready-made databases the start screen offers, in the engine's order (packages/database/src/templates.js). */
@@ -518,6 +518,8 @@ export default function Databases({ app, shell, boot }) {
   const [sourcing, setSourcing] = useState(false);
   const [clashesOf, setClashesOf] = useState(null);
   const [sourceWho, setSourceWho] = useState(null);
+  // A web address's key or token typed again: kept for another address, or refused.
+  const [sourceKeys, setSourceKeys] = useState(null);
   // Read from these places? Asked as a database opens whose sources this computer has not allowed (A2.18), and on Refresh.
   const [asking, setAsking] = useState(false);
   // The SQL view's text, kept while the database is open when the view is left and come back to.
@@ -939,7 +941,7 @@ export default function Databases({ app, shell, boot }) {
                 {tab('data', t('Records'))}
                 {design && !linkedOf(table) ? tab('design', t('Design')) : null}
               </div>
-              <LinkedBar shell={shell} db={db} table={table} design={design} onChanged={show} onPassword={setLinkPassword} onClashes={setClashesOf} onSourceSignIn={setSourceWho} onAsk={() => setAsking(true)} toast={toast} />
+              <LinkedBar shell={shell} db={db} table={table} design={design} onChanged={show} onPassword={setLinkPassword} onClashes={setClashesOf} onSourceSignIn={setSourceWho} onSourceKeys={setSourceKeys} onAsk={() => setAsking(true)} toast={toast} />
               {view === 'data' || !design || linkedOf(table)
                 ? <Datasheet key={`${table}-${db.steps}-${linkedOf(table)?.readAt || ""}`} shell={shell} db={db} table={table} onChanged={refresh} toast={toast} />
                 : <Design shell={shell} db={db} table={table} onChanged={show} onRemoved={() => { setTable(null); refresh(); }} toast={toast} />}
@@ -1043,6 +1045,7 @@ export default function Databases({ app, shell, boot }) {
       {sourcing ? <SourceDialog shell={shell} db={db} onDone={(s, made) => { show(s); setSourcing(false); if (made) { setTable(made); setView('data'); } }} onClose={() => setSourcing(false)} toast={toast} /> : null}
       {clashesOf ? <ClashesDialog shell={shell} db={db} table={clashesOf} onChanged={show} onClose={() => setClashesOf(null)} toast={toast} /> : null}
       {asking && db.ask?.length ? <SourcesQuestion shell={shell} db={db} onDone={(s) => { show(s); setAsking(false); }} onClose={() => setAsking(false)} toast={toast} /> : null}
+      {sourceKeys ? <SourceKeysDialog shell={shell} db={db} table={sourceKeys} onDone={(s) => { show(s); setSourceKeys(null); }} onClose={() => setSourceKeys(null)} toast={toast} /> : null}
       {sourceWho ? <SourceSignInDialog shell={shell} db={db} table={sourceWho} onDone={(s) => { show(s); setSourceWho(null); }} onClose={() => setSourceWho(null)} toast={toast} /> : null}
       {linkPassword ? <LinkPasswordDialog shell={shell} db={db} link={linkPassword} onDone={(s) => { show(s); setLinkPassword(null); }} onClose={() => setLinkPassword(null)} toast={toast} /> : null}
       {changingPassword ? <PasswordDialog shell={shell} db={db} onClose={() => setChangingPassword(false)} toast={toast} /> : null}

@@ -204,6 +204,7 @@ export function SourceDialog({ shell, db, onDone, onClose, toast }) {
 
 /** Who you are in a protected database a source reads, asked for when it is not known on this computer. */
 export function SourceSignInDialog({ shell, db, table, onDone, onClose, toast }) {
+  const where = (db.sources || []).find((x) => x.id === db.tables.find((tb) => tb.name === table)?.linked)?.settings?.where || '';
   const [person, setPerson] = useState('');
   const [password, setPassword] = useState('');
   const go = async () => {
@@ -218,9 +219,42 @@ export function SourceSignInDialog({ shell, db, table, onDone, onClose, toast })
   };
   return (
     <Dialog title={t('Who you are where {table} is read from', { table })} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Sign in')} className="bs-source-who-go" disabled={!person || !password} onClick={go} /></>}>
+      {where ? <p className="bs-hint bs-source-who-where">{t('The database at {where}', { where })}</p> : null}
       <label className="bs-field"><span>{t('Your name there')}</span><Input className="rw-input bs-source-who-name" aria-label={t('Your name there')} autoFocus value={person} onChange={(e) => setPerson(e.target.value)} /></label>
       <label className="bs-field"><span>{t('Your password there')}</span><Input className="rw-input bs-source-who-password" type="password" aria-label={t('Your password there')} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && person && password) go(); }} /></label>
       <p className="bs-hint">{t('The password is kept in this computer\'s protected store, never in the file.')}</p>
+    </Dialog>
+  );
+}
+
+/**
+ * A web address's keys or tokens typed again: one kept for another address
+ * (the file's link was changed elsewhere), or refused. Each is sent only to
+ * the address named, and kept in this computer's protected store.
+ */
+export function SourceKeysDialog({ shell, db, table, onDone, onClose, toast }) {
+  const source = (db.sources || []).find((x) => x.id === db.tables.find((tb) => tb.name === table)?.linked);
+  const names = (source?.settings?.headers || []).filter((h) => h.secret).map((h) => h.name);
+  const [values, setValues] = useState({});
+  const where = source?.settings?.where || '';
+  const go = async () => {
+    try {
+      const s = await shell.base.sourceKeys({ id: db.id, table, headers: values });
+      const err = s.tables.find((x) => x.name === table)?.linkError;
+      if (err) { toast(err, { tone: 'bad', ms: 7000 }); return; }
+      onDone(s);
+    } catch (e) {
+      toast(e.message, { tone: 'bad', ms: 7000 });
+    }
+  };
+  const ready = names.length && names.every((n) => values[n]);
+  return (
+    <Dialog title={t('Key or token for {table}', { table })} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Read')} className="bs-source-keys-go" disabled={!ready} onClick={go} /></>}>
+      <p className="bs-hint bs-source-keys-where">{t('Sent only to {where}', { where })}</p>
+      {names.map((n, i) => (
+        <label key={n} className="bs-field"><span>{n}</span><Input className="rw-input bs-source-keys-value" type="password" aria-label={n} autoFocus={i === 0} value={values[n] || ''} onChange={(e) => setValues((v) => ({ ...v, [n]: e.target.value }))} onKeyDown={(e) => { if (e.key === 'Enter' && ready) go(); }} /></label>
+      ))}
+      <p className="bs-hint">{t('The key is kept in this computer\'s protected store, never in the file, and only for this address.')}</p>
     </Dialog>
   );
 }

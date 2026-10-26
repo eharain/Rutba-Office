@@ -156,7 +156,7 @@ export const everyWords = (every) => ({ 5: t('every 5 minutes'), 15: t('every 15
  * was read, how often, a change to its columns, and Refresh. Not allowed on
  * this computer (A2.18): not read, the copy as it was, and Refresh asks.
  */
-export function LinkedBar({ shell, db, table, design = false, onChanged, onPassword, onClashes, onSourceSignIn, onAsk, toast }) {
+export function LinkedBar({ shell, db, table, design = false, onChanged, onPassword, onClashes, onSourceSignIn, onSourceKeys, onAsk, toast }) {
   const tb = db.tables.find((x) => x.name === table);
   const [fields, setFields] = useState([]);
   const copy = tb?.mode === 'copy';
@@ -224,6 +224,7 @@ export function LinkedBar({ shell, db, table, design = false, onChanged, onPassw
         </span>
         <span className="grow" />
         {tb.who && design ? <Button label={t('Sign in there…')} className="bs-source-who" onClick={() => onSourceSignIn?.(table)} /> : null}
+        {tb.token && design ? <Button label={t('Key or token…')} className="bs-source-keys" onClick={() => onSourceKeys?.(table)} /> : null}
         {design ? (
           <Select className="rw-select bs-source-every" aria-label={t('How often {table} is read', { table })} value={String(tb.every ?? 15)}
             onChange={(e) => run(() => Promise.resolve(shell.base.setSourceEvery({ id: db.id, table, every: Number(e.target.value) })), false)}>

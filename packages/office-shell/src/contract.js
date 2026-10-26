@@ -383,6 +383,7 @@ export const METHODS = {
     'setSourceEvery', // ({ id, table, every: 5 | 15 | 60 | 0 }) -> summary   how often a source is read again
     'sourceSignIn', // ({ id, table, person, password }) -> summary   who you are in a protected database a source reads
     'refreshDue',   // ({ id }) -> summary | null   sources due on their schedules read again
+    'sourceKeys',   // ({ id, table, headers }) -> summary   a web address's keys or tokens typed again, kept for that address only
     'allowSources', // ({ id, addresses }) -> summary   the sources and engines asked about allowed for this database on this computer, then read
     'queryRows',    // ({ id, name? | design?, offset?, limit?, order?, search?, filters? }) -> { columns: [{ name, type }], rows, count }   a page of a query's results, as rows reads a table's
     'insert',       // ({ id, table, values }) -> { rowid }

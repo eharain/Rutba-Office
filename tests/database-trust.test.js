@@ -4,8 +4,10 @@
 // or on its schedule, until the person on this computer allows it; the
 // question names each place. A database made here, or a link made here,
 // asks nothing. What is allowed is this computer's (base-trust.js), never
-// the file's. The web address is a stand-in served here and the engine a
-// stand-in that counts its connections.
+// the file's. A password or token is kept with the host or address it was
+// typed for, and a link whose host or address was changed in the file is
+// sent none of it. The web addresses are stand-ins served here and the
+// engine a stand-in that counts its connections.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,29 +17,32 @@ import os from 'node:os';
 import path from 'node:path';
 import { Base, replaceRows } from '../packages/database/src/index.js';
 import { createBaseService } from '../apps/desktop/main/base.js';
-import { createTrust, memoryStore, addressOf, pathPlace } from '../apps/desktop/main/base-trust.js';
+import { createTrust, memoryStore, addressOf, pathPlace, keptSecrets, destinationOf } from '../apps/desktop/main/base-trust.js';
 
 const tmp = (name) => fs.mkdtempSync(path.join(os.tmpdir(), name));
 const tableOf = (s, name) => s.tables.find((t) => t.name === name);
-const secrets = () => { const kept = new Map(); return { available: () => true, get: (k) => kept.get(k) ?? null, set: (k, v) => kept.set(k, v), delete: (k) => kept.delete(k) }; };
+const secrets = (kept = new Map()) => ({ available: () => true, get: (k) => kept.get(k) ?? null, set: (k, v) => kept.set(k, v), delete: (k) => kept.delete(k) });
 
-/** A stand-in web address answering JSON, counting what asks it. */
-async function server() {
+/** A stand-in web address answering JSON, counting what asks it and the keys it was sent. */
+async function server(answer = () => [{ id: 1, name: 'Amina' }, { id: 2, name: 'Bilal' }]) {
   const asked = [];
+  const keys = [];
   const srv = http.createServer((req, res) => {
     asked.push(req.url);
+    keys.push(req.headers['x-api-key'] || null);
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify([{ id: 1, name: 'Amina' }, { id: 2, name: 'Bilal' }]));
+    res.end(JSON.stringify(answer(req.url)));
   });
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
-  return { url: `http://127.0.0.1:${srv.address().port}/people`, asked, close: () => new Promise((r) => srv.close(r)) };
+  return { url: `http://127.0.0.1:${srv.address().port}/people`, asked, keys, close: () => new Promise((r) => srv.close(r)) };
 }
 
-/** A stand-in engine: one table of two records, its connections counted. */
+/** A stand-in engine: one table of two records, its connections counted with the host and password each was given. */
 function engine() {
-  const world = { connected: 0 };
-  world.connect = async () => {
+  const world = { connected: 0, given: [] };
+  world.connect = async (kind, settings, password) => {
     world.connected++;
+    world.given.push([settings.host, password]);
     return {
       tables: async () => [{ schema: 'public', name: 'stock', kind: 'table' }],
       describe: async () => ({ key: 'id', fields: [{ name: 'id', type: 'integer' }, { name: 'name', type: 'text' }] }),
@@ -224,6 +229,105 @@ test('the allow list is not taken from the file: a link changed elsewhere to a s
     svc.closeAll();
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('an engine password is sent only to the host, port and database it was typed for: a link whose host was changed in the file asks for it again', async () => {
+  const dir = tmp('trust-pw-');
+  const file = path.join(dir, 'shop.rbase');
+  const kept = new Map();
+  const world = engine();
+  const svc = createBaseService({ secrets: secrets(kept), connect: world.connect });
+  try {
+    let s = await svc.create({ file });
+    const { link } = await svc.saveLink({ id: s.id, name: 'Head office', engine: 'postgres', settings: { host: 'db.example', port: 5432, database: 'shop', user: 'office' }, password: 'engine-pass' });
+    s = (await svc.linkTables({ id: s.id, link, remotes: [{ schema: 'public', name: 'stock', as: 'Stock' }] })).summary;
+    assert.deepEqual(world.given, [['db.example', 'engine-pass']]);
+    svc.close({ id: s.id });
+    // Someone else keeps the link's id and points it at their own host.
+    const b = Base.open(file);
+    const l = b.links()[0];
+    b.saveLink({ id: l.id, name: l.name, engine: 'postgres', settings: { ...l.settings, host: 'evil.example' } });
+    b.close();
+    s = await svc.open({ file });
+    assert.deepEqual(s.ask.map((a) => a.host), ['evil.example']);
+    // Allowed (the person read the new host and allowed it): still, the password kept for db.example is not sent.
+    s = await svc.allowSources({ id: s.id, addresses: s.ask.map((a) => a.address) });
+    assert.ok(!world.given.some(([host]) => host === 'evil.example'));
+    assert.match(tableOf(s, 'Stock').linkError, /saved for another engine\. Type it again for evil\.example/);
+    assert.equal(s.links[0].password, false);
+    // Typed again for the new host: kept for it, and sent there.
+    s = (await svc.saveLink({ id: s.id, link: l.id, name: l.name, engine: 'postgres', settings: { ...l.settings, host: 'evil.example' }, password: 'typed-for-it' })).summary;
+    assert.deepEqual(world.given.at(-1), ['evil.example', 'typed-for-it']);
+    assert.ok(!world.given.some(([host, pw]) => host === 'evil.example' && pw === 'engine-pass'));
+    assert.equal(s.links[0].password, true);
+  } finally {
+    svc.closeAll();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a key or token is sent only to the web address it was typed for: a source whose address was changed in the file reads nothing until it is typed again', async () => {
+  const dir = tmp('trust-key-');
+  const file = path.join(dir, 'shop.rbase');
+  const theirs = await server();
+  const other = await server();
+  const svc = createBaseService({ secrets: secrets() });
+  try {
+    let s = await svc.create({ file });
+    s = (await svc.linkSource({ id: s.id, kind: 'json', name: 'People', settings: { where: theirs.url, headers: [{ name: 'X-Api-Key', secret: true }] }, headers: { 'X-Api-Key': 'key-one' } })).summary;
+    assert.ok(theirs.keys.includes('key-one'));
+    svc.close({ id: s.id });
+    const b = Base.open(file);
+    const l = b.links()[0];
+    b.saveLink({ id: l.id, name: l.name, engine: 'json', settings: { ...l.settings, where: other.url } });
+    b.close();
+    s = await svc.open({ file });
+    s = await svc.allowSources({ id: s.id, addresses: s.ask.map((a) => a.address) });
+    // Nothing asked of the new address, so no key went there.
+    assert.equal(other.asked.length, 0);
+    assert.equal(tableOf(s, 'People').token, true);
+    assert.match(tableOf(s, 'People').linkError, /saved for another address\. Type it again for 127\.0\.0\.1:/);
+    // Typed again for it: sent there, the old one never.
+    s = await svc.sourceKeys({ id: s.id, table: 'People', headers: { 'X-Api-Key': 'key-two' } });
+    assert.deepEqual(other.keys, ['key-two']);
+    assert.equal(tableOf(s, 'People').token, false);
+    assert.equal(tableOf(s, 'People').linkError, null);
+  } finally {
+    svc.closeAll();
+    await theirs.close();
+    await other.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a key is not sent to a next page on another address; a secret kept before destinations is bound to the first that reads it', async () => {
+  const other = await server(() => ({ items: [{ id: 3, name: 'Cara' }] }));
+  const first = await server(() => ({ items: [{ id: 1, name: 'Amina' }], next: other.url }));
+  try {
+    const { readJsonSource } = await import('../apps/desktop/main/base-sources.js');
+    const got = await readJsonSource({ where: first.url, headers: [{ name: 'X-Api-Key', secret: true }], records: 'items', paging: { kind: 'next', next: 'next' } }, { secretOf: () => 'key-one' });
+    assert.equal(got.rows.length, 2);
+    assert.deepEqual(first.keys, ['key-one']);
+    assert.deepEqual(other.keys, [null]);
+  } finally {
+    await first.close();
+    await other.close();
+  }
+  // One kept as it was before 2.18: bound to the destination it is first read for, then not handed to another.
+  const store = new Map([['base-link:L1', 'old-pass']]);
+  const kept = keptSecrets(secrets(store));
+  const link = { id: 'L1', engine: 'postgres', settings: { host: 'db.example', port: 5432, database: 'shop', user: 'office' } };
+  assert.equal(kept.has('base-link:L1', link), true);
+  assert.deepEqual(kept.read('base-link:L1', link), { value: 'old-pass', elsewhere: false });
+  assert.notEqual(store.get('base-link:L1'), 'old-pass');
+  assert.deepEqual(kept.read('base-link:L1', { ...link, settings: { ...link.settings, host: 'evil.example' } }), { value: null, elsewhere: true });
+  assert.deepEqual(kept.read('base-link:L1', { ...link, settings: { ...link.settings, port: 6543 } }), { value: null, elsewhere: true });
+  assert.deepEqual(kept.read('base-link:L1', link), { value: 'old-pass', elsewhere: false });
+  // A web address by its origin: another path there is the same destination, another host or scheme is not.
+  const at = (where) => destinationOf({ engine: 'json', settings: { where } });
+  assert.equal(at('https://api.example/v1/people'), at('https://api.example/v2/orders?x=1'));
+  assert.notEqual(at('https://api.example/people'), at('https://api.example.evil/people'));
+  assert.notEqual(at('https://api.example/people'), at('http://api.example/people'));
 });
 
 test('where a path is, as the question says it: a network share, the person\'s own folders, or outside them', () => {
