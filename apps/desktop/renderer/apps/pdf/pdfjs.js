@@ -26,13 +26,18 @@ export function pdfjs() {
 
 /**
  * Open bytes as a pdf.js document. A file that needs a password to be read
- * at all rejects with `{ password: true }`.
+ * is opened with `password` when one is given, else `ask({ wrong })` is
+ * called for one (again, `wrong` true, while pdf.js says it is not right)
+ * and resolves to the password or null for Cancel. Cancelled, or with no
+ * way to ask, it rejects with `{ password: true }`, and `cancelled` when
+ * the person said no. The password is handed to pdf.js and to nothing else.
  */
-export async function openDocument(bytes) {
+export async function openDocument(bytes, { password = null, ask = null } = {}) {
   const lib = await pdfjs();
   const task = lib.getDocument({
     // pdf.js takes the buffer over to its worker: it is given a copy.
     data: bytes.slice(),
+    ...(password ? { password } : {}),
     standardFontDataUrl: `${base()}standard_fonts/`,
     wasmUrl: `${base()}wasm/`,
     iccUrl: `${base()}iccs/`,
@@ -40,15 +45,23 @@ export async function openDocument(bytes) {
     enableXfa: false,
     verbosity: 0,
   });
-  task.onPassword = () => {
-    task.destroy();
+  let cancelled = false;
+  task.onPassword = async (update, reason) => {
+    const answer = ask ? await ask({ wrong: reason === lib.PasswordResponses.INCORRECT_PASSWORD }) : null;
+    if (answer === null || answer === undefined) {
+      cancelled = Boolean(ask);
+      task.destroy();
+      return;
+    }
+    update(answer);
   };
   try {
     return await task.promise;
   } catch (err) {
-    if (err?.name === 'PasswordException' || /password/i.test(err?.message || '')) {
+    if (cancelled || err?.name === 'PasswordException' || /password/i.test(err?.message || '')) {
       const e = new Error('password');
       e.password = true;
+      e.cancelled = cancelled;
       throw e;
     }
     throw err;

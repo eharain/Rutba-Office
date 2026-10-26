@@ -4,9 +4,10 @@
 // loaded in Node for the tests: a second reader's word on what the writer
 // and the updates make. Its browser build wants a few things this Node lacks
 // (DOMMatrix, Path2D and ImageData at load time; Uint8Array's toHex,
-// Promise.try and Map's getOrInsertComputed as it reads), none of which
-// reading text, annotations, fields or outlines draws with: they are given
-// as stand-ins. Resolves to null when the vendored copy is not there.
+// Promise.try, Map's getOrInsertComputed and, for AES-256, Math.sumPrecise
+// as it reads), none of which reading text, annotations, fields or outlines
+// draws with: they are given as stand-ins. Resolves to null when the
+// vendored copy is not there.
 
 const path = require('path');
 const fs = require('fs');
@@ -29,6 +30,7 @@ function loadPdfjs() {
         if (!M.prototype.getOrInsertComputed) Object.defineProperty(M.prototype, 'getOrInsertComputed', { value(key, make) { if (!this.has(key)) this.set(key, make(key)); return this.get(key); }, configurable: true });
         if (!M.prototype.getOrInsert) Object.defineProperty(M.prototype, 'getOrInsert', { value(key, v) { if (!this.has(key)) this.set(key, v); return this.get(key); }, configurable: true });
       }
+      if (!Math.sumPrecise) Math.sumPrecise = (list) => { let sum = 0; for (const x of list) sum += x; return sum; };
       if (!Promise.try) Promise.try = (fn, ...args) => new Promise((resolve) => resolve(fn(...args)));
       const [log, warn] = [console.log, console.warn];
       const quiet = (to) => (...a) => { if (!/legacy/.test(String(a[0]))) to(...a); };

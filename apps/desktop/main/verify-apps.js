@@ -170,6 +170,7 @@ import { verifyDeckChanges } from './verify-deck-changes.js';
 import { verifySheetQueriesMerge } from './verify-sheet-queries-merge.js';
 import { verifySheetScripts } from './verify-sheet-scripts.js';
 import { verifyPdfScripts } from './verify-pdf-scripts.js';
+import { verifyPdfPassword } from './verify-pdf-password.js';
 import { verifyDeckMotion } from './verify-deck-motion.js';
 import { verifyDeckModel3d } from './verify-deck-model3d.js';
 import { verifyWordModel3d } from './verify-word-model3d.js';
@@ -4955,7 +4956,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,dark-pass,video-mp4,recorder-screen,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,ai-tools: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,ai-tools: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -5081,6 +5082,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('querymerge')) await verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('scripts')) await verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('pdfscripts')) await verifyPdfScripts({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('pdf-password')) await verifyPdfPassword({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('motion')) await verifyDeckMotion({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('model3d')) await verifyDeckModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('wordmodel3d')) await verifyWordModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
@@ -5502,6 +5504,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('sheets', () => verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('sheets', () => verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('pdf', () => verifyPdfScripts({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await part('pdf', () => verifyPdfPassword({ open, check, until, wait, errorsIn }, { dir }));
   await part('slides', () => verifyDeckMotion({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDeckModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));

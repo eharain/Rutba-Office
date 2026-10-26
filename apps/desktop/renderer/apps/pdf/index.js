@@ -44,6 +44,7 @@ import {
 } from '@rutba/office-ui';
 import { findAll } from '@rutba/editing/find';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
+import { usePasswordGate } from '../../protect.js';
 import { openDocument, pageText, pageImage } from './pdfjs.js';
 import {
   pagesOf, rotatePages, deletePages, insertPages, movePages, rangeKeys, rangeText, chosenKeys, shownSize, splitGroups,
@@ -109,6 +110,8 @@ function SplitDialog({ count, picked, onSplit, onClose }) {
 export default function PdfApp({ app, shell, boot }) {
   const toast = useToast();
   const menu = useMenu();
+  const gate = usePasswordGate();
+  const { ask: askPassword, done: passwordAsked } = gate;
   /** id -> { id, name, path, info, doc }: every file the pages come from. */
   const [sources, setSources] = useState({});
   const sourcesRef = useRef(sources);
@@ -189,40 +192,65 @@ export default function PdfApp({ app, shell, boot }) {
 
   /* ── sources ────────────────────────────────────────────────────────── */
 
-  /** Read a PDF into the window: its structure in the main process, its pages for drawing here. */
-  const addSource = useCallback(async (file, { bytes = null, label = null } = {}) => {
+  /**
+   * Read a PDF into the window: its structure in the main process, its pages
+   * for drawing here. A file that needs a password asks for it (the Password
+   * dialog, again while it is not right); the password is kept with the
+   * source, in memory only, for drawing that file again. Pages being
+   * inserted into another document (`insert`) are refused from a protected
+   * file before anything is asked.
+   */
+  const addSource = useCallback(async (file, { bytes = null, label = null, insert = false } = {}) => {
     const raw = bytes || (await shell.fs.read({ path: file })).bytes;
     const info = await shell.pdf.open(bytes ? { bytes: raw, name: label || basename(file || '') || t('Recovered PDF') } : { path: file });
+    if (insert && info.encrypted) {
+      shell.pdf.close({ id: info.id }).catch(() => {});
+      const e = new Error(t('{name} is protected, and its pages cannot be inserted yet.', { name: info.name }));
+      e.protected = true;
+      throw e;
+    }
     let doc;
+    let password = null;
     try {
-      doc = await openDocument(raw);
+      doc = await openDocument(raw, {
+        ask: insert ? null : async ({ wrong }) => {
+          password = await askPassword({ name: info.name, wrong });
+          return password;
+        },
+      });
     } catch (err) {
       shell.pdf.close({ id: info.id }).catch(() => {});
       if (err.password) {
-        const e = new Error(t('{name} is protected with a password. Opening a PDF that needs a password to be read is not built yet.', { name: info.name }));
+        const e = new Error(t('{name} is protected with a password, and it stays closed until the password is given.', { name: info.name }));
         e.password = true;
         throw e;
       }
       throw new Error(t('{name} could not be drawn: {reason}', { name: info.name, reason: err.message }));
+    } finally {
+      passwordAsked();
     }
     const [annots, fields, nav] = await Promise.all([
       shell.pdf.annotations({ id: info.id }).catch(() => []),
       shell.pdf.fields({ id: info.id }).catch(() => []),
       shell.pdf.navigation({ id: info.id }).catch(() => null),
     ]);
-    const source = { id: info.id, name: info.name, path: file || null, info, doc, annots, fields, nav };
+    const source = { id: info.id, name: info.name, path: file || null, info, doc, annots, fields, nav, password };
     setSources((s) => ({ ...s, [info.id]: source }));
     sourcesRef.current = { ...sourcesRef.current, [info.id]: source };
     return source;
-  }, [shell]);
+  }, [shell, askPassword, passwordAsked]);
 
   const resetHistory = () => {
     history.current = { undo: [], redo: [] };
     setHistoryTick((n) => n + 1);
   };
 
+  // What was last opened, for the protected screen's Enter Password to try again.
+  const lastOpen = useRef(null);
+
   /** Open a PDF as this window's document. */
   const openPdf = useCallback(async (file, { bytes = null, recovered = null } = {}) => {
+    lastOpen.current = { file, bytes, recovered };
     setBusy(t('Opening…'));
     setFailed(null);
     try {
@@ -343,9 +371,12 @@ export default function PdfApp({ app, shell, boot }) {
     const added = [];
     try {
       for (const file of files) {
-        const source = await addSource(file);
-        if (source.info.encrypted) {
-          toast(t('{name} is protected, and its pages cannot be inserted yet.', { name: source.name }), { tone: 'bad', ms: 6000 });
+        let source;
+        try {
+          source = await addSource(file, { insert: true });
+        } catch (err) {
+          if (!err.protected) throw err;
+          toast(err.message, { tone: 'bad', ms: 6000 });
           continue;
         }
         added.push(...pagesOf(source.id, source.info));
@@ -1561,7 +1592,16 @@ export default function PdfApp({ app, shell, boot }) {
       <style>{CSS + OCR_CSS + FOUND_CSS}</style>
       {!hasDoc ? (
         failed ? (
-          <Empty icon={locked ? 'lock' : 'pdf'} title={locked ? t('This PDF is protected') : t('This file could not be opened')} action={<div className="pdf-empty-actions"><Button primary icon="open" label={t('Open another')} onClick={openFile} /></div>}>
+          <Empty
+            icon={locked ? 'lock' : 'pdf'}
+            title={locked ? t('This PDF is protected') : t('This file could not be opened')}
+            action={(
+              <div className="pdf-empty-actions">
+                {locked && lastOpen.current ? <Button primary icon="lock" label={t('Enter password…')} data-role="pdf-password-retry" onClick={() => { const o = lastOpen.current; openPdf(o.file, { bytes: o.bytes, recovered: o.recovered }); }} /> : null}
+                <Button primary={!locked} icon="open" label={t('Open another')} onClick={openFile} />
+              </div>
+            )}
+          >
             {failed}
           </Empty>
         ) : (
@@ -1724,6 +1764,7 @@ export default function PdfApp({ app, shell, boot }) {
           onClose={() => setOcr(null)}
         />
       ) : null}
+      {gate.node}
       {printing ? (
         <PrintPages images={printing} />
       ) : null}
