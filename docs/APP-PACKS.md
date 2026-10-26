@@ -865,8 +865,9 @@ also writes `build/packs/installer-packs.nsh`, which
   installed as on, so that adding it later shows it.
 - `customInstall` writes each ticked pack (archive, then its folder, then
   its manifest) and registers its kinds of file and nothing else; it
-  writes `Packs`. The core writes `Packs` again at each start of an
-  installed copy, from what it loaded.
+  writes `Packs`, and `PacksKnown`: every pack this installer has. The
+  core writes both again at each start of an installed copy, `Packs` from
+  what it loaded.
 - `customUnInstall` lets go of every kind of file any pack registers. The
   pack files go with the install folder.
 
@@ -954,6 +955,13 @@ computer would not load and why.
 - A pack downloaded by Add or remove apps is always of the core's own
   version, so an add never needs an update and an update never leaves an
   add behind.
+- **A pack new in a version.** `Packs` alone would leave out an app the
+  version before did not have. So the installer and the core also write
+  `PacksKnown`, every pack that version had, and an update writes the
+  packs in `Packs` and each pack of its own that is not in `PacksKnown`:
+  an app new in this version is installed, and one the person left out
+  before stays out. With `Packs` and no `PacksKnown`, every pack is taken
+  as known and none is added.
 
 ### 5.6 The release check: a core with one pack holds nothing of another
 

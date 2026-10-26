@@ -81,6 +81,17 @@ test('the installer writes a pack\'s files only when it is chosen, its manifest 
   assert.match(text, /WriteRegStr HKCU "Software\\Rutba Office" "Packs" "\$rutbaPacksList"/);
   // The choice: the command line, else what is installed, else every pack.
   assert.ok(text.indexOf('"/PACKS="') < text.indexOf('"Packs"') && text.indexOf('"Packs"') < text.indexOf('${RUTBA_ALL_PACKS}'));
+  // A pack new in this version is written on an update too: the packs the copy
+  // before knew are read only when its Packs was, and each pack missing from them is chosen.
+  const decide = text.slice(text.indexOf('!macro rutbaPacksDecide'), text.indexOf('!macroend', text.indexOf('!macro rutbaPacksDecide')));
+  assert.match(decide, /\$\{Else\}\r\n {6}StrCpy \$R4 "1"/);
+  assert.match(decide, /\$\{If\} \$R4 == "1"\r\n {4}ReadRegStr \$R3 HKCU "Software\\Rutba Office" "PacksKnown"/);
+  for (const id of ['ai', 'mail', 'word']) assert.match(decide, new RegExp(`!insertmacro rutbaPackNew ${id}\\r\\n`));
+  assert.ok(decide.lastIndexOf('rutbaPackDecide') < decide.indexOf('rutbaPackNew'), 'new packs added after the choice is read');
+  // With no PacksKnown, every pack is taken as known.
+  assert.match(decide, /"PacksKnown"\r\n {4}\$\{If\} \$\{Errors\}\r\n {4}\$\{OrIf\} \$R3 == ""\r\n {6}StrCpy \$R3 "\$\{RUTBA_ALL_PACKS\}"/);
+  assert.match(text, /WriteRegStr HKCU "Software\\Rutba Office" "PacksKnown" "\$\{RUTBA_ALL_PACKS\}"/);
+  assert.deepEqual(/!define RUTBA_ALL_PACKS "([a-z,]+)"/.exec(text)[1].split(',').sort(), ['ai', 'mail', 'word']);
   // The uninstaller lets go of every kind of file any pack registers.
   const forget = text.slice(text.indexOf('!macro rutbaForgetTypes'));
   assert.match(forget, /rutbaUnassociate "eml" /);

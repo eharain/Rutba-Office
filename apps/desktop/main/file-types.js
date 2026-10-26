@@ -10,6 +10,7 @@
 // installed for everyone keeps its types in HKLM, which needs the installer.
 
 import { execFile } from 'node:child_process';
+import { PACKS } from '@rutba/office-shell/contract';
 
 export const CLASSES = 'HKCU\\Software\\Classes';
 
@@ -134,6 +135,8 @@ export async function registerTypes(types, { exe, root = CLASSES } = {}) {
 }
 
 /** The packs installed, where the next installer reads them (HKCU\\Software\\Rutba Office, Packs). */
-export async function recordPacks(ids, { key = CHOICE_KEY } = {}) {
+export async function recordPacks(ids, { key = CHOICE_KEY, known = PACKS.map((p) => p.id) } = {}) {
   await reg(['add', key, '/v', 'Packs', '/t', 'REG_SZ', '/d', ids.join(','), '/f']);
+  // Every pack this version knows, so the next installer adds only a pack new in its own (PacksKnown).
+  await reg(['add', key, '/v', 'PacksKnown', '/t', 'REG_SZ', '/d', known.join(','), '/f']);
 }
