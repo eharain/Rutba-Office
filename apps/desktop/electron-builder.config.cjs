@@ -37,6 +37,11 @@ module.exports = async () => {
       '!**/*.md',
     ],
 
+    // The AI tools' start file, a real file beside the archive so an AI app
+    // that checks the path finds it (main/mcp/command.js); it loads the tools
+    // from the archive.
+    extraResources: [{ from: 'resources/mcp', to: 'mcp', filter: ['*.cjs'] }],
+
     asar: true,
     // The taskbar reads an app's icon straight from disk, so the tiles sit
     // beside the archive rather than inside it.

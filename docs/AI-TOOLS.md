@@ -115,7 +115,7 @@ the window has them right.
   "mcpServers": {
     "rutba-office": {
       "command": "C:\\Users\\you\\AppData\\Local\\Programs\\Rutba Office\\Rutba Office.exe",
-      "args": ["C:\\Users\\you\\AppData\\Local\\Programs\\Rutba Office\\resources\\app.asar\\main\\mcp\\node.js"],
+      "args": ["C:\\Users\\you\\AppData\\Local\\Programs\\Rutba Office\\resources\\mcp\\rutba-office-mcp.cjs", "--profile", "default"],
       "env": { "ELECTRON_RUN_AS_NODE": "1" }
     }
   }
@@ -124,6 +124,19 @@ the window has them right.
 
 The AI app runs Rutba Office's own program as Node (`ELECTRON_RUN_AS_NODE`), so
 no window opens and the copy of Rutba Office you are using is left alone.
+
+`rutba-office-mcp.cjs` is a small file beside the app's archive. It loads the
+tools from the archive, which Rutba Office's program reads when it runs as
+Node. Lines copied from an earlier version named a file inside the archive,
+`resources\app.asar\main\mcp\node.js`, and an AI app that checks the path
+first said it was not there. Copy the lines again from AI Tools and put them
+in place of the old ones.
+
+`--profile` names the profile the lines were copied from, so the AI app works
+with that profile's settings and folders. Each profile has its own AI Tools
+settings. To use the tools in another profile, open AI Tools there and copy
+its lines, under a name of their own in the AI app's list. A profile that no
+longer exists is refused, and the AI app shows why.
 
 ## Not yet
 

@@ -188,6 +188,7 @@ export function AiToolsDialog({ shell, onClose }) {
       <p className="ai-note">{t('Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.')}</p>
       <pre className="ai-config selectable">{connectJson(state?.connect)}</pre>
       <Button icon="copy" label={t('Copy')} className="ai-copy" onClick={() => copy()} />
+      <p className="ai-note ai-copy-again">{t('Lines copied from Rutba Office before this version name a file the AI app cannot find. Copy these and put them in its settings in place of the old ones. They open the tools in this profile.')}</p>
       {remote ? (
         <>
           <p className="ai-note">{t('On another machine, an AI app that connects to an MCP server at an address takes these lines, the key with them.')}</p>

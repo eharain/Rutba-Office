@@ -1,9 +1,11 @@
 // The AI tools for an AI app on this computer (D-2026-10-16-06, -07), started
 // by that app as Rutba Office's own program running as Node:
 //
-//   ELECTRON_RUN_AS_NODE=1 "Rutba Office.exe" "<app>\main\mcp\node.js"
+//   ELECTRON_RUN_AS_NODE=1 "Rutba Office.exe" "<app>\main\mcp\node.js" --profile <id>
 //
-// The AI Tools window shows that line ready to copy. Run as Node, the program
+// (an installed copy names resources\mcp\rutba-office-mcp.cjs, a real file
+// beside the archive that loads this one from it: command.js). The AI Tools
+// window shows that line ready to copy. Run as Node, the program
 // opens no window, leaves the copy of Rutba Office that windows use alone,
 // listens on no network port, and its standard input and output carry the
 // protocol cleanly (the windowed program prints a line of its own on Windows
@@ -12,19 +14,11 @@
 // Office decides.
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { createServer, serve } from './protocol.js';
 import { writeConnection } from './access.js';
+import { profileDir } from './profile-dir.js';
 import { makeTools, versionOf, INSTRUCTIONS } from './make-tools.js';
-
-/** Rutba Office's profile folder, where its settings are: as Electron names it for the app. */
-export function profileDir() {
-  if (process.env.RUTBA_OFFICE_PROFILE) return process.env.RUTBA_OFFICE_PROFILE;
-  if (process.platform === 'win32') return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Rutba Office');
-  if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Application Support', 'Rutba Office');
-  return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'Rutba Office');
-}
 
 export async function main() {
   // Standard output carries the protocol and nothing else.

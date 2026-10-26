@@ -53,9 +53,17 @@ export async function verifyAiTools(h) {
     check('ai tools: Always on, with the folder the person chose, puts the badge in the title bar',
       Boolean(on) && state.mode === 'always' && folder === chosen && state.folders.length === 1, `${state.mode}; ${folder}`);
 
-    // An AI app, as the window says to start one.
+    // The lines the window shows: a file that is there, the profile they were copied from, and
+    // the word that lines copied before this version should be copied again (D-2026-10-26-02).
+    const copied = await js(`(() => { const pre = document.querySelector('.ai-config'); let lines = null; try { lines = JSON.parse(pre?.textContent || '')?.mcpServers?.['rutba-office'] || null; } catch { /* checked below */ } return window.rutbaOffice.profiles.current().then((p) => ({ lines, profile: p.id, again: document.querySelector('.ai-copy-again')?.textContent || '' })); })()`);
+    const named = copied.lines?.args?.indexOf('--profile') ?? -1;
+    check('ai tools: the lines to copy name a file that is there and this profile, and say that lines copied before should be copied again',
+      Boolean(copied.lines) && fs.existsSync(copied.lines.args[0]) && named > 0 && copied.lines.args[named + 1] === copied.profile && /copy these/i.test(copied.again),
+      JSON.stringify({ args: copied.lines?.args, profile: copied.profile, again: copied.again }));
+
+    // An AI app, as the window says to start one: its lines alone say where this profile is.
     const { command, args, env } = state.connect;
-    child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...env, RUTBA_OFFICE_PROFILE: app.getPath('userData') } });
+    child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...env } });
     let out = '';
     const waiting = new Map();
     child.stdout.on('data', (d) => {

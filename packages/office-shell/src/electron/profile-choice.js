@@ -38,7 +38,7 @@ let settled = null;
 
 /**
  * The profile this run is, worked out once: { base, id, name, colour, folder,
- * lock, count, asked (the base was named on the command line) }. Sets the
+ * lock, count, isDefault, baseNamed (the base was named on the command line) }. Sets the
  * profile's folder as Electron's userData and sessionData before anything
  * else reads them.
  */

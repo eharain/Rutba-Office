@@ -14,24 +14,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { app } from 'electron';
+import { settledProfile } from '@rutba/office-shell/electron/profile-choice';
 import { MODE_KEY, SESSION_KEY, FOLDERS_KEY, MODES, foldersOf, readLog, readConnections, openNow } from './mcp/access.js';
+import { mcpCommand as commandFor } from './mcp/command.js';
 import { createRemote, REACH_KEY, REACHES, REMOTE_KEY, REMOTE_PORT_KEY, DEFAULT_PORT, newKey, addresses } from './mcp/remote.js';
 
 /**
- * How an AI app starts the tools: Rutba Office's own program run as Node
- * (mcp/node.js), from the app's archive in an installed copy, or from the
- * source in a copy run from it.
- *
- * A screens run for the website shows the lines an installed copy shows (as
- * docs/AI-TOOLS.md prints them): the development copy's own paths mean
- * nothing to somebody reading the site.
+ * How an AI app starts the tools (mcp/command.js): Rutba Office's own program
+ * run as Node on the file beside the archive in an installed copy, or on the
+ * source in a copy run from it, in this window's profile.
  */
-const INSTALLED = 'C:\\Users\\you\\AppData\\Local\\Programs\\Rutba Office';
 export function mcpCommand({ execPath = process.execPath, appDir = app.getAppPath() } = {}) {
-  if (process.env.RUTBA_SCREENS_FEATURES && !app.isPackaged) {
-    return { command: path.win32.join(INSTALLED, 'Rutba Office.exe'), args: [path.win32.join(INSTALLED, 'resources', 'app.asar', 'main', 'mcp', 'node.js')], env: { ELECTRON_RUN_AS_NODE: '1' } };
-  }
-  return { command: execPath, args: [path.join(appDir, 'main', 'mcp', 'node.js')], env: { ELECTRON_RUN_AS_NODE: '1' } };
+  return commandFor({ execPath, appDir, packaged: app.isPackaged, resourcesPath: process.resourcesPath, profile: settledProfile(), screens: Boolean(process.env.RUTBA_SCREENS_FEATURES) });
 }
 
 export function createAiToolsService({ stores, dataDir = app.getPath('userData'), pid = process.pid }) {
