@@ -129,7 +129,8 @@ function readCard(props) {
     title: textOf('TITLE'),
     role: textOf('ROLE'),
     emails: all('EMAIL').map((p) => ({ value: unescapeText(valueOf(p)).trim(), type: kindOf(p, 'other'), pref: isPref(p), label: label(p) })),
-    phones: all('TEL').map((p) => ({ value: unescapeText(valueOf(p)).replace(/^tel:/i, '').trim(), type: kindOf(p, 'other'), pref: isPref(p), label: label(p) })),
+    // vCard's CELL is the card's "mobile", as the editor and a CSV name it.
+    phones: all('TEL').map((p) => ({ value: unescapeText(valueOf(p)).replace(/^tel:/i, '').trim(), type: kindOf(p, 'other').replace(/^cell$/, 'mobile'), pref: isPref(p), label: label(p) })),
     addresses: all('ADR').map((p) => {
       const [pobox = '', extended = '', street = '', city = '', region = '', postcode = '', country = ''] = components(valueOf(p));
       return { street: [pobox, extended, street].filter(Boolean).join('\n'), city, region, postcode, country, type: kindOf(p, 'other'), pref: isPref(p), label: label(p) };
@@ -223,7 +224,7 @@ export function writeVCard(c, { version = '3.0' } = {}) {
     return out.length;
   };
   for (const e of c.emails || []) if (e.value) grouped('EMAIL', { ...typeParams(e, v4), ...(v4 ? {} : { TYPE: [...((typeParams(e, v4).TYPE) || []), 'INTERNET'] }) }, escapeText(e.value), e.label);
-  for (const t of c.phones || []) if (t.value) grouped('TEL', typeParams(t, v4), v4 ? `tel:${t.value}` : escapeText(t.value), t.label);
+  for (const t of c.phones || []) if (t.value) grouped('TEL', typeParams(t.type === 'mobile' ? { ...t, type: 'cell' } : t, v4), v4 ? `tel:${t.value}` : escapeText(t.value), t.label);
   for (const a of c.addresses || []) {
     const parts = ['', '', a.street || '', a.city || '', a.region || '', a.postcode || '', a.country || ''].map((s) => escapeText(s));
     grouped('ADR', typeParams(a, v4), parts.join(';'), a.label);

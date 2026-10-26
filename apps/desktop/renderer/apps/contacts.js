@@ -10,7 +10,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Panel, Content, Search, Field, Input, Select,
+  Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Panel, Content, Search, Field, Input, Select, Dialog,
   useToast, useCommands, menuItems, useMenu, t, tn,
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
@@ -63,6 +63,8 @@ export default function Contacts({ app, shell, boot }) {
   const [peek, setPeek] = useState(null);
   const [tab, setTab] = useState('home');
   const [busy, setBusy] = useState(false);
+  // A CSV being brought in: checked in a preview first (CsvImport).
+  const [csv, setCsv] = useState(null);
   const searchRef = useRef(null);
 
   const refresh = useCallback(async () => {
@@ -181,23 +183,30 @@ export default function Contacts({ app, shell, boot }) {
     toast(t('Removed {name}.', { name: selected.display }));
   }, [selected, peek, shell, refresh, toast]);
 
+  /** What an import did, said: and for a CSV, what it left out. */
+  const imported = useCallback(async (r) => {
+    setPeek(null);
+    await refresh();
+    const done = r.same ? t('{added} added, {updated} updated, {same} already here.', { added: r.added, updated: r.updated, same: r.same }) : t('{added} added, {updated} updated.', { added: r.added, updated: r.updated });
+    const left = leftOut(r.skipped, r.unread);
+    toast(left ? `${done} ${left}` : done, { tone: 'good', ms: left ? 9000 : 6000 });
+  }, [refresh, toast]);
+
   const importFile = useCallback(
     async (file = null) => {
       const target = file || (await pickOpen(shell, 'contacts'))?.[0];
       if (!target) return;
+      if (/\.(csv|tsv)$/i.test(target)) { setCsv({ path: target }); return; }
       setBusy(true);
       try {
-        const r = await shell.contacts.importFile({ path: target });
-        setPeek(null);
-        await refresh();
-        toast(r.same ? t('{added} added, {updated} updated, {same} already here.', { added: r.added, updated: r.updated, same: r.same }) : t('{added} added, {updated} updated.', { added: r.added, updated: r.updated }), { tone: 'good', ms: 6000 });
+        await imported(await shell.contacts.importFile({ path: target }));
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 8000 });
       } finally {
         setBusy(false);
       }
     },
-    [shell, refresh, toast]
+    [shell, imported, toast]
   );
 
   const exportAll = useCallback(async () => {
@@ -409,6 +418,7 @@ export default function Contacts({ app, shell, boot }) {
     >
       <style>{CSS}</style>
       {accountsOpen ? <AccountsDialog shell={shell} kind="contacts" toast={toast} onClose={() => setAccountsOpen(false)} /> : null}
+      {csv ? <CsvImport shell={shell} path={csv.path} toast={toast} onClose={() => setCsv(null)} onDone={(r) => { setCsv(null); imported(r); }} /> : null}
       <Panel width={280} resizable>
         <div className="ct-search">
           <Search value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('Search contacts')} autoFocus={false} />
@@ -475,6 +485,97 @@ export default function Contacts({ app, shell, boot }) {
         )}
       </Content>
     </AppFrame>
+  );
+}
+
+/** What a CSV import left out, in a sentence; '' when nothing. */
+function leftOut(skipped = 0, unread = []) {
+  const parts = [];
+  if (skipped) parts.push(tn(skipped, 'Left out {count} row with no name, address, company or phone.', 'Left out {count} rows with no name, address, company or phone.'));
+  if (unread?.length) parts.push(tn(unread.length, 'Not read: the {names} column.', 'Not read: the {names} columns.', { names: unread.join(', ') }));
+  return parts.join(' ');
+}
+
+/** What a CSV column can be read as, in the words the preview shows. */
+const CSV_FIELD_NAMES = {
+  '': t('Leave out'), full: t('Full name'), prefix: t('Title before the name'), first: t('First name'), middle: t('Middle name'), last: t('Last name'), suffix: t('After the name'),
+  nickname: t('Nickname'), org: t('Company'), department: t('Department'), jobTitle: t('Job title'), email: t('Email'), phone: t('Phone'),
+  street: t('Street'), city: t('City'), region: t('Region'), postcode: t('Postcode'), country: t('Country'), pobox: t('PO box'), extended: t('Address, second line'), formatted: t('Address on one line'),
+  birthday: t('Birthday'), website: t('Website'), note: t('Notes'), categories: t('Categories'), type: t('Kind of the column before'),
+};
+const CSV_CHOICES = ['', 'full', 'prefix', 'first', 'middle', 'last', 'suffix', 'nickname', 'org', 'department', 'jobTitle', 'email', 'phone', 'street', 'city', 'region', 'postcode', 'country', 'birthday', 'website', 'note', 'categories'];
+
+/**
+ * A CSV checked before it comes in, as Outlook's import maps its fields:
+ * each column, its first value and what it was matched to, which can be
+ * changed; the first few cards as they would be kept; and what would be left
+ * out. Import brings them in with the columns as they stand.
+ */
+function CsvImport({ shell, path, toast, onClose, onDone }) {
+  const [columns, setColumns] = useState({});
+  const [seen, setSeen] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    shell.contacts.peekCsv({ path, columns }).then((r) => { if (live) setSeen(r); }).catch((err) => { toast(err.message, { tone: 'bad', ms: 8000 }); onClose(); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell, path, columns]);
+  const go = async () => {
+    setBusy(true);
+    try {
+      onDone(await shell.contacts.importFile({ path, columns }));
+    } catch (err) {
+      toast(err.message, { tone: 'bad', ms: 8000 });
+      setBusy(false);
+    }
+  };
+  const left = seen ? leftOut(seen.skipped.length, seen.unread) : '';
+  return (
+    <Dialog
+      title={t('Import {name}', { name: seen?.name || path.split(/[\\/]/).pop() })}
+      width={680}
+      className="ct-csv"
+      onClose={onClose}
+      actions={
+        <>
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary className="ct-csv-go" label={busy ? t('Importing…') : seen ? tn(seen.count, 'Import {count} card', 'Import {count} cards') : t('Import')} disabled={!seen?.count || busy} onClick={go} />
+        </>
+      }
+    >
+      {seen ? (
+        <div className="ct-csv-body">
+          <p className="ct-csv-note">{t('Check what each column holds. Change one that was matched wrongly, or leave it out.')}</p>
+          <div className="ct-csv-cols" role="table" aria-label={t('Columns')}>
+            <div className="ct-csv-row head" role="row"><span role="columnheader">{t('Column')}</span><span role="columnheader">{t('First value')}</span><span role="columnheader">{t('Read as')}</span></div>
+            {seen.columns.map((c) => (
+              <div key={c.index} className={`ct-csv-row${c.field ? '' : ' out'}`} role="row" data-column={c.header}>
+                <span role="cell" className="h">{c.header || t('(no heading)')}</span>
+                <span role="cell" className="v" title={c.sample}>{c.sample}</span>
+                <span role="cell">
+                  <Select className="ct-csv-field" aria-label={t('What {column} holds', { column: c.header })} value={c.field} onChange={(e) => setColumns((was) => ({ ...was, [c.index]: e.target.value }))}>
+                    {[...new Set([...(CSV_CHOICES.includes(c.auto) ? [] : [c.auto]), ...(CSV_CHOICES.includes(c.field) ? [] : [c.field]), ...CSV_CHOICES])].map((f) => <option key={f} value={f}>{CSV_FIELD_NAMES[f] ?? f}</option>)}
+                  </Select>
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="ct-csv-cards">
+            <div className="ct-csv-cards-head">{tn(seen.count, '{count} card; the first as it will be kept:', '{count} cards; the first few as they will be kept:')}</div>
+            {seen.sample.map((c) => (
+              <div key={c.id} className="ct-csv-card">
+                <b>{c.display || t('(no name)')}</b>
+                <span>{[c.title, c.org].filter(Boolean).join(' · ')}</span>
+                <span>{(c.emails || []).map((e) => e.value).join(', ')}</span>
+                <span>{(c.phones || []).map((p) => `${p.label || TYPE_NAMES[p.type] || p.type} ${p.value}`).join(', ')}</span>
+              </div>
+            ))}
+          </div>
+          {left ? <p className="ct-csv-left">{left}</p> : null}
+        </div>
+      ) : <div className="ct-csv-note">{t('Reading the file…')}</div>}
+    </Dialog>
   );
 }
 
@@ -553,4 +654,17 @@ const CSS = `
 .ct-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .ct-notes { width: 100%; resize: vertical; font: inherit; }
 .ct-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.ct-csv-body { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.ct-csv-note, .ct-csv-left { margin: 0; color: var(--ink-2); }
+.ct-csv-cols { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-2); }
+.ct-csv-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 200px; gap: 8px; align-items: center; padding: 3px 8px; border-bottom: 1px solid var(--line); }
+.ct-csv-row:last-child { border-bottom: 0; }
+.ct-csv-row.head { position: sticky; top: 0; z-index: 1; background: var(--surface); font-size: 11px; font-weight: 600; color: var(--ink-3); padding: 6px 8px; }
+.ct-csv-row .h, .ct-csv-row .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-csv-row .v { color: var(--ink-3); }
+.ct-csv-row.out .h { color: var(--ink-3); }
+.ct-csv-cards { display: flex; flex-direction: column; gap: 4px; }
+.ct-csv-cards-head { font-weight: 600; }
+.ct-csv-card { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 4px 8px; border-radius: var(--r-2); background: var(--sunken); }
+.ct-csv-card > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;

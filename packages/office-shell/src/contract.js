@@ -249,7 +249,8 @@ export const METHODS = {
     'remove',     // ({ id | ids }) -> { removed }
     'suggest',    // ({ query, limit }) -> [{ name, email, source }]
     'peek',       // ({ path }) -> { name, contacts }
-    'importFile', // ({ path }) -> { added, updated, same, total }
+    'peekCsv',    // ({ path, columns }) -> { name, count, columns, skipped, unread, sample }  a CSV checked before it comes in
+    'importFile', // ({ path, columns }) -> { added, updated, same, total, skipped, unread }
     'importText', // ({ text }) -> { added, updated, same, total }
     'exportFile', // ({ path, ids }) -> { path, count }
     'fromMail',   // ({ name, email }) -> contact
