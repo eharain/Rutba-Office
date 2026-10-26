@@ -661,6 +661,16 @@ the map's fixture shrinks as the cuts are made.
    that is not loaded, and so does a file whose app is absent (it opens in
    whichever loaded app also opens it, or the launcher says which app to
    add).
+
+   *Built, as far as it goes before a move.* While an app's code is in the
+   core, its chunks are in the core's build too; dividing them is part of
+   each app's move. A pack's manifest may name its window module
+   (`windows`). The protocol handler serves `rutba://app/packs/<id>/<file>`
+   from that pack's archive, from the roots `main.js` hands it (the loaded
+   packs' archives), and never a path outside that archive.
+   `renderer/index.js` imports a pack's own window module when the start
+   says it has one (`packWindows`), the built-in one otherwise, and opens
+   the launcher for an app that is not installed.
 4. **The registry from the packs.** The tables in
    `packages/office-formats/src/registry.js` stay the build's source of
    truth; the build writes each app's rows (its `APPS` entry, extensions,
@@ -668,12 +678,30 @@ the map's fixture shrinks as the cuts are made.
    the core's registry at run time is the core's rows plus the loaded
    packs'. Choose apps, the Open dialog's filters, Save As, the launcher and
    `defaults.js` read that.
+
+   *Built.* Each manifest carries its app's rows (`describePack(id).registry`)
+   beside its tiles and file types. In the window, the launcher's tiles,
+   Choose apps and the Open dialog's filters are the installed apps' only
+   (`isInstalled`, `installedPacks`, `openFilters(app, { apps })`); Choose
+   apps keeps the stored choice of an app not installed as it was, so adding
+   it back brings it back as the person left it. The tables stay in the
+   core's registry module until the apps move: they are a few kilobytes of
+   data, and the build reads them.
 5. **AI tools from the packs.** `TOOL_LIST` is split by owner (the map's
    `TOOL_PACK`): AI Tools keeps the folder tools, and each pack's
    `register` adds its own tools to a list the AI Tools pack serves. The
    AI tools' program run as Node (`main/mcp/node.js`, started with
    `ELECTRON_RUN_AS_NODE`) runs the loader too, so an AI app sees only the
    tools of packs that are installed and good.
+
+   *Built.* `main/pack-tools.js` says whose each tool is (`TOOL_PACK`) and
+   whether it is offered (`toolOffered`). The core writes the packs it
+   loaded into the settings at each start (`packs.loaded`); the tools'
+   list and every call read it, in the tools Rutba Office serves and in
+   the program an AI app starts alike. Without AI Tools no tool is
+   offered; with it, its own and those of the packs loaded. A call to a
+   tool not offered is refused in plain words. The tools themselves stay in
+   one list in AI Tools' code until the apps move.
 6. **Development.** `npm start` and the window checks build every pack into
    `build/packs/` and sign them with a development key made once per
    checkout outside the repository (`make-pack-key.mjs`, in the profile

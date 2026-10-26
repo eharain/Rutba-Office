@@ -18,6 +18,7 @@ import { settledProfile } from '@rutba/office-shell/electron/profile-choice';
 import { MODE_KEY, SESSION_KEY, FOLDERS_KEY, MODES, foldersOf, readLog, readConnections, openNow } from './mcp/access.js';
 import { mcpCommand as commandFor } from './mcp/command.js';
 import { createRemote, REACH_KEY, REACHES, REMOTE_KEY, REMOTE_PORT_KEY, DEFAULT_PORT, newKey, addresses } from './mcp/remote.js';
+import { LOADED_KEY } from './pack-tools.js';
 
 /**
  * How an AI app starts the tools (mcp/command.js): Rutba Office's own program
@@ -57,6 +58,7 @@ export function createAiToolsService({ stores, dataDir = app.getPath('userData')
   // The settings the tools obey, as the window keeps them, read for every call.
   const snapshot = () => ({
     'apps.choice': settings.get('apps.choice', null),
+    [LOADED_KEY]: settings.get(LOADED_KEY, null),
     [MODE_KEY]: settings.get(MODE_KEY, 'off'),
     [SESSION_KEY]: settings.get(SESSION_KEY, 0),
     [FOLDERS_KEY]: settings.get(FOLDERS_KEY, []),

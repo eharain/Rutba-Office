@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Window, TitleBar, Body, StatusBar, Menu, Icon, useToast, useTheme, Button, Progress, t, msg, language } from '@rutba/office-ui';
 import { APPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
-import { pathOf } from '@rutba/office-shell/client';
+import { pathOf, installedPacks } from '@rutba/office-shell/client';
 import { WhatsNew } from './whatsnew.js';
 import { filtersInLanguage } from './registry-words.js';
 import { TemplateGallery } from './template-gallery.js';
@@ -201,7 +201,8 @@ export async function confirmDiscard(shell, name) {
 export async function pickOpen(shell, appKey, { multiple = false } = {}) {
   const paths = await shell.dialog.open({
     title: t('Open'),
-    filters: filtersInLanguage(openFilters(appKey)),
+    // The launcher offers the kinds of file of the apps installed, and no others.
+    filters: filtersInLanguage(openFilters(appKey, { apps: installedPacks() })),
     multiple,
   });
   return multiple ? paths : paths[0] || null;

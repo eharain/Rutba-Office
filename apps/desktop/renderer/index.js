@@ -11,7 +11,7 @@
 import './language.js';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import shell, { boot } from '@rutba/office-shell/client';
+import shell, { boot, isInstalled, packWindows } from '@rutba/office-shell/client';
 import { ThemeProvider, ToastProvider } from '@rutba/office-ui';
 import { APPS } from '@rutba/office-formats/registry';
 import '@rutba/office-ui/theme.css';
@@ -57,8 +57,13 @@ installLostMouseupGuard(window);
 // flashes white on the way up, and the window's app is loaded meanwhile. (The
 // language is settled earlier: language.js.)
 const start = boot();
-const appKey = APP_LOADERS[start.app] ? start.app : 'home';
-const loaded = APP_LOADERS[appKey]();
+// Only an installed app is loaded (docs/APP-PACKS.md): the main process makes
+// no window for an absent one, and a window that asks for one all the same
+// shows the launcher. A pack that carries its own window module is loaded
+// from its archive; an app still built into the core, from its chunk here.
+const own = (key) => packWindows(key);
+const appKey = start.app !== 'home' && isInstalled(start.app) && (own(start.app) || APP_LOADERS[start.app]) ? start.app : 'home';
+const loaded = own(appKey) ? import(new URL(own(appKey), document.baseURI).href) : APP_LOADERS[appKey]();
 Promise.all([
   shell.store.get({ key: 'theme', fallback: 'system' }).then((mode) => { window.__rutbaTheme = mode || 'system'; }),
 ])

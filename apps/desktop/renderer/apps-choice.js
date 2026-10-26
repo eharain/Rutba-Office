@@ -6,7 +6,15 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Dialog, Button, Icon, t, msg } from '@rutba/office-ui';
-import { APPS, APP_ORDER, APP_GROUPS, ADDONS, APPS_CHOICE_KEY, chosenApps, choiceFor, addonsChosen } from '@rutba/office-formats/registry';
+import { APPS, APP_ORDER as ALL_APPS, APP_GROUPS, ADDONS as ALL_ADDONS, APPS_CHOICE_KEY, chosenApps as chosenOf, choiceFor, addonsChosen as addonsOf } from '@rutba/office-formats/registry';
+import { isInstalled } from '@rutba/office-shell/client';
+
+// Only the apps on this computer (docs/APP-PACKS.md): one not installed is
+// neither offered here nor counted as chosen, whatever the stored choice says.
+const APP_ORDER = ALL_APPS.filter(isInstalled);
+const ADDONS = ALL_ADDONS.filter(isInstalled);
+const chosenApps = (choice) => chosenOf(choice).filter(isInstalled);
+const addonsChosen = (choice) => addonsOf(choice).filter(isInstalled);
 
 /** The add-ons, as Choose apps shows them. */
 const ADDON_INFO = () => ({ ai: { key: 'ai', short: t('AI Tools'), tagline: t('Let AI apps on this computer make and read documents with Office'), icon: 'wand' } });
@@ -21,6 +29,10 @@ export const INSTALLER_WORDS = [
   msg('The apps you want to see and to open your files.'),
   msg('Tick the apps and add-ons you want. Any of them can be added or taken away later, from Choose apps in Rutba Office.'),
   msg('Choose one app at least.'),
+  msg('Text recognition'),
+  msg('Apps to install'),
+  msg('Only the apps you tick are put on this computer.'),
+  msg('Tick the apps to install. An app not ticked is not on this computer at all; add it later from Add or remove apps in Rutba Office.'),
 ];
 
 /**
@@ -41,7 +53,8 @@ export function useChosenApps(shell) {
     return () => window.removeEventListener('focus', read);
   }, [read]);
   const choose = useCallback(async (keys, addons = []) => {
-    const choice = choiceFor(keys, addons);
+    // An app not installed is kept on in the stored choice: added later, it shows.
+    const choice = choiceFor([...keys, ...ALL_APPS.filter((k) => !isInstalled(k))], [...addons, ...ALL_ADDONS.filter((a) => !isInstalled(a))]);
     await shell.store.set({ key: APPS_CHOICE_KEY, value: choice });
     setState({ apps: chosenApps(choice), addons: addonsChosen(choice), made: true, loaded: true });
     // The kinds of file Windows sends to Office follow the choice.
@@ -91,16 +104,18 @@ export function AppsChooser({ chosen, addons = [], onChoose, onClose }) {
     >
       <style>{CHOOSER_CSS}</style>
       <p className="apps-lead">{t('Turn on the apps and add-ons you want, now or at any time. An app turned off is not shown and does not open its kinds of file; it stays installed, so it can be turned on again here.')}</p>
-      {APP_GROUPS.map((g) => (
+      {APP_GROUPS.filter((g) => g.apps.some(isInstalled)).map((g) => (
         <section key={g.id} className="apps-group" data-group={g.id}>
           <h3>{titles[g.id]}</h3>
-          <div className="apps-grid" role="group" aria-label={titles[g.id]}>{g.apps.map((key) => tile(APPS[key]))}</div>
+          <div className="apps-grid" role="group" aria-label={titles[g.id]}>{g.apps.filter(isInstalled).map((key) => tile(APPS[key]))}</div>
         </section>
       ))}
-      <section className="apps-group" data-group="addons">
-        <h3>{titles.addons}</h3>
-        <div className="apps-grid" role="group" aria-label={titles.addons}>{ADDONS.map((a) => tile(ADDON_INFO()[a]))}</div>
-      </section>
+      {ADDONS.length ? (
+        <section className="apps-group" data-group="addons">
+          <h3>{titles.addons}</h3>
+          <div className="apps-grid" role="group" aria-label={titles.addons}>{ADDONS.map((a) => tile(ADDON_INFO()[a]))}</div>
+        </section>
+      ) : null}
       <p className="apps-count" aria-live="polite">{count ? t('{n} of {total} apps on', { n: count, total: APP_ORDER.length }) : t('Choose one app at least.')}</p>
     </Dialog>
   );

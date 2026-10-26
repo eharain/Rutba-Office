@@ -191,7 +191,7 @@ const PDF_WORKER_CSP = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'
  * @param {(p: string) => boolean} [o.allowFile] gate for rutba://file reads
  * @param {object} [o.thumbnailer] the thumbnail maker (thumbs.js); without one the thumb host answers 404
  */
-export function installProtocol({ rendererDir, allowFile = () => true, thumbnailer = null }) {
+export function installProtocol({ rendererDir, allowFile = () => true, thumbnailer = null, packRoots = () => ({}) }) {
   const root = path.resolve(rendererDir);
 
   protocol.handle(SCHEME, async (request) => {
@@ -201,9 +201,19 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
     if (host === 'app') {
       let rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
       if (rel === '' || !path.extname(rel)) rel = 'index.html';
-      const full = path.resolve(root, rel);
-      // Never serve outside the bundle directory, whatever the URL claims.
-      if (full !== root && !full.startsWith(root + path.sep)) {
+      // A loaded app pack's own window code, from its archive (docs/APP-PACKS.md):
+      // rutba://app/packs/<id>/<file>. A pack not loaded has nothing here.
+      let base = root;
+      if (rel.startsWith('packs/')) {
+        const [, id, ...rest] = rel.split('/');
+        const archive = packRoots()[id];
+        if (!archive) return new Response('not found', { status: 404 });
+        base = path.resolve(archive);
+        rel = rest.join('/');
+      }
+      const full = path.resolve(base, rel);
+      // Never serve outside the bundle directory or the pack's archive, whatever the URL claims.
+      if (full !== base && !full.startsWith(base + path.sep)) {
         return new Response('forbidden', { status: 403 });
       }
       if (!fs.existsSync(full)) return new Response('not found', { status: 404 });

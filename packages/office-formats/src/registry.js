@@ -291,17 +291,19 @@ export const OLD_EXTENSIONS = {
 };
 
 /** Electron `dialog.showOpenDialog` filters for one app, or for everything. */
-export function openFilters(appKey) {
+export function openFilters(appKey, { apps = null } = {}) {
   if (appKey && APP_EXTENSIONS[appKey]) {
     return [
       { name: TITLES[appKey], extensions: [...APP_EXTENSIONS[appKey], ...(OLD_EXTENSIONS[appKey] || [])] },
       { name: 'All files', extensions: ['*'] },
     ];
   }
-  const all = [...new Set([...Object.values(APP_EXTENSIONS).flat(), ...Object.values(OLD_EXTENSIONS).flat()])];
+  // `apps`: the apps installed (docs/APP-PACKS.md); the kinds of file of one not there are not offered.
+  const keep = ([k]) => !apps || apps.includes(k);
+  const all = [...new Set([...Object.entries(APP_EXTENSIONS).filter(keep).flatMap(([, e]) => e), ...Object.entries(OLD_EXTENSIONS).filter(keep).flatMap(([, e]) => e)])];
   return [
     { name: 'All supported files', extensions: all },
-    ...Object.entries(APP_EXTENSIONS).map(([k, exts]) => ({ name: TITLES[k], extensions: exts })),
+    ...Object.entries(APP_EXTENSIONS).filter(keep).map(([k, exts]) => ({ name: TITLES[k], extensions: exts })),
     { name: 'All files', extensions: ['*'] },
   ];
 }

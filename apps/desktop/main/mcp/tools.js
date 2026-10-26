@@ -21,6 +21,7 @@ import { makeTemplate } from '@rutba/templates/make';
 import { openPdf } from '@rutba/pdf/reader';
 import { assemble, parsePageRange } from '@rutba/pdf/assemble';
 import { openNow, foldersOf, resolveIn, newFileIn, logCall } from './access.js';
+import { toolOffered, toolRefusal } from '../pack-tools.js';
 
 const KINDS = {
   '.docx': 'document', '.xlsx': 'workbook', '.pptx': 'presentation', '.pdf': 'pdf',
@@ -376,7 +377,11 @@ export function createTools({ settings, dataDir, ocr = null, pictureToPng = null
   const pathsOf = (args) => [args?.path, args?.to, args?.folder, ...(Array.isArray(args?.files) ? args.files.map((f) => f?.path) : [])].filter((p) => typeof p === 'string');
 
   return {
-    list: () => TOOL_LIST.map((t) => ({ ...t })),
+    // Only the tools of the apps installed (pack-tools.js).
+    list: () => {
+      const s = settings();
+      return TOOL_LIST.filter((t) => toolOffered(t.name, s)).map((t) => ({ ...t }));
+    },
     /** One call; `ctx.where` is where it came from when not this computer (an address on the network). */
     async call(name, args = {}, ctx = {}) {
       const started = Date.now();
@@ -390,6 +395,7 @@ export function createTools({ settings, dataDir, ocr = null, pictureToPng = null
       if (!gate.open) return done(refusal(gate.reason));
       const handler = handlers[name];
       if (!handler) return done(refusal(`Rutba Office has no tool called ${name}.`));
+      if (!toolOffered(name, s)) return done(refusal(toolRefusal(name)));
       try {
         return done(await handler(args || {}, foldersOf(s)));
       } catch (err) {

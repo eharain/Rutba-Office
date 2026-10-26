@@ -161,6 +161,8 @@ function buildMenu({ send, appName, appShortNames = {}, installed = null }) {
  *   Without it, the whole contract.
  * @param {(o: { app: string, file: string|null, query: object|null }) => { app: string, query?: object }} [o.resolveApp]
  *   the app a window is made for, when the one asked for is not installed
+ * @param {() => Record<string, string>} [o.packRoots] each loaded pack's archive, by its id, for the
+ *   window code a pack carries (rutba://app/packs/<id>/...)
  */
 export function createShell({
   rendererDir,
@@ -176,6 +178,7 @@ export function createShell({
   profile = null,
   offers = null,
   resolveApp = null,
+  packRoots = () => ({}),
 }) {
   app.setName(appName);
   const appUserModelId = 'co.techstyle.rutba.office';
@@ -375,7 +378,7 @@ export function createShell({
       record('thumbnails', err);
     }
     // A local file is served as asked; a share only once the person reached it (grants.js).
-    installProtocol({ rendererDir, allowFile: mayServe, thumbnailer });
+    installProtocol({ rendererDir, allowFile: mayServe, thumbnailer, packRoots });
 
     windows = createWindowManager({
       stores,
