@@ -38,6 +38,7 @@ import { createDefaultsService } from './defaults.js';
 import { createDavService } from './dav-sync.js';
 import { createPacksService } from './packs-service.js';
 import { planPacks, registerPacks, packView, readPackKeys, readPackSizes, PACK_ORDER } from './app-packs.js';
+import { unicodeFont } from './system-fonts.js';
 import { LOADED_KEY } from './pack-tools.js';
 import { recordPacks } from './file-types.js';
 import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
@@ -301,6 +302,8 @@ createShell({
       oauth,
       packs: view,
       onRecentRenamed: (fn) => renameHooks.push(fn),
+      // A system font that draws Arabic and Hebrew, for a PDF a pack writes (Mail's archive).
+      unicodeFont,
     }, { services, record: (kind, err) => console.error(`${kind}: ${err?.stack || err}`) });
 
     // Calendar and contacts accounts: CalDAV and CardDAV servers, kept in step

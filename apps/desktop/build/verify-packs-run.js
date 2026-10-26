@@ -5,7 +5,7 @@
 // thrown away after it; the core is handed the public half
 // (RUTBA_PACK_PUBLIC_KEY), as a run from the source may be. The packs
 // folder starts with Documents, Mail, AI Tools, Talk, Text recognition and
-// Data Files, all but Mail and AI Tools carrying their own code
+// Data Files, all but AI Tools carrying their own code
 // (build/make-app-packs.js, CARRY_CODE), as Calendar, added later, does; the release's file for
 // every pack is in a folder of its own, which Add or remove apps adds from
 // (RUTBA_PACKS_SOURCE). The first start adds Calendar and removes Mail; the

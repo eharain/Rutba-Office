@@ -142,6 +142,14 @@ test('Data Files carries its engine and sample databases; the core keeps the fil
   for (const kept of ['base.js', 'types.js', 'query-design.js']) assert.ok(!base.core.includes(`node_modules/@rutba/database/src/${kept}`), kept);
 });
 
+test('Mail carries its service, its engine and its protocols; the system fonts stay in the core and reach it in its context', async () => {
+  const { mail } = await packContents(['mail'], { g, meta: windowsBuild(['mail']) });
+  assert.ok(['apps/desktop/main/mail.js', 'apps/desktop/main/mail-pack.js', 'apps/desktop/main/mail-archive.js'].every((f) => mail.main.includes(f)), mail.main.join(', '));
+  assert.ok(!mail.main.includes('apps/desktop/main/system-fonts.js'));
+  assert.ok(['imapflow', 'nodemailer'].every((n) => mail.npm.includes(n)), mail.npm.join(', '));
+  assert.deepEqual(mail.packages.map((p) => p.name), ['@rutba/mailbox']);
+});
+
 test('an npm package two apps need stays in the core; one only Data Files needs goes with it', () => {
   const owners = npmOwners(g);
   assert.equal(owners.get('pg'), 'base');

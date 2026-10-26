@@ -22,7 +22,6 @@ import { createArchiveDesk, isArchive } from './mail-archive.js';
 import { createSmimeDesk } from './mail-smime.js';
 import { setupAccount } from './mail-setup.js';
 import { parseAccountRows, checkRows, isAddress } from '@rutba/mailbox/account-rows';
-import { unicodeFont } from './system-fonts.js';
 import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
 import { planAutoReplies, buildReply } from './mail-ooo.js';
@@ -248,7 +247,7 @@ function isKnownContact(contacts, address) {
   }
 }
 
-export function createMailService({ stores, holdBlob, broadcast, userData, oauth = null, contacts = null, now = () => Date.now(), smtp = null, autoFetch = Boolean(process.versions.electron), unsubscribeAgent = undefined }) {
+export function createMailService({ stores, holdBlob, broadcast, userData, oauth = null, contacts = null, unicodeFont = () => null, now = () => Date.now(), smtp = null, autoFetch = Boolean(process.versions.electron), unsubscribeAgent = undefined }) {
   const store = new MailStore(path.join(userData, 'mail'));
   const transport = smtp || (CHECK_RUN ? fakeTransport() : defaultTransport());
 

@@ -8,11 +8,10 @@
 // no window: a file of its kind opens the launcher, which says it is not
 // installed. Add or remove apps adds Calendar from the folder and removes
 // Mail. The second start has Calendar and not Mail, and Mail's files are
-// gone from the packs folder. Talk, Text recognition, Data Files,
-// Documents and Calendar carry their own code: the core is told so, their
-// windows open, Talk's and Documents' windows' chunks are served from their
-// packs, and text recognition reads a picture with the engine and models in
-// its pack.
+// gone from the packs folder. Every app but AI Tools carries its own code:
+// the core is told so, the windows open, Talk's, Documents' and Mail's
+// windows' chunks are served from their packs, and text recognition reads a
+// picture with the engine and models in its pack.
 //
 // RUTBA_PACKS_PHASE says which start this is (first or next). Run with
 // RUTBA_VERIFY_ONLY=packs.
@@ -111,8 +110,8 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
       // Talk, from its own pack: its code, its window, and its window's chunk.
       const code = await js(`(window.rutbaOffice.__contract.packs || []).find((p) => p.id === 'talk')?.code || null`);
       const codes = await js(`Object.fromEntries((window.rutbaOffice.__contract.packs || []).map((p) => [p.id, p.code]))`);
-      check(name('the core is told Talk, Text recognition, Data Files and Documents carry their own code, and Mail\'s is still the core\'s'),
-        code === 'own' && codes.ocr === 'own' && codes.base === 'own' && codes.word === 'own' && codes.mail === 'core', JSON.stringify(codes));
+      check(name('the core is told Talk, Text recognition, Data Files, Documents and Mail carry their own code, and AI Tools\' is still the core\'s'),
+        code === 'own' && ['ocr', 'base', 'word', 'mail'].every((id) => codes[id] === 'own') && codes.ai === 'core', JSON.stringify(codes));
       // Text recognition from its pack: a small picture of nothing read by its engine, on its threads.
       const read = await js(`window.rutbaOffice.ocr.recognize({ image: { width: 64, height: 32, data: new Uint8Array(64 * 32 * 4).fill(255) }, languages: ['eng'], job: 'packs-check' }).then((r) => ({ ok: true, text: r.text, ms: r.ms }), (e) => ({ ok: false, error: e.message }))`);
       check(name('text recognition reads a picture with the engine and models in its own pack'), read.ok === true, JSON.stringify(read));
@@ -121,8 +120,8 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
       const baseShown = await until(() => base.webContents.executeJavaScript(`/app=base/.test(location.search) && document.body.innerText.length > 0`), 'the Data Files window', 15000).then(() => true).catch(() => false);
       check(name('Data Files opens from its own pack'), baseShown, base.webContents.getURL().split('?')[1] || '');
       base.destroy();
-      // Talk's and Documents' windows, each with its window's chunk served from its own pack.
-      for (const [id, said] of [['talk', 'Talk'], ['word', 'Documents']]) {
+      // Talk's, Documents' and Mail's windows, each with its window's chunk served from its own pack.
+      for (const [id, said] of [['talk', 'Talk'], ['word', 'Documents'], ['mail', 'Mail']]) {
         const win = await open(id);
         const wjs = (c) => win.webContents.executeJavaScript(c);
         const shown = await until(() => wjs(`new URLSearchParams(location.search).get('app') === ${JSON.stringify(id)} && document.body.innerText.length > 0`), `the ${said} window`, 15000).then(() => true).catch(() => false);

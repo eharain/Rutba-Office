@@ -22,7 +22,8 @@ const privateKey = crypto.createPrivateKey(pair.privatePem);
 const root = path.join(tmp, 'packs');
 const keysFile = path.join(tmp, 'core', 'build', 'out', 'pack-keys.json');
 const installer = path.join(tmp, 'installer-packs.nsh');
-const built = await makeAppPacks({ privateKey, version: VERSION, only: ['mail', 'word', 'ai'], root, keysFile, installerFile: installer });
+// Made with every app's code still in the core, as Mail's is in the core laid out below.
+const built = await makeAppPacks({ privateKey, version: VERSION, only: ['mail', 'word', 'ai'], root, keysFile, installerFile: installer, carryCode: [] });
 
 /** A core laid out as its archive is: the keys the build wrote, its version, and a few files of its own and of Mail's. */
 const core = path.join(tmp, 'core');

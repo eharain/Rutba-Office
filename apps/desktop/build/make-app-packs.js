@@ -45,7 +45,7 @@ export const MOVED_FILE = path.join(PACKS_DIR, 'moved.json');
 const ROOT = path.resolve(APP, '..', '..');
 
 /** The apps whose code is in their own pack, not in the core's archive. */
-export const CARRY_CODE = ['talk', 'ocr', 'base', 'calendar', 'contacts', 'pdf', 'pictures', 'image', 'word', 'sheets', 'slides'];
+export const CARRY_CODE = ['talk', 'ocr', 'base', 'calendar', 'contacts', 'pdf', 'pictures', 'image', 'word', 'sheets', 'slides', 'mail'];
 
 /** The apps a person picks on the installer's page; Text recognition and AI Tools are packs too, but never the one app installed. */
 export const ADD_ONS = ['ai', 'ocr'];
