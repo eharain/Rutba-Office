@@ -10,8 +10,8 @@ start and loads only when it checks out.
 This is the design, from the code as it is. It has five parts: the map of
 what each app takes from another (section 1), the pack format (2), the tools
 that make and sign packs (3), the core's loader (4) and the move of the app
-code into packs (5). Sections 1 to 4 are built and tested; nothing here is
-wired into `main.js` yet, and no app code has moved.
+code into packs (5). Sections 1 to 4 are built and tested; section 5 is the
+plan. Nothing here is wired into `main.js` yet, and no app code has moved.
 
 ## 1. The map
 
@@ -198,7 +198,7 @@ Sizes as shipped before compression: the window code minified as the build makes
 | Text recognition (`ocr`) | 15.3 MB | 13 KB | 3 KB | 15.3 MB | 0 KB | 0 KB | none | none | none | none | ocr (4) | read_text_in_picture | 3 |
 | **Core** | 22.4 MB | 5.5 MB | 427 KB | 10.9 MB | 5.6 MB | 0 KB | | | | | app, win, fs, thumbs, dialog, shell, store, doc, dav, update, defaults, oauth, announce, print, clipboard, capture (143) |  | 58 |
 
-All together: 52.4 MB. The window checks (`main/verify-*.js` and the smoke and screens runs, 3.5 MB) are not in these sizes.
+All together: 52.5 MB. The window checks (`main/verify-*.js` and the smoke and screens runs, 3.5 MB) are not in these sizes.
 
 ### The engines and who reaches them
 
@@ -219,7 +219,7 @@ An engine one pack alone reaches moves into that pack; one the core or two packs
 | @rutba/media | core | 80 KB | windows | Pictures, Video | Pictures: `apps/desktop/renderer/apps/pictures.js:245`; Video: `apps/desktop/renderer/apps/video/export.js:18` |
 | @rutba/ocr | split: Text recognition 15.3 MB, core 82 KB | 15.4 MB | main process, windows | AI Tools, Mail, Text recognition, PDF, Worksheets | Worksheets: `apps/desktop/renderer/apps/sheets/receipt-row.js:16`; PDF: `apps/desktop/renderer/apps/pdf/found.js:16`; Mail: `apps/desktop/renderer/apps/mail/docnote.js:16`; Text recognition: `apps/desktop/main/ocr.js:12`; AI Tools: `apps/desktop/main/mcp/make-tools.js:9` |
 | @rutba/office-formats | core | 837 KB | main process, windows | AI Tools, Data Files, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/main/announce.js:33`; Documents: `apps/desktop/renderer/apps/word.js:21`; Worksheets: `apps/desktop/renderer/apps/sheets.js:29`; Presentations: `apps/desktop/renderer/apps/slides.js:19`; Mail: `apps/desktop/renderer/apps/mail.js:27`; AI Tools: `apps/desktop/main/mcp/tools.js:19`; Data Files: `apps/desktop/main/base-sources.js:13` |
-| @rutba/office-shell | core | 174 KB | main process, windows | Data Files, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/main/main.js:13`; Mail: `apps/desktop/renderer/apps/mail/compose.js:19`; Recorder: `apps/desktop/main/live.js:23` |
+| @rutba/office-shell | core | 190 KB | main process, windows | Data Files, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/main/main.js:13`; Mail: `apps/desktop/renderer/apps/mail/compose.js:19`; Recorder: `apps/desktop/main/live.js:23` |
 | @rutba/office-ui | core | 4.0 MB | main process, windows | AI Tools, Data Files, Calendar, Contacts, core, Image, Mail, Text recognition, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/renderer/apps-choice.js:8`; Documents: `apps/desktop/renderer/apps/word.js:17`; Worksheets: `apps/desktop/renderer/apps/sheets.js:15`; Presentations: `apps/desktop/renderer/apps/slides.js:13`; Pictures: `apps/desktop/renderer/apps/pictures.js:25`; Image: `apps/desktop/renderer/apps/image.js:17`; Video: `apps/desktop/renderer/apps/video/export.js:17`; Recorder: `apps/desktop/renderer/apps/recorder.js:20`; Talk: `apps/desktop/renderer/apps/talk.js:14`; Data Files: `apps/desktop/renderer/apps/base.js:9`; PDF: `apps/desktop/renderer/apps/pdf/annots.js:18`; Mail: `apps/desktop/renderer/apps/mail.js:25`; Calendar: `apps/desktop/renderer/apps/calendar.js:15`; Contacts: `apps/desktop/renderer/apps/contacts.js:15`; AI Tools: `apps/desktop/renderer/ai-tools.js:12`; Text recognition: `apps/desktop/renderer/ocr-ui.js:12` |
 | @rutba/ooxml | core | 1.3 MB | main process, windows | AI Tools, Data Files, core, Mail, Worksheets, Presentations, Documents | Documents: `apps/desktop/renderer/apps/word.js:45`; core: `apps/desktop/main/documents.js:21`; Worksheets: `apps/desktop/renderer/apps/sheets.js:24`; Presentations: `apps/desktop/renderer/apps/slides.js:31`; Mail: `packages/mailbox/src/olm.js:12`; AI Tools: `apps/desktop/main/mcp/tools.js:14`; Data Files: `apps/desktop/main/base-sources.js:17` |
 | @rutba/pdf | core | 342 KB | main process | AI Tools, core, Mail, PDF | core: `apps/desktop/main/system-fonts.js:10`; PDF: `apps/desktop/main/pdf.js:43`; AI Tools: `apps/desktop/main/mcp/tools.js:21` |
@@ -561,3 +561,220 @@ file refused; a signed manifest naming a path out of its folder, or another
 id than its file's, refused; the private key never read from or written
 into the repository; the loader's reading of an archive agrees with
 Electron's own tool; the signed bytes do not depend on the order of keys.
+
+## 5. The move
+
+What changes when the app code moves into packs, in the order the map
+suggests. Technical only: each step lands with the whole gate passing, and
+the map's fixture shrinks as the cuts are made.
+
+### 5.1 The core learns to load packs, before any app moves
+
+1. **IPC from the packs, not from one list.** `installIpc` takes the core's
+   methods (the contract's `METHODS` less the namespaces apps own) plus each
+   loaded pack's `ipc`, and registers handlers for those alone. A pack may
+   not declare a namespace the core or another loaded pack has; such a
+   pack is refused with the others. The sandboxed preload cannot import
+   anything at run time, so it asks once, as it starts
+   (`ipcRenderer.sendSync('rutba-office/contract')`), for the methods and
+   events of this run, and builds the bridge from the answer. A channel of
+   an absent pack then exists neither in the main process nor in the
+   window's `shell`.
+2. **main.js registers each pack.** At start, before the first window:
+
+   ```js
+   const { packs, refused } = findPacks({ dir: path.join(process.resourcesPath, 'packs'), publicKey: PACK_KEYS, version: electron.getVersion() });
+   // ... in namespaces(ctx), after the core's own services:
+   for (const pack of packs) {
+     const { register } = await import(pathToFileURL(pack.main).href);
+     const served = await register({ ...ctx, doc, oauth, broadcast, packs: view });
+     // only the namespaces the signed manifest declared
+     for (const ns of Object.keys(served)) if (!pack.ipc[ns]) throw new Error(`${pack.name} serves ${ns}, which it did not declare.`);
+     Object.assign(services, served);
+   }
+   ```
+
+   `view` is how one pack reaches another's service without importing it:
+   `view.has('mail')`, `view.service('mail')`, answering `undefined` when
+   Mail is absent. Today those reaches go through the `services` closure in
+   `main.js` (Contacts' people and Calendar's accounts from Mail, Talk's
+   invitations sent through Mail, Calendar's and Contacts' servers kept by
+   `dav`); each becomes a `view.service(...)` call that copes with
+   `undefined`. These are not imports, so the map does not list them; they
+   are listed here. A refused pack is said on the launcher ("Mail could
+   not be loaded: ... Install it again with Add or remove apps.") and in
+   the log.
+3. **The windows' code from the packs.** The build stays one esbuild run
+   with splitting, so chunk names agree across the core and every pack of
+   one build (and one build is one version, which the loader enforces).
+   The outputs are divided by the map's owners: a chunk only one app's
+   window module reaches goes into that pack's archive; a chunk the
+   launcher or two apps reach goes into the core. The protocol handler
+   (`protocol.js`, `rutba://app/`) serves `packs/<id>/...` from that pack's
+   archive, and `APP_LOADERS` in `renderer/index.js` becomes the list the
+   preload hands the window: the installed apps and their window modules.
+   A window for an absent app is never made: `win.create` refuses an app
+   that is not loaded, and so does a file whose app is absent (it opens in
+   whichever loaded app also opens it, or the launcher says which app to
+   add).
+4. **The registry from the packs.** The tables in
+   `packages/office-formats/src/registry.js` stay the build's source of
+   truth; the build writes each app's rows (its `APPS` entry, extensions,
+   writable formats, New templates, tiles) into its pack's manifest, and
+   the core's registry at run time is the core's rows plus the loaded
+   packs'. Choose apps, the Open dialog's filters, Save As, the launcher and
+   `defaults.js` read that.
+5. **AI tools from the packs.** `TOOL_LIST` is split by owner (the map's
+   `TOOL_PACK`): AI Tools keeps the folder tools, and each pack's
+   `register` adds its own tools to a list the AI Tools pack serves. The
+   AI tools' program run as Node (`main/mcp/node.js`, started with
+   `ELECTRON_RUN_AS_NODE`) runs the loader too, so an AI app sees only the
+   tools of packs that are installed and good.
+6. **Development.** `npm start` and the window checks build every pack into
+   `build/packs/` and sign them with a development key made once per
+   checkout outside the repository (`make-pack-key.mjs`, in the profile
+   folder). A packaged core holds only the release key, so a development
+   pack never loads in an installed copy.
+
+### 5.2 The apps, in this order
+
+From the map: least entangled first, the shared code moved to the core as
+each cut is made.
+
+1. **Talk, Calendar, Contacts.** No imports to cut. Their services move
+   into their packs; `dav` and the two small engines stay in the core and
+   ask `view` for the calendar and address book services that are there.
+2. **Data Files.** No imports to cut; the rename hook (`main.js` uses
+   `base-trust.js` when a recent file is renamed) becomes a hook the pack
+   registers. Its sample databases (`@rutba/templates/data-files`), the
+   PostgreSQL and MySQL clients and `@rutba/database` go with it, except
+   that Documents' mail merge reads databases through the document service
+   in the core, so `@rutba/database` is the core's until mail merge asks
+   Data Files' service instead (then it moves).
+3. **Text recognition.** `@rutba/ocr` is split: the engine and its data
+   into the pack, the result helpers (`record`, `languages`, `png`) and
+   `renderer/ocr-ui.js` into the core. PDF, Pictures, Image, Worksheets,
+   Mail and AI Tools name it in `uses` and show its commands only when it
+   is loaded.
+4. **AI Tools.** The title bar's badge and menu item come from the pack
+   (the cut in `renderer/shell.js`); `mcp/make-tools.js` asks `view` for
+   text recognition.
+5. **Recorder and Video, then Image and Pictures.** `video/recorder/` goes
+   to the core with the `capture` namespace; `image/stage.js` and
+   `image/batch.js` go to the core (or Pictures' batch conversion uses
+   Image); `@rutba/stream` goes with Recorder.
+6. **PDF.** pdf.js stays in the PDF pack; Mail's attachment note and
+   Worksheets' receipt row name PDF in `uses`.
+7. **Mail.** The largest service and the most reached (`view` callers in
+   Calendar, Contacts and Talk); `imapflow`, `nodemailer` and
+   `@rutba/mailbox` go with it. `oauth` stays in the core.
+8. **Presentations, Worksheets, Documents.** Their windows only: the
+   shared window code they import from one another (`word/dialogs.js`,
+   `word/equations.js`, `slides/design.js`, `slides/ink*.js`) moves to the
+   core first. `present.js` goes with Presentations; `legacy-deck*.js` and
+   `mailmerge-source.js` stay with the document service in the core.
+
+### 5.3 The installer
+
+- The packs are built before electron-builder runs, into `build/packs/`,
+  and are not part of `app.asar` or the installer's main archive. The
+  NSIS script (`resources/installer.nsh`) embeds each pack's files and, in
+  `customInstall`, writes a pack's files only when its box is ticked
+  (`File` inside an `${If}`), so a pack not chosen is never on the disk,
+  not even for a moment.
+- The page that already asks which apps (`rutbaAppsPageShow`) gains AI Tools
+  as a pack (today an add-on box) and Text recognition, ticks what a ticked
+  app needs, and says each pack's size.
+- File types: `fileAssociations` leaves `electron-builder.config.cjs`
+  (which registers every type for every app); the installer registers the
+  types of the packs it writes, from their manifests, and the uninstaller
+  removes every type Rutba Office registered (a `customUnInstall` that
+  reads the list the core keeps in the registry).
+- The installed list: the installer writes `HKCU\Software\Rutba Office`
+  `Packs` (the ids it wrote), and the core writes it again at each start
+  from what it loaded, so the next installer opens on what is there.
+- The portable build, the macOS disk image and the Linux packages carry
+  every pack: there is no installer step to choose in, and a read-only
+  bundle (an AppImage, a signed `.app`) cannot lose a pack. Choosing there
+  is a later step (packs in the user's own folder).
+
+### 5.4 Add or remove apps
+
+The launcher's Choose apps becomes Add or remove apps.
+
+- **Remove:** the app's windows close; the pack is written down as to go,
+  and at the next start, before the loader runs (Windows will not delete a
+  file Electron holds open), its archive, unpacked folder and manifest are
+  deleted and its file types given back. The person's documents, mail,
+  settings and profile data stay unless they ask.
+- **Add:** each release carries, beside the installer, one file per pack
+  (`Rutba-Office-<version>-<id>.pack`, a zip of its archive, unpacked
+  folder and manifest). The core downloads it from the release of its own
+  version, unzips it into a staging folder (with the zip reader the engines
+  already have), runs the loader on the staging folder with its own key and
+  version, and only then moves it into the packs folder and loads it at the
+  next start. Offline, Add or remove apps runs the full installer the person
+  has (`/S /PACKS=mail,calendar`), which writes just those packs.
+- **Per-machine installs** (in Program Files) are not writable by the
+  person: there Add or remove apps runs the installer elevated, with the
+  usual prompt, rather than writing the folder itself.
+
+### 5.5 Updates
+
+- electron-updater still fetches the one installer of the new version and
+  runs it silently on quit. The silent installer writes the packs in
+  `Packs` and no others, so the core and every installed pack move to the
+  new version in one step, and the loader's version check holds the line:
+  a pack left behind (an interrupted update) is refused with its reason
+  and offered again, never run against a core it was not built with.
+- **Updating from a version with one archive.** There is no `Packs` value
+  yet. The silent installer then writes every pack: everything was
+  installed before, so nothing the person used goes missing. The apps they
+  had turned off in Choose apps stay turned off (the stored choice is
+  read as before), and Add or remove apps offers to remove them, with the
+  space each takes.
+- A pack downloaded by Add or remove apps is always of the core's own
+  version, so an add never needs an update and an update never leaves an
+  add behind.
+
+### 5.6 The release check: a core with one pack holds nothing of another
+
+`tools/check-packs.mjs`, run by the gate on the built tree:
+
+1. **Files.** Every file in the core's archive and every window chunk is
+   owned by the core in the map (`tools/app-map.mjs` over the build's
+   metafile and the main-process files); no file of any app's home is in
+   it.
+2. **One pack installed.** For each pack: a temporary install of the core
+   with that pack alone (and what it needs); the loader loads exactly it.
+3. **What the running core offers.** The core started as a check run with
+   that one pack: the IPC handlers registered are the core's and the
+   pack's namespaces only; the preload's bridge offers the same; the
+   registry's apps, file types and tiles are the pack's; the AI tools
+   listed are AI Tools' and the pack's, or none.
+4. **The installer.** An install with a short list of apps writes those
+   packs and registers only their file types; an uninstall leaves no file
+   type behind.
+
+### 5.7 The riskiest parts
+
+- **The window chunks.** A shared chunk that holds one app's file puts
+  that app's code in the core; an import the map did not see breaks a
+  window when the other pack is absent. The map's test keeps new imports
+  out, and the release check's first part reads the real build.
+- **The services reaching each other through main.js.** Not imports, so not
+  in the map: every `services.mail` reached from another service is a
+  place where an absent pack must be met with `undefined` rather than a
+  throw.
+- **The contract and the preload.** Turning one static list into a list per
+  run touches every window and the sandboxed preload.
+- **File types and uninstall.** Moving registration out of
+  electron-builder means the uninstaller no longer cleans up for free.
+- **Write access and timing.** A per-user install's packs folder is
+  writable by the person (as `app.asar` is today), so the check at start is
+  against corruption and swapped files, not against a local
+  administrator. Hashing every pack costs a few hundred milliseconds at
+  start.
+- **The update from one archive.** The old version's uninstaller runs first
+  and removes `app.asar`; the new installer must then write every pack. The
+  update test from the last single-archive version proves it.
