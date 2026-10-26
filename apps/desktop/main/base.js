@@ -16,6 +16,7 @@ import { Base, importRows, importSheets, buildTemplate, buildSample, originOf, p
 import { ENGINES, connectEngine as defaultConnect } from './engines/index.js';
 import { SOURCE_KINDS } from '@rutba/database';
 import { createSync, unreachable, sourceSecret, cleanSourceSettings } from './base-sync.js';
+import { createTrust, addressOf, placeOf } from './base-trust.js';
 import { TEMPLATE_IDS, SAMPLE_IDS, templateNeeds, sampleNeeds, pageOf } from '@rutba/templates/data-files/active';
 import { needsFor } from '@rutba/templates/versions';
 import { readManifest } from '@rutba/templates/manifest';
@@ -32,9 +33,12 @@ export const isSqlite = (bytes) => Buffer.from(bytes.subarray(0, 16)).toString('
 
 /**
  * `secrets` keeps a linked engine's password (D-2026-10-22-13), never the
- * file; `connect` opens an engine (engines/index.js, or a stand-in in tests).
+ * file; `connect` opens an engine (engines/index.js, or a stand-in in tests);
+ * `trust` is this computer's list of what each database may read
+ * (base-trust.js, A2.18), kept in memory for the service's life when it is
+ * not given.
  */
-export function createBaseService({ secrets = null, connect = defaultConnect } = {}) {
+export function createBaseService({ secrets = null, connect = defaultConnect, trust = createTrust() } = {}) {
   const open = new Map(); // id -> { base, file, engines: Map(link -> engine), state: Map(table -> { error, at, count }) }
   let next = 1;
 
@@ -56,11 +60,15 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
         if (copy) return { ...t, ...copy };
         // A linked table: its records as last read from the engine, or why they could not be.
         const st = open.get(id).state.get(t.name) || {};
-        return { ...t, mode: 'live', count: base.linkedLoaded(t.name) ? base.count(t.name) : 0, linkError: st.error || null, readAt: st.at || null, key: base.linked().find((l) => l.table === t.name)?.key || null };
+        const l = base.linked().find((x) => x.table === t.name);
+        const link = l && base.links().find((x) => x.id === l.link);
+        return { ...t, mode: 'live', count: base.linkedLoaded(t.name) ? base.count(t.name) : 0, linkError: st.error || null, readAt: st.at || null, key: l?.key || null, blocked: Boolean(link) && !allowed(open.get(id), link) };
       }),
       links: base.access?.locked || base.rights() ? [] : base.links().filter((l) => !SOURCE_KINDS.has(l.engine)).map((l) => ({ id: l.id, name: l.name, engine: l.engine, settings: l.settings, password: Boolean(secrets?.get?.(secretKey(l.id))) })),
       // The other sources tables are read from: a file, another database, a web address answering JSON.
       sources: base.access?.locked || base.rights() ? [] : base.links().filter((l) => SOURCE_KINDS.has(l.engine)).map((l) => ({ id: l.id, name: l.name, kind: l.engine, settings: l.settings })),
+      // The sources and engines this computer has not allowed it to read (A2.18), for the question that names each.
+      ask: base.access?.locked || base.rights() ? [] : askOf(open.get(id)),
       // Only those between tables the person's role shows.
       relationships: (() => { const seen = new Set(base.tables().map((t) => t.name)); return base.relationships().filter((r) => seen.has(r.from.table) && seen.has(r.to.table)); })(),
       queries: base.queries().map((x) => x.name),
@@ -76,6 +84,23 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
       // Who is using it (D-2026-10-22-11): protected or not, who is signed in, and what their role narrows.
       access: accessOf(base),
     };
+  };
+  /** Whether this computer allows the database to read or connect to `link` (A2.18). */
+  const allowed = (o, link) => trust.allowed(o.file, link);
+  /** Refused before anything is read or connected to. */
+  const notAllowed = () => Object.assign(new Error('This database\'s sources are not read on this computer until you allow them.'), { blocked: true });
+  /** The links with tables that this computer has not allowed: each by its kind and where it is, and the tables read from it. */
+  const askOf = (o) => {
+    const linked = o.base.linked();
+    return o.base.links().filter((l) => linked.some((x) => x.link === l.id) && !allowed(o, l)).map((l) => ({
+      id: l.id,
+      name: l.name,
+      kind: l.engine,
+      engine: SOURCE_KINDS.has(l.engine) ? null : ENGINES.find((e) => e.id === l.engine)?.name || l.engine,
+      address: addressOf(l),
+      tables: linked.filter((x) => x.link === l.id).map((x) => x.table),
+      ...placeOf(l),
+    }));
   };
   const accessOf = (base) => {
     if (!base.isProtected()) return { protected: false };
@@ -112,6 +137,7 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
   const secretKey = (linkId) => `base-link:${linkId}`;
   /** The engine behind `link`, connected once per window and kept while it lives. */
   const engineFor = (o, link) => {
+    if (!allowed(o, link)) return Promise.reject(notAllowed());
     if (!o.engines.has(link.id)) {
       const password = secrets?.get?.(secretKey(link.id)) || '';
       const p = connect(link.engine, link.settings, password);
@@ -127,7 +153,7 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
     o.engines.delete(link.id);
     p?.then((x) => x.close()).catch(() => {});
   };
-  const sync = createSync({ engineFor, dropEngine, secrets });
+  const sync = createSync({ engineFor, dropEngine, secrets, allowed });
   /** A linked table's records read from the engine into this window's copy, its design kept up to date. */
   const readLinked = async (o, table) => {
     const l = o.base.linked().find((x) => x.table === table);
@@ -150,8 +176,16 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
       o.state.set(table, { error: err.message || String(err), at: null });
     }
   };
-  /** A linked table caught up, as it is kept: read live, synced as a copy, or read again from its source. */
-  const catchUp = (o, l) => (l.mode !== 'copy' ? readLinked(o, l.table) : sync.isSourceTable(o, l) ? sync.refreshSource(o, l.table) : sync.syncCopy(o, l.table));
+  /**
+   * A linked table caught up, as it is kept: read live, synced as a copy, or
+   * read again from its source. One this computer has not allowed is left
+   * as it is, nothing read or connected to.
+   */
+  const catchUp = (o, l) => {
+    const link = o.base.links().find((x) => x.id === l.link);
+    if (link && !allowed(o, link)) return Promise.resolve();
+    return l.mode !== 'copy' ? readLinked(o, l.table) : sync.isSourceTable(o, l) ? sync.refreshSource(o, l.table) : sync.syncCopy(o, l.table);
+  };
   /**
    * Every linked table read, as a database opens or is refreshed; one that
    * cannot be read says why. A copy is in the file already: `copiesFor`
@@ -210,6 +244,8 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
       for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
       throw err;
     }
+    // Made here: what it was made with is allowed, and nothing a file at that place was allowed before.
+    trust.reset(file, get(id).base.links());
     return summary(id);
   };
 
@@ -223,7 +259,9 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
         for (const s of ['-wal', '-shm']) fs.rmSync(file + s, { force: true });
       }
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      return summary(hold(file, win));
+      const id = hold(file, win);
+      trust.reset(file);
+      return summary(id);
     },
 
     /**
@@ -321,6 +359,8 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
       const o = get(id);
       whole(o.base);
       const linkId = o.base.saveLink({ id: link, name, engine, settings });
+      // Linked here, by the person: allowed on this computer as it is.
+      trust.allow(o.file, o.base.links().filter((l) => l.id === linkId));
       if (password != null) {
         if (!secrets?.available?.()) throw new Error('This computer offers no protected store for the password, so the link cannot keep it.');
         secrets.set(secretKey(linkId), String(password));
@@ -385,6 +425,19 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
     },
     /** Sources due on their schedules read again: the summary when any was, else null. */
     refreshDue: async ({ id }) => ((await sync.refreshDue(get(id))) ? summary(id) : null),
+    /**
+     * The sources and engines the person was asked about allowed for this
+     * database on this computer (A2.18), by the addresses they were shown,
+     * then read. Answers the summary.
+     */
+    allowSources: async ({ id, addresses = [] }) => {
+      const o = get(id);
+      whole(o.base);
+      const shown = new Set(addresses || []);
+      trust.allow(o.file, o.base.links().filter((l) => shown.has(addressOf(l))));
+      await readAllLinked(o);
+      return summary(id);
+    },
     /** A linked table read live or kept as a copy in this file, its records kept, then caught up. */
     setLinkMode: async ({ id, table, mode }) => {
       const o = get(id);
@@ -430,6 +483,7 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
       let linkName = want;
       for (let n = 2; taken.has(linkName.toLowerCase()); n++) linkName = `${want} ${n}`;
       const linkId = o.base.saveLink({ name: linkName, engine: kind, settings: clean });
+      trust.allow(o.file, o.base.links().filter((l) => l.id === linkId));
       try {
         if (kind === 'rbase' && password) secrets.set(sourceSecret(linkId), String(password));
         for (const h of clean.headers || []) if (h.secret) secrets.set(sourceSecret(linkId, h.name), String(headers[h.name] ?? ''));
@@ -598,6 +652,8 @@ export function createBaseService({ secrets = null, connect = defaultConnect } =
       if (path.resolve(file).toLowerCase() === path.resolve(o.file).toLowerCase()) return summary(id);
       for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
       o.base.db.exec(`VACUUM INTO '${String(file).replace(/'/g, "''")}'`);
+      // The person's own copy reads what the database read.
+      trust.carry(o.file, file);
       const access = o.base.access;
       letGo(id);
       const copy = hold(file, win);

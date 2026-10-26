@@ -7,7 +7,10 @@
 // the table's bar says how many and since when. A source (a file, another
 // database, a web address answering JSON) is read again on open, on its
 // schedule and on Refresh, its records replaced; a changed set of columns
-// changes the table's design, and the bar says so.
+// changes the table's design, and the bar says so. Neither reads or
+// connects to anything this computer has not allowed for the database
+// (A2.18, base-trust.js): `allowed(o, link)` says, and a table not allowed
+// keeps its copy as it is.
 
 import {
   SOURCE_KINDS, SOURCE_EVERY, DEFAULT_EVERY, prepareSync, pushed, refused, reconcile, replaceRows,
@@ -43,10 +46,11 @@ export function cleanSourceSettings(kind, s = {}) {
 }
 
 /**
- * The sync side of the base service, given its windows (`get`), how it
- * reaches an engine (`engineFor`, `dropEngine`) and the protected store.
+ * The sync side of the base service, given how it reaches an engine
+ * (`engineFor`, `dropEngine`), the protected store, and whether this
+ * computer allows a database to read a link (`allowed`).
  */
-export function createSync({ engineFor, dropEngine, secrets }) {
+export function createSync({ engineFor, dropEngine, secrets, allowed = () => true }) {
   const linkOf = (o, l) => o.base.links().find((x) => x.id === l.link) || null;
   const entryOf = (o, table) => o.base.linked().find((x) => x.table === table) || null;
   const kindOf = (o, l) => linkOf(o, l)?.engine || null;
@@ -68,6 +72,7 @@ export function createSync({ engineFor, dropEngine, secrets }) {
     const l = entryOf(o, table);
     if (!l || l.mode !== 'copy') return;
     const link = linkOf(o, l);
+    if (link && !allowed(o, link)) return;
     try {
       if (!link) throw new Error('Its link is gone.');
       const engine = await engineFor(o, link);
@@ -144,7 +149,7 @@ export function createSync({ engineFor, dropEngine, secrets }) {
     const base = o.base;
     const l = entryOf(o, table);
     const link = l ? linkOf(o, l) : null;
-    if (!link) return;
+    if (!link || !allowed(o, link)) return;
     try {
       const got = await readSource(link, l);
       const diff = base.relinkDesign(table, { fields: got.fields, key: null });
@@ -185,6 +190,8 @@ export function createSync({ engineFor, dropEngine, secrets }) {
       clashes: source ? 0 : clashCount(base, t.name),
       stamp: l.stamp || null,
       source,
+      // Not read or synced: this computer has not allowed the database to (A2.18).
+      blocked: Boolean(link) && !allowed(o, link),
       every: source ? Number(link.settings?.every ?? DEFAULT_EVERY) : null,
       note: st.note || null,
       who: Boolean(st.who),
@@ -200,10 +207,10 @@ export function createSync({ engineFor, dropEngine, secrets }) {
     due,
     entryOf,
     linkOf,
-    /** Every source due on its schedule read again; answers whether any was. */
+    /** Every source due on its schedule read again, those this computer allows; answers whether any was. */
     async refreshDue(o) {
       if (o.base.access?.locked || o.base.rights()) return false;
-      const list = o.base.linked().filter((l) => l.mode === 'copy' && isSourceTable(o, l) && due(o, l));
+      const list = o.base.linked().filter((l) => l.mode === 'copy' && isSourceTable(o, l) && allowed(o, linkOf(o, l)) && due(o, l));
       await Promise.all(list.map((l) => refreshSource(o, l.table)));
       return list.length > 0;
     },

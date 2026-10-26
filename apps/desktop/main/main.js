@@ -45,6 +45,7 @@ import { createAiToolsService } from './ai-tools.js';
 import { createLiveService } from './live.js';
 import { createTalkService } from './talk.js';
 import { createBaseService } from './base.js';
+import { createTrust } from './base-trust.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -76,6 +77,9 @@ let updates = null;
 // Started here, its engines load while the shell gets the first window ready.
 const docHost = createDocumentHost({ holdBlob, releaseBlob, blobUrl }).start();
 
+/** This computer's list of what each database may read, in its settings (base-trust.js). */
+const baseTrust = (stores) => createTrust({ get: () => stores.settings.get('base.allowedSources', {}), set: (v) => stores.settings.set('base.allowedSources', v) });
+
 /**
  * Renaming a recent file from the launcher: the file on disk moves, and the
  * recent list is told where it went. Refused — with a plain sentence, never
@@ -100,6 +104,8 @@ async function renameRecent({ stores, doc, path: from, name }) {
   if ((await doc.sessions()).some((s) => s.path === from)) throw new Error('That file is open in a window. Close it first.');
 
   if (to !== from) fs.renameSync(from, to);
+  // A database renamed here reads what it read before (A2.18).
+  if (to !== from && /\.rbase$/i.test(from)) baseTrust(stores).carry(from, to, { move: true });
   return stores.recent.rename({ path: from, to });
 }
 
@@ -245,7 +251,8 @@ createShell({
         mail: { accounts: () => services?.mail?.accounts?.() || [], send: (args) => services.mail.send(args) },
       }),
       // Databases: each open database's SQLite file (base.js).
-      base: createBaseService({ secrets: stores.secrets }),
+      // What each database may read on this computer is kept in its settings, never in the file (A2.18).
+      base: createBaseService({ secrets: stores.secrets, trust: baseTrust(stores) }),
       oauth,
       mail: createMailService({
         stores,

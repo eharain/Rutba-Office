@@ -18,6 +18,7 @@ import { useGridFilter, FilterBar, ColumnFilter, selectionItems, FILTER_CSS } fr
 import { SignIn, ProtectDialog, PasswordDialog, SeeingBanner, PeopleView, PEOPLE_CSS, canDesign, may } from './base/people.js';
 import { LinkDialog, LinkedBar, LinkPasswordDialog, ClashesDialog, LINKS_CSS } from './base/links.js';
 import { SourceDialog, SourceSignInDialog, SOURCES_CSS } from './base/sources.js';
+import { SourcesQuestion, TRUST_CSS } from './base/trust.js';
 
 /** The ready-made databases the start screen offers, in the engine's order (packages/database/src/templates.js). */
 const TEMPLATES = [
@@ -517,9 +518,12 @@ export default function Databases({ app, shell, boot }) {
   const [sourcing, setSourcing] = useState(false);
   const [clashesOf, setClashesOf] = useState(null);
   const [sourceWho, setSourceWho] = useState(null);
+  // Read from these places? Asked as a database opens whose sources this computer has not allowed (A2.18), and on Refresh.
+  const [asking, setAsking] = useState(false);
   // The SQL view's text, kept while the database is open when the view is left and come back to.
   const [sqlText, setSqlText] = useState(null);
   useEffect(() => { setSqlText(null); }, [db?.id]);
+  useEffect(() => { setAsking(Boolean(db?.ask?.length)); }, [db?.id, db?.access?.locked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const show = useCallback((summary) => {
     setDb(summary);
@@ -657,7 +661,7 @@ export default function Databases({ app, shell, boot }) {
 
   // Live (D-2026-10-22-13): a linked table on screen is read again from its engine every few seconds;
   // the view changes only when the engine's records did, and not while a cell is being typed in.
-  const linkedOnScreen = Boolean(db && table && (view === 'data' || view === 'design') && db.tables?.some((x) => x.name === table && x.linked));
+  const linkedOnScreen = Boolean(db && table && (view === 'data' || view === 'design') && db.tables?.some((x) => x.name === table && x.linked && !x.blocked));
   useEffect(() => {
     if (!linkedOnScreen) return undefined;
     const timer = setInterval(async () => {
@@ -935,7 +939,7 @@ export default function Databases({ app, shell, boot }) {
                 {tab('data', t('Records'))}
                 {design && !linkedOf(table) ? tab('design', t('Design')) : null}
               </div>
-              <LinkedBar shell={shell} db={db} table={table} design={design} onChanged={show} onPassword={setLinkPassword} onClashes={setClashesOf} onSourceSignIn={setSourceWho} toast={toast} />
+              <LinkedBar shell={shell} db={db} table={table} design={design} onChanged={show} onPassword={setLinkPassword} onClashes={setClashesOf} onSourceSignIn={setSourceWho} onAsk={() => setAsking(true)} toast={toast} />
               {view === 'data' || !design || linkedOf(table)
                 ? <Datasheet key={`${table}-${db.steps}-${linkedOf(table)?.readAt || ""}`} shell={shell} db={db} table={table} onChanged={refresh} toast={toast} />
                 : <Design shell={shell} db={db} table={table} onChanged={show} onRemoved={() => { setTable(null); refresh(); }} toast={toast} />}
@@ -1038,6 +1042,7 @@ export default function Databases({ app, shell, boot }) {
       {linking ? <LinkDialog shell={shell} db={db} onDone={(s, first) => { show(s); setLinking(false); if (first) { setTable(first); setView('data'); } }} onClose={() => setLinking(false)} toast={toast} /> : null}
       {sourcing ? <SourceDialog shell={shell} db={db} onDone={(s, made) => { show(s); setSourcing(false); if (made) { setTable(made); setView('data'); } }} onClose={() => setSourcing(false)} toast={toast} /> : null}
       {clashesOf ? <ClashesDialog shell={shell} db={db} table={clashesOf} onChanged={show} onClose={() => setClashesOf(null)} toast={toast} /> : null}
+      {asking && db.ask?.length ? <SourcesQuestion shell={shell} db={db} onDone={(s) => { show(s); setAsking(false); }} onClose={() => setAsking(false)} toast={toast} /> : null}
       {sourceWho ? <SourceSignInDialog shell={shell} db={db} table={sourceWho} onDone={(s) => { show(s); setSourceWho(null); }} onClose={() => setSourceWho(null)} toast={toast} /> : null}
       {linkPassword ? <LinkPasswordDialog shell={shell} db={db} link={linkPassword} onDone={(s) => { show(s); setLinkPassword(null); }} onClose={() => setLinkPassword(null)} toast={toast} /> : null}
       {changingPassword ? <PasswordDialog shell={shell} db={db} onClose={() => setChangingPassword(false)} toast={toast} /> : null}
@@ -1047,7 +1052,7 @@ export default function Databases({ app, shell, boot }) {
           <p className="bs-hint">{t('It starts with an ID that numbers each record; add its fields in its design.')}</p>
         </Dialog>
       ) : null}
-      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS + FILTER_CSS + PEOPLE_CSS + LINKS_CSS + SOURCES_CSS}</style>
+      <style>{BASE_CSS + QUERY_CSS + FORM_CSS + REPORT_CSS + DOCUMENT_CSS + FILTER_CSS + PEOPLE_CSS + LINKS_CSS + SOURCES_CSS + TRUST_CSS}</style>
     </AppFrame>
   );
 }

@@ -129,14 +129,19 @@ test('a PostgreSQL table linked live: read into the window, changed in the engin
 test('an engine that cannot be reached: the table is listed with why, and the rest of the database opens', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-down-'));
   const file = path.join(dir, 'shop.rbase');
-  const svc = createBaseService({ secrets: null, connect: async () => { throw new Error('The engine at db.example:5432 could not be reached.'); } });
+  let tried = 0;
+  const svc = createBaseService({ secrets: null, connect: async () => { tried++; throw new Error('The engine at db.example:5432 could not be reached.'); } });
   try {
     const b = Base.open(file);
     b.createTable({ name: 'Notes', fields: [{ name: 'Text', type: 'text' }] });
     const link = b.saveLink({ name: 'Away', engine: 'postgres', settings: { host: 'db.example', database: 'shop', user: 'office' } });
     b.linkTable({ table: 'Stock', link, remote: { schema: 'public', name: 'stock' }, key: 'id', fields: [{ name: 'id', type: 'autonumber' }, { name: 'name', type: 'text' }] });
     b.close();
-    const s = await svc.open({ file });
+    // Made elsewhere: nothing is connected to until it is allowed here (A2.18).
+    const opened = await svc.open({ file });
+    assert.equal(tried, 0);
+    assert.deepEqual(opened.ask.map((a) => [a.place, a.host]), [['engine', 'db.example']]);
+    const s = await svc.allowSources({ id: opened.id, addresses: opened.ask.map((a) => a.address) });
     assert.deepEqual(s.tables.map((t) => [t.name, t.count, t.linkError]), [['Notes', 0, undefined], ['Stock', 0, 'The engine at db.example:5432 could not be reached.']]);
     assert.equal(s.links[0].password, false);
   } finally {

@@ -153,9 +153,10 @@ export const everyWords = (every) => ({ 5: t('every 5 minutes'), 15: t('every 15
  * were read. Read live: Read again. Kept as a copy (D-2026-10-22-13, step
  * 4): when it caught up, how many changes wait and since when, the versions
  * the engine replaced, and Sync now. Read from a source (step 5): when it
- * was read, how often, a change to its columns, and Refresh.
+ * was read, how often, a change to its columns, and Refresh. Not allowed on
+ * this computer (A2.18): not read, the copy as it was, and Refresh asks.
  */
-export function LinkedBar({ shell, db, table, design = false, onChanged, onPassword, onClashes, onSourceSignIn, toast }) {
+export function LinkedBar({ shell, db, table, design = false, onChanged, onPassword, onClashes, onSourceSignIn, onAsk, toast }) {
   const tb = db.tables.find((x) => x.name === table);
   const [fields, setFields] = useState([]);
   const copy = tb?.mode === 'copy';
@@ -184,6 +185,25 @@ export function LinkedBar({ shell, db, table, design = false, onChanged, onPassw
       <option value="copy">{t('Keep a copy in this file')}</option>
     </Select>
   ) : null;
+
+  if (tb.blocked) {
+    const where = source?.settings?.where || '';
+    const from = source ? (/^https?:/i.test(where) ? (() => { try { return new URL(where).host; } catch { return where; } })() : where.split(/[\\/]/).pop()) : link?.name || table;
+    // Only someone who may change the design is asked; anyone else is told who can.
+    const ask = () => (db.ask?.length ? onAsk?.() : toast(t('Someone whose role may change the design allows this database\'s sources on this computer.'), { ms: 6000 }));
+    return (
+      <div className="bs-linked-bar blocked" role="status" data-linked={table} data-blocked="1" data-source={tb.source || undefined} data-mode={tb.source ? undefined : copy ? 'copy' : 'live'}>
+        <Icon name="shield" size={14} />
+        <span className="bs-linked-words">
+          {copy
+            ? t('Not read: {source} waits for you to allow this database\'s sources on this computer. The copy here is as it was at {time}.', { source: from, time: whenWords(tb.synced) || t('first') })
+            : t('Not read: {source} waits for you to allow this database\'s sources on this computer.', { source: from })}
+        </span>
+        <span className="grow" />
+        <Button icon="refresh" label={tb.source ? t('Refresh') : copy ? t('Sync now') : t('Read again')} className={tb.source ? 'bs-source-refresh' : copy ? 'bs-linked-sync' : 'bs-linked-again'} onClick={ask} />
+      </div>
+    );
+  }
 
   if (tb.source) {
     const where = source?.settings?.where || '';
