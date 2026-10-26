@@ -100,9 +100,10 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
       check(name('Add or remove apps lists every pack, adds Calendar from the folder and writes Mail down to go, and offers to restart'),
         rows === 15 && adding && removing && restart && fs.existsSync(path.join(packsDir, packFiles('calendar').manifest)) && JSON.stringify(pendingRemovals(packsDir)) === '["mail"]',
         JSON.stringify({ rows, adding, removing, restart, pending: pendingRemovals(packsDir) }));
-      // The last app is kept.
-      const last = await js(`window.rutbaOffice.packs.remove({ id: 'word' }).then(() => 'removed', (e) => e.message)`);
-      check(name('the last app cannot be removed'), /Keep one app at least/.test(last), last);
+      // The last app is kept: with Mail and Talk going, Documents is the last; Talk is then kept after all.
+      const last = await js(`window.rutbaOffice.packs.remove({ id: 'talk' }).then(() => window.rutbaOffice.packs.remove({ id: 'word' })).then(() => 'removed', (e) => e.message)`);
+      const kept = await js(`window.rutbaOffice.packs.keep({ id: 'talk' }).then(() => 1, (e) => e.message)`);
+      check(name('the last app cannot be removed'), /Keep one app at least/.test(last) && kept === 1 && JSON.stringify(pendingRemovals(packsDir)) === '["mail"]', `${last} | ${JSON.stringify(pendingRemovals(packsDir))}`);
       // Talk, from its own pack: its code, its window, and its window's chunk.
       const code = await js(`(window.rutbaOffice.__contract.packs || []).find((p) => p.id === 'talk')?.code || null`);
       check(name('the core is told Talk carries its own code, and Documents\' is still the core\'s'),
@@ -110,12 +111,11 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
       const talk = await open('talk');
       const tjs = (c) => talk.webContents.executeJavaScript(c);
       const shown = await until(() => tjs(`/app=talk/.test(location.search) && document.body.innerText.length > 0`), 'the Talk window', 15000).then(() => true).catch(() => false);
-      const served = await tjs(`(async () => {
-        const url = performance.getEntriesByType('resource').map((e) => e.name).find((n) => /\\/chunks\\/talk-[A-Z0-9]+\\.js$/.test(n));
-        if (!url) return { url: null };
-        const r = await fetch(url);
-        return { url: url.replace(/^.*\\/chunks\\//, 'chunks/'), status: r.status, pack: r.headers.get('x-rutba-pack') };
-      })()`);
+      // The chunk's name, from the pack's own archive; fetched from the window at the core's address for it.
+      const chunk = fs.readdirSync(path.join(packsDir, packFiles('talk').archive, 'renderer', 'chunks')).find((n) => /^talk-[A-Z0-9]+\.js$/.test(n)) || null;
+      const served = chunk
+        ? await tjs(`fetch(new URL('/chunks/${chunk}', location.href)).then((r) => ({ chunk: ${JSON.stringify(chunk)}, status: r.status, pack: r.headers.get('x-rutba-pack') }))`)
+        : { chunk: null };
       check(name('Talk opens, its window\'s chunk served from its own pack'), shown && served.status === 200 && served.pack === 'talk', JSON.stringify(served));
       talk.destroy();
     } else {

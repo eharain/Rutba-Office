@@ -75,17 +75,24 @@ function start(phase) {
       },
     });
     let verdict = null;
+    let failed = false;
     let tail = '';
     child.stdout.on('data', (chunk) => {
       process.stdout.write(chunk);
       tail = (tail + chunk.toString()).slice(-2000);
+      // The verdict the run hands over, else the code the process ended on; a
+      // check failed is a failure whatever the process ends with (the last
+      // window closed can end it with 0 before the run hands over its verdict).
+      const handed = /\[exit\] the run hands app\.exit (\d+)/.exec(tail);
       const m = /\[exit\] the process ended with (\d+)/.exec(tail);
-      if (m) verdict = Number(m[1]);
+      if (handed) verdict = Number(handed[1]);
+      else if (m && verdict === null) verdict = Number(m[1]);
+      if (/^FAIL /m.test(tail)) failed = true;
     });
     child.on('exit', (code) => {
       const stopped = stopLeftovers();
       if (stopped) console.log(`     [exit] stopped ${stopped} Electron process(es) the ${phase} start left behind`);
-      resolve(verdict ?? code ?? 1);
+      resolve(failed ? verdict || 1 : verdict ?? code ?? 1);
     });
   });
 }
