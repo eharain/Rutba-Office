@@ -455,10 +455,15 @@ export function createVault({ key = null, also = [] } = {}) {
     sealed: () => Boolean(current),
     /** A file this vault keeps (sealed again when the key changes); a folder covers every .json in it. */
     cover: (p) => covered.add(p),
-    /** A store that seals its own files: given the key now, told before the lock changes, and sealing its files again in rekey. */
+    /**
+     * A store that seals its own files: given the key now, told before the
+     * lock changes, and sealing its files again in rekey. While a change a
+     * crash stopped is being finished it is given the old key too (`also`):
+     * when the password was taken away, its own note cannot hold that key.
+     */
     attach(store) {
       attached.add(store);
-      store.useKey?.(current);
+      store.useKey?.(current, older.slice());
       return () => attached.delete(store);
     },
     /** Called before the profile's lock changes to `next`, so an attached store can write down what a crash would need. */
@@ -549,7 +554,11 @@ export function createVault({ key = null, also = [] } = {}) {
         });
         await step?.('file');
       }
-      for (const s of attached) await s.rekey?.(keys[0], current);
+      // The key the store's files are sealed with now: the one being replaced, or, when a change a
+      // crash stopped is finished (this vault opened with the new key and the old one beside it,
+      // whichever password was typed), the old one, never the new key twice.
+      const replaced = keys.find((k) => k && !(current && k.equals(current))) || null;
+      for (const s of attached) await s.rekey?.(replaced, current);
       older = [];
       return { files: done };
     },

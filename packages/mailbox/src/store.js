@@ -137,6 +137,8 @@ export class MailStore {
   /** The profile's key files are sealed with now, or null for none; and the one it replaced while a rekey runs. */
   #key = null;
   #previous = [];
+  /** Runs of sealing again, one at a time: Mail's start carrying one on and the vault finishing a change must not undo each other's keys. */
+  #runs = Promise.resolve();
 
   /**
    * @param {string} root directory the store owns
@@ -150,15 +152,20 @@ export class MailStore {
 
   /* ── sealed with the profile's key ───────────────────────────────────── */
 
-  /** The key files are sealed with from now on (null: plain). */
-  useKey(key) {
+  /**
+   * The key files are sealed with from now on (null: plain). `also`: keys
+   * files may still be sealed with, while a password change a crash stopped
+   * is finished (the profile's vault holds them; a password taken away
+   * leaves none in the marker).
+   */
+  useKey(key, also = []) {
     this.#key = key ? Buffer.from(key) : null;
-    this.#previous = [];
+    this.#previous = (also || []).filter(Boolean).map((k) => Buffer.from(k));
     // A run a crash stopped: the files it had not reached open with the key it was replacing, until resumeReseal ends it.
     const marker = this.#key ? this.#readMarker() : null;
     if (marker?.from) {
       try {
-        this.#previous = [openBytes([this.#key], Buffer.from(marker.from, 'base64'))];
+        this.#previous.push(openBytes([this.#key], Buffer.from(marker.from, 'base64')));
       } catch {
         /* not this key's run */
       }
@@ -819,9 +826,19 @@ export class MailStore {
    * is no key). Should anything stop between the lock changing and the last
    * file, the next open has what it needs to carry on.
    */
-  async prepareReseal(old, next) {
+  prepareReseal(old, next) {
+    return this.#oneAtATime(() => this.#prepare(old, next));
+  }
+
+  #oneAtATime(step) {
+    const run = this.#runs.catch(() => {}).then(step);
+    this.#runs = run;
+    return run;
+  }
+
+  async #prepare(old, next) {
     // A run a crash stopped is finished first: its marker holds the only copy of the key before it.
-    if (this.#readMarker()?.done.length) await this.resumeReseal();
+    if (this.#readMarker()?.done.length) await this.#resume();
     const from = old && next ? sealBytes(Buffer.from(next), Buffer.from(old)).toString('base64') : null;
     writeAtomic(this.#marker(), JSON.stringify({ v: 1, from, done: [] }));
   }
@@ -838,10 +855,14 @@ export class MailStore {
    * @param {{ progress?: (p: { done: number, total: number }) => void }} [options]
    * @returns {Promise<{ files: number, sealed: number, unopened: number, ms: number }>}
    */
-  async rekey(old, next, { progress } = {}) {
+  rekey(old, next, { progress } = {}) {
+    return this.#oneAtATime(() => this.#rekey(old, next, progress));
+  }
+
+  async #rekey(old, next, progress) {
     // Not prepared for (a vault used without prepare), or prepared for another run: written now.
     const marker = this.#readMarker();
-    if (!marker || marker.done.length || (old && next && !marker.from)) await this.prepareReseal(old, next);
+    if (!marker || marker.done.length || (old && next && !marker.from)) await this.#prepare(old, next);
     this.#key = next ? Buffer.from(next) : null;
     this.#previous = old ? [Buffer.from(old)] : [];
     this.#cache.clear();
@@ -853,7 +874,11 @@ export class MailStore {
    * marker (sealed with the key held now), and every folder not yet done
    * sealed with the key held now. Null when there is none to carry on.
    */
-  async resumeReseal({ progress } = {}) {
+  resumeReseal({ progress } = {}) {
+    return this.#oneAtATime(() => this.#resume(progress));
+  }
+
+  async #resume(progress) {
     const marker = this.#readMarker();
     if (!marker) return null;
     let previous = null;
@@ -865,7 +890,8 @@ export class MailStore {
         previous = null;
       }
     }
-    this.#previous = previous ? [previous] : [];
+    // Added to the keys held, not in place of them: the vault may hold the one that opens the rest (a password taken away leaves none in the marker).
+    if (previous && !this.#previous.some((k) => k.equals(previous))) this.#previous.push(previous);
     this.#cache.clear();
     return this.#resealAll(progress);
   }

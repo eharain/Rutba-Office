@@ -213,3 +213,78 @@ test('the profile vault seals Mail with the rest, and Mail reads and fetches as 
     await server.close();
   }
 });
+
+test('a password change stopped after its note, before the new lock, opened next with the old password: Mail reads and its sealing finishes', async () => {
+  const { createVault, makeLock, makeProfile, profileFolder, readProfiles, rekeyProfile, unlockProfile, finishRekey } = await import('../packages/office-shell/src/profiles.js');
+  // The vault's hold on a mail store, as mail.js gives it.
+  const attachTo = (vault, store, progress) => vault.attach({
+    useKey: (k) => store.useKey(k),
+    prepare: (old, next) => store.prepareReseal(old, next),
+    rekey: (old, next) => store.rekey(old, next, { progress }),
+  });
+  const power = () => {
+    let calls = 0;
+    return () => { if (++calls === 1) throw new Error('the power went'); };
+  };
+  // Stopped right after the note, or part way through Mail's own run.
+  for (const stop of ['after the note', 'part way through Mail']) {
+    for (const change of ['changed', 'taken away']) {
+      const base = tmp();
+      try {
+        const { profile: p } = makeProfile(base, { name: 'Work' });
+        const folder = profileFolder(base, p);
+        const root = path.join(folder, 'mail');
+        // A profile with its first password, its mail sealed with it.
+        const first = await makeLock('first-pass');
+        const vault = createVault();
+        const store = new MailStore(root);
+        fill(store, 50, 'Osprey');
+        attachTo(vault, store, () => {});
+        await vault.prepare(first.key);
+        await rekeyProfile({ base, id: p.id, vault, to: first.key, lock: first.lock, folder });
+        assert.deepEqual(clearText(root, 'Osprey'), []);
+
+        // The change begun, and the power going.
+        const live = createVault({ key: first.key });
+        const before = new MailStore(root);
+        attachTo(live, before, stop === 'part way through Mail' ? power() : () => {});
+        const second = change === 'changed' ? await makeLock('second-pass') : { key: null, lock: null };
+        await live.prepare(second.key);
+        await assert.rejects(rekeyProfile({
+          base, id: p.id, vault: live, from: change === 'changed' ? first.key : null, to: second.key, lock: second.lock, folder,
+          step: (s) => { if (stop === 'after the note' && s === 'noted') throw new Error('the power went'); },
+        }), /power/);
+        const entry = readProfiles(base).profiles.find((x) => x.id === p.id);
+        assert.ok(entry.rekey, 'the note is there, the new lock is not in yet');
+
+        // The next open, with the old password, as main.js makes it.
+        const opened = await unlockProfile(entry, 'first-pass');
+        assert.ok(opened?.rekey, `${stop}, ${change}: the old password opens the half-done change`);
+        const next = createVault({ key: opened.key, also: [opened.rekey.from] });
+        const after = new MailStore(root);
+        attachTo(next, after, () => {});
+        if (after.resealPending()) setTimeout(() => after.resumeReseal().catch(() => {}), 0);
+        await finishRekey({ base, id: p.id, vault: next, keys: opened.rekey, folder });
+        await new Promise((r) => setTimeout(r, 20));
+
+        assert.equal(after.list('acc', 'INBOX').total, 50, `${stop}, ${change}: Mail reads`);
+        assert.ok(!after.resealPending(), `${stop}, ${change}: its sealing finished`);
+        const done = readProfiles(base).profiles.find((x) => x.id === p.id);
+        assert.equal(done.rekey, undefined);
+        // Every file sealed with the key the lock now gives, or plain with none.
+        const fresh = new MailStore(root, { key: second.key });
+        assert.equal(fresh.list('acc', 'INBOX').total, 50);
+        assert.equal(fresh.list('acc', 'Archive').total, 5);
+        for (const row of fresh.list('acc', 'INBOX', { limit: 100 }).rows) assert.match(fresh.get('acc', 'INBOX', row.id)?.text || '', /Osprey/, `${stop}, ${change}: every message opens`);
+        if (change === 'changed') {
+          assert.deepEqual(clearText(root, 'Osprey'), []);
+          assert.equal(new MailStore(root, { key: first.key }).list('acc', 'INBOX').total, 0, 'nothing is left with the old key');
+        } else {
+          assert.ok(!files(root).some((f) => f.bytes.subarray(0, MAGIC.length).equals(MAGIC) || f.bytes.toString('latin1').startsWith('~')), 'all plain again');
+        }
+      } finally {
+        fs.rmSync(base, { recursive: true, force: true });
+      }
+    }
+  }
+});
