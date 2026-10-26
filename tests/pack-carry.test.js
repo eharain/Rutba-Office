@@ -150,6 +150,24 @@ test('Mail carries its service, its engine and its protocols; the system fonts s
   assert.deepEqual(mail.packages.map((p) => p.name), ['@rutba/mailbox']);
 });
 
+test('AI Tools carries its tools, its program and its window; the start file AI apps run and the badge stay in the core', async () => {
+  const dialog = 'chunks/ai-tools-dialog-WINDOW01.js';
+  const build = {
+    outputs: { 'app.js': ['apps/desktop/renderer/index.js', 'apps/desktop/renderer/shell.js', 'apps/desktop/renderer/ai-tools.js'], [dialog]: ['apps/desktop/renderer/ai-tools-dialog.js'] },
+    imports: { 'app.js': [{ path: dialog, kind: 'dynamic' }], [dialog]: [] },
+    entries: { 'app.js': 'apps/desktop/renderer/index.js', [dialog]: 'apps/desktop/renderer/ai-tools-dialog.js' },
+  };
+  const { ai } = await packContents(['ai'], { g, meta: build });
+  assert.deepEqual(ai.chunks, [dialog]);
+  assert.ok(['apps/desktop/main/ai-pack.js', 'apps/desktop/main/ai-tools.js', 'apps/desktop/main/mcp/program.js', 'apps/desktop/main/mcp/tools.js'].every((f) => ai.main.includes(f)), ai.main.join(', '));
+  assert.ok(!ai.main.includes('apps/desktop/main/mcp/node.js'));
+  // The start file finds AI Tools' program in the core's register module when the pack's code is the core's.
+  const { packModule } = await import('../apps/desktop/main/app-packs.js');
+  const plan = { packs: [{ id: 'ai', name: 'AI Tools', main: null }] };
+  assert.equal(typeof (await packModule(plan, 'ai'))?.program, 'function');
+  assert.equal(await packModule(plan, 'mail-not-planned'), null);
+});
+
 test('an npm package two apps need stays in the core; one only Data Files needs goes with it', () => {
   const owners = npmOwners(g);
   assert.equal(owners.get('pg'), 'base');

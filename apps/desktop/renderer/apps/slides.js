@@ -42,7 +42,7 @@ import { PhotoAlbumDialog, ALBUM_CSS } from './slides/album.js';
 import { CustomShowsDialog, CUSTOM_SHOWS_CSS } from './slides/custom-shows.js';
 import { HandoutSlots, HANDOUT_CSS } from './slides/handout.js';
 import { StageMedia, MEDIA_CSS, MEDIA_FILES, posterFrame, fileSrc } from './slides/media.js';
-import { RecorderPanel } from './video/recorder/panel.js';
+import { RecorderPanel } from '../recording/panel.js';
 import { placeTakes } from '@rutba/studio/recorder';
 import { emptyProject } from '@rutba/studio/project';
 import { writeRvid } from '@rutba/studio/rvid';

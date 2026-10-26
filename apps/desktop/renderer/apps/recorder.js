@@ -21,9 +21,9 @@ import { Ribbon, Group, Button, Rows, Select, Icon, Input, Panel, Content, Spinn
 import { normaliseStudio, SCENES, STUDIO_DEFAULTS } from '@rutba/studio/compositor';
 import { takeFileName, bytesPerSecond, diskState, regionCrop } from '@rutba/studio/recorder';
 import { AppFrame, useAppMenu } from '../shell.js';
-import { RecorderRig } from './video/recorder/session.js';
-import { Toggle, Segments, Meter } from './video/recorder/panel.js';
-import { RECORDER_CSS } from './video/recorder/css.js';
+import { RecorderRig } from '../recording/session.js';
+import { Toggle, Segments, Meter } from '../recording/panel.js';
+import { RECORDER_CSS } from '../recording/css.js';
 import { Program } from './recorder/program.js';
 import { LiveEncoder, AUDIO_KBPS } from './recorder/live.js';
 import { LiveDialog, LIVE_CSS } from './recorder/live-dialog.js';

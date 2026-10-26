@@ -29,7 +29,7 @@ import { heldBlob, releaseBlob } from '@rutba/office-shell/electron/main';
 import { MODE_KEY, SESSION_KEY, FOLDERS_KEY, MODES, foldersOf, readLog, readConnections, openNow } from './mcp/access.js';
 import { mcpCommand as commandFor } from './mcp/command.js';
 import { createRemote, REACH_KEY, REACHES, REMOTE_KEY, REMOTE_PORT_KEY, DEFAULT_PORT, newKey, addresses } from './mcp/remote.js';
-import { LOADED_KEY } from './pack-tools.js';
+import { LOADED_KEY } from '@rutba/office-shell/pack-tools';
 import { KINDS, STEPS, DATABASES_KEY, LOCAL_BOOK, stepsFor, stepOf, folderEntries, withFolderStep, databaseSetting } from './mcp/reach.js';
 import { createConfirmations } from './mcp/confirm.js';
 import { createChannelServer } from './mcp/channel.js';
@@ -51,7 +51,7 @@ const sameFile = (a, b) => (process.platform === 'win32' ? String(a).toLowerCase
  * @param {() => object} [o.services]  the running copy's services (mail, calendar, contacts, base, ocr), asked when used
  * @param {(event: string, payload: any) => void} [o.broadcast]
  */
-export function createAiToolsService({ stores, dataDir = app.getPath('userData'), pid = process.pid, services = () => ({}), broadcast = () => {} }) {
+export function createAiToolsService({ stores, dataDir = app.getPath('userData'), pid = process.pid, services = () => ({}), broadcast = () => {}, unicodeFont = () => null }) {
   const settings = stores.settings;
   const modeNow = () => {
     const mode = settings.get(MODE_KEY, 'off');
@@ -177,10 +177,10 @@ export function createAiToolsService({ stores, dataDir = app.getPath('userData')
       }
       if (!remote) {
         // The tools' modules are loaded the first time the network is chosen, not at every start.
-        const { makeTools, versionOf, INSTRUCTIONS } = await import('./mcp/make-tools.js');
+        const { makeTools, INSTRUCTIONS } = await import('./mcp/make-tools.js');
         remote = createRemote({
-          tools: makeTools({ settings: snapshot, dataDir, isAlive: (p) => p === pid, reach: { call: reachCall }, ocr: async () => (services() || {}).ocr || null }),
-          version: versionOf(),
+          tools: makeTools({ settings: snapshot, dataDir, isAlive: (p) => p === pid, reach: { call: reachCall }, ocr: async () => (services() || {}).ocr || null, unicodeFont }),
+          version: app.getVersion(),
           instructions: INSTRUCTIONS,
           allowed,
           key,

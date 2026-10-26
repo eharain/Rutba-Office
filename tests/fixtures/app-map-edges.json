@@ -1,17 +1,5 @@
 {
-  "cross": [
-    "apps/desktop/renderer/apps/base/ai-tools.js -> apps/desktop/renderer/ai-tools.js",
-    "apps/desktop/renderer/apps/mail/dialogs.js -> apps/desktop/renderer/ai-tools.js",
-    "apps/desktop/renderer/apps/recorder.js -> apps/desktop/renderer/apps/video/recorder/css.js",
-    "apps/desktop/renderer/apps/recorder.js -> apps/desktop/renderer/apps/video/recorder/panel.js",
-    "apps/desktop/renderer/apps/recorder.js -> apps/desktop/renderer/apps/video/recorder/session.js",
-    "apps/desktop/renderer/apps/recorder/live-dialog.js -> apps/desktop/renderer/apps/video/recorder/panel.js",
-    "apps/desktop/renderer/apps/slides.js -> apps/desktop/renderer/apps/video/recorder/panel.js",
-    "apps/desktop/renderer/apps/slides/cameo.js -> apps/desktop/renderer/apps/video/recorder/camera.js",
-    "apps/desktop/renderer/apps/slides/screen-record.js -> apps/desktop/renderer/apps/video/recorder/session.js",
-    "apps/desktop/renderer/dav-accounts.js -> apps/desktop/renderer/ai-tools.js",
-    "apps/desktop/renderer/shell.js -> apps/desktop/renderer/ai-tools.js"
-  ],
+  "cross": [],
   "owners": {
     "npm:@tech-style/secure-keystore": "core",
     "npm:dictionary-en": "core",

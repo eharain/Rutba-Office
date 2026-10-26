@@ -42,9 +42,9 @@ test('every engine keeps its owner', () => {
   assert.deepEqual(moved, [], `An engine changed hands. ${HOW}`);
 });
 
-test('the cuts the map lists are real imports with their lines', () => {
-  assert.ok(map.cross.length > 0);
-  for (const e of map.cross) {
+test('the cuts and the wiring the map lists are real imports with their lines', () => {
+  assert.ok(map.registration.length > 0);
+  for (const e of [...map.cross, ...map.registration]) {
     const text = fs.readFileSync(path.join(ROOT, e.from), 'utf8').split(/\r?\n/);
     assert.ok(e.line > 0 && text[e.line - 1].includes(e.spec), `${e.from}:${e.line} does not name ${e.spec}`);
   }

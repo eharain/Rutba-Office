@@ -13,7 +13,10 @@ import { pathOf, installedPacks } from '@rutba/office-shell/client';
 import { WhatsNew } from './whatsnew.js';
 import { filtersInLanguage } from './registry-words.js';
 import { TemplateGallery } from './template-gallery.js';
-import { AiBadge, AiToolsDialog, AiConfirm, AI_TOOLS_CSS } from './ai-tools.js';
+import { AiBadge, AiConfirm, AI_TOOLS_CSS } from './ai-tools.js';
+
+// The AI Tools window is AI Tools' own, in its pack: loaded when it is opened.
+const AiToolsDialog = React.lazy(() => import('./ai-tools-dialog.js').then((m) => ({ default: m.AiToolsDialog })));
 import { useChosenApps } from './apps-choice.js';
 import { ProfileBadge, ManageProfiles, KeystoreNotice, PROFILES_CSS, useProfiles, profileName, openManageProfiles } from './profiles.js';
 
@@ -397,7 +400,7 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
       />
       <style>{PROFILES_CSS}</style>
       <style>{AI_TOOLS_CSS}</style>
-      {aiTools ? <AiToolsDialog shell={shell} onClose={() => setAiTools(false)} /> : null}
+      {aiTools ? <React.Suspense fallback={null}><AiToolsDialog shell={shell} onClose={() => setAiTools(false)} /></React.Suspense> : null}
       <AiConfirm shell={shell} />
       {profilesOpen ? <ManageProfiles shell={shell} mode={profilesOpen.mode} onClose={() => setProfilesOpen(null)} /> : null}
       <KeystoreNotice shell={shell} />

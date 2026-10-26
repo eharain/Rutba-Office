@@ -116,3 +116,21 @@ export const RECORDER_CSS = `
   .rec-side { contain: none; }
 }
 `;
+
+/** The teleprompter, an introduction's scene script above the frame (RecorderPanel's `prompter`). */
+export const PROMPTER_CSS = `
+/* The teleprompter, above the frame while a scene records. */
+.rec-prompter { flex: none; border-radius: 10px; background: #0d0f14; color: #fff; overflow: hidden; display: flex; flex-direction: column; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.08); }
+.rec-prompter-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 12px; color: rgba(255,255,255,0.75); border-bottom: 1px solid rgba(255,255,255,0.08); }
+.rec-prompter-head b { color: #fff; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-prompter-speed { flex: none; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.12); }
+.rec-prompter-speed button { flex: none; min-width: 54px; padding: 2px 10px; font-size: 11.5px; color: rgba(255,255,255,0.72); }
+.rec-prompter-speed button:hover:not(:disabled):not(.on) { background: rgba(255,255,255,0.1); color: #fff; }
+.rec-prompter-speed button.on { background: rgba(255,255,255,0.2); color: #fff; box-shadow: none; }
+.rec-prompter-view { position: relative; height: 92px; overflow: hidden; }
+.rec-prompter-view::before, .rec-prompter-view::after { content: ''; position: absolute; left: 0; right: 0; height: 22px; z-index: 1; pointer-events: none; }
+.rec-prompter-view::before { top: 0; background: linear-gradient(#0d0f14, rgba(13,15,20,0)); }
+.rec-prompter-view::after { bottom: 0; background: linear-gradient(rgba(13,15,20,0), #0d0f14); }
+.rec-prompter-text { padding: 18px 18px 60px; font-size: 21px; line-height: 1.45; font-weight: 600; white-space: pre-wrap; transition: transform 260ms linear; }
+.rec-prompter-empty { padding: 14px 18px; font-size: 13px; color: rgba(255,255,255,0.6); }
+`;

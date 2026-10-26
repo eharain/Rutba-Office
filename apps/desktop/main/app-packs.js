@@ -279,5 +279,26 @@ export async function packService(p, id, context = {}) {
   }
 }
 
+/**
+ * One pack's main module, when it is in the plan: its own, or the core's
+ * register module for a pack whose code is the core's. Null when the pack is
+ * not installed or its module would not load. For a program that runs one
+ * app's code (the AI tools run as Node run AI Tools' program).
+ * @param {Plan} p
+ * @param {string} id
+ */
+export async function packModule(p, id) {
+  const pack = p.packs.find((x) => x.id === id);
+  if (!pack) return null;
+  try {
+    const own = pack.main ? await import(pathToFileURL(pack.main).href) : null;
+    // A main module that only registers hands back to the core's (a pack whose code is the core's).
+    if (own && Object.keys(own).some((k) => k !== 'register')) return own;
+    return (await BUILT_IN[id]?.()) || own;
+  } catch {
+    return null;
+  }
+}
+
 /** The pack ids in the launcher's order, the apps' first. */
 export const PACK_ORDER = PACKS.map((p) => p.id);

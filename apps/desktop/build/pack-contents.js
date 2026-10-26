@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PACKS } from '@rutba/office-shell/contract';
-import { mapImports, homeOf, registerModules, rendererEntries, ROOT } from '../../../tools/app-map.mjs';
+import { mapImports, homeOf, registerModules, rendererEntries, PACK_WINDOWS, ROOT } from '../../../tools/app-map.mjs';
 import { RENDERER_META } from './bundle.js';
 
 const PACK_IDS = new Set(PACKS.map((p) => p.id));
@@ -92,9 +92,9 @@ export function windowReach(build, windows) {
   return reach;
 }
 
-/** Each app's window module, from the launcher's list (the launcher's own is the core's). */
+/** Each app's window module, from the launcher's list (the launcher's own is the core's), and the AI Tools window the shell opens. */
 export function appWindows() {
-  return Object.fromEntries(Object.entries(rendererEntries()).filter(([id]) => PACK_IDS.has(id)));
+  return { ...Object.fromEntries(Object.entries(rendererEntries()).filter(([id]) => PACK_IDS.has(id))), ...PACK_WINDOWS };
 }
 
 /**

@@ -50,7 +50,8 @@ const MAIN_HOMES = [
   [/^base(-[\w-]+)?\.js$|^engines\//, 'base'],
   [/^pdf\.js$/, 'pdf'],
   [/^ocr\.js$/, 'ocr'],
-  [/^ai-tools\.js$|^mcp\//, 'ai'],
+  // The program AI apps run (mcp/node.js) is the core's: it loads AI Tools' pack.
+  [/^ai-tools\.js$|^mcp\/(?!node\.js$)/, 'ai'],
   [/^live\.js$/, 'recorder'],
   [/^talk(-[\w-]+)?\.js$/, 'talk'],
   // The old .ppt reader (legacy-deck*.js) and mail merge's sources
@@ -73,27 +74,32 @@ const SPLIT_PACKAGES = new Set(['ocr', 'templates', 'database']);
  * read text show it, and its calls go to the ocr namespace, which says Text
  * recognition is not installed when it is not.
  */
-const RENDERER_HOMES = { 'ai-tools.js': 'ai' };
+const RENDERER_HOMES = { 'ai-tools-dialog.js': 'ai' };
+
+/**
+ * Windows an app's pack carries that the launcher does not list: the AI Tools
+ * window, which the shell opens (its badge, the confirmations and the step
+ * pickers in other apps are the core's, in ai-tools.js).
+ */
+export const PACK_WINDOWS = { ai: `${RENDERER}/ai-tools-dialog.js` };
 
 /** Entry points no import reaches: workers started by name, a program run on its own. */
 const EXTRA_ENTRIES = {
   renderer: {
     // build/bundle.js builds it as a bundle of its own (scripts-worker.js).
     sheets: [`${RENDERER}/apps/sheets/scripts-worker.js`],
-    ai: [`${RENDERER}/ai-tools.js`],
+    ai: [PACK_WINDOWS.ai],
   },
-  main: {
-    // The AI tools for an AI app on this computer: Rutba Office's program run as Node.
-    ai: [`${MAIN}/mcp/node.js`],
-  },
+  main: {},
 };
 const CORE_ENTRIES = {
   // The image worker (image-worker.js, a bundle of its own) is the core's: Image and Pictures' batch conversion both start it.
   renderer: [`${RENDERER}/index.js`, `${RENDERER}/imaging/worker.js`],
-  main: [`${MAIN}/main.js`, 'packages/office-shell/src/electron/preload.js'],
+  // The AI tools for an AI app on this computer: Rutba Office's program run as Node, which loads AI Tools' pack.
+  main: [`${MAIN}/main.js`, 'packages/office-shell/src/electron/preload.js', `${MAIN}/mcp/node.js`],
 };
 /** The core's own wiring: what it imports from an app here is the registration the loader takes over. */
-const WIRING = new Set([`${RENDERER}/index.js`, `${MAIN}/main.js`, `${MAIN}/app-packs.js`]);
+const WIRING = new Set([`${RENDERER}/index.js`, `${RENDERER}/shell.js`, `${MAIN}/main.js`, `${MAIN}/app-packs.js`]);
 
 /** The window checks, by their names: one pack's when the name says so, the core's otherwise. */
 const CHECK_PACK = [
@@ -183,8 +189,9 @@ export function rendererEntries() {
 function factoriesIn(file) {
   const text = fs.readFileSync(path.join(ROOT, MAIN, file), 'utf8');
   const factories = {};
-  for (const m of text.matchAll(/import\s*\{([^}]+)\}\s*from\s*'(\.\/[^']+)'/g)) {
-    for (const name of m[1].split(',').map((s) => s.trim().split(/\s+as\s+/).pop())) if (name) factories[name] = posix(path.join(MAIN, m[2]));
+  // `import { createX } from './x.js'`, or `const { createX } = await import('./x.js')` where the module is loaded when it registers.
+  for (const m of text.matchAll(/(?:import\s*\{([^}]+)\}\s*from\s*|const\s*\{([^}]+)\}\s*=\s*await\s+import\(\s*)'(\.\/[^']+)'/g)) {
+    for (const name of (m[1] || m[2]).split(',').map((s) => s.trim().split(/\s+as\s+|\s*:\s*/).pop())) if (name) factories[name] = posix(path.join(MAIN, m[3]));
   }
   const byName = {};
   // `const contacts = createContactsService(`, `mail: createMailService(`, `update: updates = createUpdateService(` and `services.dav = createDavService(`.
@@ -417,7 +424,7 @@ export async function mapImports() {
     }
     return ownerFrom(reach.get(file));
   };
-  const entryModules = new Set([...Object.values(loaders), ...Object.values(wired), ...Object.values(registers)]);
+  const entryModules = new Set([...Object.values(loaders), ...Object.values(PACK_WINDOWS), ...Object.values(wired), ...Object.values(registers)]);
 
   const cross = [];
   const registration = [];

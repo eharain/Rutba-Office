@@ -28,7 +28,7 @@ import { assemble, parsePageRange } from '@rutba/pdf/assemble';
 import { openNow, foldersOf, resolveIn, newFileIn, logCall, FOLDERS_KEY } from './access.js';
 import { folderEntries } from './reach.js';
 import { REACH_TOOL_LIST, REACH_TOOLS } from './reach-tools.js';
-import { toolOffered, toolRefusal } from '../pack-tools.js';
+import { toolOffered, toolRefusal } from '@rutba/office-shell/pack-tools';
 
 const KINDS = {
   '.docx': 'document', '.xlsx': 'workbook', '.pptx': 'presentation', '.pdf': 'pdf',

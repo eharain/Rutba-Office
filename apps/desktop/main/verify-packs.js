@@ -8,17 +8,19 @@
 // no window: a file of its kind opens the launcher, which says it is not
 // installed. Add or remove apps adds Calendar from the folder and removes
 // Mail. The second start has Calendar and not Mail, and Mail's files are
-// gone from the packs folder. Every app but AI Tools carries its own code:
-// the core is told so, the windows open, Talk's, Documents' and Mail's
-// windows' chunks are served from their packs, and text recognition reads a
-// picture with the engine and models in its pack.
+// gone from the packs folder. Every pack carries its own code: the core is
+// told so, the windows open, Talk's, Documents', Mail's and the AI Tools
+// window's code is served from their packs, an AI app's program runs AI
+// Tools' code from its pack, and text recognition reads a picture with the
+// engine and models in its pack.
 //
 // RUTBA_PACKS_PHASE says which start this is (first or next). Run with
 // RUTBA_VERIFY_ONLY=packs.
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { ipcMain } from 'electron';
+import { spawn } from 'node:child_process';
+import { app, ipcMain } from 'electron';
 import { CHANNEL_PREFIX, packIpc } from '@rutba/office-shell/contract';
 import { packFiles, pendingRemovals } from '@rutba/office-shell/electron/pack-install';
 import { LOADED_KEY, toolOffered } from './pack-tools.js';
@@ -110,8 +112,8 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
       // Talk, from its own pack: its code, its window, and its window's chunk.
       const code = await js(`(window.rutbaOffice.__contract.packs || []).find((p) => p.id === 'talk')?.code || null`);
       const codes = await js(`Object.fromEntries((window.rutbaOffice.__contract.packs || []).map((p) => [p.id, p.code]))`);
-      check(name('the core is told Talk, Text recognition, Data Files, Documents and Mail carry their own code, and AI Tools\' is still the core\'s'),
-        code === 'own' && ['ocr', 'base', 'word', 'mail'].every((id) => codes[id] === 'own') && codes.ai === 'core', JSON.stringify(codes));
+      check(name('the core is told Talk, Text recognition, Data Files, Documents, Mail and AI Tools carry their own code'),
+        code === 'own' && ['ocr', 'base', 'word', 'mail', 'ai'].every((id) => codes[id] === 'own'), JSON.stringify(codes));
       // Text recognition from its pack: a small picture of nothing read by its engine, on its threads.
       const read = await js(`window.rutbaOffice.ocr.recognize({ image: { width: 64, height: 32, data: new Uint8Array(64 * 32 * 4).fill(255) }, languages: ['eng'], job: 'packs-check' }).then((r) => ({ ok: true, text: r.text, ms: r.ms }), (e) => ({ ok: false, error: e.message }))`);
       check(name('text recognition reads a picture with the engine and models in its own pack'), read.ok === true, JSON.stringify(read));
@@ -133,6 +135,32 @@ export async function verifyPacks({ open, check, until, wait, errorsIn }, { dir 
         check(name(`${said} opens, its window's chunk served from its own pack`), shown && served.status === 200 && served.pack === id, JSON.stringify(served));
         win.destroy();
       }
+      // The AI Tools window, opened from the app menu: its code from AI Tools' pack.
+      await js(`window.dispatchEvent(new Event('rutba-ai-tools')), 1`);
+      const aiShown = await until(() => js(`Boolean(document.querySelector('.ai-tools-dialog .ai-modes'))`), 'the AI Tools window', 10000).then(() => true).catch(() => false);
+      const aiChunk = fs.readdirSync(path.join(packsDir, packFiles('ai').archive, 'renderer', 'chunks')).find((n) => n.startsWith('ai-tools-dialog-')) || null;
+      const aiServed = aiChunk ? await js(`fetch('/chunks/${aiChunk}').then((r) => ({ chunk: ${JSON.stringify(aiChunk)}, status: r.status, pack: r.headers.get('x-rutba-pack') }))`) : { chunk: null };
+      await js(`document.querySelector('.ai-tools-dialog .rw-btn.primary')?.click(), 1`);
+      check(name('the AI Tools window opens, its code served from AI Tools\' own pack'), aiShown && aiServed.status === 200 && aiServed.pack === 'ai', JSON.stringify(aiServed));
+      // The program an AI app starts, as the window says to start it: the core's start file runs AI Tools' program from its pack.
+      const { command, args, env } = (await js(`window.rutbaOffice.ai.state()`)).connect || {};
+      const started = await new Promise((resolve) => {
+        const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...env } });
+        let out = '';
+        let err = '';
+        const done = (v) => { clearTimeout(timer); child.kill(); resolve(v); };
+        const timer = setTimeout(() => done({ error: `no answer; ${err.slice(0, 200)}` }), 30000);
+        child.stderr.on('data', (d) => { err += d; });
+        child.stdout.on('data', (d) => {
+          out += d;
+          const at = out.indexOf('\n');
+          if (at < 0) return;
+          try { done(JSON.parse(out.slice(0, at)).result?.serverInfo || { error: out.slice(0, 200) }); } catch { done({ error: out.slice(0, 200) }); }
+        });
+        child.on('error', (e) => done({ error: e.message }));
+        child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'Packs check', version: '1.0' } } })}\n`);
+      });
+      check(name('an AI app\'s program runs AI Tools\' code from its pack, told this copy\'s version by the core'), started.name === 'rutba-office' && started.version === app.getVersion(), JSON.stringify(started));
     } else {
       const f = packFiles('mail');
       const left = [f.manifest, f.archive, f.unpacked].filter((n) => fs.existsSync(path.join(packsDir, n)));

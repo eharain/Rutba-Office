@@ -10,7 +10,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { t } from '@rutba/office-ui';
 import { recordingType } from './screen-record.js';
-import { alive, BUSY, openCamera, openCameraPatiently, closeCamera, cameraTrouble } from '../video/recorder/camera.js';
+import { alive, BUSY, openCamera, openCameraPatiently, closeCamera, cameraTrouble } from '../../recording/camera.js';
 
 /**
  * The camera's stream while `on`, or null — and why not, when it could not

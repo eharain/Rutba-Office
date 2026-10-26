@@ -23,7 +23,7 @@ import {
 import { prompterProgress, PROMPTER_SPEEDS } from '@rutba/studio/intro';
 import { RecorderRig } from './session.js';
 import { RECORDER_CSS } from './css.js';
-import { INTRO_CSS } from '../intro/css.js';
+import { PROMPTER_CSS } from './css.js';
 
 const STORE_KEY = 'recorder.settings';
 const COPY_EVERY_MS = 5000;
@@ -583,7 +583,7 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
   return (
     <Dialog title={title} className="rec-dialog" onClose={busy ? undefined : cancel} actions={actions}>
       <style>{RECORDER_CSS}</style>
-      {prompter ? <style>{INTRO_CSS}</style> : null}
+      {prompter ? <style>{PROMPTER_CSS}</style> : null}
       <div className={`rec-body${slide ? ' slide' : ''}`} data-phase={phase}>
         <div className={`rec-stage${prompter ? ' with-prompter' : ''}`}>
           {prompter ? (

@@ -9,7 +9,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Dialog, Button, Input, Icon, t } from '@rutba/office-ui';
-import { Toggle } from '../video/recorder/panel.js';
+import { Toggle } from '../../recording/panel.js';
 
 /** The shape a server address takes, shown in its empty field: not words to translate. */
 const SERVER_SHAPE = 'rtmps://…';

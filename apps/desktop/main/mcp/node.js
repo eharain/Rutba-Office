@@ -5,39 +5,32 @@
 //
 // (an installed copy names resources\mcp\rutba-office-mcp.cjs, a real file
 // beside the archive that loads this one from it: command.js). The AI Tools
-// window shows that line ready to copy. Run as Node, the program
-// opens no window, leaves the copy of Rutba Office that windows use alone,
-// listens on no network port, and its standard input and output carry the
-// protocol cleanly (the windowed program prints a line of its own on Windows
-// and cannot read its standard input). The settings it obeys are the
-// application's, read afresh for each call, so the person's switch in Rutba
-// Office decides.
+// window shows that line ready to copy.
 //
-// Files it reads and makes itself. Mail, calendars, address books and Data
-// Files databases it asks the running Rutba Office of its profile for, over
-// a local channel (channel.js): with that copy closed, those tools say so,
-// and one that needs the person's press says nothing was done. A profile
-// with a password is reached only while it is open and unlocked there.
+// This file is the core's: it finds the packs this computer has, checked as a
+// start of Rutba Office checks them, and runs AI Tools' program from AI
+// Tools' pack (program.js), handing it this copy's version, text recognition
+// when that pack is installed, and the system font a PDF is written in. With
+// AI Tools not installed it says so and ends.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer, serve } from './protocol.js';
-import { writeConnection, alive } from './access.js';
-import { profileDir, profileEntryOf } from './profile-dir.js';
-import { createChannelClient } from './channel.js';
-import { needsPassword } from '@rutba/office-shell/profiles';
-import { makeTools, versionOf, INSTRUCTIONS } from './make-tools.js';
-import { planPacks, readPackKeys, packService } from '../app-packs.js';
+import { planPacks, readPackKeys, packModule, packService } from '../app-packs.js';
+import { unicodeFont } from '../system-fonts.js';
 import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
 
-/**
- * Text recognition, for the tool that reads the words in a picture: from its
- * pack, checked as a start of Rutba Office checks it, when it is installed
- * (the packs folder beside the archive, or a check run's); in a copy run
- * from the source, the core's own code. Null when it is not installed.
- */
-async function ocrService() {
+/** The version this copy is, from the app's package. */
+function versionOf(app) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+/** The packs this computer has: the folder beside the archive, or a check run's; none in a copy run from the source. */
+function plan() {
   const app = fileURLToPath(new URL('../../', import.meta.url));
   const packaged = /\.asar[\\/]?$/.test(app);
   const named = process.env.RUTBA_PACKS_DIR ? path.resolve(process.env.RUTBA_PACKS_DIR) : null;
@@ -45,66 +38,25 @@ async function ocrService() {
   const dir = named || (beside && fs.existsSync(beside) ? beside : null);
   const keys = readPackKeys(path.join(app, 'build', 'out', 'pack-keys.json'));
   if (!packaged && process.env.RUTBA_PACK_PUBLIC_KEY) keys.push(fs.readFileSync(process.env.RUTBA_PACK_PUBLIC_KEY, 'utf8'));
-  const plan = planPacks({ dir, keys, version: versionOf() });
+  const version = versionOf(app);
   if (dir) installPackResolution({ packsDir: dir, coreFile: fileURLToPath(import.meta.url) });
-  return (await packService(plan, 'ocr'))?.ocr || null;
+  return { version, packs: planPacks({ dir, keys, version }) };
 }
 
 export async function main() {
-  // Standard output carries the protocol and nothing else.
-  const toErr = (...a) => process.stderr.write(`${a.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ')}\n`);
-  console.log = toErr;
-  console.info = toErr;
-  console.warn = toErr;
-  console.debug = toErr;
-
-  const dataDir = profileDir();
-  const settingsFile = path.join(dataDir, 'settings.json');
-  const settings = () => {
-    try {
-      return JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
-    } catch {
-      return {};
-    }
-  };
-  // Mail, calendars, address books and databases: asked of the running Rutba
-  // Office of this profile over its channel (channel.js), which holds them.
-  const channel = createChannelClient({ folder: dataDir, isAlive: alive });
-  const reach = { call: (name, args) => channel.request('call', { name, args }) };
-  // A profile with a password: nothing of it, its folders included, while it
-  // is not open and unlocked in a running Rutba Office (D-2026-10-26-06).
-  const locked = async () => {
-    let entry = null;
-    try {
-      entry = profileEntryOf(dataDir);
-    } catch {
-      entry = null;
-    }
-    if (!needsPassword(entry)) return null;
-    try {
-      if ((await channel.request('hello'))?.unlocked) return null;
-    } catch {
-      // Not running, or the tools off there: refused below either way.
-    }
-    return 'This profile has a password, so the AI tools reach nothing of it, its folders included, unless it is open and unlocked in Rutba Office. Open Rutba Office in this profile and enter its password, then ask again.';
-  };
+  const { version, packs } = plan();
+  const ai = await packModule(packs, 'ai');
+  if (!ai?.program) {
+    process.stderr.write('AI Tools is not installed in Rutba Office on this computer. Add it with Add or remove apps.\n');
+    process.exit(1);
+  }
   let ocr = null;
-  const tools = makeTools({ settings, dataDir, reach, locked, ocr: () => (ocr ||= ocrService()) });
-  // Who is connected, for the AI Tools window and the badge in every window's
-  // title bar: what the AI app says it is, from where, since when, its last call.
-  const pid = process.pid;
-  const since = new Date().toISOString();
-  process.on('exit', () => writeConnection(dataDir, pid, null));
-  const server = createServer({
-    name: 'rutba-office',
-    version: versionOf(),
-    tools,
-    instructions: INSTRUCTIONS,
-    onInitialize: ({ client }) => writeConnection(dataDir, pid, { client: String(client?.name || 'An AI app').slice(0, 80), clientVersion: String(client?.version || '').slice(0, 40), where: 'this computer', since, last: null }),
-    onCall: (tool) => writeConnection(dataDir, pid, { last: new Date().toISOString(), lastTool: String(tool || '').slice(0, 60) }),
+  await ai.program({
+    version,
+    // Text recognition, for the tool that reads the words in a picture: from its pack, when it is installed.
+    ocr: () => (ocr ||= packService(packs, 'ocr').then((s) => s?.ocr || null)),
+    unicodeFont,
   });
-  await serve(server, process.stdin, process.stdout);
-  channel.close();
   process.exit(0);
 }
 

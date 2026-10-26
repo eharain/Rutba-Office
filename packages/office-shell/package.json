@@ -21,7 +21,8 @@
     "./client": "./src/client.js",
     "./runs": "./src/runs.js",
     "./profiles": "./src/profiles.js",
-    "./profile-keystore": "./src/profile-keystore.js"
+    "./profile-keystore": "./src/profile-keystore.js",
+    "./pack-tools": "./src/pack-tools.js"
   },
   "sideEffects": false,
   "dependencies": {
