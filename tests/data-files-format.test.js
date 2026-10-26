@@ -16,14 +16,14 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import {
   Base, DESIGN_VERSION, FIELD_TYPES, TEMPLATE_IDS, SAMPLE_IDS, buildTemplate, buildSample,
-  ensureSync, reconcile, replaceRows, markSynced,
+  ensureSync, reconcile, replaceRows, markSynced, copyForeign, designerDesign, unknownKeys,
 } from '../packages/database/src/index.js';
 import { checkRbase, SPEC_VERSION, DESIGN_TABLES, FIELD_TYPES as SPEC_FIELD_TYPES } from '../tools/check-rbase.mjs';
 import { makeSamples, SAMPLES_DIR, EXAMPLE_PEOPLE } from '../tools/make-rbase-samples.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SPEC = fs.readFileSync(path.join(ROOT, 'docs', 'DATA-FILES-FORMAT.md'), 'utf8');
-const SAMPLES = ['plain-tables.rbase', 'query-form-report.rbase', 'protected.rbase'];
+const SAMPLES = ['plain-tables.rbase', 'query-form-report.rbase', 'protected.rbase', 'copies-and-sources.rbase'];
 const tmp = (name) => fs.mkdtempSync(path.join(os.tmpdir(), name));
 
 /** A copy of a sample to spoil, changed by `spoil(db)` with plain SQLite. */
@@ -136,7 +136,9 @@ test('a file that departs from the format is told so, and how', () => {
     ['an unknown field type', 'plain-tables.rbase', (db) => db.exec("UPDATE rutba_fields SET type = 'picture' WHERE tbl = 'Customers' AND name = 'Notes'"), /has the type "picture"/],
     ['a field with no column', 'plain-tables.rbase', (db) => db.exec("INSERT INTO rutba_fields (tbl, name, type, position) VALUES ('Customers', 'Phone', 'text', 9)"), /Customers\.Phone has no column/],
     ['a relationship pointing at a field that is not there', 'plain-tables.rbase', (db) => db.exec("UPDATE rutba_relations SET to_field = 'Code'"), /points at a field that is not there/],
-    ['a design version newer than the text', 'plain-tables.rbase', (db) => db.exec("UPDATE rutba_meta SET value = '7' WHERE key = 'version'"), /newer than this specification/],
+    ['a design version newer than the text', 'plain-tables.rbase', (db) => db.exec(`UPDATE rutba_meta SET value = '${DESIGN_VERSION + 1}' WHERE key = 'version'`), /newer than this specification/],
+    ['a version 7 file without the copies table', 'plain-tables.rbase', (db) => db.exec('DROP TABLE rutba_sync'), /rutba_sync is missing/],
+    ['a version 7 file without a column of copies', 'plain-tables.rbase', (db) => db.exec('ALTER TABLE rutba_linked DROP COLUMN stamp'), /rutba_linked has no column stamp: a file of design version 7/],
     ['a design table missing', 'plain-tables.rbase', (db) => db.exec('DROP TABLE rutba_documents'), /rutba_documents is missing/],
     ['a password kept in a link', 'plain-tables.rbase', (db) => db.exec("INSERT INTO rutba_links (id, name, engine, settings) VALUES ('link-x', 'Engine', 'postgres', '{\"host\":\"h\",\"password\":\"hunter2\"}')"), /keeps a password/],
     ['a password kept as itself', 'protected.rbase', (db) => db.exec("UPDATE rutba_people SET hash = 'example-password' WHERE name = 'Owner'"), /Person Owner's password is not kept as scrypt/],
@@ -163,11 +165,195 @@ test('the command exits 0 for a file that follows the format and 1 with the prob
   const run = (...args) => spawnSync(process.execPath, [path.join(ROOT, 'tools', 'check-rbase.mjs'), ...args], { encoding: 'utf8' });
   const good = run(path.join(SAMPLES_DIR, 'plain-tables.rbase'));
   assert.equal(good.status, 0, good.stdout + good.stderr);
-  assert.match(good.stdout, /follows the Data Files format, design version 6/);
+  assert.match(good.stdout, new RegExp(`follows the Data Files format, design version ${DESIGN_VERSION}`));
   const bad = run(spoiled('plain-tables.rbase', (db) => db.exec("UPDATE rutba_fields SET type = 'picture' WHERE name = 'Notes'")));
   assert.equal(bad.status, 1);
   assert.match(bad.stdout, /does not follow the Data Files format \(1 problem\):\n {2}- Field Customers\.Notes has the type "picture"/);
   assert.equal(run().status, 2);
+});
+
+/* ── files made elsewhere (A2.20, section 11) ─────────────────────────── */
+
+/** Another program's database: two related tables, a picture column, a WITHOUT ROWID table, and dates as that program writes them. */
+function otherProgram() {
+  const file = path.join(tmp('rbase-other-'), 'shop.sqlite');
+  const db = new DatabaseSync(file);
+  try {
+    db.exec(`CREATE TABLE customers (id INTEGER PRIMARY KEY, name VARCHAR(40) NOT NULL, joined DATE, vip BOOLEAN, notes TEXT, photo BLOB);
+      CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT, customer INTEGER REFERENCES customers(id), total DECIMAL(10,2), at DATETIME);
+      CREATE TABLE settings (k TEXT PRIMARY KEY, v TEXT) WITHOUT ROWID;
+      INSERT INTO customers VALUES (1, 'Ann', '2024-01-02', 1, 'Pays early', x'89504e47'), (2, 'Bo', '2024-02-03', 0, NULL, NULL);
+      INSERT INTO orders (customer, total, at) VALUES (1, 9.5, '2024-01-02 10:00:00'), (2, 3, '2024-01-03 11:00:00');
+      INSERT INTO settings VALUES ('theme', 'dark');`);
+  } finally {
+    db.close();
+  }
+  return file;
+}
+
+test('another program\'s database opens read only, its tables shown, and its file is left exactly as it was', () => {
+  const file = otherProgram();
+  const before = fs.readFileSync(file);
+  assert.deepEqual(Base.inspect(file), { kind: 'other', version: null, newer: null });
+  const b = Base.foreign(file);
+  try {
+    assert.deepEqual(b.tables().map((t) => [t.name, t.readOnly]), [['customers', true], ['orders', true]]);
+    assert.deepEqual(b.foreign.left, [{ table: 'settings', why: 'without-rowid' }]);
+    const types = (t) => Object.fromEntries(b.fields(t).map((f) => [f.name, f.type]));
+    assert.deepEqual(types('customers'), { id: 'integer', name: 'text', joined: 'date', vip: 'yesno', notes: 'longtext', photo: 'longtext' });
+    // A time written with a space is not a Data Files time: shown as the text it is.
+    assert.deepEqual(types('orders'), { id: 'autonumber', customer: 'integer', total: 'number', at: 'longtext' });
+    assert.ok(b.fields('customers').every((f) => f.readOnly));
+    assert.deepEqual(b.relationships().map((r) => `${r.from.table}.${r.from.field}>${r.to.table}.${r.to.field}`), ['orders.customer>customers.id']);
+    // Read as any database is read: records, a query across the relationship, SQL of one's own.
+    assert.equal(b.count('orders'), 2);
+    assert.deepEqual(b.runQuery({ design: { tables: ['orders', 'customers'], columns: [{ table: 'customers', field: 'name' }, { table: 'orders', field: 'total' }] } }).rows, [{ name: 'Ann', total: 9.5 }, { name: 'Bo', total: 3 }]);
+    assert.deepEqual(b.query('SELECT count(*) AS n FROM settings').rows, [{ n: 1 }]);
+    // Nothing written: records and design both refused, in words.
+    assert.throws(() => b.insert('orders', { total: 1 }), /made by another program and is open read only/);
+    assert.throws(() => b.createTable({ name: 'Notes' }), /its design is not changed here/);
+    assert.throws(() => b.saveQuery('Spend', { tables: ['orders'], columns: [{ table: 'orders', field: 'total' }] }), /its design is not changed here/);
+  } finally {
+    b.close();
+  }
+  assert.ok(Buffer.from(fs.readFileSync(file)).equals(before), 'the file is byte for byte as it was');
+  assert.deepEqual(fs.readdirSync(path.dirname(file)), ['shop.sqlite'], 'no -wal, -shm or journal beside it');
+  // Opened as one of ours, it is refused rather than given design tables.
+  assert.throws(() => Base.open(file), (err) => err.foreign === true && /made by another program/.test(err.message));
+  assert.ok(Buffer.from(fs.readFileSync(file)).equals(before));
+});
+
+test('with changes allowed, another program\'s records change in place and still nothing of ours goes into its file', () => {
+  const file = otherProgram();
+  const b = Base.foreign(file, { write: true });
+  try {
+    assert.ok(!b.tables()[0].readOnly);
+    assert.equal(b.fields('customers').find((f) => f.name === 'photo').readOnly, true, 'binary values stay read only');
+    b.update('customers', 2, { name: 'Bob' });
+    b.insert('orders', { customer: 2, total: 4.25 });
+    assert.throws(() => b.insert('orders', { customer: 99, total: 1 }), /no record|points at/i, 'its foreign keys are kept');
+    assert.throws(() => b.addField('customers', { name: 'Phone', type: 'text' }), /its design is not changed here/);
+  } finally {
+    b.close();
+  }
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    assert.equal(db.prepare('SELECT name FROM customers WHERE id = 2').get().name, 'Bob');
+    assert.equal(db.prepare('SELECT count(*) AS n FROM orders').get().n, 3);
+    assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'rutba%'").all(), []);
+    assert.equal(db.prepare('PRAGMA journal_mode').get().journal_mode, 'delete');
+  } finally {
+    db.close();
+  }
+});
+
+test('a Data Files copy of another program\'s database keeps its tables, types, numbers and relationship, and follows the format', () => {
+  const file = otherProgram();
+  const from = Base.foreign(file);
+  const copyFile = path.join(path.dirname(file), 'shop.rbase');
+  const to = Base.open(copyFile);
+  let made;
+  try {
+    made = copyForeign(from, to);
+    assert.deepEqual(made.tables.map((x) => [x.table, x.count, x.skipped]), [['customers', 2, 0], ['orders', 2, 0]]);
+    assert.deepEqual(made.left, ['customers.photo']);
+    assert.equal(made.relationships, 1);
+    assert.deepEqual(to.fields('customers').map((f) => [f.name, f.type]), [['id', 'autonumber'], ['name', 'text'], ['joined', 'date'], ['vip', 'yesno'], ['notes', 'longtext']]);
+    assert.deepEqual(to.rows('orders').map((r) => [r.id, r.customer, r.total]), [[1, 1, 9.5], [2, 2, 3]]);
+    // Now a database of ours: its design changes.
+    to.addField('customers', { name: 'Phone', type: 'text' });
+  } finally {
+    to.close();
+    from.close();
+  }
+  assert.deepEqual(checkRbase(copyFile).problems, []);
+});
+
+test('a database of a newer design version is refused in plain words and left unchanged; one of a version that is not a number too', () => {
+  for (const [version, says] of [[String(DESIGN_VERSION + 1), new RegExp(`made by a newer version of Rutba Office \\(design version ${DESIGN_VERSION + 1}; this one knows up to ${DESIGN_VERSION}\\)\\. Update Rutba Office to open it\\. Nothing in it was changed\\.`)], ['7b', /says its design version is "7b", which no version of Rutba Office writes/]]) {
+    const file = spoiled('plain-tables.rbase', (db) => db.prepare("UPDATE rutba_meta SET value = ? WHERE key = 'version'").run(version));
+    const before = fs.readFileSync(file);
+    assert.match(Base.inspect(file).newer, says);
+    assert.throws(() => Base.open(file), says);
+    assert.ok(Buffer.from(fs.readFileSync(file)).equals(before), `version ${version}: unchanged`);
+    assert.deepEqual(fs.readdirSync(path.dirname(file)), ['plain-tables.rbase']);
+  }
+  // The version this build writes, and older, open.
+  assert.equal(Base.inspect(path.join(SAMPLES_DIR, 'plain-tables.rbase')).newer, null);
+});
+
+test('a version 6 file is brought to 7: the copies\' tables and columns added, nothing that is there changed', () => {
+  const file = spoiled('plain-tables.rbase', (db) => {
+    db.exec("DROP TABLE rutba_sync; DROP TABLE rutba_clashes; ALTER TABLE rutba_linked DROP COLUMN mode; ALTER TABLE rutba_linked DROP COLUMN stamp; ALTER TABLE rutba_linked DROP COLUMN synced; UPDATE rutba_meta SET value = '6' WHERE key = 'version'");
+  });
+  const six = checkRbase(file);
+  assert.deepEqual(six.problems, [], 'a version 6 file without them follows the text');
+  assert.equal(six.version, 6);
+  const b = Base.open(file);
+  try {
+    assert.equal(b.meta('version'), String(DESIGN_VERSION));
+    assert.equal(b.count('Orders'), 5);
+  } finally {
+    b.close();
+  }
+  const r = checkRbase(file);
+  assert.deepEqual(r.problems, []);
+  assert.equal(r.version, 7);
+});
+
+test('what a newer version keeps that this one does not know is kept: rutba_fields columns, query keys, role rights, link settings', () => {
+  const file = spoiled('query-form-report.rbase', (db) => {
+    db.exec("ALTER TABLE rutba_fields ADD COLUMN format TEXT; UPDATE rutba_fields SET format = 'upper' WHERE tbl = 'Customers' AND name = 'Name'; UPDATE rutba_fields SET format = 'lower' WHERE tbl = 'Customers' AND name = 'Email'");
+    db.exec("UPDATE rutba_queries SET design = json_set(design, '$.layout', json('{\"grid\":\"wide\"}'), '$.columns[0].width', 140, '$.columns[0].as', 'Customer') WHERE name = 'Order Lines'");
+  });
+  const b = Base.open(file);
+  try {
+    // A field renamed, another added (in place), one made required (the table made again): the unknown column stays.
+    b.changeField('Customers', 'Name', { name: 'Full Name' });
+    b.addField('Customers', { name: 'Phone', type: 'text' });
+    b.changeField('Customers', 'Email', { required: true });
+    const format = (n) => b.db.prepare("SELECT format FROM rutba_fields WHERE tbl = 'Customers' AND name = ?").get(n)?.format ?? null;
+    assert.equal(format('Full Name'), 'upper');
+    assert.equal(format('Email'), 'lower');
+    assert.equal(format('Phone'), null);
+    // The query saved again as the designer saves it: its own keys and each column's kept.
+    const saved = b.queries().find((x) => x.name === 'Order Lines').design;
+    const held = saved.columns.map((c) => ({ ...c, exprText: c.expr ? (c.as ? `${c.as}: ${c.expr}` : c.expr) : null, criteria: c.criteria || [] }));
+    held[2].criteria = ['> 1'];
+    const again = designerDesign(saved.tables, held, false, saved);
+    assert.deepEqual(again.layout, { grid: 'wide' });
+    assert.equal(again.columns[0].width, 140);
+    assert.equal(again.columns[0].as, 'Customer', 'a field column\'s heading, which the designer does not set, is kept');
+    assert.equal(again.columns[3].as, 'Amount');
+    assert.equal(again.columns[3].expr, 'Round([Quantity] * [Unit Price], 2)');
+    assert.ok(!('exprText' in again.columns[0]), 'the designer\'s own state is not written');
+    b.saveQuery('Order Lines', again);
+    assert.deepEqual(b.queries().find((x) => x.name === 'Order Lines').design.layout, { grid: 'wide' });
+    // A role's rights and an engine link's settings saved again keep the keys this version does not name.
+    b.protect({ name: 'Owner', password: 'example-password' });
+    b.saveRole('Viewer', { tables: { default: 'read' } });
+    b.db.exec("UPDATE rutba_roles SET rights = json_set(rights, '$.expires', '2027-01-01', '$.tables.colour', 'blue') WHERE name = 'Viewer'");
+    b.saveRole('Viewer', { tables: { default: 'change' } });
+    const rights = JSON.parse(b.db.prepare("SELECT rights FROM rutba_roles WHERE name = 'Viewer'").get().rights);
+    assert.equal(rights.expires, '2027-01-01');
+    assert.equal(rights.tables.colour, 'blue');
+    assert.equal(rights.tables.default, 'change');
+    const link = b.saveLink({ name: 'Head office', engine: 'postgres', settings: { host: 'a.example.com', port: 5432, database: 'shop', user: 'reader', ssl: true } });
+    b.db.prepare("UPDATE rutba_links SET settings = json_set(settings, '$.timeout', 30, '$.password', 'not-kept') WHERE id = ?").run(link);
+    b.saveLink({ id: link, name: 'Head office', engine: 'postgres', settings: { host: 'b.example.com', port: 5432, database: 'shop', user: 'reader', ssl: true } });
+    const settings = b.links().find((l) => l.id === link).settings;
+    assert.equal(settings.timeout, 30);
+    assert.equal(settings.host, 'b.example.com');
+    assert.ok(!('password' in settings), 'a secret is never carried into the file');
+  } finally {
+    b.close();
+  }
+});
+
+test('unknownKeys answers what a list of known keys leaves out', () => {
+  assert.deepEqual(unknownKeys({ a: 1, b: 2, c: 3 }, ['a']), { b: 2, c: 3 });
+  assert.deepEqual(unknownKeys(null, ['a']), {});
+  assert.deepEqual(unknownKeys([1, 2], []), {});
 });
 
 /* ── the guard: the design tables and the text move together ─────────── */

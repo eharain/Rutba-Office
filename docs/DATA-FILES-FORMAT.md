@@ -1,9 +1,9 @@
 # The Data Files format (.rbase)
 
-**Status.** Specification version 6. The number is the design version a
+**Status.** Specification version 7. The number is the design version a
 file states in `rutba_meta` (key `version`), and this text describes design
-version 6 exactly as Rutba Office 2.18.0 writes it. It was first published
-on 2026-10-26.
+version 7 exactly as Rutba Office 2.19.0 writes it. It was first published
+on 2026-10-26, as version 6; section 7 says what version 7 changed.
 
 **Licence.** This text is published under the Creative Commons Attribution
 4.0 International licence (CC BY 4.0,
@@ -35,7 +35,7 @@ specification, *should* is advice, *may* is a permission.
 8. [Protected databases](#8-protected-databases)
 9. [Linked tables, synced copies and other sources](#9-linked-tables-synced-copies-and-other-sources)
 10. [Rules for readers and writers](#10-rules-for-readers-and-writers)
-11. [Where Rutba Office 2.18.0 departs from this text](#11-where-rutba-office-2180-departs-from-this-text)
+11. [Where Rutba Office departs from this text](#11-where-rutba-office-departs-from-this-text)
 12. [Sample files and the checker](#12-sample-files-and-the-checker)
 
 ## 1. The file
@@ -50,7 +50,8 @@ there is no wrapper, no second file and no compression.
   database (its first 16 bytes are `SQLite format 3` followed by a zero
   byte) that has the tables `rutba_meta`, `rutba_tables` and `rutba_fields`,
   and `rutba_meta` has a row whose `key` is `version`. The extension is a
-  hint, not proof.
+  hint, not proof. An SQLite database with tables of its own and no
+  `rutba_meta` is another program's (section 10, rule 1).
 - **application_id and user_version.** Rutba Office sets neither: both are
   0 in every file it writes. A reader must not rely on them, and a writer
   should leave them at 0, so that the design version is stated in one place
@@ -72,7 +73,7 @@ there is no wrapper, no second file and no compression.
   ... ON DELETE`, `GLOB` and the built-in functions `typeof`, `length` and
   `round`. Any SQLite 3.7.0 or later reads it (3.7.0 is the first with WAL).
   A writer that changes the design the way Rutba Office does needs SQLite
-  3.25.0 or later (`ALTER TABLE ... RENAME COLUMN`). Rutba Office 2.18.0
+  3.25.0 or later (`ALTER TABLE ... RENAME COLUMN`). Rutba Office 2.19.0
   writes with the SQLite built into its runtime (3.50 at the time of
   writing).
 - **Foreign keys.** Relationships are real SQLite foreign keys (section 5).
@@ -158,7 +159,7 @@ What the types mean for a reader and a writer:
 - **Yes/No.** Stored as the integer 1 or 0, never empty.
 - **Empty values.** An empty value is SQL `NULL`. Rutba Office stores an
   empty text as `NULL`, not as `''`; a reader should treat both as empty.
-- **Pictures and attachments.** Design version 6 has no field type for a
+- **Pictures and attachments.** Design version 7 has no field type for a
   picture, a file or an attachment, and no table holds files. A reader must
   not expect one.
 - **Lookups.** There is no lookup type. A field that points at another
@@ -174,7 +175,7 @@ The design is kept in tables whose names start with `rutba_`. Each is made
 with `CREATE TABLE IF NOT EXISTS` exactly as shown under its heading below.
 The "since" column of this list is the design version that added the table
 (section 7). A file of design version V must have every table of its list
-whose "since" is V or less, except those marked as made when first needed.
+whose "since" is V or less.
 
 | Table | Since | Holds |
 |---|---|---|
@@ -192,8 +193,8 @@ whose "since" is V or less, except those marked as made when first needed.
 | `rutba_trail` | 5 | Who added, changed and deleted which records. |
 | `rutba_links` | 6 | Database engines and other sources the database is linked to. |
 | `rutba_linked` | 6 | Tables linked to an engine or read from a source. |
-| `rutba_sync` | 6 | For each record of a synced copy, its state against the engine. Made when first needed. |
-| `rutba_clashes` | 6 | Changes made here that the engine's version replaced. Made when first needed. |
+| `rutba_sync` | 7 | For each record of a synced copy, its state against the engine. |
+| `rutba_clashes` | 7 | Changes made here that the engine's version replaced. |
 
 Every time below is an ISO 8601 time in UTC with milliseconds, as
 JavaScript's `toISOString()` writes it: `2026-10-26T09:39:51.157Z`.
@@ -214,7 +215,7 @@ CREATE TABLE IF NOT EXISTS rutba_meta (key TEXT PRIMARY KEY, value TEXT);
 
 | Key | Value |
 |---|---|
-| `version` | The design version, a whole number written in decimal: `6`. Required. |
+| `version` | The design version, a whole number written in decimal: `7`. Required. |
 | `protected` | `1` while the database is protected (section 8), `0` after the protection was taken away. Absent means not protected. |
 | `shown` | JSON object: for a table, the field, or list of fields, that names its records in lists, reports and print templates. `{"Customers":["Name"],"People":["First Name","Last Name"]}`. A table not in it is named by its data (below). |
 | `pinned` | JSON array of the items pinned to the top of the side panel: `[{"kind":"table","name":"Orders"}]`, `kind` one of `table`, `query`, `form`, `report`, `document`. |
@@ -376,7 +377,7 @@ CREATE TABLE IF NOT EXISTS rutba_people (id INTEGER PRIMARY KEY AUTOINCREMENT, n
 | `name` | The name they sign in with, unique without regard to case. |
 | `role` | The `name` of their role in `rutba_roles`. |
 | `hash` | Their password, kept as section 8.2 says. Never the password itself. |
-| `account` | Kept for a later version. Rutba Office 2.18.0 never writes it, so it is `NULL`. |
+| `account` | Kept for a later version. Rutba Office 2.19.0 never writes it, so it is `NULL`. |
 | `created` | When they were added (UTC). |
 
 ### rutba_trail
@@ -420,7 +421,7 @@ CREATE TABLE IF NOT EXISTS rutba_links (id TEXT PRIMARY KEY, name TEXT NOT NULL 
 
 ```sql
 CREATE TABLE IF NOT EXISTS rutba_linked (tbl TEXT PRIMARY KEY COLLATE NOCASE, link TEXT NOT NULL, remote TEXT NOT NULL, key TEXT, caption TEXT, position INTEGER);
--- added by Rutba Office 2.18.0 the first time a table is kept as a copy or read from a source:
+-- part of design version 7 (Rutba Office 2.18.0 added them, still as version 6, the first time a table was kept as a copy):
 ALTER TABLE rutba_linked ADD COLUMN mode TEXT NOT NULL DEFAULT 'live';
 ALTER TABLE rutba_linked ADD COLUMN stamp TEXT;
 ALTER TABLE rutba_linked ADD COLUMN synced TEXT;
@@ -434,7 +435,7 @@ ALTER TABLE rutba_linked ADD COLUMN synced TEXT;
 | `key` | The engine's primary key field, or `NULL` when it has none: then the table can be read, not changed. |
 | `caption` | Words to show instead of the name, or `NULL`. |
 | `position` | Its place in the list. |
-| `mode` | `live`: the records stay in the engine and are read each time. `copy`: the records are kept in this file and synced. When the column is absent, every linked table is `live`. A source's table is always `copy`. |
+| `mode` | `live`: the records stay in the engine and are read each time. `copy`: the records are kept in this file and synced. When the column is absent (a version 6 file), every linked table is `live`. A source's table is always `copy`. |
 | `stamp` | For a copy, a field the engine changes with every change to a record (an updated-at time), so only changed records are read; `NULL` to read the whole table. |
 | `synced` | For a copy, when it last caught up with its engine or source (UTC), or `NULL`. |
 
@@ -480,9 +481,10 @@ A clash stays until a person dismisses it or puts their version back.
 ## 4. The layouts kept as JSON
 
 Queries, forms, reports, print templates and roles are kept as JSON text:
-UTF-8, an object at the top. The keys below are those Rutba Office 2.18.0
+UTF-8, an object at the top. The keys below are those Rutba Office 2.19.0
 writes and reads. A key marked "optional" may be absent. Any other key is
-allowed and must be kept (section 10).
+allowed and must be kept (section 10): a program that changes a layout
+changes the keys it means to change and leaves the others as they are.
 
 ### 4.1 A query's design (rutba_queries.design)
 
@@ -736,16 +738,20 @@ step about a person names them and their role, never their password.
 | 3 | Rutba Office 2.12.0 | Reports: `rutba_reports`. |
 | 4 | Rutba Office 2.13.0 | Print templates: `rutba_documents`. |
 | 5 | Rutba Office 2.17.0 | People, roles and protection: `rutba_roles`, `rutba_people`, `rutba_trail` and its index, the `protected` key. |
-| 6 | Rutba Office 2.17.0 | Tables linked live to a database engine: `rutba_links`, `rutba_linked`. Rutba Office 2.18.0 added, still as version 6: tables kept as synced copies and tables read from other sources (`rutba_sync`, `rutba_clashes`, the `mode`, `stamp` and `synced` columns of `rutba_linked`, and the `file`, `rbase` and `json` kinds of link). These are made only when first needed, so a version 6 file without them is complete. |
+| 6 | Rutba Office 2.17.0 | Tables linked live to a database engine: `rutba_links`, `rutba_linked`. Rutba Office 2.18.0 added, still as version 6, what version 7 marks (below), made only when first needed; so a version 6 file may hold any of it or none. |
+| 7 | Rutba Office 2.19.0 | Tables kept as synced copies and tables read from other sources: `rutba_sync`, `rutba_clashes`, the `mode`, `stamp` and `synced` columns of `rutba_linked`, and the `file`, `rbase` and `json` kinds of link. In a version 7 file the two tables and the three columns are always there, empty when nothing is kept as a copy. A reader that knows only version 6 and meets a version 7 file must not change it (section 10, rule 2), so it cannot write to a copy as if it were read live. |
 
 Every version keeps what the versions before it hold, unchanged. Nothing has
 been renamed or removed, and no record is ever changed by an upgrade.
 
 How an older file is upgraded: when Rutba Office opens a file to change it,
 it runs every `CREATE TABLE IF NOT EXISTS` of the current version, which
-makes the design tables the file lacks (empty), and then, when the file's
-`version` is lower, writes the current version (6). That is the whole
-upgrade. A writer of another program must do the same: add the missing
+makes the design tables the file lacks (empty), adds the columns of section
+3 that `rutba_linked` lacks (`ALTER TABLE rutba_linked ADD COLUMN`, with the
+definitions shown there), and then, when the file's `version` is lower,
+writes the current version (7). That is the whole upgrade: from 6 to 7 it
+adds `rutba_sync`, `rutba_clashes` and the three columns where a file does
+not have them yet, and changes nothing that is there. A writer of another program must do the same: add the missing
 tables and columns, then raise `version`; and it must never lower
 `version`. A reader that only reads must not upgrade the file: it treats a
 missing design table as empty.
@@ -777,7 +783,7 @@ scrypt$<N>$<r>$<p>$<salt>$<key>
 six parts joined by `$`:
 
 - `scrypt` names the function: scrypt (RFC 7914).
-- `N`, `r`, `p` are its parameters in decimal. Rutba Office 2.18.0 uses
+- `N`, `r`, `p` are its parameters in decimal. Rutba Office 2.19.0 uses
   N = 16384, r = 8, p = 1.
 - `salt` is 16 random bytes from a cryptographically secure source, a new
   salt for every password set, in standard Base64 with padding (RFC 4648,
@@ -900,6 +906,12 @@ array, with no spaces.
 A program that reads or writes Data Files databases:
 
 1. **Recognises a file by its content** (section 1), not by its extension.
+   An SQLite database that is not a Data Files database is another
+   program's: a program should open it read only, and must not add design
+   tables to it, change its journal mode or write to it unless the person
+   asks for that. Rutba Office shows such a file's tables as they are, with
+   a design worked out from its schema and kept in memory only, and makes a
+   Data Files copy of it when asked (section 11).
 2. **Refuses a newer design version.** When `version` is greater than the
    highest it knows, it must not change the file in any way, and should not
    open it except to read, saying that the file was made by a newer program.
@@ -909,7 +921,8 @@ A program that reads or writes Data Files databases:
    `rutba_meta` it does not know and a key of a JSON layout it does not know
    are to be left alone: not shown as a person's data, and kept, unchanged,
    when it saves. It changes a design row by updating the columns it means
-   to change, and a layout by changing the keys it means to change.
+   to change (never by deleting the row and writing it again), and a layout
+   by changing the keys it means to change.
 4. **Does not invent.** It writes only the field types, block types, link
    kinds and values this text lists for the version it writes.
 5. **Keeps the file's promises.** It runs `PRAGMA foreign_keys = ON` before
@@ -935,32 +948,53 @@ A program that reads or writes Data Files databases:
    - `origin` does not prove where a database came from.
 7. **Keeps no secret in the file** (section 9).
 
-## 11. Where Rutba Office 2.18.0 departs from this text
+## 11. Where Rutba Office departs from this text
 
-Rutba Office 2.18.0 writes files that follow this text. As a reader and
-writer of files made elsewhere, it departs from rules 1 to 3 of section 10,
-and section 7 does not mark everything it added, in these ways:
+Rutba Office 2.19.0 writes files that follow this text, and follows rules 1
+to 3 of section 10 as a reader and writer of files made elsewhere:
 
-- It opens any SQLite database, and on opening it adds the design tables
-  (empty) to that file and switches it to WAL mode. The file's existing
-  tables, having no rows in `rutba_tables`, are not shown; they are left as
-  they are.
-- It does not refuse a file whose design version is newer than 6: it opens
-  it and keeps the newer number.
-- When it changes a table's design it writes every row of `rutba_fields` for
-  that table again, so a column of `rutba_fields` added by a newer version
-  would lose its values for that table. Its query designer writes each
-  column of a designed query again from the keys of section 4.1, so another
-  key of a query's column is not kept when the query is saved from the
-  designer.
-- The features 2.18.0 added to design version 6 (section 7) are not
-  marked by a new version number. Rutba Office 2.17 reads a table kept as a
-  copy as if it were live, and does not know the `file`, `rbase` and `json`
-  kinds of link.
+- **Another program's SQLite database** opens read only. Its rowid tables
+  are shown with their records; each column is given the field type its
+  declared type names (by SQLite's rules of affinity, with `DATE`,
+  `DATETIME`, `TIMESTAMP` and `BOOLEAN` read as dates, times and Yes/No)
+  where every value agrees, and long text where they do not; a column that
+  holds binary values is shown read only; a foreign key of one column
+  between two tables shown is a relationship. A table `WITHOUT ROWID`, a
+  virtual table, and a table whose name a person could not give are not
+  shown, and the window names them. This design is kept in `TEMP` tables
+  on Rutba Office's own connection: nothing is written to the file and its
+  journal mode is left as it is. The person may then allow changes, and
+  each record added, changed or deleted goes into the file as it is made,
+  the design still not changed; or make a Data Files copy, a new `.rbase`
+  file with the same tables, fields and records (an `INTEGER PRIMARY KEY`
+  becomes the AutoNumber with its numbers, a foreign key a relationship
+  where the field it points at is the AutoNumber or unique, and a column of
+  binary values is left out, said so), the file it came from left as it was.
+- **A newer design version is refused.** A file whose `version` is greater
+  than 7, or is not a whole number, is not opened, and nothing in it is
+  changed. The message says which version made it and that a newer Rutba
+  Office opens it. Mail merge, which only reads, still reads such a file.
+- **What is not known is kept.** A design change updates the rows of
+  `rutba_fields` in place by name, so a column a newer version added keeps
+  its values. Saving a query from the designer keeps every key of the query
+  and of each column that the designer does not set. A role's rights and an
+  engine link's settings keep the keys this text does not name.
+
+Rutba Office 2.18.0 and earlier departed from rules 1 to 3: they opened any
+SQLite database and added the design tables (empty) to it and switched it to
+WAL mode; opened a file of a newer design version and kept its number; wrote
+every row of `rutba_fields` for a table again on each design change, losing
+the values of columns they did not know; and the query designer wrote each
+column of a designed query again from the keys of section 4.1. Rutba Office
+2.18.0 also wrote the features of version 7 as version 6 (section 7). Rutba
+Office 2.17 reads a version 6 file's copies as if they were live, and does
+not know the `file`, `rbase` and `json` kinds of link; neither it nor 2.18.0
+refuses a version 7 file, so a version 7 file should not be opened with
+them.
 
 ## 12. Sample files and the checker
 
-`docs/data-files-format/samples/` holds three small databases made by
+`docs/data-files-format/samples/` holds four small databases made by
 Rutba Office's own code (`tools/make-rbase-samples.mjs`, which makes them
 again):
 
@@ -968,6 +1002,7 @@ again):
 |---|---|
 | `plain-tables.rbase` | Two related tables with records: every field type, a required and a unique field, defaults, a relationship. |
 | `query-form-report.rbase` | The same tables with a saved query (criteria, a calculation, totals), a form, a report grouped with totals, and a print template. |
+| `copies-and-sources.rbase` | The same tables beside linked ones (section 9): a CSV file's rows kept as a copy, an engine's table kept as a copy with a change made here waiting to be sent, and a table read live, of which nothing but its design is in the file. The paths and hosts are examples. |
 | `protected.rbase` | A protected database. The example sign-in is the name `Owner` with the password `example-password`, and the person `Clerk` (role `Staff`) has the password `example-clerk`. These passwords are examples, published so the file can be opened; never use them for anything else. |
 
 The samples are in rollback journal mode (section 1). Their times and salts

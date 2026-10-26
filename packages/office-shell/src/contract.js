@@ -430,7 +430,8 @@ export const METHODS = {
     'documentData', // ({ id, name? | layout?, keys?, limit? }) -> { layout, letterhead, documents }   one a record
     'lookup',       // ({ id, table, field, show }) -> [{ value, text }]   a lookup list's choices
     'lookupPage',   // ({ id, table, field, search?, values?, limit? }) -> { items: [{ value, text }], more }   a long list a page at a time, searched, or given records' words
-    'saveAs',       // ({ id, file }) -> summary   a copy at file, then the one open
+    'saveAs',       // ({ id, file }) -> summary   a copy at file, then the one open; another program's database made a Data Files copy (summary.copied)
+    'allowChanges', // ({ id }) -> summary   another program's database opened so its records can be changed in place (A2.20)
   ],
   // Talk: the one connection to the introducer, the messages kept here, the relays (apps/desktop/main/talk.js).
   talk: [

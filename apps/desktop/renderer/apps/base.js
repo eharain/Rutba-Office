@@ -643,8 +643,31 @@ export default function Databases({ app, shell, boot }) {
     if (!db) return;
     const file = await shell.dialog.save({ title: t('Save As'), defaultPath: `${db.name}.rbase`, filters: [{ name: t('Rutba Database (.rbase)'), extensions: ['rbase'] }] });
     if (!file) return;
-    try { show(await shell.base.saveAs({ id: db.id, file })); } catch (e) { toast(e.message, { tone: 'bad', ms: 7000 }); }
+    try {
+      const s = await shell.base.saveAs({ id: db.id, file: /\.rbase$/i.test(file) ? file : `${file}.rbase` });
+      show(s);
+      // Another program's database made a Data Files copy (A2.20): what could not come with it, said.
+      if (s.copied) {
+        const said = [t('This is a Data Files copy. The file it was made from is as it was.')];
+        if (s.copied.left.length) said.push(t('Left out, as no field holds pictures or other binary values: {fields}.', { fields: s.copied.left.join(', ') }));
+        if (s.copied.skipped) said.push(tn(s.copied.skipped, '{count} record did not fit its table and was left out.', '{count} records did not fit their tables and were left out.'));
+        toast(said.join(' '), { tone: 'good', ms: said.length > 1 ? 12000 : 7000 });
+        shell.app.addRecent({ path: s.file, app: 'base' }).catch(() => {});
+      }
+    } catch (e) {
+      toast(e.message, { tone: 'bad', ms: 7000 });
+    }
   }, [shell, db, show, toast]);
+  // Another program's database: Allow changes asked first (A2.20).
+  const [allowing, setAllowing] = useState(false);
+  const allowChanges = async () => {
+    try {
+      show(await shell.base.allowChanges({ id: db.id }));
+      setAllowing(false);
+    } catch (e) {
+      toast(e.message, { tone: 'bad', ms: 7000 });
+    }
+  };
 
   const appMenuOpen = useRef(null);
   appMenuOpen.current = openDialog;
@@ -741,6 +764,21 @@ export default function Databases({ app, shell, boot }) {
       <span>{tn(update.tables.length + update.fields.length + update.added.length + update.replaced.length + update.beside.length, 'A newer design of this database is ready: {count} change to its tables, queries, forms, reports or print templates. Your records stay as they are, and anything you changed keeps your version.', 'A newer design of this database is ready: {count} changes to its tables, queries, forms, reports or print templates. Your records stay as they are, and anything you changed keeps your version.')}</span>
       <Button primary label={t('Update the design')} className="bs-update-now" disabled={updating} onClick={bringUpdate} />
       <Button ghost label={t('Not now')} className="bs-update-later" onClick={() => setUpdate(null)} />
+    </div>
+  ) : null;
+
+  // Another program's database (A2.20): read only as it opens, nothing of ours put into it; its records changed only when the person allows it.
+  const foreignBanner = db?.foreign ? (
+    <div className="bs-update bs-foreign" role="status" data-foreign={db.foreign.write ? 'write' : 'read'}>
+      <Icon name={db.foreign.write ? 'pen' : 'lock'} size={16} />
+      <span>
+        {db.foreign.write
+          ? t('This database was made by another program. Changes to its records go straight into its file, and nothing else in it is changed. Make a Data Files copy to change its design.')
+          : t('This database was made by another program. It is open read only, and nothing is added to its file. Allow changes to change its records, or make a Data Files copy to change its design.')}
+        {db.foreign.left?.length ? ` ${t('Not shown, as Data Files cannot show them: {tables}.', { tables: db.foreign.left.join(', ') })}` : ''}
+      </span>
+      {db.foreign.write ? null : <Button label={t('Allow changes')} className="bs-foreign-allow" onClick={() => setAllowing(true)} />}
+      <Button primary label={t('Make a Data Files copy')} className="bs-foreign-copy" onClick={saveAs} />
     </div>
   ) : null;
 
@@ -917,7 +955,7 @@ export default function Databases({ app, shell, boot }) {
           <div className="bs-side-foot">
             {design ? <Button icon="import" label={t('Import')} className="bs-import" onClick={importDialog} /> : null}
             {design ? <button type="button" className={`bs-table${view === 'relations' ? ' on' : ''}`} data-view="relations" onClick={() => setView('relations')}><Icon name="link" size={14} /><span>{t('Relationships')}</span></button> : null}
-            {design ? <button type="button" className={`bs-table${view === 'sql' ? ' on' : ''}`} data-view="sql" onClick={() => setView('sql')}><Icon name="formula" size={14} /><span>{t('SQL')}</span></button> : null}
+            {design || db.foreign ? <button type="button" className={`bs-table${view === 'sql' ? ' on' : ''}`} data-view="sql" onClick={() => setView('sql')}><Icon name="formula" size={14} /><span>{t('SQL')}</span></button> : null}
             {design ? <button type="button" className="bs-table bs-link-engine" onClick={() => setLinking(true)}><Icon name="link" size={14} /><span>{t('Link to a database engine')}</span></button> : null}
             {design ? <button type="button" className="bs-table bs-link-source" onClick={() => setSourcing(true)}><Icon name="import" size={14} /><span>{t('Link to a file or web address')}</span></button> : null}
             {!access.protected && design ? <button type="button" className="bs-table bs-protect" onClick={() => setProtecting(true)}><Icon name="shield" size={14} /><span>{t('Protect this database')}</span></button> : null}
@@ -936,6 +974,7 @@ export default function Databases({ app, shell, boot }) {
         </nav>
         <main className="bs-main">
           {updateBanner}
+          {foreignBanner}
           <SeeingBanner shell={shell} db={db} onChanged={(s) => { show(s); setView('data'); }} />
           {(view === 'data' || view === 'design') && table ? (
             <>
@@ -1052,6 +1091,12 @@ export default function Databases({ app, shell, boot }) {
       {sourceKeys ? <SourceKeysDialog shell={shell} db={db} table={sourceKeys} onDone={(s) => { show(s); setSourceKeys(null); }} onClose={() => setSourceKeys(null)} toast={toast} /> : null}
       {sourceWho ? <SourceSignInDialog shell={shell} db={db} table={sourceWho} onDone={(s) => { show(s); setSourceWho(null); }} onClose={() => setSourceWho(null)} toast={toast} /> : null}
       {linkPassword ? <LinkPasswordDialog shell={shell} db={db} link={linkPassword} onDone={(s) => { show(s); setLinkPassword(null); }} onClose={() => setLinkPassword(null)} toast={toast} /> : null}
+      {allowing ? (
+        <Dialog title={t('Allow changes to this database?')} onClose={() => setAllowing(false)} actions={<><Button label={t('Cancel')} onClick={() => setAllowing(false)} /><Button primary label={t('Allow changes')} className="bs-foreign-allow-go" onClick={allowChanges} /></>}>
+          <p className="bs-hint">{t('The program that made this database keeps its records in its own way. A record you add, change or delete here goes straight into its file, where that program may not expect it. Close that program first, and keep a copy of the file if you are not sure.')}</p>
+          <p className="bs-hint">{t('Rutba Office still adds nothing of its own to the file, and its design is not changed here.')}</p>
+        </Dialog>
+      ) : null}
       {changingPassword ? <PasswordDialog shell={shell} db={db} onClose={() => setChangingPassword(false)} toast={toast} /> : null}
       {naming !== null ? (
         <Dialog title={t('New Table')} onClose={() => setNaming(null)} actions={<><Button label={t('Cancel')} onClick={() => setNaming(null)} /><Button primary label={t('Make')} className="bs-make-table" disabled={!String(naming).trim()} onClick={makeTable} /></>}>

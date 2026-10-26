@@ -181,4 +181,84 @@ export function importSheets(base, model) {
   return made;
 }
 
+/**
+ * Another program's database (A2.20, `from` opened with Base.foreign) made
+ * into tables of `base`, a Data Files database: each of its tables with the
+ * fields Data Files showed it with (their types, sizes, required and
+ * unique), its INTEGER PRIMARY KEY kept as the AutoNumber with its numbers,
+ * and its foreign keys made relationships where the field they point at is
+ * the AutoNumber or unique. A field holding pictures or other binary values
+ * has nothing to go into and is left out. Answers { tables, left,
+ * relationships }: each table made { table, from, count, skipped }, the
+ * fields left out ("Table.Field"), and how many relationships were made.
+ */
+export function copyForeign(from, base) {
+  const made = [];
+  const left = [];
+  const names = new Map();
+  // A name of the other program's that a person could not give (a quotation mark, too long) made one they could.
+  const fit = (name, taken, fallback) => {
+    const b = String(name).replace(/[\u0000-\u001f]+/g, ' ').trim().replace(/"/g, "'").replace(/^(rutba_|sqlite_)/i, '').slice(0, 60) || fallback;
+    let n = b;
+    for (let i = 2; taken.has(n.toLowerCase()); i++) n = `${b.slice(0, 56)} ${i}`;
+    taken.add(n.toLowerCase());
+    return n;
+  };
+  const tableNames = new Set();
+  for (const t of from.tables()) {
+    const all = from.fields(t.name);
+    const binary = new Set(all.filter((f) => from.foreign?.fixed?.has(`${t.name}\u0000${f.name}`)).map((f) => f.name));
+    for (const b of binary) left.push(`${t.name}.${b}`);
+    const keep = all.filter((f) => !binary.has(f.name));
+    if (!keep.length) continue;
+    const key = from.foreign?.keys?.get(t.name) || null;
+    const taken = new Set();
+    const fieldNames = new Map(keep.map((f, i) => [f.name, fit(f.name, taken, `Field ${i + 1}`)]));
+    const fields = keep.map((f) => {
+      const { readOnly, ...plain } = f;
+      return { ...plain, name: fieldNames.get(f.name), type: f.name === key ? 'autonumber' : f.type, ...(f.name === key ? { required: false, unique: false } : {}) };
+    });
+    // One AutoNumber at most: the key's, or one the table is given.
+    const numbered = fields.filter((f) => f.type === 'autonumber');
+    for (const f of numbered.slice(1)) f.type = 'integer';
+    const table = base.createTable({ name: fit(t.name, tableNames, 'Table'), fields });
+    let count = 0;
+    let skipped = 0;
+    base.db.exec('BEGIN');
+    try {
+      for (let offset = 0; ; offset += 5000) {
+        const page = from.rows(t.name, { offset, limit: 5000 });
+        for (const r of page) {
+          try {
+            base.insert(table, Object.fromEntries(keep.map((f) => [fieldNames.get(f.name), r[f.name] ?? null])));
+            count++;
+          } catch {
+            skipped++;
+          }
+        }
+        if (page.length < 5000) break;
+      }
+      base.db.exec('COMMIT');
+    } catch (err) {
+      base.db.exec('ROLLBACK');
+      throw err;
+    }
+    names.set(t.name, { table, fields: fieldNames });
+    made.push({ table, from: t.name, count, skipped });
+  }
+  let relationships = 0;
+  for (const rel of from.relationships()) {
+    const a = names.get(rel.from.table);
+    const b = names.get(rel.to.table);
+    const fromField = a?.fields.get(rel.from.field);
+    const toField = b?.fields.get(rel.to.field);
+    if (!fromField || !toField) continue;
+    try {
+      base.addRelationship({ from: { table: a.table, field: fromField }, to: { table: b.table, field: toField }, cascadeUpdate: rel.cascadeUpdate, cascadeDelete: rel.cascadeDelete });
+      relationships++;
+    } catch { /* the field it points at is neither the AutoNumber nor unique here, or records point at nothing: the tables are kept without it */ }
+  }
+  return { tables: made, left, relationships };
+}
+
 export { Base, fromWritten };

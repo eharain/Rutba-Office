@@ -12,7 +12,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { Base, importRows, importSheets, buildTemplate, buildSample, originOf, planUpgrade, applyUpgrade, toStored } from '@rutba/database';
+import { Base, importRows, importSheets, copyForeign, buildTemplate, buildSample, originOf, planUpgrade, applyUpgrade, toStored } from '@rutba/database';
 import { ENGINES, connectEngine as defaultConnect } from './engines/index.js';
 import { SOURCE_KINDS } from '@rutba/database';
 import { createSync, unreachable, sourceSecret, cleanSourceSettings } from './base-sync.js';
@@ -85,6 +85,8 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
       origin: (() => { const o = originOf(base); return o ? { kind: o.kind, id: o.id, set: o.set, page: pageOf(o.id) } : null; })(),
       // Who is using it (D-2026-10-22-11): protected or not, who is signed in, and what their role narrows.
       access: accessOf(base),
+      // Another program's database (A2.20): whether its records may be changed, and the tables it has that cannot be shown.
+      foreign: base.foreign ? { write: base.foreign.write, left: base.foreign.left.map((x) => x.table) } : null,
     };
   };
   /** Whether this computer allows the database to read or connect to `link` (A2.18). */
@@ -224,8 +226,9 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
   // Each window holds its own connection to the file, let go when the window
   // closes: two windows on one database are two readers and writers of it,
   // as SQLite allows, and one closing leaves the other's open.
-  const hold = (file, win) => {
-    const base = Base.open(file);
+  // Another program's database (A2.20) is held as it is, read only unless `foreign.write`.
+  const hold = (file, win, { foreign = null } = {}) => {
+    const base = foreign ? Base.foreign(file, { write: Boolean(foreign.write) }) : Base.open(file);
     const id = String(next++);
     open.set(id, { base, file, engines: new Map(), state: new Map() });
     win?.once?.('closed', () => letGo(id));
@@ -292,13 +295,19 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
     /** A new database at `file` made from a sample: its design, and its invented records unless `withData` is false. */
     createFromSample: ({ file, sample, withData = true }, win) => made(file, win, (base) => buildSample(base, sample, { withData: withData !== false })),
 
-    /** Open a database file: ours, or any SQLite database. */
+    /**
+     * Open a database file: ours, or another program's SQLite database, which
+     * opens read only and is left as it is (A2.20). One made by a newer Rutba
+     * Office is refused before anything in it is changed.
+     */
     open: async ({ file }, win) => {
       const head = Buffer.alloc(16);
       const fd = fs.openSync(file, 'r');
       try { fs.readSync(fd, head, 0, 16, 0); } finally { fs.closeSync(fd); }
       if (!isSqlite(head)) throw new Error(`${path.basename(file)} is not a database this app opens. Import it into a database instead.`);
-      const id = hold(file, win);
+      const kind = Base.inspect(file);
+      if (kind.newer) throw new Error(kind.newer);
+      const id = hold(file, win, { foreign: kind.kind === 'other' ? { write: false } : null });
       await readAllLinked(get(id), { copiesFor: 2500 });
       return summary(id);
     },
@@ -329,6 +338,21 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
     },
 
     close: ({ id }) => ({ closed: letGo(id) }),
+
+    /**
+     * Another program's database opened again so its records can be changed
+     * in place, as the person chose (A2.20): still nothing of ours put into
+     * the file, and its design still not changed here.
+     */
+    allowChanges: ({ id }, win) => {
+      const o = get(id);
+      if (!o.base.foreign) throw new Error('This database can be changed already.');
+      if (o.base.foreign.write) return summary(id);
+      const next = Base.foreign(o.file, { write: true });
+      try { o.base.close(); } catch { /* already closed */ }
+      o.base = next;
+      return summary(id);
+    },
 
     summary: ({ id }) => summary(id),
     fields: ({ id, table }) => {
@@ -694,8 +718,29 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
     saveAs: ({ id, file }, win) => {
       const o = get(id);
       whole(o.base);
-      if (path.resolve(file).toLowerCase() === path.resolve(o.file).toLowerCase()) return summary(id);
+      if (path.resolve(file).toLowerCase() === path.resolve(o.file).toLowerCase()) {
+        if (o.base.foreign) throw new Error('The Data Files copy needs a file of its own. Choose another name or folder.');
+        return summary(id);
+      }
       for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
+      // Another program's database (A2.20): its tables made into a new Data Files database, the file it came from left as it is.
+      if (o.base.foreign) {
+        const copy = Base.open(file);
+        let made;
+        try {
+          made = copyForeign(o.base, copy);
+        } catch (err) {
+          copy.close();
+          for (const s of ['', '-wal', '-shm']) fs.rmSync(file + s, { force: true });
+          throw err;
+        } finally {
+          try { copy.close(); } catch { /* closed above */ }
+        }
+        letGo(id);
+        const nid = hold(file, win);
+        trust.reset(file);
+        return { ...summary(nid), copied: { left: made.left, skipped: made.tables.reduce((n, x) => n + x.skipped, 0), relationships: made.relationships } };
+      }
       o.base.db.exec(`VACUUM INTO '${String(file).replace(/'/g, "''")}'`);
       // The person's own copy reads what the database read.
       trust.carry(o.file, file);

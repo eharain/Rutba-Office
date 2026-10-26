@@ -17,13 +17,14 @@ const levelName = () => ({
   delete: t('All, deleting too'),
 });
 
-/** Whether the person may change the design: nothing narrows what they see. */
-export const canDesign = (db) => !db?.access?.rights;
+/** Whether the person may change the design: nothing narrows what they see, and the database is not another program's (A2.20). */
+export const canDesign = (db) => !db?.access?.rights && !db?.foreign;
 
 /** Whether the person may `want` ('add', 'change', 'delete') in `table`. */
 export function may(db, table, want) {
   const rights = db?.access?.rights;
   if (db?.access?.person?.seeing) return false;
+  if (db?.foreign && !db.foreign.write) return false;
   if (!rights) return true;
   const right = rights.tables.each[table] || { access: rights.tables.default };
   return LEVELS.indexOf(right.access) >= LEVELS.indexOf(want);

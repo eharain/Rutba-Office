@@ -14,6 +14,7 @@ import { wizardDocument, documentData, PAPERS, BLOCKS } from './document-design.
 import { filterSql, sniffType } from './filter.js';
 import { ACCESS_DESIGN, ADMIN, STARTING_ROLES, normalRights, tableRight, allows, viewSql, hashPassword, checkPassword } from './access.js';
 import { SOURCE_KINDS, ensureSync, copyTableSql, copyReadOnly, checkCopyChange, trackWrite, pending, designDiff, reshapeCopy } from './sync.js';
+import { fileKind, foreignDesign } from './foreign.js';
 
 const DESIGN = `
 CREATE TABLE IF NOT EXISTS rutba_meta (key TEXT PRIMARY KEY, value TEXT);
@@ -35,9 +36,36 @@ CREATE TABLE IF NOT EXISTS rutba_linked (tbl TEXT PRIMARY KEY COLLATE NOCASE, li
 /**
  * The version of the design tables this build writes: 2 keeps saved queries
  * and forms, 3 reports, 4 print templates, 5 people and roles, 6 tables linked
- * to a database engine. An older file is given the tables it lacks as it opens.
+ * to a database engine, 7 tables kept as synced copies and read from other
+ * sources (A2.20: 2.18.0 wrote those as 6). An older file is given the tables
+ * it lacks as it opens; a newer one is refused, nothing in it changed.
  */
-export const DESIGN_VERSION = 6;
+export const DESIGN_VERSION = 7;
+
+/** The design kept on a connection only, for another program's database: nothing of it goes into the file. */
+const TEMP_DESIGN = DESIGN.replace(/CREATE TABLE IF NOT EXISTS/g, 'CREATE TEMP TABLE IF NOT EXISTS');
+
+/** The engine settings a link keeps (section 9.1 of the format); any other key a newer program wrote is kept beside them. */
+const ENGINE_SETTINGS = ['host', 'port', 'database', 'user', 'ssl'];
+
+/** The keys of `was` that `known` does not name, kept when a design row or layout is written again (A2.20). */
+export function unknownKeys(was, known) {
+  if (!was || typeof was !== 'object' || Array.isArray(was)) return {};
+  return Object.fromEntries(Object.entries(was).filter(([k]) => !known.includes(k)));
+}
+
+/**
+ * A file this build must not change: one whose design version is newer than
+ * it knows, or is no version at all. Said in plain words; nothing is changed.
+ */
+function refuseVersion(kind) {
+  if (kind.kind !== 'data-files') return;
+  const v = kind.version.trim();
+  if (!/^[0-9]+$/.test(v)) throw Object.assign(new Error(`This database says its design version is "${v.slice(0, 20)}", which no version of Rutba Office writes. It was not opened, and nothing in it was changed.`), { newer: true });
+  if (Number(v) > DESIGN_VERSION) {
+    throw Object.assign(new Error(`This database was made by a newer version of Rutba Office (design version ${Number(v)}; this one knows up to ${DESIGN_VERSION}). Update Rutba Office to open it. Nothing in it was changed.`), { newer: Number(v) });
+  }
+}
 
 const RESERVED = /^(rutba_|sqlite_)/i;
 
@@ -66,12 +94,65 @@ export class Base {
   /** Open (or make) the database at `file`; ':memory:' for one in memory. */
   static open(file) {
     const db = new DatabaseSync(file);
-    if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
+    // Looked at before anything is written (A2.20): a newer design is refused, and another program's database is not made one of ours.
+    if (file !== ':memory:') {
+      try {
+        const kind = fileKind(db);
+        refuseVersion(kind);
+        if (kind.kind === 'other') throw Object.assign(new Error('This database was made by another program. Open it to read it, or make a Data Files copy of it to change its design.'), { foreign: true });
+      } catch (err) {
+        db.close();
+        throw err;
+      }
+      db.exec('PRAGMA journal_mode = WAL');
+    }
     db.exec('PRAGMA foreign_keys = ON');
     db.exec(DESIGN);
+    // Design version 7: a copy's tables and columns are in every file, so no reader meets a copy without knowing it is one.
+    ensureSync({ db });
     const base = new Base(db);
     if (Number(base.meta('version') || 0) < DESIGN_VERSION) base.setMeta('version', String(DESIGN_VERSION));
     return base;
+  }
+
+  /**
+   * What the SQLite file at `file` holds, read without changing it: { kind,
+   * version, newer }, `kind` 'data-files', 'other' (another program's
+   * database) or 'empty'; `newer` the refusal's words when this build may
+   * not open it, else null.
+   */
+  static inspect(file) {
+    const db = new DatabaseSync(file, { readOnly: true });
+    try {
+      const kind = fileKind(db);
+      try { refuseVersion(kind); } catch (err) { return { ...kind, newer: err.message }; }
+      return { ...kind, newer: null };
+    } finally {
+      db.close();
+    }
+  }
+
+  /**
+   * Another program's database (A2.20), as it is: its tables and records
+   * shown, its design worked out from its schema and kept on this connection
+   * only, nothing of ours written to the file and its journal mode left
+   * alone. Read only unless `write`, when its records (never its design) can
+   * be changed in place.
+   */
+  static foreign(file, { write = false } = {}) {
+    const db = new DatabaseSync(file, { readOnly: !write });
+    try {
+      if (fileKind(db).kind !== 'other') throw new Error('That database is not another program\'s.');
+      if (write) db.exec('PRAGMA foreign_keys = ON');
+      db.exec(TEMP_DESIGN);
+      const { fixed, left, keys } = foreignDesign(db);
+      const base = new Base(db);
+      base.foreign = { write, fixed, left, keys };
+      return base;
+    } catch (err) {
+      db.close();
+      throw err;
+    }
   }
 
   /**
@@ -98,10 +179,13 @@ export class Base {
     // Who is using it (D-2026-10-22-11): null while it is not protected; locked until someone signs in.
     this.access = null;
     try { if (this.meta('protected') === '1') this.access = { locked: true }; } catch { /* a file with no design tables */ }
+    // Another program's database (A2.20): { write, fixed, left, keys }; null for one of ours.
+    this.foreign = null;
   }
 
   close() {
-    try { this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* in memory */ }
+    // Another program's file is left as its program keeps it.
+    if (!this.foreign) try { this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* in memory */ }
     this.db.close();
   }
 
@@ -121,6 +205,7 @@ export class Base {
     const all = this._allTables();
     const rights = this._rights();
     if (rights) return all.filter((t) => tableRight(rights, t.name).access !== 'hidden');
+    if (this.foreign) return this.foreign.write ? all : all.map((t) => ({ ...t, readOnly: true }));
     return [...all, ...this.linked().map((l) => ({ name: l.table, caption: l.caption, linked: l.link, mode: l.mode }))];
   }
 
@@ -136,6 +221,8 @@ export class Base {
   fields(table) {
     if (this.access?.locked) return [];
     const all = this._allFields(table);
+    // Another program's: read only until changes are allowed, and a field holding pictures or other binary values always.
+    if (this.foreign) return all.map((f) => (!this.foreign.write || this.foreign.fixed.has(`${table}\u0000${f.name}`) ? { ...f, readOnly: true } : f));
     const rights = this._rights();
     if (!rights) return all;
     const right = tableRight(rights, table);
@@ -190,9 +277,19 @@ export class Base {
     }
   }
 
-  _writeFields(table, fields) {
-    this.db.prepare('DELETE FROM rutba_fields WHERE tbl = ?').run(table);
-    const put = this.db.prepare('INSERT INTO rutba_fields (tbl, name, type, size, required, uniq, dflt, caption, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  /**
+   * A table's rows of rutba_fields made to be `fields`, each changed in place
+   * by name (`renamed` maps an old name to its new one), so a column a newer
+   * version added to rutba_fields keeps its values (A2.20); the rows of
+   * fields no longer there go.
+   */
+  _writeFields(table, fields, renamed = {}) {
+    for (const [from, to] of Object.entries(renamed)) if (from !== to) this.db.prepare('UPDATE rutba_fields SET name = ? WHERE tbl = ? AND name = ?').run(to, table, from);
+    const keep = new Set(fields.map((f) => f.name));
+    const drop = this.db.prepare('DELETE FROM rutba_fields WHERE tbl = ? AND name = ?');
+    for (const r of this.db.prepare('SELECT name FROM rutba_fields WHERE tbl = ?').all(table)) if (!keep.has(r.name)) drop.run(table, r.name);
+    const put = this.db.prepare(`INSERT INTO rutba_fields (tbl, name, type, size, required, uniq, dflt, caption, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(tbl, name) DO UPDATE SET type = excluded.type, size = excluded.size, required = excluded.required, uniq = excluded.uniq, dflt = excluded.dflt, caption = excluded.caption, position = excluded.position`);
     fields.forEach((f, i) => put.run(table, f.name, f.type, f.size ?? null, f.required ? 1 : 0, f.unique ? 1 : 0, f.default === undefined ? null : JSON.stringify(f.default), f.caption ?? null, i));
   }
 
@@ -365,14 +462,14 @@ export class Base {
     if (onlyWords) {
       return this._step(now.name !== was.name ? `Rename field ${was.name} to ${now.name} in ${table}` : `Change field ${was.name} in ${table}`, { table, from: was, to: now }, () => {
         if (now.name !== was.name) this.db.exec(`ALTER TABLE ${q(table)} RENAME COLUMN ${q(was.name)} TO ${q(now.name)}`);
-        this._writeFields(table, next);
+        this._writeFields(table, next, { [was.name]: now.name });
         saveRelations();
       });
     }
     const convert = this._fitRecords(table, fields, was, now, { clear });
     return this._withRebuild(`Change field ${was.name} in ${table}`, { table, from: was, to: now, ...(clear ? { cleared: true } : {}) }, () => {
       this._rebuild(table, next.map((f, k) => ({ ...f, from: k === i ? was.name : f.name, ...(k === i && convert ? { convert: true } : {}) })), relations);
-      this._writeFields(table, next);
+      this._writeFields(table, next, { [was.name]: now.name });
       saveRelations();
     });
   }
@@ -635,7 +732,7 @@ export class Base {
    * text checked, and its columns' names. For those who may change the design.
    */
   _written(sql) {
-    this._mayDesign();
+    this._maySql();
     const text = sqlText(sql);
     this.db.exec('PRAGMA query_only = ON');
     try {
@@ -656,7 +753,7 @@ export class Base {
   runQuery({ name = null, design = null, limit = 5000, today = this.today } = {}) {
     const d = design || this.queries().find((x) => x.name === name)?.design;
     if (!d) throw new Error(`There is no query called ${name}.`);
-    if (typeof d.sql === 'string') this._mayDesign();
+    if (typeof d.sql === 'string') this._maySql();
     const { sql, params, columns } = designToSql(d, this.relationships(), { ...this._designFields(), today });
     const out = this._select(sql, params);
     const rows = out.rows.slice(0, limit).map(cleanRow);
@@ -893,7 +990,7 @@ export class Base {
    */
   query(sql, params = []) {
     // A person's own SQL could name main.<table> and read past their role: it is for those who may change the design.
-    this._mayDesign();
+    this._maySql();
     return this._select(sql, params);
   }
 
@@ -929,15 +1026,22 @@ export class Base {
     if (this.access?.locked) throw new Error('Sign in to open this database.');
   }
 
-  _mayDesign() {
+  /** May this person run SQL of their own, read only: anyone nothing narrows. */
+  _maySql() {
     this._unlocked();
     if (this.access?.seeing) throw new Error(`You are seeing the database as ${this.access.seeing} sees it. Go back to your own view to change it.`);
     if (this._rights()) throw new Error('Only someone whose role may change the design can do that.');
   }
 
+  _mayDesign() {
+    this._maySql();
+    if (this.foreign) throw new Error('This database was made by another program, so its design is not changed here. Make a Data Files copy of it to change its design.');
+  }
+
   /** May this person `want` ('add', 'change', 'delete') in `table`, on these rows? */
   _mayWrite(table, want, rowids = []) {
     this._unlocked();
+    if (this.foreign && !this.foreign.write) throw new Error('This database was made by another program and is open read only. Allow changes to change its records.');
     if (this.access?.seeing) throw new Error(`You are seeing the database as ${this.access.seeing} sees it. Go back to your own view to change it.`);
     const rights = this._rights();
     if (!rights) return;
@@ -1112,9 +1216,14 @@ export class Base {
     const n = checkName(name, 'role');
     if (n.toLowerCase() === ADMIN.toLowerCase()) throw new Error('Admin may do everything; its rights are not changed.');
     const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_roles').get().p;
+    // What a newer version keeps in a role's rights that this one does not know stays with them (A2.20).
+    const stored = (() => { try { return JSON.parse(this.db.prepare('SELECT rights FROM rutba_roles WHERE name = ?').get(n)?.rights || 'null'); } catch { return null; } })();
+    const normal = normalRights(rights);
+    const kept = { ...unknownKeys(stored, ['design', 'tables', 'hidden']), ...normal, tables: { ...unknownKeys(stored?.tables, ['default', 'each']), ...normal.tables }, hidden: { ...unknownKeys(stored?.hidden, ['queries', 'forms', 'reports', 'documents']), ...normal.hidden } };
+    for (const [table, entry] of Object.entries(normal.tables.each)) kept.tables.each[table] = { ...unknownKeys(stored?.tables?.each?.[table], ['access', 'own', 'fields']), ...entry };
     this._step(`Role ${n} kept`, { role: n }, () => {
       this.db.prepare('INSERT INTO rutba_roles (name, rights, position) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET rights = excluded.rights')
-        .run(n, JSON.stringify(normalRights(rights)), at);
+        .run(n, JSON.stringify(kept), at);
     });
     return n;
   }
@@ -1220,8 +1329,11 @@ export class Base {
     const n = checkName(name, 'link');
     const key = id || `link-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     // A source's settings are the service's to clean (its secrets kept apart, never here); an engine's are these.
+    // An engine's settings a newer version added keys to keep them (A2.20); never a password, which the file does not keep.
+    const stored = (() => { try { return id ? JSON.parse(this.db.prepare('SELECT settings FROM rutba_links WHERE id = ?').get(id)?.settings || 'null') : null; } catch { return null; } })();
+    const extra = Object.fromEntries(Object.entries(unknownKeys(stored, ENGINE_SETTINGS)).filter(([k]) => !/pass|secret|token/i.test(k)));
     const clean = SOURCE_KINDS.has(String(engine)) ? JSON.parse(JSON.stringify(settings || {}))
-      : { host: String(settings?.host || ''), port: Number(settings?.port) || null, database: String(settings?.database || ''), user: String(settings?.user || ''), ssl: Boolean(settings?.ssl) };
+      : { ...extra, host: String(settings?.host || ''), port: Number(settings?.port) || null, database: String(settings?.database || ''), user: String(settings?.user || ''), ssl: Boolean(settings?.ssl) };
     if (SOURCE_KINDS.has(String(engine))) ensureSync(this);
     const at = this.db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rutba_links').get().p;
     this._step(`Link ${n} kept`, { link: n, engine }, () => {
