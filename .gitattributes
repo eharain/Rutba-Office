@@ -4,3 +4,5 @@ packages/ocr/vendor/** -text
 # counts its own offsets, and mail, calendar and contact files end their lines
 # as their formats say.
 tests/corpus-public/** -text
+# The Data Files sample databases are kept byte for byte.
+docs/data-files-format/samples/*.rbase -text
