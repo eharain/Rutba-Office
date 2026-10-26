@@ -105,7 +105,7 @@ A change in either place shows in the other at once.
 | Step | What it allows |
 | :-- | :-- |
 | Off | The tools cannot see it. |
-| Read | The tools may read it, and change nothing. |
+| Read only | The tools may read it, and change nothing. |
 | Read and prepare | The tools may also prepare new things that stay on this computer: drafts, events, contacts, files and records. Nothing is sent. |
 | Read, prepare and act | The tools may also ask to do something that leaves this computer or tells another person: send a message, send an invitation or answer one, add a contact to an address book kept on a server, or write to a table linked to a database engine. Each one is shown to you first, and done only when you press its button. |
 
@@ -114,15 +114,15 @@ Where each setting is:
 | Thing | Its own settings | Steps it can have |
 | :-- | :-- | :-- |
 | Mail account | Mail, **Manage accounts**, beside the account | All four. A mailbox brought in from a file has no server to send through, so it stops at Read and prepare. |
-| Archive opened in place | Mail, **Manage accounts**, under the accounts | Off or Read. An archive is never written to. |
+| Archive opened in place | Mail, **Manage accounts**, under the accounts | Off or Read only. An archive is never written to. |
 | Calendar | Calendar, **Accounts** | All four. |
 | Address book | Contacts, **Accounts** | All four. |
 | Data Files database | Data Files, **AI tools** in the side panel | All four, and for a protected database the role the tools work as. The setting is kept on this computer, not in the file. |
-| Folder | AI Tools, under Folders | Off, Read, or Read and prepare. Folders chosen before this version keep what they allowed: Read and prepare. |
+| Folder | AI Tools, under Folders | Off, Read only, or Read and prepare. Folders chosen before this version keep what they allowed: Read and prepare. |
 
 Nothing the tools do deletes or moves anything, at any step. A refusal names
 the thing and says where its setting is, for example: "The AI tools may not
-do that with the mail account ana@example.com: it is set to Read, and this
+do that with the mail account ana@example.com: it is set to Read only, and this
 needs Read, prepare and act. Its setting is in Mail under Accounts, or in AI
 Tools."
 

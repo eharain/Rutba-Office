@@ -105,13 +105,13 @@ test('the steps: four everywhere, an archive read only, a folder and a mailbox f
 test('Off until chosen: nothing of mail, calendars, contacts or databases is reached, and each refusal names the thing and where its setting is', async () => {
   const w = world();
   assert.match(textOf(await w.call('list_allowed')), /^kind\tname\tallows\nfolder\t[^\n]*\nfolder\t[^\n]*\n\n7 more are Off/);
-  assert.match(textOf(await w.call('search_mail', { query: 'invoice' })), /No mail account or archive is set to Read yet.*Mail under Accounts/);
+  assert.match(textOf(await w.call('search_mail', { query: 'invoice' })), /No mail account or archive is set to Read only or more yet.*Mail under Accounts/);
   const read = await w.call('read_message', { account: 'me@home.example', folder: 'Inbox', id: 'm1' });
   assert.equal(read.isError, true);
   assert.match(textOf(read), /the mail account me@home\.example: it is set to Off.*in Mail under Accounts, or in AI Tools/);
   assert.doesNotMatch(textOf(read), /invoice attached/, 'nothing of the message');
-  assert.match(textOf(await w.call('list_events')), /No calendar is set to Read yet.*Calendar under Accounts/);
-  assert.match(textOf(await w.call('search_contacts', { query: '' })), /No address book is set to Read yet.*Contacts under Accounts/);
+  assert.match(textOf(await w.call('list_events')), /No calendar is set to Read only or more yet.*Calendar under Accounts/);
+  assert.match(textOf(await w.call('search_contacts', { query: '' })), /No address book is set to Read only or more yet.*Contacts under Accounts/);
   assert.match(textOf(await w.call('create_event', { calendar: 'My calendar', summary: 'x', start: '2026-11-03T10:00:00Z' })), /the calendar My calendar: it is set to Off/);
   assert.match(textOf(await w.call('read_records', { database: 'Shop', table: 'Products' })), /no database called Shop/);
   assert.equal(w.sent.length + w.drafts.length, 0);
@@ -125,7 +125,7 @@ test('mail, step by step: Read reads and searches, Read and prepare makes drafts
   assert.doesNotMatch(found, /old@file\.example/, 'a mailbox from a file set to act is Off: act is not one of its steps');
   assert.match(textOf(await w.call('read_message', { account: 'me@home.example', folder: 'Inbox', id: 'm1' })), /Subject: Invoice 42[\s\S]*Please find the invoice attached[\s\S]*0\tinvoice\.txt/);
   assert.match(textOf(await w.call('read_attachment', { account: 'me@home.example', folder: 'Inbox', id: 'm1', index: 0 })), /Total: 42\.00/);
-  assert.match(textOf(await w.call('create_draft', { account: 'me@home.example', to: 'a@b.example', text: 'x' })), /set to Read, and this needs Read and prepare/);
+  assert.match(textOf(await w.call('create_draft', { account: 'me@home.example', to: 'a@b.example', text: 'x' })), /set to Read only, and this needs Read and prepare/);
   assert.match(textOf(await w.call('create_draft', { account: 'Old archive', to: 'a@b.example' })), /only read the archive Old archive/);
   // A refusal is logged as a call that worked is: the thing and the step it needed.
   assert.deepEqual((await w.tools.call('create_draft', { account: 'me@home.example', to: 'a@b.example' })).log, { kind: 'mail', name: 'me@home.example', step: 'prepare' });
@@ -262,7 +262,7 @@ test('Data Files: records read and written within the step, never the design; a 
   w.settings.set(DATABASES_KEY, { [file]: { step: 'read' } });
   assert.match(textOf(await w.call('read_records', { database: 'Shop', table: 'Products' })), /Bread/);
   assert.match(textOf(await w.call('list_tables', { database: file })), /Products\t1 records[\s\S]*Wages/);
-  assert.match(textOf(await w.call('add_record', { database: 'Shop', table: 'Products', values: { Name: 'Milk' } })), /the database Shop: it is set to Read, and this needs Read and prepare.*Data Files/);
+  assert.match(textOf(await w.call('add_record', { database: 'Shop', table: 'Products', values: { Name: 'Milk' } })), /the database Shop: it is set to Read only, and this needs Read and prepare.*Data Files/);
   w.settings.set(DATABASES_KEY, { [file]: { step: 'prepare' } });
   assert.match(textOf(await w.call('add_record', { database: 'Shop', table: 'Products', values: { Name: 'Milk', Price: 1.2 } })), /Added a record to Products/);
   assert.match(textOf(await w.call('change_record', { database: 'Shop', table: 'Products', rowid: 1, values: { Price: 2.75 } })), /Changed record 1/);
@@ -282,7 +282,7 @@ test('Data Files: records read and written within the step, never the design; a 
   assert.match(textOf(await w.call('add_record', { database: 'Shop', table: 'Products', values: { Name: 'Eggs' } })), /may not add/);
 });
 
-test('folders, each with its own step: a folder set to Read is read and never written in, and the refusal names it', async () => {
+test('folders, each with its own step: a folder set to Read only is read and never written in, and the refusal names it', async () => {
   const dir = scratch();
   const readOnly = path.join(dir, 'read-only');
   fs.mkdirSync(readOnly);
@@ -291,7 +291,7 @@ test('folders, each with its own step: a folder set to Read is read and never wr
   assert.match(textOf(await tools.call('read_file', { path: path.join(readOnly, 'kept.txt') })), /kept words/);
   const made = await tools.call('create_document', { path: path.join(readOnly, 'new.docx'), blocks: [{ type: 'paragraph', text: 'x' }] });
   assert.equal(made.isError, true);
-  assert.match(textOf(made), /the folder .*read-only: it is set to Read, and this needs Read and prepare\. Its setting is in AI Tools, under Folders/);
+  assert.match(textOf(made), /the folder .*read-only: it is set to Read only, and this needs Read and prepare\. Its setting is in AI Tools, under Folders/);
   assert.ok(!fs.existsSync(path.join(readOnly, 'new.docx')));
   assert.match(textOf(await tools.call('list_folders')), /read-only\tread only/);
 });

@@ -40,7 +40,7 @@ export const DATABASES_KEY = 'ai.tools.databases';
 export const LOCAL_BOOK = 'local';
 
 /** What each step is called, in the tools' answers (the windows say it in their own words). */
-export const STEP_WORDS = { off: 'Off', read: 'Read', prepare: 'Read and prepare', act: 'Read, prepare and act' };
+export const STEP_WORDS = { off: 'Off', read: 'Read only', prepare: 'Read and prepare', act: 'Read, prepare and act' };
 
 /**
  * The steps a thing may be given: an archive opened in place is read only;
@@ -73,7 +73,7 @@ const WHERE = {
 };
 const NOUN = { mail: 'the mail account', archive: 'the archive', calendar: 'the calendar', book: 'the address book', database: 'the database', folder: 'the folder' };
 const NEED = {
-  read: 'Read',
+  read: 'Read only',
   prepare: 'Read and prepare',
   act: 'Read, prepare and act',
 };

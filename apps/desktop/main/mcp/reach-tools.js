@@ -350,7 +350,7 @@ export function createReachTools({ settings, mail = null, calendar = null, conta
 
     search_mail: async ({ query, account, limit = 50 }) => {
       const sources = account ? [mailOf(account, 'read')] : mailThings().filter((x) => allows(x.step, 'read'));
-      if (!sources.length) throw Object.assign(new Error('No mail account or archive is set to Read yet. The person sets one in Mail under Accounts, or in AI Tools.'), { refusal: true });
+      if (!sources.length) throw Object.assign(new Error('No mail account or archive is set to Read only or more yet. The person sets one in Mail under Accounts, or in AI Tools.'), { refusal: true });
       const found = await mail.searchAll({ query: words(query), limit: Math.min(200, Number(limit) || 50), sources: sources.map((s) => s.id) });
       const names = new Map(sources.map((s) => [s.id, s.name]));
       const rows = (found?.rows || []).filter((r) => names.has(r.accountId));
@@ -449,7 +449,7 @@ export function createReachTools({ settings, mail = null, calendar = null, conta
 
     list_events: async ({ calendar: named, from, to }) => {
       const cals = named ? [need(pick(calendarThings(), named, 'calendar'), 'read')] : calendarThings().filter((c) => allows(c.step, 'read'));
-      if (!cals.length) throw Object.assign(new Error('No calendar is set to Read yet. The person sets one in Calendar under Accounts, or in AI Tools.'), { refusal: true });
+      if (!cals.length) throw Object.assign(new Error('No calendar is set to Read only or more yet. The person sets one in Calendar under Accounts, or in AI Tools.'), { refusal: true });
       const start = whenOf(from, 'from') ?? Date.now();
       const end = whenOf(to, 'to') ?? start + 30 * 86400000;
       const ids = new Set(cals.map((c) => c.id));
@@ -560,7 +560,7 @@ export function createReachTools({ settings, mail = null, calendar = null, conta
 
     search_contacts: async ({ query = '', book }) => {
       const books = book ? [need(pick(bookThings(), book, 'address book'), 'read')] : bookThings().filter((b) => allows(b.step, 'read'));
-      if (!books.length) throw Object.assign(new Error('No address book is set to Read yet. The person sets one in Contacts under Accounts, or in AI Tools.'), { refusal: true });
+      if (!books.length) throw Object.assign(new Error('No address book is set to Read only or more yet. The person sets one in Contacts under Accounts, or in AI Tools.'), { refusal: true });
       const ids = new Set(books.map((b) => b.id));
       const cards = (contacts.list({ query: words(query) }) || []).filter((c) => ids.has(c.book || LOCAL_BOOK));
       const out = cards.slice(0, 300).map((c) => `${c.id}\t${c.display || ''}\t${(c.emails || []).map((e) => e.value).join(', ')}\t${(c.phones || []).map((p) => p.value).join(', ')}\t${c.org || ''}`);

@@ -9,7 +9,7 @@
 // tools have done.
 //
 // What they may reach (D-2026-10-26-04, -06): each mail account, archive,
-// calendar, address book, database and folder has its own step, Off, Read,
+// calendar, address book, database and folder has its own step, Off, Read only,
 // Read and prepare, or Read, prepare and act. The one setting is shown here
 // and in its own app's settings (AiStepPicker, AiThingsList), and a change in
 // either is heard by both ('ai:changed'). What the tools ask to send or write
@@ -30,7 +30,7 @@ const REACH = () => [
 ];
 
 /** The four steps, in the words every app's settings use. */
-export const STEP_NAMES = () => ({ off: t('Off'), read: t('Read'), prepare: t('Read and prepare'), act: t('Read, prepare and act') });
+export const STEP_NAMES = () => ({ off: t('Off'), read: t('Read only'), prepare: t('Read and prepare'), act: t('Read, prepare and act') });
 const STEP_NOTES = () => ({
   off: t('The AI tools cannot see it.'),
   read: t('The AI tools may read it, and change nothing.'),
