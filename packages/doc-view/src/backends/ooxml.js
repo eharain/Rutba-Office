@@ -325,7 +325,16 @@ export class OoxmlBackend {
       // now, so the Heading a person just picked has somewhere to point —
       // this is how a legacy blank document reaches a heading at all. A file
       // WITH a styles part is never touched here.
-      if (typeof this.doc.ensureParagraphStyles === 'function') this.doc.ensureParagraphStyles();
+      if (typeof this.doc.ensureParagraphStyles === 'function' && this.doc.ensureParagraphStyles()) this.stylesWritten = true;
+      // A built-in style the file has a styles part for but has not used yet
+      // (Heading 1 in a file with only Normal) is written in now, as Word
+      // writes a latent style in the first time it is applied: one style
+      // element added, the rest of the file's own catalogue left as it was.
+      if (!(value in (this.doc.paragraphStyles() || {})) && typeof this.doc.modifyStyle === 'function') {
+        this.doc.willEditPart?.('word/styles.xml');
+        this.doc.modifyStyle(value, {});
+        this.stylesWritten = true;
+      }
     }
     return this._replaceOwnPPr(p, (own) => withParagraphProp(own, prop, value));
   }
@@ -349,7 +358,17 @@ export class OoxmlBackend {
     // picking one writes the catalogue into the file (see setParagraphProp),
     // so these are honest controls, not dead ones — the pick both creates the
     // style and applies it.
-    return own.length ? own : STANDARD_PARAGRAPH_STYLES.map((s) => ({ ...s }));
+    if (!own.length) return STANDARD_PARAGRAPH_STYLES.map((s) => ({ ...s }));
+    // Word's built-in styles the file has not defined yet (a styles part with
+    // only Normal, say) are offered after its own, as Word offers its latent
+    // styles: picking one writes it in (setParagraphProp). One the file
+    // already has under another id, by its name, is not offered twice.
+    const ids = new Set(own.map((s) => s.id));
+    const names = new Set(own.map((s) => String(s.name).toLowerCase()));
+    const latent = STANDARD_PARAGRAPH_STYLES
+      .filter((s) => !ids.has(s.id) && !names.has(String(s.name).toLowerCase()))
+      .map((s) => ({ ...s, latent: true }));
+    return [...own, ...latent];
   }
 
   /**

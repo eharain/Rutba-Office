@@ -86,6 +86,18 @@ export default function Home({ app, shell }) {
 
   useEffect(() => shell.on('update:state', setUpdate), [shell]);
 
+  // Back to the window: the recent files and the templates of one's own read
+  // again, so a template saved from Documents a moment ago is in the row.
+  useEffect(() => {
+    const again = () => { if (document.visibilityState !== 'hidden') refresh(); };
+    window.addEventListener('focus', again);
+    document.addEventListener('visibilitychange', again);
+    return () => {
+      window.removeEventListener('focus', again);
+      document.removeEventListener('visibilitychange', again);
+    };
+  }, [refresh]);
+
   // Opened as the app: those with an entry page show it (New, the starters, their recent files).
   const openApp = useCallback((key) => shell.win.create({ app: key, query: { start: '1' } }), [shell]);
 

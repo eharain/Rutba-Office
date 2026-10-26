@@ -220,6 +220,7 @@ import { verifyWordMarkdown } from './verify-word-markdown.js';
 import { verifyWordPageNumbers } from './verify-word-page-numbers.js';
 import { verifyWordTabKeys } from './verify-word-tab-keys.js';
 import { verifyWordModifyStyle } from './verify-word-modify-style.js';
+import { verifyWordLatentStyles } from './verify-word-latent-styles.js';
 import { verifyWordReview } from './verify-word-review.js';
 import { verifyWordSaveAs } from './verify-word-save-as.js';
 import { verifyStrictSave } from './verify-strict-save.js';
@@ -5188,6 +5189,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordpagenumbers')) await verifyWordPageNumbers({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('wordtab')) await verifyWordTabKeys({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('wordmodifystyle')) await verifyWordModifyStyle({ open, check, until, wait, press, errorsIn }, { dir });
+    if (only.includes('wordlatentstyles')) await verifyWordLatentStyles({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('wordreview')) await verifyWordReview({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('wordsaveas')) await verifyWordSaveAs({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('strictsave')) await verifyStrictSave({ open, check, until, wait, errorsIn }, { dir });
@@ -5606,6 +5608,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('word', () => verifyWordPageNumbers({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyWordTabKeys({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordModifyStyle({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('word', () => verifyWordLatentStyles({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyWordReview({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await part('word', () => verifyWordSaveAs({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('word', () => verifyStrictSave({ open, check, until, wait, errorsIn }, { dir }));
