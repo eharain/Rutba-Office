@@ -122,7 +122,13 @@ pages drawn with known answers:
   local threshold where the paper's brightness varies across the page (a
   shadow down a fold, a photo lit from one side), chosen by measuring the
   paper in a six by six grid. On a page lit from one side Otsu gets more
-  than a tenth of the pixels wrong; Sauvola under 2 percent.
+  than a tenth of the pixels wrong; Sauvola under 2 percent. Sauvola's
+  window is never narrower than two and a half letters of the text, so a
+  heavy stroke (Arial Black, Impact, a price on a label) never fills it
+  and is not left hollow, an outline of itself.
+- **Light on dark**: a picture whose darker level covers most of it and
+  most of its edges, with its letter-sized blobs in the lighter level (a
+  dark theme, a sign, a price on a black label), is read as its negative.
 - **Skew**: the rows of ink projected at angles from minus to plus eight
   degrees, coarse then fine; the angle where text lines fall into the
   sharpest peaks is the page's turn, measured to a tenth of a degree.
@@ -140,7 +146,11 @@ pages drawn with known answers:
 
 Before reading, a page turned by two degrees or more is turned back level,
 text smaller than 10 pixels is scaled up (a screenshot) and text larger
-than 64 down, and an unevenly lit page is handed over as ink and paper.
+than 64 down, a picture of one line whose letters are under 14 pixels
+(capitals and figures, measured whole) is scaled up towards 36, light
+text on a dark ground is turned to its negative, and an unevenly lit page
+is handed over as ink and paper. A picture of one line the engine finds
+nothing in is read again as one line at its own size.
 After reading, the engine's lines are put in reading order by geometry
 (columns, then lines top to bottom, right to left for Urdu and Arabic), a
 line the engine split into two blocks is joined again, a word the engine
@@ -156,6 +166,25 @@ it cost more than the 1.2 degree tilt of the simulated scans did (Japanese
 a small tilt well itself, so only two degrees or more is turned back; and
 scaling 300 dpi pages towards a smaller text height cost Hindi and
 Nastaliq, so only very large text is scaled down.
+
+Heavy figures (fault A7.11, "£1.65" read as "£ / 41 65") were measured on
+1120 one-line pictures of prices (£, $, €, decimals and thousands
+separators) in Arial Black, Segoe UI Black, Impact, Bahnschrift Bold, Arial
+Bold, Rockwell Extra Bold and Gill Sans Ultra Bold at 16, 24, 40 and 72
+pixels, on white, cream, near-black, a dark gradient and paper lit from one
+side. Read before the change, 659 came back exactly (CER 31.7 percent): a
+dark ground was taken for unevenly lit paper and Sauvola drew every light
+letter as its outline, two strokes where there was one, and on paper lit
+from one side a heavy stroke was left hollow. After it, 1077 (CER 0.5
+percent). Regular weight did not get worse: 1000 one-line pictures in
+Arial, Times New Roman, Segoe UI, Calibri and Verdana at 11 to 20 pixels
+went from 483 exact (CER 34.1) to 940 (0.6), paragraphs in the same faces
+from CER 11.0 to 0.2 percent (unchanged on white, 0.15), and the six
+language pages are as they were. What is left is the models': Gill Sans
+Ultra Bold's dollar sign is read as a 3, Impact loses a thousands comma
+or mistakes a small currency sign, and Rockwell Extra Bold at 16 pixels,
+now scaled up, reads its pound sign as "&" in 7 of 40 (at its own size
+it was right; the scaling wins 23 more than it loses over the set).
 
 ## How it was measured
 

@@ -1,0 +1,107 @@
+[
+  {
+    "file": "figures-arial-13-dark-0.png",
+    "text": "Invoice 4471 due 13 October",
+    "face": "Arial",
+    "px": 13,
+    "ground": "white on near-black"
+  },
+  {
+    "file": "figures-arialbd-40-darkgrad-4.png",
+    "text": "Total £1.65",
+    "face": "Arial Bold",
+    "px": 40,
+    "ground": "light on a dark gradient"
+  },
+  {
+    "file": "figures-arialbd-72-dark-5.png",
+    "text": "£0.99 each",
+    "face": "Arial Bold",
+    "px": 72,
+    "ground": "white on near-black"
+  },
+  {
+    "file": "figures-ariblk-16-light-3.png",
+    "text": "£12,345.00",
+    "face": "Arial Black",
+    "px": 16,
+    "ground": "black on white"
+  },
+  {
+    "file": "figures-ariblk-40-dark-0.png",
+    "text": "£1.65",
+    "face": "Arial Black",
+    "px": 40,
+    "ground": "white on near-black"
+  },
+  {
+    "file": "figures-ariblk-40-light-0.png",
+    "text": "£1.65",
+    "face": "Arial Black",
+    "px": 40,
+    "ground": "black on white"
+  },
+  {
+    "file": "figures-ariblk-72-darkgrad-0.png",
+    "text": "£1.65",
+    "face": "Arial Black",
+    "px": 72,
+    "ground": "light on a dark gradient"
+  },
+  {
+    "file": "figures-bahnb-40-dark-7.png",
+    "text": "€1.234,56",
+    "face": "Bahnschrift Bold",
+    "px": 40,
+    "ground": "white on near-black"
+  },
+  {
+    "file": "figures-gilsanub-72-photo-6.png",
+    "text": "$3.10",
+    "face": "Gill Sans Ultra Bold",
+    "px": 72,
+    "ground": "dark grey on paper lit from one side"
+  },
+  {
+    "file": "figures-impact-40-light-1.png",
+    "text": "$1,299.99",
+    "face": "Impact",
+    "px": 40,
+    "ground": "black on white"
+  },
+  {
+    "file": "figures-impact-72-dark-4.png",
+    "text": "Total £1.65",
+    "face": "Impact",
+    "px": 72,
+    "ground": "white on near-black"
+  },
+  {
+    "file": "figures-rockeb-72-darkgrad-1.png",
+    "text": "$1,299.99",
+    "face": "Rockwell Extra Bold",
+    "px": 72,
+    "ground": "light on a dark gradient"
+  },
+  {
+    "file": "figures-segoe-11-light-1.png",
+    "text": "Paid by card ending 0042",
+    "face": "Segoe UI",
+    "px": 11,
+    "ground": "black on white"
+  },
+  {
+    "file": "figures-seguibl-16-dark-0.png",
+    "text": "£1.65",
+    "face": "Segoe UI Black",
+    "px": 16,
+    "ground": "white on near-black"
+  },
+  {
+    "file": "figures-seguibl-72-dark-3.png",
+    "text": "£12,345.00",
+    "face": "Segoe UI Black",
+    "px": 72,
+    "ground": "white on near-black"
+  }
+]

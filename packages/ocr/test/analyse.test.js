@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { otsu, binarise, unevenPaper, estimateSkew, rotate, unrotatePoint, scale, components, textHeight, rulings, fitToInk } from '@rutba/ocr/analyse';
+import { otsu, binarise, unevenPaper, darkPaper, invert, estimateSkew, rotate, unrotatePoint, scale, components, textHeight, rulings, fitToInk } from '@rutba/ocr/analyse';
 import { groupLines, columns, tableCells } from '@rutba/ocr/layout';
 
 /** A blank grey page. */
@@ -69,6 +69,49 @@ test('binarise: on paper lit from one side Otsu loses the dark side, Sauvola kee
   };
   assert.ok(wrong(flat) > 0.1, `Otsu wrong on ${(wrong(flat) * 100).toFixed(1)}% of pixels`);
   assert.ok(wrong(local) < 0.02, `Sauvola wrong on ${(wrong(local) * 100).toFixed(2)}% of pixels`);
+});
+
+test('binarise: on paper lit unevenly a stroke wider than Sauvola\'s window is left hollow, and kept whole when the text\'s height is given', () => {
+  // Heavy figures as a price label has them: strokes 26 px wide in letters 80 tall, on paper lit from one side.
+  const p = page(600, 200);
+  const truth = page(600, 200);
+  for (let i = 0; i < 6; i++) { fill(truth, 40 + i * 90, 60, 26, 80); fill(truth, 40 + i * 90, 60, 70, 24); }
+  for (let y = 0; y < p.height; y++) {
+    for (let x = 0; x < p.width; x++) {
+      const paper = 120 + Math.round((120 * x) / p.width), i = y * p.width + x;
+      p.data[i] = truth.data[i] === 0 ? paper - 80 : paper;
+    }
+  }
+  assert.equal(unevenPaper(p), true);
+  const hollow = binarise(p, { method: 'sauvola' });
+  const whole = binarise(p, { method: 'sauvola', textHeight: 80 });
+  // The middle of each upright stroke.
+  const middle = (b) => { let n = 0, m = 0; for (let i = 0; i < 6; i++) for (let y = 100; y < 130; y++) for (let x = 48; x < 58; x++) { m++; if (b.data[y * b.width + x + i * 90] === 0) n++; } return n / m; };
+  assert.ok(middle(hollow) < 0.5, `the default window keeps ${(middle(hollow) * 100).toFixed(0)}% of a stroke's middle`);
+  assert.ok(middle(whole) === 1, `the window from the text's height keeps ${(middle(whole) * 100).toFixed(0)}%`);
+  let wrong = 0;
+  for (let i = 0; i < truth.data.length; i++) if (whole.data[i] !== truth.data[i]) wrong++;
+  assert.ok(wrong / truth.data.length < 0.02, `wrong on ${((wrong / truth.data.length) * 100).toFixed(2)}% of pixels`);
+});
+
+test('darkPaper: light letters on a dark ground are told from dark on light, from a tight crop of heavy figures and from a page photographed on a dark desk', () => {
+  assert.equal(darkPaper(textPage(600, 300)), false);
+  const negative = textPage(600, 300, { ink: 240, paper: 30 });
+  assert.equal(darkPaper(negative), true);
+  assert.deepEqual([...invert(negative).data.subarray(0, 3)], [225, 225, 225]);
+  // One line of heavy light figures, its letters most of the picture's height (a price on a black label).
+  const label = page(300, 60, 20);
+  for (let i = 0; i < 6; i++) { fill(label, 20 + i * 45, 12, 14, 36, 250); fill(label, 20 + i * 45, 12, 30, 10, 250); }
+  assert.equal(darkPaper(label), true);
+  // Heavy dark figures cut tight: more ink than paper, but paper round the edges.
+  const tight = page(300, 60);
+  for (let i = 0; i < 7; i++) fill(tight, 3 + i * 42, 3, 38, 54);
+  assert.equal(darkPaper(tight), false);
+  // A page of text on a desk darker than it, the desk most of the picture and all of its edges.
+  const desk = page(1000, 600, 35);
+  const sheet = textPage(420, 520, { lines: 13, left: 20, top: 30 });
+  for (let y = 0; y < sheet.height; y++) desk.data.set(sheet.data.subarray(y * sheet.width, (y + 1) * sheet.width), (y + 40) * desk.width + 290);
+  assert.equal(darkPaper(desk), false);
 });
 
 test('estimateSkew: text turned by a known angle is measured to within a tenth of a degree, either way', () => {
