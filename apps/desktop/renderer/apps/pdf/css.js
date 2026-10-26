@@ -73,6 +73,11 @@ body.pdf-dragging, body.pdf-dragging * { cursor: grabbing !important; }
 .pdf-annots.drawing .pdf-annot polygon { pointer-events: none; }
 .pdf-annot:hover polygon { stroke: var(--accent-line); stroke-width: 1px; }
 .pdf-annot.picked polygon { stroke: var(--accent); stroke-width: 1.5px; stroke-dasharray: 4 3; fill: color-mix(in srgb, var(--accent) 7%, transparent); }
+.pdf-annot.movable polygon { cursor: move; }
+.pdf-annot.shifting polygon { stroke: var(--accent); stroke-width: 1.5px; stroke-dasharray: 4 3; fill: color-mix(in srgb, var(--accent) 12%, transparent); }
+.pdf-handle { fill: var(--surface, #fff); stroke: var(--accent); stroke-width: 1.5px; pointer-events: all; cursor: nwse-resize; }
+.pdf-handle[data-handle='0'], .pdf-handle[data-handle='2'] { cursor: nesw-resize; }
+.pdf-annots.drawing .pdf-handle { pointer-events: none; }
 .pdf-draft { vector-effect: non-scaling-stroke; }
 .pdf-link { fill: transparent; stroke: none; pointer-events: all; cursor: pointer; }
 .pdf-link:hover { fill: color-mix(in srgb, var(--accent) 10%, transparent); }

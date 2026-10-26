@@ -133,6 +133,45 @@ test('an edit changes the words and draws a text box again', () => {
   assert.match(file.decode(form).toString('latin1'), /\(After the edit\)/);
 });
 
+test('a signature, a tick or a date moved or resized: a new Rect, the stamp drawn into it, a text box laid out again', () => {
+  const one = annotate(written(1), {
+    add: [
+      { page: 0, type: 'Stamp', rect: [100, 100, 114, 114], paths: [[95, 107, 98.5, 103, 105.5, 111.5]], width: 1.8, icon: 'Check', subject: 'Checkmark' },
+      { page: 0, type: 'FreeText', rect: [72, 400, 160, 418], contents: '26 Oct 2026', fontSize: 11, subject: 'Date' },
+      { page: 0, type: 'Highlight', quads: [quad(72, 690, 300, 704)] },
+    ],
+  });
+  const [tick, date, mark] = one.added;
+  const two = annotate(one.bytes, {
+    move: [
+      { id: tick, rect: [300, 500, 328, 528] },
+      { id: date, rect: [200, 300, 320, 330] },
+      { id: mark, rect: [0, 0, 10, 10] },
+    ],
+  });
+  assert.ok(two.bytes.subarray(0, one.bytes.length).equals(one.bytes), 'an update after the bytes');
+  const file = openPdf(two.bytes);
+  const read = readAnnotations(file);
+  const at = (id) => read.find((a) => a.id === id);
+  assert.deepEqual(at(tick).rect, [300, 500, 328, 528]);
+  assert.deepEqual(at(date).rect, [200, 300, 320, 330]);
+  assert.equal(at(date).contents, '26 Oct 2026', 'its words kept');
+  assert.notDeepEqual(at(mark).rect, [0, 0, 10, 10], 'a highlight stays on its words');
+  // The tick's appearance is the one it had: drawn into the new Rect by every reader.
+  const before = openPdf(one.bytes);
+  const apOf = (f, id) => f.resolve(f.resolve(f.getObject(Number(id)).get('AP')).get('N'));
+  assert.equal(file.decode(apOf(file, tick)).toString('latin1'), before.decode(apOf(before, tick)).toString('latin1'));
+  // The date's box drawn again at its new place.
+  const form = apOf(file, date);
+  assert.deepEqual(file.resolve(form.dict.get('BBox')).map(Number), [200, 300, 320, 330]);
+  assert.match(file.decode(form).toString('latin1'), /\(26 Oct 2026\)/);
+  // A move and an edit of the same text box together: the words at the new place.
+  const three = annotate(two.bytes, { move: [{ id: date, rect: [50, 50, 170, 80] }], edit: [{ id: date, contents: '27 Oct 2026' }] });
+  const after = readAnnotations(openPdf(three.bytes)).find((a) => a.id === date);
+  assert.deepEqual(after.rect, [50, 50, 170, 80]);
+  assert.equal(after.contents, '27 Oct 2026');
+});
+
 test('annotations another writer made are read, and kept when comments are added', () => {
   const foreign = withForeignNote();
   const before = readAnnotations(openPdf(foreign));

@@ -130,6 +130,7 @@ import { verifyVideoTracks } from './verify-video-tracks.js';
 import { verifyPdfApp } from './verify-pdf-app.js';
 import { verifyOcrPdf } from './verify-ocr-pdf.js';
 import { verifyPdfAnnot } from './verify-pdf-annot.js';
+import { verifyPdfMarks } from './verify-pdf-marks.js';
 import { verifyPdfForms } from './verify-pdf-forms.js';
 import { verifyPdfRedact } from './verify-pdf-redact.js';
 import { verifyPdfOutline } from './verify-pdf-outline.js';
@@ -5055,6 +5056,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('pdf-app')) await verifyPdfApp({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('ocr-pdf')) await verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('pdf-annot')) await verifyPdfAnnot({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('pdf-marks')) await verifyPdfMarks({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('pdf-forms')) await verifyPdfForms({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('pdf-redact')) await verifyPdfRedact({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('pdf-outline')) await verifyPdfOutline({ open, check, until, wait, errorsIn }, { dir });
@@ -5495,6 +5497,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('pdf', () => verifyPdfApp({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyOcrPdf({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyPdfAnnot({ open, check, until, wait, errorsIn }, { dir }));
+  await part('pdf', () => verifyPdfMarks({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyPdfForms({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyPdfRedact({ open, check, until, wait, errorsIn }, { dir }));
   await part('pdf', () => verifyPdfOutline({ open, check, until, wait, errorsIn }, { dir }));

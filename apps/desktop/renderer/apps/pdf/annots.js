@@ -23,6 +23,42 @@ export const MARKUP_TOOLS = new Set(['highlight', 'underline', 'strike', 'redact
 /** Tools drawn on the page with the pointer. */
 export const DRAW_TOOLS = new Set(['note', 'text', 'ink', 'rect', 'ellipse', 'line', 'arrow', 'redact-area', 'stamp', 'date', 'check']);
 
+/** Comments moved on the page by dragging them: a signature or initials, a tick, a date or another text box, a sticky note. */
+export const MOVABLE_TYPES = new Set(['Stamp', 'FreeText', 'Text']);
+/** Of those, the ones resized by a corner (a sticky note's icon keeps its size, as in Acrobat). */
+const RESIZABLE_TYPES = new Set(['Stamp', 'FreeText']);
+/** The smallest a comment is made by its corners, in points. */
+const SMALLEST = 8;
+
+/**
+ * Where a comment goes when it is dragged: by its body `corner` null moves
+ * it, by a corner (0 bottom left, 1 bottom right, 2 top right, 3 top left,
+ * in the page's own coordinates) resizes it, the opposite corner staying
+ * where it is. A stamp (a signature, a tick) keeps its proportions.
+ */
+export function shiftedRect(rect, from, to, { corner = null, keepShape = false } = {}) {
+  const [x0, y0, x1, y1] = rect;
+  if (corner == null) {
+    const dx = to[0] - from[0];
+    const dy = to[1] - from[1];
+    return [x0 + dx, y0 + dy, x1 + dx, y1 + dy];
+  }
+  const fx = corner === 0 || corner === 3 ? x1 : x0;
+  const fy = corner === 0 || corner === 1 ? y1 : y0;
+  let w = Math.max(SMALLEST, Math.abs(to[0] - fx));
+  let h = Math.max(SMALLEST, Math.abs(to[1] - fy));
+  if (keepShape && x1 > x0 && y1 > y0) {
+    const k = Math.max(w / (x1 - x0), h / (y1 - y0));
+    w = Math.max(SMALLEST, (x1 - x0) * k);
+    h = Math.max(SMALLEST, (y1 - y0) * k);
+  }
+  const ox = corner === 0 || corner === 3 ? -1 : 1;
+  const oy = corner === 0 || corner === 1 ? -1 : 1;
+  const ax = fx + ox * w;
+  const ay = fy + oy * h;
+  return [Math.min(fx, ax), Math.min(fy, ay), Math.max(fx, ax), Math.max(fy, ay)];
+}
+
 /** The annotation each tool writes. */
 export const TOOL_TYPES = {
   highlight: 'Highlight', underline: 'Underline', strike: 'StrikeOut', note: 'Text', text: 'FreeText', ink: 'Ink',
@@ -147,9 +183,11 @@ const rectPts = (vp, r) => pts(vp, [r[0], r[3], r[2], r[3], r[2], r[1], r[0], r[
  * outlined, and the shape a drawing tool is dragging out. Reports each new
  * shape in the page's coordinates through `onCreate`.
  */
-export function AnnotLayer({ entry, source, scale, annots, tool, colour, picked, onPick, onCreate, viewports, fields = null, onLink = null }) {
+export function AnnotLayer({ entry, source, scale, annots, tool, colour, picked, onPick, onCreate, viewports, fields = null, onLink = null, onMove = null }) {
   const [vp, setVp] = useState(null);
   const [draft, setDraft] = useState(null);
+  // A comment being dragged to a new place or size: { id, rect } in the page's coordinates.
+  const [shift, setShift] = useState(null);
   const ref = useRef(null);
   useEffect(() => {
     let live = true;
@@ -207,6 +245,38 @@ export function AnnotLayer({ entry, source, scale, annots, tool, colour, picked,
     window.addEventListener('mouseup', up);
   };
 
+  /** Pressing a comment picks it; dragging a movable one (or a corner of it) moves or resizes it. */
+  const pressComment = (e, a, corner = null) => {
+    if (drawing || e.button !== 0) return;
+    e.stopPropagation();
+    // Pressed on the page, it is in view already: the page is not scrolled under the pointer.
+    onPick(a.id, entry.key, { onPage: true });
+    if (!onMove || !vp || !MOVABLE_TYPES.has(a.type)) return;
+    e.preventDefault();
+    const start = local(e);
+    const from = toPdf(start);
+    const keepShape = a.type === 'Stamp';
+    let rect = a.rect;
+    let far = false;
+    const move = (ev) => {
+      const p = local(ev);
+      if (!far && Math.hypot(p[0] - start[0], p[1] - start[1]) <= 3) return;
+      far = true;
+      rect = shiftedRect(a.rect, from, toPdf(p), { corner, keepShape });
+      setShift({ id: a.id, rect });
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      if (!far) { setShift(null); return; }
+      const done = onMove({ id: a.id, source: entry.source, page: entry.page, rect: rect.map((v) => Math.round(v * 100) / 100) });
+      // The outline stays at the new place until the page is drawn again with the comment there.
+      Promise.resolve(done).finally(() => setShift(null));
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
   const mine = useMemo(() => (annots || []).filter((a) => a.page === entry.page && !a.hidden && !a.replyTo && a.rect), [annots, entry.page]);
   const links = useMemo(() => (source?.nav?.links || []).filter((l) => l.page === entry.page), [source, entry.page]);
   const stroke = cssColour(colour);
@@ -231,11 +301,19 @@ export function AnnotLayer({ entry, source, scale, annots, tool, colour, picked,
         </polygon>
       )) : null}
       {vp ? mine.filter((a) => !a.hasAppearance).map((a) => <Unpainted key={`u${a.id}`} a={a} vp={vp} />) : null}
-      {vp ? mine.map((a) => (
-        <g key={a.id} className={`pdf-annot${picked === a.id ? ' picked' : ''}`} data-id={a.id} data-type={a.type} onMouseDown={(e) => { if (drawing || e.button !== 0) return; e.stopPropagation(); onPick(a.id, entry.key); }}>
-          {a.quads ? a.quads.map((q, i) => <polygon key={i} points={quadPts(vp, q)} />) : <polygon points={rectPts(vp, a.rect)} />}
-        </g>
-      )) : null}
+      {vp ? mine.map((a) => {
+        const movable = Boolean(onMove) && MOVABLE_TYPES.has(a.type);
+        const at = shift?.id === a.id ? shift.rect : a.rect;
+        return (
+          <g key={a.id} className={`pdf-annot${picked === a.id ? ' picked' : ''}${movable ? ' movable' : ''}${shift?.id === a.id ? ' shifting' : ''}`} data-id={a.id} data-type={a.type} onMouseDown={(e) => pressComment(e, a)}>
+            {a.quads ? a.quads.map((q, i) => <polygon key={i} points={quadPts(vp, q)} />) : <polygon points={rectPts(vp, at)} />}
+            {movable && picked === a.id && RESIZABLE_TYPES.has(a.type) && !drawing ? [[at[0], at[1]], [at[2], at[1]], [at[2], at[3]], [at[0], at[3]]].map(([x, y], i) => {
+              const [sx, sy] = vp.convertToViewportPoint(x, y);
+              return <rect key={`h${i}`} className="pdf-handle" data-handle={i} x={sx - 4} y={sy - 4} width={8} height={8} onMouseDown={(e) => pressComment(e, a, i)} />;
+            }) : null}
+          </g>
+        );
+      }) : null}
       {fields}
       {draft && vp ? <Draft draft={draft} stroke={stroke} /> : null}
     </svg>

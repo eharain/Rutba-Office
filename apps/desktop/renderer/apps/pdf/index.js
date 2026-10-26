@@ -68,6 +68,28 @@ import {
 import { FieldLayer, SignatureDialog, savedSignature, signatureStamp } from './fields.js';
 import { searchQuads, decodePlan, ApplyRedactionsDialog } from './redact.js';
 import { BookmarksPane, labelOf } from './nav.js';
+
+/** A tool's name as its button says it. */
+function toolName(tool) {
+  switch (tool) {
+    case 'highlight': return t('Highlight');
+    case 'underline': return t('Underline');
+    case 'strike': return t('Strikethrough');
+    case 'note': return t('Sticky Note');
+    case 'text': return t('Text Box');
+    case 'ink': return t('Draw');
+    case 'rect': return t('Rectangle');
+    case 'ellipse': return t('Ellipse');
+    case 'line': return t('Line');
+    case 'arrow': return t('Arrow');
+    case 'redact-area': return t('Mark Area');
+    case 'redact-text': return t('Mark Text');
+    case 'stamp': return t('Signature');
+    case 'date': return t('Date');
+    case 'check': return t('Checkmark');
+    default: return t('The tool');
+  }
+}
 import { ExportPicturesDialog, CompressDialog, pageBytes, encodePlan } from './export.js';
 
 const AUTOSAVE_FIRST_MS = 1500;
@@ -429,8 +451,14 @@ export default function PdfApp({ app, shell, boot }) {
     if (guardLocked('assemble')) return;
     const sel = selectedRef.current;
     const keys = sel.includes(key) ? pagesRef.current.filter((p) => sel.includes(p.key)).map((p) => p.key) : [key];
-    edit(movePages(pagesRef.current, keys, to), { select: keys, current: key });
-  }, [edit, guardLocked]);
+    const next = movePages(pagesRef.current, keys, to);
+    if (next === pagesRef.current) {
+      // Dropped among the pages being moved: nothing to do, and the person is told why.
+      if (keys.length > 1) toast(t('The selected pages are already there. To move one page among them, select that page alone first.'), { ms: 5000 });
+      return;
+    }
+    edit(next, { select: keys, current: key });
+  }, [edit, guardLocked, toast]);
 
   /** Pages of other files: after the last picked page, or at the end. */
   const insertFiles = useCallback(async (files, { at = null, announce = true } = {}) => {
@@ -709,6 +737,8 @@ export default function PdfApp({ app, shell, boot }) {
     }
     if (d.tool === 'date') {
       // Today, as the words of a text box where the page was clicked, top left at the click.
+      // One date a click: the tool goes back once it is placed, as Sign's does.
+      setTool(null);
       const words = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date());
       const ctx2d = document.createElement('canvas').getContext('2d');
       ctx2d.font = '11px Helvetica, Arial, sans-serif';
@@ -717,7 +747,8 @@ export default function PdfApp({ app, shell, boot }) {
       return;
     }
     if (d.tool === 'check') {
-      // A tick, 14 points square, centred on the click.
+      // A tick, 14 points square, centred on the click; the tool goes back once it is placed.
+      setTool(null);
       const [cx, cy] = d.point;
       const tick = [[cx - 5, cy, cx - 1.5, cy - 4, cx + 5.5, cy + 4.5]];
       changeComments([{ source: d.source, changes: { add: [{ page: d.page, type: 'Stamp', rect: [cx - 7, cy - 7, cx + 7, cy + 7], paths: tick, width: 1.8, icon: 'Check', subject: 'Checkmark', color: [0.06, 0.14, 0.36] }] } }], { pick: true });
@@ -894,14 +925,17 @@ export default function PdfApp({ app, shell, boot }) {
     if (item) deleteComment(item);
   }, [picked, deleteComment]);
 
-  const pickComment = useCallback((id, pageKey) => {
+  const pickComment = useCallback((id, pageKey, { onPage = false } = {}) => {
     setPicked(id);
+    const had = toolRef.current;
+    if (had) toast(t('{tool} put down to show the comment you picked. Press {tool} again to go on.', { tool: toolName(had) }), { ms: 4000 });
     setTool(null);
     if (pageKey && pageKey !== currentRef.current) {
       setCurrent(pageKey);
-      requestAnimationFrame(() => scrollToRef.current?.(pageKey));
+      if (!onPage) requestAnimationFrame(() => scrollToRef.current?.(pageKey));
     }
-    // The comment on its page brought into view.
+    // The comment on its page brought into view (one pressed on the page is in view, and may be being dragged).
+    if (onPage) return;
     requestAnimationFrame(() => {
       const el = viewRef.current?.querySelector(`.pdf-page[data-key="${pageKey}"] .pdf-annot[data-id="${id}"]`);
       const view = viewRef.current;
@@ -910,7 +944,10 @@ export default function PdfApp({ app, shell, boot }) {
       const box = view.getBoundingClientRect();
       if (r.top < box.top + 20 || r.bottom > box.bottom - 20) view.scrollTop += r.top - box.top - box.height / 3;
     });
-  }, []);
+  }, [toast]);
+
+  /** A signature, tick, date or note dragged to a new place, or resized by a corner. */
+  const moveComment = useCallback(({ id, source, rect }) => changeComments([{ source, changes: { move: [{ id, rect }] } }]), [changeComments]);
 
   /** A link on a page: to a page of this file, where that page now stands, or out to a web address. */
   const followLink = useCallback((link, entry) => {
@@ -938,11 +975,12 @@ export default function PdfApp({ app, shell, boot }) {
       picked={picked}
       onPick={pickComment}
       onCreate={onCreate}
+      onMove={moveComment}
       viewports={viewports}
       onLink={followLink}
       />
     </>
-  ), [tool, colourOf, picked, pickComment, onCreate, viewports, tintFields, fillField, followLink, foundMark]);
+  ), [tool, colourOf, picked, pickComment, onCreate, moveComment, viewports, tintFields, fillField, followLink, foundMark]);
 
   /* ── writing ────────────────────────────────────────────────────────── */
 
@@ -1048,7 +1086,9 @@ export default function PdfApp({ app, shell, boot }) {
         await writeTo(target, groups[g].map((i) => list[i]));
         written.push(target);
       }
-      toast(tn(written.length, 'Split into {count} file in {folder}', 'Split into {count} files in {folder}', { folder: basename(folder) || folder }), { tone: 'good', ms: 5000 });
+      toast(tn(written.length, 'Split into {count} file in {folder}: {first}', 'Split into {count} files in {folder}: {first} to {last}', {
+        folder: basename(folder) || folder, first: basename(written[0]), last: basename(written[written.length - 1]),
+      }), { tone: 'good', ms: 12000, action: { label: t('Show in Folder'), run: () => shell.shell.showInFolder({ path: written[0] }) } });
     } catch (err) {
       toast(t('The PDF could not be split: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
