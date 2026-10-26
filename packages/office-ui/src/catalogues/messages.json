@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8193,
+  "count": 8221,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -3656,6 +3656,18 @@
       "message": "Allow carriage returns (multiple paragraphs)",
       "where": [
         "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Allow changes",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Allow changes to this database?",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -13646,6 +13658,12 @@
       ]
     },
     {
+      "message": "Excel Workbook (.xlsx)",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
       "message": "Excel keeps the page setup in the file; so does this, so the next person to open it gets the same pages",
       "where": [
         "apps/desktop/renderer/print.js"
@@ -20622,6 +20640,12 @@
       ]
     },
     {
+      "message": "Left out, as no field holds pictures or other binary values: {fields}.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Left subscript and superscript",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
@@ -21889,6 +21913,12 @@
       "message": "Make Profile",
       "where": [
         "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Make a Data Files copy",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -25758,6 +25788,12 @@
       ]
     },
     {
+      "message": "Not shown, as Data Files cannot show them: {tables}.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Not streamed to {names}: no stream key.",
       "where": [
         "apps/desktop/renderer/apps/recorder.js"
@@ -29154,6 +29190,12 @@
       "message": "Power Query Editor — {source}",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "PowerPoint Presentation (.pptx)",
+      "where": [
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -33481,6 +33523,12 @@
       ]
     },
     {
+      "message": "Rutba Office still adds nothing of its own to the file, and its design is not changed here.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
       "message": "Rutba Office {version} is available",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -33859,6 +33907,12 @@
       ]
     },
     {
+      "message": "Save as Excel Workbook…",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
       "message": "Save as PDF",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js",
@@ -33874,6 +33928,12 @@
       ]
     },
     {
+      "message": "Save as PowerPoint Presentation…",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
       "message": "Save as Show",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
@@ -33884,6 +33944,24 @@
       "message": "Save as Show — a copy as a .ppsx, which PowerPoint opens straight into the show",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Save as Strict Open XML Document…",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Save as Strict Open XML Presentation…",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Save as Strict Open XML Spreadsheet…",
+      "where": [
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -33901,6 +33979,12 @@
       ]
     },
     {
+      "message": "Save as Word Document…",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
       "message": "Save as a project…",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -33910,6 +33994,7 @@
       "message": "Save as…",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js"
       ]
     },
@@ -38480,6 +38565,24 @@
       ]
     },
     {
+      "message": "Strict Open XML Document (.docx)",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Strict Open XML Presentation (.pptx)",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Strict Open XML Spreadsheet (.xlsx)",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
       "message": "Strikethrough",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js",
@@ -40176,6 +40279,12 @@
       ]
     },
     {
+      "message": "The Data Files copy needs a file of its own. Choose another name or folder.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The PDF could not be saved: {reason}",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -41384,6 +41493,12 @@
       "message": "The program is streamed to every destination that is on, at once. Stream keys are kept encrypted on this computer and are sent only to the server they belong to.",
       "where": [
         "apps/desktop/renderer/apps/recorder/live-dialog.js"
+      ]
+    },
+    {
+      "message": "The program that made this database keeps its records in its own way. A record you add, change or delete here goes straight into its file, where that program may not expect it. Close that program first, and keep a copy of the file if you are not sure.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -42721,6 +42836,48 @@
       ]
     },
     {
+      "message": "This database says its design version is \"{version}\", which no version of Rutba Office writes. It was not opened, and nothing in it was changed.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This database was made by a newer version of Rutba Office (design version {version}; this one knows up to {known}). Update Rutba Office to open it. Nothing in it was changed.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This database was made by another program and is open read only. Allow changes to change its records.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This database was made by another program, so its design is not changed here. Make a Data Files copy of it to change its design.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This database was made by another program. Changes to its records go straight into its file, and nothing else in it is changed. Make a Data Files copy to change its design.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "This database was made by another program. It is open read only, and nothing is added to its file. Allow changes to change its records, or make a Data Files copy to change its design.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "This database was made by another program. Open it to read it, or make a Data Files copy of it to change its design.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This deck has no layouts of its own.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -42946,6 +43103,12 @@
       "message": "This invitation is no longer waiting: it was accepted, withdrawn or has ended.",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "This is a Data Files copy. The file it was made from is as it was.",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
       ]
     },
     {
@@ -46752,7 +46915,8 @@
     {
       "message": "Word Document (.docx)",
       "where": [
-        "apps/desktop/renderer/registry-words.js"
+        "apps/desktop/renderer/registry-words.js",
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -50588,6 +50752,13 @@
     {
       "message": "{count} record deleted",
       "plural": "{count} records deleted",
+      "where": [
+        "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "{count} record did not fit its table and was left out.",
+      "plural": "{count} records did not fit their tables and were left out.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
       ]
