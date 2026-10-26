@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8140,
+  "count": 8193,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1466,6 +1466,18 @@
       ]
     },
     {
+      "message": "A protected database is reached only as a role an Admin chose for the AI tools in Data Files, never one that may change its design.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "A protected database is reached only as the role chosen here, and never as one that may change the design.",
+      "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js"
+      ]
+    },
+    {
       "message": "A query needs a source",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -1922,13 +1934,20 @@
     {
       "message": "AI tools",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/apps/base/ai-tools.js"
       ]
     },
     {
       "message": "AI tools always on; no AI app connected. Click to change.",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "AI tools for {name}",
+      "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js"
       ]
     },
     {
@@ -1941,6 +1960,24 @@
       "message": "AI tools on: {apps} connected. Click for the details.",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "AI tools: address books",
+      "where": [
+        "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "AI tools: calendars",
+      "where": [
+        "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "AI tools: {step}",
+      "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js"
       ]
     },
     {
@@ -2082,6 +2119,7 @@
     {
       "message": "Accept",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/reader.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -2329,6 +2367,18 @@
       "message": "Add Audio",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Add Contact",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "Add Event",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -2972,8 +3022,15 @@
       ]
     },
     {
+      "message": "Address book",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Address books",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/registry-words.js"
       ]
     },
@@ -3742,6 +3799,48 @@
       ]
     },
     {
+      "message": "An AI app wants to add this contact to an address book kept on a server",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "An AI app wants to add this event to a calendar kept on a server",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "An AI app wants to answer this invitation",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "An AI app wants to do this",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "An AI app wants to send this invitation",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "An AI app wants to send this message",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "An AI app wants to write this to a database engine",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "An action goes to a web address (http:// or https://) or an e-mail address (mailto:).",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -3763,6 +3862,12 @@
       "message": "An app password, where the service gives one.",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "An archive opened in place, read only",
+      "where": [
+        "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
     },
     {
@@ -3988,6 +4093,7 @@
     {
       "message": "Answer",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/talk.js"
       ]
     },
@@ -4668,6 +4774,7 @@
     {
       "message": "Attachments",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/parts.js"
@@ -5198,6 +5305,7 @@
     {
       "message": "Bcc",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js"
       ]
@@ -6222,6 +6330,7 @@
     {
       "message": "Calendar",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/library-words.js",
@@ -6237,6 +6346,7 @@
     {
       "message": "Calendars",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/registry-words.js"
       ]
@@ -6351,8 +6461,10 @@
     {
       "message": "Cancel",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps-choice.js",
         "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/apps/base/ai-tools.js",
         "apps/desktop/renderer/apps/base/filters.js",
         "apps/desktop/renderer/apps/base/form-designer.js",
         "apps/desktop/renderer/apps/base/forms.js",
@@ -6443,6 +6555,12 @@
       "message": "Cancelled before the end: only the messages listed in the manifest were exported.",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Cancelled. Nothing was done.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -6623,6 +6741,7 @@
     {
       "message": "Cc",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js"
       ]
@@ -7420,6 +7539,12 @@
       "message": "Choose a picture or a paint layer to transform it.",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Choose a role",
+      "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js"
       ]
     },
     {
@@ -10264,6 +10389,7 @@
     {
       "message": "Database",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/links.js"
       ]
@@ -10271,6 +10397,7 @@
     {
       "message": "Databases",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/registry-words.js"
       ]
     },
@@ -10423,6 +10550,7 @@
     {
       "message": "Decline",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/reader.js",
         "apps/desktop/renderer/apps/talk.js"
@@ -11473,6 +11601,12 @@
       ]
     },
     {
+      "message": "Do It",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Do not add up",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -11619,6 +11753,12 @@
       "message": "Done Marking Areas",
       "where": [
         "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Done.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -12260,6 +12400,12 @@
       ]
     },
     {
+      "message": "Each mail account, calendar, address book, database and folder has its own setting, also shown in its own app. Everything is Off until you choose. Nothing is ever deleted or moved, and anything sent waits for your press here first.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Each message is the merged letter itself. The account's signature is not added: what you wrote in the letter is what each person receives.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -12763,6 +12909,7 @@
     {
       "message": "Email",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/video/export.js"
       ]
@@ -12997,6 +13144,7 @@
     {
       "message": "Ends",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar.js"
       ]
     },
@@ -13277,6 +13425,12 @@
       "message": "Evaluation",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Event",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -15011,6 +15165,7 @@
     {
       "message": "Folders",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
@@ -15018,12 +15173,6 @@
       "message": "Folders of {source}",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
-      ]
-    },
-    {
-      "message": "Folders the tools may use",
-      "where": [
-        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -15621,6 +15770,7 @@
     {
       "message": "From",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/base/filters.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
@@ -19610,6 +19760,12 @@
       ]
     },
     {
+      "message": "Keep as draft",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Keep as it is",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -19724,6 +19880,12 @@
       ]
     },
     {
+      "message": "Kept as a draft. Nothing was sent.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Kept as {name}",
       "where": [
         "apps/desktop/renderer/apps/base/queries.js"
@@ -19751,6 +19913,12 @@
       "message": "Kept in this computer's keystore, never in a file you can read.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Kept on this computer, not in the file. The same setting is in AI Tools.",
+      "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js"
       ]
     },
     {
@@ -20553,7 +20721,7 @@
       ]
     },
     {
-      "message": "Let an AI app on this computer make and read documents, workbooks, presentations and PDFs with Rutba Office, in the folders you choose. It never overwrites or deletes a file.",
+      "message": "Let an AI app on this computer make and read documents, workbooks, presentations and PDFs with Rutba Office, in the folders you choose, and use the mail, calendars, contacts and databases you allow. It never overwrites or deletes a file.",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
       ]
@@ -21239,6 +21407,7 @@
     {
       "message": "Location",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/library-words.js",
@@ -21613,6 +21782,12 @@
       ]
     },
     {
+      "message": "Mail accounts and archives",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Mail archives",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -21726,6 +21901,12 @@
       "message": "Make a role for each kind of work: a cashier, a manager, someone who keeps the stock.",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "Make a role for them first in People and roles, one that may not change the design.",
+      "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js"
       ]
     },
     {
@@ -23484,6 +23665,7 @@
     {
       "message": "Name",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/documents.js",
         "apps/desktop/renderer/apps/base/people.js",
@@ -25763,6 +25945,12 @@
       ]
     },
     {
+      "message": "Nothing is done until you press {action}. Cancel does nothing.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Nothing is frozen.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -25784,6 +25972,12 @@
       "message": "Nothing is sent anywhere. The import reads the file and writes to this computer only.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Nothing is sent until you press {action}. Keep as draft keeps it on this computer instead; Cancel does nothing.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -26266,6 +26460,12 @@
       "message": "On the timeline",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "On this computer",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -28157,6 +28357,7 @@
     {
       "message": "Phone",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/contacts.js"
       ]
     },
@@ -30177,6 +30378,12 @@
       ]
     },
     {
+      "message": "Read and prepare",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Read as a receipt.",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
@@ -30227,6 +30434,7 @@
     {
       "message": "Read only",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/base/people.js"
       ]
     },
@@ -30276,6 +30484,12 @@
       "message": "Read, add and change",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "Read, prepare and act",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -30528,6 +30742,7 @@
     {
       "message": "Record",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/base/documents.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/scripts.js",
@@ -33485,6 +33700,7 @@
     {
       "message": "Save",
       "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js",
         "apps/desktop/renderer/apps/base/form-designer.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/calendar.js",
@@ -34863,6 +35079,7 @@
     {
       "message": "Send",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -34872,6 +35089,12 @@
       "message": "Send / Receive",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Send Answer",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -34925,6 +35148,12 @@
       "message": "Send E-mail Messages…",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Send Invitation",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -37963,6 +38192,7 @@
     {
       "message": "Starts",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar.js"
       ]
     },
@@ -38356,6 +38586,7 @@
     {
       "message": "Subject",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
@@ -38710,6 +38941,7 @@
     {
       "message": "Table",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
@@ -39200,6 +39432,7 @@
     {
       "message": "Tentative",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/mail/reader.js"
       ]
@@ -39892,6 +40125,36 @@
       "message": "The .glb file has no scene description",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The AI tools cannot see it.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "The AI tools cannot see this database.",
+      "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js"
+      ]
+    },
+    {
+      "message": "The AI tools may also ask to send, or to write to a server. Each one is shown to you in Rutba Office first and done only when you press its button.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "The AI tools may read it and prepare new things kept on this computer: drafts, events, contacts, files and records. Nothing is sent.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "The AI tools may read it, and change nothing.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -42158,6 +42421,24 @@
       ]
     },
     {
+      "message": "They may also add records and change them. They never change the design, and never delete.",
+      "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js"
+      ]
+    },
+    {
+      "message": "They may also write records to tables linked to a database engine. Each change is shown to you in Rutba Office first and written only when you press its button.",
+      "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js"
+      ]
+    },
+    {
+      "message": "They may read its records.",
+      "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js"
+      ]
+    },
+    {
       "message": "They see it in Talk if they use it. You can send them the link yourself after.",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
@@ -43547,6 +43828,7 @@
     {
       "message": "To",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/base/filters.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js",
@@ -45340,6 +45622,7 @@
     {
       "message": "Values",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/pivot-fields.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -45937,6 +46220,12 @@
       ]
     },
     {
+      "message": "What the AI tools may do with each. Everything is Off until you choose. The same settings are in AI Tools.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "What the table is",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -45944,6 +46233,12 @@
     },
     {
       "message": "What the tools have done",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "What the tools may reach",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
       ]
@@ -46571,6 +46866,12 @@
       ]
     },
     {
+      "message": "Work as",
+      "where": [
+        "apps/desktop/renderer/apps/base/ai-tools.js"
+      ]
+    },
+    {
       "message": "Work backwards: name a formula cell, the answer you want from it, and the cell that may change to get there.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -46710,6 +47011,12 @@
       "message": "Write & Insert Fields",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Write It",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -47440,6 +47747,12 @@
       ]
     },
     {
+      "message": "archive, read only",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "are true:",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
@@ -47492,6 +47805,12 @@
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "brought in from a file",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -48014,6 +48333,12 @@
       ]
     },
     {
+      "message": "kept in step with a server",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "labels",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -48183,6 +48508,12 @@
       "message": "normal",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "not found",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -49093,6 +49424,12 @@
       ]
     },
     {
+      "message": "works as {role}",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "write the video file, with its sound",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -49977,6 +50314,13 @@
       "where": [
         "apps/desktop/renderer/apps/slides/comments.js",
         "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "{count} more waiting",
+      "plural": "{count} more waiting",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
@@ -51674,6 +52018,12 @@
       "message": "{value} mm",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
+      ]
+    },
+    {
+      "message": "{what}: {name}",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
       ]
     },
     {
