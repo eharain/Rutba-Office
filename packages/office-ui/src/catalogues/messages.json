@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8051,
+  "count": 8101,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1068,6 +1068,18 @@
       ]
     },
     {
+      "message": "A forgotten password cannot be recovered.",
+      "where": [
+        "packages/office-shell/src/electron/profile-lock.js"
+      ]
+    },
+    {
+      "message": "A forgotten password cannot be recovered. Nobody, not even Rutba Office, can open what it sealed without it.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "A form for the records of",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -1427,6 +1439,12 @@
       "message": "A pivot needs at least one field in Values.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A profile can ask for a password before it opens. Its saved passwords, recent files, calendars, contacts and Talk messages are then sealed with it.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -3950,6 +3968,12 @@
       ]
     },
     {
+      "message": "Another profile’s password is set from that profile’s own windows.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Answer",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
@@ -6373,6 +6397,7 @@
         "apps/desktop/renderer/object-insert.js",
         "apps/desktop/renderer/ocr-ui.js",
         "apps/desktop/renderer/print.js",
+        "apps/desktop/renderer/profiles.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/qrcode.js",
         "apps/desktop/renderer/rotation-dialog.js",
@@ -6380,6 +6405,7 @@
         "apps/desktop/renderer/shell.js",
         "apps/desktop/renderer/smartart-dialog.js",
         "packages/office-shell/src/electron/main.js",
+        "packages/office-shell/src/electron/profile-lock.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -6766,6 +6792,12 @@
       ]
     },
     {
+      "message": "Change Password…",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Change Signature",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -6801,6 +6833,12 @@
       "message": "Change provider",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Change the Password",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -8032,6 +8070,7 @@
         "apps/desktop/renderer/dav-accounts.js",
         "apps/desktop/renderer/defaults.js",
         "apps/desktop/renderer/inspect.js",
+        "apps/desktop/renderer/profiles.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/whatsnew.js",
         "packages/office-ui/src/index.js"
@@ -8241,6 +8280,7 @@
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/icons-insert.js",
+        "apps/desktop/renderer/profiles.js",
         "apps/desktop/renderer/qrcode.js"
       ]
     },
@@ -9682,6 +9722,12 @@
       ]
     },
     {
+      "message": "Current password",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Current record",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -10406,7 +10452,8 @@
     {
       "message": "Default",
       "where": [
-        "apps/desktop/renderer/apps/base.js"
+        "apps/desktop/renderer/apps/base.js",
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -12186,6 +12233,12 @@
       "message": "Each page is written as a picture into a folder you choose: {count} in all. This document is not changed.",
       "where": [
         "apps/desktop/renderer/apps/pdf/export.js"
+      ]
+    },
+    {
+      "message": "Each profile keeps its own settings, saved passwords, recent files, mail, calendars, contacts, Talk sign-in and AI Tools settings. Profiles open side by side, each in windows of its own, with its name and colour in the title bar.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -19278,6 +19331,12 @@
       ]
     },
     {
+      "message": "Its settings, saved passwords, recent files, mail, calendars, contacts, Talk messages and AI Tools settings ({size}) go to the Recycle Bin. Documents you saved elsewhere, such as in Documents, stay where they are.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Its sums agree, so its figures go in as read.",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
@@ -20828,6 +20887,12 @@
       ]
     },
     {
+      "message": "Lines copied from Rutba Office before this version name a file the AI app cannot find. Copy these and put them in its settings in place of the old ones. They open the tools in this profile.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Lines from",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js"
@@ -21572,6 +21637,12 @@
       ]
     },
     {
+      "message": "Make Profile",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Make a link",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
@@ -21623,6 +21694,13 @@
       "message": "Making the video: slide {at} of {of}. It plays the deck through, so it takes as long as the show.",
       "where": [
         "apps/desktop/renderer/apps/slides/export-video.js"
+      ]
+    },
+    {
+      "message": "Manage Profiles…",
+      "where": [
+        "apps/desktop/renderer/profiles.js",
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -23373,6 +23451,12 @@
       ]
     },
     {
+      "message": "Name of the new profile",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Name of the table here",
       "where": [
         "apps/desktop/renderer/apps/base/sources.js"
@@ -23388,6 +23472,12 @@
       "message": "Name the selected paragraphs, so Go To can find them again.",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Name, for example Work",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -23649,6 +23739,12 @@
       ]
     },
     {
+      "message": "New Profile…",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "New Query",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -23824,13 +23920,20 @@
     {
       "message": "New password",
       "where": [
-        "apps/desktop/renderer/apps/base/people.js"
+        "apps/desktop/renderer/apps/base/people.js",
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
       "message": "New picture",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "New profile",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -26359,8 +26462,10 @@
         "apps/desktop/renderer/apps/word/compare.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/profiles.js",
         "apps/desktop/renderer/shell.js",
-        "apps/desktop/renderer/start-page.js"
+        "apps/desktop/renderer/start-page.js",
+        "packages/office-shell/src/electron/profile-lock.js"
       ]
     },
     {
@@ -26509,6 +26614,12 @@
       ]
     },
     {
+      "message": "Open in {name}",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Open system settings",
       "where": [
         "apps/desktop/renderer/defaults.js"
@@ -26533,6 +26644,12 @@
       ]
     },
     {
+      "message": "Open this profile first when Rutba Office starts",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Open where it is",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -26542,6 +26659,12 @@
       "message": "Open where it is: read it in place, without copying it, and search it with the rest of your mail",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Open {name} beside this profile",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -26647,6 +26770,12 @@
       "message": "Opens a second window with your notes, the next slide and a clock — put it on the other screen",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Opens first",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -27515,7 +27644,9 @@
         "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/word/restrict.js",
         "apps/desktop/renderer/dav-accounts.js",
-        "apps/desktop/renderer/protect.js"
+        "apps/desktop/renderer/profiles.js",
+        "apps/desktop/renderer/protect.js",
+        "packages/office-shell/src/electron/profile-lock.js"
       ]
     },
     {
@@ -27528,6 +27659,12 @@
       "message": "Password for {link}",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "Password for {name}",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -29295,6 +29432,42 @@
       "message": "Products, their suppliers and stock movements, and what is running low.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Profile name",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Profile {name} made. Open it from this list or the profile menu.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Profile {name} removed.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Profile: {name}. Click to open another profile or manage them.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Profiles",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Profiles: open Rutba Office as another person, or for other work, side by side.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -31077,6 +31250,24 @@
       ]
     },
     {
+      "message": "Remove Password",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Remove Password…",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Remove Profile",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Remove Scene",
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
@@ -31196,6 +31387,12 @@
       ]
     },
     {
+      "message": "Remove the Password",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Remove the account and the calendars and cards it brought; nothing on the server is touched",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
@@ -31241,6 +31438,12 @@
       "message": "Remove this mark",
       "where": [
         "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Remove this profile",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -31311,6 +31514,12 @@
       ]
     },
     {
+      "message": "Remove {name}?",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Remove {tag}",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -31358,7 +31567,8 @@
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/slides.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -33230,6 +33440,12 @@
       ]
     },
     {
+      "message": "Save Password",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Save Picture As",
       "where": [
         "apps/desktop/renderer/apps/mail/safety.js"
@@ -34966,6 +35182,18 @@
       "message": "Set Up Slide Show — who the show is for, looping, which slides and how it moves on",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Set a Password",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Set a Password…",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -38248,6 +38476,18 @@
       ]
     },
     {
+      "message": "Switch to",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Switch to {name}",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Swoosh",
       "where": [
         "apps/desktop/renderer/apps/video/library.js"
@@ -39440,6 +39680,12 @@
       ]
     },
     {
+      "message": "That password is not right. Try again.",
+      "where": [
+        "packages/office-shell/src/electron/profile-lock.js"
+      ]
+    },
+    {
       "message": "That picture could not be read.",
       "where": [
         "apps/desktop/renderer/apps/mail/safety.js",
@@ -40566,6 +40812,18 @@
       ]
     },
     {
+      "message": "The password is removed.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "The password is saved.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "The password was refused",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
@@ -41175,6 +41433,7 @@
         "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/word/restrict.js",
+        "apps/desktop/renderer/profiles.js",
         "apps/desktop/renderer/protect.js"
       ]
     },
@@ -42486,6 +42745,18 @@
       ]
     },
     {
+      "message": "This profile asks for its password before it opens.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "This profile has a password.",
+      "where": [
+        "packages/office-shell/src/electron/profile-lock.js"
+      ]
+    },
+    {
       "message": "This project as it is",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
@@ -42700,6 +42971,12 @@
       "message": "This week",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "This window",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -43921,6 +44198,12 @@
       ]
     },
     {
+      "message": "Type it again",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Type of Source",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -43948,6 +44231,12 @@
       "message": "Type the equation first.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Type the profile’s password.",
+      "where": [
+        "packages/office-shell/src/electron/profile-lock.js"
       ]
     },
     {
@@ -50334,9 +50623,21 @@
       ]
     },
     {
+      "message": "{name} (open)",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "{name} (redacted)",
       "where": [
         "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "{name} (this window)",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -50570,6 +50871,18 @@
       "message": "{name} was damaged, and was read by finding its pages. Save it to keep a whole copy.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "{name} will ask for this password before it opens. Its saved passwords, recent files, calendars, contacts and Talk messages are sealed with it, so another person using this Windows account cannot read them. Mail is not sealed with it yet.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "{name} will open without asking, and what the password sealed is kept as before, protected by Windows for your account only.",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
