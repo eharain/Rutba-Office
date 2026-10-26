@@ -16,6 +16,7 @@
     "./electron/machine-fakes": "./src/electron/machine-fakes.js",
     "./electron/packs": "./src/electron/packs.js",
     "./electron/pack-install": "./src/electron/pack-install.js",
+    "./electron/pack-resolve": "./src/electron/pack-resolve.js",
     "./electron/preload": "./src/electron/preload.cjs",
     "./client": "./src/client.js",
     "./runs": "./src/runs.js",

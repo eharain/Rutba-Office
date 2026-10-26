@@ -18,6 +18,10 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
 const out = path.join(app, 'build', 'out');
+// What went into each output file, for the app packs: a chunk only one app's
+// code is in goes into that app's pack (make-app-packs.js, check-packs.mjs).
+// Beside the output, never in it: nothing ships it.
+export const RENDERER_META = path.join(app, 'build', 'meta', 'renderer.json');
 const watch = process.argv.includes('--watch');
 const dev = watch || process.argv.includes('--dev');
 
@@ -61,6 +65,7 @@ const rendererOptions = {
   entryPoints: { app: path.join(app, 'renderer', 'index.js') },
   outdir: out,
   chunkNames: 'chunks/[name]-[hash]',
+  metafile: true,
   minify: !dev,
   sourcemap: dev ? 'inline' : false,
 };
@@ -163,14 +168,30 @@ async function run() {
   }
 
   const started = Date.now();
-  await Promise.all([esbuild.build(rendererOptions), esbuild.build(preloadOptions), esbuild.build(workerOptions), esbuild.build(imageWorkerOptions)]);
+  const [renderer] = await Promise.all([esbuild.build(rendererOptions), esbuild.build(preloadOptions), esbuild.build(workerOptions), esbuild.build(imageWorkerOptions)]);
+  writeMeta(renderer.metafile);
   const size = fs.statSync(path.join(out, 'app.js')).size;
   const chunks = fs.readdirSync(path.join(out, 'chunks')).filter((f) => f.endsWith('.js'));
   const chunked = chunks.reduce((n, f) => n + fs.statSync(path.join(out, 'chunks', f)).size, 0);
   console.log(`built in ${Date.now() - started} ms: app.js ${(size / 1024).toFixed(0)} KB, ${chunks.length} chunks ${(chunked / 1024).toFixed(0)} KB`);
 }
 
-run().catch((err) => {
+/** Each output file of the renderer and its inputs, by their paths from the repository's root. */
+function writeMeta(metafile) {
+  const root = path.resolve(app, '..', '..');
+  const posix = (p) => p.split(path.sep).join('/');
+  const outputs = {};
+  for (const [file, o] of Object.entries(metafile.outputs)) {
+    if (!file.endsWith('.js')) continue;
+    const rel = posix(path.relative(out, path.resolve(file)));
+    outputs[rel] = Object.keys(o.inputs).map((i) => posix(path.relative(root, path.resolve(i))));
+  }
+  fs.mkdirSync(path.dirname(RENDERER_META), { recursive: true });
+  fs.writeFileSync(RENDERER_META, `${JSON.stringify({ outputs }, null, 1)}\n`);
+}
+
+// Run when called, not when another build script imports the file's names.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) run().catch((err) => {
   console.error(err);
   process.exit(1);
 });

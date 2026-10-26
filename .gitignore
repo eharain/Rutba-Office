@@ -14,6 +14,8 @@ apps/desktop/build/out/
 apps/desktop/build/smoke/
 # The app packs and the installer's include made from them (build/make-app-packs.js).
 apps/desktop/build/packs/
+# What went into each renderer file, for the packs (build/bundle.js).
+apps/desktop/build/meta/
 # Website screenshots, from `npm run screens`. Ignored for the same reason the
 # smoke captures are, and for one more: an app given no file opens the
 # operating system's own folders, so a capture can contain whatever is on the

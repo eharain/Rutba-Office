@@ -210,7 +210,7 @@ function plan(p) {
     methods: p.methods(),
     events: p.events(),
     // A pack that carries its own window module is served from its archive (rutba://app/packs/<id>/...).
-    packs: p.packs.map((x) => ({ id: x.id, name: x.name, windows: x.windows ? `packs/${x.id}/${x.windows}` : null })),
+    packs: p.packs.map((x) => ({ id: x.id, name: x.name, windows: x.windows ? `packs/${x.id}/${x.windows}` : null, code: x.code || null })),
     refused: p.refused.map(({ id, name, reason }) => ({ id, name, reason })),
   });
   return p;
@@ -242,8 +242,11 @@ export async function registerPacks(p, context, { services: served = {}, record 
     const builtIn = BUILT_IN[pack.id] ? async (core) => (await BUILT_IN[pack.id]()).register(core) : null;
     try {
       const mod = pack.main ? await import(pathToFileURL(pack.main).href) : await BUILT_IN[pack.id]?.();
+      // Whose code runs: the pack's own, or the core's (a pack whose main hands over to builtIn says so by calling it).
+      pack.code = pack.main ? 'own' : 'core';
       if (typeof mod?.register !== 'function') throw new Error('its main module has no register function');
-      const out = (await mod.register({ ...context, pack: { id: pack.id, name: pack.name }, builtIn })) || {};
+      const handOver = builtIn ? (core) => { pack.code = 'core'; return builtIn(core); } : null;
+      const out = (await mod.register({ ...context, pack: { id: pack.id, name: pack.name }, builtIn: handOver })) || {};
       const extra = Object.keys(out).filter((ns) => !pack.ipc?.[ns]);
       if (extra.length) throw new Error(`it serves ${extra.join(', ')}, which its manifest does not declare`);
       Object.assign(served, out);

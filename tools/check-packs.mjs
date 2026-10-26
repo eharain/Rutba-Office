@@ -4,14 +4,18 @@
 //
 //   node tools/check-packs.mjs [--core <app.asar or folder>] [--packs <folder>]
 //                              [--keys <pack-keys.json>] [--installer <file>]
-//                              [--version <v>] [--json <file>]
+//                              [--version <v>] [--meta <renderer.json>]
+//                              [--json <file>]
 //
 // The core is the packaged archive (release/win-unpacked/resources/app.asar
 // after `npm run dist`), or a folder laid out the same way; the packs are the
 // ones the installer carries (build/packs/out), with the include it writes
 // them by (build/packs/installer-packs.nsh). Every file in the core is given
 // an owner: the app whose code it is, by the same map the plan is drawn from
-// (tools/app-map.mjs), or the core.
+// (tools/app-map.mjs), or the core. A renderer chunk's owner is read off what
+// went into it (build/bundle.js writes that, --meta): an app's when every
+// input is that app's; a chunk that mixes an app's code with another's is the
+// core's, and fails the check for an app that carries its own code.
 //
 // Then, for each pack, a copy with that pack alone is started the way a start
 // plans it (main/app-packs.js), with the core's keys and version, and must
@@ -39,6 +43,7 @@ import { TOOL_PACK, TOOL_NEEDS, LOADED_KEY, toolOffered } from '../apps/desktop/
 import { TOOL_LIST } from '../apps/desktop/main/mcp/tools.js';
 import { REACH_TOOL_LIST } from '../apps/desktop/main/mcp/reach-tools.js';
 import { ROOT, homeOf, mapImports } from './app-map.mjs';
+import { rendererOwners } from '../apps/desktop/build/pack-contents.js';
 
 const DESKTOP = path.join(ROOT, 'apps', 'desktop');
 const IDS = PACKS.map((p) => p.id);
@@ -105,10 +110,12 @@ function dependenciesOf(name) {
 /**
  * Who owns a file the core ships, by its path in the archive: the map's
  * owner for the sources and the engines, an npm package's owner for what that
- * package brings with it, a renderer chunk by the app it is named after.
+ * package brings with it, a renderer chunk by what went into it (the
+ * renderer's outputs, when given) or else by the app it is named after.
  * Anything no single app owns is the core's.
  */
-export function ownerResolver(g) {
+export function ownerResolver(g, outputs = null) {
+  const chunkOwners = outputs ? rendererOwners(g, outputs) : new Map();
   const workspace = workspacePackages();
   // An npm package reached by one owner brings its own dependencies with it.
   const npmOwner = new Map();
@@ -132,6 +139,8 @@ export function ownerResolver(g) {
   return (p) => {
     let m = /^main\/(.+)$/.exec(p);
     if (m) return homeOf(`apps/desktop/main/${m[1]}`) === 'checks' ? 'checks' : sourceOwner(`apps/desktop/main/${m[1]}`);
+    const made = p.startsWith('build/out/') && chunkOwners.get(p.slice('build/out/'.length));
+    if (made) return made.size === 1 && isPack([...made][0]) ? [...made][0] : 'core';
     m = /^build\/out\/chunks\/([a-z]+)-[A-Z0-9]+\.js$/.exec(p);
     if (m) return isPack(m[1]) ? m[1] : 'core';
     if (p === 'build/out/scripts-worker.js') return 'sheets';
@@ -297,14 +306,17 @@ export function checkInstaller(text, ids) {
  * The check, from a core, its packs and its installer include.
  * @returns {Promise<{ owners, packs, installer, failures: string[] }>}
  */
-export async function checkPacks({ core, packsDir, keysFile = null, installer = null, version = null, scratch = null }) {
+export async function checkPacks({ core, packsDir, keysFile = null, installer = null, version = null, scratch = null, outputs = null }) {
   const failures = [];
   const keys = keysFile ? readPackKeys(keysFile) : readPackKeysFromText(readCoreFile(core, 'build/out/pack-keys.json'));
   if (!keys.length) failures.push('The core holds no key to check its packs with.');
   const v = version || JSON.parse(readCoreFile(core, 'package.json')).version;
   const files = coreFiles(core);
-  const ownerOf = ownerResolver(await mapImports());
+  const g = await mapImports();
+  const ownerOf = ownerResolver(g, outputs);
   const owners = filesByOwner(files, ownerOf);
+  // The renderer files that mix an app's code with another's: the core's, so an app that carries its own code must have none in them.
+  const mixed = outputs ? [...rendererOwners(g, outputs)].filter(([out, o]) => files.has(`build/out/${out}`) && o.size > 1 && [...o].some(isPack)) : [];
   // The packaged checks (smoke.js and what it seeds) stay; the window checks and the screens build run from the source.
   const unwanted = [...files.keys()].filter((p) => /^main\/(verify-|screen-)/.test(p));
   if (unwanted.length) failures.push(`The core carries the window checks: ${unwanted.slice(0, 5).join(', ')}.`);
@@ -319,6 +331,7 @@ export async function checkPacks({ core, packsDir, keysFile = null, installer = 
       const found = planPacks({ dir: aloneIn(packsDir, [id], path.join(tmp, `${id}-main`)), keys, version: v }).packs.find((p) => p.id === id);
       const builtIn = found ? registersCoreCode(found) : true;
       const inCore = owners[id] || { files: 0, bytes: 0, sample: [] };
+      for (const [out, o] of builtIn ? [] : mixed) if (o.has(id)) alone.failures.push(`${nameOf(id)} carries its own code, yet the core's ${out} mixes some of it with ${[...o].filter((x) => x !== id).join(', ')}'s.`);
       if (!builtIn && inCore.files) alone.failures.push(`${nameOf(id)} carries its own code, yet the core still holds ${inCore.files} of its files: ${inCore.sample.join(', ')}.`);
       packs.push({ ...alone, builtIn, inCore: { files: inCore.files, bytes: inCore.bytes } });
       failures.push(...alone.failures);
@@ -378,7 +391,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     process.exit(2);
   }
   try {
-    const r = await checkPacks({ core, packsDir, keysFile: option(args, '--keys'), installer: fs.existsSync(installer) ? installer : null, version: option(args, '--version') });
+    const meta = option(args, '--meta') || path.join(DESKTOP, 'build', 'meta', 'renderer.json');
+    const outputs = fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')).outputs : null;
+    const r = await checkPacks({ core, packsDir, keysFile: option(args, '--keys'), installer: fs.existsSync(installer) ? installer : null, version: option(args, '--version'), outputs });
     console.log(report(r));
     const json = option(args, '--json');
     if (json) fs.writeFileSync(json, `${JSON.stringify(r, null, 2)}\n`);

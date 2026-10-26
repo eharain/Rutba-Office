@@ -3,17 +3,20 @@
 //
 //   node build/make-app-packs.js [--key <file>] [--only mail,word] [--release <folder>]
 //
-// In this version every app's code is still in the core's archive: a pack
-// holds what its manifest says of the app (its channels, events, tiles,
-// file types, AI tools and rows of the registry, describePack in
-// main/app-packs.js), the icons Windows reads from disk, and a main module
-// that registers the core's own code. Which packs are on a computer is
-// still the whole difference: an app without its pack is absent.
+// Every pack holds what its manifest says of the app (its channels, events,
+// tiles, file types, AI tools and rows of the registry, describePack in
+// main/app-packs.js) and the icons Windows reads from disk. An app whose
+// code has moved (CARRY_CODE) carries it too: its main-process files, its
+// window chunks and the packages only it uses (build/pack-contents.js), and
+// the core's archive leaves them out (electron-builder.config.cjs reads
+// build/packs/moved.json). The others' main module registers the core's own
+// code, which is still in the core's archive.
 //
 // It writes:
 //   build/packs/out/       each pack: <id>.asar, <id>.asar.unpacked/, <id>.pack.json
 //   build/out/pack-keys.json  the public key the core checks packs with, and each pack's size
 //   build/packs/installer-packs.nsh  what resources/installer.nsh writes, a pack at a time
+//   build/packs/moved.json  the core's files each app that carries its code took with it
 //   <release>/Rutba-Office-<version>-<id>.pack  with --release: the file Add or remove apps fetches
 //
 // The private key comes from --key, RUTBA_PACK_KEY_FILE or RUTBA_PACK_KEY,
@@ -32,11 +35,17 @@ import { packFileName } from '../main/packs-service.js';
 import { packFiles, packSize } from '@rutba/office-shell/electron/pack-install';
 import { TOOL_LIST } from '../main/mcp/tools.js';
 import { REACH_TOOL_LIST } from '../main/mcp/reach-tools.js';
+import { packContents } from './pack-contents.js';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const PACKS_DIR = path.join(APP, 'build', 'packs');
 export const KEYS_FILE = path.join(APP, 'build', 'out', 'pack-keys.json');
 export const INSTALLER_FILE = path.join(PACKS_DIR, 'installer-packs.nsh');
+export const MOVED_FILE = path.join(PACKS_DIR, 'moved.json');
+const ROOT = path.resolve(APP, '..', '..');
+
+/** The apps whose code is in their own pack, not in the core's archive. */
+export const CARRY_CODE = ['talk'];
 
 /** The apps a person picks on the installer's page; Text recognition and AI Tools are packs too, but never the one app installed. */
 export const ADD_ONS = ['ai', 'ocr'];
@@ -44,12 +53,51 @@ export const ADD_ONS = ['ai', 'ocr'];
 /** The main module of a pack whose code is still in the core. */
 const shim = (name) => `// ${name}'s pack. Its code is still in the core's archive in this version,\n// so it registers the core's own (main/app-packs.js, builtIn).\nexport function register(core) {\n  return core.builtIn(core);\n}\n`;
 
+/** A folder copied, without the tests and notes a package keeps beside its code. */
+function copyTree(from, to) {
+  for (const ent of fs.readdirSync(from, { withFileTypes: true })) {
+    if (ent.isDirectory() && ['test', 'tests', '.git', 'node_modules'].includes(ent.name)) continue;
+    if (!ent.isDirectory() && /\.(md|map)$/i.test(ent.name)) continue;
+    const a = path.join(from, ent.name);
+    const b = path.join(to, ent.name);
+    if (ent.isDirectory()) copyTree(a, b);
+    else {
+      fs.mkdirSync(to, { recursive: true });
+      fs.copyFileSync(a, b);
+    }
+  }
+}
+
+/**
+ * The code of an app that carries it, into its pack's folder: its main-process
+ * files under main/ as they lie in the core, its window chunks under
+ * renderer/chunks/ (served at the address the core imports them by), and its
+ * packages under node_modules/. Answers the pack's main module.
+ */
+function carry(folder, c, rendererOut) {
+  for (const file of c.main) {
+    const to = path.join(folder, 'main', ...file.slice('apps/desktop/main/'.length).split('/'));
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.copyFileSync(path.join(ROOT, file), to);
+  }
+  for (const chunk of c.chunks) {
+    const to = path.join(folder, 'renderer', ...chunk.split('/'));
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.copyFileSync(path.join(rendererOut, ...chunk.split('/')), to);
+  }
+  for (const name of c.npm) copyTree(path.join(ROOT, 'node_modules', name), path.join(folder, 'node_modules', name));
+  for (const p of c.packages) copyTree(path.join(ROOT, 'packages', p.dir), path.join(folder, 'node_modules', p.name));
+  return `main/${c.register.slice('apps/desktop/main/'.length)}`;
+}
+
 /** One pack's built folder, as tools/make-packs.mjs reads it. */
-function treeFor(id, tree, toolNames) {
+function treeFor(id, tree, toolNames, contents = null, rendererOut = path.join(APP, 'build', 'out')) {
   const d = describePack(id, { toolNames });
   const folder = path.join(tree, id);
   fs.mkdirSync(path.join(folder, 'main'), { recursive: true });
-  fs.writeFileSync(path.join(folder, 'main', 'index.js'), shim(d.name));
+  let main = 'main/index.js';
+  if (contents) main = carry(folder, contents, rendererOut);
+  else fs.writeFileSync(path.join(folder, 'main', 'index.js'), shim(d.name));
   // The icons Windows reads from disk: the taskbar's tile and each kind of file's.
   const copy = (from, to) => {
     if (!fs.existsSync(from)) return false;
@@ -63,7 +111,7 @@ function treeFor(id, tree, toolNames) {
   }
   const { id: _id, ...said } = d;
   const unpack = [tiles.length ? 'tiles' : null, d.fileTypes.length ? 'filetypes' : null].filter(Boolean);
-  fs.writeFileSync(path.join(folder, 'pack.json'), `${JSON.stringify({ ...said, tiles, main: 'main/index.js', unpack }, null, 2)}\n`);
+  fs.writeFileSync(path.join(folder, 'pack.json'), `${JSON.stringify({ ...said, tiles, main, unpack }, null, 2)}\n`);
   return folder;
 }
 
@@ -246,16 +294,21 @@ export function packZip(dir, id) {
 
 /**
  * Makes every pack (or those named), signed, and what the core and the
- * installer read of them.
+ * installer read of them. `meta` and `rendererOut` are the renderer's build
+ * (what went into each file, and the folder of them), when not the last one.
  */
-export async function makeAppPacks({ privateKey, version, only = null, release = null, root = PACKS_DIR, keysFile = KEYS_FILE, installerFile = INSTALLER_FILE }) {
+export async function makeAppPacks({ privateKey, version, only = null, release = null, root = PACKS_DIR, keysFile = KEYS_FILE, installerFile = INSTALLER_FILE, carryCode = CARRY_CODE, movedFile = path.join(root, 'moved.json'), meta = null, rendererOut = path.join(APP, 'build', 'out') }) {
   const tree = path.join(root, 'tree');
   const out = path.join(root, 'out');
   fs.rmSync(tree, { recursive: true, force: true });
   fs.rmSync(out, { recursive: true, force: true });
   const toolNames = [...TOOL_LIST, ...REACH_TOOL_LIST].map((t) => t.name);
   const ids = PACKS.map((p) => p.id).filter((id) => !only || only.includes(id));
-  for (const id of ids) treeFor(id, tree, toolNames);
+  const contents = await packContents(ids.filter((id) => carryCode.includes(id)), { meta });
+  for (const id of ids) treeFor(id, tree, toolNames, contents[id] || null, rendererOut);
+  // What the core's archive leaves out: each moved app's files, by their paths in it.
+  fs.mkdirSync(path.dirname(movedFile), { recursive: true });
+  fs.writeFileSync(movedFile, `${JSON.stringify({ packs: Object.fromEntries(Object.entries(contents).map(([id, c]) => [id, c.core])) }, null, 2)}\n`);
   const made = await makePacks({ tree, out, version, privateKey });
   const packs = ids.map((id) => JSON.parse(fs.readFileSync(path.join(out, `${id}.pack.json`), 'utf8')).manifest);
   const sizes = Object.fromEntries(ids.map((id) => [id, packSize(out, id)]));
@@ -273,7 +326,7 @@ export async function makeAppPacks({ privateKey, version, only = null, release =
     }
   }
   fs.rmSync(tree, { recursive: true, force: true });
-  return { out, made, sizes, files };
+  return { out, made, sizes, files, contents };
 }
 
 function option(args, name) {

@@ -718,14 +718,69 @@ the map's fixture shrinks as the cuts are made.
    `build/verify-packs-run.js` and `main/verify-packs.js`) make every pack
    with a key made for the run and thrown away after it, hand the core its
    public half (`RUTBA_PACK_PUBLIC_KEY`), and start Rutba Office twice over
-   one profile and a packs folder of Documents, Mail and AI Tools
+   one profile and a packs folder of Documents, Mail, AI Tools and Talk
    (`RUTBA_PACKS_DIR`). The first start checks that an app not there has no
    channel in the main process or the window, no tile and no window (its
    file opens the launcher, which says it is not installed), and that the AI
    tools follow; then Add or remove apps adds Calendar from a folder of the
    release's pack files (`RUTBA_PACKS_SOURCE`) and removes Mail. The second
-   start has Calendar and not Mail, and Mail's files are gone. A release
+   start has Calendar and not Mail, and Mail's files are gone. Talk, which
+   carries its code (item 7), is told to the window as `code: 'own'`, its
+   window opens, and its window's chunk comes from its pack. A release
    build reads `RUTBA_PACK_KEY_FILE`.
+7. **A pack that carries its code.** Three things let an app's code leave
+   the core's archive for its pack, and an app moves when all three hold
+   for it:
+
+   - **The renderer's chunks by owner.** `build/bundle.js` asks esbuild
+     what went into each file it writes and keeps the answer in
+     `build/meta/renderer.json` (output path, then the source files and
+     packages in it). An app's window module is already its own chunk
+     (`chunks/<id>-<hash>.js`, imported when a window asks for it); the
+     list says whether anything of another owner is in it, and whether a
+     shared chunk holds some of the app.
+   - **Packages from the core.** A module in a pack imports what it carries
+     by relative paths and its own `node_modules`. A package it does not
+     carry (`@rutba/office-shell`, an engine the core has) is not under
+     any folder Node walks up to from the packs folder, so
+     `@rutba/office-shell/electron/pack-resolve` (`installPackResolution`,
+     a `module.registerHooks` resolve hook, set before the packs are
+     registered) answers a bare import from inside the packs folder that
+     fails as if the core's main module had made it. The pack gets the
+     core's own copy, the one the rest of the run shares. A relative
+     import a pack cannot answer stays an error.
+   - **Copying the app in, and leaving it out of the core.**
+     `build/pack-contents.js` reads the map and the renderer's list: the
+     main-process files the map gives the app (its register module among
+     them), each chunk whose every input is the app's, and the npm and
+     workspace packages only it reaches. It refuses a move with the reason:
+     a chunk that mixes the app's code with another's (with the import to
+     cut), or a file of the app that imports one of the core's by a
+     relative path. `build/make-app-packs.js` copies these into the pack
+     (`main/`, `renderer/chunks/`, `node_modules/`) for the apps in
+     `CARRY_CODE`, makes the register module the pack's main module, and
+     writes `build/packs/moved.json`: the core's paths each such app took
+     with it, its tile among them. `electron-builder.config.cjs` leaves
+     those out of `app.asar`.
+
+   In the window, a chunk is fetched at the address the core would serve
+   it from (`rutba://app/chunks/<name>`), so the shared chunks it imports
+   stay the one copy every window module uses (React only once). The app
+   host looks in each loaded pack's `renderer/` first and serves the
+   chunk from there, with an `x-rutba-pack` header naming the pack. The
+   contract's `packs` says for each pack whether its code is its own
+   (`code: 'own'`) or the core's (`'core'`, a main module that hands back
+   to `core.builtIn`).
+
+   The sources stay where they are in the repository: a run from the
+   source and the window checks use them as before, and only a release
+   build moves them.
+
+   *Built, for Talk.* Talk is the first app in `CARRY_CODE`: its pack
+   holds `main/talk-pack.js`, `main/talk.js`, `main/talk-signin.js` and its
+   window's chunk, and the core holds none of them. Calendar and Contacts
+   could move the same way. Mail cannot yet: `mail.js` imports
+   `./system-fonts.js`, which stays in the core.
 
 ### 5.2 The apps, in this order
 
@@ -735,6 +790,7 @@ each cut is made.
 1. **Talk, Calendar, Contacts.** No imports to cut. Their services move
    into their packs; `dav` and the two small engines stay in the core and
    ask `view` for the calendar and address book services that are there.
+   Talk has moved (5.1, item 7).
 2. **Data Files.** No imports to cut; the rename hook (`main.js` uses
    `base-trust.js` when a recent file is renamed) becomes a hook the pack
    registers. Its sample databases (`@rutba/templates/data-files`), the
@@ -815,7 +871,16 @@ also writes `build/packs/installer-packs.nsh`, which
   pack files go with the install folder.
 
 The Windows build has no `fileAssociations` of its own any more; the
-macOS and Linux builds keep them. The window checks and the screens
+macOS and Linux builds keep them.
+
+`npm run dist` runs `build/dist.js` after the renderer's build: the packs
+first, then electron-builder. On Windows it runs twice, the installer and
+then the portable build; the portable build, the macOS disk image and the
+Linux packages carry every pack in `resources/packs`
+(`RUTBA_ALL_PACKS=1` adds them as extra resources), so an app whose code
+is in its pack is there too. Such a copy loads its packs as an installed
+one does, has nothing to add or remove, and writes nothing for an
+installer to read (`main.js`, `everyPack`). The window checks and the screens
 build (`main/verify-*.js`, `main/screen-*.js`) are left out of the
 archive.
 
@@ -915,11 +980,14 @@ the packs the installer carries (`build/packs/out`) and its include
 (`build/packs/installer-packs.nsh`), and exits 1 on a failure:
 
 - **The core's files by owner**, by the map's owners: the main process's
-  files, the window chunks by the app each is named after, the tiles, and
+  files, the window chunks by what went into each (the renderer's list,
+  `build/meta/renderer.json` or `--meta`; without it, by the app each is
+  named after), the tiles, and
   each engine and npm package by who reaches it (an npm package's own
   dependencies go with it). A pack whose main module still registers the
   core's own code is reported with how much of it the core holds; a pack
-  that carries its code fails while the core holds any file of it. The
+  that carries its code fails while the core holds any file of it, or a
+  chunk that mixes some of it with another owner's code. The
   window checks (`main/verify-*.js`, `main/screen-*.js`) in the core fail
   too.
 - **Each pack alone**, copied into a folder of its own and planned as a

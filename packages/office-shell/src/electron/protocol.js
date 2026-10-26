@@ -204,6 +204,19 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
       // A loaded app pack's own window code, from its archive (docs/APP-PACKS.md):
       // rutba://app/packs/<id>/<file>. A pack not loaded has nothing here.
       let base = root;
+      let fromPack = null;
+      // A window chunk a loaded pack carries is served from the pack, at the
+      // address the core's bundle imports it by (chunks/<name>), so the
+      // chunks it shares with the core are the core's own copies.
+      if (rel.startsWith('chunks/')) {
+        for (const [id, archive] of Object.entries(packRoots())) {
+          if (fs.existsSync(path.join(archive, 'renderer', ...rel.split('/')))) {
+            base = path.resolve(archive, 'renderer');
+            fromPack = id;
+            break;
+          }
+        }
+      }
       if (rel.startsWith('packs/')) {
         const [, id, ...rest] = rel.split('/');
         const archive = packRoots()[id];
@@ -220,6 +233,7 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
       const res = await net.fetch(pathToFileURL(full).toString());
       const headers = new Headers();
       headers.set('content-type', mimeFor(full));
+      if (fromPack) headers.set('x-rutba-pack', fromPack);
       // The renderer runs no remote code and makes no remote requests. Media and
       // images arrive over rutba://file, which is same-scheme.
       headers.set('content-security-policy', rel === 'scripts-worker.js' ? WORKER_CSP : rel === 'pdfjs/pdf.worker.min.mjs' ? PDF_WORKER_CSP : CSP);

@@ -9,9 +9,30 @@
 // (build/make-app-packs.js, resources/installer.nsh, docs/APP-PACKS.md 5.3)
 // and registers only their kinds of file, so the Windows build has no
 // associations of its own here. The portable build, the macOS disk image and
-// the Linux packages have every app built in, and claim every kind.
+// the Linux packages carry every pack (build/dist.js), and claim every kind.
 
+const fs = require('node:fs');
 const path = require('node:path');
+
+/**
+ * The core's files an app took with it into its own pack
+ * (build/make-app-packs.js writes the list as it makes the packs). With no
+ * packs made, nothing has moved and the core keeps every app's code.
+ */
+function moved() {
+  try {
+    const { packs } = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'build', 'packs', 'moved.json'), 'utf8'));
+    return Object.values(packs || {}).flat().map((p) => `!${p}`);
+  } catch {
+    return [];
+  }
+}
+
+// A build with every pack inside it (RUTBA_ALL_PACKS=1, build/dist.js): the
+// portable build, the macOS disk image and the Linux packages, which have no
+// installer to choose in. The packs are in resources/packs, where the core
+// looks for them; such a copy has nothing to add or remove (main.js).
+const allPacks = process.env.RUTBA_ALL_PACKS === '1';
 
 module.exports = async () => {
   const { fileAssociations } = await import('@rutba/office-formats/registry');
@@ -48,12 +69,14 @@ module.exports = async () => {
       '!**/test/**',
       '!**/tests/**',
       '!**/*.md',
+      // An app that carries its code in its pack: not in the core as well.
+      ...moved(),
     ],
 
     // The AI tools' start file, a real file beside the archive so an AI app
     // that checks the path finds it (main/mcp/command.js); it loads the tools
     // from the archive.
-    extraResources: [{ from: 'resources/mcp', to: 'mcp', filter: ['*.cjs'] }],
+    extraResources: [{ from: 'resources/mcp', to: 'mcp', filter: ['*.cjs'] }, ...(allPacks ? [{ from: 'build/packs/out', to: 'packs' }] : [])],
 
     asar: true,
     // The taskbar reads an app's icon straight from disk, so the tiles sit

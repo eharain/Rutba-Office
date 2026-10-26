@@ -40,6 +40,7 @@ import { createPacksService } from './packs-service.js';
 import { planPacks, registerPacks, packView, readPackKeys, readPackSizes, PACK_ORDER } from './app-packs.js';
 import { LOADED_KEY } from './pack-tools.js';
 import { recordPacks } from './file-types.js';
+import { installPackResolution } from '@rutba/office-shell/electron/pack-resolve';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -59,6 +60,14 @@ function packsDir() {
   const dir = path.join(process.resourcesPath, 'packs');
   return fs.existsSync(dir) ? dir : null;
 }
+
+/**
+ * A copy that carries every pack and has no installer to choose in: the
+ * portable build (run from wherever it was unpacked) and the macOS and Linux
+ * builds (build/dist.js). It loads its packs like an installed copy, but has
+ * nothing to add or remove and writes nothing for an installer to read.
+ */
+const everyPack = () => electron.isPackaged && !process.env.RUTBA_PACKS_DIR && (process.platform !== 'win32' || Boolean(process.env.PORTABLE_EXECUTABLE_DIR));
 
 /** The keys a pack must be signed with: the build's, in the core; a copy run from the source may be handed a development key's public half. */
 const PACK_KEYS_FILE = path.join(app, 'build', 'out', 'pack-keys.json');
@@ -282,6 +291,8 @@ createShell({
     // another app's service only when that app is there. Mail before Contacts
     // or after makes no difference: each reaches the other when asked.
     const view = packView({ plan, services });
+    // A pack that carries its code finds the core's packages as the core does (pack-resolve.js).
+    if (plan.source === 'files') installPackResolution({ packsDir: plan.dir, coreFile: fileURLToPath(import.meta.url) });
     await registerPacks(plan, {
       stores,
       broadcast,
@@ -296,7 +307,7 @@ createShell({
     // with whichever of the two apps are installed (dav-sync.js keeps to those).
     services.dav = createDavService({ stores, calendar: view.service('calendar'), contacts: view.service('contacts'), broadcast });
     // Add or remove apps (packs-service.js).
-    services.packs = createPacksService({ plan, stores, broadcast, version: electron.getVersion(), keys: packKeys(), dir: plan.source === 'files' ? plan.dir : null, sizes: readPackSizes(PACK_KEYS_FILE), app: electron });
+    services.packs = createPacksService({ plan, stores, broadcast, version: electron.getVersion(), keys: packKeys(), dir: plan.source === 'files' && !everyPack() ? plan.dir : null, sizes: readPackSizes(PACK_KEYS_FILE), app: electron });
     return services;
   },
 
@@ -339,7 +350,7 @@ createShell({
     // opens on what is here (docs/APP-PACKS.md 5.3), a pack that would not
     // load among them, so the next installer writes it again. An installed copy only.
     const plan = packsNow();
-    if (plan.source === 'files' && process.platform === 'win32' && electron.isPackaged && !CHECK_RUN) {
+    if (plan.source === 'files' && process.platform === 'win32' && electron.isPackaged && !everyPack() && !CHECK_RUN) {
       recordPacks([...new Set([...plan.ids(), ...plan.refused.map((r) => r.id)])].filter((id) => PACK_ORDER.includes(id))).catch(() => {});
     }
 
