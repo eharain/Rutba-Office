@@ -13,6 +13,7 @@ import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop, templatesFolder
 import { WhatsNew } from '../whatsnew.js';
 import { TemplateGallery } from '../template-gallery.js';
 import { useChosenApps, AppsChooser } from '../apps-choice.js';
+import { useProfiles, profileName } from '../profiles.js';
 
 /** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
 const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : r.kind === 'image' ? 'image' : r.kind === 'pdf' ? 'pdf' : 'word');
@@ -64,6 +65,9 @@ export default function Home({ app, shell }) {
   const chosen = useChosenApps(shell);
   const [choosing, setChoosing] = useState(() => new URLSearchParams(location.search).has('apps'));
   const has = (key) => chosen.apps.includes(key);
+  // The other profiles, for a recent file's Open in (profiles.js).
+  const { list: profiles } = useProfiles(shell);
+  const others = (profiles?.profiles || []).filter((p) => !p.current);
 
   const refresh = useCallback(() => {
     shell.app.recent().then(setRecent).catch(() => setRecent([]));
@@ -342,6 +346,8 @@ export default function Home({ app, shell }) {
                     onContextMenu={(e) =>
                       rowMenu.open(e, [
                         { label: t('Open'), icon: 'open', run: () => openInApp(shell, r.path) },
+                        // In another profile's windows, started beside this one if it is not open.
+                        ...others.slice(0, 6).map((p) => ({ label: t('Open in {name}', { name: profileName(p) }), icon: 'contacts', run: () => shell.profiles.open({ id: p.id, file: r.path }).catch((err) => toast(err.message, { tone: 'bad' })) })),
                         { label: t('Show in folder'), icon: 'folder', run: () => shell.shell.showInFolder({ path: r.path }) },
                         '-',
                         { label: t('Rename…'), icon: 'textbox', run: () => startRename(r) },

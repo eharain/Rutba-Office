@@ -4,8 +4,8 @@
 // every platform capability; this file only says which app opens which file and
 // hands the shell the two namespaces that know about documents and mail.
 
-// First: which template set this run uses, before anything below reads templates (template-set-choice.js).
-import { SETS_DIR, bundledManifest, PROFILE_NAME } from './template-set-choice.js';
+// First: which profile this run is and which template set it uses, before anything below reads either (template-set-choice.js).
+import { SETS_DIR, bundledManifest, PROFILE_NAME, PROFILE } from './template-set-choice.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +18,9 @@ import { fakeShortcuts } from '@rutba/office-shell/electron/machine-fakes';
 // A check run keeps to a clipboard and global shortcuts of its own, so the
 // gate's check processes can run side by side and none touches the person's;
 // the gate's machine lane alone uses the computer's, to check them.
-const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE || process.env.RUTBA_SCREENS_FEATURES);
+// A second profile the profile checks start beside them is a check run too (verify-profiles.js).
+const PROFILE_PEER = process.env.RUTBA_PROFILE_PEER || null;
+const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE || process.env.RUTBA_SCREENS_FEATURES || PROFILE_PEER);
 if (CHECK_RUN && process.env.RUTBA_VERIFY_LANE !== 'machine') {
   useClipboard(memoryClipboard());
   useShortcuts(fakeShortcuts());
@@ -120,9 +122,14 @@ if (process.env.RUTBA_SCREEN_SCALE) electron.commandLine.appendSwitch('force-dev
 // A check run's microphone is Chromium's own stand-in: a tone, so Record has something to record.
 if (process.env.RUTBA_FAKE_MEDIA) electron.commandLine.appendSwitch('use-fake-device-for-media-stream');
 
+// The profile checks' second profile reports what it sees, and answers its own password window (verify-profiles-peer.js).
+const peer = PROFILE_PEER ? import('./verify-profiles-peer.js').then((m) => m.startPeer({ report: PROFILE_PEER, profile: PROFILE })) : null;
+
 createShell({
   // The profile's folder is named by it too (template-set-choice.js works that folder out before this runs).
   appName: PROFILE_NAME,
+  // Which profile this is: its folder is already Electron's (profile-choice.js), its windows show it.
+  profile: PROFILE,
   rendererDir: path.join(app, 'build', 'out'),
   preloadPath: path.join(app, 'build', 'out', 'preload.cjs'),
   iconPath: path.join(app, 'resources', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
@@ -293,7 +300,7 @@ createShell({
     // here) and not office.rutba.io for the notice board. Its launcher used
     // to make that request, and an aborted one threw a dialog onto the
     // owner's screen in the middle of a run.
-    if (process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE) {
+    if (process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE || PROFILE_PEER) {
       stores.settings.set('announcements.enabled', false);
       stores.settings.set('updates.automatic', false);
       // Nor does it take its look from the machine. Left on 'system', a
@@ -468,6 +475,11 @@ createShell({
           mail: services?.mail,
         });
       });
+    }
+    // The profile checks' second profile: what it was asked to do, beside the first, and no updater.
+    if (peer) {
+      (await peer).ready({ stores, services, windows });
+      return undefined;
     }
     // The kinds of file Windows sends here follow the apps chosen, again after an update's installer
     // registered them all: a little after start, out of the way of the first window.

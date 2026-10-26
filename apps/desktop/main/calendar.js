@@ -16,20 +16,20 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { readCalendar, writeCalendar, writeReply, isInvitation, occurrences, dateTimeAt, describeRule, localZone } from '@rutba/calendar';
 
-const readJson = (file, fallback) => {
+const readPlain = (file, fallback) => {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {
     return fallback;
   }
 };
-const writeJson = (file, value) => {
+const writePlain = (file, value) => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(value));
   fs.renameSync(tmp, file);
 };
-const writeJsonLater = async (file, value) => {
+const writePlainLater = async (file, value) => {
   await fs.promises.mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   await fs.promises.writeFile(tmp, JSON.stringify(value));
@@ -40,6 +40,12 @@ const COLOURS = ['#2b5fd9', '#1a9f7a', '#d9534f', '#e08b2b', '#7b5cd6', '#c2408f
 
 export function createCalendarService({ stores, broadcast, mail = null }) {
   const file = path.join(stores.dir, 'calendar.json');
+  // Sealed with the profile's key while it has a password (stores.vault, profiles.js).
+  const vault = stores.vault || null;
+  vault?.cover(file);
+  const readJson = vault ? vault.readJson : readPlain;
+  const writeJson = vault ? vault.writeJson : writePlain;
+  const writeJsonLater = vault ? vault.writeJsonLater : writePlainLater;
   const state = readJson(file, null) || { calendars: [] };
   if (!Array.isArray(state.calendars)) state.calendars = [];
   if (!state.calendars.length) state.calendars.push({ id: crypto.randomUUID(), name: 'My calendar', colour: COLOURS[0], visible: true, events: [] });

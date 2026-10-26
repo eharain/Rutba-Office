@@ -35,7 +35,7 @@ const GEOMETRY = {
   contacts: { width: 1180, height: 760, minWidth: 820, minHeight: 520 },
 };
 
-export function createWindowManager({ stores, preloadPath, iconPath, appIcons = {}, appNames = {}, appUserModelId = null, onWindowEvent, confirmClose }) {
+export function createWindowManager({ stores, preloadPath, iconPath, appIcons = {}, appNames = {}, appUserModelId = null, relaunchArgs = () => [], onWindowEvent, confirmClose }) {
   /** @type {Map<number, { app: string, file: string|null, dirty: boolean, name: string, closing: boolean }>} */
   const meta = new Map();
   let focusTick = 0;
@@ -180,7 +180,9 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     // taskbar reads it, not Electron.
     if (process.platform === 'win32' && appUserModelId && appKey !== 'home' && appIcons[appKey]) {
       const exe = process.execPath;
-      const relaunch = app.isPackaged ? `"${exe}" --app=${appKey}` : `"${exe}" "${app.getAppPath()}" --app=${appKey}`;
+      // And in the profile the window belongs to, when there is more than one (profiles.js).
+      const extra = relaunchArgs().map((a) => ` "${a}"`).join('');
+      const relaunch = app.isPackaged ? `"${exe}" --app=${appKey}${extra}` : `"${exe}" "${app.getAppPath()}" --app=${appKey}${extra}`;
       try {
         win.setAppDetails({
           appId: `${appUserModelId}.${appKey}`,

@@ -10,20 +10,22 @@ import path from 'node:path';
 import { app } from 'electron';
 import { compareVersions, usableBy } from '@rutba/templates/versions';
 import { readManifest, MANIFEST_PATH } from '@rutba/templates/manifest';
+import { settleProfile } from '@rutba/office-shell/electron/profile-choice';
 
 /**
- * The profile's folder, worked out here rather than asked of Electron: this
+ * The profile, settled first of all (profile-choice.js): which one this run
+ * is, and its folder set as Electron's before anything asks for it. This
  * module runs before the shell names the app "Rutba Office", and the first
  * app.getPath('userData') fixes the profile where the name then says. Asked
  * that early it fixed it under the package's own name, and 2.15.0 opened an
  * empty profile there, every setting and mail account seemingly gone. A
- * profile named on the command line (the checks' own) is taken as it is.
+ * folder named on the command line (the checks' own) is the base folder.
  */
 export const PROFILE_NAME = 'Rutba Office';
-const profileDir = () => app.commandLine.getSwitchValue('user-data-dir') || path.join(app.getPath('appData'), PROFILE_NAME);
+export const PROFILE = settleProfile({ name: PROFILE_NAME });
 
-/** The folder where downloaded sets are kept. */
-export const SETS_DIR = () => path.join(profileDir(), 'templates');
+/** The folder where downloaded sets are kept: the base folder's, shared by every profile. */
+export const SETS_DIR = () => path.join(PROFILE.base, 'templates');
 
 /** The set Office was built with, read from this package's own manifest. */
 export const bundledManifest = () => readManifest(MANIFEST_PATH);

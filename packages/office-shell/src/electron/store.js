@@ -4,11 +4,18 @@
 // (DPAPI on Windows, Keychain on macOS, libsecret on Linux). When the OS has no
 // keystore available, we refuse to write rather than quietly saving a password
 // in clear text: the caller is told, and can decide to ask every time instead.
+//
+// A profile with a password (profiles.js) seals secrets.json and recent.json
+// once more with the key made from it, through the vault handed in here, so
+// another person at the same Windows account, whom the keychain lets in,
+// still cannot read them. settings.json stays plain: the AI tools, run as
+// Node by another program, read it for their switch and folders.
 
 import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { removeEntry, renameEntry, presentEntries } from '../recent-store.js';
+import { createVault } from '../profiles.js';
 
 function readJson(file, fallback) {
   try {
@@ -25,15 +32,17 @@ function writeJson(file, value) {
   fs.renameSync(tmp, file); // atomic-enough: a crash mid-write leaves the old file
 }
 
-export function createStores() {
+export function createStores({ vault = createVault() } = {}) {
   const dir = app.getPath('userData');
   const settingsFile = path.join(dir, 'settings.json');
   const secretsFile = path.join(dir, 'secrets.json');
   const recentFile = path.join(dir, 'recent.json');
+  vault.cover(secretsFile);
+  vault.cover(recentFile);
 
   let settings = readJson(settingsFile, {});
-  let secrets = readJson(secretsFile, {});
-  let recent = readJson(recentFile, []);
+  let secrets = vault.readJson(secretsFile, {});
+  let recent = vault.readJson(recentFile, []);
 
   const settingsApi = {
     get: (key, fallback) => (key in settings ? settings[key] : fallback),
@@ -74,11 +83,11 @@ export function createStores() {
         throw new Error('No OS keystore is available, so this password cannot be stored safely.');
       }
       secrets[key] = safeStorage.encryptString(String(value)).toString('base64');
-      writeJson(secretsFile, secrets);
+      vault.writeJson(secretsFile, secrets);
     },
     delete: (key) => {
       delete secrets[key];
-      writeJson(secretsFile, secrets);
+      vault.writeJson(secretsFile, secrets);
     },
     keys: () => Object.keys(secrets),
   };
@@ -92,7 +101,7 @@ export function createStores() {
         { path: p, name: path.basename(p), app: which || null, at: Date.now() },
         ...recent.filter((r) => r.path !== p),
       ].slice(0, 60);
-      writeJson(recentFile, recent);
+      vault.writeJson(recentFile, recent);
       try {
         app.addRecentDocument(p);
       } catch { /* jump list is a nicety, not a requirement */ }
@@ -100,23 +109,23 @@ export function createStores() {
     },
     remove: ({ path: p }) => {
       recent = removeEntry(recent, p);
-      writeJson(recentFile, recent);
+      vault.writeJson(recentFile, recent);
       return recentApi.list();
     },
     // The file on disk has already been renamed by the caller; this just
     // points the entry at where it went.
     rename: ({ path: p, to }) => {
       recent = renameEntry(recent, p, to);
-      writeJson(recentFile, recent);
+      vault.writeJson(recentFile, recent);
       return recentApi.list();
     },
     clear: () => {
       recent = [];
-      writeJson(recentFile, recent);
+      vault.writeJson(recentFile, recent);
       try { app.clearRecentDocuments(); } catch { /* as above */ }
       return [];
     },
   };
 
-  return { settings: settingsApi, secrets: secretsApi, recent: recentApi, dir };
+  return { settings: settingsApi, secrets: secretsApi, recent: recentApi, dir, vault };
 }

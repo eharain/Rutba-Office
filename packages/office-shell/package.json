@@ -10,12 +10,14 @@
     "./contract": "./src/contract.js",
     "./links": "./src/links.js",
     "./electron/main": "./src/electron/main.js",
+    "./electron/profile-choice": "./src/electron/profile-choice.js",
     "./electron/clipboard": "./src/electron/clipboard.js",
     "./electron/shortcuts": "./src/electron/shortcuts.js",
     "./electron/machine-fakes": "./src/electron/machine-fakes.js",
     "./electron/preload": "./src/electron/preload.cjs",
     "./client": "./src/client.js",
-    "./runs": "./src/runs.js"
+    "./runs": "./src/runs.js",
+    "./profiles": "./src/profiles.js"
   },
   "sideEffects": false
 }

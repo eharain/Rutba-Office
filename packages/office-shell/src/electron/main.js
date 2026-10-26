@@ -13,6 +13,9 @@ import { app, BrowserWindow, Menu, dialog, nativeTheme, shell as electronShell }
 import path from 'node:path';
 import fs from 'node:fs';
 import { createStores } from './store.js';
+import { createVault, profileArg } from '../profiles.js';
+import { askProfilePassword } from './profile-lock.js';
+import { createProfilesService } from './profiles-service.js';
 import { LINK_SCHEME, parseLink } from '../links.js';
 import { registerSchemePrivileges, installProtocol, fileUrl, thumbUrl, holdBlob, releaseBlob, blobUrl, SCHEME } from './protocol.js';
 import { createThumbnailer } from './thumbs.js';
@@ -149,6 +152,7 @@ function buildMenu({ send, appName, appShortNames = {} }) {
  * @param {string} [o.appName]
  * @param {(ctx) => object} [o.namespaces] extra IPC namespaces, given the shell context
  * @param {(path: string) => string} [o.appForFile] which app opens this file
+ * @param {object} [o.profile] the profile this run is (profile-choice.js): its folder is already userData
  */
 export function createShell({
   rendererDir,
@@ -161,6 +165,7 @@ export function createShell({
   namespaces,
   appForFile = () => 'home',
   onReady,
+  profile = null,
 }) {
   app.setName(appName);
   const appUserModelId = 'co.techstyle.rutba.office';
@@ -210,6 +215,10 @@ export function createShell({
 
   let stores = null;
   let windows = null;
+  // A protected profile's password window, while it asks (profile-lock.js).
+  let lockWindow = null;
+  // Taskbar entries pinned from a window start the profile it belongs to, once there are profiles to tell apart.
+  const relaunchArgs = () => (profile && profile.count > 1 ? [`--profile=${profile.id}`] : []);
 
   function send(command, args) {
     const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
@@ -255,8 +264,11 @@ export function createShell({
   }
 
   function argvFiles(argv) {
+    // The word after a bare `--profile` names the profile, not a file.
+    const named = profileArg(argv).at;
     return argv
       .slice(1)
+      .filter((a, i) => i + 1 !== named)
       .filter((a) => !a.startsWith('-') && !a.startsWith(`${SCHEME}:`))
       .filter((a) => {
         try {
@@ -284,6 +296,16 @@ export function createShell({
   });
 
   app.on('second-instance', (_e, argv) => {
+    // Still asking for the profile's password: the window comes to the front, and the files wait for it.
+    if (!windows) {
+      pending.push(...argvFiles(argv));
+      if (lockWindow && !lockWindow.isDestroyed()) {
+        if (lockWindow.isMinimized()) lockWindow.restore();
+        lockWindow.show();
+        lockWindow.focus();
+      }
+      return;
+    }
     const files = argvFiles(argv);
     const link = argvLink(argv);
     if (files.length) files.forEach(openPath);
@@ -299,6 +321,8 @@ export function createShell({
   });
 
   app.on('window-all-closed', () => {
+    // The password window closing on the right password is not the last window: the launcher follows it.
+    if (!windows) return;
     if (!isMac) app.quit();
   });
 
@@ -317,7 +341,20 @@ export function createShell({
   if (process.env.RUTBA_WINDOW_DISPLAY === 'offscreen') app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
   app.whenReady().then(async () => {
-    stores = createStores();
+    // A profile with a password asks for it before anything of it is read:
+    // the key it makes opens the files sealed with it. Cancelled, this Rutba
+    // Office goes and the profile is left as it was.
+    let key = null;
+    if (profile?.lock) {
+      key = await askProfilePassword({ profile, iconPath, onWindow: (w) => { lockWindow = w; } });
+      lockWindow = null;
+      if (!key) {
+        app.quit();
+        return;
+      }
+    }
+    stores = createStores({ vault: createVault({ key }) });
+    key = null;
 
     // Thumbnails live in the profile, keyed by the file they are of, so a
     // folder visited before draws from a directory read.
@@ -337,6 +374,7 @@ export function createShell({
       appIcons,
       appNames,
       appUserModelId,
+      relaunchArgs,
       onWindowEvent: (win, event, payload) => sendEvent(win, event, payload),
 
       /**
@@ -385,6 +423,14 @@ export function createShell({
     };
 
     const base = buildImplementations({ stores, windows, quitting, thumbnailer, iconPath });
+    // Which profile the windows belong to, and the others (profiles-service.js).
+    if (profile) {
+      try {
+        base.profiles = createProfilesService({ profile, stores, broadcast });
+      } catch (err) {
+        record('profiles', err);
+      }
+    }
     // A host namespace that fails to build must not take the whole
     // application with it: the shell's own methods still work, and the window
     // that opens says what it cannot do rather than never appearing.

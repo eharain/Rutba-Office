@@ -122,8 +122,12 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
 
   const folder = () => (state.me ? path.join(dataDir, crypto.createHash('sha256').update(String(state.me.id)).digest('hex').slice(0, 24)) : null);
   const fileFor = (contactId) => path.join(folder(), `${crypto.createHash('sha256').update(String(contactId)).digest('hex').slice(0, 24)}.json`);
+  // Sealed with the profile's key while it has a password (stores.vault, profiles.js).
+  const vault = stores.vault || null;
+  vault?.cover(dataDir);
   const readHistory = (contactId) => {
     if (!folder()) return [];
+    if (vault) { const list = vault.readJson(fileFor(contactId), []); return Array.isArray(list) ? list : []; }
     try { return JSON.parse(fs.readFileSync(fileFor(contactId), 'utf8')); } catch { return []; }
   };
   const keep = (contactId, entry) => {
@@ -131,7 +135,8 @@ export function createTalkService({ stores, broadcast, dataDir, connect = (url) 
     const list = readHistory(contactId).filter((m) => m.id !== entry.id);
     list.push(entry);
     fs.mkdirSync(folder(), { recursive: true });
-    fs.writeFileSync(fileFor(contactId), JSON.stringify(list.slice(-HISTORY_CAP)));
+    if (vault) vault.writeJson(fileFor(contactId), list.slice(-HISTORY_CAP));
+    else fs.writeFileSync(fileFor(contactId), JSON.stringify(list.slice(-HISTORY_CAP)));
   };
 
   /* ── relays: Rutba's, one of them by choice, or the person's own ──── */

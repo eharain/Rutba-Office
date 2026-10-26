@@ -12,20 +12,20 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { readVCards, writeVCards, readContactsCsv, displayName } from '@rutba/contacts';
 
-const readJson = (file, fallback) => {
+const readPlain = (file, fallback) => {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {
     return fallback;
   }
 };
-const writeJson = (file, value) => {
+const writePlain = (file, value) => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(value));
   fs.renameSync(tmp, file);
 };
-const writeJsonLater = async (file, value) => {
+const writePlainLater = async (file, value) => {
   await fs.promises.mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   await fs.promises.writeFile(tmp, JSON.stringify(value));
@@ -61,6 +61,12 @@ function forWriting(c) {
 
 export function createContactsService({ stores, broadcast, people = null }) {
   const file = path.join(stores.dir, 'contacts.json');
+  // Sealed with the profile's key while it has a password (stores.vault, profiles.js).
+  const vault = stores.vault || null;
+  vault?.cover(file);
+  const readJson = vault ? vault.readJson : readPlain;
+  const writeJson = vault ? vault.writeJson : writePlain;
+  const writeJsonLater = vault ? vault.writeJsonLater : writePlainLater;
   const state = readJson(file, { contacts: [] });
   if (!Array.isArray(state.contacts)) state.contacts = [];
 

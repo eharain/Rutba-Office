@@ -15,6 +15,7 @@ import { filtersInLanguage } from './registry-words.js';
 import { TemplateGallery } from './template-gallery.js';
 import { AiBadge, AiToolsDialog, AI_TOOLS_CSS } from './ai-tools.js';
 import { useChosenApps } from './apps-choice.js';
+import { ProfileBadge, ManageProfiles, PROFILES_CSS, useProfiles, profileName, openManageProfiles } from './profiles.js';
 
 /**
  * The languages the windows can be shown in, each named in its own words
@@ -133,6 +134,8 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
       items.push('-');
       items.push({ label: t('What’s new'), icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) });
       items.push({ label: t('About Rutba Office'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) });
+      // Profiles: the people, or the parts of one's work, each in its own windows (profiles.js).
+      items.push({ label: t('Manage Profiles…'), icon: 'contacts', run: () => openManageProfiles() });
       // AI Tools is an add-on: in the menu once it is added in Choose apps.
       if (chosenAddons.includes('ai')) items.push({ label: t('AI Tools…'), icon: 'wand', run: () => window.dispatchEvent(new Event('rutba-ai-tools')) });
 
@@ -325,16 +328,26 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
     window.addEventListener('rutba-ai-tools', open);
     return () => window.removeEventListener('rutba-ai-tools', open);
   }, []);
+  // Manage Profiles, from the profile menu or the app menu (a 'rutba-profiles' event), or ?profiles.
+  const [profilesOpen, setProfilesOpen] = useState(() => (typeof location !== 'undefined' && new URLSearchParams(location.search).has('profiles') ? { mode: null } : null));
+  useEffect(() => {
+    const open = (e) => setProfilesOpen({ mode: e?.detail?.mode || null });
+    window.addEventListener('rutba-profiles', open);
+    return () => window.removeEventListener('rutba-profiles', open);
+  }, []);
+  // The profile the window belongs to, in its title too (the taskbar's), once there are two.
+  const { me: profile } = useProfiles(shell);
 
   useEffect(() => {
     shell.win.state().then((s) => setPlatform(s.platform)).catch(() => {});
   }, [shell]);
 
   useEffect(() => {
-    shell.win.setTitle({ title: `${title ? `${title} — ` : ''}${app?.name || 'Rutba Office'} (beta)` }).catch(() => {});
+    const of = profile && profile.count > 1 ? ` · ${profileName(profile)}` : '';
+    shell.win.setTitle({ title: `${title ? `${title} \u2014 ` : ''}${app?.name || 'Rutba Office'} (beta)${of}` }).catch(() => {});
 
     shell.win.setDocumentEdited({ edited: Boolean(dirty) }).catch(() => {});
-  }, [title, dirty, app, shell]);
+  }, [title, dirty, app, shell, profile]);
 
   return (
     <Window app={app?.key || 'home'}>
@@ -346,10 +359,12 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
         titleAfter={titleAfter}
         platform={platform}
         shell={shell}
-        right={<>{right}<AiBadge shell={shell} onOpen={() => setAiTools(true)} /></>}
+        right={<>{right}<AiBadge shell={shell} onOpen={() => setAiTools(true)} /><ProfileBadge shell={shell} always={(app?.key || 'home') === 'home'} /></>}
         onMenu={menu?.open}
       />
+      <style>{PROFILES_CSS}</style>
       {aiTools ? <><style>{AI_TOOLS_CSS}</style><AiToolsDialog shell={shell} onClose={() => setAiTools(false)} /></> : null}
+      {profilesOpen ? <ManageProfiles shell={shell} mode={profilesOpen.mode} onClose={() => setProfilesOpen(null)} /> : null}
       {ribbon}
       <Body>{children}</Body>
       <StatusBar>

@@ -457,6 +457,22 @@ export const METHODS = {
     'status',           // () -> { live, destinations: [{ id, name, state, detail, bytes, dropped, since, reconnects }] }
     'stop',             // () -> status
   ],
+  // Profiles (D-2026-10-26-02): which profile a window belongs to, the others, and managing them.
+  // A password is set, changed and taken away from the profile's own windows only.
+  profiles: [
+    'current',      // () -> { id, name, colour, count, protected, isDefault }
+    'list',         // () -> { current, openFirst, colours, profiles: [{ id, name, colour, protected, openFirst, current, running, isDefault }] }
+    'open',         // ({ id, file }) -> { here } | { started, running }   that profile's Rutba Office, started or brought to the front
+    'make',         // ({ name, colour }) -> list + { made }
+    'rename',       // ({ id, name }) -> list
+    'setColour',    // ({ id, colour }) -> list
+    'setOpenFirst', // ({ id }) -> list
+    'removal',      // ({ id }) -> { refused, size }   asked before Remove: why not, or how much goes
+    'remove',       // ({ id }) -> list   its folder to the Recycle Bin
+    'setPassword',  // ({ password }) -> current
+    'changePassword', // ({ old, password }) -> current
+    'removePassword', // ({ old }) -> current
+  ],
   ai: [
     'state',        // () -> { mode: 'off' | 'session' | 'always', folders, connect: { command, args, env }, log, connections: [{ client, clientVersion, where, since, last, lastTool, pid }], reach: 'local' | 'remote', remote: { port, key, addresses, listening, error } | null }
     'setMode',      // ({ mode }) -> state
@@ -513,6 +529,7 @@ export const EVENTS = [
   'mail:sent',        // { id, to }
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
   'theme:changed',    // { dark }
+  'profiles:changed', // { id, name, colour, count, protected }   a profile made, renamed, coloured or removed, here or in another running profile
   'update:state',     // { state, version, available, percent, automatic, snoozed, snoozedVersion, arrived }
   'capture:command',  // { command: 'stop' | 'pause' }   a recording's global key or tray icon was used
   'picture:returned', // { token, bytes, contentType, width, height }   Edit in Image saved the picture back
