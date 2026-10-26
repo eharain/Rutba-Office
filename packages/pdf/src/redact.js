@@ -579,17 +579,18 @@ function marksOf(file) {
 /**
  * The pictures under the marks that this module cannot decode, for a caller
  * that can (the window, with the browser's decoders) to hand back painted
- * out: [{ page, key, width, height, filter, rects, data }].
+ * out: [{ page, key, width, height, filter, rects, data }]. `bytes`: the
+ * file, or the file read (a protected one with its password).
  */
 function redactionPlan(bytes, { areas = null } = {}) {
-  const file = require('./reader').openPdf(bytes);
+  const file = require('./reader').asPdf(bytes);
   const plan = [];
   run(file, { areas, plan, images: null, dryRun: true });
   return plan;
 }
 
 function run(file, { areas: given = null, plan = null, images = null }) {
-  if (file.encrypted) throw new RedactError('A PDF protected with a password cannot be redacted yet.', 'encrypted');
+  if (file.locked) throw new RedactError('A PDF protected with a password can be redacted only once it is opened with its password.', 'encrypted');
   const pages = file.pages();
   const marks = marksOf(file);
   const removed = { glyphs: 0, images: 0, pictures: 0, annotations: 0, pages: 0 };
@@ -735,7 +736,7 @@ function redactPages(file, { areas = null, images = null } = {}) {
  *   `elsewhere` what else was taken out, by kind ('title', 'bookmark', 'comment', ...)
  */
 function applyRedactions(bytes, { areas = null, images = null, title, words = [] } = {}) {
-  const file = require('./reader').openPdf(bytes);
+  const file = require('./reader').asPdf(bytes);
   const { items, removed, phrases, under, unpainted } = run(file, { areas, images });
   if (!removed.pages) throw new RedactError('Nothing is marked for redaction.', 'nothing');
   const scrub = scrubber([...phrases, ...words]);

@@ -13,8 +13,16 @@
  * A file whose cross-references are wrong (offsets that miss, a startxref
  * that names nothing, a table cut short) is read again by scanning the bytes
  * for its objects, as every desktop reader does: a damaged file that opens
- * elsewhere opens here. An encrypted file is recognised and said to be, and
- * nothing here pretends to read what it cannot decrypt.
+ * elsewhere opens here.
+ *
+ * A file protected with a password (the Standard security handler,
+ * security.js) is read with it: its strings and streams decrypted object by
+ * object as they are read, so everything built on this reads it as it
+ * reads any other. Without the password (or under a handler this cannot
+ * read) the file is `locked`: its pages can be counted where the page tree
+ * is plain to see, and nothing here pretends to read what it cannot
+ * decrypt. A file whose user password is empty (an owner password only, for
+ * its permissions) opens without one.
  *
  * Values, as this module hands them out:
  *   null, true/false, numbers, PdfString (bytes), Name, Ref, arrays,
@@ -23,6 +31,7 @@
  */
 
 const zlib = require('zlib');
+const { StandardSecurity, SecurityError } = require('./security');
 
 class PdfReadError extends Error {
   /** code: 'not-pdf' | 'damaged' | 'encrypted' | 'unsupported' */
@@ -441,8 +450,9 @@ const INHERITABLE = ['Resources', 'MediaBox', 'CropBox', 'Rotate'];
 class PdfFile {
   /**
    * @param {Buffer|Uint8Array} bytes  the whole file
+   * @param {{ password?: string }} [options]  the password a protected file is read with (the user's or the owner's); not kept
    */
-  constructor(bytes) {
+  constructor(bytes, { password = '' } = {}) {
     this.buf = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const head = this.buf.indexOf('%PDF-');
     if (head < 0 || head > 1024) throw new PdfReadError('This is not a PDF: it does not begin as one.', 'not-pdf');
@@ -458,12 +468,13 @@ class PdfFile {
     this._pages = null;
     try {
       this.readXrefChain();
-      this.catalog(); // the file must at least lead to its catalog
+      this.secure(password);
+      // The file must at least lead to its catalog; a locked one's may be out of sight.
+      if (!this.locked) this.catalog();
     } catch (err) {
       if (err instanceof PdfReadError && err.code !== 'damaged') throw err;
-      this.reconstruct();
+      this.reconstruct(password);
     }
-    this.encrypted = Boolean(this.trailer && this.trailer.get('Encrypt'));
     const catalogVersion = this.catalogOrNull() && this.catalogOrNull().get('Version');
     if (catalogVersion instanceof Name && /^\d\.\d$/.test(catalogVersion.name) && catalogVersion.name > this.version) this.version = catalogVersion.name;
   }
@@ -603,7 +614,7 @@ class PdfFile {
   }
 
   /** Read the file again by finding its objects, when its cross-references cannot be trusted. */
-  reconstruct() {
+  reconstruct(password = '') {
     this.entries = new Map();
     this.cache = new Map();
     this.objStms = new Map();
@@ -618,18 +629,7 @@ class PdfFile {
       this.entries.set(Number(m[1]), { type: 1, offset: m.index, gen: Number(m[2]) });
     }
     if (!this.entries.size) throw new PdfReadError('This file has no objects a PDF reader can find.', 'damaged');
-    // Objects kept inside object streams.
-    for (const [n, e] of [...this.entries]) {
-      if (e.type !== 1) continue;
-      let value;
-      try { value = this.readIndirectAt(e.offset).value; } catch { continue; }
-      if (value instanceof Stream && value.dict.type === 'ObjStm') {
-        try {
-          const nums = this.objStmNumbers(value);
-          nums.forEach((objNum, idx) => { if (!this.entries.has(objNum)) this.entries.set(objNum, { type: 2, stm: n, idx, gen: 0 }); });
-        } catch { /* a damaged object stream is passed over */ }
-      }
-    }
+    this.findObjectStreams();
     // The trailer: the last one written, else the newest cross-reference stream's dictionary.
     let trailer = null;
     let at = text.lastIndexOf('trailer');
@@ -659,7 +659,93 @@ class PdfFile {
     }
     if (!trailer) throw new PdfReadError('This PDF is damaged: no part of it says where its pages begin.', 'damaged');
     this.trailer = trailer;
-    this.catalog();
+    this.secure(password);
+    if (!this.locked) this.catalog();
+  }
+
+  /** The objects kept inside object streams, found by reading each one (a rebuilt file's). */
+  findObjectStreams() {
+    for (const [n, e] of [...this.entries]) {
+      if (e.type !== 1) continue;
+      let value;
+      try { value = this.readIndirectAt(e.offset).value; } catch { continue; }
+      if (value instanceof Stream && value.dict.type === 'ObjStm') {
+        try {
+          if (this.security && n !== this.encryptNum) value = this.security.decryptObject(value, n, e.gen, (v) => this.resolve(v));
+          const nums = this.objStmNumbers(value);
+          nums.forEach((objNum, idx) => { if (!this.entries.has(objNum)) this.entries.set(objNum, { type: 2, stm: n, idx, gen: 0 }); });
+        } catch { /* a damaged object stream (or one still locked) is passed over */ }
+      }
+    }
+  }
+
+  // ── protection ──────────────────────────────────────────────────────────
+
+  /**
+   * The file's protection, read from its trailer and opened with the
+   * password when it is right (an empty one opens a file with an owner
+   * password only). Sets `encrypted`, `security` (the handler, once its key
+   * is known), `access` ('owner' or 'user') and `securityProblem` (why the
+   * protection cannot be read here at all).
+   */
+  secure(password = '') {
+    const ref = this.trailer && this.trailer.get('Encrypt');
+    this.encrypted = Boolean(ref);
+    this.handler = null;
+    this.security = null;
+    this.access = null;
+    this.securityProblem = null;
+    this.encryptNum = ref instanceof Ref ? ref.num : null;
+    if (!ref) return;
+    const dict = this.resolve(ref);
+    const id = this.resolve(this.trailer.get('ID'));
+    const first = Array.isArray(id) ? this.resolve(id[0]) : null;
+    try {
+      if (!(dict instanceof Dict)) throw new SecurityError('This PDF says it is protected, and its protection cannot be found.');
+      // Its entries as values, in case a writer made one of them an object of its own.
+      const plain = new Dict();
+      for (const [k, v] of dict.entries()) plain.set(k, this.resolve(v));
+      this.handler = new StandardSecurity(plain, first instanceof PdfString ? first.bytes : Buffer.alloc(0));
+    } catch (err) {
+      if (!(err instanceof SecurityError)) throw err;
+      this.securityProblem = err.message;
+      return;
+    }
+    this.unlock(password);
+  }
+
+  /** Whether the file is protected and cannot be read without its password. */
+  get locked() { return this.encrypted && !this.security; }
+
+  /** What the file allows: everything when it is not protected or was opened by its owner, else its permissions. */
+  get permissions() {
+    if (!this.encrypted) return { print: true, change: true, copy: true, comment: true, fill: true, assemble: true };
+    if (!this.security) return { print: false, change: false, copy: false, comment: false, fill: false, assemble: false };
+    return this.security.permissions;
+  }
+
+  /**
+   * Open a locked file with a password, or one opened by its user with the
+   * owner's: 'owner', 'user', or null when it is not right. From then on
+   * every object is read decrypted. The password is not kept; the handler
+   * keeps the key it makes.
+   */
+  unlock(password = '') {
+    if (!this.handler) return null;
+    if (this.access === 'owner') return this.access;
+    const handler = this.security ? new StandardSecurity(this.handler.dict, this.handler.id) : this.handler;
+    const access = handler.authenticate(password === null || password === undefined ? '' : String(password));
+    if (!access) return null;
+    if (this.security && access === this.access) return access;
+    this.handler = handler;
+    this.security = handler;
+    this.access = access;
+    // What was read before, still encrypted, is read again.
+    this.cache = new Map();
+    this.objStms = new Map();
+    this._pages = null;
+    if (this.repaired) this.findObjectStreams();
+    return access;
   }
 
   // ── objects ─────────────────────────────────────────────────────────────
@@ -713,6 +799,8 @@ class PdfFile {
     if (entry && entry.type === 1) {
       const got = this.readIndirectAt(entry.offset);
       value = got.num === n ? got.value : null;
+      // Objects in an object stream are not encrypted again: the stream holding them was.
+      if (value !== null && this.security && n !== this.encryptNum) value = this.security.decryptObject(value, n, got.gen, (v) => this.resolve(v));
     } else if (entry && entry.type === 2) {
       value = this.fromObjStm(entry.stm, n, entry.idx);
     }
@@ -800,9 +888,10 @@ class PdfFile {
 
   /** The document information dictionary's words: title, author, subject, keywords, creator, producer. */
   info() {
-    const dict = this.resolve(this.trailer.get('Info'));
     const out = {};
-    if (!(dict instanceof Dict) || this.encrypted) return out;
+    if (this.locked) return out;
+    const dict = this.resolve(this.trailer.get('Info'));
+    if (!(dict instanceof Dict)) return out;
     for (const key of ['Title', 'Author', 'Subject', 'Keywords', 'Creator', 'Producer']) {
       const v = this.resolve(dict.get(key));
       if (v instanceof PdfString) out[key.toLowerCase()] = v.text();
@@ -951,12 +1040,21 @@ function contentText(content) {
   return out.replace(/[ \t]+\n/g, '\n').trim();
 }
 
-/** Open a PDF's bytes. Throws PdfReadError with a code a window can put in a sentence. */
-function openPdf(bytes) {
-  return new PdfFile(bytes);
+/**
+ * Open a PDF's bytes, with the password a protected one is read with
+ * (`locked` says when it is not right). Throws PdfReadError with a code a
+ * window can put in a sentence.
+ */
+function openPdf(bytes, options) {
+  return new PdfFile(bytes, options);
+}
+
+/** A PdfFile as it is, or bytes opened as one (with `options`, as openPdf takes them): what the writers take. */
+function asPdf(source, options) {
+  return source instanceof PdfFile ? source : openPdf(source, options);
 }
 
 module.exports = {
-  openPdf, PdfFile, PdfReadError, Name, Ref, PdfString, Dict, Stream, Keyword, Lexer,
+  openPdf, asPdf, PdfFile, PdfReadError, Name, Ref, PdfString, Dict, Stream, Keyword, Lexer,
   parseValue, contentText, normaliseRotation, isName, INHERITABLE,
 };

@@ -35,7 +35,9 @@
  *
  * The file is written plainly: every object on its own, one classic
  * cross-reference table. Object streams in the source are unpacked on the
- * way; nothing is recompressed.
+ * way; nothing is recompressed. Pages from a file protected with a password
+ * (read with it) are written under the same protection: the same passwords
+ * open the new file, and its permissions are the same.
  */
 
 const crypto = require('crypto');
@@ -57,19 +59,33 @@ const PAGE_DROP = new Set(['Parent', 'B']);
  *   and entries of the page replaced (a value of the reader's own, whose
  *   references are to the same file and whose streams become new objects)
  *   or taken away (null), as redaction replaces a page's contents
- * @param {{ title?: string, producer?: string, date?: Date, replace?: Map, scrub?: object }} [options]
+ * @param {{ title?: string, producer?: string, date?: Date, replace?: Map, scrub?: object, security?: object | null }} [options]
  *   `replace`: Map of file -> Map of object number -> a value written in
- *   that object's place (a picture made smaller), the old one left behind
+ *   that object's place (a picture made smaller), the old one left behind;
+ *   `security`: the protection the new file is written under (security.js),
+ *   null for none; left out, a protected source's own, so pages from a file
+ *   protected with a password stay protected with it
  * @returns {Buffer}
  */
 function assemble(items, options = {}) {
   if (!Array.isArray(items) || !items.length) throw new PdfReadError('A PDF needs at least one page.', 'unsupported');
   for (const item of items) {
     if (!(item.file instanceof PdfFile)) throw new TypeError('each page names the PdfFile it comes from');
-    if (item.file.encrypted) {
-      throw new PdfReadError('This PDF is protected with a password, and changing the pages of a protected PDF is not built yet.', 'encrypted');
+    if (item.file.locked) {
+      throw new PdfReadError(item.file.securityProblem || 'This PDF is protected with a password, and its pages can be written into a new file only once it is opened with its password.', 'encrypted');
     }
     if (!item.file.pages()[item.page]) throw new PdfReadError(`There is no page ${item.page + 1} in that file.`, 'unsupported');
+  }
+  // The protection the new file keeps: its pages' own, when they come from a protected file.
+  let security = options.security;
+  if (security === undefined) {
+    security = null;
+    for (const item of items) {
+      const own = item.file.security;
+      if (!own || own === security) continue;
+      if (security && !security.sameAs(own)) throw new PdfReadError('These pages come from PDFs protected with different passwords, and one file cannot keep both.', 'encrypted');
+      security = security || own;
+    }
   }
 
   const objects = [];  // objects[n] = value, n from 1
@@ -398,7 +414,7 @@ function assemble(items, options = {}) {
 
   const versions = [...copiers.keys()].map((f) => f.version).sort();
   const version = versions[versions.length - 1] > '1.4' ? versions[versions.length - 1] : '1.4';
-  return write(objects, next, { root: catalogNum, info: infoNum, version });
+  return write(objects, next, { root: catalogNum, info: infoNum, version, security });
 }
 
 // ── a redaction's scrub ───────────────────────────────────────────────────
@@ -575,7 +591,22 @@ function valueText(v) {
   return 'null';
 }
 
-function write(objects, size, { root, info, version }) {
+/**
+ * The objects written as a file. Under `security` (a protected source's
+ * handler, its key known) every object's strings and streams are encrypted
+ * as that file's are, the Encrypt dictionary is written as it was, and the
+ * file's first ID is kept, since revisions 2 to 4 make the key from it: the
+ * same passwords open the new file.
+ */
+function write(objects, size, { root, info, version, security = null }) {
+  if (security) {
+    const resolve = (v) => (v instanceof Ref ? objects[v.num] : v);
+    const sealed = [];
+    for (let n = 1; n < size; n++) sealed[n] = objects[n] === undefined ? undefined : security.encryptObject(objects[n], n, 0, resolve);
+    sealed[size] = security.dict;
+    objects = sealed;
+    size += 1;
+  }
   const chunks = [];
   let length = 0;
   const push = (data) => {
@@ -606,7 +637,9 @@ function write(objects, size, { root, info, version }) {
   const hash = crypto.createHash('md5');
   for (const c of chunks) hash.update(c);
   const id = hash.digest('hex');
-  push(`trailer\n<</Size ${size} /Root ${root} 0 R /Info ${info} 0 R /ID [<${id}> <${id}>]>>\nstartxref\n${xrefAt}\n%%EOF\n`);
+  const first = security ? security.id.toString('hex') : id;
+  const encrypt = security ? ` /Encrypt ${size - 1} 0 R` : '';
+  push(`trailer\n<</Size ${size} /Root ${root} 0 R /Info ${info} 0 R${encrypt} /ID [<${first}> <${id}>]>>\nstartxref\n${xrefAt}\n%%EOF\n`);
   return Buffer.concat(chunks, length);
 }
 

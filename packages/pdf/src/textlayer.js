@@ -15,9 +15,11 @@
  * update then ends with one too), object streams, page trees of any shape,
  * inherited resources and rotated pages (the words come in the page's own
  * coordinates, so a rotation is the page's business, not the layer's).
- * Encrypted files and files whose cross-references had to be rebuilt are
- * refused by name: an update chained to a table that was wrong would be
- * wrong too.
+ * It is written through update.js, so a file protected with a password and
+ * read with it gets its layer under the same protection. A protected file
+ * read without its password, and a file whose cross-references had to be
+ * rebuilt, are refused by name: an update chained to a table that was wrong
+ * would be wrong too.
  *
  * The font is the one OCR layers have always used: a Type0 font whose
  * codes are the text's UTF-16 code units, mapped back to Unicode by its
@@ -35,8 +37,8 @@
  */
 
 const zlib = require('zlib');
-const { openPdf, Name, Ref, Dict, Stream } = require('./reader');
-const { valueText } = require('./assemble');
+const { asPdf, PdfFile, Name, PdfString, Dict, Stream } = require('./reader');
+const { PdfUpdate } = require('./update');
 const { visualText, hasRtl } = require('./bidi');
 
 class TextLayerError extends Error {
@@ -197,7 +199,9 @@ function wordsOfLines(lines) {
 /**
  * Add an invisible text layer to pages of a PDF.
  *
- * @param {Buffer|Uint8Array} original the whole file
+ * @param {Buffer|Uint8Array|PdfFile} original the whole file, or the file
+ *   read (a protected one read with its password: the layer is written
+ *   under the same protection)
  * @param {{ page: number, lines: { words: object[] }[] }[]} pages 0-based
  *   page numbers, and on each the lines of words (see layerContent for a
  *   word) in the page's default user space
@@ -205,9 +209,8 @@ function wordsOfLines(lines) {
  *   appended, and the pages it wrote a layer on
  */
 function addTextLayer(original, pages) {
-  const buf = Buffer.isBuffer(original) ? original : Buffer.from(original.buffer, original.byteOffset, original.byteLength);
-  const file = openPdf(buf);
-  if (file.encrypted) throw new TextLayerError('A text layer cannot be added to a PDF protected with a password.', 'encrypted');
+  const file = asPdf(original instanceof PdfFile || Buffer.isBuffer(original) ? original : Buffer.from(original.buffer, original.byteOffset, original.byteLength));
+  if (file.locked) throw new TextLayerError('A text layer cannot be added to a PDF protected with a password until it is opened with its password.', 'encrypted');
   if (file.repaired) throw new TextLayerError('This PDF\'s cross-references are damaged, so a text layer cannot be added to it as it is. Save a copy first, then recognise the copy.', 'damaged');
 
   const all = file.pages();
@@ -216,31 +219,32 @@ function addTextLayer(original, pages) {
     if (!all[p.page]) throw new TextLayerError(`There is no page ${Number(p.page) + 1} in this PDF.`, 'page');
     if (!all[p.page].ref) throw new TextLayerError(`Page ${Number(p.page) + 1} cannot be redefined.`, 'page');
   }
-  if (!jobs.length) return { bytes: buf, pages: [] };
+  if (!jobs.length) return { bytes: file.buf, pages: [] };
 
-  const trailerSize = Number(file.trailer.get('Size')) || 0;
-  let next = Math.max(trailerSize, ...[...file.entries.keys()].map((n) => n + 1), 1);
-  const objects = []; // { num, gen, body: Buffer }
-  const add = (body, num = next++, gen = 0) => {
-    objects.push({ num, gen, body: Buffer.isBuffer(body) ? body : Buffer.from(body, 'latin1') });
-    return num;
-  };
-  const stream = (dict, data) => Buffer.concat([
-    Buffer.from(`${dict.replace(/>>$/, '')} /Length ${data.length} >>\nstream\n`, 'latin1'), data, Buffer.from('\nendstream', 'latin1'),
-  ]);
+  // The update (update.js): written in the form of the file's last cross-references, and under its protection.
+  const up = new PdfUpdate(file, { what: 'A text layer' });
+  const flate = (entries, data) => new Stream(new Dict([['Filter', new Name('FlateDecode')], ...entries]), zlib.deflateSync(data));
 
   // The font, once for every page.
   const program = glyphlessFont();
-  const fontFileNum = add(stream(`<< /Filter /FlateDecode /Length1 ${program.length} >>`, zlib.deflateSync(program)));
-  const descriptorNum = add(`<< /Type /FontDescriptor /FontName /GlyphLessFont /Flags 5 /FontBBox [0 -200 500 800] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 800 /StemV 80 /FontFile2 ${fontFileNum} 0 R >>`);
-  const cidToGid = zlib.deflateSync(Buffer.alloc(65536 * 2, 0).fill(Buffer.from([0, 1])));
-  const cidToGidNum = add(stream('<< /Filter /FlateDecode >>', cidToGid));
-  const cidNum = add(`<< /Type /Font /Subtype /CIDFontType2 /BaseFont /GlyphLessFont /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor ${descriptorNum} 0 R /DW 500 /CIDToGIDMap ${cidToGidNum} 0 R >>`);
-  const cmap = zlib.deflateSync(Buffer.from(toUnicodeCMap(), 'latin1'));
-  const toUnicodeNum = add(stream('<< /Filter /FlateDecode >>', cmap));
-  const fontNum = add(`<< /Type /Font /Subtype /Type0 /BaseFont /GlyphLessFont /Encoding /Identity-H /DescendantFonts [${cidNum} 0 R] /ToUnicode ${toUnicodeNum} 0 R >>`);
+  const fontFile = up.add(flate([['Length1', program.length]], program));
+  const descriptor = up.add(new Dict([
+    ['Type', new Name('FontDescriptor')], ['FontName', new Name('GlyphLessFont')], ['Flags', 5], ['FontBBox', [0, -200, 500, 800]],
+    ['ItalicAngle', 0], ['Ascent', 800], ['Descent', -200], ['CapHeight', 800], ['StemV', 80], ['FontFile2', fontFile],
+  ]));
+  const cidToGid = up.add(flate([], Buffer.alloc(65536 * 2, 0).fill(Buffer.from([0, 1]))));
+  const cid = up.add(new Dict([
+    ['Type', new Name('Font')], ['Subtype', new Name('CIDFontType2')], ['BaseFont', new Name('GlyphLessFont')],
+    ['CIDSystemInfo', new Dict([['Registry', new PdfString(Buffer.from('Adobe'))], ['Ordering', new PdfString(Buffer.from('Identity'))], ['Supplement', 0]])],
+    ['FontDescriptor', descriptor], ['DW', 500], ['CIDToGIDMap', cidToGid],
+  ]));
+  const toUnicode = up.add(flate([], Buffer.from(toUnicodeCMap(), 'latin1')));
+  const font = up.add(new Dict([
+    ['Type', new Name('Font')], ['Subtype', new Name('Type0')], ['BaseFont', new Name('GlyphLessFont')], ['Encoding', new Name('Identity-H')],
+    ['DescendantFonts', [cid]], ['ToUnicode', toUnicode],
+  ]));
   // Saves the original's graphics state, so whatever its content leaves behind cannot move the layer.
-  const saveNum = add(stream('<< >>', Buffer.from('q', 'latin1')));
+  const save = up.add(new Stream(new Dict(), Buffer.from('q', 'latin1')));
 
   const written = [];
   for (const job of jobs) {
@@ -254,11 +258,10 @@ function addTextLayer(original, pages) {
     if (ownFonts instanceof Dict) for (const [k, v] of ownFonts.entries()) fonts.set(k, v);
     let fontName = 'ROCR';
     for (let i = 1; fonts.has(fontName); i++) fontName = `ROCR${i}`;
-    fonts.set(fontName, new Ref(fontNum, 0));
+    fonts.set(fontName, font);
     resources.set('Font', fonts);
 
-    const content = zlib.deflateSync(Buffer.from(layerContent(wordsOfLines(job.lines), fontName), 'latin1'));
-    const contentNum = add(stream('<< /Filter /FlateDecode >>', content));
+    const content = up.add(flate([], Buffer.from(layerContent(wordsOfLines(job.lines), fontName), 'latin1')));
 
     const dict = new Dict();
     for (const [k, v] of page.dict.entries()) dict.set(k, v);
@@ -266,89 +269,12 @@ function addTextLayer(original, pages) {
     for (const key of ['MediaBox', 'CropBox', 'Rotate']) if (!dict.has(key) && page.inherited[key] !== undefined) dict.set(key, page.inherited[key]);
     const contents = file.resolve(page.dict.get('Contents'));
     const list = Array.isArray(contents) ? contents : page.dict.get('Contents') ? [page.dict.get('Contents')] : [];
-    dict.set('Contents', [new Ref(saveNum, 0), ...list, new Ref(contentNum, 0)]);
+    dict.set('Contents', [save, ...list, content]);
     dict.set('Resources', resources);
-    add(`${valueText(dict)}`, page.ref.num, page.ref.gen);
+    up.set(page.ref, dict);
     written.push(job.page);
   }
-
-  // The update: the objects, then cross-references in the form the file's last section has.
-  const base = file.base;
-  const prevAt = file.startXref() - base;
-  const classic = buf.toString('latin1', file.startXref(), file.startXref() + 4) === 'xref';
-  const parts = [buf];
-  let length = buf.length;
-  const push = (data) => {
-    const b = Buffer.isBuffer(data) ? data : Buffer.from(data, 'latin1');
-    parts.push(b);
-    length += b.length;
-  };
-  if (buf[buf.length - 1] !== 0x0a && buf[buf.length - 1] !== 0x0d) push('\n');
-  const offsets = new Map();
-  for (const o of objects) {
-    offsets.set(o.num, { offset: length - base, gen: o.gen });
-    push(`${o.num} ${o.gen} obj\n`);
-    push(o.body);
-    push('\nendobj\n');
-  }
-  const trailer = new Dict();
-  for (const key of ['Root', 'Info', 'ID']) if (file.trailer.has(key)) trailer.set(key, file.trailer.get(key));
-  trailer.set('Prev', prevAt);
-
-  // Runs of consecutive object numbers, as both forms of cross-reference list them.
-  const runs = (nums) => {
-    const out = [];
-    for (const n of nums.sort((a, b) => a - b)) {
-      const last = out[out.length - 1];
-      if (last && last.first + last.count === n) last.count++;
-      else out.push({ first: n, count: 1 });
-    }
-    return out;
-  };
-
-  if (classic) {
-    const size = Math.max(trailerSize, next);
-    trailer.set('Size', size);
-    const xrefAt = length - base;
-    let xref = 'xref\n';
-    for (const run of runs([...offsets.keys()])) {
-      xref += `${run.first} ${run.count}\n`;
-      for (let n = run.first; n < run.first + run.count; n++) {
-        const e = offsets.get(n);
-        xref += `${String(e.offset).padStart(10, '0')} ${String(e.gen).padStart(5, '0')} n \n`;
-      }
-    }
-    push(xref);
-    push(`trailer\n${valueText(trailer)}\nstartxref\n${xrefAt}\n%%EOF\n`);
-  } else {
-    // A cross-reference stream: its own number last, rows of type, offset (4 bytes) and generation (2).
-    const xrefNum = next++;
-    const xrefAt = length - base;
-    offsets.set(xrefNum, { offset: xrefAt, gen: 0 });
-    const list = runs([...offsets.keys()]);
-    const rows = [];
-    for (const run of list) {
-      for (let n = run.first; n < run.first + run.count; n++) {
-        const e = offsets.get(n);
-        const row = Buffer.alloc(7);
-        row[0] = 1;
-        row.writeUInt32BE(e.offset, 1);
-        row.writeUInt16BE(e.gen, 5);
-        rows.push(row);
-      }
-    }
-    const data = zlib.deflateSync(Buffer.concat(rows));
-    trailer.set('Type', new Name('XRef'));
-    trailer.set('Size', Math.max(trailerSize, next));
-    trailer.set('W', [1, 4, 2]);
-    trailer.set('Index', list.flatMap((r) => [r.first, r.count]));
-    trailer.set('Filter', new Name('FlateDecode'));
-    trailer.set('Length', data.length);
-    push(`${xrefNum} 0 obj\n${valueText(trailer)}\nstream\n`);
-    push(data);
-    push(`\nendstream\nendobj\nstartxref\n${xrefAt}\n%%EOF\n`);
-  }
-  return { bytes: Buffer.concat(parts, length), pages: written };
+  return { bytes: up.toBuffer(), pages: written };
 }
 
 /** Whether a page already carries text a reader could find (its content shows text at all). */

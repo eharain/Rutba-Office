@@ -75,7 +75,7 @@ const KINDS = {
  * passwords and permissions. `owner` empty takes the user password, as
  * writers do.
  */
-function securityFor({ kind = 'aes-256', user = '', owner = '', permissions = -4, encryptMetadata = true, id }) {
+function securityFor({ kind = 'aes-256', user = '', owner = '', permissions = -4, encryptMetadata = true, identityStrings = false, id }) {
   const { v, r, bits } = KINDS[kind];
   const P = permissions | 0;
   const pBytes = Buffer.alloc(4);
@@ -92,10 +92,10 @@ function securityFor({ kind = 'aes-256', user = '', owner = '', permissions = -4
     dict.set('Length', 256);
     dict.set('CF', new Dict([['StdCF', new Dict([['AuthEvent', new Name('DocOpen')], ['CFM', new Name('AESV3')], ['Length', 32]])]]));
     dict.set('StmF', new Name('StdCF'));
-    dict.set('StrF', new Name('StdCF'));
+    dict.set('StrF', new Name(identityStrings ? 'Identity' : 'StdCF'));
     for (const [k, b] of [['O', O], ['U', U], ['OE', OE], ['UE', UE], ['Perms', aes(256, key, perms, { ecb: true, pad: false })]]) dict.set(k, new PdfString(b, true));
     if (!encryptMetadata) dict.set('EncryptMetadata', false);
-    return { dict, objectKey: () => key, cipher: (k, data) => aes(256, k, data) };
+    return { dict, objectKey: () => key, cipher: (k, data) => aes(256, k, data), strings: !identityStrings };
   }
   const n = bits / 8;
   // The owner entry: the user password encrypted with a key from the owner password.
@@ -122,19 +122,19 @@ function securityFor({ kind = 'aes-256', user = '', owner = '', permissions = -4
   if (r === 4) {
     dict.set('CF', new Dict([['StdCF', new Dict([['AuthEvent', new Name('DocOpen')], ['CFM', new Name(useAes ? 'AESV2' : 'V2')], ['Length', 16]])]]));
     dict.set('StmF', new Name('StdCF'));
-    dict.set('StrF', new Name('StdCF'));
+    dict.set('StrF', new Name(identityStrings ? 'Identity' : 'StdCF'));
     if (!encryptMetadata) dict.set('EncryptMetadata', false);
   }
   const objectKey = (num, gen) => {
     const extra = Buffer.from([num & 255, (num >> 8) & 255, (num >> 16) & 255, gen & 255, (gen >> 8) & 255]);
     return md5(key, extra, useAes ? Buffer.from('sAlT') : Buffer.alloc(0)).subarray(0, Math.min(n + 5, 16));
   };
-  return { dict, objectKey, cipher: (k, data) => (useAes ? aes(128, k, data) : rc4(k, data)) };
+  return { dict, objectKey, cipher: (k, data) => (useAes ? aes(128, k, data) : rc4(k, data)), strings: !(r === 4 && identityStrings) };
 }
 
 /** A value with every string in it encrypted for the object it belongs to. */
 function sealed(value, k, sec) {
-  if (value instanceof PdfString) return new PdfString(sec.cipher(k, value.bytes), true);
+  if (value instanceof PdfString) return sec.strings ? new PdfString(sec.cipher(k, value.bytes), true) : value;
   if (Array.isArray(value)) return value.map((x) => sealed(x, k, sec));
   if (value instanceof Dict) {
     const out = new Dict();
@@ -147,7 +147,8 @@ function sealed(value, k, sec) {
 /**
  * The plain file `bytes` protected: { kind: 'rc4-40' | 'rc4-128' |
  * 'aes-128' | 'aes-256', user, owner, permissions, encryptMetadata,
- * objectStreams }. Returns the protected file's bytes.
+ * identityStrings (strings left plain by the /Identity crypt filter, AES
+ * kinds only), objectStreams }. Returns the protected file's bytes.
  */
 function protectPdf(bytes, options = {}) {
   const file = openPdf(bytes);

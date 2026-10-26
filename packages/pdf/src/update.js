@@ -14,6 +14,12 @@
  *
  * Values are the reader's own (Dict, Name, Ref, PdfString, arrays, numbers);
  * a Stream is written with its bytes as they are and a /Length for them.
+ *
+ * A file protected with a password, read with it, is updated under the same
+ * protection: each object written has its strings and stream encrypted with
+ * the file's key, as the rest of the file is, and the trailer keeps its
+ * Encrypt entry and its ID. A protected file read without its password
+ * cannot be written into.
  */
 
 const zlib = require('zlib');
@@ -38,7 +44,7 @@ class PdfUpdate {
     const file = source instanceof PdfFile ? source : openPdf(source);
     this.file = file;
     this.buf = file.buf;
-    if (file.encrypted) throw new UpdateError(`${what} cannot be written into a PDF protected with a password.`, 'encrypted');
+    if (file.locked) throw new UpdateError(`${what} cannot be written into a PDF protected with a password until it is opened with its password.`, 'encrypted');
     if (file.repaired) throw new UpdateError(`This PDF's cross-references are damaged, so ${what.charAt(0).toLowerCase()}${what.slice(1)} cannot be added to it as it is. Save a copy first, then work on the copy.`, 'damaged');
     this.size = Number(file.trailer.get('Size')) || 0;
     this.next = Math.max(this.size, ...[...file.entries.keys()].map((n) => n + 1), 1);
@@ -108,7 +114,7 @@ class PdfUpdate {
       if (o.free) { offsets.set(num, { offset: 0, gen: o.gen, free: true }); continue; }
       offsets.set(num, { offset: length - base, gen: o.gen });
       push(`${num} ${o.gen} obj\n`);
-      const v = o.value;
+      const v = file.security ? file.security.encryptObject(o.value, num, o.gen, (x) => this.resolve(x)) : o.value;
       if (v instanceof Stream) {
         const dict = new Dict(v.dict.entries());
         dict.set('Length', v.data.length);
@@ -121,7 +127,7 @@ class PdfUpdate {
       push('\nendobj\n');
     }
     const trailer = new Dict();
-    for (const key of ['Root', 'Info', 'ID']) if (file.trailer.has(key)) trailer.set(key, file.trailer.get(key));
+    for (const key of ['Root', 'Info', 'ID', 'Encrypt']) if (file.trailer.has(key)) trailer.set(key, file.trailer.get(key));
     trailer.set('Prev', startXref - base);
 
     const runs = (nums) => {

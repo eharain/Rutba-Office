@@ -21,7 +21,7 @@
  */
 
 const zlib = require('zlib');
-const { openPdf, Name, Ref, Dict, Stream } = require('./reader');
+const { asPdf, Name, Ref, Dict, Stream } = require('./reader');
 const { assemble } = require('./assemble');
 const { parseContent } = require('./redact');
 
@@ -100,9 +100,10 @@ function samples(file, stream) {
  * The pictures worth making smaller for a target resolution: [{ ref, width,
  * height, toWidth, toHeight, filter, comps, data, bytes }], `data` the
  * JPEG's bytes for a JPEG and the decoded samples for one decoded here.
+ * `bytes`: the file, or the file read (a protected one with its password).
  */
 function compressPlan(bytes, { dpi = 150, minBytes = 20000 } = {}) {
-  const file = openPdf(bytes);
+  const file = asPdf(bytes);
   const sizes = drawnSizes(file);
   const out = [];
   for (const [n, size] of sizes) {
@@ -158,13 +159,14 @@ function resample({ width, height, comps, data }, toWidth, toHeight) {
  * The file written whole with its large pictures made smaller. `images`:
  * { [ref]: { data, width, height, filter: 'DCTDecode', comps } } handed back
  * encoded by the caller; a planned picture decoded here and not handed back
- * is resampled and deflated here.
+ * is resampled and deflated here. A file protected with a password, read
+ * with it, is written under the same protection.
  * @returns {{ bytes: Buffer, replaced: number, before: number, after: number }}
  */
 function compressPdf(bytes, { dpi = 150, images = {}, title } = {}) {
-  const file = openPdf(bytes);
-  if (file.encrypted) throw new Error('A PDF protected with a password cannot be made smaller yet.');
-  const plan = compressPlan(bytes, { dpi });
+  const file = asPdf(bytes);
+  if (file.locked) throw new Error('A PDF protected with a password can be made smaller only once it is opened with its password.');
+  const plan = compressPlan(file, { dpi });
   const replace = new Map();
   for (const item of plan) {
     const old = file.getObject(item.ref);
@@ -192,7 +194,7 @@ function compressPdf(bytes, { dpi = 150, images = {}, title } = {}) {
   }
   const items = file.pages().map((_, page) => ({ file, page }));
   const out = assemble(items, { title, replace: new Map([[file, replace]]) });
-  return { bytes: out, replaced: replace.size, before: bytes.length, after: out.length };
+  return { bytes: out, replaced: replace.size, before: file.buf.length, after: out.length };
 }
 
 module.exports = { compressPlan, compressPdf, drawnSizes, resample };
