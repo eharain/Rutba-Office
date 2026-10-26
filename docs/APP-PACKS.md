@@ -185,21 +185,21 @@ Sizes as shipped before compression: the window code minified as the build makes
 | Documents (`word`) | 482 KB | 482 KB | 0 KB | 0 KB | 0 KB | 0 KB | Presentations (2) | Contacts, Mail | none | docx docm dotx doc dot wri odt rtf txt md markdown html htm | none (0) | create_document, export_pdf | 50 |
 | Worksheets (`sheets`) | 351 KB | 351 KB | 0 KB | 0 KB | 0 KB | 0 KB | Documents (2), Presentations (3), Text recognition (3), Pictures (2), PDF (2) | Text recognition | none | xlsx xlsm xltx xls xlt ods csv tsv | none (0) | create_workbook | 30 |
 | Presentations (`slides`) | 362 KB | 359 KB | 3 KB | 0 KB | 0 KB | 0 KB | Documents (2), Video (3) | none | none | pptx pptm potx ppsx ppt pps pot odp | present (2) | create_presentation | 49 |
-| PDF (`pdf`) | 3.0 MB | 137 KB | 18 KB | 0 KB | 0 KB | 2.9 MB | Text recognition (3) | Text recognition | none | pdf | pdf (18) | combine_pdf_pages | 10 |
+| PDF (`pdf`) | 3.0 MB | 137 KB | 19 KB | 0 KB | 0 KB | 2.9 MB | Text recognition (3) | Text recognition | none | pdf | pdf (18) | combine_pdf_pages | 10 |
 | Pictures (`pictures`) | 54 KB | 54 KB | 0 KB | 0 KB | 0 KB | 0 KB | Image (1), Text recognition (1) | none | Image, PDF, Video | jpg jpeg png gif webp avif heic bmp tif tiff ico svg | none (0) | none | 4 |
-| Image (`image`) | 181 KB | 181 KB | 0 KB | 0 KB | 0 KB | 0 KB | Text recognition (1), Presentations (1) | none | none | rimg | none (0) | none | 7 |
+| Image (`image`) | 182 KB | 181 KB | 0 KB | 0 KB | 0 KB | 0 KB | Text recognition (1), Presentations (1) | none | none | rimg | none (0) | none | 7 |
 | Video (`video`) | 225 KB | 225 KB | 0 KB | 0 KB | 0 KB | 0 KB | Image (1) | none | none | rvid mp4 m4v mov webm mkv ogv mp3 m4a wav flac ogg | none (0) | none | 9 |
-| Recorder (`recorder`) | 85 KB | 49 KB | 10 KB | 26 KB | 0 KB | 0 KB | Video (4) | none | Image, Pictures, Video | none | live (8) | none | 4 |
-| Mail (`mail`) | 5.6 MB | 228 KB | 214 KB | 351 KB | 4.8 MB | 0 KB | Text recognition (1), PDF (2) | Calendar, Contacts, Text recognition | none | eml emlx msg mbox pst ost olm | mail, discover (75) | none | 16 |
-| Calendar (`calendar`) | 62 KB | 45 KB | 17 KB | 0 KB | 0 KB | 0 KB | none | none | Mail | ics | calendar (12) | none | 2 |
-| Contacts (`contacts`) | 32 KB | 19 KB | 13 KB | 0 KB | 0 KB | 0 KB | none | none | Mail | vcf | contacts (11) | none | 0 |
-| Data Files (`base`) | 4.1 MB | 201 KB | 99 KB | 2.5 MB | 1.3 MB | 0 KB | none | none | none | rbase | base (84) | none | 19 |
-| Talk (`talk`) | 78 KB | 43 KB | 35 KB | 0 KB | 0 KB | 0 KB | none | Contacts, Mail | Mail | none | talk (21) | none | 4 |
-| AI Tools (`ai`) | 161 KB | 12 KB | 54 KB | 95 KB | 0 KB | 0 KB | Text recognition (1) | none | none | none | ai (6) | list_folders, list_files, read_file, list_templates, create_from_template | 1 |
+| Recorder (`recorder`) | 85 KB | 49 KB | 11 KB | 26 KB | 0 KB | 0 KB | Video (4) | none | Image, Pictures, Video | none | live (8) | none | 4 |
+| Mail (`mail`) | 5.6 MB | 228 KB | 215 KB | 351 KB | 4.8 MB | 0 KB | Text recognition (1), PDF (2) | Calendar, Contacts, Text recognition | none | eml emlx msg mbox pst ost olm | mail, discover (75) | none | 16 |
+| Calendar (`calendar`) | 63 KB | 45 KB | 18 KB | 0 KB | 0 KB | 0 KB | none | none | Mail | ics | calendar (12) | none | 2 |
+| Contacts (`contacts`) | 34 KB | 19 KB | 14 KB | 0 KB | 0 KB | 0 KB | none | none | Mail | vcf | contacts (11) | none | 0 |
+| Data Files (`base`) | 4.1 MB | 201 KB | 100 KB | 2.5 MB | 1.3 MB | 0 KB | none | none | none | rbase | base (84) | none | 19 |
+| Talk (`talk`) | 80 KB | 43 KB | 37 KB | 0 KB | 0 KB | 0 KB | none | Contacts, Mail | Mail | none | talk (21) | none | 4 |
+| AI Tools (`ai`) | 164 KB | 12 KB | 58 KB | 95 KB | 0 KB | 0 KB | Text recognition (1) | none | none | none | ai (6) | list_folders, list_files, read_file, list_templates, create_from_template | 1 |
 | Text recognition (`ocr`) | 15.3 MB | 13 KB | 3 KB | 15.3 MB | 0 KB | 0 KB | none | none | none | none | ocr (4) | read_text_in_picture | 3 |
-| **Core** | 22.4 MB | 5.5 MB | 427 KB | 10.9 MB | 5.6 MB | 0 KB | | | | | app, win, fs, thumbs, dialog, shell, store, doc, dav, update, defaults, oauth, announce, print, clipboard, capture (143) |  | 58 |
+| **Core** | 22.6 MB | 5.5 MB | 458 KB | 11.0 MB | 5.6 MB | 0 KB | | | | | app, win, fs, thumbs, dialog, shell, store, doc, dav, update, defaults, oauth, announce, print, profiles, packs, clipboard, capture (160) |  | 60 |
 
-All together: 52.5 MB. The window checks (`main/verify-*.js` and the smoke and screens runs, 3.5 MB) are not in these sizes.
+All together: 52.7 MB. The window checks (`main/verify-*.js` and the smoke and screens runs, 3.5 MB) are not in these sizes.
 
 ### The engines and who reaches them
 
@@ -219,17 +219,17 @@ An engine one pack alone reaches moves into that pack; one the core or two packs
 | @rutba/mailbox | Mail | 351 KB | main process, windows | Mail | Mail: `apps/desktop/main/mail-archive.js:27` |
 | @rutba/media | core | 80 KB | windows | Pictures, Video | Pictures: `apps/desktop/renderer/apps/pictures.js:245`; Video: `apps/desktop/renderer/apps/video/export.js:18` |
 | @rutba/ocr | split: Text recognition 15.3 MB, core 82 KB | 15.4 MB | main process, windows | AI Tools, Mail, Text recognition, PDF, Worksheets | Worksheets: `apps/desktop/renderer/apps/sheets/receipt-row.js:16`; PDF: `apps/desktop/renderer/apps/pdf/found.js:16`; Mail: `apps/desktop/renderer/apps/mail/docnote.js:16`; Text recognition: `apps/desktop/main/ocr.js:12`; AI Tools: `apps/desktop/main/mcp/make-tools.js:9` |
-| @rutba/office-formats | core | 837 KB | main process, windows | AI Tools, Data Files, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/main/announce.js:33`; Documents: `apps/desktop/renderer/apps/word.js:21`; Worksheets: `apps/desktop/renderer/apps/sheets.js:29`; Presentations: `apps/desktop/renderer/apps/slides.js:19`; Mail: `apps/desktop/renderer/apps/mail.js:27`; AI Tools: `apps/desktop/main/mcp/tools.js:19`; Data Files: `apps/desktop/main/base-sources.js:13` |
-| @rutba/office-shell | core | 190 KB | main process, windows | Data Files, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/main/main.js:13`; Mail: `apps/desktop/renderer/apps/mail/compose.js:19`; Recorder: `apps/desktop/main/live.js:23` |
-| @rutba/office-ui | core | 4.0 MB | main process, windows | AI Tools, Data Files, Calendar, Contacts, core, Image, Mail, Text recognition, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/renderer/apps-choice.js:8`; Documents: `apps/desktop/renderer/apps/word.js:17`; Worksheets: `apps/desktop/renderer/apps/sheets.js:15`; Presentations: `apps/desktop/renderer/apps/slides.js:13`; Pictures: `apps/desktop/renderer/apps/pictures.js:25`; Image: `apps/desktop/renderer/apps/image.js:17`; Video: `apps/desktop/renderer/apps/video/export.js:17`; Recorder: `apps/desktop/renderer/apps/recorder.js:20`; Talk: `apps/desktop/renderer/apps/talk.js:14`; Data Files: `apps/desktop/renderer/apps/base.js:9`; PDF: `apps/desktop/renderer/apps/pdf/annots.js:18`; Mail: `apps/desktop/renderer/apps/mail.js:25`; Calendar: `apps/desktop/renderer/apps/calendar.js:15`; Contacts: `apps/desktop/renderer/apps/contacts.js:15`; AI Tools: `apps/desktop/renderer/ai-tools.js:12`; Text recognition: `apps/desktop/renderer/ocr-ui.js:12` |
-| @rutba/ooxml | core | 1.3 MB | main process, windows | AI Tools, Data Files, core, Mail, Worksheets, Presentations, Documents | Documents: `apps/desktop/renderer/apps/word.js:45`; core: `apps/desktop/main/documents.js:21`; Worksheets: `apps/desktop/renderer/apps/sheets.js:24`; Presentations: `apps/desktop/renderer/apps/slides.js:31`; Mail: `packages/mailbox/src/olm.js:12`; AI Tools: `apps/desktop/main/mcp/tools.js:14`; Data Files: `apps/desktop/main/base-sources.js:17` |
+| @rutba/office-formats | core | 837 KB | main process, windows | AI Tools, Data Files, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/main/announce.js:33`; Documents: `apps/desktop/renderer/apps/word.js:21`; Worksheets: `apps/desktop/renderer/apps/sheets.js:29`; Presentations: `apps/desktop/renderer/apps/slides.js:19`; Mail: `apps/desktop/renderer/apps/mail.js:27`; Data Files: `apps/desktop/main/base-sources.js:13`; AI Tools: `apps/desktop/main/mcp/tools.js:19` |
+| @rutba/office-shell | core | 254 KB | main process, windows | AI Tools, Data Files, Calendar, Contacts, core, Image, Mail, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/main/app-packs.js:24`; Mail: `apps/desktop/renderer/apps/mail/compose.js:19`; Recorder: `apps/desktop/main/live.js:23`; AI Tools: `apps/desktop/main/ai-tools.js:17` |
+| @rutba/office-ui | core | 4.1 MB | main process, windows | AI Tools, Data Files, Calendar, Contacts, core, Image, Mail, Text recognition, PDF, Pictures, Recorder, Worksheets, Presentations, Talk, Video, Documents | core: `apps/desktop/renderer/apps-choice.js:8`; Documents: `apps/desktop/renderer/apps/word.js:17`; Worksheets: `apps/desktop/renderer/apps/sheets.js:15`; Presentations: `apps/desktop/renderer/apps/slides.js:13`; Pictures: `apps/desktop/renderer/apps/pictures.js:25`; Image: `apps/desktop/renderer/apps/image.js:17`; Video: `apps/desktop/renderer/apps/video/export.js:17`; Recorder: `apps/desktop/renderer/apps/recorder.js:20`; Talk: `apps/desktop/renderer/apps/talk.js:14`; Data Files: `apps/desktop/renderer/apps/base.js:9`; PDF: `apps/desktop/renderer/apps/pdf/annots.js:18`; Mail: `apps/desktop/renderer/apps/mail.js:25`; Calendar: `apps/desktop/renderer/apps/calendar.js:15`; Contacts: `apps/desktop/renderer/apps/contacts.js:15`; AI Tools: `apps/desktop/renderer/ai-tools.js:12`; Text recognition: `apps/desktop/renderer/ocr-ui.js:12` |
+| @rutba/ooxml | core | 1.3 MB | main process, windows | AI Tools, Data Files, core, Mail, Worksheets, Presentations, Documents | Documents: `apps/desktop/renderer/apps/word.js:45`; core: `apps/desktop/main/documents.js:21`; Worksheets: `apps/desktop/renderer/apps/sheets.js:24`; Presentations: `apps/desktop/renderer/apps/slides.js:31`; Mail: `packages/mailbox/src/olm.js:12`; Data Files: `apps/desktop/main/base-sources.js:17`; AI Tools: `apps/desktop/main/mcp/tools.js:14` |
 | @rutba/pdf | core | 342 KB | main process | AI Tools, core, Mail, PDF | core: `apps/desktop/main/system-fonts.js:10`; PDF: `apps/desktop/main/pdf.js:43`; AI Tools: `apps/desktop/main/mcp/tools.js:21` |
 | @rutba/presentation | core | 605 KB | main process, windows | AI Tools, core, Presentations | Presentations: `apps/desktop/renderer/apps/slides.js:28`; core: `apps/desktop/main/documents.js:40`; AI Tools: `apps/desktop/main/mcp/tools.js:16` |
 | @rutba/proofing | core | 204 KB | main process | core | core: `apps/desktop/main/proofing.js:29` |
-| @rutba/sheet-view | core | 689 KB | main process, windows | AI Tools, Data Files, core, Worksheets | Worksheets: `apps/desktop/renderer/apps/sheets.js:53`; core: `apps/desktop/main/documents.js:19`; AI Tools: `packages/templates/src/sheets.js:12`; Data Files: `apps/desktop/main/base-sources.js:12` |
+| @rutba/sheet-view | core | 689 KB | main process, windows | AI Tools, Data Files, core, Worksheets | Worksheets: `apps/desktop/renderer/apps/sheets.js:53`; core: `apps/desktop/main/documents.js:19`; Data Files: `apps/desktop/main/base-sources.js:12`; AI Tools: `packages/templates/src/sheets.js:12` |
 | @rutba/stream | Recorder | 26 KB | main process, windows | Recorder | Recorder: `apps/desktop/main/live.js:21` |
 | @rutba/studio | core | 901 KB | windows | Image, Recorder, Presentations, Video | Presentations: `apps/desktop/renderer/apps/slides.js:46`; Image: `apps/desktop/renderer/apps/image.js:21`; Video: `apps/desktop/renderer/apps/video/export.js:21`; Recorder: `apps/desktop/renderer/apps/recorder.js:21` |
-| @rutba/templates | split: Data Files 2.3 MB, core 1.7 MB, AI Tools 95 KB | 4.1 MB | main process | AI Tools, Data Files, core | core: `apps/desktop/main/documents.js:97`; AI Tools: `apps/desktop/main/mcp/tools.js:17`; Data Files: `apps/desktop/main/base.js:20` |
+| @rutba/templates | split: Data Files 2.3 MB, core 1.7 MB, AI Tools 95 KB | 4.1 MB | main process | AI Tools, Data Files, core | core: `apps/desktop/main/documents.js:97`; Data Files: `apps/desktop/main/base.js:20`; AI Tools: `apps/desktop/main/mcp/tools.js:17` |
 
 | npm package (main process) | Owner | Size with what it needs | Reached by |
 |---|---|---:|---|
@@ -254,8 +254,8 @@ An engine one pack alone reaches moves into that pack; one the core or two packs
 | The words in Urdu, Arabic and Hindi | `packages/office-ui/src/catalogues` | 3.8 MB | core |
 | The studio renderer (layers for Video, Image and Recorder) | `packages/studio/src` | 616 KB | core |
 | Video's containers and export plan (the codecs are Chromium's own WebCodecs; none ship) | `packages/media/src` | 79 KB | core |
-| AI Tools' server (the Model Context Protocol, local and over the network) | `apps/desktop/main/mcp` | 46 KB | AI Tools |
-| Talk's calling and messages | `apps/desktop/renderer/apps/talk, apps/desktop/renderer/apps/talk.js, apps/desktop/main/talk.js, apps/desktop/main/talk-signin.js` | 96 KB | Talk |
+| AI Tools' server (the Model Context Protocol, local and over the network) | `apps/desktop/main/mcp` | 50 KB | AI Tools |
+| Talk's calling and messages | `apps/desktop/renderer/apps/talk, apps/desktop/renderer/apps/talk.js, apps/desktop/main/talk.js, apps/desktop/main/talk-signin.js` | 97 KB | Talk |
 | Spelling dictionaries | `dictionary-en, dictionary-en-gb` | 1.1 MB | core |
 | Database engine clients | `pg, mysql2` | 1.7 MB | Data Files |
 | Mail protocols | `imapflow, nodemailer` | 5.2 MB | Mail |
@@ -271,7 +271,7 @@ electron-builder copies the folder of every dependency `apps/desktop/package.jso
 | @rutba/studio | 901 KB | the windows only: bundled |
 | mailparser | 4.8 MB | reached by nothing |
 
-### The imports to cut (39)
+### The imports to cut (38)
 
 Each is a file of one owner importing a file of another app. Before the move each is cut (the app asks through IPC or an event, or the shared part moves to the core). Grouped by who imports whom.
 
@@ -279,7 +279,6 @@ Each is a file of one owner importing a file of another app. Before the move eac
 |---|---|---|---|---|
 | AI Tools | Text recognition | `apps/desktop/main/mcp/make-tools.js:12` | `apps/desktop/main/ocr.js` | static |
 | core | AI Tools | `apps/desktop/renderer/shell.js:16` | `apps/desktop/renderer/ai-tools.js` | static |
-| core | Data Files | `apps/desktop/main/main.js:48` | `apps/desktop/main/base-trust.js` | static |
 | core | Presentations | `apps/desktop/main/documents.js:87` | `apps/desktop/main/legacy-deck.js` | static |
 | core | Documents | `apps/desktop/main/documents.js:76` | `apps/desktop/main/mailmerge-source.js` | static |
 | Image | Text recognition | `apps/desktop/renderer/apps/image.js:50` | `apps/desktop/renderer/ocr-ui.js` | static |
@@ -317,23 +316,27 @@ Each is a file of one owner importing a file of another app. Before the move eac
 | Documents | Presentations | `apps/desktop/renderer/apps/word.js:59` | `apps/desktop/renderer/apps/slides/ink.js` | static |
 | Documents | Presentations | `apps/desktop/renderer/apps/word/ribbon.js:32` | `apps/desktop/renderer/apps/slides/ink-geometry.js` | static |
 
-### The core's wiring (24)
+### The core's wiring (28)
 
-What `renderer/index.js` and `main/main.js` import from each app today. These are not cut: the loader takes them over, one pack at a time.
+What the core imports from each app today: `renderer/index.js` its window module, and `main/app-packs.js` its register module (`<id>-pack.js`), which builds its services. These are not cut: they are the registration, which a pack carrying its own code takes over from the core.
 
 | Pack | Where | Imports |
 |---|---|---|
-| Mail | `apps/desktop/main/main.js:31` | `apps/desktop/main/mail.js` |
-| Presentations | `apps/desktop/main/main.js:35` | `apps/desktop/main/present.js` |
-| Mail | `apps/desktop/main/main.js:38` | `apps/desktop/main/discover.js` |
-| Contacts | `apps/desktop/main/main.js:39` | `apps/desktop/main/contacts.js` |
-| Calendar | `apps/desktop/main/main.js:40` | `apps/desktop/main/calendar.js` |
-| PDF | `apps/desktop/main/main.js:42` | `apps/desktop/main/pdf.js` |
-| Text recognition | `apps/desktop/main/main.js:43` | `apps/desktop/main/ocr.js` |
-| AI Tools | `apps/desktop/main/main.js:44` | `apps/desktop/main/ai-tools.js` |
-| Recorder | `apps/desktop/main/main.js:45` | `apps/desktop/main/live.js` |
-| Talk | `apps/desktop/main/main.js:46` | `apps/desktop/main/talk.js` |
-| Data Files | `apps/desktop/main/main.js:47` | `apps/desktop/main/base.js` |
+| Documents | `apps/desktop/main/app-packs.js:32` | `apps/desktop/main/word-pack.js` |
+| Worksheets | `apps/desktop/main/app-packs.js:33` | `apps/desktop/main/sheets-pack.js` |
+| Presentations | `apps/desktop/main/app-packs.js:34` | `apps/desktop/main/slides-pack.js` |
+| PDF | `apps/desktop/main/app-packs.js:35` | `apps/desktop/main/pdf-pack.js` |
+| Pictures | `apps/desktop/main/app-packs.js:36` | `apps/desktop/main/pictures-pack.js` |
+| Image | `apps/desktop/main/app-packs.js:37` | `apps/desktop/main/image-pack.js` |
+| Video | `apps/desktop/main/app-packs.js:38` | `apps/desktop/main/video-pack.js` |
+| Recorder | `apps/desktop/main/app-packs.js:39` | `apps/desktop/main/recorder-pack.js` |
+| Mail | `apps/desktop/main/app-packs.js:40` | `apps/desktop/main/mail-pack.js` |
+| Calendar | `apps/desktop/main/app-packs.js:41` | `apps/desktop/main/calendar-pack.js` |
+| Contacts | `apps/desktop/main/app-packs.js:42` | `apps/desktop/main/contacts-pack.js` |
+| Data Files | `apps/desktop/main/app-packs.js:43` | `apps/desktop/main/base-pack.js` |
+| Talk | `apps/desktop/main/app-packs.js:44` | `apps/desktop/main/talk-pack.js` |
+| AI Tools | `apps/desktop/main/app-packs.js:45` | `apps/desktop/main/ai-pack.js` |
+| Text recognition | `apps/desktop/main/app-packs.js:46` | `apps/desktop/main/ocr-pack.js` |
 | Documents | `apps/desktop/renderer/index.js:22` | `apps/desktop/renderer/apps/word.js` |
 | Worksheets | `apps/desktop/renderer/index.js:23` | `apps/desktop/renderer/apps/sheets.js` |
 | Presentations | `apps/desktop/renderer/index.js:24` | `apps/desktop/renderer/apps/slides.js` |
@@ -623,6 +626,28 @@ the map's fixture shrinks as the cuts are made.
    are listed here. A refused pack is said on the launcher ("Mail could
    not be loaded: ... Install it again with Add or remove apps.") and in
    the log.
+
+   *Built.* `main.js` imports no app's service. Each app has a register
+   module beside its code (`main/<id>-pack.js`, `register(core)` answering
+   the namespaces it serves), and `main/app-packs.js` decides which run:
+   `planPacks` (every app built in when there is no packs folder: a run
+   from the source, the portable build; otherwise only the signed packs
+   found in `resources/packs`, or in `RUTBA_PACKS_DIR` with
+   `RUTBA_PACK_PUBLIC_KEY` for a run from the source), then
+   `registerPacks`, which imports each pack's main module (or, for a pack
+   whose code is still in the core, hands it `builtIn`, the core's own
+   register module), refuses one that throws or serves a namespace it did
+   not declare, and leaves its channels out. `describePack(id)` is what a
+   pack's manifest says of it (channels, events, tiles, file types, AI
+   tools and its rows of the registry), read by the build and by a core
+   with every app built in alike. The guards: Contacts' suggestions read
+   Mail's people through `packs` (`peopleFrom`), Calendar's and Talk's
+   accounts through `mailFor`, Mail's check for a known contact through
+   `contactsFor`; each answers nothing while the other app is absent, and
+   Talk refuses to send an invitation from Mail that is not there. `dav`
+   is built after the packs, with the calendar and address book that are
+   there. Data Files' rename hook is one it registers
+   (`onRecentRenamed`).
 3. **The windows' code from the packs.** The build stays one esbuild run
    with splitting, so chunk names agree across the core and every pack of
    one build (and one build is one version, which the loader enforces).

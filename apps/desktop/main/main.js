@@ -9,7 +9,7 @@ import { SETS_DIR, bundledManifest, PROFILE_NAME, PROFILE } from './template-set
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app as electron, BrowserWindow, shell } from 'electron';
+import { app as electron, BrowserWindow } from 'electron';
 import { createShell, holdBlob, releaseBlob, blobUrl, broadcast } from '@rutba/office-shell/electron/main';
 import { useClipboard, memoryClipboard } from '@rutba/office-shell/electron/clipboard';
 import { useShortcuts } from '@rutba/office-shell/electron/shortcuts';
@@ -26,34 +26,67 @@ if (CHECK_RUN && process.env.RUTBA_VERIFY_LANE !== 'machine') {
   useShortcuts(fakeShortcuts());
 }
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
-import { fileAssociations, APPS, APPS_CHOICE_KEY, OFF_UNTIL_CHOSEN } from '@rutba/office-formats/registry';
+import { fileAssociations, APPS, APPS_CHOICE_KEY, OFF_UNTIL_CHOSEN, APP_ORDER, APP_EXTENSIONS, OLD_EXTENSIONS } from '@rutba/office-formats/registry';
 import { createDocumentHost } from './doc-host.js';
 import { createPrintService } from './print.js';
 import { createMathMeasurer } from './math-raster.js';
-import { createMailService } from './mail.js';
 import { createUpdateService } from './updates.js';
 import { createTemplateSets } from './template-sets.js';
 import { createOAuthService } from './oauth.js';
-import { createPresentService } from './present.js';
 import { createAnnouncementService } from './announce.js';
 import { createDefaultsService } from './defaults.js';
-import { createDiscoveryService } from './discover.js';
-import { createContactsService } from './contacts.js';
-import { createCalendarService } from './calendar.js';
 import { createDavService } from './dav-sync.js';
-import { createPdfService } from './pdf.js';
-import { createOcrService } from './ocr.js';
-import { createAiToolsService } from './ai-tools.js';
-import { createLiveService } from './live.js';
-import { createTalkService } from './talk.js';
-import { createBaseService } from './base.js';
-import { createTrust } from './base-trust.js';
+import { createPacksService } from './packs-service.js';
+import { planPacks, registerPacks, packView, readPackKeys, PACK_ORDER } from './app-packs.js';
+import { LOADED_KEY } from './pack-tools.js';
+import { recordPacks } from './file-types.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
 
 // Kept so the smoke run can drive the same services the windows do.
 let services = null;
+
+/**
+ * The apps on this computer (app-packs.js, docs/APP-PACKS.md). An installed
+ * copy keeps its packs beside the archive, as the installer and Add or remove
+ * apps wrote them; a check run may name a folder of its own. With none, a copy
+ * run from the source or the portable build, every app is built in.
+ */
+function packsDir() {
+  if (process.env.RUTBA_PACKS_DIR) return path.resolve(process.env.RUTBA_PACKS_DIR);
+  if (!electron.isPackaged) return null;
+  const dir = path.join(process.resourcesPath, 'packs');
+  return fs.existsSync(dir) ? dir : null;
+}
+
+/** The keys a pack must be signed with: the build's, in the core; a copy run from the source may be handed a development key's public half. */
+function packKeys() {
+  const keys = readPackKeys(path.join(app, 'build', 'out', 'pack-keys.json'));
+  if (!electron.isPackaged && process.env.RUTBA_PACK_PUBLIC_KEY) keys.push(fs.readFileSync(process.env.RUTBA_PACK_PUBLIC_KEY, 'utf8'));
+  return keys;
+}
+
+// The taskbar reads an app's tile itself, so in a packaged copy the tiles live unpacked beside the archive.
+const builtInTiles = path.join(app, 'resources', 'apps').replace(`${path.sep}app.asar${path.sep}`, () => `${path.sep}app.asar.unpacked${path.sep}`);
+let packs = null;
+/** The packs this run loads, found once, before the first window. */
+const packsNow = () => (packs ||= planPacks({ dir: packsDir(), keys: packKeys(), version: electron.getVersion(), tilesDir: builtInTiles }));
+// Each app's taskbar tile, from its pack: filled in once the packs are found.
+const appIcons = {};
+
+/**
+ * The app a window is made for when the one asked for is not installed:
+ * another installed app that opens the file, in the registry's order, or
+ * the launcher, which says which app to add.
+ */
+function resolveApp({ app: key, file }) {
+  const p = packsNow();
+  if (!key || key === 'home' || !APPS[key] || p.has(key)) return null;
+  const ext = file ? path.extname(String(file)).slice(1).toLowerCase() : '';
+  const other = ext ? APP_ORDER.find((k) => p.has(k) && [...(APP_EXTENSIONS[k] || []), ...(OLD_EXTENSIONS[k] || [])].includes(ext)) : null;
+  return other ? { app: other } : { app: 'home', query: { missing: key } };
+}
 
 /**
  * Newer template sets, fetched and checked with Office's own updates
@@ -79,8 +112,8 @@ let updates = null;
 // Started here, its engines load while the shell gets the first window ready.
 const docHost = createDocumentHost({ holdBlob, releaseBlob, blobUrl }).start();
 
-/** This computer's list of what each database may read, in its settings (base-trust.js). */
-const baseTrust = (stores) => createTrust({ get: () => stores.settings.get('base.allowedSources', {}), set: (v) => stores.settings.set('base.allowedSources', v) });
+/** What a pack wants told when a recent file is renamed (Data Files: what a database may read goes with it). */
+const renameHooks = [];
 
 /**
  * Renaming a recent file from the launcher: the file on disk moves, and the
@@ -106,8 +139,16 @@ async function renameRecent({ stores, doc, path: from, name }) {
   if ((await doc.sessions()).some((s) => s.path === from)) throw new Error('That file is open in a window. Close it first.');
 
   if (to !== from) fs.renameSync(from, to);
-  // A database renamed here reads what it read before (A2.18).
-  if (to !== from && /\.rbase$/i.test(from)) baseTrust(stores).carry(from, to, { move: true });
+  // The packs that keep something by a file's path are told: a database renamed here reads what it read before (A2.18).
+  if (to !== from) {
+    for (const hook of renameHooks) {
+      try {
+        hook(from, to);
+      } catch (err) {
+        console.error('rename hook:', err?.message || err);
+      }
+    }
+  }
   return stores.recent.rename({ path: from, to });
 }
 
@@ -133,21 +174,35 @@ createShell({
   rendererDir: path.join(app, 'build', 'out'),
   preloadPath: path.join(app, 'build', 'out', 'preload.cjs'),
   iconPath: path.join(app, 'resources', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
-  // One tile per app for the taskbar (build/make-file-icons.js). The taskbar
-  // reads the file itself, so in a packaged copy it lives unpacked beside
-  // the archive, and the path says so.
-  appIcons: Object.fromEntries(Object.keys(APPS).map((key) => [key, path.join(app, 'resources', 'apps', `${key}.ico`).replace(`${path.sep}app.asar${path.sep}`, () => `${path.sep}app.asar.unpacked${path.sep}`)])),
+  // One tile per app for the taskbar (build/make-file-icons.js), from the
+  // installed packs once they are found: the taskbar reads the file itself,
+  // so it lives unpacked beside an archive.
+  appIcons,
   appNames: Object.fromEntries(Object.entries(APPS).map(([key, a]) => [key, a.name])),
   appShortNames: Object.fromEntries(Object.entries(APPS).map(([key, a]) => [key, a.short])),
 
   /**
    * Which window a double-clicked file opens. The extension decides, because
    * this runs before the file is read — the deeper sniff happens once the
-   * document service actually opens it, and can still redirect.
+   * document service actually opens it, and can still redirect. An app that
+   * is not installed is never opened (resolveApp).
    */
   appForFile: (file) => appFor(kindFromExtension(file)) || 'home',
+  resolveApp,
+  // What this run offers its windows: the core's channels and the loaded packs' (app-packs.js).
+  offers: () => packsNow().offer(),
+  // A pack that carries its own window code is served from its archive.
+  packRoots: () => Object.fromEntries(packsNow().packs.filter((p) => p.archive).map((p) => [p.id, p.archive])),
 
   namespaces: async ({ stores, holdBlob: hold }) => {
+    // The apps on this computer, before anything is built for them; what was
+    // loaded is written down for the AI tools (pack-tools.js).
+    const plan = packsNow();
+    for (const p of plan.packs) {
+      const tile = p.tiles?.find((t) => t.app === p.id)?.icon;
+      if (tile) appIcons[p.id] = tile;
+    }
+    for (const r of plan.refused) console.error(`[packs] ${r.reason}`);
     // Built before the mail service, which needs it to fetch an access token
     // for an account that was added by signing in rather than by typing a
     // password.
@@ -172,37 +227,16 @@ createShell({
     // is left in that folder at start-up is what a crash took.
     docHost.init({ recoveryDir: path.join(stores.dir, 'recovery'), locale: electron.getLocale?.() || 'en-GB', settings: stores.settings.all() });
     const { doc } = await docHost.ready();
+    stores.settings.set(LOADED_KEY, plan.ids());
 
-    // The address book, with the people mail has seen behind it for Compose
-    // to complete from. Built before the mail service, which needs it too —
-    // an account's "only reply to people in my contacts" option asks it
-    // whether a sender is a card it knows. Its own `people` callback reaches
-    // back into `services.mail` through the closure below, not through this
-    // value, so which one is built first does not matter to it.
-    const contacts = createContactsService({
-      stores,
-      broadcast,
-      people: () => {
-        try {
-          const out = [];
-          for (const account of services?.mail?.accounts?.() || []) {
-            const { rows = [] } = services.mail.people({ accountId: account.id, limit: 300 }) || {};
-            for (const p of rows) out.push({ name: p.name || '', email: p.address });
-          }
-          return out;
-        } catch {
-          return [];
-        }
-      },
-    });
-
-    const calendar = createCalendarService({ stores, broadcast, mail: { accounts: () => services?.mail?.accounts?.() || [] } });
-
-    // The apps chosen on the installer's page, taken over before any window reads the choice.
-    const defaults = createDefaultsService({ associations: fileAssociations(), associationsFor: (apps) => fileAssociations({ apps }), stores });
+    // The apps chosen on the installer's page, taken over before any window
+    // reads the choice. The kinds of file Windows is told about are those of
+    // the apps installed, and of those, the apps chosen.
+    const installed = (apps) => (apps || APP_ORDER).filter((k) => plan.has(k));
+    const defaults = createDefaultsService({ associations: fileAssociations({ apps: installed() }), associationsFor: (apps) => fileAssociations({ apps: installed(apps) }), stores });
     await defaults.adoptInstallerChoice().catch(() => {});
 
-    return (services = {
+    services = {
       // Every call answered from the service's thread. A window's Open waits
       // on the file and its unzipping (documents.js, `openAsync`), and its
       // Save compresses the parts on the thread pool (`saveAsync`), so
@@ -232,48 +266,7 @@ createShell({
       }),
       announce: createAnnouncementService({ stores, broadcast }),
       defaults,
-      discover: createDiscoveryService(),
-      present: createPresentService({ broadcast }),
-      // The PDF app: its files read once, and new PDFs made from their pages.
-      pdf: createPdfService(),
-      // Text recognition on threads of its own: Recognise Text, Copy Text from Picture, Data from Picture.
-      ocr: createOcrService(),
-      // The AI Tools window: the switch, the folders, the log (ai-tools.js).
-      ai: createAiToolsService({ stores }),
-      // Recorder → Go Live: the destinations, their keys in the keystore, the publishers (live.js).
-      live: createLiveService({ stores }),
-      // Talk: messages and calls with contacts, through the introducer (talk.js).
-      talk: createTalkService({
-        stores,
-        broadcast,
-        dataDir: path.join(stores.dir, 'talk'),
-        // The sign-in opens the system browser; under the window checks the address is noted instead, as a link's is.
-        openBrowser: (url) => {
-          if (process.env.RUTBA_OFFICE_VERIFY_APPS) { (globalThis.__rutbaCheckOpened ||= []).push(url); return undefined; }
-          return shell.openExternal(url);
-        },
-        // A test server and token: the window checks, and the screens build's Talk picture (a stand-in introducer).
-        testServers: Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_SCREENS_FEATURES),
-        // An invitation emailed from the person's own address goes through Mail, a copy in Sent.
-        mail: { accounts: () => services?.mail?.accounts?.() || [], send: (args) => services.mail.send(args) },
-      }),
-      // Databases: each open database's SQLite file (base.js).
-      // What each database may read on this computer is kept in its settings, never in the file (A2.18).
-      base: createBaseService({ secrets: stores.secrets, trust: baseTrust(stores) }),
       oauth,
-      mail: createMailService({
-        stores,
-        holdBlob: hold,
-        broadcast,
-        userData: stores.dir,
-        oauth,
-        contacts,
-      }),
-      // The calendar answers an invitation through a message mail sends.
-      contacts,
-      calendar,
-      // Calendar and contacts accounts: CalDAV and CardDAV servers, kept in step with both.
-      dav: createDavService({ stores, calendar, contacts, broadcast }),
       // Renaming touches the file system and the document service both,
       // which the shell's own `app` namespace knows about neither — so this
       // adds just the one method, on top of recent(), addRecent() and
@@ -281,7 +274,29 @@ createShell({
       app: {
         renameRecent: (p) => renameRecent({ stores, doc, ...p }),
       },
-    });
+    };
+
+    // Each installed app registers itself (app-packs.js, <id>-pack.js), handed
+    // the core's stores and services, and `packs`, through which it reaches
+    // another app's service only when that app is there. Mail before Contacts
+    // or after makes no difference: each reaches the other when asked.
+    const view = packView({ plan, services });
+    await registerPacks(plan, {
+      stores,
+      broadcast,
+      holdBlob: hold,
+      doc,
+      oauth,
+      packs: view,
+      onRecentRenamed: (fn) => renameHooks.push(fn),
+    }, { services, record: (kind, err) => console.error(`${kind}: ${err?.stack || err}`) });
+
+    // Calendar and contacts accounts: CalDAV and CardDAV servers, kept in step
+    // with whichever of the two apps are installed (dav-sync.js keeps to those).
+    services.dav = createDavService({ stores, calendar: view.service('calendar'), contacts: view.service('contacts'), broadcast });
+    // Add or remove apps (packs-service.js).
+    services.packs = createPacksService({ plan, stores, broadcast, version: electron.getVersion(), keys: packKeys(), dir: plan.source === 'files' ? plan.dir : null });
+    return services;
   },
 
   /**
@@ -319,6 +334,14 @@ createShell({
       stores.settings.set(APPS_CHOICE_KEY, { off: [], on: OFF_UNTIL_CHOSEN.slice(), addons: ['ai'] });
     }
 
+    // The packs installed, written where the next installer reads them, so it
+    // opens on what is here (docs/APP-PACKS.md 5.3), a pack that would not
+    // load among them, so the next installer writes it again. An installed copy only.
+    const plan = packsNow();
+    if (plan.source === 'files' && process.platform === 'win32' && electron.isPackaged && !CHECK_RUN) {
+      recordPacks([...new Set([...plan.ids(), ...plan.refused.map((r) => r.id)])].filter((id) => PACK_ORDER.includes(id))).catch(() => {});
+    }
+
     // `--import-accounts=<file>` sets up the accounts in a file before the
     // first window: how an administrator's file, or another client's,
     // becomes a working Mail without a dialog per address. `--accounts=a,b`
@@ -332,6 +355,7 @@ createShell({
       const only = onlyFlag ? onlyFlag.slice('--accounts='.length).split(',').map((e) => e.trim()).filter(Boolean) : null;
       const report = { file };
       try {
+        if (!services?.mail) throw new Error('Mail is not installed on this computer: add it with Add or remove apps.');
         report.result = await services.mail.importAccounts({ path: file, only, test: true });
         if (process.argv.includes('--sync')) {
           report.synced = [];

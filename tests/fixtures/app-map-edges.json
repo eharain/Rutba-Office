@@ -2,7 +2,6 @@
   "cross": [
     "apps/desktop/main/documents.js -> apps/desktop/main/legacy-deck.js",
     "apps/desktop/main/documents.js -> apps/desktop/main/mailmerge-source.js",
-    "apps/desktop/main/main.js -> apps/desktop/main/base-trust.js",
     "apps/desktop/main/mcp/make-tools.js -> apps/desktop/main/ocr.js",
     "apps/desktop/renderer/apps/image.js -> apps/desktop/renderer/ocr-ui.js",
     "apps/desktop/renderer/apps/image/type-editor.js -> apps/desktop/renderer/apps/slides/design.js",

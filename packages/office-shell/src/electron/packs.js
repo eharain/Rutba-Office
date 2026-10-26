@@ -16,7 +16,8 @@
 // itself). Nothing here loads a pack: it says what to load, and main.js
 // registers each pack's IPC from the entry module named here.
 //
-// Not yet wired into main.js; the move of the app code into packs does that.
+// main.js runs this at start when there is a packs folder (an installed copy,
+// or a check run that names one); with none, every app is built into the core.
 // No Electron import, so the checks run under plain Node; under Electron the
 // archive is read with original-fs, which sees an .asar as the file it is.
 
@@ -267,6 +268,8 @@ function checkPack({ dir, file, keys, version }) {
     tiles: (Array.isArray(manifest.tiles) ? manifest.tiles : []).filter((t) => safePath(t?.icon) && files[t.icon]).map((t) => ({ ...t, icon: inArchive(t.icon) })),
     fileTypes: Array.isArray(manifest.fileTypes) ? manifest.fileTypes : [],
     tools: Array.isArray(manifest.tools) ? manifest.tools : [],
+    // The app's rows of the registry (its name, the kinds of file it opens and saves, its New templates).
+    registry: manifest.registry && typeof manifest.registry === 'object' ? manifest.registry : null,
   };
 }
 
@@ -279,10 +282,12 @@ function checkPack({ dir, file, keys, version }) {
  * @param {string} o.dir             the folder the installer copies packs into
  * @param {*} o.publicKey            the key (or keys) packs must be signed with: KeyObject, PEM or DER
  * @param {string} o.version         the core's own version; a pack must carry the same
+ * @param {string[]} [o.present]     packs installed elsewhere that a pack here may need: a pack
+ *   checked in a staging folder before it is installed needs what is already in the packs folder
  * @returns {{ packs: object[], refused: { id: string, file: string, code: string, reason: string }[] }}
  *   `packs` in an order that loads what a pack needs before it.
  */
-export function findPacks({ dir, publicKey, version }) {
+export function findPacks({ dir, publicKey, version, present = [] }) {
   if (!version) throw new Error('findPacks needs the core\'s version.');
   dir = path.resolve(dir);
   const keys = (Array.isArray(publicKey) ? publicKey : [publicKey]).filter(Boolean).map(publicKeyOf);
@@ -304,7 +309,7 @@ export function findPacks({ dir, publicKey, version }) {
   for (let changed = true; changed; ) {
     changed = false;
     for (const pack of [...found.values()]) {
-      const missing = pack.needs.filter((n) => !found.has(n));
+      const missing = pack.needs.filter((n) => !found.has(n) && !present.includes(n));
       if (!missing.length) continue;
       found.delete(pack.id);
       const bad = missing.filter((n) => refused.some((r) => r.id === n));
@@ -324,7 +329,7 @@ export function findPacks({ dir, publicKey, version }) {
   const place = (pack) => {
     if (placed.has(pack.id) || visiting.has(pack.id)) return;
     visiting.add(pack.id);
-    for (const n of [...pack.needs].sort()) place(found.get(n));
+    for (const n of [...pack.needs].sort()) if (found.has(n)) place(found.get(n));
     visiting.delete(pack.id);
     placed.add(pack.id);
     order.push(pack);

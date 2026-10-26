@@ -104,3 +104,36 @@ export async function recordChoice(off, { key = CHOICE_KEY, addons = [], on = nu
   await reg(['add', key, '/v', 'AddOns', '/t', 'REG_SZ', '/d', addons.join(','), '/f']);
   await reg(['add', key, '/v', 'AppsChosenAt', '/t', 'REG_SZ', '/d', 'office', '/f']);
 }
+
+/**
+ * The kinds of file an app pack opens, registered as the installer registers
+ * them (electron-builder's APP_ASSOCIATE): `.ext` names the class and lists it
+ * for Open with, and the class says how the file is opened and what it
+ * looks like. For a pack added by Add or remove apps in a copy installed for
+ * this person; one installed for everyone is the installer's to change.
+ * @param {{ ext, name, description, icon }[]} types  icon: a path on disk
+ * @param {{ exe: string, root?: string }} o
+ */
+export async function registerTypes(types, { exe, root = CLASSES } = {}) {
+  const done = [];
+  for (const t of types) {
+    const progId = t.name;
+    const key = `${root}\\.${t.ext}`;
+    const current = await defaultOf(key);
+    // A type another program has been given keeps it; Rutba Office is still offered under Open with.
+    if (!current) await reg(['add', key, '/ve', '/d', progId, '/f']);
+    await reg(['add', `${key}\\OpenWithProgids`, '/v', progId, '/t', 'REG_NONE', '/f']);
+    await reg(['add', `${root}\\${progId}`, '/ve', '/d', t.description || t.name, '/f']);
+    if (t.icon) await reg(['add', `${root}\\${progId}\\DefaultIcon`, '/ve', '/d', t.icon, '/f']);
+    await reg(['add', `${root}\\${progId}\\shell`, '/ve', '/d', 'open', '/f']);
+    await reg(['add', `${root}\\${progId}\\shell\\open`, '/ve', '/d', 'Open with Rutba Office', '/f']);
+    await reg(['add', `${root}\\${progId}\\shell\\open\\command`, '/ve', '/d', `"${exe}" "%1"`, '/f']);
+    done.push(t.ext);
+  }
+  return done;
+}
+
+/** The packs installed, where the next installer reads them (HKCU\\Software\\Rutba Office, Packs). */
+export async function recordPacks(ids, { key = CHOICE_KEY } = {}) {
+  await reg(['add', key, '/v', 'Packs', '/t', 'REG_SZ', '/d', ids.join(','), '/f']);
+}

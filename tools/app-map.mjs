@@ -25,6 +25,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { builtinModules } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+// Who owns each namespace, event and AI tool: the tables the core itself runs on.
+import { PACKS, NAMESPACE_PACK, EVENT_PACK } from '../packages/office-shell/src/contract.js';
+import { TOOL_PACK } from '../apps/desktop/main/pack-tools.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = 'apps/desktop';
@@ -33,51 +36,10 @@ const RENDERER = `${DESKTOP}/renderer`;
 export const EDGES_FIXTURE = 'tests/fixtures/app-map-edges.json';
 const DOC = 'docs/APP-PACKS.md';
 
-/** The packs proposed, by the keys the registry and the windows already use. */
-export const PACKS = [
-  { id: 'word', name: 'Documents' },
-  { id: 'sheets', name: 'Worksheets' },
-  { id: 'slides', name: 'Presentations' },
-  { id: 'pdf', name: 'PDF' },
-  { id: 'pictures', name: 'Pictures' },
-  { id: 'image', name: 'Image' },
-  { id: 'video', name: 'Video' },
-  { id: 'recorder', name: 'Recorder' },
-  { id: 'mail', name: 'Mail' },
-  { id: 'calendar', name: 'Calendar' },
-  { id: 'contacts', name: 'Contacts' },
-  { id: 'base', name: 'Data Files' },
-  { id: 'talk', name: 'Talk' },
-  { id: 'ai', name: 'AI Tools' },
-  // Not an app with a window: Recognise Text, Copy Text from Picture and
-  // Data from Picture in four apps, and the AI tool that reads a picture.
-  { id: 'ocr', name: 'Text recognition' },
-];
+/** The packs, by the keys the registry and the windows already use: the contract's list. */
+export { PACKS };
 const PACK_IDS = new Set(PACKS.map((p) => p.id));
 const isPack = (home) => PACK_IDS.has(home);
-
-/**
- * The IPC namespaces an app owns. A namespace not named here is the core's:
- * app, win, fs, dialog, shell, store, doc (the document service the three
- * document apps share), print, update, defaults, announce, oauth, dav
- * (Calendar's and Contacts' servers, one service for both), clipboard and
- * capture (recording the screen, for Recorder, Video and Presentations).
- */
-const NAMESPACE_PACK = {
-  mail: 'mail',
-  discover: 'mail',
-  calendar: 'calendar',
-  contacts: 'contacts',
-  pdf: 'pdf',
-  ocr: 'ocr',
-  base: 'base',
-  talk: 'talk',
-  live: 'recorder',
-  ai: 'ai',
-  present: 'slides',
-};
-/** Events by their prefix, for the namespaces that have their own; the rest are the core's. */
-const EVENT_PACK = { mail: 'mail', calendar: 'calendar', contacts: 'contacts', talk: 'talk', live: 'recorder', present: 'slides' };
 
 /** A main-process file's home, by its name (relative to apps/desktop/main). The rest are the core's. */
 const MAIN_HOMES = [
@@ -124,17 +86,7 @@ const CORE_ENTRIES = {
   main: [`${MAIN}/main.js`, 'packages/office-shell/src/electron/preload.js'],
 };
 /** The core's own wiring: what it imports from an app here is the registration the loader takes over. */
-const WIRING = new Set([`${RENDERER}/index.js`, `${MAIN}/main.js`]);
-
-/** What an AI tool works with (main/mcp/tools.js TOOL_LIST). A tool not named here is AI Tools' own. */
-const TOOL_PACK = {
-  create_document: 'word',
-  export_pdf: 'word',
-  create_workbook: 'sheets',
-  create_presentation: 'slides',
-  combine_pdf_pages: 'pdf',
-  read_text_in_picture: 'ocr',
-};
+const WIRING = new Set([`${RENDERER}/index.js`, `${MAIN}/main.js`, `${MAIN}/app-packs.js`]);
 
 /** The window checks, by their names: one pack's when the name says so, the core's otherwise. */
 const CHECK_PACK = [
@@ -191,6 +143,8 @@ export function homeOf(file) {
   if (file.startsWith('npm:')) return file;
   if (file.startsWith(`${MAIN}/`)) {
     const r = file.slice(MAIN.length + 1);
+    const own = /^([a-z]+)-pack\.js$/.exec(r);
+    if (own && isPack(own[1])) return own[1];
     for (const [re, home] of MAIN_HOMES) if (re.test(r)) return home;
     return 'core';
   }
@@ -218,25 +172,48 @@ export function rendererEntries() {
   return out;
 }
 
-/** main.js's namespaces: each IPC namespace and the module whose factory builds it. */
-export function mainWiring() {
-  const text = fs.readFileSync(path.join(ROOT, MAIN, 'main.js'), 'utf8');
+/** A main-process file's factories, by the names it imports them as, and the namespaces it builds with them. */
+function factoriesIn(file) {
+  const text = fs.readFileSync(path.join(ROOT, MAIN, file), 'utf8');
   const factories = {};
   for (const m of text.matchAll(/import\s*\{([^}]+)\}\s*from\s*'(\.\/[^']+)'/g)) {
     for (const name of m[1].split(',').map((s) => s.trim().split(/\s+as\s+/).pop())) if (name) factories[name] = posix(path.join(MAIN, m[2]));
   }
   const byName = {};
-  // `const contacts = createContactsService(` and `mail: createMailService(` and `update: updates = createUpdateService(`.
-  for (const m of text.matchAll(/(?:const\s+(\w+)\s*=|(\w+):\s*(?:\w+\s*=\s*)?)\s*(create\w+)\s*\(/g)) {
-    const ns = m[1] || m[2];
-    if (factories[m[3]]) byName[ns] = factories[m[3]];
+  // `const contacts = createContactsService(`, `mail: createMailService(`, `update: updates = createUpdateService(` and `services.dav = createDavService(`.
+  for (const m of text.matchAll(/(?:const\s+(\w+)\s*=|services\.(\w+)\s*=|(\w+):\s*(?:\w+\s*=\s*)?)\s*(create\w+)\s*\(/g)) {
+    const ns = m[1] || m[2] || m[3];
+    if (factories[m[4]]) byName[ns] = factories[m[4]];
   }
+  return { text, byName };
+}
+
+/** Each app's register module (app-packs.js BUILT_IN), by the pack's id. */
+export function registerModules() {
+  const text = fs.readFileSync(path.join(ROOT, MAIN, 'app-packs.js'), 'utf8');
+  const out = {};
+  for (const m of text.matchAll(/^\s*(\w+):\s*\(\)\s*=>\s*import\(\s*'\.\/([\w-]+\.js)'\s*\)/gm)) out[m[1]] = posix(path.join(MAIN, m[2]));
+  return out;
+}
+
+/**
+ * The main process's namespaces: each IPC namespace and the module whose
+ * factory builds it. The core's are built in main.js; each app's in its
+ * register module, which the core calls through the loader.
+ */
+export function mainWiring() {
+  const { text, byName } = factoriesIn('main.js');
   // The document service is built by the document host, and is the doc namespace.
   if (byName.docHost) byName.doc = byName.docHost;
   const wired = {};
-  const services = text.slice(text.indexOf('return (services = {'));
+  const services = text.slice(text.indexOf('services = {'));
   for (const m of services.matchAll(/^\s{6}(\w+)(?=[:,])/gm)) if (byName[m[1]]) wired[m[1]] = byName[m[1]];
+  for (const m of text.matchAll(/services\.(\w+)\s*=\s*create\w+\s*\(/g)) if (byName[m[1]]) wired[m[1]] = byName[m[1]];
   if (byName.doc) wired.doc = byName.doc;
+  for (const file of Object.values(registerModules())) {
+    const pack = factoriesIn(path.basename(file)).byName;
+    for (const [ns, module] of Object.entries(pack)) wired[ns] = module;
+  }
   return wired;
 }
 
@@ -384,6 +361,9 @@ export async function mapImports() {
     namespaces[ns] = { owner, module: file };
     if (owner !== 'core') (starts.main[owner] ||= []).push(file);
   }
+  // Each app's register module is where its main-process side starts.
+  const registers = registerModules();
+  for (const [id, file] of Object.entries(registers)) if (isPack(id)) (starts.main[id] ||= []).push(file);
   for (const side of ['renderer', 'main']) {
     for (const [id, files] of Object.entries(EXTRA_ENTRIES[side])) (starts[side][id] ||= []).push(...files);
   }
@@ -430,7 +410,7 @@ export async function mapImports() {
     }
     return ownerFrom(reach.get(file));
   };
-  const entryModules = new Set([...Object.values(loaders), ...Object.values(wired)]);
+  const entryModules = new Set([...Object.values(loaders), ...Object.values(wired), ...Object.values(registers)]);
 
   const cross = [];
   const registration = [];
@@ -644,7 +624,7 @@ export async function buildMap() {
     ipc[o].namespaces.push(ns);
     ipc[o].channels += names.length;
   }
-  for (const ev of events) ipc[EVENT_PACK[ev.split(':')[0]] || 'core'].events.push(ev);
+  for (const ev of events) ipc[EVENT_PACK[ev] || 'core'].events.push(ev);
 
   // What each app's windows call of another app's namespace, and which other apps' windows they open.
   const calls = Object.fromEntries(PACKS.map((p) => [p.id, {}]));
@@ -801,7 +781,7 @@ export function tables(map) {
   }
 
   out.push(`\n### The core's wiring (${map.registration.length})\n`);
-  out.push('What `renderer/index.js` and `main/main.js` import from each app today. These are not cut: the loader takes them over, one pack at a time.\n');
+  out.push('What the core imports from each app today: `renderer/index.js` its window module, and `main/app-packs.js` its register module (`<id>-pack.js`), which builds its services. These are not cut: they are the registration, which a pack carrying its own code takes over from the core.\n');
   out.push('| Pack | Where | Imports |');
   out.push('|---|---|---|');
   for (const e of map.registration) out.push(`| ${ownerName(e.toOwner)} | ${at(e.from, e.line)} | \`${e.to}\` |`);

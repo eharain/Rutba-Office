@@ -28,7 +28,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
 /** What a pack.json may say, besides the files, which are read from the folder. */
-const DESCRIBED = ['name', 'needs', 'uses', 'main', 'windows', 'ipc', 'events', 'tiles', 'fileTypes', 'tools'];
+const DESCRIBED = ['name', 'needs', 'uses', 'main', 'windows', 'ipc', 'events', 'tiles', 'fileTypes', 'tools', 'registry'];
 
 /** The private key, from a file given on the command line or the environment; never from the repository. */
 export function readPrivateKey({ file = null, env = process.env } = {}) {
@@ -128,6 +128,7 @@ export async function makePack({ src, out, version, privateKey }) {
     tiles: described.tiles || [],
     fileTypes: described.fileTypes || [],
     tools: described.tools || [],
+    registry: described.registry || undefined,
     files,
   };
   const signed = signManifest(manifest, privateKey);
