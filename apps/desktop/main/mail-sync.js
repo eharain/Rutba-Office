@@ -606,6 +606,8 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
 
   /** What the store keeps of the server's folder list: theirs, and ours with no server copy that still hold mail. */
   async function folders(client, accountId, ctx) {
+    const pathsOf = (rows) => rows.map((f) => f.path).sort().join('\u0001');
+    const had = pathsOf(store.folders(accountId));
     const list = await client.list();
     ctx.listed = new Map(list.map((f) => [f.path, f]));
     const server = list.filter((f) => !f.flags?.has?.('\\Noselect') && !f.flags?.has?.('\\NonExistent')).map((f) => describe(f));
@@ -618,6 +620,8 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
       else if (store.counts(accountId, f.path).total) kept.push({ ...f, local: true });
     }
     const all = [...server, ...kept];
+    // Made, renamed or deleted elsewhere: the window shows the list again.
+    if (had !== pathsOf(all)) ctx.foldersChanged = true;
     store.setFolders(accountId, all);
     return all;
   }
@@ -674,6 +678,7 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
         if (r.ids.length) arrived.push({ folder: path, ids: r.ids });
         if (r.added) broadcast?.('mail:progress', { accountId, folder: path, done: r.added, total: r.added, phase: 'fetch' });
       }
+      if (ctx.foldersChanged) changed += 1;
       const after = onArrived ? await onArrived(accountId, arrived) : {};
       // What arriving did (junk filed, rules run) goes to the server on this connection.
       await replay(client, accountId);

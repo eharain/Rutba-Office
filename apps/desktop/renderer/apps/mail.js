@@ -34,6 +34,7 @@ import { frameMenuItems, pictureBytes, savePicture, SourceDialog, SAFETY_CSS } f
 import Compose from './mail/compose.js';
 import { AccountDialog, AccountsDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog, JunkDialog } from './mail/dialogs.js';
 import { RulesDialog } from './mail/rules.js';
+import { PromptDialog } from '@rutba/office-ui/proofing';
 import { attachmentExtension } from '@rutba/mailbox/mime';
 import { withSignature, withSignatureHtml, signatureTextToHtml } from '@rutba/mailbox/signature';
 import { textToHtml } from './mail/richtext.js';
@@ -519,8 +520,9 @@ export default function Mail({ app, shell }) {
   );
 
   const act = useCallback(
-    async (what, extra) => {
-      const chosen = targets();
+    async (what, extra, rows = null) => {
+      // `rows`: the messages dragged onto a folder, whatever is selected.
+      const chosen = rows || targets();
       if (!chosen.length) return;
       // Where the list goes on once these leave it: the message after the
       // last one removed, read at once, as Outlook does, rather than an
@@ -1304,6 +1306,117 @@ export default function Mail({ app, shell }) {
     [menu, folders, folder, act]
   );
 
+  // Folders made, renamed and deleted here are so at the server too, as
+  // Outlook's are. The account's own folders (the Inbox, Sent, Drafts,
+  // Trash and Junk) keep their names.
+  const canChangeFolders = Boolean(account) && !unified && !archiveId;
+  const keptFolder = (f) => ['inbox', 'sent', 'drafts', 'trash', 'junk'].includes(f?.role) || /^inbox$/i.test(f?.path || '');
+  const saveFolderName = useCallback(
+    async (name) => {
+      const asked = dialog;
+      const delimiter = folders.find((f) => f.delimiter)?.delimiter || '/';
+      if (name.includes(delimiter)) {
+        toast(t('A folder name cannot hold "{character}".', { character: delimiter }), { tone: 'bad' });
+        return;
+      }
+      const parent = asked.folder ? asked.folder.path.split(delimiter).slice(0, -1).join(delimiter) : asked.parent?.path || '';
+      const path = parent ? `${parent}${delimiter}${name}` : name;
+      if (path !== asked.folder?.path && folders.some((f) => f.path.toLowerCase() === path.toLowerCase())) {
+        toast(t('There is a folder called {name} there already.', { name }), { tone: 'bad' });
+        return;
+      }
+      try {
+        if (asked.folder) {
+          const r = await shell.mail.renameFolder({ accountId, folder: asked.folder.path, name });
+          if (folder === asked.folder.path || String(folder || '').startsWith(asked.folder.path + delimiter)) setFolder(r.path + String(folder).slice(asked.folder.path.length));
+        } else {
+          await shell.mail.createFolder({ accountId, parent: asked.parent?.path || null, name });
+        }
+        setDialog(null);
+        setFolderTick((n) => n + 1);
+      } catch (err) {
+        toast(err.message, { tone: 'bad' });
+      }
+    },
+    [dialog, folders, folder, accountId, shell, toast]
+  );
+  const deleteFolderAsk = useCallback(
+    async (f) => {
+      if (!f || keptFolder(f)) return;
+      const delimiter = f.delimiter || '/';
+      const inside = folders.filter((x) => x.path === f.path || x.path.startsWith(f.path + delimiter));
+      const messages = inside.reduce((n, x) => n + (x.total || 0), 0);
+      const { response } = await shell.dialog.message({
+        type: 'warning',
+        message: t('Delete the folder {folder}?', { folder: f.name || f.path }),
+        detail: [
+          inside.length > 1 ? tn(inside.length - 1, 'The {count} folder inside it goes too.', 'The {count} folders inside it go too.') : '',
+          messages ? tn(messages, 'Its {count} message is deleted for good, here and at the server.', 'Its {count} messages are deleted for good, here and at the server.') : t('It is deleted here and at the server.'),
+        ].filter(Boolean).join(' '),
+        buttons: [t('Delete folder'), t('Cancel')],
+        cancelId: 1,
+      });
+      if (response !== 0) return;
+      try {
+        await shell.mail.deleteFolder({ accountId, folder: f.path });
+        toast(t('{folder} is deleted.', { folder: f.name || f.path }), { tone: 'good' });
+        setFolderTick((n) => n + 1);
+        loadAccounts();
+      } catch (err) {
+        toast(err.message, { tone: 'bad' });
+      }
+    },
+    [folders, shell, accountId, toast, loadAccounts]
+  );
+  const folderItems = (f) => [
+    { label: t('New folder…'), icon: 'plus', run: () => setDialog({ kind: 'folderName', parent: f }) },
+    { label: t('Rename folder…'), disabled: keptFolder(f), run: () => setDialog({ kind: 'folderName', folder: f }) },
+    { label: t('Delete folder…'), icon: 'trash', disabled: keptFolder(f), run: () => deleteFolderAsk(f) },
+  ];
+
+  // Messages dragged from the list onto a folder are moved there, as Move to
+  // does: at the server too. Only within the account shown.
+  const dragged = useRef(null);
+  const [dropOn, setDropOn] = useState(null);
+  const startDrag = useCallback(
+    (thread, e) => {
+      const rows = allRowsIn(thread);
+      const inChecked = checkedRows.length && rows.every((r) => checked.has(keyOf(r)));
+      const moving = (inChecked ? checkedRows : rows).filter((r) => !isArchiveId(r.accountId));
+      if (!canChangeFolders || !moving.length) {
+        e.preventDefault();
+        return;
+      }
+      dragged.current = moving;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', tn(moving.length, '{count} message', '{count} messages'));
+    },
+    [allRowsIn, checkedRows, checked, canChangeFolders]
+  );
+  const dropProps = (f) => ({
+    onDragOver: (e) => {
+      const rows = dragged.current;
+      if (!rows?.length || !rows.some((r) => r.folder !== f.path)) return;
+      e.preventDefault();
+      // Not the window's own file drop, which would take it for a mailbox to import.
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      if (dropOn !== f.path) setDropOn(f.path);
+    },
+    onDragLeave: (e) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) setDropOn((p) => (p === f.path ? null : p));
+    },
+    onDrop: (e) => {
+      const rows = dragged.current;
+      dragged.current = null;
+      setDropOn(null);
+      if (!rows?.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      act('move', f.path, rows.filter((r) => r.folder !== f.path));
+    },
+  });
+
   // Home → Junk, Outlook's menu: mark, unmark, the two lists and the options.
   const inJunk = unified ? role === 'junk' : current?.role === 'junk';
 
@@ -1651,6 +1764,11 @@ export default function Mail({ app, shell }) {
                   onClick={() => removeAccount(account)}
                 />
               </Group>
+              <Group label={t('Folders')}>
+                <Button tall icon="plus" label={t('New folder')} disabled={!canChangeFolders} onClick={() => setDialog({ kind: 'folderName', parent: null })} />
+                <Button icon="pen" label={t('Rename folder')} disabled={!canChangeFolders || !current || keptFolder(current)} onClick={() => setDialog({ kind: 'folderName', folder: current })} />
+                <Button icon="trash" label={t('Delete folder')} disabled={!canChangeFolders || !current || keptFolder(current)} onClick={() => deleteFolderAsk(current)} />
+              </Group>
               <Group label={t('This folder')}>
                 <Button
                   tall
@@ -1895,19 +2013,21 @@ export default function Mail({ app, shell }) {
                     <Item key={f.path} icon={f.icon} label={f.name} current={role === f.path} onClick={() => setRole(f.path)} />
                   ))
                 : folders.map((f) => (
-                    <Item
-                      key={f.path}
-                      icon={f.icon || 'folder'}
-                      label={f.name || f.path}
-                      indent={Math.min(f.depth || 0, 4)}
-                      current={f.path === folder && view === 'mail'}
-                      count={f.unread || undefined}
-                      onClick={() => {
-                        setFolder(f.path);
-                        setView('mail');
-                      }}
-                      title={f.path}
-                    />
+                    <div key={f.path} className={`ml-drop${dropOn === f.path ? ' over' : ''}`} data-folder={f.path} {...(canChangeFolders ? dropProps(f) : {})}>
+                      <Item
+                        icon={f.icon || 'folder'}
+                        label={f.name || f.path}
+                        indent={Math.min(f.depth || 0, 4)}
+                        current={f.path === folder && view === 'mail'}
+                        count={f.unread || undefined}
+                        onClick={() => {
+                          setFolder(f.path);
+                          setView('mail');
+                        }}
+                        onContextMenu={canChangeFolders ? (e) => { e.preventDefault(); menu.open(e, folderItems(f)); } : undefined}
+                        title={f.path}
+                      />
+                    </div>
                   ))}
             </List>
 
@@ -2090,6 +2210,8 @@ export default function Mail({ app, shell }) {
                         onPopOut={popOut}
                         onCheck={(e) => toggleCheck(thread, e)}
                         onStar={star}
+                        onDragStart={canChangeFolders ? (e) => startDrag(thread, e) : undefined}
+                        onDragEnd={() => { dragged.current = null; setDropOn(null); }}
                         onExpand={() =>
                           setExpanded((s) => {
                             const next = new Set(s);
@@ -2318,6 +2440,24 @@ export default function Mail({ app, shell }) {
         />
       ) : null}
 
+      {dialog?.kind === 'folderName' ? (
+        <PromptDialog
+          title={dialog.folder ? t('Rename folder') : t('New folder')}
+          label={
+            dialog.folder
+              ? t('A new name for {folder}', { folder: dialog.folder.name || dialog.folder.path })
+              : dialog.parent
+                ? t('The name of the folder to make in {folder}', { folder: dialog.parent.name || dialog.parent.path })
+                : t('The name of the new folder')
+          }
+          initial={dialog.folder?.name || ''}
+          okLabel={dialog.folder ? t('Rename') : t('Make folder')}
+          className="ml-folder-name"
+          onClose={() => setDialog(null)}
+          onApply={saveFolderName}
+        />
+      ) : null}
+
       {dialog?.kind === 'ooo' ? (
         <OutOfOfficeDialog
           shell={shell}
@@ -2387,7 +2527,7 @@ export default function Mail({ app, shell }) {
  * box otherwise, and the whole point of holding the mail locally is that the
  * list is instant.
  */
-const Row = React.memo(function Row({ thread, unified, where, threaded, selected, checked, expanded, first, onOpen, onPopOut, onCheck, onStar, onExpand, onMenu }) {
+const Row = React.memo(function Row({ thread, unified, where, threaded, selected, checked, expanded, first, onOpen, onPopOut, onCheck, onStar, onExpand, onMenu, onDragStart, onDragEnd }) {
   const avatar = avatarFor(thread.from);
   const many = threaded && thread.count > 1;
 
@@ -2405,6 +2545,9 @@ const Row = React.memo(function Row({ thread, unified, where, threaded, selected
         onDoubleClick={(e) => !(e.ctrlKey || e.metaKey || e.shiftKey) && onPopOut?.(thread)}
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(thread))}
         onContextMenu={onMenu}
+        draggable={Boolean(onDragStart)}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
       >
         <span role="gridcell">
           <input

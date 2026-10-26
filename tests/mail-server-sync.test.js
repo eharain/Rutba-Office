@@ -337,3 +337,81 @@ test('a store from before 2.19 is matched with its server: what it deleted stays
     await s.close();
   }
 });
+
+test('folders made, renamed and deleted here are so at the server, and a message filed in one goes there (A6.4)', async () => {
+  const s = await setUp();
+  try {
+    await s.service.sync({ accountId: s.accountId });
+    const folders = () => s.service.folders({ accountId: s.accountId }).map((f) => f.path);
+    assert.deepEqual(s.service.createFolder({ accountId: s.accountId, name: 'Projects' }), { path: 'Projects' });
+    assert.deepEqual(s.service.createFolder({ accountId: s.accountId, parent: 'Projects', name: 'Old' }), { path: 'Projects/Old' });
+    assert.throws(() => s.service.createFolder({ accountId: s.accountId, name: 'Projects' }), /already/);
+    assert.throws(() => s.service.createFolder({ accountId: s.accountId, name: 'a/b' }), /character/);
+    assert.ok(folders().includes('Projects/Old'), 'in the list at once');
+    // Dragged onto it: a move, as Move to is.
+    s.service.move({ accountId: s.accountId, folder: 'INBOX', ids: [s.row('INBOX', 'Message 1').id], to: 'Projects/Old' });
+    await s.service.flushChanges({ accountId: s.accountId });
+    assert.ok(s.server.folders().includes('Projects') && s.server.folders().includes('Projects/Old'));
+    assert.deepEqual(s.at('Projects/Old'), ['Message 1']);
+
+    // Renamed, with the folder inside it and its mail.
+    assert.deepEqual(s.service.renameFolder({ accountId: s.accountId, folder: 'Projects', name: 'Work' }), { path: 'Work' });
+    assert.deepEqual(s.subjects('Work/Old'), ['Message 1']);
+    assert.ok(!folders().includes('Projects') && folders().includes('Work/Old'));
+    await s.service.flushChanges({ accountId: s.accountId });
+    assert.ok(!s.server.folders().includes('Projects') && s.server.folders().includes('Work/Old'));
+    assert.deepEqual(s.at('Work/Old'), ['Message 1']);
+    await s.service.sync({ accountId: s.accountId, folder: 'Work/Old' });
+    assert.deepEqual(s.subjects('Work/Old'), ['Message 1'], 'fetched again, not doubled');
+
+    // The account's own folders keep their names.
+    assert.throws(() => s.service.renameFolder({ accountId: s.accountId, folder: 'INBOX', name: 'Post' }), /keeps its name/);
+    assert.throws(() => s.service.deleteFolder({ accountId: s.accountId, folder: 'Trash' }), /cannot be deleted/);
+
+    // Deleted, with what is inside it.
+    assert.deepEqual(s.service.deleteFolder({ accountId: s.accountId, folder: 'Work' }), { folders: 2, removed: 1 });
+    assert.ok(!folders().some((p) => p.startsWith('Work')));
+    await s.service.flushChanges({ accountId: s.accountId });
+    assert.ok(!s.server.folders().some((p) => p.startsWith('Work')));
+    await s.service.sync({ accountId: s.accountId });
+    assert.ok(!folders().some((p) => p.startsWith('Work')), 'and it does not come back');
+
+    // Made with the server away: made once it is back.
+    await s.server.stop();
+    s.service.createFolder({ accountId: s.accountId, name: 'Later' });
+    assert.equal((await s.service.flushChanges({ accountId: s.accountId })).left, 1);
+    await s.server.start();
+    assert.equal((await s.service.flushChanges({ accountId: s.accountId })).left, 0);
+    assert.ok(s.server.folders().includes('Later'));
+  } finally {
+    await s.close();
+  }
+});
+
+test('folders made, renamed and deleted at the server elsewhere show here (A6.4)', async () => {
+  const s = await setUp();
+  try {
+    await s.service.sync({ accountId: s.accountId });
+    const folders = () => s.service.folders({ accountId: s.accountId }).map((f) => f.path);
+    s.server.makeFolder('Receipts');
+    s.server.deliver('Receipts', message(7));
+    s.heard.length = 0;
+    await s.service.sync({ accountId: s.accountId });
+    assert.ok(folders().includes('Receipts'));
+    assert.ok(s.heard.some((h) => h.event === 'mail:new'), 'the window is told to show the list again');
+    await s.service.sync({ accountId: s.accountId, folder: 'Receipts' });
+    assert.deepEqual(s.subjects('Receipts'), ['Message 7']);
+
+    s.server.renameFolder('Receipts', 'Bills');
+    await s.service.sync({ accountId: s.accountId });
+    assert.ok(!folders().includes('Receipts') && folders().includes('Bills'));
+    await s.service.sync({ accountId: s.accountId, folder: 'Bills' });
+    assert.deepEqual(s.subjects('Bills'), ['Message 7']);
+
+    s.server.deleteFolder('Bills');
+    await s.service.sync({ accountId: s.accountId });
+    assert.ok(!folders().includes('Bills'));
+  } finally {
+    await s.close();
+  }
+});

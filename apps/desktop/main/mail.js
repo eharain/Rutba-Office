@@ -379,6 +379,24 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
   const roleOf = (accountId, folderPath) =>
     classifyFolder((store.folders(accountId) || []).find((f) => f.path === folderPath) || { path: folderPath }).role;
 
+  /** What the account's server puts between a folder's name and the one it is in. */
+  const delimiterOf = (accountId) => (store.folders(accountId) || []).find((f) => f.delimiter)?.delimiter || '/';
+
+  /** A folder's name as typed, or why it cannot be one. */
+  const folderName = (name, delimiter) => {
+    const clean = String(name || '').trim();
+    if (!clean) throw new Error('A folder needs a name.');
+    if (clean.includes(delimiter) || /[*%\u0000-\u001f]/.test(clean)) throw new Error('A folder name cannot hold that character.');
+    return clean;
+  };
+
+  /** Is there a folder of this name already (in any case: most servers will not hold both)? */
+  const folderThere = (accountId, folderPath) =>
+    (store.folders(accountId) || []).some((f) => f.path.toLowerCase() === folderPath.toLowerCase()) || store.hasFolder(accountId, folderPath);
+
+  /** The folders the account itself works with (the Inbox, Sent, Drafts, Trash, Junk): never renamed or deleted here. */
+  const keptFolder = (accountId, folderPath) => ['inbox', 'sent', 'drafts', 'trash', 'junk'].includes(roleOf(accountId, folderPath)) || /^inbox$/i.test(folderPath);
+
   /**
    * The account Mail keeps in step with its server, or null for one with
    * none: an imported mailbox (local) and an archive opened in place change
@@ -1116,6 +1134,59 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       return { removed: rows.length };
     },
 
+    /**
+     * A folder made, here and at the server: `name` inside `parent`, or at
+     * the top. The server's separator between folder names is the one the
+     * account's folders already use.
+     */
+    createFolder: ({ accountId, parent = null, name }) => {
+      const delimiter = delimiterOf(accountId);
+      const clean = folderName(name, delimiter);
+      const to = parent ? `${parent}${delimiter}${clean}` : clean;
+      if (folderThere(accountId, to)) throw new Error('There is a folder of that name already.');
+      const change = mailSync.record(accountId, { kind: 'create', folder: to });
+      store.upsertFolder(accountId, { path: to, name: clean, delimiter, ...classify(to) });
+      if (change) mailSync.kick(accountId);
+      return { path: to };
+    },
+
+    /** A folder given a new name, with the folders inside it, here and at the server. */
+    renameFolder: ({ accountId, folder, name }) => {
+      if (keptFolder(accountId, folder)) throw new Error('That folder keeps its name.');
+      const delimiter = delimiterOf(accountId);
+      const clean = folderName(name, delimiter);
+      const cut = folder.lastIndexOf(delimiter);
+      const to = cut < 0 ? clean : `${folder.slice(0, cut)}${delimiter}${clean}`;
+      if (to === folder) return { path: folder };
+      if (folderThere(accountId, to)) throw new Error('There is a folder of that name already.');
+      const change = mailSync.record(accountId, { kind: 'rename', folder, to, delimiter });
+      store.renameFolder(accountId, folder, to, delimiter);
+      if (change) mailSync.kick(accountId);
+      return { path: to };
+    },
+
+    /**
+     * A folder deleted, with the folders inside it and every message in
+     * them, here and at the server. The window asks first, saying how many.
+     */
+    deleteFolder: ({ accountId, folder }) => {
+      if (keptFolder(accountId, folder)) throw new Error('That folder cannot be deleted.');
+      const delimiter = delimiterOf(accountId);
+      // The folders inside first, deepest first: a server deletes one folder at a time.
+      const gone = (store.folders(accountId) || [])
+        .map((f) => f.path)
+        .filter((p) => p === folder || p.startsWith(`${folder}${delimiter}`))
+        .sort((a, b) => b.length - a.length);
+      let removed = 0;
+      let queued = false;
+      for (const p of gone) {
+        removed += store.counts(accountId, p).total || 0;
+        if (mailSync.record(accountId, { kind: 'deleteFolder', folder: p })) queued = true;
+        store.removeFolder(accountId, p);
+      }
+      if (queued) mailSync.kick(accountId);
+      return { folders: gone.length, removed };
+    },
 
     message: ({ accountId, folder, id }) => {
       const message = store.get(accountId, folder, id);
@@ -1777,7 +1848,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       return remove(args);
     };
   }
-  for (const name of ['move', 'delete', 'markAllRead', 'emptyFolder', 'notJunk', 'runRules', 'export', 'listRecipient']) {
+  for (const name of ['move', 'delete', 'markAllRead', 'emptyFolder', 'createFolder', 'renameFolder', 'deleteFolder', 'notJunk', 'runRules', 'export', 'listRecipient']) {
     const own = service[name];
     service[name] = (args = {}) => (isArchive(args.accountId) ? desk.readOnly() : own(args));
   }

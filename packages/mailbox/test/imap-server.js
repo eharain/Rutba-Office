@@ -283,10 +283,11 @@ export async function imapServer({ users = { 'sam@checks.example': 'check' }, ca
           const to = str(args[1]);
           if (!from) return no('No such mailbox', 'NONEXISTENT');
           if (box(to)) return no('Mailbox exists', 'ALREADYEXISTS');
+          const old = from.name;
           for (const [n, b] of [...boxes]) {
-            if (n !== from.name && !n.startsWith(`${from.name}/`)) continue;
+            if (n !== old && !n.startsWith(`${old}/`)) continue;
             boxes.delete(n);
-            b.name = to + n.slice(from.name.length);
+            b.name = to + n.slice(old.length);
             boxes.set(b.name, b);
           }
           return ok();
@@ -518,6 +519,23 @@ export async function imapServer({ users = { 'sam@checks.example': 'check' }, ca
       b.modseq++;
       return b.uidValidity;
     },
+    /** Another client made a folder. */
+    makeFolder: (name) => (box(name) ? false : Boolean(makeBox(name))),
+    /** Another client renamed a folder, with the folders inside it. */
+    renameFolder(from, to) {
+      const b = box(from);
+      if (!b || box(to)) return false;
+      const old = b.name;
+      for (const [n, inner] of [...boxes]) {
+        if (n !== old && !n.startsWith(`${old}/`)) continue;
+        boxes.delete(n);
+        inner.name = to + n.slice(old.length);
+        boxes.set(inner.name, inner);
+      }
+      return true;
+    },
+    /** Another client deleted a folder. */
+    deleteFolder: (name) => boxes.delete(box(name)?.name ?? ''),
     /** Commands matching this are answered NO until `allow()`. */
     refuse: (pattern) => { refusals.push(pattern); },
     allow: () => { refusals.length = 0; },

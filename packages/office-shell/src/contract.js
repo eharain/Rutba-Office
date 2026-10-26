@@ -189,6 +189,9 @@ export const METHODS = {
     'people',       // ({ accountId }) -> the addresses seen, ranked
     'markAllRead',  // ({ accountId, folder }) -> { changed }
     'emptyFolder',  // ({ accountId, folder }) -> { removed }
+    'createFolder', // ({ accountId, parent, name }) -> { path }  made at the server too
+    'renameFolder', // ({ accountId, folder, name }) -> { path }  with the folders inside it
+    'deleteFolder', // ({ accountId, folder }) -> { folders, removed }  with what is inside it
     'queue',        // ({ accountId, draft, at, holdSeconds }) -> outbox item
     'outbox',       // () -> items still waiting to go
     'unsend',       // ({ id }) -> the item, taken back

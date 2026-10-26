@@ -467,6 +467,7 @@ export const CSS = `
   font-size: 10px; color: var(--ink-3); background: var(--sunken); border-radius: 3px;
   padding: 0 5px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.ml-drop.over > .rw-item { background: var(--selected-strong); box-shadow: inset 0 0 0 1px var(--accent); }
 .ml-thread-children { background: var(--sunken); }
 .ml-thread-children .ml-row { padding-left: 34px; border-bottom-color: transparent; }
 
