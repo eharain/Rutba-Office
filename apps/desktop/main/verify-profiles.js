@@ -76,6 +76,8 @@ export async function verifyProfiles(h) {
   let work = null;
   let secret = null;
   let contactId = null;
+  let mailAccount = null;
+  let mailFolder = null;
   try {
     // One profile: the launcher's badge says which, and its menu lists it.
     const first = await until(() => js(`(() => { const b = document.querySelector('.pf-badge'); return b ? { name: b.querySelector('.pf-badge-name')?.textContent, profile: b.dataset.profile } : null; })()`), 'the launcher\'s profile badge', 8000).catch(() => null);
@@ -153,9 +155,12 @@ export async function verifyProfiles(h) {
     const contactsFile = path.join(base, 'contacts.json');
     // Mail too: a message kept before the password is sealed with the rest, and still read.
     const mailWord = `Sealed mail ${Date.now()}`;
-    const mailAccount = await js(`window.rutbaOffice.mail.accounts().then((a) => a[0]?.id || null)`).catch(() => null);
+    mailAccount = await js(`window.rutbaOffice.mail.accounts().then((a) => a[0]?.id || null)`).catch(() => null);
+    // Into a folder of the check's own, deleted at the end: an Inbox made in the seeded mailbox (an
+    // imported archive has none) would be the folder every later Mail window opens on.
+    mailFolder = 'Profiles check';
     const mailRaw = ['From: Amina Yusuf <amina@work.example>', 'To: You <you@example.com>', `Subject: ${mailWord}`, `Date: ${new Date().toUTCString()}`, `Message-ID: <sealed-${Date.now()}@example.org>`, '', `${mailWord}, the body.`, ''].join('\r\n');
-    if (mailAccount) await js(`window.rutbaOffice.mail.deliverTest(${JSON.stringify({ accountId: mailAccount, folder: 'Inbox', raw: mailRaw })})`).catch(() => {});
+    if (mailAccount) await js(`window.rutbaOffice.mail.deliverTest(${JSON.stringify({ accountId: mailAccount, folder: mailFolder, raw: mailRaw })})`).catch(() => {});
     const mailInClear = () => {
       const hits = [];
       const walk = (dir) => {
@@ -170,7 +175,7 @@ export async function verifyProfiles(h) {
       walk(path.join(base, 'mail'));
       return hits;
     };
-    const mailListed = async () => ((await js(`window.rutbaOffice.mail.messages(${JSON.stringify({ accountId: mailAccount, folder: 'Inbox', limit: 200 })})`).catch(() => null))?.rows || []).some((r) => r.subject === mailWord);
+    const mailListed = async () => ((await js(`window.rutbaOffice.mail.messages(${JSON.stringify({ accountId: mailAccount, folder: mailFolder, limit: 200 })})`).catch(() => null))?.rows || []).some((r) => r.subject === mailWord);
     const mailBefore = mailInClear().length;
     await until(() => { try { return fs.readFileSync(contactsFile, 'utf8').includes('Sealed Person') || null; } catch { return null; } }, 'the card written', 5000).catch(() => {});
     await click('.pf-set-password');
@@ -252,6 +257,7 @@ export async function verifyProfiles(h) {
       try { fs.writeFileSync(`${r}.quit`, ''); } catch { /* gone */ }
     }
     if (contactId) await js(`window.rutbaOffice.contacts.remove({ id: ${JSON.stringify(contactId)} })`).catch(() => {});
+    if (mailAccount && mailFolder) await js(`window.rutbaOffice.mail.deleteFolder(${JSON.stringify({ accountId: mailAccount, folder: mailFolder })})`).catch(() => {});
     for (const id of [work?.id, secret].filter(Boolean)) {
       for (let i = 0; i < 40; i++) {
         const l = await profiles().catch(() => null);
