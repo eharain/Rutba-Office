@@ -35,7 +35,7 @@ const GEOMETRY = {
   contacts: { width: 1180, height: 760, minWidth: 820, minHeight: 520 },
 };
 
-export function createWindowManager({ stores, preloadPath, iconPath, appIcons = {}, appNames = {}, appUserModelId = null, relaunchArgs = () => [], onWindowEvent, confirmClose }) {
+export function createWindowManager({ stores, preloadPath, iconPath, appIcons = {}, appNames = {}, appUserModelId = null, relaunchArgs = () => [], resolveApp = null, onWindowEvent, confirmClose }) {
   /** @type {Map<number, { app: string, file: string|null, dirty: boolean, name: string, closing: boolean }>} */
   const meta = new Map();
   let focusTick = 0;
@@ -106,7 +106,12 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     return { x: p.x + 100, y: p.y - height - 100 };
   }
 
-  function create({ app: appKey = 'home', file = null, query = null, parentId = null } = {}) {
+  function create({ app: asked = 'home', file = null, query: askedQuery = null, parentId = null } = {}) {
+    // A window is never made for an app that is not installed (docs/APP-PACKS.md):
+    // the host says which installed app opens the file instead, or the launcher, told which app to add.
+    const resolved = resolveApp ? resolveApp({ app: asked, file, query: askedQuery }) : null;
+    const appKey = resolved?.app || asked;
+    const query = resolved?.query ? { ...(askedQuery || {}), ...resolved.query } : askedQuery;
 
     const geo = GEOMETRY[appKey] || GEOMETRY.home;
     const saved = savedBounds(appKey);

@@ -11,7 +11,8 @@ This is the design, from the code as it is. It has five parts: the map of
 what each app takes from another (section 1), the pack format (2), the tools
 that make and sign packs (3), the core's loader (4) and the move of the app
 code into packs (5). Sections 1 to 4 are built and tested; section 5 is the
-plan. Nothing here is wired into `main.js` yet, and no app code has moved.
+plan, and its first part, the core that loads packs, is being built: each
+item says what is built. No app code has moved yet.
 
 ## 1. The map
 
@@ -580,6 +581,24 @@ the map's fixture shrinks as the cuts are made.
    events of this run, and builds the bridge from the answer. A channel of
    an absent pack then exists neither in the main process nor in the
    window's `shell`.
+
+   *Built.* The contract (`packages/office-shell/src/contract.js`) keeps
+   `METHODS` whole and says who owns each namespace (`NAMESPACE_PACK`) and
+   each event (`EVENT_PACK`); `coreMethods()`, `methodsFor(ids)` and
+   `eventsFor(ids)` cut it by owner. `installIpc(impls, methods)` registers
+   only the methods it is given, and `installContract(answer)` answers the
+   preload's one synchronous call on `CONTRACT_CHANNEL` with the methods,
+   events, loaded packs and refusals of this run. A preload that gets no
+   answer builds the core's channels alone. In the window, the client
+   (`client.js`) keeps a stub for every method of the contract: one of an
+   absent pack rejects at once, nothing crossing to the main process, with
+   an error whose `code` is `absent` and whose words say which app to add
+   ("Mail is not installed on this computer. Add it with Add or remove
+   apps."). `installedPacks()`, `isInstalled(id)`, `refusedPacks()` and
+   `packWindows(id)` say what this run has; `on()` for an absent pack's
+   event listens to nothing. The menu offers only the installed apps, and a
+   window asked for an absent app is made for another installed app that
+   opens the file, or for the launcher, told which app was missing.
 2. **main.js registers each pack.** At start, before the first window:
 
    ```js

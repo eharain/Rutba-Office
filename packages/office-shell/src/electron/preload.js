@@ -3,11 +3,32 @@
 // Bundled to CommonJS by the desktop app's build so it can run in a sandboxed
 // preload. Nothing here decides policy — it only forwards the calls the
 // contract names, which is why adding a capability means editing one list.
+//
+// Which calls, it asks once as it starts: the methods and events of this run,
+// the core's and the loaded packs' (contract.js), and the packs themselves. A
+// sandboxed preload can import nothing at run time, so the answer comes in
+// one synchronous request rather than from a list it was built with. A
+// method of a pack that is not installed is then not on the bridge at all.
+// Should the request ever go unanswered, the window is offered the core's
+// methods alone, never every pack's.
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import { METHODS, EVENTS, CHANNEL_PREFIX } from '../contract.js';
+import { CHANNEL_PREFIX, CONTRACT_CHANNEL, coreMethods, coreEvents } from '../contract.js';
 
-const api = { __contract: { methods: METHODS, events: EVENTS } };
+function askContract() {
+  try {
+    const answer = ipcRenderer.sendSync(CONTRACT_CHANNEL);
+    if (answer && answer.methods && Array.isArray(answer.events)) return answer;
+  } catch {
+    // Answered below with the core's own list.
+  }
+  return { methods: coreMethods(), events: coreEvents(), packs: [], refused: [] };
+}
+
+const contract = askContract();
+const METHODS = contract.methods;
+const EVENTS = contract.events;
+const api = { __contract: { methods: METHODS, events: EVENTS, packs: contract.packs || [], refused: contract.refused || [] } };
 
 for (const [ns, names] of Object.entries(METHODS)) {
   api[ns] = {};

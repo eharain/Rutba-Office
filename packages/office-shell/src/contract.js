@@ -5,6 +5,12 @@
 // preload bridge and the renderer client are both generated from it, so a
 // capability cannot exist on one side and be missing on the other.
 //
+// The list is divided by owner: the core's namespaces, and each app pack's
+// (NAMESPACE_PACK below). One run offers the core's and those of the packs it
+// loaded, no others: the main process registers only those channels, and the
+// preload asks for that list once, as a window starts, rather than being
+// built with the whole of it.
+//
 // Rules that keep the seam honest:
 //   - Arguments and results cross as structured-clone-safe values only.
 //   - No method takes a callback; events travel on the separate event list.
@@ -481,6 +487,14 @@ export const METHODS = {
     'setReach',     // ({ reach: 'local' | 'remote', port? }) -> state   this computer only, or other machines too, with a key
     'renewKey',     // () -> state   a new key; the old one stops working at once
   ],
+  // Add or remove apps (docs/APP-PACKS.md 5.4): the packs on this computer, and changes to them for the next start.
+  packs: [
+    'list',         // () -> { apps: [{ id, name, state, size, reason }], restart, perMachine, source }   state: installed, adding, removing, absent, refused
+    'add',          // ({ id }) -> list   its pack fetched into a staging folder, checked there, and put in place for the next start
+    'remove',       // ({ id }) -> list   gone at the next start; the person's files and settings stay
+    'keep',         // ({ id }) -> list   an addition or a removal not yet started, taken back
+    'restart',      // () -> { restarting }   started again to finish; a per-machine copy asks for the administrator's permission first
+  ],
   clipboard: [
     'writeText',    // ({ text }) -> void
     'readText',     // () -> string
@@ -533,13 +547,125 @@ export const EVENTS = [
   'update:state',     // { state, version, available, percent, automatic, snoozed, snoozedVersion, arrived }
   'capture:command',  // { command: 'stop' | 'pause' }   a recording's global key or tray icon was used
   'picture:returned', // { token, bytes, contentType, width, height }   Edit in Image saved the picture back
+  'packs:changed',    // { apps, restart }   Add or remove apps changed what the next start loads
 ];
 
-/** Every method as a flat channel list, e.g. 'fs:read'. */
-export function channels() {
+/**
+ * The app packs (docs/APP-PACKS.md): one per app, by the key the registry and
+ * the windows already use, and text recognition, which four apps' windows
+ * offer. An app not installed is absent: its namespaces below are not
+ * registered in the main process and not offered to a window.
+ */
+export const PACKS = [
+  { id: 'word', name: 'Documents' },
+  { id: 'sheets', name: 'Worksheets' },
+  { id: 'slides', name: 'Presentations' },
+  { id: 'pdf', name: 'PDF' },
+  { id: 'pictures', name: 'Pictures' },
+  { id: 'image', name: 'Image' },
+  { id: 'video', name: 'Video' },
+  { id: 'recorder', name: 'Recorder' },
+  { id: 'mail', name: 'Mail' },
+  { id: 'calendar', name: 'Calendar' },
+  { id: 'contacts', name: 'Contacts' },
+  { id: 'base', name: 'Data Files' },
+  { id: 'talk', name: 'Talk' },
+  { id: 'ai', name: 'AI Tools' },
+  { id: 'ocr', name: 'Text recognition' },
+];
+
+/**
+ * Which pack each namespace is. A namespace not named here is the core's:
+ * there whatever is installed (the document service the three document apps
+ * share, printing, the CalDAV and CardDAV accounts both Calendar and
+ * Contacts sync through, recording the screen for three apps).
+ */
+export const NAMESPACE_PACK = {
+  mail: 'mail',
+  discover: 'mail',
+  calendar: 'calendar',
+  contacts: 'contacts',
+  pdf: 'pdf',
+  ocr: 'ocr',
+  base: 'base',
+  talk: 'talk',
+  live: 'recorder',
+  ai: 'ai',
+  present: 'slides',
+};
+
+/**
+ * The events a pack's own service sends. The rest are the core's: Mail's
+ * sign-in progress (`mail:oauth`) among them, since signing in is the core's
+ * oauth service.
+ */
+export const EVENT_PACK = {
+  'talk:state': 'talk',
+  'talk:event': 'talk',
+  'live:status': 'recorder',
+  'mail:progress': 'mail',
+  'mail:archives': 'mail',
+  'mail:indexing': 'mail',
+  'mail:exportProgress': 'mail',
+  'mail:accountsProgress': 'mail',
+  'mail:new': 'mail',
+  'mail:sent': 'mail',
+  'mail:sendFailed': 'mail',
+  'present:state': 'slides',
+  'contacts:changed': 'contacts',
+  'calendar:changed': 'calendar',
+};
+
+/** A pack's own namespaces and their methods, as its manifest carries them (`ipc`). */
+export function packIpc(id) {
+  const out = {};
+  for (const [ns, owner] of Object.entries(NAMESPACE_PACK)) if (owner === id && METHODS[ns]) out[ns] = [...METHODS[ns]];
+  return out;
+}
+
+/** A pack's own events, as its manifest carries them. */
+export function packEvents(id) {
+  return EVENTS.filter((e) => EVENT_PACK[e] === id);
+}
+
+/** The core's methods: every namespace no pack owns. */
+export function coreMethods() {
+  const out = {};
+  for (const [ns, names] of Object.entries(METHODS)) if (!NAMESPACE_PACK[ns]) out[ns] = [...names];
+  return out;
+}
+
+/** The core's events. */
+export function coreEvents() {
+  return EVENTS.filter((e) => !EVENT_PACK[e]);
+}
+
+/**
+ * The methods one run offers: the core's and those of the packs named, as
+ * the contract lists them. A run that loads packs from their files builds
+ * the same thing from each pack's manifest (main.js); this is the list for
+ * packs built in.
+ */
+export function methodsFor(packIds = []) {
+  const out = coreMethods();
+  for (const id of packIds) Object.assign(out, packIpc(id));
+  return out;
+}
+
+/** The events one run offers: the core's and those of the packs named. */
+export function eventsFor(packIds = []) {
+  const want = new Set(packIds);
+  return EVENTS.filter((e) => !EVENT_PACK[e] || want.has(EVENT_PACK[e]));
+}
+
+/** Every method as a flat channel list, e.g. 'fs:read': of the whole contract, or of the methods given. */
+export function channels(methods = METHODS) {
   const out = [];
-  for (const [ns, names] of Object.entries(METHODS)) for (const n of names) out.push(`${ns}:${n}`);
+  for (const [ns, names] of Object.entries(methods)) for (const n of names) out.push(`${ns}:${n}`);
   return out;
 }
 
 export const CHANNEL_PREFIX = 'rutba-office';
+
+/** The one synchronous request a window's preload makes as it starts: the methods, events and packs of this run. */
+export const CONTRACT_CHANNEL = `${CHANNEL_PREFIX}/contract`;

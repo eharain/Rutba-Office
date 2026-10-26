@@ -1,7 +1,8 @@
 // The backend half of the contract.
 //
-// One handler per channel, registered from the same METHODS list the preload
-// builds its bridge from. A namespace the host supplies (`mail`) is merged in
+// One handler per channel of this run, from the same list the preload builds
+// its bridge from: the core's methods and the loaded packs' (contract.js),
+// handed to the preload by installContract. A namespace the host supplies (`mail`) is merged in
 // here so the desktop app can own its own protocols without the shell knowing
 // anything about IMAP.
 //
@@ -14,7 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { ipcMain } from 'electron';
-import { METHODS, CHANNEL_PREFIX } from '../contract.js';
+import { METHODS, CHANNEL_PREFIX, CONTRACT_CHANNEL } from '../contract.js';
 import { blobOwner } from './blobs.js';
 import { runsWhenOpened } from '../runs.js';
 import { writeWhole } from '../write-whole.js';
@@ -789,10 +790,14 @@ function plannedAnswer(kind) {
 }
 
 /**
- * Register one ipcMain handler per contract channel.
+ * Register one ipcMain handler per channel of this run: the core's and the
+ * loaded packs' (contract.js, main.js). A channel of a pack that is not
+ * loaded is never registered, so nothing answers it, not even with "no
+ * backend".
  * @param {object} impls namespace -> { method(payload, win) }
+ * @param {Record<string, string[]>} [methods] namespace -> method names; the whole contract when not given
  */
-export function installIpc(impls) {
+export function installIpc(impls, methods = METHODS) {
   // RUTBA_IPC_TRACE=1: count every request by channel and window, and print
   // the busiest every five seconds. A main process that is never idle is
   // answering somebody; this says whom, and for what.
@@ -805,7 +810,7 @@ export function installIpc(impls) {
       trace.clear();
     }, 5000).unref();
   }
-  for (const [ns, names] of Object.entries(METHODS)) {
+  for (const [ns, names] of Object.entries(methods)) {
     for (const name of names) {
       const channel = `${CHANNEL_PREFIX}/${ns}:${name}`;
       const fn = impls[ns]?.[name];
@@ -838,6 +843,21 @@ export function installIpc(impls) {
       });
     }
   }
+}
+
+/**
+ * What a window's preload is told as it starts, in its one synchronous
+ * request (contract.js CONTRACT_CHANNEL): the methods and events of this run
+ * and the packs it loaded, so its bridge offers exactly what the main
+ * process answers.
+ * @param {{ methods: Record<string, string[]>, events: string[], packs: object[], refused: object[] }} answer
+ */
+export function installContract(answer) {
+  const copy = JSON.parse(JSON.stringify(answer));
+  ipcMain.removeAllListeners(CONTRACT_CHANNEL);
+  ipcMain.on(CONTRACT_CHANNEL, (event) => {
+    event.returnValue = copy;
+  });
 }
 
 export function sendEvent(win, event, payload) {

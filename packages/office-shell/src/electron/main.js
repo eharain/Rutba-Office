@@ -21,7 +21,8 @@ import { registerSchemePrivileges, installProtocol, fileUrl, thumbUrl, holdBlob,
 import { createThumbnailer } from './thumbs.js';
 import { mayServe } from './grants.js';
 import { createWindowManager } from './windows.js';
-import { buildImplementations, installIpc, sendEvent, broadcast } from './ipc.js';
+import { buildImplementations, installIpc, installContract, sendEvent, broadcast } from './ipc.js';
+import { METHODS, EVENTS } from '../contract.js';
 import { speakAs, t } from './words.js';
 
 const isMac = process.platform === 'darwin';
@@ -34,7 +35,7 @@ registerSchemePrivileges();
 /** The apps the Apps menu offers, in its order. */
 const MENU_APPS = ['mail', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video'];
 
-function buildMenu({ send, appName, appShortNames = {} }) {
+function buildMenu({ send, appName, appShortNames = {}, installed = null }) {
   const cmd = (command, args) => () => send(command, args);
   const template = [
     ...(isMac
@@ -119,7 +120,8 @@ function buildMenu({ send, appName, appShortNames = {} }) {
         // Named by the app's own registry entry, as the windows and the
         // taskbar are, so a rename reaches the menu too: written out here,
         // the menu still said Rutba Word after the app had a new name.
-        ...MENU_APPS.map((key) => ({ label: t(appShortNames[key] || key), click: cmd('open.app', { app: key }) })),
+        // Only the apps installed: an app not on this computer is not offered.
+        ...MENU_APPS.filter((key) => !installed || installed.includes(key)).map((key) => ({ label: t(appShortNames[key] || key), click: cmd('open.app', { app: key }) })),
       ],
     },
     {
@@ -153,6 +155,12 @@ function buildMenu({ send, appName, appShortNames = {} }) {
  * @param {(ctx) => object} [o.namespaces] extra IPC namespaces, given the shell context
  * @param {(path: string) => string} [o.appForFile] which app opens this file
  * @param {object} [o.profile] the profile this run is (profile-choice.js): its folder is already userData
+ * @param {() => { methods, events, packs, refused }} [o.offers] what this run offers, read once the host's
+ *   namespaces are built: the methods and events of the core and the loaded packs, and the packs
+ *   (docs/APP-PACKS.md). Only those channels are registered, and a window's preload is told the same.
+ *   Without it, the whole contract.
+ * @param {(o: { app: string, file: string|null, query: object|null }) => { app: string, query?: object }} [o.resolveApp]
+ *   the app a window is made for, when the one asked for is not installed
  */
 export function createShell({
   rendererDir,
@@ -166,6 +174,8 @@ export function createShell({
   appForFile = () => 'home',
   onReady,
   profile = null,
+  offers = null,
+  resolveApp = null,
 }) {
   app.setName(appName);
   const appUserModelId = 'co.techstyle.rutba.office';
@@ -375,6 +385,7 @@ export function createShell({
       appNames,
       appUserModelId,
       relaunchArgs,
+      resolveApp,
       onWindowEvent: (win, event, payload) => sendEvent(win, event, payload),
 
       /**
@@ -445,10 +456,22 @@ export function createShell({
     // a window — must not take the shell's own methods away with it.
     const merged = { ...base };
     for (const [ns, methods] of Object.entries(extra)) merged[ns] = { ...(merged[ns] || {}), ...methods };
-    installIpc(merged);
+    // What this run offers: the core's channels and the loaded packs', and
+    // nothing of a pack that is absent. Read after the namespaces, so a pack
+    // that failed to register is told as refused; if the host cannot say,
+    // the whole contract, as before packs.
+    let offered = null;
+    try {
+      offered = offers ? offers() : null;
+    } catch (err) {
+      record('packs', err);
+    }
+    const methods = offered?.methods || METHODS;
+    installIpc(merged, methods);
+    installContract({ methods, events: offered?.events || EVENTS, packs: offered?.packs || [], refused: offered?.refused || [] });
 
     speakAs(stores);
-    Menu.setApplicationMenu(buildMenu({ send, appName, appShortNames }));
+    Menu.setApplicationMenu(buildMenu({ send, appName, appShortNames, installed: offered ? offered.packs.map((p) => p.id) : null }));
     // Ctrl and the wheel that the page left alone (over a mail message's
     // sandboxed frame, which the page cannot hear) is Chromium's own request
     // to zoom: it goes to the window as Zoom In or Zoom Out, for the app to
