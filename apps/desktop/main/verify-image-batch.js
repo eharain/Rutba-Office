@@ -68,8 +68,8 @@ export async function verifyImageBatch({ open, check, until, wait, errorsIn }, {
       })()`);
       await setValue('[data-role="batch-format"]', format);
       await setValue('[data-role="batch-pattern"]', pattern);
-      const stripped = await js(`document.querySelector('[data-role="batch-strip"]').checked`);
-      if (stripped !== strip) await js(`document.querySelector('[data-role="batch-strip"]').click(), 1`);
+      // The details each picture keeps: Strip all, or Keep all.
+      await js(`document.querySelector('[data-role="${strip ? 'batch-strip' : 'batch-keep'}"]')?.click(), 1`);
       if (folder) {
         globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'open', answer: [folder] });
         await setValue('[data-role="batch-where"]', 'folder');

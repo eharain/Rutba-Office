@@ -20,7 +20,7 @@ export function concat(parts) {
  * `thumb` adds IFD1 with a JPEG thumbnail of those bytes.
  */
 export function tiffBlock({ little = true, ifd0 = [], exif = null, gps = null, thumb = null } = {}) {
-  const buf = new Uint8Array(65536);
+  const buf = new Uint8Array(262144);
   const dv = new DataView(buf.buffer);
   let len = 8;
   buf.set(little ? [0x49, 0x49, 42, 0] : [0x4d, 0x4d, 0, 42], 0);

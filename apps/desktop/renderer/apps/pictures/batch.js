@@ -52,7 +52,18 @@ async function sizeOf(shell, file, upright) {
  * pictures go is not: beside the originals, each time, unless chosen.
  */
 const BATCH_KEY = 'pictures.batch';
-const BATCH_DEFAULTS = { mode: 'fit', percent: 50, box: { width: 1920, height: 1080 }, long: 1600, format: 'jpeg', quality: 85, pattern: '{name} (edited)', upright: true, strip: true };
+const BATCH_DEFAULTS = { mode: 'fit', percent: 50, box: { width: 1920, height: 1080 }, long: 1600, format: 'jpeg', quality: 85, pattern: '{name} (edited)', upright: true, strip: 'all' };
+
+/**
+ * What of the camera's details each picture keeps: none of them (the
+ * default, as before), all but the place, or all. Kept in a JPEG, PNG or
+ * WebP; the worker sets the orientation upright where the pixels are.
+ */
+export const METADATA = [
+  { id: 'all', role: 'batch-strip', label: t('Strip all: no camera, date taken or place') },
+  { id: 'location', role: 'batch-location', label: t('Remove location only: keep the camera and date taken') },
+  { id: 'none', role: 'batch-keep', label: t('Keep all, the place too') },
+];
 export function rememberedBatch() {
   try {
     const kept = JSON.parse(localStorage.getItem(BATCH_KEY) || '{}');
@@ -65,7 +76,13 @@ export function rememberedBatch() {
       if (k === 'box' && !(v && v.width > 0 && v.height > 0)) continue;
       if (['percent', 'long', 'quality'].includes(k) && !(Number(v) > 0)) continue;
       if (k === 'pattern' && !String(v).trim()) continue;
-      if (['upright', 'strip'].includes(k) && typeof v !== 'boolean') continue;
+      if (k === 'upright' && typeof v !== 'boolean') continue;
+      if (k === 'strip') {
+        // Kept as a yes or no before Remove location came.
+        const was = v === true ? 'all' : v === false ? 'none' : v;
+        if (METADATA.some((m) => m.id === was)) out.strip = was;
+        continue;
+      }
       out[k] = v;
     }
     return out;
@@ -287,10 +304,16 @@ export function BatchDialog({ shell, files, folder, onClose, onDone }) {
                 <input type="checkbox" checked={upright} onChange={(e) => setUpright(e.target.checked)} data-role="batch-upright" />
                 <span>{t('Turn each picture upright by its EXIF orientation')}</span>
               </label>
-              <label className="im-check">
-                <input type="checkbox" checked={strip} onChange={(e) => setStrip(e.target.checked)} data-role="batch-strip" />
-                <span>{t('Strip metadata: camera, date taken and place')}</span>
-              </label>
+            </div>
+
+            <span className="im-batch-label">{t('Details')}</span>
+            <div className="im-batch-col" role="radiogroup" aria-label={t('The details each picture keeps')}>
+              {METADATA.map((m) => (
+                <label key={m.id} className="im-check">
+                  <input type="radio" name="batch-metadata" value={m.id} checked={strip === m.id} onChange={() => setStrip(m.id)} data-role={m.role} />
+                  <span>{m.label}</span>
+                </label>
+              ))}
             </div>
           </div>
           <div className="rw-hint im-batch-foot">{t('The originals are never changed. A file that is already there is never replaced without asking.')}</div>
@@ -315,7 +338,7 @@ const BATCH_CSS = `
 .im-batch-col { display: flex; flex-direction: column; gap: 6px; }
 .im-batch-quality { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
 .im-batch-quality input { width: 120px; accent-color: var(--accent); }
-.im-batch input[type=checkbox] { accent-color: var(--accent); }
+.im-batch input[type=checkbox], .im-batch input[type=radio] { accent-color: var(--accent); }
 .im-batch .im-check { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink); }
 .im-batch-tokens { display: flex; flex-wrap: wrap; gap: 4px; }
 .im-batch-token { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: var(--bg, #fff);

@@ -17,7 +17,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Ribbon, Group, Rows, Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Select, Dialog, Input, useToast, useCommands, formatBytes, basename, t, tn } from '@rutba/office-ui';
 import { OPS, DEFAULT_ADJUSTMENTS, toCanvasPlan, isIdentity, constrainCrop, markToOperation, spotToOperation, spotInTarget, resizeTo } from '@rutba/imaging/pipeline';
 import { DEFAULT_PIXELS, NEUTRAL_LEVELS, CURVE_PRESETS, autoEnhance, histogram, isNeutral } from '@rutba/imaging/pixels';
-import { FORMATS, formatOf, withExifFrom, underSize } from '@rutba/imaging/batch';
+import { FORMATS, formatOf, underSize } from '@rutba/imaging/batch';
+import { keepExif, EXIF_FORMATS } from '@rutba/imaging/exif';
 import { nextId } from '@rutba/studio/doc';
 import {
   emptyImage, normaliseImage, pictureLayer, dropLayer, stepLayer, layerToEnd, groupLayers, ungroupLayers, removeLayers,
@@ -641,10 +642,13 @@ export default function ImageTool({ app, shell, boot }) {
           result = { bytes, fits: !maxBytes || bytes.length <= maxBytes };
         }
         let bytes = result.bytes;
-        if (!exportOpts.strip && fmt === 'jpeg' && path && sourceFormat === 'jpeg' && !layered) {
-          // The camera's details kept from the original, turned upright as the pixels are.
-          const original = await shell.fs.read({ path });
-          bytes = withExifFrom(bytes, original.bytes);
+        if (exportOpts.strip !== true && EXIF_FORMATS.includes(fmt) && image && sourceRef.current) {
+          // The camera's details kept from the picture the export began
+          // from, a layered one's Background too: upright as the pixels
+          // are, the new size, and without the place for Remove location.
+          let original = sourceRef.current.bytes;
+          if (!original && sourceRef.current.path) original = (await shell.fs.read({ path: sourceRef.current.path }).catch(() => null))?.bytes;
+          if (original) bytes = keepExif(bytes, fmt, original, { width: canvas.width, height: canvas.height, location: exportOpts.strip !== 'location' });
         }
         await shell.fs.write({ path: target, bytes });
         const said = t('Saved {name}: {width} × {height}, {size}', { name: basename(target), width: canvas.width, height: canvas.height, size: formatBytes(bytes.length) });
@@ -659,7 +663,7 @@ export default function ImageTool({ app, shell, boot }) {
         setBusy(false);
       }
     },
-    [hasResult, resultSize, layered, path, pastedName, shell, toast, exportOpts, renderResult, commitDraft, format, sourceFormat, editFor]
+    [hasResult, resultSize, layered, path, pastedName, shell, toast, exportOpts, renderResult, commitDraft, format, sourceFormat, editFor, image]
   );
 
   const copy = useCallback(async () => {
@@ -2222,12 +2226,22 @@ export default function ImageTool({ app, shell, boot }) {
             <Button
               tall
               icon="shield"
-              label={t('Strip metadata')}
-              title={t('Strip metadata: no camera, date or place in the file. Off, a JPEG from a JPEG keeps them.')}
-              pressed={exportOpts.strip}
+              label={t('Strip all')}
+              title={t('Strip all: no camera, date or place in the file. With neither pressed, the file keeps them all.')}
+              pressed={exportOpts.strip === true}
               disabled={!hasResult}
               data-role="strip"
-              onClick={() => setExportOpts((o) => ({ ...o, strip: !o.strip }))}
+              onClick={() => setExportOpts((o) => ({ ...o, strip: o.strip === true ? false : true }))}
+            />
+            <Button
+              tall
+              icon="locationOff"
+              label={t('Remove location')}
+              title={t('Remove location: the place the picture was taken left out; the camera, lens and date kept')}
+              pressed={exportOpts.strip === 'location'}
+              disabled={!hasResult}
+              data-role="strip-location"
+              onClick={() => setExportOpts((o) => ({ ...o, strip: o.strip === 'location' ? false : 'location' }))}
             />
           </Group>
           <Group label={t('Save')}>

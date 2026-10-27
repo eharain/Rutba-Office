@@ -9,8 +9,8 @@
 //   { kind: 'convert', bytes, name, options }
 //       → { bytes, width, height, format, quality, fits }   one picture of a batch
 import { applyPixels } from '@rutba/imaging/pixels';
-import { FORMATS, sizeFor, withExifFrom, underSize } from '@rutba/imaging/batch';
-import { readExif } from '@rutba/imaging/exif';
+import { FORMATS, sizeFor, underSize } from '@rutba/imaging/batch';
+import { readExif, keepExif } from '@rutba/imaging/exif';
 import { probeImage } from '@rutba/imaging/probe';
 import { runTool } from './tool-jobs.js';
 
@@ -50,12 +50,15 @@ async function convert(bytes, options = {}) {
     ? await underSize(encode, maxBytes, { high: quality })
     : { bytes: await encode(quality), quality, fits: true };
   let out = result.bytes;
-  if (!strip && format === 'jpeg') {
-    // The camera's details kept, the orientation upright if the pixels are.
+  // strip: true (or 'all') drops every detail; 'location' keeps the camera
+  // and drops the place; false keeps both.
+  if (strip !== true && strip !== 'all') {
+    // The camera's details kept, the orientation upright if the pixels are,
+    // in a JPEG's APP1, a PNG's eXIf or a WebP's EXIF chunk.
     const stored = probeImage(bytes);
     const turned = stored && stored.width && (stored.width !== size.width || stored.height !== size.height) && (stored.width / stored.height > 1) !== (size.width / size.height > 1);
     const orientation = readExif(bytes).orientation || 1;
-    out = withExifFrom(out, bytes, { orientation: upright || turned ? 1 : orientation });
+    out = keepExif(out, format, bytes, { orientation: upright || turned ? 1 : orientation, width: size.width, height: size.height, location: strip !== 'location' });
   }
   if (maxBytes && !info.quality) result.fits = out.length <= maxBytes;
   return { bytes: out, width: size.width, height: size.height, format, quality: result.quality, fits: result.fits };

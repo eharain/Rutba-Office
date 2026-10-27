@@ -784,3 +784,476 @@ export function withOrientation(bytes, orientation) {
 export function orientationOf(exif) {
   return ORIENTATION[exif?.orientation] || ORIENTATION[1];
 }
+
+// ── writing: the camera's details carried into an exported picture ──────────
+//
+// An export is a new picture: its pixels are already upright, often smaller,
+// and edited. It keeps the camera, the lens, the exposure, the date and (if
+// asked) the place, but not what would now be untrue: the orientation is set
+// to 1, the pixel size is the new one, and the original's own thumbnail (a
+// small copy of the picture BEFORE the edit, which would show what a crop
+// took out) is left behind. "Remove location" takes the GPS directory out
+// and the pointer to it, and keeps everything else.
+
+/** IFD0 fields a rebuilt block carries: what describes the photograph, nothing of how the original stored its pixels. */
+const KEEP_IFD0 = new Set([0x010e, 0x010f, 0x0110, 0x0112, 0x0131, 0x0132, 0x013b, 0x4746, 0x4749, 0x8298, 0x9c9b, 0x9c9c, 0x9c9d, 0x9c9e, 0x9c9f]);
+/** Exif fields a rebuilt block leaves out: the maker's private notes (their offsets would point at nothing) and the interoperability pointer. */
+const DROP_EXIF = new Set([0x927c, 0xa005]);
+const EXIF_POINTER = 0x8769;
+const GPS_POINTER = 0x8825;
+
+/** The formats an exported picture can carry EXIF in. */
+export const EXIF_FORMATS = ['jpeg', 'png', 'webp', 'tiff'];
+
+class Writer {
+  constructor(little, start = null) {
+    this.little = little;
+    this.buf = new Uint8Array(Math.max(1024, start ? start.length * 2 : 0));
+    this.len = 0;
+    if (start) { this.buf.set(start, 0); this.len = start.length; }
+  }
+  ensure(n) {
+    if (this.len + n <= this.buf.length) return;
+    const next = new Uint8Array(Math.max(this.buf.length * 2, this.len + n));
+    next.set(this.buf.subarray(0, this.len));
+    this.buf = next;
+  }
+  align() { if (this.len & 1) { this.ensure(1); this.buf[this.len++] = 0; } }
+  reserve(n) { this.ensure(n); const at = this.len; this.buf.fill(0, at, at + n); this.len += n; return at; }
+  put(bytes) { const at = this.reserve(bytes.length); this.buf.set(bytes, at); return at; }
+  u16At(o, v) { new DataView(this.buf.buffer).setUint16(o, v, this.little); }
+  u32At(o, v) { new DataView(this.buf.buffer).setUint32(o, v >>> 0, this.little); }
+  done() { return this.buf.slice(0, this.len); }
+}
+
+/** An entry's value bytes in another byte order: each element turned. */
+function reorder(bytes, type, same) {
+  if (same) return new Uint8Array(bytes);
+  const unit = type === 5 || type === 10 ? 4 : TYPE_SIZE[type] || 1;
+  const out = new Uint8Array(bytes.length);
+  for (let i = 0; i + unit <= bytes.length; i += unit) for (let k = 0; k < unit; k++) out[i + k] = bytes[i + unit - 1 - k];
+  return out;
+}
+
+/** A directory's entries read as `{ tag, type, count, data }` in the byte order `little`, the sub-directories as `sub`. */
+function copyEntries(src, base, ifd, srcLittle, little, { keep = null, drop = null, depth = 0, seen = new Set() } = {}) {
+  if (depth > MAX_DEPTH || seen.has(ifd)) return [];
+  seen.add(ifd);
+  const out = [];
+  for (const e of entriesOf(src, base, ifd, srcLittle).list) {
+    if (keep && !keep.has(e.tag)) continue;
+    if (drop && drop.has(e.tag)) continue;
+    if (!TYPE_SIZE[e.type] || e.size > MAX_BLOCK) continue;
+    if (e.tag === EXIF_POINTER || e.tag === GPS_POINTER) {
+      try {
+        const sub = copyEntries(src, base, e.pointer, srcLittle, little, { drop: e.tag === EXIF_POINTER ? DROP_EXIF : null, depth: depth + 1, seen });
+        if (sub.length) out.push({ tag: e.tag, sub });
+      } catch (err) {
+        if (!(err instanceof Damage)) throw err;
+      }
+      continue;
+    }
+    let data;
+    try {
+      data = src.bytes(e.offset, e.size);
+    } catch (err) {
+      if (!(err instanceof Damage)) throw err;
+      continue;
+    }
+    out.push({ tag: e.tag, type: e.type, count: e.count, data: reorder(data, e.type, srcLittle === little) });
+  }
+  return out;
+}
+
+/** A directory written at the writer's end; the offsets relative to `base`. Answers where it begins. */
+function writeDir(w, entries, base = 0, next = 0) {
+  const sorted = [...entries].sort((a, b) => a.tag - b.tag);
+  w.align();
+  const at = w.reserve(2 + sorted.length * 12 + 4);
+  w.u16At(at, sorted.length);
+  sorted.forEach((e, i) => {
+    const p = at + 2 + i * 12;
+    w.u16At(p, e.tag);
+    if (e.sub) {
+      w.u16At(p + 2, 4);
+      w.u32At(p + 4, 1);
+      const sub = writeDir(w, e.sub, base);
+      w.u32At(p + 8, sub - base);
+      return;
+    }
+    w.u16At(p + 2, e.type);
+    w.u32At(p + 4, e.count);
+    if (e.data.length <= 4) w.buf.set(e.data, p + 8);
+    else {
+      w.align();
+      const v = w.put(e.data);
+      w.u32At(p + 8, v - base);
+    }
+  });
+  w.u32At(at + 2 + sorted.length * 12, next);
+  return at;
+}
+
+const short = (v, little) => { const b = new Uint8Array(2); new DataView(b.buffer).setUint16(0, v, little); return b; };
+const long = (v, little) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, v >>> 0, little); return b; };
+
+/** The rebuilt entries made true of the exported picture: upright, its own size, and the place left out when asked. */
+function settle(entries, little, { orientation = 1, width, height, location = true }) {
+  let out = entries.filter((e) => location || e.tag !== GPS_POINTER);
+  out = out.map((e) => (e.tag === 0x0112 ? { tag: e.tag, type: 3, count: 1, data: short(orientation, little) } : e));
+  if (orientation !== 1 && !out.some((e) => e.tag === 0x0112)) out.push({ tag: 0x0112, type: 3, count: 1, data: short(orientation, little) });
+  if (width > 0 && height > 0) {
+    out = out.map((e) => (e.tag !== EXIF_POINTER ? e : {
+      ...e,
+      sub: e.sub.map((s) => (s.tag === 0xa002 ? { tag: s.tag, type: 4, count: 1, data: long(width, little) }
+        : s.tag === 0xa003 ? { tag: s.tag, type: 4, count: 1, data: long(height, little) } : s)),
+    }));
+  }
+  return out;
+}
+
+/** A TIFF block made afresh from the descriptive fields of another: no thumbnail, no maker's notes. */
+function rebuild(src, at, length, options) {
+  if (!isTiffHeader(src, at)) throw new Damage('it does not begin with a TIFF header');
+  const little = src.u8(at) === 0x49;
+  const window = new Pieces(src.pieces, Math.min(src.size, at + length), 'the block');
+  const entries = settle(copyEntries(window, at, src.u32(at + 4, little), little, little, { keep: new Set([...KEEP_IFD0, EXIF_POINTER, GPS_POINTER]) }), little, options);
+  if (!entries.length) return null;
+  const w = new Writer(little);
+  const header = w.reserve(8);
+  w.buf.set(little ? [0x49, 0x49, 42, 0] : [0x4d, 0x4d, 0, 42], header);
+  w.u32At(4, writeDir(w, entries));
+  return w.done();
+}
+
+/** Zero `n` bytes at `o` of `b`, inside it. */
+const zero = (b, o, n) => { if (o >= 0 && n > 0 && o < b.length) b.fill(0, o, Math.min(b.length, o + n)); };
+
+/**
+ * The block as it sits in the original, changed in place (the same length,
+ * so every offset in it, the maker's notes' among them, still points where
+ * it did): the orientation and pixel size set, the thumbnail directory cut
+ * off and its picture zeroed, and the GPS directory zeroed and its entry
+ * taken out of IFD0 when the place is not to be kept. Null where the
+ * orientation is to be other than 1 and the block has no tag for it.
+ */
+function patchInPlace(block, { orientation = 1, width, height, location = true, thumbnail = false }) {
+  const b = new Uint8Array(block);
+  const src = new Pieces([{ at: 0, bytes: b }], b.length, 'the block');
+  const dv = new DataView(b.buffer);
+  if (!isTiffHeader(src, 0)) throw new Damage('it does not begin with a TIFF header');
+  const little = b[0] === 0x49;
+  const first = entriesOf(src, 0, src.u32(4, little), little, 'the first EXIF directory');
+  let hasOrientation = false;
+  for (const e of first.list) {
+    if (e.tag === 0x0112 && e.type === 3) { dv.setUint16(e.entry + 8, orientation, little); hasOrientation = true; }
+    if (e.tag === EXIF_POINTER && width > 0 && height > 0) {
+      try {
+        for (const s of entriesOf(src, 0, e.pointer, little).list) {
+          if (s.tag !== 0xa002 && s.tag !== 0xa003) continue;
+          const v = s.tag === 0xa002 ? width : height;
+          if (s.type === 4) dv.setUint32(s.entry + 8, v, little);
+          else if (s.type === 3 && v <= 0xffff) dv.setUint16(s.entry + 8, v, little);
+        }
+      } catch (err) {
+        if (!(err instanceof Damage)) throw err;
+      }
+    }
+  }
+  if (!hasOrientation && orientation !== 1) return null;
+
+  // The thumbnail: its picture zeroed, its directory zeroed, the pointer to it ended.
+  const tail = first.at + 2 + first.list.length * 12;
+  if (!thumbnail && first.next && tail + 4 <= b.length) {
+    try {
+      const thumb = entriesOf(src, 0, first.next, little, 'the thumbnail directory');
+      const value = (tag) => thumb.list.find((e) => e.tag === tag);
+      const start = value(0x0201);
+      const size = value(0x0202);
+      if (start && size) zero(b, valueOf(src, start.type, 1, start.offset, little), valueOf(src, size.type, 1, size.offset, little));
+      const strips = value(0x0111);
+      const counts = value(0x0117);
+      if (strips && counts && strips.count === 1 && counts.count === 1) zero(b, valueOf(src, strips.type, 1, strips.offset, little), valueOf(src, counts.type, 1, counts.offset, little));
+      for (const e of thumb.list) if (e.size > 4) zero(b, e.offset, e.size);
+      zero(b, thumb.at, 2 + thumb.list.length * 12 + 4);
+    } catch (err) {
+      if (!(err instanceof Damage)) throw err;
+    }
+    dv.setUint32(tail, 0, little);
+  }
+
+  // The place: the GPS directory and its values zeroed, its entry taken out of IFD0.
+  if (!location) {
+    const index = first.list.findIndex((e) => e.tag === GPS_POINTER);
+    if (index >= 0) {
+      try {
+        const gps = entriesOf(src, 0, first.list[index].pointer, little, 'the GPS directory');
+        for (const e of gps.list) if (e.size > 4) zero(b, e.offset, e.size);
+        zero(b, gps.at, 2 + gps.list.length * 12 + 4);
+      } catch (err) {
+        if (!(err instanceof Damage)) throw err;
+      }
+      const entry = first.list[index].entry;
+      const end = tail + 4 <= b.length ? tail + 4 : tail;
+      b.copyWithin(entry, entry + 12, end);
+      zero(b, end - 12, 12);
+      dv.setUint16(first.at, first.list.length - 1, little);
+    }
+  }
+  return b;
+}
+
+/**
+ * The EXIF block an exported picture carries, as TIFF bytes, or null where
+ * the original has none (or one too damaged to carry).
+ *   orientation  the exported pixels' (1: they are upright)
+ *   width/height the exported picture's size, written where the block has one
+ *   location     false: the GPS directory taken out, the camera kept
+ * A JPEG, PNG, WebP, HEIC or AVIF's block is carried as it is, changed in
+ * place; a TIFF's (the file itself, its pixels and all) is rebuilt from its
+ * descriptive fields.
+ */
+export function exifForExport(original, options = {}) {
+  const b = asBytes(original);
+  if (b.length < 8) return null;
+  const src = new Pieces([{ at: 0, bytes: b }], b.length);
+  try {
+    const place = locate(src);
+    if (!place.exif || place.exif.length < 8 || place.exif.length > MAX_BLOCK) return null;
+    if (place.container === 'tiff') return rebuild(src, 0, b.length, options);
+    const block = b.subarray(place.exif.at, place.exif.at + place.exif.length);
+    return patchInPlace(block, options) || rebuild(new Pieces([{ at: 0, bytes: block }], block.length), 0, block.length, options);
+  } catch (err) {
+    if (err instanceof Damage || err instanceof Need || err instanceof RangeError) return null;
+    throw err;
+  }
+}
+
+/** A TIFF block with its place taken out: the GPS directory and its pointer gone, nothing else changed. Null for a damaged block. */
+export function withoutLocation(block) {
+  try {
+    const b = asBytes(block);
+    const src = new Pieces([{ at: 0, bytes: b }], b.length, 'the block');
+    const orientation = readTiff(src, 0, b.length).orientation || 1;
+    return patchInPlace(b, { location: false, orientation, thumbnail: true });
+  } catch (err) {
+    if (err instanceof Damage || err instanceof RangeError) return null;
+    throw err;
+  }
+}
+
+/** The TIFF block a file carries, as it is (a copy), or null. */
+export function exifBlockOf(bytes) {
+  const b = asBytes(bytes);
+  try {
+    const src = new Pieces([{ at: 0, bytes: b }], b.length);
+    const place = locate(src);
+    if (!place.exif || place.exif.length < 8 || !isTiffHeader(src, place.exif.at)) return null;
+    return b.slice(place.exif.at, place.exif.at + place.exif.length);
+  } catch {
+    return null;
+  }
+}
+
+// ── into each container ─────────────────────────────────────────────────────
+
+function concat(parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+/** A JPEG carrying `block` in an APP1 segment after its JFIF header, any EXIF it had replaced. Null when the block cannot fit a segment. */
+export function jpegWithExif(jpeg, block) {
+  const b = asBytes(jpeg);
+  if (b[0] !== 0xff || b[1] !== 0xd8) return null;
+  if (block.length + 8 > 0xffff) return null;
+  const parts = [b.subarray(0, 2)];
+  let at = 2;
+  let after = 1; // after the JFIF header when there is one, else first
+  for (let n = 0; n < MAX_PARTS && at + 4 <= b.length && b[at] === 0xff; n++) {
+    const marker = b[at + 1];
+    if (marker === 0xda) break;
+    const length = (b[at + 2] << 8) | b[at + 3];
+    if (length < 2) return null;
+    const isExif = marker === 0xe1 && String.fromCharCode(...b.subarray(at + 4, at + 9)) === 'Exif\0';
+    if (!isExif) parts.push(b.subarray(at, at + 2 + length));
+    if (marker === 0xe0 && at === 2) after = 2;
+    at += 2 + length;
+  }
+  parts.push(b.subarray(at));
+  const app1 = new Uint8Array(10 + block.length);
+  app1.set([0xff, 0xe1, (block.length + 8) >> 8, (block.length + 8) & 0xff, 0x45, 0x78, 0x69, 0x66, 0, 0], 0);
+  app1.set(block, 10);
+  parts.splice(after, 0, app1);
+  return concat(parts);
+}
+
+let CRC_TABLE = null;
+function crc32(bytes) {
+  if (!CRC_TABLE) {
+    CRC_TABLE = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      CRC_TABLE[n] = c >>> 0;
+    }
+  }
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/** A PNG carrying `block` as an eXIf chunk straight after IHDR (before the pixels, where every reader looks), any it had replaced. */
+export function pngWithExif(png, block) {
+  const b = asBytes(png);
+  if (containerOf(b) !== 'png' || b.length < 33) return null;
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const parts = [b.subarray(0, 8)];
+  let at = 8;
+  let first = true;
+  for (let n = 0; n < MAX_PARTS * 4 && at + 12 <= b.length; n++) {
+    const length = dv.getUint32(at);
+    const type = String.fromCharCode(...b.subarray(at + 4, at + 8));
+    if (at + 12 + length > b.length) return null;
+    if (type !== 'eXIf') parts.push(b.subarray(at, at + 12 + length));
+    if (first) {
+      if (type !== 'IHDR') return null;
+      const chunk = new Uint8Array(12 + block.length);
+      const cv = new DataView(chunk.buffer);
+      cv.setUint32(0, block.length);
+      chunk.set([0x65, 0x58, 0x49, 0x66], 4);
+      chunk.set(block, 8);
+      cv.setUint32(8 + block.length, crc32(chunk.subarray(4, 8 + block.length)));
+      parts.push(chunk);
+      first = false;
+    }
+    at += 12 + length;
+    if (type === 'IEND') break;
+  }
+  return concat(parts);
+}
+
+/** A WebP's canvas size and whether it has transparency, from its one picture chunk. */
+function webpCanvas(b, dv) {
+  const type = String.fromCharCode(...b.subarray(12, 16));
+  if (type === 'VP8 ' && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) {
+    return { width: dv.getUint16(26, true) & 0x3fff, height: dv.getUint16(28, true) & 0x3fff, alpha: false };
+  }
+  if (type === 'VP8L' && b[20] === 0x2f) {
+    const bits = dv.getUint32(21, true);
+    return { width: (bits & 0x3fff) + 1, height: ((bits >>> 14) & 0x3fff) + 1, alpha: Boolean((bits >>> 28) & 1) };
+  }
+  return null;
+}
+
+/**
+ * A WebP carrying `block` in an EXIF chunk. A simple WebP (one VP8 or VP8L
+ * chunk, as a canvas writes) is made an extended one first: a VP8X header
+ * with the canvas size, saying EXIF follows.
+ */
+export function webpWithExif(webp, block) {
+  const b = asBytes(webp);
+  if (containerOf(b) !== 'webp' || b.length < 30) return null;
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const end = Math.min(b.length, 8 + dv.getUint32(4, true));
+  const chunks = [];
+  for (let at = 12, n = 0; at + 8 <= end && n < MAX_PARTS; n++) {
+    const type = String.fromCharCode(...b.subarray(at, at + 4));
+    const length = dv.getUint32(at + 4, true);
+    if (at + 8 + length > end) return null;
+    const stop = at + 8 + length + (length & 1);
+    const bytes = new Uint8Array(stop - at);
+    bytes.set(b.subarray(at, Math.min(stop, end)));
+    chunks.push({ type, bytes });
+    at = stop;
+  }
+  if (!chunks.length) return null;
+  let head;
+  if (chunks[0].type === 'VP8X') {
+    head = chunks.shift().bytes;
+    head[8] |= 0x08;
+  } else {
+    const canvas = webpCanvas(b, dv);
+    if (!canvas) return null;
+    head = new Uint8Array(18);
+    head.set([0x56, 0x50, 0x38, 0x58], 0);
+    new DataView(head.buffer).setUint32(4, 10, true);
+    head[8] = 0x08 | (canvas.alpha ? 0x10 : 0);
+    const w = canvas.width - 1;
+    const h = canvas.height - 1;
+    head.set([w & 0xff, (w >> 8) & 0xff, (w >> 16) & 0xff, h & 0xff, (h >> 8) & 0xff, (h >> 16) & 0xff], 12);
+  }
+  const exif = new Uint8Array(8 + block.length + (block.length & 1));
+  exif.set([0x45, 0x58, 0x49, 0x46], 0);
+  new DataView(exif.buffer).setUint32(4, block.length, true);
+  exif.set(block, 8);
+  // In the order the format sets: the header, the picture, the EXIF, then any XMP.
+  const kept = chunks.filter((c) => c.type !== 'EXIF');
+  const xmp = kept.filter((c) => c.type === 'XMP ');
+  const rest = kept.filter((c) => c.type !== 'XMP ');
+  const body = concat([new Uint8Array([0x57, 0x45, 0x42, 0x50]), head, ...rest.map((c) => c.bytes), exif, ...xmp.map((c) => c.bytes)]);
+  const out = new Uint8Array(8 + body.length);
+  out.set([0x52, 0x49, 0x46, 0x46], 0);
+  new DataView(out.buffer).setUint32(4, body.length, true);
+  out.set(body, 8);
+  return out;
+}
+
+/**
+ * A TIFF file (as a TIFF writer made it) carrying the camera's details of
+ * `block`: its first directory written again at the end of the file with
+ * the block's descriptive fields and its Exif and GPS directories added
+ * (the writer's own fields win where both have one), and the header
+ * pointed at it. Nothing the writer wrote moves, so its strips and any
+ * later pages are where they were; the old directory is left as unused
+ * bytes. Null for a BigTIFF or a damaged file.
+ */
+export function tiffWithExif(tiff, block) {
+  const b = asBytes(tiff);
+  try {
+    if (containerOf(b) !== 'tiff') return null;
+    const src = new Pieces([{ at: 0, bytes: b }], b.length);
+    const little = b[0] === 0x49;
+    const first = src.u32(4, little);
+    const { list, next } = entriesOf(src, 0, first, little, 'the first directory');
+    // The writer's own entries exactly as they are: their offsets stay true, since nothing moves.
+    const own = list.map((e) => ({ tag: e.tag, type: e.type, count: e.count, data: src.bytes(e.entry + 8, 4), raw: true }));
+    const k = asBytes(block);
+    const blockSrc = new Pieces([{ at: 0, bytes: k }], k.length, 'the block');
+    if (!isTiffHeader(blockSrc, 0)) return null;
+    const blockLittle = k[0] === 0x49;
+    const theirs = copyEntries(blockSrc, 0, blockSrc.u32(4, blockLittle), blockLittle, little, { keep: new Set([...KEEP_IFD0, EXIF_POINTER, GPS_POINTER]) });
+    const tags = new Set(own.map((e) => e.tag));
+    const merged = [...own, ...theirs.filter((e) => !tags.has(e.tag))];
+    const w = new Writer(little, b);
+    const at = writeDir(w, merged, 0, next);
+    w.u32At(4, at);
+    return w.done();
+  } catch (err) {
+    if (err instanceof Damage || err instanceof Need || err instanceof RangeError) return null;
+    throw err;
+  }
+}
+
+/**
+ * An exported picture given the original's EXIF, made true of it (see
+ * exifForExport). `format` is the exported file's: 'jpeg', 'png', 'webp'
+ * or 'tiff'; any other, or an original with no EXIF, answers `encoded` as
+ * it was.
+ */
+export function keepExif(encoded, format, original, options = {}) {
+  const out = asBytes(encoded);
+  if (!original || !EXIF_FORMATS.includes(format)) return out;
+  const block = exifForExport(original, options);
+  if (!block) return out;
+  const write = { jpeg: jpegWithExif, png: pngWithExif, webp: webpWithExif, tiff: tiffWithExif }[format];
+  let made = write(out, block);
+  if (!made && format === 'jpeg') {
+    // Too large for one segment (a long maker's note): the descriptive fields alone.
+    const small = rebuild(new Pieces([{ at: 0, bytes: block }], block.length), 0, block.length, options);
+    made = small ? write(out, small) : null;
+  }
+  return made || out;
+}
