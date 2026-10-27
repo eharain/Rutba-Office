@@ -67,6 +67,14 @@ export const FORMATS = {
   doc: { family: 'office', kind: 'doc', writes: 'docx' },
   xls: { family: 'office', kind: 'sheet', writes: 'xlsx' },
   ppt: { family: 'office', kind: 'deck', writes: 'pptx' },
+  // The macro-enabled and template forms are the same packages under another
+  // name: each is read as it is and saved under its own name.
+  docm: { family: 'office', kind: 'doc', writes: 'docm', xml: true },
+  dotx: { family: 'office', kind: 'doc', writes: 'dotx', xml: true },
+  xlsm: { family: 'office', kind: 'sheet', writes: 'xlsm', xml: true },
+  xltx: { family: 'office', kind: 'sheet', writes: 'xltx', xml: true },
+  pptm: { family: 'office', kind: 'deck', writes: 'pptm', xml: true },
+  potx: { family: 'office', kind: 'deck', writes: 'potx', xml: true },
   pdf: { family: 'pdf', writes: 'pdf' },
   eml: { family: 'mail', writes: 'eml' },
   pst: { family: 'pst', writes: null },
@@ -463,7 +471,7 @@ const FAMILIES = {
     try {
       // Before: the file itself where it is the XML format, else the suite's first reading of it.
       let before;
-      if (format === ooxml) before = fingerprintOoxml(kind, fs.readFileSync(file));
+      if (format === ooxml || FORMATS[format].xml) before = fingerprintOoxml(kind, fs.readFileSync(file));
       else {
         const first = path.join(tmp, `first.${ooxml}`);
         s.doc.save({ id: opened.id, path: first });
@@ -471,13 +479,14 @@ const FAMILIES = {
       }
       result.facts = factsOf(before);
       const written = path.join(tmp, `round-trip.${writes}`);
-      if (writes === ooxml) s.doc.save({ id: opened.id, path: written });
+      if (writes === ooxml || FORMATS[writes].xml) s.doc.save({ id: opened.id, path: written });
       else s.doc.export({ id: opened.id, format: writes, path: written });
       s.doc.close({ id: opened.id });
 
       const again = s.doc.open({ path: written });
       s.doc.model({ id: again.id });
-      const second = path.join(tmp, `second.${ooxml}`);
+      // A macro file or template is saved as itself: a .docm's macros refuse a .docx.
+      const second = path.join(tmp, `second.${FORMATS[writes].xml ? writes : ooxml}`);
       s.doc.save({ id: again.id, path: second });
       s.doc.close({ id: again.id });
       const after = fingerprintOoxml(kind, fs.readFileSync(second));

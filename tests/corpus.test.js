@@ -25,10 +25,12 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-corpus-test-'));
 
 test('the fourteen formats of the plan are the ones the run knows, each with what a round trip writes', () => {
-  assert.deepEqual(Object.keys(FORMATS).sort(), ['doc', 'docx', 'eml', 'ics', 'odp', 'ods', 'odt', 'pdf', 'ppt', 'pptx', 'pst', 'vcf', 'xls', 'xlsx']);
+  assert.deepEqual(Object.keys(FORMATS).sort(), ['doc', 'docm', 'docx', 'dotx', 'eml', 'ics', 'odp', 'ods', 'odt', 'pdf', 'potx', 'ppt', 'pptm', 'pptx', 'pst', 'vcf', 'xls', 'xlsm', 'xlsx', 'xltx']);
   assert.equal(FORMATS.doc.writes, 'docx', 'a 97-2003 document is saved as the XML format, as Save does');
   assert.equal(FORMATS.odt.writes, 'odt');
   assert.equal(FORMATS.pst.writes, null, 'the suite reads an Outlook data file and never writes one');
+  assert.equal(FORMATS.docm.writes, 'docm', 'a macro-enabled file is saved under its own name');
+  assert.equal(FORMATS.potx.writes, 'potx', 'a template is saved as a template');
   assert.equal(formatOf('C:/x/Report.DOCX'), 'docx');
   assert.equal(formatOf('notes.txt'), null);
 });

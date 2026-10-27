@@ -2487,9 +2487,14 @@ export class Document {
    * Word reads a heading linked to a multilevel list.
    */
   styleNumbering() {
-    const styles = this.pkg.has('word/styles.xml') ? this.pkg.text('word/styles.xml') : '';
-    const numbering = this.pkg.has('word/numbering.xml') ? this.pkg.text('word/numbering.xml') : '';
-    if (this._styleNumberingFor?.styles === styles && this._styleNumberingFor?.numbering === numbering) return this._styleNumberingMap;
+    // A part changes only by write_, which puts a new buffer in its place, so
+    // the buffers themselves say whether the map is still current: decoding
+    // both parts per paragraph took a minute on a long manual.
+    const stylesData = this.pkg.has('word/styles.xml') ? this.pkg.read('word/styles.xml') : null;
+    const numberingData = this.pkg.has('word/numbering.xml') ? this.pkg.read('word/numbering.xml') : null;
+    if (this._styleNumberingFor && this._styleNumberingFor.styles === stylesData && this._styleNumberingFor.numbering === numberingData) return this._styleNumberingMap;
+    const styles = stylesData ? stylesData.toString('utf8') : '';
+    const numbering = numberingData ? numberingData.toString('utf8') : '';
     const own = {};
     const based = {};
     for (const m of styles.matchAll(/<w:style\b([^>]*)>([\s\S]*?)<\/w:style>/g)) {
@@ -2524,7 +2529,7 @@ export class Document {
       if (!found || !found.numId || found.numId === '0') continue;
       map[id] = { numId: found.numId, level: found.level ?? named[absOf[found.numId] + '|' + id] ?? named[absOf[found.numId] + '|' + at] ?? 0 };
     }
-    this._styleNumberingFor = { styles, numbering };
+    this._styleNumberingFor = { styles: stylesData, numbering: numberingData };
     this._styleNumberingMap = map;
     return map;
   }

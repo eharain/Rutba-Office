@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { SheetView, addWatches, removeWatch, resolveWatches } from '@rutba/sheet-view';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
-import { buildXlsx, buildDocx } from '@rutba/ooxml/build';
+import { buildXlsx, buildDocx, colName } from '@rutba/ooxml/build';
 /** The account's name, or nothing: a machine that refuses to say is not an error. */
 function safeUserName() {
   try {
@@ -91,6 +91,7 @@ import { collectPasswordHashes, rememberPasswordHash, offerPasswordSalt, newPass
 import { passwordHost } from './password-host.js';
 import { randomBytes } from 'node:crypto';
 import { readZip } from '@rutba/ooxml/zip';
+import { emfToPng } from '@rutba/office-formats/emf';
 import { redactAction, inspectAction, deckReviewAction, reviewSummary } from './review-tools.js';
 import * as deckCompare from '@rutba/presentation/compare';
 import { createProofing } from './proofing.js';
@@ -363,6 +364,8 @@ function odfSheetsToWorkbook(odf) {
     const m = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/.exec(dur || '');
     return m ? (Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0)) / 86400 : null;
   };
+  // A row height the default (20 px) does not give, kept.
+  const tall = (s) => Object.entries(s.heights || {}).filter(([, px]) => Math.abs(px - 20) > 1);
   const built = buildXlsx({
     definedNames: odf.names || [],
     sheets: (sheets.length ? sheets : [{ name: 'Sheet1', rows: [] }]).map((s, i) => ({
@@ -370,6 +373,12 @@ function odfSheetsToWorkbook(odf) {
       merges: s.merges || [],
       ...(s.drawings?.length ? { drawings: odsDrawings(s, odf.images || new Map()) } : {}),
       styles: Object.fromEntries(Object.entries(s.formats || {}).map(([ref, numFmt]) => [ref, { numFmt }])),
+      // The width the file keeps for a column that many pixels wide, by the
+      // format's own formula, its padding in it; and each tall row's height.
+      // Written with the sheet: set one at a time afterwards, each re-read
+      // every column before it, and a sheet styled to its edge took minutes.
+      widths: Object.fromEntries(Object.entries(s.widths || {}).map(([col, px]) => [colName(Number(col)), Math.max(0.5, pixelsToCharWidth(Math.round(px)))])),
+      heights: Object.fromEntries(tall(s).map(([row, px]) => [row, Math.round(px * 0.75 * 100) / 100])),
       rows: (s.rows || []).map((row) =>
         row.map((cell) => {
           if (cell.covered) return null;
@@ -383,9 +392,7 @@ function odfSheetsToWorkbook(odf) {
       ),
     })),
   });
-  // A row height the default (20 px) does not give, kept.
-  const tall = (s) => Object.entries(s.heights || {}).filter(([, px]) => Math.abs(px - 20) > 1);
-  const layouts = sheets.filter((s) => s.hiddenRows?.length || s.hiddenCols?.length || s.frozen || Object.keys(s.widths || {}).length || tall(s).length);
+  const layouts = sheets.filter((s) => s.hiddenRows?.length || s.hiddenCols?.length || s.frozen);
   const looked = sheets.some((s) => Object.keys(s.looks || {}).length);
   if (!layouts.length && !looked) return built;
   const wb = Workbook.open(built);
@@ -393,9 +400,6 @@ function odfSheetsToWorkbook(odf) {
   sheets.forEach((s, i) => {
     const name = names[i];
     if (!name) return;
-    // The width the file keeps for a column that many pixels wide, by the format's own formula, its padding in it.
-    for (const [col, px] of Object.entries(s.widths || {})) wb.setColWidthChars(name, Number(col), Math.max(0.5, pixelsToCharWidth(Math.round(px))));
-    for (const [row, px] of tall(s)) wb.setRowHeightPoints(name, Number(row), Math.round(px * 0.75 * 100) / 100);
     const { part } = wb._sheetPart(name);
     for (const col of s.hiddenCols || []) part.setColOutline(col, { hidden: true });
     if (s.hiddenRows?.length) wb.setRowsHidden(name, Math.min(...s.hiddenRows), Math.max(...s.hiddenRows), new Set(s.hiddenRows));
@@ -405,18 +409,35 @@ function odfSheetsToWorkbook(odf) {
   if (looked) {
     ensureStylesPart(wb.pkg);
     let xml = wb.pkg.text('xl/styles.xml');
+    // A look on a style already worked out is the style worked out: a sheet
+    // shaded to its edge is thousands of cells wearing a handful of looks.
+    const made = new Map();
     sheets.forEach((s, i) => {
       const name = names[i];
       if (!name) return;
       const { part } = wb._sheetPart(name);
+      // Every cell's new style first, then each row written once: a read
+      // after each write parsed the row again, cell after cell.
+      const rows = new Map();
       for (const [cellRef, look] of Object.entries(s.looks || {})) {
         const { row, col } = parseRef(cellRef);
         const had = part.getCell(row, col)?.style;
         const base = had == null ? null : Number(had);
-        const out = applyFormat(xml, base, lookDelta(look));
-        xml = out.xml;
-        if (out.index !== base) wb.setCellStyle(name, cellRef, out.index);
+        const delta = lookDelta(look);
+        const key = `${base}|${JSON.stringify(delta)}`;
+        let index = made.get(key);
+        if (index === undefined) {
+          const out = applyFormat(xml, base, delta);
+          xml = out.xml;
+          index = out.index;
+          made.set(key, index);
+        }
+        if (index !== base) {
+          if (!rows.has(row)) rows.set(row, new Map());
+          rows.get(row).set(col, index);
+        }
       }
+      for (const [row, styles] of rows) part.setCellStyles(row, styles);
     });
     wb.pkg.write_('xl/styles.xml', xml);
   }
@@ -2040,6 +2061,16 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (known && known.bytes === bytes) return known.url;
       // The picture's old bytes are let go when it has new ones.
       if (known?.id) releaseBlob(known.id);
+      // A window draws no metafile: its bitmaps, played into a PNG, or the
+      // picture's empty frame when it draws more than a bitmap.
+      if (/\.emf$/i.test(source.part)) {
+        const drawn = emfToPng(Buffer.from(bytes));
+        pictures.set(source.part, { bytes, url: null, id: null });
+        if (!drawn) return null;
+        const held = holdBlob(drawn.png, 'image/png', path.basename(source.part).replace(/\.emf$/i, '.png'));
+        pictures.set(source.part, { bytes, url: held.url, id: held.id });
+        return held.url;
+      }
       const type = source.part.endsWith('.png') ? 'image/png' : source.part.endsWith('.gif') ? 'image/gif' : source.part.endsWith('.bmp') ? 'image/bmp' : 'image/jpeg';
       const held = holdBlob(bytes, type, path.basename(source.part));
       pictures.set(source.part, { bytes, url: held.url, id: held.id });

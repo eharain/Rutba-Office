@@ -535,7 +535,8 @@ function buildStyleTable(styleList) {
 }
 
 /** "A1:C1" or "A1" -> a predicate over row/col indices. */
-function rangeMatcher(ref) {
+/** The rows and columns a reference covers ("B2", "A1:C9"), or null. */
+function rangeBounds(ref) {
   const parse = (r) => {
     const m = /^([A-Z]+)(\d+)$/.exec(String(r).trim());
     if (!m) return null;
@@ -546,12 +547,8 @@ function rangeMatcher(ref) {
   const [a, b] = String(ref).split(':');
   const from = parse(a);
   const to = parse(b ?? a);
-  if (!from || !to) return () => false;
-  const top = Math.min(from.row, to.row);
-  const bottom = Math.max(from.row, to.row);
-  const left = Math.min(from.col, to.col);
-  const right = Math.max(from.col, to.col);
-  return (row, col) => row >= top && row <= bottom && col >= left && col <= right;
+  if (!from || !to) return null;
+  return { top: Math.min(from.row, to.row), bottom: Math.max(from.row, to.row), left: Math.min(from.col, to.col), right: Math.max(from.col, to.col) };
 }
 
 export function buildXlsx({ sheets, definedNames = [] }) {
@@ -564,20 +561,46 @@ export function buildXlsx({ sheets, definedNames = [] }) {
     for (const [, style] of Object.entries(sheet.styles ?? {})) declared.push(style);
   }
   const styleTable = buildStyleTable(declared);
-  const stylesFor = (sheet) => Object.entries(sheet.styles ?? {}).map(([ref, style]) => ({
-    matches: rangeMatcher(ref),
-    index: styleTable.indexByKey.get(STYLE_KEY(style)) ?? 0,
-  }));
+  // A style for one cell is looked up, not scanned for: a sheet read from
+  // another format names its formats cell by cell, and scanning every one of
+  // them for every cell made a 4,000-row sheet take a minute.
+  const stylesFor = (sheet) => {
+    const cells = new Map();
+    const ranges = [];
+    Object.entries(sheet.styles ?? {}).forEach(([ref, style], order) => {
+      const at = rangeBounds(ref);
+      if (!at) return;
+      const index = styleTable.indexByKey.get(STYLE_KEY(style)) ?? 0;
+      if (at.top === at.bottom && at.left === at.right) cells.set(at.top + ',' + at.left, { order, index });
+      else ranges.push({ ...at, order, index });
+    });
+    return { cells, ranges };
+  };
 
   const sheetXml = (sheet) => {
-    const ranges = stylesFor(sheet);
+    const { cells: cellStyles, ranges } = stylesFor(sheet);
     // Last declaration wins, so a total row can override the body style it
     // sits inside without the caller having to carve the range up.
     const styleAt = (row, col) => {
-      let found = 0;
-      for (const r of ranges) if (r.matches(row, col)) found = r.index;
+      const own = cellStyles.get(row + ',' + col);
+      let found = own ? own.index : 0;
+      let latest = own ? own.order : -1;
+      for (const r of ranges) {
+        if (r.order > latest && row >= r.top && row <= r.bottom && col >= r.left && col <= r.right) {
+          found = r.index;
+          latest = r.order;
+        }
+      }
       return found;
     };
+    // Row heights, in points: { 0: 30 } (a format's own heights, read with its cells).
+    const heights = sheet.heights ?? {};
+    const rowXml = (r, body) => {
+      const ht = heights[r];
+      const attrs = ht > 0 ? ' ht="' + ht + '" customHeight="1"' : '';
+      return body || attrs ? '<row r="' + (r + 1) + '"' + attrs + '>' + body + '</row>' : '';
+    };
+    const pastEnd = Object.keys(heights).map(Number).filter((r) => r >= sheet.rows.length).sort((a, b) => a - b);
     const rows = sheet.rows
       .map((cells, r) => {
         const body = cells
@@ -600,9 +623,9 @@ export function buildXlsx({ sheets, definedNames = [] }) {
             return '<c r="' + ref + '"' + sAttr + ' t="inlineStr"><is><t xml:space="preserve">' + esc(s) + '</t></is></c>';
           })
           .join('');
-        return body ? '<row r="' + (r + 1) + '">' + body + '</row>' : '';
+        return rowXml(r, body);
       })
-      .join('');
+      .join('') + pastEnd.map((r) => rowXml(r, '')).join('');
     const drawingRef = sheet.drawings?.length
       ? '<drawing r:id="rId1" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>'
       : '';
@@ -634,10 +657,11 @@ export function buildXlsx({ sheets, definedNames = [] }) {
         + '</dataValidations>'
       : '';
     // Column widths, in characters: { A: 18, C: 9 } (an old format's widths, read with its cells).
+    // A width in 256ths of a character, the file's own unit, is written as it is.
     const colNumber = (letters) => [...letters].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
     const widths = Object.entries(sheet.widths ?? {}).filter(([, w]) => w > 0).map(([l, w]) => [colNumber(l), w]).sort((x, y) => x[0] - y[0]);
     const cols = widths.length
-      ? '<cols>' + widths.map(([n, w]) => '<col min="' + n + '" max="' + n + '" width="' + (Math.round(w * 100) / 100) + '" customWidth="1"/>').join('') + '</cols>'
+      ? '<cols>' + widths.map(([n, w]) => '<col min="' + n + '" max="' + n + '" width="' + (Number.isInteger(w * 256) ? w : Math.round(w * 100) / 100) + '" customWidth="1"/>').join('') + '</cols>'
       : '';
     // Schema order is fixed: cols, sheetData, then mergeCells, then
     // dataValidations, then drawing. Out of order and Excel rejects the file

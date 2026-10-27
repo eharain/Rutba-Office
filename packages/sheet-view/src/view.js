@@ -1472,7 +1472,7 @@ export class SheetView {
           // the state its table or pivot is in now.
           slicer = this.slicerState(d.slicerName) ?? { name: d.slicerName, caption: d.slicerName, items: [], broken: 'its slicer part is missing' };
         } else if (d.spec) {
-          svg = renderSvg(buildChart({ ...this._liveChartSpec(d), width, height, mode: this.mode, palette }));
+          svg = renderSvg(buildChart({ ...this._liveChartSpec(d), width, height, mode: this.mode, palette, asWritten: true }));
         } else if (d.kind === 'equation' && d.omml) {
           svg = equationSvg(d.omml, { width, height, sizePt: d.sizePt, dark: this.mode === 'dark', title: d.name ?? 'Equation' });
         } else if (d.descriptor?.kind === 'shape') {
@@ -1502,7 +1502,7 @@ export class SheetView {
             };
             const own = pad ? { x: pad, y: pad, width: w, height: h } : { x: 0, y: 0, width: b.width, height: b.height };
             let child = null;
-            if (c.kind === 'chart' && c.spec) child = renderSvg(buildChart({ ...c.spec, width: b.width, height: b.height, mode: this.mode, palette }));
+            if (c.kind === 'chart' && c.spec) child = renderSvg(buildChart({ ...c.spec, width: b.width, height: b.height, mode: this.mode, palette, asWritten: true }));
             else if (c.kind === 'shape' && c.descriptor) child = renderSvg(scene({ width: b.width, height: b.height, mode: this.mode, background: 'none', title: c.name ?? 'Shape', children: [buildShape(c.descriptor, own, { mode: this.mode, palette })] }));
             else if (c.kind === 'image' && c.descriptor?.href) child = renderSvg(scene({ width: b.width, height: b.height, mode: this.mode, background: 'none', title: c.name ?? 'Picture', children: [buildPicture(c.descriptor, own)] }));
             return { key: i, ...b, svg: child, kind: c.kind };
@@ -2330,8 +2330,8 @@ export class SheetView {
       const [sheetName, cellRef] = key.split('!');
       const input = this.calc.getInput(sheetName, ...parseRefPair(cellRef));
       const runs = typeof input === 'string' && input !== '' && !input.startsWith('=') ? this._cellRuns(sheetName, ...parseRefPair(cellRef)) : null;
-      if (runs && runs.map((r) => r.text).join('') === input) continue;
-      this.workbook.setCell(sheetName, cellRef, input === '' ? null : input);
+      if (runs && runs.map((r) => r.text).join('') === wordsOf(input)) continue;
+      this.workbook.setCell(sheetName, cellRef, input === '' ? null : fileValue(input));
     }
     for (const key of this.styledCells) {
       const [sheetName, cellRef] = key.split('!');
@@ -7976,8 +7976,8 @@ export class SheetView {
       const input = this.calc.getInput(sheetName, ...parseRefPair(cellRef));
       // Words the part already holds as runs, with their looks, stay as it has them.
       const runs = typeof input === 'string' && input !== '' && !input.startsWith('=') ? this._cellRuns(sheetName, ...parseRefPair(cellRef)) : null;
-      if (runs && runs.map((r) => r.text).join('') === input) continue;
-      this.workbook.setCell(sheetName, cellRef, input === '' ? null : input);
+      if (runs && runs.map((r) => r.text).join('') === wordsOf(input)) continue;
+      this.workbook.setCell(sheetName, cellRef, input === '' ? null : fileValue(input));
     }
 
     /*
@@ -8480,11 +8480,23 @@ const NUMERIC_KIND = {
   textLength: 'text of a permitted length',
 };
 
+/** The words an input shows: a quoted input's without the apostrophe. */
+function wordsOf(input) {
+  return typeof input === 'string' && input.startsWith("'") ? input.slice(1) : input;
+}
+
+/** What an input is in the file: a quoted input's words written as words, never as a formula. */
+function fileValue(input) {
+  return typeof input === 'string' && input.startsWith("'") ? { text: input.slice(1) } : input;
+}
+
 export function coerceInput(text) {
   if (text === null || text === undefined) return '';
   const s = String(text);
   if (s === '') return '';
-  if (s.startsWith("'")) return s.slice(1);
+  // The apostrophe stays where it is all that keeps the words from being a
+  // formula (or from losing an apostrophe of their own); the engine reads it.
+  if (s.startsWith("'")) return s[1] === '=' || s[1] === "'" ? s : s.slice(1);
   if (s.startsWith('=')) return s;
   const trimmed = s.trim();
   if (/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(trimmed)) {

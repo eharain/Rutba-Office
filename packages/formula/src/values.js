@@ -48,12 +48,25 @@ export const ERR = {
 export const isError = (v) => v instanceof FormulaError;
 export const isBlank = (v) => v === null || v === undefined || v === '';
 
+/**
+ * A long array's first error, once worked out: a range read whole is one
+ * grid for a whole recalculation, and twenty thousand lookups into it each
+ * flattened all hundred thousand of its cells to look for one.
+ */
+const errorsIn = new WeakMap();
+const LONG = 256;
+
 /** First error in a list, or null. Operators use this before doing any work. */
 export function firstError(values) {
   for (const v of values) {
     if (isError(v)) return v;
     if (Array.isArray(v)) {
-      const nested = firstError(v.flat(Infinity));
+      const long = v.length > LONG;
+      let nested = long ? errorsIn.get(v) : undefined;
+      if (nested === undefined) {
+        nested = firstError(v.flat(Infinity));
+        if (long) errorsIn.set(v, nested);
+      }
       if (nested) return nested;
     }
   }

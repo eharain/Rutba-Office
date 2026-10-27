@@ -272,6 +272,20 @@ class SheetPart {
   constructor(xml) {
     this.original = xml;
     const open = /<sheetData\s*\/>|<sheetData(\s[^>]*)?>/.exec(xml);
+    // A chart sheet is a tab holding one chart and no cells. It is kept as
+    // it was read: an empty grid to the engines, written back unchanged.
+    if (!open && /<(?:\w+:)?chartsheet\b/.test(xml)) {
+      this.chartsheet = true;
+      this.prefix = '';
+      this.openTag = '<sheetData>';
+      this.body = '';
+      this.suffix = '';
+      this.customViewsXml = null;
+      this.rows = [];
+      this._rowsChanged();
+      this.dirty = false;
+      return;
+    }
     if (!open) throw new Error('sheet part has no <sheetData>');
     if (open[0].endsWith('/>')) {
       this.prefix = xml.slice(0, open.index);
@@ -427,7 +441,17 @@ class SheetPart {
    * creates the `<c>` when there is not one.
    */
   setCellStyle(rowIndex, colIndex, styleIndex) {
-    const ref = makeRef(rowIndex, colIndex);
+    return this.setCellStyles(rowIndex, new Map([[colIndex, styleIndex]]));
+  }
+
+  /**
+   * Point many cells of one row at style indexes (`Map` column -> index, null
+   * for none), in one pass over the row. Styling a row cell by cell parsed
+   * the whole row again for each cell: an .ods shaded across its full width
+   * took a minute to open.
+   */
+  setCellStyles(rowIndex, styles) {
+    if (!styles.size) return this;
     let row = this._rowAt(rowIndex);
     if (!row) {
       row = { index: rowIndex, attrsStr: ' r="' + (rowIndex + 1) + '"', inner: '', xml: '', dirty: true };
@@ -437,22 +461,35 @@ class SheetPart {
       this._rowsChanged();
     }
     const cells = SheetPart._parseCells(row.inner);
-    const existing = cells.find((c) => c.col === colIndex);
-
-    if (existing) {
-      // Rewrite only the attribute. The cell's contents — a value, a formula,
-      // a cached result, an inline string — are none of this method's business.
-      const head = existing.xml.slice(0, existing.xml.indexOf('>') + 1);
+    const have = new Set(cells.map((c) => c.col));
+    // Cells not there yet, made in column order among the others.
+    const fresh = [...styles].filter(([col]) => !have.has(col)).sort((a, b) => a[0] - b[0]);
+    let next = 0;
+    const freshBefore = (col) => {
+      let made = '';
+      for (; next < fresh.length && fresh[next][0] < col; next++) {
+        const [c, styleIndex] = fresh[next];
+        made += '<c r="' + makeRef(rowIndex, c) + '"' + (styleIndex === null ? '' : ' s="' + styleIndex + '"') + '/>';
+      }
+      return made;
+    };
+    // Rewrite only the attribute. The cell's contents (a value, a formula,
+    // a cached result, an inline string) are none of this method's business.
+    const restyled = (xml, styleIndex) => {
+      const head = xml.slice(0, xml.indexOf('>') + 1);
       const withStyle = /\bs="\d+"/.test(head)
         ? head.replace(/\bs="\d+"/, () => styleIndex === null ? '' : 's="' + styleIndex + '"')
         : (styleIndex === null ? head : head.replace(/(<c\b[^>]*?)(\/?>)$/, (m, p1, p2) => (p1 ?? '') + ' s="' + styleIndex + '"' + (p2 ?? '')));
-      row.inner = row.inner.replace(existing.xml, () => withStyle + existing.xml.slice(head.length));
-    } else {
-      const cellXml = '<c r="' + ref + '"' + (styleIndex === null ? '' : ' s="' + styleIndex + '"') + '/>';
-      const before = cells.filter((c) => c.col < colIndex).pop();
-      if (before) row.inner = row.inner.replace(before.xml, () => before.xml + cellXml);
-      else row.inner = cellXml + row.inner;
+      return withStyle + xml.slice(head.length);
+    };
+    let inner = '';
+    let at = 0;
+    for (const cell of cells) {
+      const start = row.inner.indexOf(cell.xml, at);
+      inner += row.inner.slice(at, start) + freshBefore(cell.col) + (styles.has(cell.col) ? restyled(cell.xml, styles.get(cell.col)) : cell.xml);
+      at = start + cell.xml.length;
     }
+    row.inner = inner + freshBefore(Infinity) + row.inner.slice(at);
     row.dirty = true;
     this.dirty = true;
     return this;
@@ -1314,6 +1351,7 @@ class SheetPart {
   }
 
   render() {
+    if (this.chartsheet) return this.original;
     const body = this.rows
       .map((r) => (r.dirty ? '<row' + r.attrsStr + '>' + r.inner + '</row>' : r.xml))
       .join('');
@@ -1393,6 +1431,10 @@ function renderCell(ref, value, style) {
   // Words with looks of their own: an inline rich string, as Excel reads one.
   if (typeof value === 'object' && Array.isArray(value.runs)) {
     return '<c r="' + ref + '"' + s + ' t="inlineStr"><is>' + value.runs.map(runXml).join('') + '</is></c>';
+  }
+  // Words given as words: kept as text even where they start with "=".
+  if (typeof value === 'object' && typeof value.text === 'string') {
+    return '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t xml:space="preserve">' + esc(value.text) + '</t></is></c>';
   }
   if (typeof value === 'number' && Number.isFinite(value)) {
     return '<c r="' + ref + '"' + s + '><v>' + value + '</v></c>';
@@ -2025,7 +2067,9 @@ export class Workbook {
         const cell = { ref: a.r, col: parseRef(a.r).col, style: a.s ?? null, type: a.t ?? null, inner: m[3] };
         const value = this._cellValue(cell);
         if (value === null) continue;
-        yield { ref: cell.ref, row: row.index, col: cell.col, value };
+        // Words, not a formula, though they start with "=": the cell has no <f>.
+        const text = typeof value === 'string' && value.startsWith('=') && !/<f\b/.test(cell.inner);
+        yield text ? { ref: cell.ref, row: row.index, col: cell.col, value, text } : { ref: cell.ref, row: row.index, col: cell.col, value };
       }
     }
   }

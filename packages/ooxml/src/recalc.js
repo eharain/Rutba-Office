@@ -131,10 +131,13 @@ export function toSpreadsheet(wb, { now } = {}) {
     // Pass 2: the cells, one row parse each. Asking the workbook for every
     // cell by reference re-parsed its row every time — quadratic in the
     // sheet's width, and eleven minutes on a 2.4-million-cell tender.
-    for (const { ref, row: r, col: c, value } of wb.cells(name)) {
-      const isFormula = typeof value === 'string' && value.startsWith('=');
+    for (const { ref, row: r, col: c, value, text } of wb.cells(name)) {
+      const isFormula = !text && typeof value === 'string' && value.startsWith('=');
       if (!isFormula && covered.length && isGhost(r, c)) continue;
-      sheet.setCell(name, r, c, value);
+      // Words that start with "=" or "'" go in quoted, as a person would type
+      // them, so the engine keeps them words and keeps their own apostrophe.
+      const quote = typeof value === 'string' && (text || value.startsWith("'"));
+      sheet.setCell(name, r, c, quote ? "'" + value : value);
       if (isFormula) loaded.push({ sheet: name, ref, formula: value });
     }
   }
