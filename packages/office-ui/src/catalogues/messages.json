@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8333,
+  "count": 8343,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -11495,7 +11495,8 @@
       "message": "Details",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js",
-        "apps/desktop/renderer/apps/pictures.js"
+        "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -18370,6 +18371,18 @@
       ]
     },
     {
+      "message": "In the file",
+      "where": [
+        "apps/desktop/renderer/apps/pictures/file-marks.js"
+      ]
+    },
+    {
+      "message": "In the file: the rating and tags Windows Photos or Lightroom wrote into the picture. Pictures does not change them.",
+      "where": [
+        "apps/desktop/renderer/apps/pictures/file-marks.js"
+      ]
+    },
+    {
       "message": "In {from}, Out {to}",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -19999,6 +20012,12 @@
       "message": "Keep accessibility checker running while I work",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Keep all, the place too",
+      "where": [
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -31829,6 +31848,12 @@
       ]
     },
     {
+      "message": "Rejected",
+      "where": [
+        "apps/desktop/renderer/apps/pictures/file-marks.js"
+      ]
+    },
+    {
       "message": "Relate",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -32084,6 +32109,24 @@
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Remove location",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Remove location only: keep the camera and date taken",
+      "where": [
+        "apps/desktop/renderer/apps/pictures/batch.js"
+      ]
+    },
+    {
+      "message": "Remove location: the place the picture was taken left out; the camera, lens and date kept",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -39070,21 +39113,21 @@
       ]
     },
     {
-      "message": "Strip metadata",
+      "message": "Strip all",
       "where": [
         "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
-      "message": "Strip metadata: camera, date taken and place",
+      "message": "Strip all: no camera, date or place in the file. With neither pressed, the file keeps them all.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Strip all: no camera, date taken or place",
       "where": [
         "apps/desktop/renderer/apps/pictures/batch.js"
-      ]
-    },
-    {
-      "message": "Strip metadata: no camera, date or place in the file. Off, a JPEG from a JPEG keeps them.",
-      "where": [
-        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -41084,6 +41127,12 @@
       "plural": "The design is up to date: {count} changes. Where you had changed something, your version is kept and the newer one is beside it, named (updated).",
       "where": [
         "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "The details each picture keeps",
+      "where": [
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -46237,6 +46286,7 @@
       "message": "Use",
       "where": [
         "apps/desktop/renderer/ai-tools-dialog.js",
+        "apps/desktop/renderer/apps/pictures/file-marks.js",
         "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
@@ -46353,6 +46403,12 @@
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Use: the file's rating and tags taken as Pictures' own",
+      "where": [
+        "apps/desktop/renderer/apps/pictures/file-marks.js"
       ]
     },
     {
@@ -51622,6 +51678,13 @@
       "plural": "{count} slides are different since this deck was last open here — Review → Show Changes lists them.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "{count} star",
+      "plural": "{count} stars",
+      "where": [
+        "apps/desktop/renderer/apps/pictures/file-marks.js"
       ]
     },
     {
