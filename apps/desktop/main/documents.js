@@ -91,6 +91,7 @@ import { collectPasswordHashes, rememberPasswordHash, offerPasswordSalt, newPass
 import { passwordHost } from './password-host.js';
 import { randomBytes } from 'node:crypto';
 import { readZip } from '@rutba/ooxml/zip';
+import { emfToPng } from '@rutba/office-formats/emf';
 import { redactAction, inspectAction, deckReviewAction, reviewSummary } from './review-tools.js';
 import * as deckCompare from '@rutba/presentation/compare';
 import { createProofing } from './proofing.js';
@@ -2060,6 +2061,16 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (known && known.bytes === bytes) return known.url;
       // The picture's old bytes are let go when it has new ones.
       if (known?.id) releaseBlob(known.id);
+      // A window draws no metafile: its bitmaps, played into a PNG, or the
+      // picture's empty frame when it draws more than a bitmap.
+      if (/\.emf$/i.test(source.part)) {
+        const drawn = emfToPng(Buffer.from(bytes));
+        pictures.set(source.part, { bytes, url: null, id: null });
+        if (!drawn) return null;
+        const held = holdBlob(drawn.png, 'image/png', path.basename(source.part).replace(/\.emf$/i, '.png'));
+        pictures.set(source.part, { bytes, url: held.url, id: held.id });
+        return held.url;
+      }
       const type = source.part.endsWith('.png') ? 'image/png' : source.part.endsWith('.gif') ? 'image/gif' : source.part.endsWith('.bmp') ? 'image/bmp' : 'image/jpeg';
       const held = holdBlob(bytes, type, path.basename(source.part));
       pictures.set(source.part, { bytes, url: held.url, id: held.id });

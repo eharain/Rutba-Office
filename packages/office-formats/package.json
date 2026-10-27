@@ -20,6 +20,7 @@
     "./msppt": "./src/msppt.js",
     "./crypt": "./src/crypt.js",
     "./crypt-binary": "./src/crypt-binary.js",
+    "./emf": "./src/emf.js",
     "./odf": "./src/odf.js",
     "./odf-write": "./src/odf-write.js",
     "./odf-geometry": "./src/odf-geometry.js",
