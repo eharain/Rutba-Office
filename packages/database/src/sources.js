@@ -53,7 +53,11 @@ export function tableFromRows(allRows, { header = 1, dated = {} } = {}) {
   if (!width) throw new Error('There are no columns to read.');
   const names = sourceFieldNames(Array.from({ length: width }, (_, c) => head[c]));
   const fields = names.map((name, c) => ({ name, ...inferType(body.map((r) => r[c] ?? null), dated[c] || null) }));
-  const rows = body.map((r) => Object.fromEntries(fields.map((f, c) => [f.name, stored(f, r[c])])));
+  // A date column that is words as well (a totals row's "Total" under the
+  // weeks) is a text field, and its dates are kept as dates, not as the
+  // sheet's day numbers (46027).
+  const asDate = (f, c, v) => (dated[c] && typeof v === 'number' && f.type !== 'date' && f.type !== 'datetime' ? fromSerial(v, dated[c] === 'datetime') : v);
+  const rows = body.map((r) => Object.fromEntries(fields.map((f, c) => [f.name, stored(f, asDate(f, c, r[c]))])));
   return { fields, rows };
 }
 

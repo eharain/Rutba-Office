@@ -159,6 +159,26 @@ test('spreadsheets as sources: .xlsx with a date column, .ods, .xls, and a CSV a
   }
 });
 
+test('a sheet of weeks with a totals row: the dates stay dates beside the word Total, and sums read as the sheet shows them', async () => {
+  const dir = tmp('src-takings-');
+  const file = path.join(dir, 'shop.rbase');
+  const xlsx = path.join(dir, 'takings.xlsx');
+  fs.writeFileSync(xlsx, buildXlsx({ sheets: [
+    { name: 'Takings', rows: [['Week starting', 'Total'], [46027, 1494.34 + 589.55 + 948.51 + 555.99], [46034, 0.1 + 0.2], ['Total', 3588.3899999999994 + 0.30000000000000004]], styles: { 'A2:A3': { numFmt: 'dd/mm/yyyy' } } },
+  ] }));
+  const svc = createBaseService({ secrets: keptSecrets().secrets });
+  try {
+    Base.open(file).close();
+    await svc.open({ file });
+    const tried = await svc.trySource({ kind: 'file', settings: { where: xlsx } });
+    assert.deepEqual(tried.fields.map((f) => [f.name, f.type]), [['Week starting', 'text'], ['Total', 'number']]);
+    assert.deepEqual(tried.rows.map((r) => [r['Week starting'], r.Total]), [['2026-01-05', 3588.39], ['2026-01-12', 0.3], ['Total', 3588.69]]);
+  } finally {
+    svc.closeAll();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('another Data Files database as a source: a table and a query read only; a protected one asks who you are and its roles apply', async () => {
   const dir = tmp('src-rbase-');
   const file = path.join(dir, 'shop.rbase');

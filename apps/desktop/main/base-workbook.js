@@ -32,7 +32,9 @@ function xlsxSheets(bytes) {
     for (let r = 0; r <= maxRow; r++) {
       const row = [];
       for (let c = 0; c <= maxCol; c++) {
-        const v = view.calc.getValue(name, r, c);
+        let v = view.calc.getValue(name, r, c);
+        // A sum's answer to Excel's 15 figures, as the sheet shows it: 3588.39, not 3588.3899999999994.
+        if (typeof v === 'number' && Number.isFinite(v)) v = Number(v.toPrecision(15));
         // An error (#DIV/0!) or anything that is not a plain value imports as its words.
         row.push(v === null || v === undefined || v === '' ? null : typeof v === 'number' || typeof v === 'boolean' || typeof v === 'string' ? v : String(v?.text ?? v));
         const fmt = view.formatFor(r, c);

@@ -66,6 +66,8 @@ function workbookRows(bytes, sheet) {
     for (let c = 0; c <= maxCol; c++) {
       let v = view.calc.getValue(chosen, r, c);
       if (v && typeof v === 'object') v = v.error || v.text || String(v);
+      // A sum's answer to Excel's 15 figures, as the sheet shows it: 3588.39, not 3588.3899999999994.
+      if (typeof v === 'number' && Number.isFinite(v)) v = Number(v.toPrecision(15));
       if (v === '') v = null;
       if (typeof v === 'number' && r > 0) {
         const fmt = String(view.formatFor(r, c) || '');
