@@ -29,6 +29,7 @@ On Windows, with Node 22 and git:
 git clone https://github.com/eharain/Rutba-Office.git
 cd Rutba-Office
 git checkout v<version>
+git submodule update --init
 npm ci
 npm run dist:win
 node tools/sbom.mjs --out rebuilt.cdx.json

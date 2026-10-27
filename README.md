@@ -118,7 +118,7 @@ installations on the version they have.
 ## Build it yourself
 
 ```bash
-git clone https://github.com/eharain/Rutba-Office.git office
+git clone --recurse-submodules https://github.com/eharain/Rutba-Office.git office
 cd office
 npm install
 npm test          # 3,510 tests, no network needed
