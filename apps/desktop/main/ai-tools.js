@@ -26,7 +26,7 @@ import path from 'node:path';
 import { app, BrowserWindow } from 'electron';
 import { settledProfile } from '@rutba/office-shell/electron/profile-choice';
 import { heldBlob, releaseBlob } from '@rutba/office-shell/electron/main';
-import { MODE_KEY, SESSION_KEY, FOLDERS_KEY, MODES, foldersOf, readLog, readConnections, openNow } from './mcp/access.js';
+import { MODE_KEY, SESSION_KEY, FOLDERS_KEY, MODES, foldersOf, readLog, readConnections, openNow, logCall, writeConnection } from './mcp/access.js';
 import { mcpCommand as commandFor } from './mcp/command.js';
 import { createRemote, REACH_KEY, REACHES, REMOTE_KEY, REMOTE_PORT_KEY, DEFAULT_PORT, newKey, addresses } from './mcp/remote.js';
 import { LOADED_KEY } from '@rutba/office-shell/pack-tools';
@@ -117,9 +117,26 @@ export function createAiToolsService({ stores, dataDir = app.getPath('userData')
   const reachCall = async (name, args) => (await reach()).call(name, args);
 
   // This profile's channel, for the tools an AI app on this computer starts: open while the tools are on.
+  // Their settings, their log and who is connected go through it too, not the profile's files: an AI
+  // app run as a Windows app package may see a private copy of those (mcp/private-copy.js), and what
+  // the AI Tools window shows is then what this copy keeps.
   const channel = createChannelServer({
     folder: dataDir,
     handle: async (method, params) => {
+      if (method === 'settings') return snapshot();
+      if (method === 'log') {
+        const entry = params.entry && typeof params.entry === 'object' ? params.entry : null;
+        if (entry && JSON.stringify(entry).length <= 8192) logCall(dataDir, entry);
+        return null;
+      }
+      if (method === 'connection') {
+        const at = Number(params.pid);
+        if (!Number.isInteger(at) || at <= 0) throw new Error('A connection needs its process.');
+        const e = params.entry && typeof params.entry === 'object' ? params.entry : null;
+        const str = (v, n) => (v == null ? undefined : String(v).slice(0, n));
+        writeConnection(dataDir, at, e && Object.fromEntries(Object.entries({ client: str(e.client, 80), clientVersion: str(e.clientVersion, 40), where: str(e.where, 64), since: str(e.since, 40), last: e.last === null ? null : str(e.last, 40), lastTool: str(e.lastTool, 60) }).filter(([, v]) => v !== undefined)));
+        return null;
+      }
       if (modeNow() === 'off') throw new Error('Rutba Office’s AI tools are off.');
       if (method === 'hello') return { profile: settledProfile()?.id || 'default', unlocked: true, pid };
       if (method === 'call') return reachCall(String(params.name || ''), params.args || {});

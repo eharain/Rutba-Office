@@ -276,7 +276,8 @@ const CONFIRMED = new Set(['send_message', 'send_invitation', 'answer_invitation
 
 /**
  * The tools, answering for real: `settings()` reads the settings as saved,
- * afresh for each call; `dataDir` is where the log is kept; `ocr` the text
+ * afresh for each call (an object, or a promise of one); `dataDir` is where
+ * the log is kept, and `log(entry)` keeps one call in it; `ocr` the text
  * recognition service (ocr.js) and `pictureToPng(file)` a picture's PNG
  * bytes; `unicodeFont()` and `renderPdf` the document PDF writer's needs.
  * `reach` answers the tools for mail, calendars, address books and
@@ -286,7 +287,7 @@ const CONFIRMED = new Set(['send_message', 'send_invitation', 'answer_invitation
  * open and unlocked in a running Rutba Office, or null: then nothing at all
  * is reached, files included.
  */
-export function createTools({ settings, dataDir, ocr = null, pictureToPng = null, renderPdf = null, openDocx = null, unicodeFont = () => null, isAlive, reach = null, locked = null } = {}) {
+export function createTools({ settings, dataDir, ocr = null, pictureToPng = null, renderPdf = null, openDocx = null, unicodeFont = () => null, isAlive, reach = null, locked = null, log = (entry) => logCall(dataDir, entry) } = {}) {
   const handlers = {
     list_folders: async (_args, folders, made, steps) => text(steps.length ? steps.map((f) => `${f.path}\t${f.step === 'prepare' ? 'read and make new files' : 'read only'}`).join('\n') : 'No folder is set for the AI tools.'),
 
@@ -414,8 +415,8 @@ export function createTools({ settings, dataDir, ocr = null, pictureToPng = null
 
   return {
     // Only the tools of the apps installed (pack-tools.js).
-    list: () => {
-      const s = settings();
+    list: async () => {
+      const s = await settings();
       return [...TOOL_LIST, ...REACH_TOOL_LIST].filter((t) => toolOffered(t.name, s)).map((t) => ({ ...t }));
     },
     /** One call; `ctx.where` is where it came from when not this computer (an address on the network). */
@@ -423,11 +424,11 @@ export function createTools({ settings, dataDir, ocr = null, pictureToPng = null
       const started = Date.now();
       const isReach = REACH_TOOLS.has(name);
       const entry = { at: new Date(started).toISOString(), tool: String(name), paths: isReach ? attachedOf(args) : pathsOf(args), ...(ctx.where ? { where: String(ctx.where).slice(0, 64) } : {}) };
-      const done = (result) => {
-        logCall(dataDir, { ...entry, ok: !result.isError, ms: Date.now() - started, ...(result.isError ? { error: result.content?.[0]?.text?.slice(0, 300) } : {}) });
+      const done = async (result) => {
+        await log({ ...entry, ok: !result.isError, ms: Date.now() - started, ...(result.isError ? { error: result.content?.[0]?.text?.slice(0, 300) } : {}) });
         return result;
       };
-      const s = settings();
+      const s = await settings();
       const gate = openNow(s, isAlive ? { isAlive } : undefined);
       if (!gate.open) return done(refusal(gate.reason));
       // A profile with a password: nothing is reached while it is not open and unlocked.

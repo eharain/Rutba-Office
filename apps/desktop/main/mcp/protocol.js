@@ -40,7 +40,7 @@ export function createServer({ name = 'rutba-office', version = '0.0.0', tools, 
         case 'ping':
           return ok(id, {});
         case 'tools/list':
-          return ok(id, { tools: tools.list() });
+          return ok(id, { tools: await tools.list() });
         case 'tools/call': {
           onCall?.(params?.name);
           const result = await tools.call(params?.name, params?.arguments || {});

@@ -31,11 +31,11 @@ test('an AI app is offered the tools of the apps installed, and refused one whos
   fs.mkdirSync(work);
   let s = { [MODE_KEY]: 'always', [FOLDERS_KEY]: [work] };
   const tools = createTools({ settings: () => s, dataDir: dir });
-  const all = tools.list().map((t) => t.name);
+  const all = (await tools.list()).map((t) => t.name);
   assert.ok(all.includes('create_document') && all.includes('create_workbook') && all.includes('list_folders'), 'a copy from before packs: every tool');
 
   s = { ...s, [LOADED_KEY]: ['ai', 'word', 'mail'] };
-  const some = tools.list().map((t) => t.name);
+  const some = (await tools.list()).map((t) => t.name);
   assert.ok(some.includes('create_document') && some.includes('list_folders'));
   for (const name of some) assert.ok(!TOOL_PACK[name] || TOOL_PACK[name] === 'word', name);
   assert.ok(!some.includes('create_workbook') && !some.includes('read_text_in_picture') && !some.includes('combine_pdf_pages'));
@@ -45,6 +45,6 @@ test('an AI app is offered the tools of the apps installed, and refused one whos
   assert.equal(fs.existsSync(path.join(work, 'x.xlsx')), false);
 
   s = { ...s, [LOADED_KEY]: ['word', 'sheets'] };
-  assert.deepEqual(tools.list(), [], 'without AI Tools, no tool at all');
+  assert.deepEqual(await tools.list(), [], 'without AI Tools, no tool at all');
   fs.rmSync(dir, { recursive: true, force: true });
 });

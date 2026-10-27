@@ -70,3 +70,48 @@ test('a copy that cannot be moved is said plainly, and nothing is changed', () =
   const held = privateCopyNotice({ package: 'An.AiApp_abc', dir: pc.privateDir, held: 'EBUSY' });
   assert.match(held, /could not be put aside \(EBUSY\): the tools may not see the settings made in Rutba Office\. Close any Rutba Office started from that app and start the tools again\.$/);
 });
+
+test('with Rutba Office running, the tools obey its settings and keep their log and connection there, not in the files they see', async () => {
+  const { throughChannel } = await import('../apps/desktop/main/mcp/program.js');
+  const { createChannelServer, createChannelClient } = await import('../apps/desktop/main/mcp/channel.js');
+  const { createTools } = await import('../apps/desktop/main/mcp/tools.js');
+  const { logCall, writeConnection, readLog, readConnections, MODE_KEY, FOLDERS_KEY } = await import('../apps/desktop/main/mcp/access.js');
+  // What the tools' process sees: a stale settings file with the tools off.
+  const seen = path.join(tmp, `seen-${++n}`);
+  const work = path.join(seen, 'work');
+  fs.mkdirSync(work, { recursive: true });
+  fs.writeFileSync(path.join(seen, 'settings.json'), JSON.stringify({ [MODE_KEY]: 'off' }));
+  // What the running copy keeps: the tools on, a folder given.
+  const kept = path.join(tmp, `kept-${++n}`);
+  fs.mkdirSync(kept);
+  const server = createChannelServer({
+    folder: seen,
+    handle: async (method, params) => {
+      if (method === 'settings') return { [MODE_KEY]: 'always', [FOLDERS_KEY]: [work] };
+      if (method === 'log') return logCall(kept, params.entry) ?? null;
+      if (method === 'connection') return writeConnection(kept, Number(params.pid), params.entry) ?? null;
+      throw new Error(`no ${method}`);
+    },
+  });
+  await server.start();
+  const channel = createChannelClient({ folder: seen, timeoutMs: 5000 });
+  const { settings, log, connection } = throughChannel({ channel, dataDir: seen, pid: process.pid });
+  const tools = createTools({ settings, dataDir: seen, log });
+  try {
+    await connection({ client: 'An AI app', since: new Date().toISOString(), last: null });
+    const listed = await tools.call('list_folders', {});
+    assert.equal(listed.isError, undefined, listed.content?.[0]?.text);
+    assert.match(listed.content[0].text, /work/);
+    assert.equal(readLog(kept, 5)[0]?.tool, 'list_folders', 'logged where the running copy keeps it');
+    assert.equal(readLog(seen, 5).length, 0, 'nothing in the files the tools see');
+    assert.equal(readConnections(kept)[0]?.client, 'An AI app');
+  } finally {
+    channel.close();
+    await server.stop();
+  }
+  // Closed: the files the tools see decide, as before.
+  const closed = createTools({ settings: throughChannel({ channel: createChannelClient({ folder: seen, timeoutMs: 2000 }), dataDir: seen }).settings, dataDir: seen });
+  const refused = await closed.call('list_folders', {});
+  assert.equal(refused.isError, true);
+  assert.match(refused.content[0].text, /AI tools are off/);
+});

@@ -12,7 +12,9 @@ import { createTools } from './tools.js';
 export const INSTRUCTIONS = 'Rutba Office makes and reads documents (.docx), workbooks (.xlsx), presentations (.pptx) and PDFs on this computer, in the folders its user has given it, and never overwrites or deletes a file. Where the user allows each one, it also reads their mail, calendars, contacts and Data Files databases, and makes drafts, events, contacts and records; anything that leaves the computer or tells another person (a message sent, an invitation or its answer) is shown to the user in Rutba Office first and happens only when they press it. list_allowed says what is allowed. The tools are off unless the user has turned them on in Rutba Office (app menu, AI Tools); a refusal says so, and names where a setting is.';
 
 /**
- * The tools, reading the person's settings afresh for every call (`settings()`);
+ * The tools, reading the person's settings afresh for every call (`settings()`)
+ * and keeping each call where `log(entry)` says (the profile's log file when
+ * it is not given);
  * `reach` answers those for mail, calendars, address books and databases, and
  * `locked()` refuses everything while a protected profile is not open (tools.js).
  * `ocr()` answers text recognition's service when it is installed: Text
@@ -20,10 +22,11 @@ export const INSTRUCTIONS = 'Rutba Office makes and reads documents (.docx), wor
  * core hands over, never imported here. `unicodeFont()` is the system font a
  * PDF is written in, the core's too.
  */
-export function makeTools({ settings, dataDir, isAlive, reach = null, locked = null, ocr = async () => null, unicodeFont = () => null }) {
+export function makeTools({ settings, dataDir, isAlive, reach = null, locked = null, log, ocr = async () => null, unicodeFont = () => null }) {
   return createTools({
     settings,
     dataDir,
+    log,
     isAlive,
     reach,
     locked,
