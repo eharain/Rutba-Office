@@ -310,6 +310,17 @@ test('typed input is coerced the way a spreadsheet coerces it', () => {
   assert.equal(coerceInput('TRUE'), true);
   assert.equal(coerceInput('SKU-1001'), 'SKU-1001');
   assert.equal(coerceInput(''), '');
+  assert.equal(coerceInput("'=abc"), "'=abc", 'words that start with "=" keep the apostrophe that makes them words');
+});
+
+test('a typed "\'=" entry stays words in the cell and in the saved file', () => {
+  const view = SheetView.open(FIXTURE);
+  view.unprotect();
+  view.setCell(1, 0, "'=<96% of sessions");
+  assert.equal(view.calc.getValue(view.activeSheet, 1, 0), '=<96% of sessions');
+  const reopened = SheetView.open(view.save());
+  assert.equal(reopened.calc.getValue(reopened.activeSheet, 1, 0), '=<96% of sessions');
+  assert.equal(reopened.calc.getInput(reopened.activeSheet, 1, 0), "'=<96% of sessions", 'the formula bar shows it quoted, as Excel does');
 });
 
 test('the status line summarises a multi-cell selection', () => {

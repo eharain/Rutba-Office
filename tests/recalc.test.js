@@ -203,3 +203,21 @@ test('ten recalculation cycles are stable and accumulate no damage', () => {
 
 // The ERP-bound recalculation test stayed with the bindings it exercises, in
 // the consumer suite: the engine here has no notion of a business database.
+
+test('words that start with "=" stay words through the calculation model and a recalculation', () => {
+  // A tender's KPI sheet held the text "=<96% of sessions hang ..." as a shared
+  // string; it loaded as a formula, and saving wrote <f> and #VALUE! into it.
+  const wb = Workbook.open(FIXTURE);
+  wb.setCell('Stock', 'D2', { text: '=<96% of sessions hang or crash free' });
+  wb.setCell('Stock', 'D3', { text: "'quoted" });
+  const buf = wb.save();
+
+  const { sheet, formulas } = toSpreadsheet(Workbook.open(buf));
+  assert.ok(!formulas.some((f) => f.sheet === 'Stock' && f.ref === 'D2'), 'loaded as a formula');
+  assert.equal(sheet.getByRef('Stock', 'D2'), '=<96% of sessions hang or crash free');
+  assert.equal(sheet.getByRef('Stock', 'D3'), "'quoted", 'its own apostrophe kept');
+
+  const out = Workbook.open(recalculateWorkbook(buf).output);
+  assert.equal(out.getCell('Stock', 'D2'), '=<96% of sessions hang or crash free');
+  assert.doesNotMatch(OoxmlPackage.read(recalculateWorkbook(buf).output).text('xl/worksheets/sheet1.xml'), /<c r="D2"[^>]*><f>/);
+});

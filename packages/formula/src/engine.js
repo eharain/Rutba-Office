@@ -147,7 +147,11 @@ export class Spreadsheet {
     }
 
 
-    const isFormula = typeof input === 'string' && input.startsWith('=');
+    // A leading apostrophe makes the rest words, as in Excel: how a cell holds
+    // text that starts with "=" (a tender's "=<96% of sessions ...") without
+    // it becoming a formula. The apostrophe is the input's, never the value's.
+    const quoted = typeof input === 'string' && input.startsWith("'");
+    const isFormula = !quoted && typeof input === 'string' && input.startsWith('=');
     const cell = { sheet: sheetName, row, col, input, formula: null, ast: null, value: null, error: null };
 
     if (isFormula) {
@@ -165,7 +169,7 @@ export class Spreadsheet {
         cell.error = cell.value;
       }
     } else {
-      cell.value = input;
+      cell.value = quoted ? input.slice(1) : input;
     }
 
     cells.set(k, cell);

@@ -1394,6 +1394,10 @@ function renderCell(ref, value, style) {
   if (typeof value === 'object' && Array.isArray(value.runs)) {
     return '<c r="' + ref + '"' + s + ' t="inlineStr"><is>' + value.runs.map(runXml).join('') + '</is></c>';
   }
+  // Words given as words: kept as text even where they start with "=".
+  if (typeof value === 'object' && typeof value.text === 'string') {
+    return '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t xml:space="preserve">' + esc(value.text) + '</t></is></c>';
+  }
   if (typeof value === 'number' && Number.isFinite(value)) {
     return '<c r="' + ref + '"' + s + '><v>' + value + '</v></c>';
   }
@@ -2025,7 +2029,9 @@ export class Workbook {
         const cell = { ref: a.r, col: parseRef(a.r).col, style: a.s ?? null, type: a.t ?? null, inner: m[3] };
         const value = this._cellValue(cell);
         if (value === null) continue;
-        yield { ref: cell.ref, row: row.index, col: cell.col, value };
+        // Words, not a formula, though they start with "=": the cell has no <f>.
+        const text = typeof value === 'string' && value.startsWith('=') && !/<f\b/.test(cell.inner);
+        yield text ? { ref: cell.ref, row: row.index, col: cell.col, value, text } : { ref: cell.ref, row: row.index, col: cell.col, value };
       }
     }
   }

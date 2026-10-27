@@ -2330,8 +2330,8 @@ export class SheetView {
       const [sheetName, cellRef] = key.split('!');
       const input = this.calc.getInput(sheetName, ...parseRefPair(cellRef));
       const runs = typeof input === 'string' && input !== '' && !input.startsWith('=') ? this._cellRuns(sheetName, ...parseRefPair(cellRef)) : null;
-      if (runs && runs.map((r) => r.text).join('') === input) continue;
-      this.workbook.setCell(sheetName, cellRef, input === '' ? null : input);
+      if (runs && runs.map((r) => r.text).join('') === wordsOf(input)) continue;
+      this.workbook.setCell(sheetName, cellRef, input === '' ? null : fileValue(input));
     }
     for (const key of this.styledCells) {
       const [sheetName, cellRef] = key.split('!');
@@ -7976,8 +7976,8 @@ export class SheetView {
       const input = this.calc.getInput(sheetName, ...parseRefPair(cellRef));
       // Words the part already holds as runs, with their looks, stay as it has them.
       const runs = typeof input === 'string' && input !== '' && !input.startsWith('=') ? this._cellRuns(sheetName, ...parseRefPair(cellRef)) : null;
-      if (runs && runs.map((r) => r.text).join('') === input) continue;
-      this.workbook.setCell(sheetName, cellRef, input === '' ? null : input);
+      if (runs && runs.map((r) => r.text).join('') === wordsOf(input)) continue;
+      this.workbook.setCell(sheetName, cellRef, input === '' ? null : fileValue(input));
     }
 
     /*
@@ -8480,11 +8480,23 @@ const NUMERIC_KIND = {
   textLength: 'text of a permitted length',
 };
 
+/** The words an input shows: a quoted input's without the apostrophe. */
+function wordsOf(input) {
+  return typeof input === 'string' && input.startsWith("'") ? input.slice(1) : input;
+}
+
+/** What an input is in the file: a quoted input's words written as words, never as a formula. */
+function fileValue(input) {
+  return typeof input === 'string' && input.startsWith("'") ? { text: input.slice(1) } : input;
+}
+
 export function coerceInput(text) {
   if (text === null || text === undefined) return '';
   const s = String(text);
   if (s === '') return '';
-  if (s.startsWith("'")) return s.slice(1);
+  // The apostrophe stays where it is all that keeps the words from being a
+  // formula (or from losing an apostrophe of their own); the engine reads it.
+  if (s.startsWith("'")) return s[1] === '=' || s[1] === "'" ? s : s.slice(1);
   if (s.startsWith('=')) return s;
   const trimmed = s.trim();
   if (/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(trimmed)) {
