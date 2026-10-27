@@ -113,3 +113,31 @@ test('the installer\'s part for a pack writes that pack\'s files only and regist
   assert.match(failures, /The installer's part for Mail registers \.docx\./);
   assert.match(checkInstaller(text, ['ai', 'mail', 'word', 'talk']).failures.join('\n'), /The installer has no part for Talk\./);
 });
+
+test('a part that carries its pack as a 7-Zip file of its own carries that pack alone, and unpacks it', () => {
+  const part = (id, source = `C:\\b\\installer\\${id}.7z`, extract = true) => [
+    `!macro rutbaWritePack_${id}`,
+    '  SetOutPath "$INSTDIR\\resources\\packs"',
+    `  File "/oname=$PLUGINSDIR\\rutba-pack-${id}.7z" "${source}"`,
+    ...(extract ? [`  Nsis7z::Extract "$PLUGINSDIR\\rutba-pack-${id}.7z"`] : []),
+    `  Delete "$PLUGINSDIR\\rutba-pack-${id}.7z"`,
+    `  File "C:\\b\\packs\\${packFiles(id).manifest}"`,
+    '!macroend',
+  ].join('\r\n');
+  const text = `${part('word')}\r\n${part('mail')}\r\n`;
+  assert.deepEqual(installerParts(text).mail.carried, [{ name: 'rutba-pack-mail.7z', source: 'C:\\b\\installer\\mail.7z' }]);
+  const word = packFiles('word');
+  const mail = packFiles('mail');
+  const good = { 'C:\\b\\installer\\word.7z': [word.archive], 'C:\\b\\installer\\mail.7z': [mail.archive, mail.unpacked] };
+  assert.deepEqual(checkInstaller(text, ['word', 'mail'], good).failures, []);
+  assert.deepEqual(checkInstaller(text, ['word', 'mail']).failures, [], 'by its name where the file cannot be read');
+  // Mail's 7-Zip file holding Documents' archive too.
+  const spoilt = checkInstaller(text, ['word', 'mail'], { ...good, 'C:\\b\\installer\\mail.7z': [mail.archive, word.archive] }).failures.join('\n');
+  assert.ok(spoilt.includes(`The installer's part for Mail unpacks ${word.archive}.`), spoilt);
+  // Mail's part carrying Documents' 7-Zip file.
+  const swapped = checkInstaller(`${part('word')}\r\n${part('mail', 'C:\\b\\installer\\word.7z')}\r\n`, ['word', 'mail']).failures.join('\n');
+  assert.match(swapped, /The installer's part for Mail carries word\.7z as rutba-pack-mail\.7z\./);
+  // Carried and never unpacked.
+  const kept = checkInstaller(`${part('word')}\r\n${part('mail', undefined, false)}\r\n`, ['word', 'mail']).failures.join('\n');
+  assert.match(kept, /carries rutba-pack-mail\.7z and never unpacks it/);
+});

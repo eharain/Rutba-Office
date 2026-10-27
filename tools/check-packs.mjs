@@ -22,7 +22,9 @@
 // hold nothing of another app: no IPC channel or event but the core's and its
 // own, no tile, no kind of file in the Open dialog or the system's list, and
 // no AI tool. The installer's part for that pack must write its files only
-// and register its kinds of file only.
+// and register its kinds of file only; where it carries them as a 7-Zip file
+// of its own (rutba-pack-<id>.7z, unpacked as it installs), that file must be
+// the pack's own archive and hold the pack's files only.
 //
 // A pack whose main module is the transitional one (it registers the core's
 // own code, `core.builtIn`) still has its code in the core, and the check
@@ -30,7 +32,9 @@
 // core: a file of it found there fails the check, as does anything above.
 // Exits 1 on a failure.
 
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -270,20 +274,44 @@ export function checkAlone({ id, packsDir, keys, version, scratch, toolNames = [
 
 /* ── the installer's part ───────────────────────────────────────────── */
 
-/** Each pack's part of the installer include: the files it writes, the kinds of file it registers. */
+const baseName = (p) => p.split(/[\\/]/).pop();
+
+/**
+ * Each pack's part of the installer include: the files it writes, the kinds
+ * of file it registers, the 7-Zip files it carries (`File "/oname=<name>"
+ * "<source>"`) and those it unpacks.
+ */
 export function installerParts(text) {
   const parts = {};
   for (const m of text.matchAll(/!macro rutbaWritePack_([a-z0-9-]+)\r?\n([\s\S]*?)!macroend/g)) {
     parts[m[1]] = {
-      files: [...m[2].matchAll(/^\s*File (?:\/r )?"([^"]+)"/gm)].map((f) => f[1].split(/[\\/]/).pop()),
+      files: [...m[2].matchAll(/^\s*File (?:\/r )?"([^"]+)"/gm)].map((f) => baseName(f[1])),
       types: [...m[2].matchAll(/rutbaAssociate "([^"]+)"/g)].map((t) => t[1]),
+      carried: [...m[2].matchAll(/^\s*File "\/oname=([^"]+)" "([^"]+)"/gm)].map((f) => ({ name: baseName(f[1]), source: f[2] })),
+      extracted: [...m[2].matchAll(/Nsis7z::Extract "([^"]+)"/g)].map((f) => baseName(f[1])),
     };
   }
   return parts;
 }
 
-/** What the installer writes for each pack is that pack's alone. */
-export function checkInstaller(text, ids) {
+/** The names at the top of a 7-Zip file, with the 7-Zip electron-builder uses; null where it cannot be had. */
+export async function sevenZipNames(file) {
+  try {
+    const require = createRequire(import.meta.url);
+    const exe = await require('app-builder-lib/out/toolsets/7zip.js').getPath7za();
+    const out = execFileSync(exe, ['l', '-ba', '-slt', file], { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
+    return [...new Set([...out.matchAll(/^Path = (.+)$/gm)].map((m) => m[1].trim().split(/[\\/]/)[0]))];
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What the installer writes for each pack is that pack's alone. `contents`
+ * answers the names in a 7-Zip file a part carries ({ source: names }); a
+ * carried file not in it is checked by its name only.
+ */
+export function checkInstaller(text, ids, contents = {}) {
   const failures = [];
   const parts = installerParts(text);
   for (const id of ids) {
@@ -293,7 +321,18 @@ export function checkInstaller(text, ids) {
       continue;
     }
     const f = packFiles(id);
-    for (const file of part.files) if (![f.archive, f.unpacked, f.manifest].includes(file)) failures.push(`The installer's part for ${nameOf(id)} writes ${file}.`);
+    const own = `rutba-pack-${id}.7z`;
+    for (const c of part.carried) {
+      if (c.name !== own || baseName(c.source) !== `${id}.7z`) failures.push(`The installer's part for ${nameOf(id)} carries ${baseName(c.source)} as ${c.name}.`);
+      else if (!part.extracted.includes(own)) failures.push(`The installer's part for ${nameOf(id)} carries ${own} and never unpacks it.`);
+      const names = contents[c.source];
+      if (names) {
+        for (const n of names) if (![f.archive, f.unpacked].includes(n)) failures.push(`The installer's part for ${nameOf(id)} unpacks ${n}.`);
+        if (!names.includes(f.archive)) failures.push(`The installer's part for ${nameOf(id)} carries no ${f.archive}.`);
+      }
+    }
+    const carriesOwn = part.carried.some((c) => c.name === own);
+    for (const file of part.files) if (![f.archive, f.unpacked, f.manifest].includes(file) && !(file === own && carriesOwn)) failures.push(`The installer's part for ${nameOf(id)} writes ${file}.`);
     if (!part.files.includes(f.manifest)) failures.push(`The installer's part for ${nameOf(id)} does not write its manifest.`);
     const allowed = new Set(fileAssociations({ apps: [id] }).map((a) => a.ext));
     for (const ext of part.types) if (!allowed.has(ext)) failures.push(`The installer's part for ${nameOf(id)} registers .${ext}.`);
@@ -343,7 +382,16 @@ export async function checkPacks({ core, packsDir, keysFile = null, installer = 
   }
   let installerResult = null;
   if (installer) {
-    installerResult = checkInstaller(fs.readFileSync(installer, 'utf8'), ids);
+    const text = fs.readFileSync(installer, 'utf8');
+    const contents = {};
+    for (const part of Object.values(installerParts(text))) {
+      for (const c of part.carried) {
+        const names = await sevenZipNames(c.source);
+        if (names) contents[c.source] = names;
+        else failures.push(`The installer carries ${baseName(c.source)}, which could not be read.`);
+      }
+    }
+    installerResult = checkInstaller(text, ids, contents);
     failures.push(...installerResult.failures);
   }
   return { version: v, owners, packs, installer: installerResult, failures };
