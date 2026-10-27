@@ -2,8 +2,9 @@
 
 A few files of every format the corpus run reads (`npm run verify:corpus`,
 see `tools/corpus.js` and `docs/COMPATIBILITY.md`): Word, Excel and
-PowerPoint in their XML and 97-2003 forms, OpenDocument, PDF, mail
-messages, an Outlook data file, a calendar and contact files.
+PowerPoint in their XML and 97-2003 forms, their macro-enabled and
+template forms, OpenDocument, PDF, mail messages, an Outlook data file,
+a calendar and contact files.
 
 Every file here was made by this project: written by the suite's own
 writers from words written here, or copied from the repository's test

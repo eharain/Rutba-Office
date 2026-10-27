@@ -138,6 +138,27 @@ exportOf('xlsx/budget.xlsx', 'ods/budget.ods', 'ods', 'written by the suite\'s O
 exportOf('pptx/agenda.pptx', 'odp/agenda.odp', 'odp', 'written by the suite\'s OpenDocument export');
 exportOf('docx/letter.docx', 'pdf/letter.pdf', 'pdf', 'written by the suite\'s PDF export');
 exportOf('docx/complex-parts.docx', 'pdf/complex-parts.pdf', 'pdf', 'written by the suite\'s PDF export');
+
+/* ── the macro-enabled and template forms, written by the suite's own Save As ── */
+
+const saveAs = (from, rel) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-make-corpus-'));
+  try {
+    const opened = service.open({ path: path.join(out, from) });
+    const target = path.join(tmp, path.basename(rel));
+    service.save({ id: opened.id, path: target });
+    service.close({ id: opened.id });
+    put(rel, fs.readFileSync(target), `written by the suite's Save As from ${from} (tools/make-corpus.mjs)`);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+};
+saveAs('docx/letter.docx', 'docm/letter.docm');
+saveAs('docx/letter.docx', 'dotx/letter.dotx');
+saveAs('xlsx/budget.xlsx', 'xlsm/budget.xlsm');
+saveAs('xlsx/budget.xlsx', 'xltx/budget.xltx');
+saveAs('pptx/agenda.pptx', 'pptm/agenda.pptm');
+saveAs('pptx/agenda.pptx', 'potx/agenda.potx');
 {
   const doc = new pdf.PdfDocument({ title: 'Delivery note', author: 'Northwind' });
   for (let n = 1; n <= 3; n++) {

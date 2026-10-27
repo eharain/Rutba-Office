@@ -37,6 +37,13 @@
       "sha256": "f40bd56b39a0d9a092449b0e2c9203faaf91f9d78357e5d038df3a655be5b69b"
     },
     {
+      "file": "docm/letter.docm",
+      "source": "written by the suite's Save As from docx/letter.docx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "54aac0828cb931463c044942cf58d5e56b9994dca9128fd270e433a5dd0abaad"
+    },
+    {
       "file": "docx/complex-parts.docx",
       "source": "written by tests/fixtures/complex-document.js (styles, numbering, header, footer, footnotes, comments, a content control, a field)",
       "licence": "AGPL-3.0-or-later",
@@ -84,6 +91,13 @@
       "licence": "AGPL-3.0-or-later",
       "author": "Rutba Office project (Tech Style Ltd)",
       "sha256": "986da4bc9470440150e44e3fe3311147821ba61d14add5f9a093d7753f4b83de"
+    },
+    {
+      "file": "dotx/letter.dotx",
+      "source": "written by the suite's Save As from docx/letter.docx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "33e1d8ac7f134e7a9bd5ca847ee1487c80bc330e963896cad84eb7aafb8a77b4"
     },
     {
       "file": "eml/html-with-attachment.eml",
@@ -177,11 +191,25 @@
       "sha256": "ad416cb8d91e4ead49d285d9a4c9c45096c4f69521e1f24735f4f5e2a7de300d"
     },
     {
+      "file": "potx/agenda.potx",
+      "source": "written by the suite's Save As from pptx/agenda.pptx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "dc9001c30c6e5b92f59e03611f5a99fb9b4d53220186f58ef585a5dc60119b3c"
+    },
+    {
       "file": "ppt/tables.ppt",
       "source": "copied from tests/fixtures/binary/tables.ppt; made by this project with Microsoft Office from content written here (tools/make-binary-fixtures.ps1)",
       "licence": "AGPL-3.0-or-later",
       "author": "Rutba Office project (Tech Style Ltd)",
       "sha256": "dd07244d2bb8ef0fc36b61e76fd908ddff0ff59093553e80f9985aad1958dccf"
+    },
+    {
+      "file": "pptm/agenda.pptm",
+      "source": "written by the suite's Save As from pptx/agenda.pptx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "7f2044f0e8ccc73329bec90b8166722841acdcf25a0a6a63da43a1a1ef41f2c6"
     },
     {
       "file": "pptx/agenda.pptx",
@@ -254,6 +282,13 @@
       "sha256": "7c00d183618b84984735fa7e4b60b9247fa18bef4d2dc5281669da9c0f124829"
     },
     {
+      "file": "xlsm/budget.xlsm",
+      "source": "written by the suite's Save As from xlsx/budget.xlsx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "9575bd93b58280837174303d58e882ea1910c2da933cb6d1f03f6935655d22df"
+    },
+    {
       "file": "xlsx/budget.xlsx",
       "source": "written by @rutba/ooxml buildXlsx (tools/make-corpus.mjs)",
       "licence": "AGPL-3.0-or-later",
@@ -280,6 +315,13 @@
       "licence": "AGPL-3.0-or-later",
       "author": "Rutba Office project (Tech Style Ltd)",
       "sha256": "2715d0133ab1f8e64b42827767f45e135e631d528244d824f6fc2bae613b0276"
+    },
+    {
+      "file": "xltx/budget.xltx",
+      "source": "written by the suite's Save As from xlsx/budget.xlsx (tools/make-corpus.mjs)",
+      "licence": "AGPL-3.0-or-later",
+      "author": "Rutba Office project (Tech Style Ltd)",
+      "sha256": "b0ca8897f2a82c45bafe29999117b16e058416d365a0862315f893bb59c89f4c"
     }
   ]
 }
