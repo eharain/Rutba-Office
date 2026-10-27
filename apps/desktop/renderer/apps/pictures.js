@@ -959,7 +959,7 @@ export default function Pictures({ app, shell, boot }) {
           {isAnimated ? <Chip title={t('This picture is animated')}>{t('Animated')}</Chip> : null}
           {current ? zoom ? <Chip>{Math.round(zoom * 100)}%</Chip> : <Chip>{t('Fit')}</Chip> : null}
           {current && details?.stat ? <Chip>{formatBytes(details.stat.size)}</Chip> : null}
-          <Chip>{current && files.length ? t('{index} of {total}', { index: at + 1, total: files.length }) : files.length ? (folders.length ? t('{files}, {folders}', { files: tn(files.length, '{count} file', '{count} files'), folders: tn(folders.length, '{count} folder', '{count} folders') }) : tn(files.length, '{count} file', '{count} files')) : t('nothing here')}</Chip>
+          <Chip>{current && files.length ? t('{index} of {total}', { index: at + 1, total: files.length }) : files.length ? (folders.length ? t('{files}, {folders}', { files: tn(files.length, '{count} file', '{count} files'), folders: tn(folders.length, '{count} folder', '{count} folders') }) : tn(files.length, '{count} file', '{count} files')) : folders.length ? tn(folders.length, '{count} folder', '{count} folders') : t('nothing here')}</Chip>
         </>
       }
     >
@@ -1166,7 +1166,8 @@ function Tools({ query, onQuery, family, onFamily, counts, sort, onSort, tileSiz
       <Select data-role="rated" value={rated} onChange={(e) => onRated?.(Number(e.target.value))} style={{ padding: '3px 8px', fontSize: 11.5 }} title={t('Only pictures rated so many stars or more')} aria-label={t('Rating')}>
         {RATED.map(([n, label]) => <option key={n} value={n}>{label}</option>)}
       </Select>
-      <div className="pv-kinds" role="group" aria-label={t('Kind')}>
+      {/* A folder of folders only has no kinds to choose between, and no "All 0". */}
+      <div className="pv-kinds" role="group" aria-label={t('Kind')} hidden={!counts.all}>
         {FAMILIES.filter((f) => f.id === 'all' || counts[f.id] > 0).map((f) => (
           <button
             key={f.id}
@@ -1587,6 +1588,7 @@ const CSS = `
 .pv-tools.stacked { flex-direction: column; align-items: stretch; gap: 6px; }
 .pv-tools.stacked .rw-search { max-width: none; }
 .pv-kinds { display: flex; gap: 4px; flex-wrap: wrap; }
+.pv-kinds[hidden] { display: none; }
 .pv-kind {
   border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font: inherit; font-size: 11.5px;
   padding: 2px 8px 2px 9px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;

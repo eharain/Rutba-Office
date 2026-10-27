@@ -240,6 +240,9 @@ export function createShell({
 
   function openPath(p) {
     if (!p || !fs.existsSync(p)) return;
+    // D:/Photos/x.jpg on the command line is D:\Photos\x.jpg to the window,
+    // so it finds itself among the folder's pictures and their marks.
+    p = path.normalize(p);
     const which = appForFile(p);
     windows.open({ app: which, file: p });
     stores.recent.add({ path: p, app: which });

@@ -218,6 +218,18 @@ export async function verifyMailWindow(h) {
       await js(`[...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Import mail').click(), 1`);
       await until(() => js(`[...document.querySelectorAll('.ml-found-item')].some((n) => n.textContent.includes('sam@example.com - old.pst'))`), 'the files found', 8000).catch(() => {});
       const found = await js(`[...document.querySelectorAll('.ml-found-item')].map((n) => n.textContent)`);
+      // Each file's row, indented under its account, ends where the list does: no sideways scroll, no size cut off.
+      const fits = await js(`(() => {
+        const rows = [...document.querySelectorAll('.ml-found-item')];
+        const list = rows[0]?.closest('.ml-found') || rows[0]?.parentElement;
+        const right = list ? list.getBoundingClientRect().right : 0;
+        const over = rows.filter((r) => r.getBoundingClientRect().right > right + 0.5).map((r) => r.textContent.slice(0, 40));
+        let wide = null;
+        for (let n = rows[0]; n && n !== document.body; n = n.parentElement) if (n.scrollWidth > n.clientWidth + 1 && getComputedStyle(n).overflowX !== 'visible') { wide = n.className; break; }
+        return { rows: rows.length, indented: rows.filter((r) => r.classList.contains('indent')).length, over, wide };
+      })()`);
+      check('mail: Import mail\'s data-file rows under an Outlook account sit inside the list, with no sideways scroll',
+        fits.indented >= 2 && fits.over.length === 0 && !fits.wide, JSON.stringify(fits));
       // The second file chosen: the Importing box names it while it is looked inside.
       await js(`(() => { [...document.querySelectorAll('.ml-found-item')].find((n) => n.textContent.includes('sam@example.com - old.pst'))?.click(); return 1; })()`);
       await wait(2500);

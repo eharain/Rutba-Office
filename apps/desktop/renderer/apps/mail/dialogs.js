@@ -400,8 +400,8 @@ export function Discovered({ scan, onImportStore, onUseAccount }) {
                 <button
                   key={store.path}
                   type="button"
-                  className="ml-found-item"
-                  style={{ marginLeft: 24, padding: '6px 11px' }}
+                  className="ml-found-item indent"
+                  style={{ padding: '6px 11px' }}
                   onClick={() => onImportStore(store.path)}
                 >
                   <Icon name="file" size={14} />
@@ -414,7 +414,7 @@ export function Discovered({ scan, onImportStore, onUseAccount }) {
             : null}
 
           {account.incoming?.host ? (
-            <button type="button" className="ml-found-item" style={{ marginLeft: 24, padding: '6px 11px' }} onClick={() => onUseAccount(account)}>
+            <button type="button" className="ml-found-item indent" style={{ padding: '6px 11px' }} onClick={() => onUseAccount(account)}>
               <Icon name="settings" size={14} />
               <span className="grow">
                 <div className="what">

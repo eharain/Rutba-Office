@@ -307,10 +307,14 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     return win;
   }
 
-  /** The window showing this file already, if there is one — focus beats duplicate. */
-  function findByFile(file) {
+  /**
+   * The window showing this file already in this app, if there is one:
+   * focus beats duplicate. Another app's window on the same file is not it;
+   * Pictures' Edit opens the picture it shows in Image.
+   */
+  function findByFile(file, appKey = null) {
     for (const [id, m] of meta) {
-      if (m.file && path.resolve(m.file) === path.resolve(file)) {
+      if (m.file && (!appKey || m.app === appKey) && path.resolve(m.file) === path.resolve(file)) {
         const w = BrowserWindow.fromId(id);
         if (w && !w.isDestroyed()) return w;
       }
@@ -330,9 +334,11 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
 
   function open({ app: appKey, file, query }) {
     if (file) {
+      // One spelling of a path, whatever the separators it came with.
+      file = path.normalize(file);
       // A file opened is drawn from where it is, a share included (grants.js).
       grantPlace(file);
-      const existing = findByFile(file);
+      const existing = findByFile(file, appKey);
       if (existing) {
         if (existing.isMinimized()) existing.restore();
         existing.focus();

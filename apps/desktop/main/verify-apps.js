@@ -179,6 +179,7 @@ import { verifyDialogFocus } from './verify-dialog-focus.js';
 import { verifyOpenProgram } from './verify-open-program.js';
 import { verifyPicturesMarks } from './verify-pictures-marks.js';
 import { verifyPicturesFollow } from './verify-pictures-follow.js';
+import { verifyPicturesOpen } from './verify-pictures-open.js';
 import { verifyDeckCameoRecord } from './verify-deck-cameo-record.js';
 import { verifyDeckChanges } from './verify-deck-changes.js';
 import { verifySheetQueriesMerge } from './verify-sheet-queries-merge.js';
@@ -5062,6 +5063,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('pictures-ratings')) await verifyPicturesRatings({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('windows-codec')) await verifyWindowsCodec({ check }, { dir });
     if (only.includes('pictures-drawn')) await verifyPicturesDrawn({ open, check, until, wait, press, errorsIn }, { dir });
+    if (only.includes('pictures-open')) await verifyPicturesOpen({ open, check, until, wait, errorsIn }, { dir, windows });
     if (only.includes('image-undo')) await verifyImageUndo({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('image-layers')) await verifyImageLayers({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('image-layers')) await verifyEditInImage({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
@@ -5512,6 +5514,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('pictures', () => verifyPicturesRatings({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('pictures', () => verifyWindowsCodec({ check }, { dir }));
   await part('pictures', () => verifyPicturesDrawn({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('pictures', () => verifyPicturesOpen({ open, check, until, wait, errorsIn }, { dir, windows }));
   await part('image', () => verifyImageEdits({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('image', () => verifyImageLayers({ open, check, until, wait, errorsIn, doc }, { dir }));
   await part('image', () => verifyEditInImage({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));

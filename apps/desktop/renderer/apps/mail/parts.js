@@ -588,6 +588,8 @@ select.rw-input { appearance: auto; }
   border: 1px solid var(--line); border-radius: var(--r-2); background: var(--chrome);
   font: inherit; color: var(--ink); cursor: pointer; width: 100%;
 }
+/* A data file or settings row under its account: indented, and no wider than the list for it. */
+.ml-found-item.indent { margin-left: 24px; width: calc(100% - 24px); }
 .ml-found-item:hover { border-color: var(--accent-line); background: var(--selected); }
 .ml-found-item .grow { flex: 1; min-width: 0; }
 .ml-found-item .who { font-weight: 600; font-size: 12.5px; }
