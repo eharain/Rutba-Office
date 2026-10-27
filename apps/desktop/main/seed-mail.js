@@ -211,13 +211,22 @@ export function seedMessages(now = Date.now()) {
 }
 
 /**
+ * The fixture as one mbox file, written here rather than by @rutba/mailbox:
+ * that is Mail's pack's, which the core cannot reach in an installed copy, so
+ * the packaged smoke seeded nothing. A From_ line before each message and a
+ * From at the start of a line quoted, as every mbox reader expects.
+ */
+export function toMbox(messages) {
+  return Buffer.concat(messages.map((m) => Buffer.from(`From ${m.from.address} ${new Date(m.date).toUTCString()}\n${m.raw.replace(/^(>*From )/gm, '>$1')}\n\n`, 'utf8')));
+}
+
+/**
  * Write the fixture as an mbox and put it through the real import path, so the
  * seeded store is produced by the same code a person's archive goes through.
  */
 export async function seedMail({ stores, mail, name = 'smoke-seed' }) {
   // Mail not installed (a packs check's start without it): nothing to seed.
   if (!mail?.import) return null;
-  const { writeMbox } = await import('@rutba/mailbox/mbox');
   // The import names the account and the folder after the file, so this string
   // ends up in the sidebar, the window title, the search box and the status
   // bar. `smoke-seed` is the honest name for a smoke run and the wrong one for
@@ -225,7 +234,7 @@ export async function seedMail({ stores, mail, name = 'smoke-seed' }) {
   // reads as a test artefact, which is what it is and not what it is for.
   // `make-screens.js` passes `Archive`.
   const file = path.join(stores.dir, `${name}.mbox`);
-  fs.writeFileSync(file, Buffer.from(writeMbox(seedMessages())));
+  fs.writeFileSync(file, toMbox(seedMessages()));
   try {
     return mail.import({ path: file, folders: null });
   } finally {

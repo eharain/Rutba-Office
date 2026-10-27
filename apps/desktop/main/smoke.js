@@ -55,6 +55,9 @@ export async function runSmoke({ windows, outDir, stores, mail }) {
   // setting the windows read at boot, put in the run's own profile first.
   if (process.env.RUTBA_SMOKE_THEME && stores) stores.settings.set('theme', process.env.RUTBA_SMOKE_THEME);
 
+  // A mailbox that was asked for and not made fails the run: carried on
+  // without it, the packaged smoke photographed an empty Mail and passed.
+  let seedFault = null;
   if (process.env.RUTBA_SMOKE_SEED && mail && stores) {
     try {
       // `RUTBA_SMOKE_SEED_NAME` names the imported mailbox, which is what the
@@ -62,13 +65,16 @@ export async function runSmoke({ windows, outDir, stores, mail }) {
       // it as `smoke-seed`; a marketing capture asks for something a reader
       // would believe.
       const seeded = await seedMail({ stores, mail, name: process.env.RUTBA_SMOKE_SEED_NAME || undefined });
-      console.log(`seeded ${seeded.messages} messages into ${seeded.folders} folder(s)`);
+      if (!seeded?.messages) seedFault = 'seeding failed: no messages were imported';
+      else console.log(`seeded ${seeded.messages} messages into ${seeded.folders} folder(s)`);
     } catch (err) {
-      console.log(`seeding failed: ${err.message}`);
+      seedFault = `seeding failed: ${err.message}`;
     }
+    if (seedFault) console.log(seedFault);
   }
 
   const results = [];
+  if (seedFault) results.push({ app: 'mail-seed', ok: false, ms: 0, capture: null, messages: [seedFault] });
   const opened = [];
   let samples = null;
   for (const app of list) {
