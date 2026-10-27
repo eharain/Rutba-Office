@@ -42,6 +42,6 @@ export {
   childElements, xfrmOf, anchorBody, readGroup,
 } from './ooxml.js';
 export {
-  buildShape, buildPicture, resolveColour, toDataUri,
+  buildShape, buildPicture, resolveColour, toDataUri, setPictureDrawer,
   SUPPORTED_GEOMETRY, MEDIA_TYPES,
 } from './shapes.js';

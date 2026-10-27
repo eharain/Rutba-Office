@@ -91,12 +91,20 @@ import { collectPasswordHashes, rememberPasswordHash, offerPasswordSalt, newPass
 import { passwordHost } from './password-host.js';
 import { randomBytes } from 'node:crypto';
 import { readZip } from '@rutba/ooxml/zip';
-import { emfToPng } from '@rutba/office-formats/emf';
+import { drawablePicture, metafileKind } from '@rutba/office-formats/picture';
+import { setPictureDrawer as lendDocumentPictures } from '@rutba/ooxml/document';
+import { setPictureDrawer as lendSheetPictures } from '@rutba/drawing/shapes';
 import { redactAction, inspectAction, deckReviewAction, reviewSummary } from './review-tools.js';
 import * as deckCompare from '@rutba/presentation/compare';
 import { createProofing } from './proofing.js';
 import { TEMPLATES as GALLERY, CATEGORIES as GALLERY_CATEGORIES, templateById, templateForLegacy, readTemplate, thumbPath, templatePage } from '@rutba/templates/active';
 import { needsFor } from '@rutba/templates/versions';
+
+// A picture kept as drawing calls (an EMF, a WMF) is drawn as an SVG, the
+// same way in all three apps: Documents' and Worksheets' readers are lent the
+// one drawer here, since neither package can depend on the one that has it.
+lendDocumentPictures(drawablePicture);
+lendSheetPictures(drawablePicture);
 
 let seq = 0;
 const KIND_FOR_APP = { word: 'doc', sheets: 'sheet', slides: 'deck' };
@@ -2061,13 +2069,14 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (known && known.bytes === bytes) return known.url;
       // The picture's old bytes are let go when it has new ones.
       if (known?.id) releaseBlob(known.id);
-      // A window draws no metafile: its bitmaps, played into a PNG, or the
-      // picture's empty frame when it draws more than a bitmap.
-      if (/\.emf$/i.test(source.part)) {
-        const drawn = emfToPng(Buffer.from(bytes));
+      // A window draws no metafile: an EMF or a WMF played as an SVG (an EMF
+      // of bitmaps only, as a PNG), or the picture's empty frame when neither
+      // can be made of it.
+      if (metafileKind(bytes, source.part)) {
+        const drawn = drawablePicture(Buffer.from(bytes), source.part);
         pictures.set(source.part, { bytes, url: null, id: null });
         if (!drawn) return null;
-        const held = holdBlob(drawn.png, 'image/png', path.basename(source.part).replace(/\.emf$/i, '.png'));
+        const held = holdBlob(drawn.bytes, drawn.type, path.basename(source.part).replace(/\.[^.]+$/, drawn.type === 'image/png' ? '.png' : '.svg'));
         pictures.set(source.part, { bytes, url: held.url, id: held.id });
         return held.url;
       }

@@ -68,12 +68,27 @@ function pictureType(part) {
   return { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp', tif: 'image/tiff', tiff: 'image/tiff', emf: 'image/x-emf', wmf: 'image/x-wmf', svg: 'image/svg+xml' }[ext] || 'application/octet-stream';
 }
 
+// A picture a window cannot draw as it is, an EMF or a WMF most often, is
+// handed to the drawer the app lends (drawablePicture, from
+// @rutba/office-formats/picture, which depends on this package and so cannot
+// be imported here). Without one it has no href, rather than a broken one.
+let pictureDrawer = null;
+/** Lend the drawer for pictures a window does not draw: (bytes, part) => ({ type, bytes } | null). */
+export function setPictureDrawer(fn) {
+  pictureDrawer = typeof fn === 'function' ? fn : null;
+}
+
 function toDataUri(bytes, partName) {
+  if (!bytes) return null;
   const type = MEDIA_TYPES[String(partName ?? '').split('.').pop().toLowerCase()];
-  // EMF and WMF are common in Office files and not web image types — no href,
-  // rather than a broken one; the caller can still say what it was.
-  if (!type || !bytes) return null;
-  return 'data:' + type + ';base64,' + Buffer.from(bytes).toString('base64');
+  if (type) return 'data:' + type + ';base64,' + Buffer.from(bytes).toString('base64');
+  if (!pictureDrawer) return null;
+  try {
+    const drawn = pictureDrawer(bytes, partName);
+    return drawn ? 'data:' + drawn.type + ';base64,' + Buffer.from(drawn.bytes).toString('base64') : null;
+  } catch {
+    return null;
+  }
 }
 
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';

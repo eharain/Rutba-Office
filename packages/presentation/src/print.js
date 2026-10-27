@@ -14,6 +14,7 @@
  */
 
 import { renderSlide } from './render.js';
+import { drawablePicture, metafileKind } from '@rutba/office-formats/picture';
 
 /** Paper in millimetres, portrait, as the sheet printer has them. */
 export const PAPER = {
@@ -79,7 +80,10 @@ function imageResolver(deck) {
     let url = null;
     try {
       const bytes = deck.media(part);
-      if (bytes) url = `data:${MIME[part.split('.').pop()?.toLowerCase()] || 'application/octet-stream'};base64,${base64(bytes)}`;
+      // An EMF or a WMF as the SVG the slide shows, so paper has what the stage had.
+      const drawn = bytes && metafileKind(bytes, part) ? drawablePicture(bytes, part) : null;
+      if (drawn) url = `data:${drawn.type};base64,${base64(drawn.bytes)}`;
+      else if (bytes) url = `data:${MIME[part.split('.').pop()?.toLowerCase()] || 'application/octet-stream'};base64,${base64(bytes)}`;
     } catch {
       url = null;
     }

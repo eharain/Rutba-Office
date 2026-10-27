@@ -214,7 +214,7 @@ export const APP_EXTENSIONS = {
   sheets: ['xlsx', 'xlsm', 'xltx', 'xls', 'xlt', 'ods', 'csv', 'tsv'],
   slides: ['pptx', 'pptm', 'potx', 'ppsx', 'ppt', 'pps', 'pot', 'odp'],
   pdf: ['pdf'],
-  pictures: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'bmp', 'tif', 'tiff', 'ico', 'svg', 'pdf'],
+  pictures: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'bmp', 'tif', 'tiff', 'ico', 'svg', 'emf', 'wmf', 'pdf'],
   image: ['rimg', 'jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'avif'],
   video: ['rvid', 'mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'mp3', 'm4a', 'wav', 'flac', 'ogg'],
   mail: ['eml', 'emlx', 'msg', 'mbox', 'pst', 'ost', 'olm'],

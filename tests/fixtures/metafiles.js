@@ -332,3 +332,36 @@ export function showcaseWmf() {
   w.textOut(360, 2340, 'a WMF made at test time');
   return w.build();
 }
+
+/**
+ * An Office file's pictures made metafiles: the package's PNG media parts,
+ * in the order they were put in, become the metafiles given (an EMF or a
+ * WMF, told apart by their first bytes), renamed .emf or .wmf with the
+ * relationships that point at them and a content type for each. A picture
+ * is put in the usual way (a PNG, through the engine), and this makes it the
+ * kind Word, Excel and PowerPoint keep a pasted drawing as.
+ * @param {Buffer} file the .docx, .xlsx or .pptx
+ * @param {Buffer[]} metafiles one for each PNG, in order
+ */
+export async function withMetafiles(file, metafiles) {
+  const { OoxmlPackage } = await import('@rutba/ooxml/package');
+  const pkg = OoxmlPackage.read(file);
+  const pngs = pkg.partNames().filter((n) => /\/media\/[^/]+\.png$/i.test(n)).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+  if (pngs.length < metafiles.length) throw new Error(`${pngs.length} PNG pictures for ${metafiles.length} metafiles`);
+  metafiles.forEach((bytes, i) => {
+    const from = pngs[i];
+    const ext = bytes.readUInt32LE(0) === 1 ? 'emf' : 'wmf';
+    const to = from.replace(/\.png$/i, '.' + ext);
+    const oldLeaf = from.split('/').pop();
+    const newLeaf = to.split('/').pop();
+    for (const rels of pkg.partNames().filter((n) => n.endsWith('.rels'))) {
+      const xml = pkg.text(rels);
+      const next = xml.split('/' + oldLeaf + '"').join('/' + newLeaf + '"');
+      if (next !== xml) pkg.write_(rels, next);
+    }
+    pkg.removePart(from);
+    pkg.addPart(to, bytes);
+    pkg.ensureDefault(ext, ext === 'emf' ? 'image/x-emf' : 'image/x-wmf');
+  });
+  return pkg.write();
+}

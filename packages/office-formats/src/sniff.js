@@ -96,6 +96,9 @@ export const KINDS = {
   tiff: { app: 'pictures', label: 'TIFF Image', ext: '.tiff', mime: 'image/tiff', edit: false },
   ico: { app: 'pictures', label: 'Icon', ext: '.ico', mime: 'image/x-icon', edit: false },
   svg: { app: 'pictures', label: 'SVG Image', ext: '.svg', mime: 'image/svg+xml', edit: false },
+  // Drawing calls, not pixels: Windows' pictures, clip art and pasted charts, drawn by office-formats' picture.js.
+  emf: { app: 'pictures', label: 'Enhanced Metafile', ext: '.emf', mime: 'image/emf', edit: false },
+  wmf: { app: 'pictures', label: 'Windows Metafile', ext: '.wmf', mime: 'image/wmf', edit: false },
   psd: { app: 'pictures', label: 'Photoshop Document', ext: '.psd', mime: 'image/vnd.adobe.photoshop', edit: false },
 
   mp4: { app: 'video', label: 'MP4 Video', ext: '.mp4', mime: 'video/mp4', edit: true },
@@ -318,6 +321,9 @@ export function sniff(input, name = '') {
   if (starts(b, BMP)) return answer('bmp', 'magic');
   if (starts(b, PSD)) return answer('psd', 'magic');
   if (starts(b, ICO)) return answer('ico', 'magic');
+  // An EMF's header record is type 1 with ' EMF' at 40; a WMF most often opens with its placeable header's key.
+  if (b.length >= 44 && b[0] === 1 && b[1] === 0 && b[2] === 0 && b[3] === 0 && ascii(b, 40, 4) === ' EMF') return answer('emf', 'magic');
+  if (b[0] === 0xd7 && b[1] === 0xcd && b[2] === 0xc6 && b[3] === 0x9a) return answer('wmf', 'magic');
   if (ascii(b, 0, 4) === 'RIFF') {
     const form = ascii(b, 8, 4);
     if (form === 'WEBP') return answer('webp', 'magic');

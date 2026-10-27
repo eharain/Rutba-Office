@@ -22,6 +22,7 @@
     "./crypt-binary": "./src/crypt-binary.js",
     "./emf": "./src/emf.js",
     "./wmf": "./src/wmf.js",
+    "./picture": "./src/picture.js",
     "./gdi-svg": "./src/gdi-svg.js",
     "./odf": "./src/odf.js",
     "./odf-write": "./src/odf-write.js",

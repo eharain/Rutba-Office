@@ -317,16 +317,32 @@ export const MEDIA_TYPES = {
   bmp: 'image/bmp', svg: 'image/svg+xml', webp: 'image/webp', tiff: 'image/tiff',
 };
 
+// A picture a window cannot draw as it is (an EMF, a WMF) goes to the drawer
+// the app lends: drawablePicture, from @rutba/office-formats/picture, which
+// this package does not depend on. Without one it has no href.
+let pictureDrawer = null;
+/** Lend the drawer for pictures a window does not draw: (bytes, part) => ({ type, bytes } | null). */
+export function setPictureDrawer(fn) {
+  pictureDrawer = typeof fn === 'function' ? fn : null;
+}
+
+const base64Of = (bytes) => (typeof Buffer !== 'undefined'
+  ? Buffer.from(bytes.buffer ?? bytes, bytes.byteOffset ?? 0, bytes.byteLength ?? bytes.length).toString('base64')
+  : btoa(String.fromCharCode(...new Uint8Array(bytes))));
+
 /** Bytes -> data URI. `bytes` may be a Buffer or a Uint8Array. */
 export function toDataUri(bytes, partName) {
   if (!bytes) return null;
   const ext = String(partName ?? '').split('.').pop().toLowerCase();
   const type = MEDIA_TYPES[ext];
-  if (!type) return null;
-  const base64 = typeof Buffer !== 'undefined' && Buffer.isBuffer(bytes)
-    ? bytes.toString('base64')
-    : btoa(String.fromCharCode(...new Uint8Array(bytes)));
-  return 'data:' + type + ';base64,' + base64;
+  if (type) return 'data:' + type + ';base64,' + base64Of(bytes);
+  if (!pictureDrawer) return null;
+  try {
+    const drawn = pictureDrawer(bytes, partName);
+    return drawn ? 'data:' + drawn.type + ';base64,' + base64Of(drawn.bytes) : null;
+  } catch {
+    return null;
+  }
 }
 
 export { polygonPoints, roundedRectPath, roundedBarPath, measureText };
