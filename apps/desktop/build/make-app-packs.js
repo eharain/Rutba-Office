@@ -16,6 +16,7 @@
 //   build/packs/out/       each pack: <id>.asar, <id>.asar.unpacked/, <id>.pack.json
 //   build/out/pack-keys.json  the public key the core checks packs with, and each pack's size
 //   build/packs/installer-packs.nsh  what resources/installer.nsh writes, a pack at a time
+//   build/packs/installer/<id>.7z  on Windows, each pack's archive and folder as the installer carries them
 //   build/packs/moved.json  the core's files each app that carries its code took with it
 //   <release>/Rutba-Office-<version>-<id>.pack  with --release: the file Add or remove apps fetches
 //
@@ -26,6 +27,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PACKS } from '@rutba/office-shell/contract';
 import { writeZip, ZipEntry } from '@rutba/ooxml/zip';
@@ -146,9 +149,10 @@ const q = (s) => `"${String(s).replace(/\$/g, '$$$$').replace(/"/g, '$\\"')}"`;
 /**
  * What the installer writes, a pack at a time: the variables, the choice,
  * the page's boxes, the files and the kinds of file each registers, and
- * every kind of file for the uninstaller to let go of.
+ * every kind of file for the uninstaller to let go of. `archives` names a
+ * 7-Zip archive of a pack's archive and folder, by id, for those carried so.
  */
-export function installerScript({ dir, packs }) {
+export function installerScript({ dir, packs, archives = {} }) {
   const ids = packs.map((p) => p.id);
   const L = [];
   const push = (...lines) => L.push(...lines);
@@ -272,14 +276,29 @@ export function installerScript({ dir, packs }) {
     '!macroend',
     '',
   );
-  // Each pack's files, its manifest last, and its kinds of file.
+  // Each pack's files, its manifest last, and its kinds of file. A pack with
+  // a 7-Zip archive of its own (installerArchives) is carried in that, stored
+  // as it is and unpacked by the 7-Zip plugin electron-builder's own script
+  // uses: NSIS compresses what it carries with zlib, a file at a time, and so
+  // 2.20.0's installer was 56 MB larger than the portable copy carrying the
+  // same apps.
   for (const p of packs) {
     const f = packFiles(p.id);
     push(`!macro rutbaWritePack_${p.id}`);
     push(`  DetailPrint ${q(`Installing ${p.name}`)}`);
     push('  SetOutPath "$INSTDIR\\resources\\packs"');
-    push(`  File ${q(path.join(dir, f.archive))}`);
-    if (fs.existsSync(path.join(dir, f.unpacked))) push(`  File /r ${q(path.join(dir, f.unpacked))}`);
+    if (archives[p.id]) {
+      const carried = `$PLUGINSDIR\\rutba-pack-${p.id}.7z`;
+      push('  InitPluginsDir');
+      push('  !ifdef COMPRESS', '    SetCompress off', '  !endif');
+      push(`  File "/oname=${carried}" ${q(archives[p.id])}`);
+      push('  !ifdef COMPRESS', '    SetCompress "${COMPRESS}"', '  !endif');
+      push(`  Nsis7z::Extract "${carried}"`);
+      push(`  Delete "${carried}"`);
+    } else {
+      push(`  File ${q(path.join(dir, f.archive))}`);
+      if (fs.existsSync(path.join(dir, f.unpacked))) push(`  File /r ${q(path.join(dir, f.unpacked))}`);
+    }
     push(`  File ${q(path.join(dir, f.manifest))}`);
     for (const t of p.fileTypes || []) {
       const icon = `$INSTDIR\\resources\\packs\\${f.unpacked}\\${t.icon.split('/').join('\\')}`;
@@ -346,11 +365,39 @@ export function packZip(dir, id) {
 }
 
 /**
+ * Each pack's archive and folder in a 7-Zip archive of its own, for the
+ * installer to carry stored and unpack (installerScript), with the 7-Zip
+ * electron-builder itself uses. Answers { id: file }, or {} with a warning
+ * when 7-Zip cannot be had: the installer then carries the files as before.
+ */
+export async function installerArchives(out, ids, into) {
+  let exe;
+  try {
+    const require = createRequire(import.meta.url);
+    exe = await require('app-builder-lib/out/toolsets/7zip.js').getPath7za();
+  } catch (err) {
+    console.warn(`7-Zip is not to be had (${err.message}): the installer carries the packs' files as they are.`);
+    return {};
+  }
+  fs.rmSync(into, { recursive: true, force: true });
+  fs.mkdirSync(into, { recursive: true });
+  const archives = {};
+  for (const id of ids) {
+    const f = packFiles(id);
+    const file = path.join(into, `${id}.7z`);
+    const names = [f.archive, ...(fs.existsSync(path.join(out, f.unpacked)) ? [f.unpacked] : [])];
+    execFileSync(exe, ['a', '-t7z', '-mx=9', '-m0=lzma2', '-ms=on', '-bd', '-bso0', file, ...names], { cwd: out, windowsHide: true, stdio: ['ignore', 'ignore', 'inherit'] });
+    archives[id] = file;
+  }
+  return archives;
+}
+
+/**
  * Makes every pack (or those named), signed, and what the core and the
  * installer read of them. `meta` and `rendererOut` are the renderer's build
  * (what went into each file, and the folder of them), when not the last one.
  */
-export async function makeAppPacks({ privateKey, version, only = null, release = null, root = PACKS_DIR, keysFile = KEYS_FILE, installerFile = INSTALLER_FILE, carryCode = CARRY_CODE, movedFile = path.join(root, 'moved.json'), meta = null, rendererOut = path.join(APP, 'build', 'out') }) {
+export async function makeAppPacks({ privateKey, version, only = null, release = null, root = PACKS_DIR, keysFile = KEYS_FILE, installerFile = INSTALLER_FILE, carryCode = CARRY_CODE, movedFile = path.join(root, 'moved.json'), meta = null, rendererOut = path.join(APP, 'build', 'out'), sevenZip = installerFile === INSTALLER_FILE && process.platform === 'win32' }) {
   const tree = path.join(root, 'tree');
   const out = path.join(root, 'out');
   fs.rmSync(tree, { recursive: true, force: true });
@@ -368,7 +415,9 @@ export async function makeAppPacks({ privateKey, version, only = null, release =
   const publicPem = crypto.createPublicKey(privateKey).export({ format: 'pem', type: 'spki' });
   fs.mkdirSync(path.dirname(keysFile), { recursive: true });
   fs.writeFileSync(keysFile, `${JSON.stringify({ keys: [publicPem], sizes }, null, 2)}\n`);
-  fs.writeFileSync(installerFile, installerScript({ dir: out, packs }));
+  // The real installer carries each pack 7-Zipped; a check's script names the files.
+  const archives = sevenZip ? await installerArchives(out, ids, path.join(root, 'installer')) : {};
+  fs.writeFileSync(installerFile, installerScript({ dir: out, packs, archives }));
   const files = [];
   if (release) {
     fs.mkdirSync(release, { recursive: true });

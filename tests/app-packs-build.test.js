@@ -14,7 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { makeKeyPair } from '../tools/make-pack-key.mjs';
-import { makeAppPacks, installerScript } from '../apps/desktop/build/make-app-packs.js';
+import { makeAppPacks, installerScript, installerArchives } from '../apps/desktop/build/make-app-packs.js';
 import { describePack, planPacks, readPackKeys, readPackSizes } from '../apps/desktop/main/app-packs.js';
 import { unpackPackFile, packFileName } from '../apps/desktop/main/packs-service.js';
 import { stagePack } from '../packages/office-shell/src/electron/pack-install.js';
@@ -180,4 +180,66 @@ test('the installer\'s part compiles, for the installer and the uninstaller, wit
       assert.fail(`${name}: ${err.stdout || ''}${err.stderr || err.message}`);
     }
   }
+});
+
+test('a pack carried 7-Zipped is stored as it is, unpacked into the packs folder, and its manifest still written last', () => {
+  const dir = path.join(tmp, 'seven');
+  const packs = ['mail', 'word'].map((id) => ({ ...describePack(id), id }));
+  const script = installerScript({ dir: built.out, packs, archives: { mail: path.join(dir, 'mail.7z') } });
+  const mail = script.slice(script.indexOf('!macro rutbaWritePack_mail'), script.indexOf('!macroend', script.indexOf('!macro rutbaWritePack_mail')));
+  const steps = ['SetCompress off', `File "/oname=$PLUGINSDIR\\rutba-pack-mail.7z" "${path.join(dir, 'mail.7z')}"`, 'SetCompress "${COMPRESS}"', 'Nsis7z::Extract "$PLUGINSDIR\\rutba-pack-mail.7z"', 'Delete "$PLUGINSDIR\\rutba-pack-mail.7z"', 'mail.pack.json"'].map((s) => mail.indexOf(s));
+  assert.ok(steps.every((i) => i > 0) && steps.every((i, n) => n === 0 || i > steps[n - 1]), JSON.stringify(steps));
+  assert.doesNotMatch(mail, /mail\.asar"/, 'the archive is not carried a second time');
+  // A pack with no 7-Zip archive is carried as before.
+  const word = script.slice(script.indexOf('!macro rutbaWritePack_word'), script.indexOf('!macroend', script.indexOf('!macro rutbaWritePack_word')));
+  assert.match(word, /File ".*word\.asar"/);
+  assert.doesNotMatch(word, /Nsis7z/);
+});
+
+/** The folder of NSIS plugins electron-builder downloaded, when it is on this computer. */
+function nsisPlugins() {
+  const cache = path.join(process.env.LOCALAPPDATA || '', 'electron-builder', 'Cache');
+  if (!fs.existsSync(cache)) return null;
+  for (const d of fs.readdirSync(cache).filter((n) => /^nsis-resources-/.test(n))) {
+    for (const sub of fs.readdirSync(path.join(cache, d))) {
+      const plugins = path.join(cache, d, sub, 'plugins', 'x86-unicode');
+      if (fs.existsSync(path.join(plugins, 'nsis7z.dll'))) return plugins;
+    }
+  }
+  return null;
+}
+
+test('each pack is 7-Zipped whole, and the installer part that unpacks it compiles', { skip: process.platform !== 'win32' || !makensis() || !nsisPlugins() ? 'no NSIS compiler or 7-Zip here' : false }, async () => {
+  const into = path.join(tmp, 'seven-zipped');
+  const archives = await installerArchives(built.out, ['mail', 'word'], into);
+  assert.deepEqual(Object.keys(archives).sort(), ['mail', 'word']);
+  for (const id of ['mail', 'word']) {
+    assert.ok(fs.statSync(archives[id]).size > 0);
+    assert.ok(fs.statSync(archives[id]).size < fs.statSync(path.join(built.out, `${id}.asar`)).size, `${id}: smaller than its archive`);
+  }
+  const packs = ['mail', 'word', 'ai'].map((id) => ({ ...describePack(id), id }));
+  const include = path.join(tmp, 'seven-packs.nsh');
+  fs.writeFileSync(include, installerScript({ dir: built.out, packs, archives }));
+  const ids = packs.map((p) => p.id);
+  const lines = [
+    'Unicode true', '!include "LogicLib.nsh"', '!include "FileFunc.nsh"', '!include "WordFunc.nsh"', '!include "nsDialogs.nsh"',
+    `!addplugindir /x86-unicode "${nsisPlugins()}"`, '!define COMPRESS auto', 'SetCompressor zlib',
+    'Name "check"', 'RequestExecutionLevel user', 'InstallDir "$TEMP\\rutba-packs-seven"', `OutFile "${path.join(tmp, 'seven.exe')}"`,
+    'Var appExe', ...ids.map((id) => `Var rutbaW_${id}`), `!include "${include}"`,
+    'Page custom show leave', 'Page instfiles',
+    'Function .onInit', ...ids.map((id) => `  StrCpy $rutbaW_${id} "${id}"`), '  !insertmacro rutbaPacksDecide', 'FunctionEnd',
+    'Function show', '  nsDialogs::Create 1018', '  Pop $0', '  !insertmacro rutbaPackBoxes', '  nsDialogs::Show', 'FunctionEnd',
+    'Function leave', '  StrCpy $2 0', '  !insertmacro rutbaPackReads', 'FunctionEnd',
+    'Section', '  StrCpy $appExe "$INSTDIR\\Rutba Office.exe"', '  !insertmacro rutbaWritePacks', 'SectionEnd',
+  ];
+  const file = path.join(tmp, 'seven.nsi');
+  fs.writeFileSync(file, `${lines.join('\r\n')}\r\n`);
+  try {
+    execFileSync(makensis(), ['/V2', '/WX', '/INPUTCHARSET', 'UTF8', file], { encoding: 'utf8', windowsHide: true });
+  } catch (err) {
+    assert.fail(`${err.stdout || ''}${err.stderr || err.message}`);
+  }
+  // The installer holds the 7-Zip archives as they are, not compressed again.
+  const exe = fs.statSync(path.join(tmp, 'seven.exe')).size;
+  assert.ok(exe >= fs.statSync(archives.mail).size + fs.statSync(archives.word).size, `${exe} bytes`);
 });
