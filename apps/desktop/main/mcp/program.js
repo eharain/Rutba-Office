@@ -18,6 +18,7 @@ import { createServer, serve } from './protocol.js';
 import { writeConnection, alive } from './access.js';
 import { profileDir, profileEntryOf } from './profile-dir.js';
 import { createChannelClient } from './channel.js';
+import { setAsidePrivateCopy, privateCopyNotice } from './private-copy.js';
 import { needsPassword } from '@rutba/office-shell/profiles';
 import { makeTools, INSTRUCTIONS } from './make-tools.js';
 
@@ -37,6 +38,14 @@ export async function program({ version, ocr = async () => null, unicodeFont = (
   console.debug = toErr;
 
   const dataDir = profileDir();
+  // An AI app run as a Windows app package may have a private copy of the
+  // profile that hides the real one (private-copy.js): set aside first.
+  try {
+    const notice = privateCopyNotice(setAsidePrivateCopy({ folder: dataDir }));
+    if (notice) toErr(notice);
+  } catch {
+    // The real profile is read as before.
+  }
   const settingsFile = path.join(dataDir, 'settings.json');
   const settings = () => {
     try {
