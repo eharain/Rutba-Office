@@ -385,11 +385,19 @@ export function partsToRerun(apps, machine) {
   return { parallel: pick(Object.entries(apps)), machine: pick(machineApps) };
 }
 
-/** Whether the run again cleared `names`: each one ran and passed, and nothing in it failed. */
+/**
+ * Whether the run again cleared `names`: each one ran and passed, and nothing
+ * in it failed. A part's catch ("sheets: the error checking check ran") is
+ * written only when the part threw, so it is never seen passing: it is cleared
+ * when its app's own checks passed in the run again instead.
+ */
 export function rerunCleared(names, parts) {
   const all = Object.values(parts || {});
   const passed = new Set(all.flatMap((p) => p.passedNames || []));
-  return all.every((p) => !p.failed?.length) && names.every((n) => passed.has(n));
+  const appOf = (name) => name.split(':')[0];
+  const ranAgain = new Set([...passed].map(appOf));
+  const cleared = (n) => passed.has(n) || (/ ran$/.test(n) && ranAgain.has(appOf(n)));
+  return all.every((p) => !p.failed?.length) && names.every(cleared);
 }
 
 /** Run `tasks` (functions answering promises), at most `limit` at once, in their order. */

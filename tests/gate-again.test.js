@@ -74,6 +74,14 @@ test('a run again clears only when each check that failed is seen passing by nam
   assert.equal(rerunCleared(names, null), false);
 });
 
+test('a part that threw is cleared when its app\'s checks pass in the run again, since its catch is never seen passing', () => {
+  const names = ['sheets: the error checking check ran'];
+  assert.equal(rerunCleared(names, { sheets: { failed: [], passedNames: ['sheets: Error Checking lists D8'] } }), true);
+  assert.equal(rerunCleared(names, { pdf: { failed: [], passedNames: ['pdf: Delete takes the page out'] } }), false, 'another app\'s passes do not clear it');
+  assert.equal(rerunCleared(names, { sheets: { failed: ['sheets: the error checking check ran'], passedNames: ['sheets: Error Checking lists D8'] } }), false);
+  assert.equal(rerunCleared(['sheets: a picture'], { sheets: { failed: [], passedNames: ['sheets: saved'] } }), false, 'only a catch is cleared this way');
+});
+
 test('the record names each check that ran again', () => {
   const counts = { 'verify:apps': { passed: 10, of: 10 } };
   const plain = gateSection(counts, { version: '9.9.9', date: '2026-10-21', platform: 'win32', arch: 'x64' });
