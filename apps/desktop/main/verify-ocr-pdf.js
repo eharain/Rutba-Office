@@ -165,22 +165,29 @@ export async function verifyOcrPdf(h, { dir }) {
     // The first scan's words laid on its page again once Find has closed, and
     // selected and copied in the same turn as they are read: on a busy machine
     // the page, back in view, could draw its words again between a read that
-    // found them and the copy that followed.
+    // found them and the copy that followed. What each page holds is counted in
+    // that same turn too, for the same reason.
     const selectCopy = `(() => {
+      const counts = [...document.querySelectorAll('.pdf-page .textLayer')].map((l) => l.textContent.length);
       const layer = document.querySelector('.pdf-page[data-index="0"] .textLayer[data-ready]');
-      if (!layer) return '';
+      if (!layer) return { text: '', counts };
       const r = document.createRange();
       r.selectNodeContents(layer);
       getSelection().removeAllRanges();
       getSelection().addRange(r);
       const text = getSelection().toString();
       getSelection().removeAllRanges();
-      return text;
+      return { text, counts };
     })()`;
     const inOrder = (text) => /Rutba Office reads the words/.test(text.replace(/\s+/g, ' ')) && /delivery/.test(text);
     let copied = '';
-    await until(async () => inOrder(copied = String((await d.js(selectCopy)) || '')), 'the first scan\'s words selected and copied', 60000).catch(() => {});
-    const after = await d.js(`[...document.querySelectorAll('.pdf-page .textLayer')].map((l) => l.textContent.length)`);
+    let after = [];
+    await until(async () => {
+      const read = (await d.js(selectCopy)) || {};
+      copied = String(read.text || '');
+      after = read.counts || [];
+      return inOrder(copied);
+    }, 'the first scan\'s words selected and copied', 60000).catch(() => {});
     check('ocr-pdf: the words recognised on a scan are there to select and copy, in order', inOrder(copied), copied.slice(0, 160));
     check('ocr-pdf: the scanned pages had no text before and have it now; the typed page has what it had', before[0] === 0 && after[0] > 200 && before[1] === after[1] && before[1] > 0, JSON.stringify({ before, after }));
 
