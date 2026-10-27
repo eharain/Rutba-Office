@@ -1,7 +1,9 @@
 // Contacts' and Calendar's Import, through the Open dialog as a person uses
 // it: the file chosen there comes in. Since 1.8.0 both took the first letter
 // of the path chosen ("D") and said ENOENT, whichever way Import was asked
-// for; the checks before this one gave the window its file directly. The
+// for; the checks before this one gave the window its file directly. Then
+// "Search contacts" is typed into, as a person types, and finds that card
+// alone (it threw on every key, and the box stayed empty). The
 // dialog's answer is planned (ipc.js plannedAnswer), and what came in is
 // removed again, so the checks after these find the books as they were. Run
 // alone with RUTBA_VERIFY_ONLY=import-dialog.
@@ -31,8 +33,12 @@ function unplan() {
 export async function verifyContactsImportDialog({ open, check, until, errorsIn }, { dir }) {
   const own = path.join(dir, 'import-dialog');
   fs.mkdirSync(own, { recursive: true });
-  const vcf = path.join(own, 'one card.vcf');
-  fs.writeFileSync(vcf, ['BEGIN:VCARD', 'VERSION:3.0', 'N:Check;Dialog;;;', 'FN:Dialog Check', 'EMAIL:dialog.check@example.com', 'END:VCARD', ''].join('\r\n'));
+  // Two cards: the search must find the one and leave the other out.
+  const vcf = path.join(own, 'two cards.vcf');
+  fs.writeFileSync(vcf, [
+    'BEGIN:VCARD', 'VERSION:3.0', 'N:Check;Dialog;;;', 'FN:Dialog Check', 'EMAIL:dialog.check@example.com', 'END:VCARD',
+    'BEGIN:VCARD', 'VERSION:3.0', 'N:Lane;Ivy;;;', 'FN:Ivy Lane', 'EMAIL:ivy.lane@example.org', 'END:VCARD', '',
+  ].join('\r\n'));
   let win = null;
   let before = null;
   try {
@@ -43,10 +49,18 @@ export async function verifyContactsImportDialog({ open, check, until, errorsIn 
     let said = '';
     await until(async () => /added|ENOENT|error/i.test((said = await toastsOf(win))), 'what Import says', 10000).catch(() => {});
     const came = await js(`window.rutbaOffice.contacts.list({}).then((l) => l.filter((c) => !${JSON.stringify(before)}.includes(c.id)).map((c) => c.name || c.fn || c.displayName || ''))`);
-    check('contacts: Import, with a .vcf chosen in the Open dialog, brings its card in, not "ENOENT ... D"',
-      Boolean(pressed) && came.length === 1 && /1 added/.test(said) && !/ENOENT/.test(said), JSON.stringify({ pressed, said, came }));
+    check('contacts: Import, with a .vcf chosen in the Open dialog, brings its cards in, not "ENOENT ... D"',
+      Boolean(pressed) && came.length === 2 && /2 added/.test(said) && !/ENOENT/.test(said), JSON.stringify({ pressed, said, came }));
+    // Typed into the search box, key by key: the box shows it and the list is that card alone.
+    await js(`(() => { const i = document.querySelector('.ct-search input'); i?.focus(); return Boolean(i); })()`);
+    win.focus();
+    for (const ch of 'dialog') { win.webContents.insertText(ch); await new Promise((r) => setTimeout(r, 60)); }
+    let found = null;
+    await until(async () => (found = await js(`({ typed: document.querySelector('.ct-search input')?.value, items: [...document.querySelectorAll('.ct-list .ct-item')].map((n) => n.textContent.trim().slice(0, 40)) })`)).items.length === 1, 'the list filtered', 6000).catch(() => {});
+    check('contacts: "Search contacts" shows what is typed and the list finds that card alone',
+      found?.typed === 'dialog' && found.items.length === 1 && /Dialog Check/.test(found.items[0]) && !found.items.some((x) => /Ivy Lane/.test(x)), JSON.stringify(found));
     const complaints = await errorsIn(win);
-    check('contacts: Import through the dialog reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    check('contacts: Import through the dialog, and searching, report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check('contacts: the Import-through-the-dialog check ran', false, err.message);
   } finally {

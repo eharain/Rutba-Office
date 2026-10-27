@@ -423,7 +423,7 @@ export default function Contacts({ app, shell, boot }) {
       {csv ? <CsvImport shell={shell} path={csv.path} toast={toast} onClose={() => setCsv(null)} onDone={(r) => { setCsv(null); imported(r); }} /> : null}
       <Panel width={280} resizable>
         <div className="ct-search">
-          <Search value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('Search contacts')} autoFocus={false} />
+          <Search value={query} onChange={setQuery} placeholder={t('Search contacts')} autoFocus={false} />
         </div>
         {peek ? (
           <div className="ct-peek">
