@@ -187,11 +187,17 @@ export function createPacksService({ plan, stores, broadcast = () => {}, version
     add: async ({ id } = {}) => {
       refuseUnmanaged();
       if (!ID.test(String(id)) || !PACKS.some((p) => p.id === id)) throw new Error(`There is no app called ${id} to add.`);
-      // Written down to go, and wanted after all: it simply stays.
+      // Written down to go, and wanted after all: it simply stays. One a
+      // program held at the last start was left out of this run, and loads at
+      // the next; one a removal got halfway through (2.20.0 took the
+      // manifest before finding the archive held) is installed again below.
       if (removals().includes(id)) {
         if (goingElevated.delete(id)) return changed();
         unmarkRemoval(dir, id);
-        return changed();
+        if (packsIn(dir).includes(id)) {
+          if (!plan.has(id)) adding.set(id, { staged: null, kept: true });
+          return changed();
+        }
       }
       if (plan.has(id)) throw new Error(`${nameOf(id)} is already installed.`);
       if (adding.has(id)) return list();
@@ -202,7 +208,7 @@ export function createPacksService({ plan, stores, broadcast = () => {}, version
       if (perMachine()) {
         adding.set(id, { staged: at, types: typesOf(pack, dir) });
       } else {
-        installStaged({ staging: at, id, dir });
+        installStaged({ staging: at, id, dir, name: nameOf(id) });
         adding.set(id, { staged: null });
         if (registry) await registerTypes(typesOf(pack, dir), { exe: process.execPath }).catch(() => {});
       }
@@ -216,7 +222,9 @@ export function createPacksService({ plan, stores, broadcast = () => {}, version
         // Added in this run and never loaded: its files can go now.
         const a = adding.get(id);
         adding.delete(id);
-        if (a.staged) fs.rmSync(a.staged, { recursive: true, force: true });
+        // Kept from before this run (a removal taken back): written down to go again.
+        if (a.kept) markRemoval(dir, id);
+        else if (a.staged) fs.rmSync(a.staged, { recursive: true, force: true });
         else {
           const f = packFiles(id);
           fs.rmSync(path.join(dir, f.manifest), { force: true });

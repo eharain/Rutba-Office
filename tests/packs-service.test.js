@@ -180,3 +180,91 @@ test('Restart starts Rutba Office again; a copy installed for everyone is change
   assert.ok(script.indexOf('word.pack.json') > script.indexOf('word.asar.unpacked'));
   assert.match(script, /Start-Process -FilePath 'C:\\Program Files\\Rutba Office\\Rutba Office\.exe'\r\n$/);
 });
+
+/**
+ * A program holding a file the way Electron holds a loaded archive: read,
+ * shared for reading and writing but not for deleting, so the file can be
+ * neither deleted nor moved while it runs (an AI app's connection to the AI
+ * tools runs AI Tools' pack and holds it as long as that app runs).
+ */
+async function hold(file) {
+  const { spawn } = await import('node:child_process');
+  const script = `$f = [System.IO.File]::Open('${file.replace(/'/g, "''")}', 'Open', 'Read', 'ReadWrite'); [Console]::Out.WriteLine('held'); [Console]::Out.Flush(); [void][Console]::In.ReadLine(); $f.Close()`;
+  const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true });
+  await new Promise((resolve, reject) => {
+    child.stdout.on('data', (d) => { if (String(d).includes('held')) resolve(); });
+    child.on('exit', (code) => reject(new Error(`the holder ended (${code})`)));
+  });
+  return () => new Promise((resolve) => {
+    child.removeAllListeners('exit');
+    child.on('exit', resolve);
+    child.stdin.end('\n');
+  });
+}
+const windowsOnly = { skip: process.platform !== 'win32' && 'holding a file against deletion is Windows\' own' };
+
+test('a pack a program holds is left whole when removed: left out of the next start, and Add takes it back', windowsOnly, async () => {
+  const { dir, plan } = installed(['word', 'ai']);
+  await service({ plan, dir, source: release }).remove({ id: 'ai' });
+  const release1 = await hold(path.join(dir, 'ai.asar'));
+  let next;
+  try {
+    next = planPacks({ dir, keys, version: VERSION });
+  } finally {
+    await release1();
+  }
+  // 2.20.0 took the manifest first and left the archive: no pack, and nothing to take back.
+  assert.deepEqual(next.ids(), ['word'], 'written down to go: not loaded while held');
+  assert.ok(fs.existsSync(path.join(dir, 'ai.pack.json')), 'the manifest is kept while the archive is held');
+  assert.ok(fs.existsSync(path.join(dir, 'ai.asar')));
+  assert.deepEqual(pendingRemovals(dir), ['ai'], 'tried again at the start after');
+  // Wanted after all: it stays, and loads at the next start.
+  const packs = service({ plan: next, dir, source: release });
+  const after = await packs.add({ id: 'ai' });
+  assert.equal(stateOf(after, 'ai'), 'adding');
+  assert.equal(after.restart, true);
+  assert.deepEqual(pendingRemovals(dir), []);
+  // Taken back once more before the restart: written down to go again.
+  await packs.remove({ id: 'ai' });
+  assert.deepEqual(pendingRemovals(dir), ['ai']);
+  await packs.add({ id: 'ai' });
+  assert.deepEqual(planPacks({ dir, keys, version: VERSION }).ids().sort(), ['ai', 'word']);
+});
+
+test('a pack a removal got halfway through is added again, its held archive kept when it is the same one', windowsOnly, async () => {
+  const { dir } = installed(['word', 'ai']);
+  // As 2.20.0 left it: the archive held by an AI app, the manifest gone.
+  fs.rmSync(path.join(dir, 'ai.pack.json'));
+  const plan = planPacks({ dir, keys, version: VERSION });
+  assert.deepEqual(plan.ids(), ['word']);
+  const letGo = await hold(path.join(dir, 'ai.asar'));
+  try {
+    const after = await service({ plan, dir, source: release }).add({ id: 'ai' });
+    assert.equal(stateOf(after, 'ai'), 'adding');
+    assert.ok(fs.existsSync(path.join(dir, 'ai.pack.json')));
+  } finally {
+    await letGo();
+  }
+  assert.deepEqual(planPacks({ dir, keys, version: VERSION }).ids().sort(), ['ai', 'word']);
+  assert.deepEqual(fs.readdirSync(dir).filter((n) => n.includes('.going')), [], 'nothing left moved aside');
+});
+
+test('a held pack that is not the same one is refused in a sentence that says what to close, and nothing is changed', windowsOnly, async () => {
+  const { dir } = installed(['word', 'ai']);
+  fs.rmSync(path.join(dir, 'ai.pack.json'));
+  fs.appendFileSync(path.join(dir, 'ai.asar'), Buffer.from([0]));
+  const before = fs.readFileSync(path.join(dir, 'ai.asar'));
+  const plan = planPacks({ dir, keys, version: VERSION });
+  const letGo = await hold(path.join(dir, 'ai.asar'));
+  try {
+    await assert.rejects(service({ plan, dir, source: release }).add({ id: 'ai' }),
+      /^Error: The AI Tools pack already here is in use by another program: an AI app connected to Rutba Office's AI tools, or another Rutba Office still open\. Close it, then add AI Tools again\.$/);
+  } finally {
+    await letGo();
+  }
+  assert.ok(fs.readFileSync(path.join(dir, 'ai.asar')).equals(before));
+  assert.equal(fs.existsSync(path.join(dir, 'ai.pack.json')), false);
+  // Let go of, it is added.
+  await service({ plan, dir, source: release }).add({ id: 'ai' });
+  assert.deepEqual(planPacks({ dir, keys, version: VERSION }).ids().sort(), ['ai', 'word']);
+});

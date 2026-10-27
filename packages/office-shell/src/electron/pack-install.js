@@ -12,7 +12,8 @@
 // archive is held. Until then it is written down in the packs folder
 // (pending.json), and a pack written down to go is not loaded even when its
 // files could not be deleted yet (another profile's Rutba Office still
-// running holds them): it is tried again at the start after.
+// running holds them, or an AI app's connection to the AI tools): it is left
+// whole and tried again at the start after, and Add takes it back.
 //
 // Only the packs folder is touched: the person's documents, mail, settings
 // and profile data are not here, and stay.
@@ -21,6 +22,7 @@
 // which sees an .asar as the file it is rather than as a folder.
 
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { findPacks } from './packs.js';
 
@@ -114,12 +116,79 @@ export function unmarkRemoval(dir, id) {
   return pending.remove;
 }
 
-/** One pack's files deleted, its manifest first so that what is left of it is no pack at all. */
+/** Whether a pack's archive is held by a running program: Windows says EBUSY or EPERM. */
+const isHeld = (err) => ['EBUSY', 'EPERM', 'EACCES'].includes(err?.code);
+
+/**
+ * One pack's files deleted, its manifest first so that what is left of it is
+ * no pack at all. The archive is moved aside before anything is deleted: one
+ * a running program holds open (an AI app's connection to the AI tools runs
+ * AI Tools' pack, and holds it as long as that app runs) cannot be, and the
+ * pack is then left whole, to go at a later start or to stay after all.
+ */
 function deletePack(dir, id) {
   const f = packFiles(id);
+  const archive = path.join(dir, f.archive);
+  const aside = `${archive}.going`;
+  try {
+    fs.rmSync(aside, { force: true });
+  } catch {
+    // A pack moved aside before and still held: its new archive needs another name.
+  }
+  const asideNow = fs.existsSync(aside) ? `${archive}.going-${process.pid}-${Date.now()}` : aside;
+  if (fs.existsSync(archive)) fs.renameSync(archive, asideNow);
   fs.rmSync(path.join(dir, f.manifest), { force: true });
-  fs.rmSync(path.join(dir, f.archive), { force: true });
+  try {
+    fs.rmSync(asideNow, { force: true });
+  } catch {
+    // Let go of between the move and now, and taken again: swept at a later start.
+  }
   fs.rmSync(path.join(dir, f.unpacked), { recursive: true, force: true });
+}
+
+/** Archives moved aside by an earlier removal and no longer held, deleted. */
+function sweepAside(dir) {
+  let names = [];
+  try {
+    names = fs.readdirSync(dir).filter((n) => /\.asar\.going(-\d+-\d+)?$/.test(n));
+  } catch {
+    return;
+  }
+  for (const n of names) {
+    try {
+      fs.rmSync(path.join(dir, n), { force: true });
+    } catch {
+      // Still held: the next start tries again.
+    }
+  }
+}
+
+/** Whether two files hold the same bytes. */
+function sameFile(a, b) {
+  try {
+    const sa = fs.statSync(a);
+    const sb = fs.statSync(b);
+    if (!sa.isFile() || !sb.isFile() || sa.size !== sb.size) return false;
+    const hash = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+    return hash(a) === hash(b);
+  } catch {
+    return false;
+  }
+}
+
+/** Whether two folders hold the same files with the same bytes. */
+function sameTree(a, b) {
+  try {
+    const sa = fs.lstatSync(a);
+    const sb = fs.lstatSync(b);
+    if (sa.isDirectory() !== sb.isDirectory() || sa.isSymbolicLink() || sb.isSymbolicLink()) return false;
+    if (!sa.isDirectory()) return sameFile(a, b);
+    const na = fs.readdirSync(a).sort();
+    const nb = fs.readdirSync(b).sort();
+    return na.length === nb.length && na.every((n, i) => n === nb[i] && sameTree(path.join(a, n), path.join(b, n)));
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -129,6 +198,7 @@ function deletePack(dir, id) {
  * @returns {{ removed: string[], held: string[] }}
  */
 export function applyRemovals(dir) {
+  sweepAside(dir);
   const pending = readPending(dir);
   const removed = [];
   const held = [];
@@ -197,14 +267,31 @@ export function stagePack({ from, id, staging, publicKey, version, present = [],
 /**
  * A staged pack put in place in the packs folder: its archive and files
  * first, its manifest last. A pack of that name already there (one that
- * would not load, being installed again) is replaced.
+ * would not load, being installed again) is replaced, except an archive that
+ * is this very one, which is kept: a removal cut short by a program holding
+ * it leaves it so, and a held archive cannot be replaced. One that differs
+ * and is held is a sentence saying what to close, with nothing changed.
  */
-export function installStaged({ staging, id, dir }) {
+export function installStaged({ staging, id, dir, name = id }) {
   const f = packFiles(id);
   fs.mkdirSync(dir, { recursive: true });
-  deletePack(dir, id);
-  copy(path.join(staging, f.archive), path.join(dir, f.archive));
-  if (fs.existsSync(path.join(staging, f.unpacked))) copy(path.join(staging, f.unpacked), path.join(dir, f.unpacked));
+  const archiveKept = sameFile(path.join(staging, f.archive), path.join(dir, f.archive));
+  const unpackedKept = archiveKept && (fs.existsSync(path.join(staging, f.unpacked))
+    ? sameTree(path.join(staging, f.unpacked), path.join(dir, f.unpacked))
+    : !fs.existsSync(path.join(dir, f.unpacked)));
+  if (archiveKept) {
+    fs.rmSync(path.join(dir, f.manifest), { force: true });
+    if (!unpackedKept) fs.rmSync(path.join(dir, f.unpacked), { recursive: true, force: true });
+  } else {
+    try {
+      deletePack(dir, id);
+    } catch (err) {
+      if (!isHeld(err)) throw err;
+      throw Object.assign(new Error(`The ${name} pack already here is in use by another program: an AI app connected to Rutba Office's AI tools, or another Rutba Office still open. Close it, then add ${name} again.`), { code: 'held' });
+    }
+    copy(path.join(staging, f.archive), path.join(dir, f.archive));
+  }
+  if (!unpackedKept && fs.existsSync(path.join(staging, f.unpacked))) copy(path.join(staging, f.unpacked), path.join(dir, f.unpacked));
   copy(path.join(staging, f.manifest), path.join(dir, f.manifest));
   unmarkRemoval(dir, id);
   fs.rmSync(staging, { recursive: true, force: true });
