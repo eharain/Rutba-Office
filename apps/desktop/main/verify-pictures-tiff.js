@@ -6,10 +6,10 @@
 //     (CCITT Group 4) opens.
 //   image-formats: Image opens a chosen page of the TIFF, steps to the next,
 //     and exports BMP, ICO and TIFF that read back as the picture.
-//   pictures-formats: Pictures opens QOI, PPM, Targa, PCX, Radiance HDR and a
-//     cursor in turn, each drawn as itself with its size in the details, and
+//   pictures-formats: Pictures opens QOI, PPM, Targa, PCX, Radiance HDR, a
+//     cursor and a Photoshop document in turn, each drawn as itself with its size in the details, and
 //     the folder's grid draws a thumbnail of each.
-//   image-open: Image opens those formats, and an SVG at the size chosen in
+//   image-open: Image opens those formats (Photoshop flattened), and an SVG at the size chosen in
 //     the dialog it asks first.
 //
 // Run alone with RUTBA_VERIFY_ONLY=pictures-tiff,image-formats,pictures-formats,image-open.
@@ -242,7 +242,7 @@ export async function verifyImageFormats({ open, check, until, wait, press, erro
 /* ── the small formats: QOI, Netpbm, Targa, PCX, Radiance HDR, cursors; SVG at a size ── */
 
 const SMALL = { width: 360, height: 240 };
-const SMALL_COLOURS = [[200, 60, 120], [60, 140, 200], [230, 150, 30], [90, 170, 70], [140, 90, 210], [200, 200, 60]];
+const SMALL_COLOURS = [[200, 60, 120], [60, 140, 200], [230, 150, 30], [90, 170, 70], [140, 90, 210], [200, 200, 60], [180, 110, 70]];
 
 /** A folder of one picture in each small format, each its own colour, written by the suite's writers. */
 async function smallFormats(root) {
@@ -251,7 +251,7 @@ async function smallFormats(root) {
   const { encodeHdr } = await import('../../../packages/imaging/src/codecs/hdr.js');
   const { encodeIco } = await import('@rutba/imaging/encode');
   const { encodePng } = await import('@rutba/imaging/decode');
-  const { pnmOf, tgaOf, lightOf } = await import('../../../tools/picture-sources.js');
+  const { pnmOf, tgaOf, lightOf, psdOf } = await import('../../../tools/picture-sources.js');
   const pic = (k) => pageRgba({ ...SMALL, colour: SMALL_COLOURS[k] });
   const files = [
     ['1 quite ok.qoi', encodeQoi(pic(0), SMALL.width, SMALL.height), 'QOI'],
@@ -262,6 +262,8 @@ async function smallFormats(root) {
   ];
   const cur = pageRgba({ width: 64, height: 64, colour: SMALL_COLOURS[5] });
   files.push(['6 pointer.cur', encodeIco([{ width: 64, height: 64, png: encodePng(cur, 64, 64) }], { cursor: true, hotspots: [{ x: 4, y: 4 }] }), 'CUR']);
+  // Photoshop, as it saves a document with transparency: the flattened picture matted on white, its alpha beside it.
+  files.push(['7 photoshop.psd', psdOf(pic(6), SMALL.width, SMALL.height, { alpha: true }), 'PSD']);
   for (const [name, bytes] of files) fs.writeFileSync(path.join(root, name), bytes);
   return files.map(([name, , format], k) => ({ file: path.join(root, name), name, format, colour: SMALL_COLOURS[k], size: k === 5 ? [64, 64] : [SMALL.width, SMALL.height] }));
 }
@@ -298,7 +300,7 @@ export async function verifyPicturesFormats({ open, check, until, wait, press, e
       // The Radiance picture is tone-mapped, so its colour is its own; the rest are their disc's colour.
       const colourOk = f.format === 'HDR' ? Boolean(c && c.rgb[2] > c.rgb[1]) : Boolean(c && near(c.rgb, f.colour.map((v) => Math.round(v * 0.45)), 12));
       seen.push({ name: f.name, drawn, colourOk, centre: c?.rgb, said });
-      if (f.format === 'TGA' || f.format === 'HDR') await capture(win, `pictures-formats-${f.format.toLowerCase()}.png`);
+      if (f.format === 'TGA' || f.format === 'HDR' || f.format === 'PSD') await capture(win, `pictures-formats-${f.format.toLowerCase()}.png`);
       if (k + 1 < files.length) {
         win.focus();
         await js(`document.querySelector('.pv-stage')?.focus?.(), 1`);
@@ -307,7 +309,7 @@ export async function verifyPicturesFormats({ open, check, until, wait, press, e
     }
     const allDrawn = seen.every((s) => s.drawn && s.colourOk);
     const allSaid = seen.every((s, k) => s.said?.size?.startsWith(`${files[k].size[0]} × ${files[k].size[1]}`));
-    check('pictures: QOI, PPM, Targa, PCX, Radiance HDR (tone-mapped) and a cursor each open in turn, drawn as themselves, the details giving their size',
+    check('pictures: QOI, PPM, Targa, PCX, Radiance HDR (tone-mapped), a cursor and a Photoshop document (flattened) each open in turn, drawn as themselves, the details giving their size',
       allDrawn && allSaid, JSON.stringify(seen));
     // Back to the folder: a thumbnail for every one.
     await press(win.webContents, 'Escape');
@@ -315,7 +317,7 @@ export async function verifyPicturesFormats({ open, check, until, wait, press, e
     let thumbs = 0;
     await until(() => js(`(() => { const names = ${want}; const drawn = [...document.querySelectorAll('.pv-tile[data-name]')].filter((t) => { const i = t.querySelector('img'); return i && i.complete && i.naturalWidth > 0; }).map((t) => t.dataset.name); return names.filter((n) => drawn.includes(n)).length; })()`).then((n) => { thumbs = n; return n === files.length; }), 'the folder thumbnails', 10000).catch(() => {});
     await capture(win, 'pictures-formats-grid.png');
-    check('pictures: the folder lists all six, each with its thumbnail drawn', thumbs === files.length, JSON.stringify({ thumbs }));
+    check(`pictures: the folder lists all ${files.length}, each with its thumbnail drawn`, thumbs === files.length, JSON.stringify({ thumbs }));
     const complaints = await errorsIn(win);
     check('pictures: the small formats report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     win.close();
@@ -345,16 +347,16 @@ export async function verifyImageOpen({ open, check, until, wait, errorsIn }, { 
     fs.mkdirSync(root, { recursive: true });
     const files = await smallFormats(root);
     const opened = {};
-    for (const f of files.filter((x) => ['QOI', 'TGA', 'PCX', 'HDR', 'CUR'].includes(x.format))) {
+    for (const f of files.filter((x) => ['QOI', 'TGA', 'PCX', 'HDR', 'CUR', 'PSD'].includes(x.format))) {
       const win = await open('image', f.file);
       const js = (code) => win.webContents.executeJavaScript(code);
       opened[f.format] = await until(async () => (await resultOf(js)) === `${f.size[0]}x${f.size[1]}`, `${f.name} in Image`, 10000).then(() => true).catch(() => false);
-      if (f.format === 'TGA') await capture(win, 'image-open-tga.png');
+      if (f.format === 'TGA' || f.format === 'PSD') await capture(win, `image-open-${f.format.toLowerCase()}.png`);
       const complaints = await errorsIn(win);
       if (complaints.length) opened[`${f.format} reported`] = complaints.join(' | ');
       win.close();
     }
-    check('image: QOI, Targa, PCX, Radiance HDR and a cursor each open as a picture of their own size, reporting nothing',
+    check('image: QOI, Targa, PCX, Radiance HDR, a cursor and a Photoshop document (as one flattened picture) each open as a picture of their own size, reporting nothing',
       Object.values(opened).every((v) => v === true), JSON.stringify(opened));
 
     // SVG: the dialog asks the size first; 960 pixels wide draws it at 960 × 640.

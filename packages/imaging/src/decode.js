@@ -27,6 +27,7 @@ import { isPnm, pnmInfo, decodePnm } from './codecs/pnm.js';
 import { tgaInfo, decodeTga } from './codecs/tga.js';
 import { isPcx, pcxInfo, decodePcx } from './codecs/pcx.js';
 import { isHdr, hdrInfo, decodeHdr } from './codecs/hdr.js';
+import { isPsd, psdInfo, decodePsd } from './codecs/psd.js';
 import { readExif } from './exif.js';
 
 export { LIMITS, PictureError, encodePng, encodeTiff };
@@ -51,6 +52,8 @@ const READERS = {
   pnm: { exts: ['pbm', 'pgm', 'ppm', 'pnm', 'pam'], sniff: isPnm, info: pnmInfo, decode: (b, o) => decodePnm(b, o) },
   pcx: { exts: ['pcx'], sniff: isPcx, info: pcxInfo, decode: (b, o) => decodePcx(b, o) },
   hdr: { exts: ['hdr', 'rgbe'], sniff: isHdr, info: hdrInfo, decode: (b, o) => decodeHdr(b, o) },
+  // Photoshop: the flattened picture it keeps beside the layers.
+  psd: { exts: ['psd', 'psb'], sniff: isPsd, info: psdInfo, decode: (b, o) => decodePsd(b, o) },
   // TGA has no mark of its own: known by its name, its header held to what a real one has.
   tga: { exts: ['tga', 'icb', 'vda', 'vst'], info: tgaInfo, decode: (b, o) => decodeTga(b, o) },
 };
@@ -100,7 +103,7 @@ export function needsDecoding(name) {
   return false;
 }
 
-const NAMES = { jpeg: 'JPEG', gif: 'GIF', webp: 'WebP', avif: 'AVIF', heic: 'HEIC', jxr: 'JPEG XR', jxl: 'JPEG XL', jp2: 'JPEG 2000', svg: 'SVG', pnm: 'Netpbm', hdr: 'Radiance HDR', ico: 'icon', cur: 'cursor' };
+const NAMES = { jpeg: 'JPEG', gif: 'GIF', webp: 'WebP', avif: 'AVIF', heic: 'HEIC', jxr: 'JPEG XR', jxl: 'JPEG XL', jp2: 'JPEG 2000', svg: 'SVG', pnm: 'Netpbm', hdr: 'Radiance HDR', psd: 'Photoshop', ico: 'icon', cur: 'cursor' };
 
 function cannot(format, name) {
   const what = format ? `${NAMES[format] || format.toUpperCase()} pictures` : `${extOf(name) ? `.${extOf(name)} files` : 'this kind of file'}`;

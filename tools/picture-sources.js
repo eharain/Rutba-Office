@@ -10,6 +10,60 @@ import { encodeIco } from '../packages/imaging/src/encode.js';
 import { encodeQoi } from '../packages/imaging/src/codecs/qoi.js';
 import { encodePcx } from '../packages/imaging/src/codecs/pcx.js';
 import { encodeHdr } from '../packages/imaging/src/codecs/hdr.js';
+import { packbitsEncode } from '../packages/imaging/src/codecs/lzw.js';
+
+/**
+ * A Photoshop document of one RGB picture, as Photoshop lays out the
+ * flattened picture it keeps: PackBits rows (or raw), and with alpha the
+ * colour matted on white and a negative layer count saying the fourth
+ * channel is its transparency. No layers are written.
+ */
+export function psdOf(rgba, w, h, { alpha = false, packed = true, big = false } = {}) {
+  const channels = alpha ? 4 : 3;
+  const out = [];
+  const u16 = (v) => out.push((v >> 8) & 255, v & 255);
+  const u32 = (v) => out.push((v >>> 24) & 255, (v >> 16) & 255, (v >> 8) & 255, v & 255);
+  out.push(0x38, 0x42, 0x50, 0x53);
+  u16(big ? 2 : 1);
+  out.push(0, 0, 0, 0, 0, 0);
+  u16(channels);
+  u32(h);
+  u32(w);
+  u16(8);
+  u16(3);
+  u32(0); // no colour-mode data
+  // One resource: version info, saying the flattened picture is real.
+  const version = [0, 0, 0, 1, 1];
+  u32(12 + version.length + 1);
+  out.push(0x38, 0x42, 0x49, 0x4d, 0x04, 0x21, 0, 0);
+  u32(version.length);
+  out.push(...version, 0);
+  // The layers section: only a count, negative when there is transparency.
+  const layers = alpha ? [...(big ? [0, 0, 0, 0] : []), 0, 0, 0, 2, 0xff, 0xff, 0, 0] : [];
+  if (big) u32(0);
+  u32(layers.length);
+  out.push(...layers);
+  // The channels, each plane in turn.
+  const planes = [];
+  for (let c = 0; c < channels; c++) {
+    const plane = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) {
+      const a = rgba[i * 4 + 3];
+      plane[i] = c === 3 ? a : alpha ? Math.round((rgba[i * 4 + c] * a) / 255 + 255 - a) : rgba[i * 4 + c];
+    }
+    planes.push(plane);
+  }
+  u16(packed ? 1 : 0);
+  if (!packed) {
+    for (const plane of planes) out.push(...plane);
+    return Uint8Array.from(out);
+  }
+  const rows = [];
+  for (const plane of planes) for (let y = 0; y < h; y++) rows.push(packbitsEncode(plane.subarray(y * w, (y + 1) * w)));
+  for (const r of rows) (big ? u32 : u16)(r.length);
+  for (const r of rows) for (const v of r) out.push(v);
+  return Uint8Array.from(out);
+}
 
 /** Netpbm: a binary PPM (P6), or a PAM (P7) with alpha. */
 export function pnmOf(rgba, w, h, { pam = false } = {}) {
@@ -80,6 +134,7 @@ export function pictureSources() {
     'picture.tga': Buffer.from(tgaOf(rgba, w, h)),
     'picture.pcx': Buffer.from(encodePcx(rgba, w, h, { alpha: true })),
     'picture.hdr': Buffer.from(encodeHdr(lightOf(rgba, w, h), w, h)),
+    'picture.psd': Buffer.from(psdOf(rgba, w, h, { alpha: true })),
     'picture.cur': Buffer.from(encodeIco([{ width: 16, height: 16, png: encodePng(sample(16, 16), 16, 16) }], { cursor: true, hotspots: [{ x: 2, y: 3 }] })),
   };
 }

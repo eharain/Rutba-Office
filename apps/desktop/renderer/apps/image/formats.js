@@ -12,7 +12,7 @@ import { encodePicture, encodeIco, iconSizes } from '@rutba/imaging/encode';
 import { t } from '@rutba/office-ui';
 
 /** The extensions Image's Open offers, its project first. */
-export const IMAGE_OPENS = ['rimg', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif', 'tif', 'tiff', 'ico', 'cur', 'svg', 'qoi', 'pbm', 'pgm', 'ppm', 'pnm', 'pam', 'tga', 'pcx', 'hdr'];
+export const IMAGE_OPENS = ['rimg', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif', 'tif', 'tiff', 'ico', 'cur', 'svg', 'qoi', 'pbm', 'pgm', 'ppm', 'pnm', 'pam', 'tga', 'pcx', 'hdr', 'psd', 'psb'];
 
 /** A file Image takes decoded from the file host rather than from its bytes. */
 export const servedDecoded = (name) => needsDecoding(name);
