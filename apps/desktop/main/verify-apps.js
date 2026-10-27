@@ -164,6 +164,7 @@ import { verifyMachine } from './verify-machine.js';
 import { verifyImageBatch } from './verify-image-batch.js';
 import { verifyExifLocation } from './verify-exif-location.js';
 import { verifyPicturesRatings } from './verify-pictures-ratings.js';
+import { verifyWindowsCodec } from './verify-windows-codec.js';
 import { verifyImageUndo } from './verify-image-undo.js';
 import { verifyPersonalTemplates } from './verify-personal-templates.js';
 import { verifyTemplates, makeTemplateThumbs } from './verify-templates.js';
@@ -4980,7 +4981,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,keystore,ai-tools,ai-reach,profiles,exif-location,pictures-ratings: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,keystore,ai-tools,ai-reach,profiles,exif-location,pictures-ratings,windows-codec: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -5053,6 +5054,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('image-edits')) await verifyImageBatch({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('exif-location')) await verifyExifLocation({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('pictures-ratings')) await verifyPicturesRatings({ open, check, until, wait, press, errorsIn }, { dir });
+    if (only.includes('windows-codec')) await verifyWindowsCodec({ check }, { dir });
     if (only.includes('image-undo')) await verifyImageUndo({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('image-layers')) await verifyImageLayers({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('image-layers')) await verifyEditInImage({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
@@ -5496,6 +5498,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('languages', () => verifyHindi({ open, check, until, wait, errorsIn }, { dir, files }));
   await part('pictures', () => verifyPictureRotate({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('pictures', () => verifyPicturesRatings({ open, check, until, wait, press, errorsIn }, { dir }));
+  await part('pictures', () => verifyWindowsCodec({ check }, { dir }));
   await part('image', () => verifyImageEdits({ open, check, until, wait, press, errorsIn }, { dir }));
   await part('image', () => verifyImageLayers({ open, check, until, wait, errorsIn, doc }, { dir }));
   await part('image', () => verifyEditInImage({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
