@@ -55,9 +55,12 @@ export function judge(err) {
 if (!isMainThread) {
   // The worker: opens each file it is handed, as a window would, and says how it went.
   const { createDocumentService } = await import('../apps/desktop/main/documents.js');
+  const { decodePicture, pictureFormats } = await import('@rutba/imaging/decode');
   const service = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }) });
   const { emfToSvg } = await import('../packages/office-formats/src/emf.js');
   const { wmfToSvg } = await import('../packages/office-formats/src/wmf.js');
+  // A picture is opened as Pictures and Image open it: decoded, every page.
+  const PICTURE = new Set(Object.values(pictureFormats()).flat());
   parentPort.on('message', ({ file }) => {
     if (/\.(emf|wmf)$/i.test(file)) {
       // A metafile: drawn, or nothing. Never thrown, and never anything that runs.
@@ -71,6 +74,13 @@ if (!isMainThread) {
       return;
     }
     try {
+      if (PICTURE.has(path.extname(file).slice(1).toLowerCase())) {
+        const bytes = fs.readFileSync(file);
+        const first = decodePicture(bytes, file);
+        for (let page = 1; page < Math.min(first.pages, 4); page++) decodePicture(bytes, file, { page });
+        parentPort.postMessage({ outcome: 'opened' });
+        return;
+      }
       const opened = service.open({ path: file });
       // A password-protected file asks for its password: an answer.
       if (!opened.locked) {
@@ -116,6 +126,9 @@ async function main() {
   };
   const binary = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tests', 'fixtures', 'binary');
   for (const name of fs.existsSync(binary) ? fs.readdirSync(binary).sort() : []) SOURCES[name] = fs.readFileSync(path.join(binary, name));
+  // Pictures, in every format decodePicture reads, made here (tools/picture-sources.js).
+  const { pictureSources } = await import('./picture-sources.js');
+  Object.assign(SOURCES, pictureSources());
 
   /** The ways a file gets damaged in the world, and a few nastier ones. */
   const DAMAGE = {
@@ -188,7 +201,8 @@ async function main() {
     await new Promise((resolve) => { worker.once('message', resolve); worker.postMessage({ file: warm }); });
   }
 
-  console.log(`fuzz: ${rounds} mutations of each of ${sources.length} sources (${sources.length - 5} old-format files, an EMF and a WMF), seed ${seed}`);
+  const pictures = sources.filter((n) => n.startsWith('picture.')).length;
+  console.log(`fuzz: ${rounds} mutations of each of ${sources.length} sources (${sources.length - 5 - pictures} old-format files, an EMF, a WMF and ${pictures} pictures), seed ${seed}`);
 
   for (let round = 0; round < rounds; round++) {
     for (const source of sources) {

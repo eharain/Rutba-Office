@@ -14,7 +14,8 @@
     "./pixels": "./src/pixels.js",
     "./batch": "./src/batch.js",
     "./select": "./src/select.js",
-    "./paint": "./src/paint.js"
+    "./paint": "./src/paint.js",
+    "./decode": "./src/decode.js"
   },
   "sideEffects": false
 }
