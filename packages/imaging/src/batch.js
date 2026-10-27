@@ -13,6 +13,10 @@ export const FORMATS = {
   png: { mime: 'image/png', ext: 'png', quality: false },
   jpeg: { mime: 'image/jpeg', ext: 'jpg', quality: true },
   webp: { mime: 'image/webp', ext: 'webp', quality: true },
+  // Written by the suite's own writers (encode.js), not a canvas.
+  bmp: { mime: 'image/bmp', ext: 'bmp', quality: false, own: true },
+  tiff: { mime: 'image/tiff', ext: 'tif', quality: false, own: true },
+  ico: { mime: 'image/x-icon', ext: 'ico', quality: false, own: true },
 };
 
 /** The format a file's own extension says, or null for one we do not write. */
@@ -21,6 +25,9 @@ export function formatOf(fileName) {
   if (ext === 'png') return 'png';
   if (ext === 'jpg' || ext === 'jpeg' || ext === 'jpe') return 'jpeg';
   if (ext === 'webp') return 'webp';
+  if (ext === 'bmp') return 'bmp';
+  if (ext === 'tif' || ext === 'tiff') return 'tiff';
+  if (ext === 'ico') return 'ico';
   return null;
 }
 

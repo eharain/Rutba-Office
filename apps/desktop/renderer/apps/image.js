@@ -42,6 +42,7 @@ import { makeCanvas, ctx2d, editable, touched, blankEntry, copyCanvas, alphaCanv
 import { DrawLayer, markIsSomething } from './image/marks.js';
 import { Histogram, CurveEditor } from './image/tone.js';
 import { paintLayered, renderLayered, decodeBitmap, pngBytes, mimeOf, planAt, boundsOf } from './image/layered.js';
+import { IMAGE_OPENS, PAGED, servedDecoded, servedInfo, servedPng, canvasBytes, formatHint, EXPORT_FORMATS, svgSize, rasterSvg } from './image/formats.js';
 import { LayersPanel, LAYERS_CSS } from './image/layers-panel.js';
 import { LayerStage, STAGE_CSS } from './image/stage.js';
 import { TextEditor, TypeBar, TYPE_CSS } from './image/type-editor.js';
@@ -148,6 +149,10 @@ export default function ImageTool({ app, shell, boot }) {
   // you have not opened anything, so a person who just double-clicked a file
   // is told nothing happened rather than what happened.
   const [failed, setFailed] = useState(null);
+  // A TIFF of several pages: the one open, and how many it has.
+  const [paging, setPaging] = useState({ pages: 1, page: 0 });
+  // An SVG being opened: the size it gives itself, and the answer the size dialog sends back.
+  const [svgAsk, setSvgAsk] = useState(null);
   const canvasRef = useRef(null);
   const stageRef = useRef(null);
   const baseRef = useRef(null);
@@ -281,7 +286,7 @@ export default function ImageTool({ app, shell, boot }) {
   }, []);
 
   const load = useCallback(
-    async (target) => {
+    async (target, page = 0) => {
       if (isProjectFile(target)) {
         await openProjectRef.current?.(target);
         return;
@@ -290,14 +295,40 @@ export default function ImageTool({ app, shell, boot }) {
       setFailed(null);
       try {
         const info = await shell.fs.stat({ path: target });
-        const img = await decode(fileUrl(target));
+        // A TIFF and the other formats Chromium cannot draw come decoded, a page at a time;
+        // the PNG of the page is what the project keeps of it.
+        let img;
+        let bytes = null;
+        let pages = 1;
+        if (/\.svg$/i.test(target)) {
+          // An SVG has no pixels of its own: it is drawn at the size the person chooses.
+          const own = svgSize(await (await fetch(fileUrl(target))).text());
+          const chosen = await new Promise((resolve) => setSvgAsk({ size: own, resolve }));
+          if (!chosen) return;
+          bytes = await rasterSvg(await decode(fileUrl(target)), chosen.width, chosen.height);
+          img = await decode(URL.createObjectURL(new Blob([bytes], { type: 'image/png' })));
+        } else if (servedDecoded(target)) {
+          const said = PAGED.test(target) ? await servedInfo(fileUrl(target)) : { pages: 1 };
+          if (said.error) throw new Error(said.error);
+          pages = Math.max(1, said.pages || 1);
+          page = Math.max(0, Math.min(pages - 1, page));
+          bytes = await servedPng(fileUrl(target), page);
+          img = await decode(URL.createObjectURL(new Blob([bytes], { type: 'image/png' })));
+        } else {
+          page = 0;
+          img = await decode(fileUrl(target));
+        }
         setImage(img);
         setStat(info);
         setPath(target);
         setPastedName(null);
         reset();
         clearLayers();
-        sourceRef.current = { name: basename(target), path: target };
+        setPaging({ pages, page });
+        const stem = basename(target).replace(/\.[^.]+$/, '');
+        sourceRef.current = bytes
+          ? { name: pages > 1 ? `${stem} page ${page + 1}.png` : `${stem}.png`, path: target, bytes }
+          : { name: basename(target), path: target };
         if (!editFor) shell.app.addRecent({ path: target, app: 'image' }).catch(() => {});
       } catch (err) {
         setFailed(`${basename(target)}: ${err.message}`);
@@ -361,7 +392,7 @@ export default function ImageTool({ app, shell, boot }) {
           toast(err.message, { tone: 'bad' });
         }
       })();
-    } else if (boot.file) load(boot.file);
+    } else if (boot.file) load(boot.file, Number(new URLSearchParams(window.location.search).get('page')) || 0);
     else if (new URLSearchParams(window.location.search).get('paste')) {
       shell.clipboard.readImage().then((p) => p && loadPasted(p)).catch(() => {});
     }
@@ -423,6 +454,23 @@ export default function ImageTool({ app, shell, boot }) {
     const file = await pickOpen(shell, 'image');
     if (file) load(file);
   }, [shell, load]);
+
+  /** Another page of the TIFF open: edits to this one are asked about first, as opening another file would. */
+  const choosePage = useCallback(async (next) => {
+    if (!path || next < 0 || next >= paging.pages || next === paging.page) return;
+    if (ops.length || layeredRef.current) {
+      const { response } = await shell.dialog.message({
+        type: 'question',
+        message: t('Open page {n}?', { n: next + 1 }),
+        detail: t('The edits to this page are not kept unless you export them first.'),
+        buttons: [t('Open page {n}', { n: next + 1 }), t('Cancel')],
+        defaultId: 1,
+        cancelId: 1,
+      });
+      if (response !== 0) return;
+    }
+    load(path, next);
+  }, [path, paging, ops.length, shell, load]);
   openFileRef.current = openFile;
 
   useFileDrop(useCallback((files) => files[0] && load(files[0]), [load]));
@@ -625,8 +673,7 @@ export default function ImageTool({ app, shell, boot }) {
         const ground = fmt === 'jpeg' ? '#ffffff' : null;
         let s = exportOpts.longSide ? Math.min(1, exportOpts.longSide / long) : 1;
         const maxBytes = exportOpts.maxKB * 1024;
-        const encode = (canvas, q) => new Promise((resolve) => canvas.toBlob(resolve, info.mime, info.quality ? q : undefined))
-          .then(async (blob) => new Uint8Array(await blob.arrayBuffer()));
+        const encode = (canvas, q) => canvasBytes(canvas, info, fmt, q);
         let canvas = await renderResult(s, { ground });
         let result;
         if (info.quality) {
@@ -852,12 +899,13 @@ export default function ImageTool({ app, shell, boot }) {
   /** A picture's bytes put on the picture as a layer of its own, centred, at most most of the canvas. */
   const addPictureBytes = useCallback(async (bytes, name) => {
     try {
-      const bmp = await decodeBitmap(bytes, mimeOf(name));
+      const bmp = await decodeBitmap(bytes, mimeOf(name), name);
       const base = layeredRef.current || enterLayers();
       const id = nextId(base, 'image');
-      const ext = (String(name).toLowerCase().match(/\.(png|jpe?g|webp|gif|bmp|avif)$/)?.[1] || 'png').replace('jpeg', 'jpg');
+      // A picture decoded here (a TIFF) is kept as the PNG it was drawn from.
+      const ext = bmp.png ? 'png' : (String(name).toLowerCase().match(/\.(png|jpe?g|webp|gif|bmp|avif)$/)?.[1] || 'png').replace('jpeg', 'jpg');
       const url = `rimg:bitmaps/${id}.${ext}`;
-      media.current.set(url, { ...bmp, bytes, name });
+      media.current.set(url, { ...bmp, bytes: bmp.png || bytes, name });
       const { width: W, height: H } = base.size;
       // A selection just copied from this picture is pasted back where it was, at its size.
       const back = copiedAt.current && copiedAt.current.width === bmp.width && copiedAt.current.height === bmp.height ? copiedAt.current : null;
@@ -879,7 +927,7 @@ export default function ImageTool({ app, shell, boot }) {
   const insertPicture = useCallback(async () => {
     const files = await shell.dialog.open({
       title: t('Insert a picture'),
-      filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif'] }],
+      filters: [{ name: t('Pictures'), extensions: IMAGE_OPENS.filter((x) => x !== 'rimg') }],
       multiple: false,
     });
     const file = files?.[0];
@@ -2004,8 +2052,15 @@ export default function ImageTool({ app, shell, boot }) {
                 </Rows>
               </>
             )}
-            <Button tall icon="export" label={t('Export')} title={t('Export: a PNG, JPEG or WebP of the picture, its layers flattened')} disabled={!hasResult} onClick={() => exportPicture()} />
+            <Button tall icon="export" label={t('Export')} title={t('Export: a PNG, JPEG, WebP, BMP, TIFF or icon of the picture, its layers flattened')} disabled={!hasResult} onClick={() => exportPicture()} />
           </Group>
+          {paging.pages > 1 && path && !editFor ? (
+            <Group label={t('Pages')}>
+              <Button tall icon="chevronLeft" label={t('Previous')} title={t('Previous: the page before this one in the file')} disabled={busy || paging.page <= 0} onClick={() => choosePage(paging.page - 1)} data-role="page-prev" />
+              <div className="im-page-of" data-role="page-count">{t('Page {n} of {count}', { n: paging.page + 1, count: paging.pages })}</div>
+              <Button tall icon="chevronRight" label={t('Next')} title={t('Next: the page after this one in the file')} disabled={busy || paging.page >= paging.pages - 1} onClick={() => choosePage(paging.page + 1)} data-role="page-next" />
+            </Group>
+          ) : null}
           <Group label={t('Clipboard')}>
             <Button tall icon="paste" label={t('Paste')} title={t('Paste: a picture on the clipboard, as a new picture (Ctrl+V)')} onClick={paste} />
             <Button tall icon="copy" label={t('Copy')} title={t('Copy: the edited picture, to paste anywhere (Ctrl+C)')} disabled={!hasResult} onClick={copy} />
@@ -2192,8 +2247,8 @@ export default function ImageTool({ app, shell, boot }) {
       ) : (
         <>
           <Group label={t('Format')}>
-            {['png', 'jpeg', 'webp'].map((f) => (
-              <Button key={f} tall icon="export" label={f === 'webp' ? 'WebP' : f.toUpperCase()} pressed={format === f} disabled={!hasResult} onClick={() => setExportOpts((o) => ({ ...o, format: f }))} data-format={f} />
+            {EXPORT_FORMATS.map(([f, name]) => (
+              <Button key={f} tall icon="export" label={name} pressed={format === f} disabled={!hasResult} onClick={() => setExportOpts((o) => ({ ...o, format: f }))} data-format={f} />
             ))}
           </Group>
           <Group label={t('Quality')}>
@@ -2203,7 +2258,7 @@ export default function ImageTool({ app, shell, boot }) {
                 <input type="range" min={10} max={100} value={exportOpts.quality} disabled={!hasResult || !FORMATS[format].quality} data-role="quality" onChange={(e) => setExportOpts((o) => ({ ...o, quality: Number(e.target.value) }))} />
                 <span className="im-ps-value">{FORMATS[format].quality ? `${exportOpts.quality}%` : ''}</span>
               </label>
-              <div className="rw-hint im-format-hint">{FORMATS[format].quality ? t('Lower is a smaller file.') : t('PNG keeps every pixel.')}</div>
+              <div className="rw-hint im-format-hint">{formatHint(format, FORMATS[format])}</div>
             </div>
           </Group>
           <Group label={t('Limits')}>
@@ -2576,6 +2631,17 @@ export default function ImageTool({ app, shell, boot }) {
       )}
       {sizing === 'canvas' && layered ? <CanvasSizeDialog size={layered.size} onApply={applyCanvas} onClose={() => setSizing(null)} /> : null}
       {sizing === 'image' && layered ? <ResizeDialog title={t('Image Size')} size={layered.size} onApply={applyImageSize} onClose={() => setSizing(null)} /> : null}
+      {svgAsk ? (
+        <ResizeDialog
+          title={t('Open an SVG at a size')}
+          okLabel={t('Open')}
+          by0="pixels"
+          note={t('An SVG is drawn, not stored as pixels: choose the size to draw it at. It draws by itself at {width} × {height}.', { width: svgAsk.size.width, height: svgAsk.size.height })}
+          size={svgAsk.size}
+          onClose={() => { svgAsk.resolve(null); setSvgAsk(null); }}
+          onApply={(next) => { svgAsk.resolve(next); setSvgAsk(null); }}
+        />
+      ) : null}
       {resizing && plan ? (
         <ResizeDialog
           size={plan.target}
@@ -2593,10 +2659,10 @@ export default function ImageTool({ app, shell, boot }) {
 }
 
 /** Resize: by pixels or percent, the ratio kept unless it is let go, as Paint's dialog asks. */
-function ResizeDialog({ size, onApply, onClose, title = null }) {
-  const [by, setBy] = useState('percent');
+function ResizeDialog({ size, onApply, onClose, title = null, okLabel = null, by0 = 'percent', note = null }) {
+  const [by, setBy] = useState(by0);
   const [keep, setKeep] = useState(true);
-  const [vals, setVals] = useState({ width: 100, height: 100 });
+  const [vals, setVals] = useState(by0 === 'percent' ? { width: 100, height: 100 } : { width: size.width, height: size.height });
   const [changed, setChanged] = useState('width');
   const next = resizeTo(size, { by, width: by === 'percent' && keep ? vals[changed] : vals.width, height: vals.height, keep, changed });
   const switchTo = (mode) => {
@@ -2627,11 +2693,12 @@ function ResizeDialog({ size, onApply, onClose, title = null }) {
       actions={
         <>
           <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary label={t('Resize')} onClick={() => onApply(next)} data-role="resize-ok" />
+          <Button primary label={okLabel || t('Resize')} onClick={() => onApply(next)} data-role="resize-ok" />
         </>
       }
     >
       <div className="im-resize">
+        {note ? <div className="rw-hint im-resize-note">{note}</div> : null}
         <div className="im-resize-by" role="radiogroup" aria-label={t('Resize by')}>
           <label><input type="radio" name="by" checked={by === 'percent'} onChange={() => switchTo('percent')} data-role="resize-percent" /> {t('Percent')}</label>
           <label><input type="radio" name="by" checked={by === 'pixels'} onChange={() => switchTo('pixels')} data-role="resize-pixels" /> {t('Pixels')}</label>
@@ -2775,6 +2842,7 @@ input[type=range]:disabled::-webkit-slider-thumb { border-color: var(--line); }
 .im-straighten { display: flex; flex-direction: column; gap: 4px; width: 132px; align-self: center; }
 .im-straighten-foot { display: flex; align-items: center; justify-content: space-between; }
 .im-straighten-foot .rw-btn.icon { width: 24px; height: 22px; }
+.im-page-of { align-self: center; font-size: 12px; min-width: 84px; text-align: center; font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
 .im-pick { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-2); }
 .im-pick > span { min-width: 62px; }
 .im-swatches { display: grid; grid-template-columns: repeat(5, 20px); gap: 5px; align-self: center; }

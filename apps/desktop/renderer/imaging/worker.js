@@ -12,9 +12,47 @@ import { applyPixels } from '@rutba/imaging/pixels';
 import { FORMATS, sizeFor, underSize } from '@rutba/imaging/batch';
 import { readExif, keepExif } from '@rutba/imaging/exif';
 import { probeImage } from '@rutba/imaging/probe';
+import { decodePicture } from '@rutba/imaging/decode';
+import { encodePicture, encodeIco, iconSizes } from '@rutba/imaging/encode';
 import { runTool } from './tool-jobs.js';
 
-async function decode(bytes, upright) {
+async function decode(bytes, upright, name = '') {
+  try {
+    return await decodeHere(bytes, upright);
+  } catch (err) {
+    // A format Chromium does not draw (a TIFF, say): read by the suite's own readers.
+    let pic;
+    try {
+      pic = decodePicture(bytes, name);
+    } catch (refusal) {
+      throw refusal?.picture ? refusal : err;
+    }
+    return createImageBitmap(new ImageData(new Uint8ClampedArray(pic.rgba.buffer, pic.rgba.byteOffset, pic.rgba.byteLength), pic.width, pic.height));
+  }
+}
+
+/** BMP, TIFF and ICO, which a canvas does not write, by the suite's own writers. */
+async function ownBytes(canvas, format) {
+  if (format === 'ico') {
+    const entries = [];
+    for (const size of iconSizes(canvas.width, canvas.height)) {
+      const c = new OffscreenCanvas(size, size);
+      const g = c.getContext('2d');
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = 'high';
+      const k = Math.min(size / canvas.width, size / canvas.height);
+      const w = Math.max(1, Math.round(canvas.width * k));
+      const h = Math.max(1, Math.round(canvas.height * k));
+      g.drawImage(canvas, Math.round((size - w) / 2), Math.round((size - h) / 2), w, h);
+      entries.push({ width: size, height: size, png: new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer()) });
+    }
+    return encodeIco(entries);
+  }
+  const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  return encodePicture(new Uint8Array(data.data.buffer, data.data.byteOffset, data.data.byteLength), canvas.width, canvas.height, format);
+}
+
+async function decodeHere(bytes, upright) {
   const blob = new Blob([bytes]);
   if (!upright) {
     // As stored, with no turn from its EXIF; where the platform cannot say
@@ -29,10 +67,10 @@ async function decode(bytes, upright) {
 }
 
 async function convert(bytes, options = {}) {
-  const { format = 'jpeg', quality = 0.9, resize = { mode: 'none' }, upright = true, strip = true, maxBytes = 0 } = options;
+  const { format = 'jpeg', quality = 0.9, resize = { mode: 'none' }, upright = true, strip = true, maxBytes = 0, name = '' } = options;
   const info = FORMATS[format];
   if (!info) throw new Error(`unknown format ${format}`);
-  const bitmap = await decode(bytes, upright);
+  const bitmap = await decode(bytes, upright, name);
   const size = sizeFor({ width: bitmap.width, height: bitmap.height }, resize);
   const canvas = new OffscreenCanvas(size.width, size.height);
   const ctx = canvas.getContext('2d');
@@ -45,7 +83,7 @@ async function convert(bytes, options = {}) {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(bitmap, 0, 0, size.width, size.height);
   bitmap.close?.();
-  const encode = async (q) => new Uint8Array(await (await canvas.convertToBlob({ type: info.mime, quality: info.quality ? q : undefined })).arrayBuffer());
+  const encode = async (q) => (info.own ? ownBytes(canvas, format) : new Uint8Array(await (await canvas.convertToBlob({ type: info.mime, quality: info.quality ? q : undefined })).arrayBuffer()));
   const result = info.quality && maxBytes
     ? await underSize(encode, maxBytes, { high: quality })
     : { bytes: await encode(quality), quality, fits: true };

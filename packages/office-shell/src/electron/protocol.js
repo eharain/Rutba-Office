@@ -2,7 +2,9 @@
 //
 // Four hosts, one job each:
 //   rutba://app/…            the renderer bundle, served from disk
-//   rutba://file/<b64url>    a local file, with byte-range support
+//   rutba://file/<b64url>    a local file, with byte-range support; a picture Chromium
+//                            cannot draw (a TIFF, say) served as a PNG of one page
+//                            (?page=N, ?fit=px), and ?info says its pages
 //   rutba://thumb/<b64url>   a small JPEG of a local file, made once and kept (thumbs.js)
 //   rutba://blob/<id>        bytes the main process is holding for one window
 //
@@ -17,6 +19,8 @@ import { protocol, net } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { Worker } from 'node:worker_threads';
+import { fileURLToPath } from 'node:url';
 import { hold, heldBlob, release, releaseOwner } from './blobs.js';
 
 export const SCHEME = 'rutba';
@@ -54,6 +58,8 @@ const MIME = {
   '.ico': 'image/x-icon',
   '.tif': 'image/tiff',
   '.tiff': 'image/tiff',
+  '.cur': 'image/x-icon',
+  '.psd': 'image/vnd.adobe.photoshop',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
@@ -154,6 +160,154 @@ function rangeResponse(filePath, rangeHeader, type) {
       'content-range': `bytes ${start}-${end}/${size}`,
       'accept-ranges': 'bytes',
       ...CORS,
+    },
+  });
+}
+
+/* ── pictures Chromium cannot draw ──────────────────────────────────────── */
+
+// decodePicture (@rutba/imaging/decode) reads them on a thread of its own
+// (picture-worker.js), so a large TIFF never holds the windows still; a page
+// made is kept a while, as a browser keeps an image, so stepping back and
+// forth through a fax's pages does not decode each again.
+
+let imaging = null;
+const imagingNow = () => (imaging ||= import('@rutba/imaging/decode'));
+
+/** Whether a file is one a window cannot draw itself (by its name), so it is served decoded. */
+async function decodable(target) {
+  const { needsDecoding } = await imagingNow();
+  return needsDecoding(target);
+}
+
+let worker = null;
+let nextId = 1;
+const waiting = new Map();
+const DECODE_MS = 60000;
+
+function pictureWorker() {
+  if (worker) return worker;
+  const w = new Worker(fileURLToPath(new URL('./picture-worker.js', import.meta.url)));
+  w.unref();
+  w.on('message', (m) => {
+    const job = waiting.get(m.id);
+    if (!job) return;
+    waiting.delete(m.id);
+    clearTimeout(job.timer);
+    job.resolve(m);
+  });
+  const fail = (why) => {
+    if (worker === w) worker = null;
+    for (const [id, job] of waiting) {
+      if (job.worker !== w) continue;
+      clearTimeout(job.timer);
+      waiting.delete(id);
+      job.resolve({ error: `This picture could not be read: ${why}.` });
+    }
+  };
+  w.on('error', (err) => fail(err?.message || 'its reader failed'));
+  w.on('exit', () => fail('its reader stopped'));
+  worker = w;
+  return w;
+}
+
+/** Ask the picture thread; a file that takes longer than a minute stops it, and is said so. */
+function askWorker(job) {
+  return new Promise((resolve) => {
+    const id = nextId++;
+    const w = pictureWorker();
+    const timer = setTimeout(() => {
+      waiting.delete(id);
+      if (worker === w) worker = null;
+      w.terminate().catch(() => {});
+      resolve({ error: 'This picture took too long to read, and was stopped.' });
+    }, DECODE_MS);
+    waiting.set(id, { resolve, timer, worker: w });
+    w.postMessage({ id, ...job });
+  });
+}
+
+/** A JPEG's pixels from Chromium's own decoder (nativeImage), for the JPEG strips inside a TIFF. */
+async function jpegDecoder() {
+  const { nativeImage } = await import('electron');
+  return (bytes) => {
+    const img = nativeImage.createFromBuffer(Buffer.from(bytes));
+    if (img.isEmpty()) return null;
+    const { width, height } = img.getSize();
+    const bgra = img.toBitmap();
+    const rgba = new Uint8Array(width * height * 4);
+    for (let i = 0; i < rgba.length && i + 3 < bgra.length; i += 4) {
+      rgba[i] = bgra[i + 2];
+      rgba[i + 1] = bgra[i + 1];
+      rgba[i + 2] = bgra[i];
+      rgba[i + 3] = 255;
+    }
+    return { width, height, rgba };
+  };
+}
+
+const made = new Map();
+let madeBytes = 0;
+const MADE_MAX = 192 * 1024 * 1024;
+
+function keep(key, value) {
+  made.set(key, value);
+  madeBytes += value.png?.length || 0;
+  for (const [k, v] of made) {
+    if (madeBytes <= MADE_MAX || k === key) break;
+    made.delete(k);
+    madeBytes -= v.png?.length || 0;
+  }
+}
+
+/** A page of a picture as a PNG, or its pages and size (`info`); `{ error }` with the sentence where it cannot be read. */
+export async function decodedPicture(target, { info = false, page = 0, fit = 0 } = {}) {
+  const stat = await fs.promises.stat(target);
+  const key = `${target}|${stat.size}|${Math.round(stat.mtimeMs)}|${info ? 'info' : `${page}|${fit}`}`;
+  if (made.has(key)) {
+    const hit = made.get(key);
+    made.delete(key);
+    made.set(key, hit);
+    return hit;
+  }
+  let answer = await askWorker({ file: target, page, fit, info });
+  if (answer.needsJpeg) {
+    // On this thread, with Chromium's JPEG decoder lent: a JPEG-compressed TIFF.
+    const { decodePicture } = await imagingNow();
+    try {
+      const pic = decodePicture(await fs.promises.readFile(target), path.basename(target), { page, fit, png: true, level: 3, jpeg: await jpegDecoder() });
+      answer = { png: pic.png, width: pic.width, height: pic.height, pages: pic.pages, page: pic.page };
+    } catch (err) {
+      answer = { error: err?.message || String(err) };
+    }
+  }
+  if (!answer.error) keep(key, answer);
+  return answer;
+}
+
+async function pictureResponse(target, opts) {
+  let answer;
+  try {
+    answer = await decodedPicture(target, opts);
+  } catch (err) {
+    answer = { error: err?.message || String(err) };
+  }
+  if (opts.info) {
+    const body = answer.error ? { error: answer.error } : answer.info;
+    return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', ...CORS } });
+  }
+  if (answer.error) {
+    return new Response(answer.error, { status: 415, headers: { 'content-type': 'text/plain; charset=utf-8', ...CORS } });
+  }
+  return new Response(answer.png, {
+    status: 200,
+    headers: {
+      'content-type': 'image/png',
+      'content-length': String(answer.png.length),
+      'x-rutba-pages': String(answer.pages),
+      'x-rutba-page': String(answer.page),
+      ...CORS,
+      'access-control-expose-headers': 'content-length, x-rutba-pages, x-rutba-page',
     },
   });
 }
@@ -261,6 +415,11 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
       if (!allowFile(target)) return new Response('forbidden', { status: 403 });
       if (!fs.existsSync(target) || fs.statSync(target).isDirectory()) {
         return new Response('not found', { status: 404 });
+      }
+      // A picture no window can draw from its bytes: a PNG of the page asked for.
+      const q = url.searchParams;
+      if (!q.has('raw') && (q.has('info') || q.has('page') || (await decodable(target)))) {
+        return pictureResponse(target, { info: q.has('info'), page: Number(q.get('page')) || 0, fit: Number(q.get('fit')) || 0 });
       }
       return rangeResponse(target, request.headers.get('range'), mimeFor(target));
     }

@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8343,
+  "count": 8359,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -3923,6 +3923,12 @@
       ]
     },
     {
+      "message": "An SVG is drawn, not stored as pixels: choose the size to draw it at. It draws by itself at {width} × {height}.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "An accent bar down the left, the words beside it",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -3986,6 +3992,12 @@
       "message": "An equation is edited in the equation editor — double-click it.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "An icon, at each size from 256 down to 16 pixels.",
+      "where": [
+        "apps/desktop/renderer/apps/image/formats.js"
       ]
     },
     {
@@ -5166,6 +5178,12 @@
       "message": "B5 — 176 × 250 mm",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "BMP keeps every pixel, unpacked.",
+      "where": [
+        "apps/desktop/renderer/apps/image/formats.js"
       ]
     },
     {
@@ -14071,7 +14089,7 @@
       ]
     },
     {
-      "message": "Export: a PNG, JPEG or WebP of the picture, its layers flattened",
+      "message": "Export: a PNG, JPEG, WebP, BMP, TIFF or icon of the picture, its layers flattened",
       "where": [
         "apps/desktop/renderer/apps/image.js"
       ]
@@ -21989,7 +22007,7 @@
     {
       "message": "Lower is a smaller file.",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image/formats.js"
       ]
     },
     {
@@ -24684,6 +24702,7 @@
     {
       "message": "Next",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
@@ -24792,7 +24811,14 @@
     {
       "message": "Next page",
       "where": [
-        "apps/desktop/renderer/apps/pdf/index.js"
+        "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Next page (Page Down)",
+      "where": [
+        "apps/desktop/renderer/apps/pictures/pages.js"
       ]
     },
     {
@@ -24848,6 +24874,12 @@
       "message": "Next: click {step} of {clicks}",
       "where": [
         "apps/desktop/renderer/apps/slides/presenter.js"
+      ]
+    },
+    {
+      "message": "Next: the page after this one in the file",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -27218,6 +27250,12 @@
       ]
     },
     {
+      "message": "Open an SVG at a size",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Open an invitation",
       "where": [
         "apps/desktop/renderer/apps/talk/invite.js"
@@ -27306,6 +27344,18 @@
       "message": "Open in {name}",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Open page {n}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Open page {n}?",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -27949,7 +27999,7 @@
     {
       "message": "PNG keeps every pixel.",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image/formats.js"
       ]
     },
     {
@@ -28186,7 +28236,15 @@
       "message": "Page {n}",
       "where": [
         "apps/desktop/renderer/apps/pdf/view.js",
+        "apps/desktop/renderer/apps/pictures/pages.js",
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Page {n} of {count}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/pictures/pages.js"
       ]
     },
     {
@@ -28218,10 +28276,12 @@
     {
       "message": "Pages",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pdf/export.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pdf/ocr.js",
         "apps/desktop/renderer/apps/pdf/view.js",
+        "apps/desktop/renderer/apps/pictures/pages.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
       ]
@@ -29796,6 +29856,7 @@
     {
       "message": "Previous",
       "where": [
+        "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
@@ -29874,7 +29935,14 @@
     {
       "message": "Previous page",
       "where": [
-        "apps/desktop/renderer/apps/pdf/index.js"
+        "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Previous page (Page Up)",
+      "where": [
+        "apps/desktop/renderer/apps/pictures/pages.js"
       ]
     },
     {
@@ -29918,6 +29986,12 @@
       "message": "Previous — there are no comments in this presentation",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Previous: the page before this one in the file",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -39529,6 +39603,12 @@
       ]
     },
     {
+      "message": "TIFF keeps every pixel, for print and scans.",
+      "where": [
+        "apps/desktop/renderer/apps/image/formats.js"
+      ]
+    },
+    {
       "message": "Tab",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -41209,6 +41289,12 @@
       ]
     },
     {
+      "message": "The edits to this page are not kept unless you export them first.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "The embedded document is missing from the deck.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -41935,6 +42021,12 @@
       ]
     },
     {
+      "message": "The picture could not be drawn at that size.",
+      "where": [
+        "apps/desktop/renderer/apps/image/formats.js"
+      ]
+    },
+    {
       "message": "The picture could not be read.",
       "where": [
         "apps/desktop/renderer/ocr-ui.js"
@@ -41950,6 +42042,12 @@
       "message": "The picture could not be turned: {error}",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "The picture could not be written.",
+      "where": [
+        "apps/desktop/renderer/apps/image/formats.js"
       ]
     },
     {
@@ -43640,7 +43738,8 @@
     {
       "message": "This file could not be decoded as an image.",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/formats.js"
       ]
     },
     {
@@ -49471,6 +49570,12 @@
       "message": "other",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "page {n}",
+      "where": [
+        "apps/desktop/renderer/apps/pictures.js"
       ]
     },
     {

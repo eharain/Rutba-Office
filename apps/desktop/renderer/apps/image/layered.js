@@ -6,6 +6,8 @@
 
 import { buildImagePlan, paintFrame, layerBounds } from '@rutba/studio/host';
 import { imagePatches, canvasOf } from '@rutba/studio/layers';
+import { decodePicture } from '@rutba/imaging/decode';
+import { svgSize } from './formats.js';
 
 const scratch = () => document.createElement('canvas');
 
@@ -52,11 +54,60 @@ export function boundsOf(plan, layerId) {
   return b ? { ...b, rot: layer.rot || 0, layer } : null;
 }
 
-/** Bytes of a picture, decoded: { img, width, height }. */
-export async function decodeBitmap(bytes, type = 'image/png') {
-  const blob = new Blob([bytes], { type });
-  const img = await createImageBitmap(blob);
-  return { img, width: img.width, height: img.height };
+/**
+ * An SVG put in as a layer: drawn at the size it gives itself, through an
+ * <img> (a bitmap cannot be made from an SVG directly), kept as that PNG.
+ */
+async function decodeSvg(bytes) {
+  const { width, height } = svgSize(new TextDecoder().decode(bytes));
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'image/svg+xml' }));
+  try {
+    const el = new Image();
+    await new Promise((resolve, reject) => {
+      el.onload = resolve;
+      el.onerror = () => reject(new Error('This SVG picture could not be drawn: it may be damaged.'));
+      el.src = url;
+    });
+    const canvas = scratch();
+    canvas.width = width;
+    canvas.height = height;
+    const g = canvas.getContext('2d');
+    g.clearRect(0, 0, width, height);
+    g.drawImage(el, 0, 0, width, height);
+    const img = await createImageBitmap(canvas);
+    return { img, width, height, png: await pngBytes(canvas) };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Bytes of a picture, decoded: { img, width, height }. A format Chromium
+ * does not draw (a TIFF, a QOI, a Targa) is read by decodePicture instead,
+ * and answered with `png` too: the bytes to keep for it, since the project
+ * and the canvas both want a picture Chromium can draw again.
+ */
+export async function decodeBitmap(bytes, type = 'image/png', name = '') {
+  if (type === 'image/svg+xml') return decodeSvg(bytes);
+  try {
+    const img = await createImageBitmap(new Blob([bytes], { type }));
+    return { img, width: img.width, height: img.height };
+  } catch (err) {
+    let pic;
+    try {
+      pic = decodePicture(bytes, name);
+    } catch (refusal) {
+      if (refusal?.picture) throw refusal;
+      throw err;
+    }
+    const data = new ImageData(new Uint8ClampedArray(pic.rgba.buffer, pic.rgba.byteOffset, pic.rgba.byteLength), pic.width, pic.height);
+    const canvas = scratch();
+    canvas.width = pic.width;
+    canvas.height = pic.height;
+    canvas.getContext('2d').putImageData(data, 0, 0);
+    const img = await createImageBitmap(canvas);
+    return { img, width: img.width, height: img.height, png: await pngBytes(canvas) };
+  }
 }
 
 /** A canvas as PNG bytes. */
@@ -68,5 +119,5 @@ export async function pngBytes(canvas) {
 /** The MIME type a picture's name says it is. */
 export function mimeOf(name) {
   const ext = String(name || '').toLowerCase().split('.').pop();
-  return { jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp', avif: 'image/avif' }[ext] || 'image/png';
+  return { jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp', avif: 'image/avif', ico: 'image/x-icon', svg: 'image/svg+xml' }[ext] || 'image/png';
 }

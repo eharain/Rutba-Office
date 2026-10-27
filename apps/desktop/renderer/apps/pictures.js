@@ -36,6 +36,7 @@ import { nextIndex, formatLength, advanceAfter } from './pictures/show.js';
 import { useMarks, useFolderCount } from './pictures/marks.js';
 import { BatchDialog, canBatch } from './pictures/batch.js';
 import { FileMarks, FILE_MARKS_CSS } from './pictures/file-marks.js';
+import { usePages, PageStrip, pageUrl, pictureInfo as servedInfo, PAGES_CSS } from './pictures/pages.js';
 import { usePictureText, PictureTextBar, OcrLanguagesDialog, TextOverLayer, pixelsOf, loadPicture, OCR_CSS } from '../ocr-ui.js';
 
 const INTERVALS = [
@@ -246,6 +247,8 @@ export default function Pictures({ app, shell, boot }) {
   const isAnimated = kind === 'maybe-animated' && details?.probe?.animated;
   const isMedia = kind === 'video' || kind === 'audio';
   const isStill = Boolean(current) && !isMedia && kind !== 'pdf';
+  // A TIFF of several pages (a fax, a scan): the page on the stage.
+  const { pages, page, setPage } = usePages(current);
 
   /* ── details, read without decoding the whole file ───────────────────── */
 
@@ -272,7 +275,17 @@ export default function Pictures({ app, shell, boot }) {
         const { probeImage } = await import('@rutba/imaging/probe');
         const { readMetadataFrom, describeExif, orientationOf } = await import('@rutba/imaging/exif');
         const { probeMedia } = await import('@rutba/media/probe');
-        let probe = probeImage(head) || probeMedia(head);
+        let probe = probeImage(head);
+        if (!probe && !media) {
+          // The formats the suite reads itself (QOI, Netpbm, Targa, PCX, Radiance HDR): their headers.
+          const { pictureInfo: headerInfo } = await import('@rutba/imaging/decode');
+          try {
+            probe = headerInfo(head, current);
+          } catch {
+            probe = null;
+          }
+        }
+        probe = probe || probeMedia(head);
         if (media && !probe?.duration && stat.size > want) {
           const { bytes: tail } = await shell.fs.readHead({ path: current, bytes: want, offset: stat.size - want });
           probe = probeMedia(tail) || probe;
@@ -309,26 +322,38 @@ export default function Pictures({ app, shell, boot }) {
   // paints an empty frame between two pictures, which was the flicker.
   const [shown, setShown] = useState(null);
   const [natural, setNatural] = useState(null);
+  const [shownPage, setShownPage] = useState(0);
+  // The size the details and the status bar give: a TIFF's pages differ in size,
+  // so for one of several pages it is the page on the stage, not the file's first.
+  const sized = pages > 1 && details?.probe && natural?.w && shown === current && shownPage === page
+    ? { ...details.probe, width: natural.w, height: natural.h }
+    : details?.probe;
+  // What the file host said when a picture it decodes (a TIFF) could not be drawn.
+  const [failedWhy, setFailedWhy] = useState(null);
   const held = useRef(new Map()); // path -> Image, the neighbours fetched ahead
   useEffect(() => {
     if (!current || !isStill) {
       setShown(current);
+      setShownPage(0);
       setNatural(null);
       return undefined;
     }
     let alive = true;
-    const img = held.current.get(current) || new Image();
-    if (!img.src) img.src = freshUrl(current);
+    const img = (!page && held.current.get(current)) || new Image();
+    if (!img.src) img.src = pageUrl(freshUrl(current), page);
     const arrive = () => {
       if (!alive) return;
       setNatural({ w: img.naturalWidth, h: img.naturalHeight });
       setShown(current);
+      setShownPage(page);
     };
     const refuse = () => {
       if (!alive) return;
       setFailed(current);
       setShown(current);
+      setFailedWhy(null);
       toast(t('This picture could not be decoded.'), { tone: 'bad' });
+      servedInfo(current).then((info) => { if (alive && info?.error) setFailedWhy(info.error); });
     };
     img.decode().then(arrive, () => {
       // decode() can refuse a picture Chromium will still paint (one too
@@ -343,7 +368,7 @@ export default function Pictures({ app, shell, boot }) {
     return () => {
       alive = false;
     };
-  }, [current, isStill, toast, fresh]);
+  }, [current, isStill, toast, fresh, page]);
 
   // The next pictures either way are fetched and decoded before they are
   // asked for, so Next is instant even the first time through a folder.
@@ -660,6 +685,8 @@ export default function Pictures({ app, shell, boot }) {
       'nav.prev': { label: t('Previous'), icon: 'chevronLeft', key: 'arrowleft', when: () => !showOpen, run: () => step(-1) },
       'nav.next': { label: t('Next'), icon: 'chevronRight', key: 'arrowright', when: () => !showOpen, run: () => step(1) },
       'nav.last': { label: t('Last'), icon: 'skipForward', key: 'End', run: () => goTo(files.length - 1) },
+      'nav.pagePrev': { label: t('Previous page'), icon: 'chevronUp', key: 'PageUp', when: () => pages > 1 && !showOpen, run: () => setPage((n) => n - 1) },
+      'nav.pageNext': { label: t('Next page'), icon: 'chevronDown', key: 'PageDown', when: () => pages > 1 && !showOpen, run: () => setPage((n) => n + 1) },
       'nav.play': { label: playing ? t('Stop') : t('Play automatically'), icon: playing ? 'pause' : 'play', key: ' ', when: () => !showOpen, run: () => setPlaying((p) => !p) },
       'view.slideshow': { label: t('Slideshow'), icon: 'play', key: 'F5', when: () => Boolean(files.length) && !showOpen, run: startShow },
       'view.fit': { label: t('Fit to window'), icon: 'maximize', key: 'Mod+0', run: () => setZoom(0) },
@@ -678,13 +705,14 @@ export default function Pictures({ app, shell, boot }) {
       'media.animation': { label: frozen ? t('Resume animation') : t('Hold this frame'), icon: frozen ? 'play' : 'pause', run: toggleAnimation },
       // These take the file they act on: the picture on show unless a
       // tile's own menu names the tile right-clicked.
-      'file.edit': { label: t('Edit this picture'), icon: 'wand', run: (p = current) => p && shell.win.create({ app: 'image', file: p }) },
+      // A page of a TIFF opens in Image as that page.
+      'file.edit': { label: t('Edit this picture'), icon: 'wand', run: (p = current) => p && shell.win.create({ app: 'image', file: p, ...(p === current && page ? { query: { page: String(page) } } : {}) }) },
       // Pictures plays a clip itself: Video is where it is edited, so it opens in the editor.
       'file.video': { label: t('Open in Video'), icon: 'video', run: (p = current) => p && shell.win.create({ app: 'video', file: p, query: { edit: 1 } }) },
       // A PDF met among the pictures opens in the PDF app, to work on its pages.
       'file.pdf': { label: t('Open in PDF'), icon: 'pdf', run: (p = current) => p && shell.win.create({ app: 'pdf', file: p }) },
       'file.reveal': { label: t('Show in folder'), icon: 'folderOpen', run: (p = current) => p && shell.shell.showInFolder({ path: p }) },
-      'file.text': { label: t('Copy Text from Picture'), icon: 'scanText', when: () => isStill && !showOpen, run: () => current && pictureText.read(current, async () => pixelsOf(await loadPicture(fileUrl(current)))) },
+      'file.text': { label: t('Copy Text from Picture'), icon: 'scanText', when: () => isStill && !showOpen, run: () => current && pictureText.read(page ? `${current}#${page}` : current, async () => pixelsOf(await loadPicture(pageUrl(fileUrl(current), page)))) },
       'file.textLanguages': { label: t('Text Languages…'), icon: 'globe', run: () => pictureText.setAsking(true) },
       'file.copy': {
         label: t('Copy the path'),
@@ -712,7 +740,7 @@ export default function Pictures({ app, shell, boot }) {
         },
       },
     }),
-    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip, showOpen, startShow, rate, rotateFile, isStill, pictureText]
+    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip, showOpen, startShow, rate, rotateFile, isStill, pictureText, pages, page, setPage]
   );
 
   useCommands(commands, [files, at, current, folder, playing, frozen]);
@@ -921,11 +949,11 @@ export default function Pictures({ app, shell, boot }) {
           <span>{folder || ''}</span>
           <Spacer />
           {current && details?.probe?.duration ? <Chip>{timecode(details.probe.duration)}</Chip> : null}
-          {current && details?.probe?.width ? (
+          {current && sized?.width ? (
             <>
-              <Chip>{details.probe.width} × {details.probe.height}</Chip>
-              <Chip>{t('{value} MP', { value: megapixels(details.probe.width, details.probe.height) })}</Chip>
-              <Chip>{aspectName(details.probe.width, details.probe.height)}</Chip>
+              <Chip>{sized.width} × {sized.height}</Chip>
+              <Chip>{t('{value} MP', { value: megapixels(sized.width, sized.height) })}</Chip>
+              <Chip>{aspectName(sized.width, sized.height)}</Chip>
             </>
           ) : null}
           {isAnimated ? <Chip title={t('This picture is animated')}>{t('Animated')}</Chip> : null}
@@ -967,6 +995,8 @@ export default function Pictures({ app, shell, boot }) {
           <Stage
             current={current}
             shown={shown}
+            src={shown ? pageUrl(freshUrl(shown), shownPage) : null}
+            failedWhy={failedWhy}
             kind={kind}
             failed={failed}
             playing={playing}
@@ -984,6 +1014,8 @@ export default function Pictures({ app, shell, boot }) {
             text={pictureText}
           />
         )}
+
+        {current && isStill && pages > 1 && failed !== current ? <PageStrip path={current} pages={pages} page={page} setPage={setPage} /> : null}
 
         {/* The navigator: where you are, and every way to move. */}
         {current && files.length ? (
@@ -1067,10 +1099,10 @@ export default function Pictures({ app, shell, boot }) {
                     <dd>{String(details.probe.format).toUpperCase()}{details.probe.animated ? ` · ${t('animated')}` : ''}</dd>
                   </>
                 ) : null}
-                {details.probe?.width ? (
+                {sized?.width ? (
                   <>
                     <dt>{t('Dimensions')}</dt>
-                    <dd>{details.probe.width} × {details.probe.height}</dd>
+                    <dd>{sized.width} × {sized.height}{pages > 1 ? ` · ${t('page {n}', { n: page + 1 })}` : ''}</dd>
                   </>
                 ) : null}
                 {details.probe?.duration ? (
@@ -1104,7 +1136,7 @@ export default function Pictures({ app, shell, boot }) {
         <BatchDialog shell={shell} files={files} folder={folder} onClose={() => setBatching(false)} onDone={() => folder && list(folder)} />
       ) : null}
       {pictureText.asking ? <OcrLanguagesDialog onClose={() => pictureText.setAsking(false)} /> : null}
-      <style>{CSS + OCR_CSS + FILE_MARKS_CSS}</style>
+      <style>{CSS + OCR_CSS + FILE_MARKS_CSS + PAGES_CSS}</style>
     </AppFrame>
   );
 }
@@ -1417,7 +1449,7 @@ function Strip({ files, at, onGo, shell }) {
 
 /* ── the stage ───────────────────────────────────────────────────────────── */
 
-function Stage({ current, shown, kind, failed, playing, zoom, setZoom, rotation, natural, frozen, imgRef, freezeRef, mediaRef, onEnded, onMediaError, onMenu, text }) {
+function Stage({ current, shown, src, failedWhy, kind, failed, playing, zoom, setZoom, rotation, natural, frozen, imgRef, freezeRef, mediaRef, onEnded, onMediaError, onMenu, text }) {
   const ref = useRef(null);
   const isMedia = kind === 'video' || kind === 'audio';
   // A zoomed picture is dragged about with the mouse, as well as scrolled.
@@ -1468,7 +1500,7 @@ function Stage({ current, shown, kind, failed, playing, zoom, setZoom, rotation,
         <Empty icon="pictures" title={t('This file could not be opened')}>
           {isMedia
             ? t('{name} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.', { name: basename(current) })
-            : t('{name} could not be decoded as a picture. It may be a download that stopped early, or a file with the wrong extension.', { name: basename(current) })}
+            : failedWhy || t('{name} could not be decoded as a picture. It may be a download that stopped early, or a file with the wrong extension.', { name: basename(current) })}
         </Empty>
       ) : kind === 'pdf' ? (
         <embed src={fileUrl(current)} type="application/pdf" className="pv-pdf" />
@@ -1494,7 +1526,7 @@ function Stage({ current, shown, kind, failed, playing, zoom, setZoom, rotation,
           <img
             ref={imgRef}
             className={`pv-image${zoom ? ' zoomed' : ''}${frozen ? ' hidden' : ''}`}
-            src={freshUrl(shown)}
+            src={src || freshUrl(shown)}
             alt={basename(shown)}
             style={{
               transform: `rotate(${rotation}deg)`,

@@ -14,7 +14,7 @@ import { planBatch, keepBoth, nameFromPattern, sizeFor, folderOf, formatOf, FORM
 import { convertOff } from '../../imaging/work.js';
 
 /** What the worker can decode: the pictures a batch takes. */
-export const BATCH_EXTS = ['.jpg', '.jpeg', '.jpe', '.png', '.webp', '.bmp', '.gif', '.avif'];
+export const BATCH_EXTS = ['.jpg', '.jpeg', '.jpe', '.png', '.webp', '.bmp', '.gif', '.avif', '.tif', '.tiff'];
 export const canBatch = (file) => BATCH_EXTS.includes(String(file).toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || '');
 
 const SIZE_MODES = [
@@ -160,7 +160,7 @@ export function BatchDialog({ shell, files, folder, onClose, onDone }) {
       setRun((r) => ({ ...r, done: i, name: basename(it.source) }));
       try {
         const { bytes } = await shell.fs.read({ path: it.source });
-        const done = await convertOff(bytes, { format: it.format, quality: quality / 100, resize, upright, strip });
+        const done = await convertOff(bytes, { format: it.format, quality: quality / 100, resize, upright, strip, name: basename(it.source) });
         await shell.fs.write({ path: it.target, bytes: done.bytes });
         written.push({ ...it, width: done.width, height: done.height, size: done.bytes.length });
       } catch {

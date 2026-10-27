@@ -20,8 +20,16 @@
 import { PictureError, bad, asBytes, ascii, LIMITS } from './codecs/bytes.js';
 import { isPng, pngInfo, decodePng, encodePng } from './codecs/png.js';
 import { isBmp, bmpInfo, decodeBmp } from './codecs/bmp.js';
+import { isTiff, tiffInfo, decodeTiff, encodeTiff } from './codecs/tiff.js';
+import { isIco, icoInfo, decodeIco } from './codecs/ico.js';
+import { isQoi, qoiInfo, decodeQoi } from './codecs/qoi.js';
+import { isPnm, pnmInfo, decodePnm } from './codecs/pnm.js';
+import { tgaInfo, decodeTga } from './codecs/tga.js';
+import { isPcx, pcxInfo, decodePcx } from './codecs/pcx.js';
+import { isHdr, hdrInfo, decodeHdr } from './codecs/hdr.js';
+import { readExif } from './exif.js';
 
-export { LIMITS, PictureError, encodePng };
+export { LIMITS, PictureError, encodePng, encodeTiff };
 
 const extOf = (name) => {
   const m = /\.([a-z0-9]+)$/i.exec(String(name || ''));
@@ -36,6 +44,15 @@ const extOf = (name) => {
 const READERS = {
   png: { exts: ['png', 'apng'], sniff: isPng, info: pngInfo, decode: (b, o) => decodePng(b, o.limits) },
   bmp: { exts: ['bmp', 'dib'], sniff: isBmp, info: bmpInfo, decode: (b, o) => decodeBmp(b, o) },
+  ico: { exts: ['ico'], sniff: (b) => isIco(b) && b[2] === 1, info: icoInfo, decode: (b, o) => decodeIco(b, o) },
+  cur: { exts: ['cur'], sniff: (b) => isIco(b) && b[2] === 2, info: icoInfo, decode: (b, o) => decodeIco(b, o) },
+  tiff: { exts: ['tif', 'tiff'], sniff: isTiff, info: (b, o) => tiffInfo(b, { maxPages: o.limits.pages }), decode: (b, o) => ({ ...decodeTiff(b, o), exif: exifOf(b) }) },
+  qoi: { exts: ['qoi'], sniff: isQoi, info: qoiInfo, decode: (b, o) => decodeQoi(b, o) },
+  pnm: { exts: ['pbm', 'pgm', 'ppm', 'pnm', 'pam'], sniff: isPnm, info: pnmInfo, decode: (b, o) => decodePnm(b, o) },
+  pcx: { exts: ['pcx'], sniff: isPcx, info: pcxInfo, decode: (b, o) => decodePcx(b, o) },
+  hdr: { exts: ['hdr', 'rgbe'], sniff: isHdr, info: hdrInfo, decode: (b, o) => decodeHdr(b, o) },
+  // TGA has no mark of its own: known by its name, its header held to what a real one has.
+  tga: { exts: ['tga', 'icb', 'vda', 'vst'], info: tgaInfo, decode: (b, o) => decodeTga(b, o) },
 };
 
 /** Formats Chromium draws in an <img> itself: a window shows these from the file. */
@@ -83,7 +100,7 @@ export function needsDecoding(name) {
   return false;
 }
 
-const NAMES = { jpeg: 'JPEG', gif: 'GIF', webp: 'WebP', avif: 'AVIF', heic: 'HEIC', jxr: 'JPEG XR', jxl: 'JPEG XL', jp2: 'JPEG 2000', svg: 'SVG' };
+const NAMES = { jpeg: 'JPEG', gif: 'GIF', webp: 'WebP', avif: 'AVIF', heic: 'HEIC', jxr: 'JPEG XR', jxl: 'JPEG XL', jp2: 'JPEG 2000', svg: 'SVG', pnm: 'Netpbm', hdr: 'Radiance HDR', ico: 'icon', cur: 'cursor' };
 
 function cannot(format, name) {
   const what = format ? `${NAMES[format] || format.toUpperCase()} pictures` : `${extOf(name) ? `.${extOf(name)} files` : 'this kind of file'}`;
@@ -107,6 +124,15 @@ function guarded(format, run) {
     if (err instanceof PictureError || err?.picture) throw err;
     const what = NAMES[format] || String(format || 'picture').toUpperCase();
     throw new PictureError(`This ${what} picture could not be read: it may be damaged.`, { cause: err });
+  }
+}
+
+/** The camera's details, where a file has them; a damaged block is no details, not a refusal. */
+function exifOf(b) {
+  try {
+    return readExif(b);
+  } catch {
+    return {};
   }
 }
 

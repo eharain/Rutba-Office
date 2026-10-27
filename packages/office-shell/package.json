@@ -27,6 +27,7 @@
   },
   "sideEffects": false,
   "dependencies": {
+    "@rutba/imaging": "*",
     "@tech-style/secure-keystore": "3.0.0"
   }
 }
