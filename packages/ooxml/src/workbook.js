@@ -427,7 +427,17 @@ class SheetPart {
    * creates the `<c>` when there is not one.
    */
   setCellStyle(rowIndex, colIndex, styleIndex) {
-    const ref = makeRef(rowIndex, colIndex);
+    return this.setCellStyles(rowIndex, new Map([[colIndex, styleIndex]]));
+  }
+
+  /**
+   * Point many cells of one row at style indexes (`Map` column -> index, null
+   * for none), in one pass over the row. Styling a row cell by cell parsed
+   * the whole row again for each cell: an .ods shaded across its full width
+   * took a minute to open.
+   */
+  setCellStyles(rowIndex, styles) {
+    if (!styles.size) return this;
     let row = this._rowAt(rowIndex);
     if (!row) {
       row = { index: rowIndex, attrsStr: ' r="' + (rowIndex + 1) + '"', inner: '', xml: '', dirty: true };
@@ -437,22 +447,35 @@ class SheetPart {
       this._rowsChanged();
     }
     const cells = SheetPart._parseCells(row.inner);
-    const existing = cells.find((c) => c.col === colIndex);
-
-    if (existing) {
-      // Rewrite only the attribute. The cell's contents — a value, a formula,
-      // a cached result, an inline string — are none of this method's business.
-      const head = existing.xml.slice(0, existing.xml.indexOf('>') + 1);
+    const have = new Set(cells.map((c) => c.col));
+    // Cells not there yet, made in column order among the others.
+    const fresh = [...styles].filter(([col]) => !have.has(col)).sort((a, b) => a[0] - b[0]);
+    let next = 0;
+    const freshBefore = (col) => {
+      let made = '';
+      for (; next < fresh.length && fresh[next][0] < col; next++) {
+        const [c, styleIndex] = fresh[next];
+        made += '<c r="' + makeRef(rowIndex, c) + '"' + (styleIndex === null ? '' : ' s="' + styleIndex + '"') + '/>';
+      }
+      return made;
+    };
+    // Rewrite only the attribute. The cell's contents (a value, a formula,
+    // a cached result, an inline string) are none of this method's business.
+    const restyled = (xml, styleIndex) => {
+      const head = xml.slice(0, xml.indexOf('>') + 1);
       const withStyle = /\bs="\d+"/.test(head)
         ? head.replace(/\bs="\d+"/, () => styleIndex === null ? '' : 's="' + styleIndex + '"')
         : (styleIndex === null ? head : head.replace(/(<c\b[^>]*?)(\/?>)$/, (m, p1, p2) => (p1 ?? '') + ' s="' + styleIndex + '"' + (p2 ?? '')));
-      row.inner = row.inner.replace(existing.xml, () => withStyle + existing.xml.slice(head.length));
-    } else {
-      const cellXml = '<c r="' + ref + '"' + (styleIndex === null ? '' : ' s="' + styleIndex + '"') + '/>';
-      const before = cells.filter((c) => c.col < colIndex).pop();
-      if (before) row.inner = row.inner.replace(before.xml, () => before.xml + cellXml);
-      else row.inner = cellXml + row.inner;
+      return withStyle + xml.slice(head.length);
+    };
+    let inner = '';
+    let at = 0;
+    for (const cell of cells) {
+      const start = row.inner.indexOf(cell.xml, at);
+      inner += row.inner.slice(at, start) + freshBefore(cell.col) + (styles.has(cell.col) ? restyled(cell.xml, styles.get(cell.col)) : cell.xml);
+      at = start + cell.xml.length;
     }
+    row.inner = inner + freshBefore(Infinity) + row.inner.slice(at);
     row.dirty = true;
     this.dirty = true;
     return this;
