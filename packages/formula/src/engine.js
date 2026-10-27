@@ -24,6 +24,8 @@ import { ERR, isError, isBlank } from './values.js';
 import { isVolatile, FUNCTIONS } from './functions.js';
 
 const key = (sheet, row, col) => sheet + '!' + row + ':' + col;
+/** Cells past which a range a formula reads is kept whole in the dependency graph, not expanded. */
+const WIDE_RANGE = 4096;
 
 export class Spreadsheet {
   /**
@@ -291,8 +293,16 @@ export class Spreadsheet {
 
   }
 
-  resolver() {
+  /**
+   * What the evaluator reads cells through. `{ wideCache: true }`, for one
+   * recalculation pass, keeps each wide range's grid once read: twenty
+   * thousand lookups into the same A:O built the same hundred thousand cells
+   * twenty thousand times. `changed(sheet, row, col)` lets go of every grid
+   * over a cell that pass has just worked out, and `changedAll()` of all.
+   */
+  resolver({ wideCache = false } = {}) {
     const self = this;
+    const wide = wideCache ? new Map() : null;
     return {
       now: self.now,
       usedBounds: (sheet) => self.usedBounds(sheet),
@@ -301,7 +311,19 @@ export class Spreadsheet {
         if (!c) return self.spillValueAt(sheet, row, col) ?? '';
         return c.value ?? '';
       },
+      changed(sheet, row, col) {
+        if (!wide?.size) return;
+        for (const [k, w] of wide) {
+          if (w.sheet === sheet && row >= w.start.row && row <= w.end.row && col >= w.start.col && col <= w.end.col) wide.delete(k);
+        }
+      },
+      changedAll() {
+        wide?.clear();
+      },
       getRange(sheet, start, end) {
+        const cached = wide && (end.row - start.row + 1) * (end.col - start.col + 1) > WIDE_RANGE;
+        const cacheKey = cached ? sheet + '!' + start.row + ':' + start.col + ':' + end.row + ':' + end.col : null;
+        if (cached && wide.has(cacheKey)) return wide.get(cacheKey).grid;
         const grid = [];
         for (let r = start.row; r <= end.row; r++) {
           const line = [];
@@ -311,6 +333,7 @@ export class Spreadsheet {
           }
           grid.push(line);
         }
+        if (cached) wide.set(cacheKey, { sheet, start, end, grid });
         return grid;
       },
       getName(name) {
@@ -374,9 +397,17 @@ export class Spreadsheet {
     return out;
   }
 
-  /** Cell keys a formula cell reads. Ranges expand to their members. */
-  _dependencyKeys(cell) {
+  /**
+   * Cell keys a formula cell reads. Ranges expand to their members, except
+   * that with `wide` given, a range of more than WIDE_RANGE cells is pushed
+   * there whole, `{ sheet, r0, r1, c0, c1 }`, and not expanded.
+   */
+  _dependencyKeys(cell, wide = null) {
     const out = new Set();
+    const area = (sheet, r0, r1, c0, c1) => {
+      if (wide && (r1 - r0 + 1) * (c1 - c0 + 1) > WIDE_RANGE) wide.push({ sheet, r0, r1, c0, c1 });
+      else for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) out.add(key(sheet, r, c));
+    };
     for (const dep of cell.deps ?? []) {
       if (dep.type === 'cell') {
         out.add(key(dep.sheet ?? cell.sheet, dep.row, dep.col));
@@ -387,21 +418,18 @@ export class Spreadsheet {
         const r1 = Math.min(Math.max(dep.start.row, dep.end.row), bounds.maxRow);
         const c0 = Math.min(dep.start.col, dep.end.col);
         const c1 = Math.min(Math.max(dep.start.col, dep.end.col), bounds.maxCol);
-        for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) out.add(key(sheet, r, c));
+        area(sheet, r0, r1, c0, c1);
       } else if (dep.type === 'name') {
         const target = this.names.get(String(dep.name).toUpperCase());
         // A name holding a formula reads what its formula reads.
         if (target && target.formula) {
           // Names that name each other stop somewhere: the evaluator answers such a loop #NUM!.
           if ((cell.nameDepth ?? 0) > 16) continue;
-          for (const k of this._dependencyKeys({ sheet: cell.sheet, row: cell.row, col: cell.col, deps: dependencies(target.formula), nameDepth: (cell.nameDepth ?? 0) + 1 })) out.add(k);
+          for (const k of this._dependencyKeys({ sheet: cell.sheet, row: cell.row, col: cell.col, deps: dependencies(target.formula), nameDepth: (cell.nameDepth ?? 0) + 1 }, wide)) out.add(k);
           continue;
         }
         if (target && target.start && target.end) {
-          const sheet = target.sheet ?? cell.sheet;
-          for (let r = target.start.row; r <= target.end.row; r++) {
-            for (let c = target.start.col; c <= target.end.col; c++) out.add(key(sheet, r, c));
-          }
+          area(target.sheet ?? cell.sheet, target.start.row, target.end.row, target.start.col, target.end.col);
         }
       } else if (dep.type === 'spillref') {
         // The anchor is a real formula-to-formula edge, so the reader always
@@ -486,18 +514,64 @@ export class Spreadsheet {
     // formulas that read B2, and B2 is not a formula. In-degree, by contrast,
     // counts only formula-to-formula edges — ordering matters only among things
     // that have to be evaluated.
+    //
+    // A wide range is not expanded. Twenty thousand formulas each reading
+    // A:O of a seven-thousand-row table is two billion edges, and a lookup
+    // workbook took minutes to open before any formula was worked out. Such
+    // a range keeps edges only to the formulas inside it, which are all the
+    // order needs, and is kept whole for a typed value to find its readers.
     const dependents = new Map();
     const indegree = new Map();
     for (const k of byKey.keys()) indegree.set(k, 0);
 
+    // Formula cells by sheet and column, their rows in order.
+    const formulaRows = new Map();
+    for (const c of formulas) {
+      if (!formulaRows.has(c.sheet)) formulaRows.set(c.sheet, new Map());
+      const cols = formulaRows.get(c.sheet);
+      if (!cols.has(c.col)) cols.set(c.col, []);
+      cols.get(c.col).push(c.row);
+    }
+    for (const cols of formulaRows.values()) for (const rows of cols.values()) rows.sort((a, b) => a - b);
+    const formulasIn = ({ sheet, r0, r1, c0, c1 }) => {
+      const out = [];
+      for (const [col, rows] of formulaRows.get(sheet) ?? []) {
+        if (col < c0 || col > c1) continue;
+        let lo = 0;
+        let hi = rows.length;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (rows[mid] < r0) lo = mid + 1; else hi = mid; }
+        for (let i = lo; i < rows.length && rows[i] <= r1; i++) out.push(key(sheet, rows[i], col));
+      }
+      return out;
+    };
+    // The wide ranges each formula reads, by sheet and column.
+    const wideReaders = new Map();
+    // Each formula's formula dependencies, and whether it reads itself.
+    const formulaDeps = new Map();
+
     for (const cell of formulas) {
       const k = key(cell.sheet, cell.row, cell.col);
-      for (const depKey of this._dependencyKeys(cell)) {
-        if (depKey === k) { indegree.set(k, (indegree.get(k) ?? 0) + 1); continue; } // self-reference
+      const wide = [];
+      const keys = this._dependencyKeys(cell, wide);
+      for (const w of wide) {
+        for (const f of formulasIn(w)) keys.add(f);
+        if (!wideReaders.has(w.sheet)) wideReaders.set(w.sheet, new Map());
+        const cols = wideReaders.get(w.sheet);
+        for (let c = w.c0; c <= w.c1; c++) {
+          if (!cols.has(c)) cols.set(c, []);
+          cols.get(c).push({ r0: w.r0, r1: w.r1, k });
+        }
+      }
+      const reads = { self: 0, formulas: [] };
+      formulaDeps.set(k, reads);
+      for (const depKey of keys) {
+        if (depKey === k) { reads.self = 1; indegree.set(k, (indegree.get(k) ?? 0) + 1); continue; } // self-reference
         if (!dependents.has(depKey)) dependents.set(depKey, new Set());
-        if (dependents.get(depKey).has(k)) continue;
         dependents.get(depKey).add(k);
-        if (byKey.has(depKey)) indegree.set(k, (indegree.get(k) ?? 0) + 1);
+        if (byKey.has(depKey)) {
+          reads.formulas.push(depKey);
+          indegree.set(k, (indegree.get(k) ?? 0) + 1);
+        }
       }
     }
 
@@ -528,6 +602,38 @@ export class Spreadsheet {
       }
       const stack = [...seeds];
       for (const k of seeds) if (byKey.has(k)) scope.add(k);
+      // A seed reaches the formulas reading a wide range over it; past the
+      // seeds every key is a formula, whose wide readers are its edges. Each
+      // wide range looks for a seed inside it, not each seed through every
+      // range: opening a file seeds every cell it holds.
+      if (wideReaders.size) {
+        const seedRows = new Map();
+        for (const k of seeds) {
+          const bang = k.lastIndexOf('!');
+          const sheetName = k.slice(0, bang);
+          if (!wideReaders.has(sheetName)) continue;
+          const [row, col] = k.slice(bang + 1).split(':').map(Number);
+          if (!seedRows.has(sheetName)) seedRows.set(sheetName, new Map());
+          const cols = seedRows.get(sheetName);
+          if (!cols.has(col)) cols.set(col, []);
+          cols.get(col).push(row);
+        }
+        for (const [sheetName, cols] of seedRows) {
+          for (const [col, rows] of cols) {
+            rows.sort((a, b) => a - b);
+            for (const w of wideReaders.get(sheetName).get(col) ?? []) {
+              if (scope.has(w.k)) continue;
+              let lo = 0;
+              let hi = rows.length;
+              while (lo < hi) { const mid = (lo + hi) >> 1; if (rows[mid] < w.r0) lo = mid + 1; else hi = mid; }
+              if (lo < rows.length && rows[lo] <= w.r1) {
+                scope.add(w.k);
+                stack.push(w.k);
+              }
+            }
+          }
+        }
+      }
       while (stack.length) {
         for (const d of dependents.get(stack.pop()) ?? []) {
           if (scope.has(d)) continue;
@@ -552,11 +658,9 @@ export class Spreadsheet {
     // final value, so it imposes no ordering on this pass.
     const pending = new Map();
     for (const k of scope) {
-      let n = 0;
-      for (const depKey of this._dependencyKeys(byKey.get(k))) {
-        if (depKey === k) { n += 1; continue; }
-        if (scope.has(depKey)) n += 1;
-      }
+      const reads = formulaDeps.get(k);
+      let n = reads.self;
+      for (const depKey of reads.formulas) if (scope.has(depKey)) n += 1;
       pending.set(k, n);
     }
 
@@ -572,7 +676,7 @@ export class Spreadsheet {
       }
     }
 
-    const resolver = this.resolver();
+    const resolver = this.resolver({ wideCache: true });
     // Ghost cells whose spilled value changed this pass — they are the dirty
     // seeds of the follow-up pass, so readers of a spill catch up.
     const spillTouched = new Set();
@@ -581,7 +685,11 @@ export class Spreadsheet {
       const raw = evaluate(cell.ast, resolver, {
         sheet: cell.sheet, row: cell.row, col: cell.col, spill: true,
       });
+      const ghosts = spillTouched.size;
       this._settle(cell, k, raw, spillTouched);
+      // A wide range read before this cell was worked out is read again.
+      if (spillTouched.size !== ghosts || this.spills.has(k)) resolver.changedAll();
+      else resolver.changed(cell.sheet, cell.row, cell.col);
     }
 
     // Whatever never reached in-degree zero is circular. A Set, not

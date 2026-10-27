@@ -260,6 +260,65 @@ function makeMatcher(criteria) {
 const vec = (arg) => (Array.isArray(arg) ? arg.flat(Infinity) : [arg]);
 
 /**
+ * A long table's first column, indexed for exact lookups: a range read whole
+ * is one grid for a whole recalculation, and forty thousand VLOOKUPs into
+ * seven thousand rows each walked it from the top. The index answers what
+ * the walk would have: the first row equal to the key under compareValues,
+ * or the first error met before it. A column holding anything other than
+ * numbers, text, booleans, blanks and errors is not indexed.
+ */
+const exactIndexes = new WeakMap();
+const LONG_TABLE = 256;
+const exactKey = (v) => (typeof v === 'number' ? 'n' + v : typeof v === 'string' ? 's' + v.toUpperCase() : 'b' + v);
+
+function exactIndexOf(table) {
+  let index = exactIndexes.get(table);
+  if (index !== undefined) return index;
+  index = { rows: new Map(), blank: -1, zero: -1, error: -1, errorValue: null };
+  for (let r = 0; r < table.length; r++) {
+    const v = table[r][0];
+    if (isError(v)) {
+      index.error = r;
+      index.errorValue = v;
+      break; // nothing past the first error can be reached
+    }
+    if (isBlank(v)) {
+      if (index.blank < 0) index.blank = r;
+      continue;
+    }
+    const t = typeof v;
+    if (t !== 'number' && t !== 'string' && t !== 'boolean') { index = null; break; }
+    if (t === 'number' && v === 0 && index.zero < 0) index.zero = r;
+    const k = exactKey(v);
+    if (!index.rows.has(k)) index.rows.set(k, r);
+  }
+  exactIndexes.set(table, index);
+  return index;
+}
+
+/** The row an exact lookup stops at: a row index, an error, or -1 for none. */
+function exactRow(table, key) {
+  const plain = isBlank(key) || ['number', 'string', 'boolean'].includes(typeof key);
+  const index = plain && table.length > LONG_TABLE ? exactIndexOf(table) : null;
+  if (!index) {
+    for (let r = 0; r < table.length; r++) {
+      const cmp = compareValues(table[r][0], key);
+      if (isError(cmp)) return cmp;
+      if (cmp === 0) return r;
+    }
+    return -1;
+  }
+  // A blank key equals blanks and 0; a 0 key equals 0 and blanks.
+  const hits = isBlank(key)
+    ? [index.blank, index.zero]
+    : [index.rows.get(exactKey(key)) ?? -1, key === 0 ? index.blank : -1];
+  const found = hits.filter((r) => r >= 0);
+  const row = found.length ? Math.min(...found) : -1;
+  if (index.error >= 0 && (row < 0 || index.error < row)) return index.errorValue;
+  return row;
+}
+
+/**
  * The *IFS family: pairs of (criteria range, criteria), all the same length as
  * the target range. Returns the matching indices, or the first error met.
  */
@@ -587,12 +646,9 @@ export const FUNCTIONS = {
     const exact = approximate === undefined ? false : !toBoolean(Array.isArray(approximate) ? approximate.flat(Infinity)[0] : approximate);
 
     if (exact) {
-      for (const row of table) {
-        const cmp = compareValues(row[0], key);
-        if (isError(cmp)) return cmp;
-        if (cmp === 0) return row[idx - 1] ?? '';
-      }
-      return ERR.NA('VLOOKUP found no match');
+      const row = exactRow(table, key);
+      if (isError(row)) return row;
+      return row < 0 ? ERR.NA('VLOOKUP found no match') : (table[row][idx - 1] ?? '');
     }
     // approximate: last row whose first column is <= key, assuming sorted
     let best = null;
