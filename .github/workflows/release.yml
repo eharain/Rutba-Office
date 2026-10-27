@@ -21,6 +21,18 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
+      # Each app's pack is signed with the release key, kept as the repository
+      # secret RUTBA_PACK_KEY. Without it the build cannot finish, so the run
+      # stops here rather than after the tests (2.20.0 was built by hand).
+      - name: The release key is there
+        shell: bash
+        env:
+          RUTBA_PACK_KEY: ${{ secrets.RUTBA_PACK_KEY }}
+        run: |
+          if [ -z "$RUTBA_PACK_KEY" ]; then
+            echo "::error::The repository secret RUTBA_PACK_KEY is not set, so the app packs cannot be signed. Add it, or build the release on the release computer (docs/APP-PACKS.md)."
+            exit 1
+          fi
       - uses: actions/checkout@v5
         with:
           # The templates are their own repository (Rutba-Office-Templates), taken as packages/templates.
