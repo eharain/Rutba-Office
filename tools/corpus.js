@@ -485,7 +485,8 @@ const FAMILIES = {
 
       const again = s.doc.open({ path: written });
       s.doc.model({ id: again.id });
-      const second = path.join(tmp, `second.${ooxml}`);
+      // A macro file or template is saved as itself: a .docm's macros refuse a .docx.
+      const second = path.join(tmp, `second.${FORMATS[writes].xml ? writes : ooxml}`);
       s.doc.save({ id: again.id, path: second });
       s.doc.close({ id: again.id });
       const after = fingerprintOoxml(kind, fs.readFileSync(second));
