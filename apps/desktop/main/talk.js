@@ -8,7 +8,10 @@
 // The introducer (workers/introducer) is the one server this talks to: it
 // knows who you are from your Rutba sign-in, who your contacts are, who is
 // online, and passes a call's set-up between the two computers. The call
-// itself goes straight between them, or through a relay. This service holds
+// itself goes straight between them, or through a relay, end to end. Messages
+// go through the introducer: it holds each one, encrypted with its own key and
+// so readable by it, until the other person's app confirms it, and for 30 days
+// at most. This service holds
 // the one connection for every window, keeps your messages on this computer,
 // and hands each window what the introducer says.
 //
