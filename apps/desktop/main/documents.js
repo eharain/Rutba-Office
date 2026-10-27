@@ -2076,7 +2076,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         const drawn = drawablePicture(Buffer.from(bytes), source.part);
         pictures.set(source.part, { bytes, url: null, id: null });
         if (!drawn) return null;
-        const held = holdBlob(drawn.bytes, drawn.type, path.basename(source.part).replace(/\.[^.]+$/, drawn.type === 'image/png' ? '.png' : '.svg'));
+        const held = holdBlob(drawn.bytes, drawn.type, path.basename(source.part).replace(/\.[^.]+$/, () => (drawn.type === 'image/png' ? '.png' : '.svg')));
         pictures.set(source.part, { bytes, url: held.url, id: held.id });
         return held.url;
       }

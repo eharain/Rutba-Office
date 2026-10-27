@@ -883,7 +883,7 @@ export class GdiSvg {
       // A widened path is the pen's outline: filling it draws the line in the brush's colour.
       const st = this.strokeAttrs();
       const colour = this.fillOf();
-      if (st && colour !== 'none') this.element(`<path d="${p.d}" fill="none"${st.replace(/ stroke="[^"]*"/, ` stroke="${colour}"`)}/>`);
+      if (st && colour !== 'none') this.element(`<path d="${p.d}" fill="none"${st.replace(/ stroke="[^"]*"/, () => ` stroke="${colour}"`)}/>`);
       return;
     }
     // Filling closes every figure, as Windows does before it fills.
