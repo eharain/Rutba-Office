@@ -107,10 +107,15 @@ function shapePath(preset, { x, y, w, h }, custom = null, { simplify = false } =
       return `<polygon points="${x + w * 0.25},${y} ${x + w},${y} ${x + w * 0.75},${y + h} ${x},${y + h}"`;
     case 'trapezoid':
       return `<polygon points="${x + w * 0.25},${y} ${x + w * 0.75},${y} ${x + w},${y + h} ${x},${y + h}"`;
+    case 'hexagon': {
+      // PowerPoint's hexagon: flat along the top and bottom, its points at
+      // the sides, each a quarter of the shorter side in (adj 25000).
+      const dx = r * 0.25;
+      return `<polygon points="${x},${y + h / 2} ${x + dx},${y} ${x + w - dx},${y} ${x + w},${y + h / 2} ${x + w - dx},${y + h} ${x + dx},${y + h}"`;
+    }
     case 'pentagon':
-    case 'hexagon':
     case 'octagon': {
-      const sides = { pentagon: 5, hexagon: 6, octagon: 8 }[preset];
+      const sides = { pentagon: 5, octagon: 8 }[preset];
       const pts = [];
       for (let i = 0; i < sides; i++) {
         const a = (Math.PI * 2 * i) / sides - Math.PI / 2;
@@ -730,6 +735,15 @@ export function renderSlide(slide, opts = {}) {
 
     if (shape.kind === 'picture') {
       const href = resolveImage ? resolveImage(shape) : null;
+      // A picture cut to a shape (Crop to Shape, or a layout's hexagon photo
+      // placeholder) is drawn inside that outline.
+      const cut = href && (shape.preset && shape.preset !== 'rect') ? shapePath(shape.preset, g, shape.path || null) : null;
+      let clip = '';
+      if (cut) {
+        const clipId = `${ID}clip${++picSeq}`;
+        defs.push(`<clipPath id="${clipId}">${cut}/></clipPath>`);
+        clip = ` clip-path="url(#${clipId})"`;
+      }
       if (href && shape.crop) {
         // A crop (a:srcRect) as PowerPoint draws it: the part of the picture
         // left after each side's share is taken off, stretched to the box —
@@ -738,13 +752,13 @@ export function renderSlide(slide, opts = {}) {
         const fw = g.w / Math.max(0.001, 1 - (c.l || 0) - (c.r || 0));
         const fh = g.h / Math.max(0.001, 1 - (c.t || 0) - (c.b || 0));
         body.push(
-          `<g${transform}><svg x="${g.x.toFixed(2)}" y="${g.y.toFixed(2)}" width="${g.w.toFixed(2)}" height="${g.h.toFixed(2)}" overflow="hidden">` +
-          `<image x="${(-(c.l || 0) * fw).toFixed(2)}" y="${(-(c.t || 0) * fh).toFixed(2)}" width="${fw.toFixed(2)}" height="${fh.toFixed(2)}" href="${href}" preserveAspectRatio="none"/></svg></g>`
+          `<g${transform}><g${clip}><svg x="${g.x.toFixed(2)}" y="${g.y.toFixed(2)}" width="${g.w.toFixed(2)}" height="${g.h.toFixed(2)}" overflow="hidden">` +
+          `<image x="${(-(c.l || 0) * fw).toFixed(2)}" y="${(-(c.t || 0) * fh).toFixed(2)}" width="${fw.toFixed(2)}" height="${fh.toFixed(2)}" href="${href}" preserveAspectRatio="none"/></svg></g></g>`
         );
       } else if (href) {
         body.push(
           `<image x="${g.x.toFixed(2)}" y="${g.y.toFixed(2)}" width="${g.w.toFixed(2)}" height="${g.h.toFixed(2)}" ` +
-          `href="${href}" preserveAspectRatio="xMidYMid slice"${transform}/>`
+          `href="${href}" preserveAspectRatio="xMidYMid slice"${clip}${transform}/>`
         );
       } else {
         body.push(

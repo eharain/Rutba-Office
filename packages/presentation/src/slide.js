@@ -912,6 +912,13 @@ function readShape(sp, ctx, container, groupId) {
     if (!line) line = inherited.line || null;
     if (text && !text.anchorStated && inherited.anchor) text.anchor = inherited.anchor;
   }
+  const outline = (!outlineStated(spPr) && inherited?.outline) || {
+    preset: first(spPr, A('prstGeom'))?.attrs.prst || (kids(spPr || { children: [] }, A('custGeom'))[0] ? 'custom' : 'rect'),
+    adjustments: readAdjustments(spPr),
+    // A custom geometry's outline, as SVG path data in the path's own units:
+    // a banner with a diagonal cut, a slash, a swoosh. Null for a preset.
+    path: readCustomPath(spPr),
+  };
 
   // Insert → Cameo: a shape the show fills with the camera.
   const nvPr = first(kids(sp, P('nvSpPr'))[0] || sp, P('nvPr'));
@@ -929,11 +936,9 @@ function readShape(sp, ctx, container, groupId) {
     effects,
     shape3d: read3d(spPr, ctx.theme),
     styleText,
-    preset: first(spPr, A('prstGeom'))?.attrs.prst || (kids(spPr || { children: [] }, A('custGeom'))[0] ? 'custom' : 'rect'),
-    adjustments: readAdjustments(spPr),
-    // A custom geometry's outline, as SVG path data in the path's own units
-    // — a banner with a diagonal cut, a slash, a swoosh. Null for a preset.
-    path: readCustomPath(spPr),
+    preset: outline.preset,
+    adjustments: outline.adjustments,
+    path: outline.path,
     text,
     inheritedText: inherited?.text || null,
   };
@@ -1006,6 +1011,9 @@ function readAdjustments(spPr) {
   return out;
 }
 
+/** Whether spPr gives the shape an outline of its own, a preset or a drawn one. */
+const outlineStated = (spPr) => Boolean(spPr && (first(spPr, A('prstGeom')) || first(spPr, A('custGeom'))));
+
 function readPicture(pic, ctx, container, groupId) {
   const spPr = kids(pic, P('spPr'))[0];
   const blipFill = kids(pic, P('blipFill'))[0];
@@ -1030,6 +1038,12 @@ function readPicture(pic, ctx, container, groupId) {
   const cameoRecording = Boolean(nvPr && first(nvPr, 'rcam:recording'));
   // Its alt text and title (a QR Code's text is its alt text).
   const cNv = first(kids(pic, P('nvPicPr'))[0] || pic, P('cNvPr'));
+  // A picture placeholder (a layout's "Click photo icon to insert photo")
+  // states no place or outline when the slide fills it: the picture goes
+  // where the layout's placeholder is, cut to its outline.
+  const ph = placeholderOf(pic);
+  const inherited = ph && ctx.inherit ? ctx.inherit(ph) : null;
+  const outline = !outlineStated(spPr) && inherited?.outline;
   return {
     kind: 'picture',
     ...meta,
@@ -1039,9 +1053,9 @@ function readPicture(pic, ctx, container, groupId) {
     ...(cNv?.attrs.descr != null ? { descr: cNv.attrs.descr } : {}),
     ...(cNv?.attrs.title != null ? { title: cNv.attrs.title } : {}),
     groupId,
-    placeholder: placeholderOf(pic),
-    geometry: placeInContainer(container, readXfrm(spPr)),
-    line: readLine(spPr, ctx.theme),
+    placeholder: ph,
+    geometry: placeInContainer(container, readXfrm(spPr)) || inherited?.geometry || null,
+    line: readLine(spPr, ctx.theme) || inherited?.line || null,
     embed,
     source: embed && ctx.rel ? ctx.rel(embed) : null,
     crop: srcRect
@@ -1052,7 +1066,8 @@ function readPicture(pic, ctx, container, groupId) {
           b: pctOf(srcRect.attrs.b, 0),
         }
       : null,
-    preset: first(spPr, A('prstGeom'))?.attrs.prst || 'rect',
+    preset: outline ? outline.preset : first(spPr, A('prstGeom'))?.attrs.prst || 'rect',
+    ...(outline?.path ? { path: outline.path } : {}),
   };
 }
 

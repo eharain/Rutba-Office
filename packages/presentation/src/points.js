@@ -67,10 +67,14 @@ export function presetCommands(preset, w, h) {
       return polygon([[w * 0.25, 0], [w, 0], [w * 0.75, h], [0, h]]);
     case 'trapezoid':
       return polygon([[w * 0.25, 0], [w * 0.75, 0], [w, h], [0, h]]);
+    case 'hexagon': {
+      // Flat along the top and bottom, as render.js draws it (adj 25000).
+      const dx = Math.min(w, h) * 0.25;
+      return polygon([[0, h / 2], [dx, 0], [w - dx, 0], [w, h / 2], [w - dx, h], [dx, h]]);
+    }
     case 'pentagon':
-    case 'hexagon':
     case 'octagon': {
-      const sides = { pentagon: 5, hexagon: 6, octagon: 8 }[preset];
+      const sides = { pentagon: 5, octagon: 8 }[preset];
       return polygon(Array.from({ length: sides }, (_, i) => {
         const a = (Math.PI * 2 * i) / sides - Math.PI / 2;
         return [w / 2 + (Math.cos(a) * w) / 2, h / 2 + (Math.sin(a) * h) / 2];

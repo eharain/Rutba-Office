@@ -996,6 +996,9 @@ export class Deck {
           out.line = out.line || hit.line;
           out.text = out.text || hit.text;
           if (!out.anchor && hit.text?.anchorStated) out.anchor = hit.text.anchor;
+          // Its outline: a rectangle is what a placeholder is when none is
+          // said, so the first ancestor drawing anything else gives it.
+          if (!out.outline && hit.preset && hit.preset !== 'rect') out.outline = { preset: hit.preset, adjustments: hit.adjustments, path: hit.path };
         }
       }
       return out.geometry || out.fill || out.line || out.text ? out : null;
