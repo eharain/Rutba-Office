@@ -194,7 +194,7 @@ export default function Contacts({ app, shell, boot }) {
 
   const importFile = useCallback(
     async (file = null) => {
-      const target = file || (await pickOpen(shell, 'contacts'))?.[0];
+      const target = file || (await pickOpen(shell, 'contacts'));
       if (!target) return;
       if (/\.(csv|tsv)$/i.test(target)) { setCsv({ path: target }); return; }
       setBusy(true);

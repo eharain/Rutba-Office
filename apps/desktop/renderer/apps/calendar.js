@@ -399,7 +399,7 @@ export default function Calendar({ app, shell, boot }) {
 
   const importFile = useCallback(
     async (path = null) => {
-      const target = path || (await pickOpen(shell, 'calendar'))?.[0];
+      const target = path || (await pickOpen(shell, 'calendar'));
       if (!target) return;
       try {
         const r = await shell.calendar.importFile({ path: target });
