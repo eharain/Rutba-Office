@@ -10,7 +10,10 @@
 // document, workbook and deck, and every old-format file in
 // tests/fixtures/binary — Word 97-2003 and 95, Excel 97-2003 and 95,
 // PowerPoint 97-2003, and the password-protected ones — since those readers
-// take the most hostile input there is. It drives the same document service
+// take the most hostile input there is. Pictures kept as drawing calls (an
+// EMF and a WMF, made by tests/fixtures/metafiles.js) are damaged too and
+// handed straight to their readers, which answer a drawing or nothing: for
+// them anything thrown is a fault. It drives the same document service
 // the windows use, in a worker of its own, and asks one question of every
 // answer: was it a document, or a refusal in a sentence? Anything else is a
 // fault — an error a parser threw rather than chose (a RangeError from a
@@ -53,7 +56,20 @@ if (!isMainThread) {
   // The worker: opens each file it is handed, as a window would, and says how it went.
   const { createDocumentService } = await import('../apps/desktop/main/documents.js');
   const service = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }) });
+  const { emfToSvg } = await import('../packages/office-formats/src/emf.js');
+  const { wmfToSvg } = await import('../packages/office-formats/src/wmf.js');
   parentPort.on('message', ({ file }) => {
+    if (/\.(emf|wmf)$/i.test(file)) {
+      // A metafile: drawn, or nothing. Never thrown, and never anything that runs.
+      try {
+        const out = (/\.wmf$/i.test(file) ? wmfToSvg : emfToSvg)(fs.readFileSync(file));
+        if (out && /<script|\son\w+=|javascript:/i.test(out.svg)) throw new TypeError('a drawing that could run something');
+        parentPort.postMessage({ outcome: out ? 'opened' : 'refused' });
+      } catch (err) {
+        parentPort.postMessage({ outcome: 'FAULT', message: `${err?.name}: ${err?.message}`.slice(0, 200) });
+      }
+      return;
+    }
     try {
       const opened = service.open({ path: file });
       // A password-protected file asks for its password: an answer.
@@ -75,6 +91,7 @@ if (!isMainThread) {
 async function main() {
   const { buildDocx, buildXlsx } = await import('@rutba/ooxml/build');
   const { buildPptx } = await import('@rutba/presentation');
+  const { showcaseEmf, showcaseWmf } = await import('../tests/fixtures/metafiles.js');
   const rounds = Number(process.argv[2] || 300);
   const seed = Number(process.argv[3] || Date.now() % 100000);
   const TIMEOUT_MS = 2000;
@@ -94,6 +111,8 @@ async function main() {
     'new.docx': buildDocx({ title: 'Agreement', paragraphs: [lorem, 'Second paragraph.', 'Third.'] }),
     'new.xlsx': buildXlsx({ sheets: [{ name: 'S', rows: [['Region', 'Total'], ['North', 12], ['South', 8], [null, '=SUM(B2:B3)']] }] }),
     'new.pptx': buildPptx({ title: 'Deck', slides: [{ layout: 'title', title: 'Rutba' }, { layout: 'titleAndContent', title: 'Two', bullets: ['a', 'b'] }] }),
+    'drawing.emf': showcaseEmf(),
+    'drawing.wmf': showcaseWmf(),
   };
   const binary = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tests', 'fixtures', 'binary');
   for (const name of fs.existsSync(binary) ? fs.readdirSync(binary).sort() : []) SOURCES[name] = fs.readFileSync(path.join(binary, name));
@@ -169,7 +188,7 @@ async function main() {
     await new Promise((resolve) => { worker.once('message', resolve); worker.postMessage({ file: warm }); });
   }
 
-  console.log(`fuzz: ${rounds} mutations of each of ${sources.length} sources (${sources.length - 3} old-format files), seed ${seed}`);
+  console.log(`fuzz: ${rounds} mutations of each of ${sources.length} sources (${sources.length - 5} old-format files, an EMF and a WMF), seed ${seed}`);
 
   for (let round = 0; round < rounds; round++) {
     for (const source of sources) {
