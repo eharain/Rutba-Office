@@ -269,15 +269,26 @@ export default function Pictures({ app, shell, boot }) {
         const { bytes: head, stat } = await shell.fs.readHead({ path: current, bytes: want });
 
         const { probeImage } = await import('@rutba/imaging/probe');
-        const { readExif, describeExif, orientationOf } = await import('@rutba/imaging/exif');
+        const { readMetadataFrom, describeExif, orientationOf } = await import('@rutba/imaging/exif');
         const { probeMedia } = await import('@rutba/media/probe');
         let probe = probeImage(head) || probeMedia(head);
         if (media && !probe?.duration && stat.size > want) {
           const { bytes: tail } = await shell.fs.readHead({ path: current, bytes: want, offset: stat.size - want });
           probe = probeMedia(tail) || probe;
         }
-        const exif = readExif(head);
-        if (alive) setDetails({ stat, probe, exif, rows: describeExif(exif), orientation: orientationOf(exif) });
+        // The EXIF and XMP of a JPEG, TIFF, PNG, WebP, HEIC or AVIF: from
+        // the header read already, and the few places past it the file
+        // points to (a WebP keeps its EXIF after the picture, a TIFF its
+        // directory where it likes), never the picture itself.
+        const meta = media
+          ? { exif: {}, problem: null, marks: null }
+          : await readMetadataFrom(
+            async (offset, length) => (offset + length <= head.length ? head.subarray(offset, offset + length) : (await shell.fs.readHead({ path: current, bytes: length, offset })).bytes),
+            stat.size,
+            { first: Math.min(head.length, stat.size) || 1 },
+          );
+        const exif = meta.problem ? { ...meta.exif, problem: meta.problem } : meta.exif;
+        if (alive) setDetails({ stat, probe, exif, rows: describeExif(exif), orientation: orientationOf(exif), marks: meta.marks });
       } catch {
         if (alive) setDetails({ stat: null, probe: null, exif: {}, rows: [], orientation: null });
       }
