@@ -87,8 +87,10 @@ async function grabStill(path) {
     const res = await fetch(fileUrl(path));
     if (!res.ok) return null;
     const blob = await res.blob();
-    if (/\.svg$/i.test(path)) {
-      // A drawing has no pixels to shrink: it is drawn at the tile's size.
+    // An SVG, or a drawing served as one (an EMF or a WMF, protocol.js), has
+    // no pixels to shrink: it is drawn at the tile's size. createImageBitmap
+    // cannot read an SVG, and an EMF's tile stayed blank.
+    if (/\.svg$/i.test(path) || /^image\/svg\+xml/i.test(blob.type)) {
       const url = URL.createObjectURL(new Blob([blob], { type: 'image/svg+xml' }));
       try {
         const img = new Image();

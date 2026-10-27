@@ -119,6 +119,32 @@ export async function verifyPicturesDrawn({ open, check, until, wait, press, err
       emf.size?.w > 100 && emf.size?.h > 50 && wmf.size?.w > 100 && wmf.size?.h > 50, JSON.stringify(seen.slice(0, 2)));
     check('pictures: a camera RAW opens as the picture its camera put inside it, brought to 2048 on its long side',
       raw.size?.w === 2048 && raw.size?.h === 1365, JSON.stringify(raw));
+    // Their tiles in the filmstrip: Windows has no thumbnail for a metafile,
+    // so the window draws one from the SVG it is served (frames.js); a tile
+    // left as the picture icon, or drawn blank, fails.
+    const tileOf = (name) => `(() => {
+      const item = [...document.querySelectorAll('.pv-strip-item')].find((b) => b.title === ${JSON.stringify(name)});
+      const img = item?.querySelector('img.pv-thumb.loaded');
+      if (!img || !img.complete || !img.naturalWidth) return { drawn: false, icon: Boolean(item?.querySelector('.pv-tile-icon')) };
+      let colours = null;
+      try {
+        const c = document.createElement('canvas');
+        c.width = 64; c.height = 64;
+        const g = c.getContext('2d');
+        g.drawImage(img, 0, 0, 64, 64);
+        const d = g.getImageData(0, 0, 64, 64).data;
+        const seen = new Set();
+        for (let i = 0; i < d.length; i += 4) seen.add((d[i] >> 4) + ',' + (d[i + 1] >> 4) + ',' + (d[i + 2] >> 4));
+        colours = seen.size;
+      } catch {}
+      return { drawn: true, w: img.naturalWidth, colours };
+    })()`;
+    const tiles = {};
+    for (const name of [files[0][0], files[1][0]]) {
+      await until(async () => (tiles[name] = await js(tileOf(name)))?.drawn, `${name}'s tile`, 15000).catch(() => {});
+    }
+    check('pictures: an EMF\'s and a WMF\'s tiles show their drawings, not a blank tile or the picture icon',
+      Object.values(tiles).length === 2 && Object.values(tiles).every((t) => t?.drawn && (t.colours == null || t.colours > 2)), JSON.stringify(tiles));
     // What a window gets for a HEIC Windows cannot read: a sentence naming what to add.
     const fake = path.join(root, 'not a picture.heic');
     fs.writeFileSync(fake, 'words, not a picture');
