@@ -281,10 +281,12 @@ export default function Pictures({ app, shell, boot }) {
         // the header read already, and the few places past it the file
         // points to (a WebP keeps its EXIF after the picture, a TIFF its
         // directory where it likes), never the picture itself.
+        const inHead = (offset, length) => head.length >= offset + length;
+        const readPart = async (offset, length) => (inHead(offset, length) ? head.subarray(offset, offset + length) : (await shell.fs.readHead({ path: current, bytes: length, offset })).bytes);
         const meta = media
           ? { exif: {}, problem: null, marks: null }
           : await readMetadataFrom(
-            async (offset, length) => (offset + length <= head.length ? head.subarray(offset, offset + length) : (await shell.fs.readHead({ path: current, bytes: length, offset })).bytes),
+            readPart,
             stat.size,
             { first: Math.min(head.length, stat.size) || 1 },
           );
