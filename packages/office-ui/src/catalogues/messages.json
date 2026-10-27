@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8310,
+  "count": 8333,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -625,19 +625,19 @@
     {
       "message": "2 × 2 empty matrix",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "2 × 2 matrix in brackets",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "2 × 2 matrix in parentheses",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -655,7 +655,7 @@
     {
       "message": "3 × 3 empty matrix",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -1070,7 +1070,7 @@
     {
       "message": "A folder of my choosing…",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -1293,7 +1293,7 @@
     {
       "message": "A new key: the old one, and every connection made with it, stop working at once.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -1432,7 +1432,7 @@
     {
       "message": "A percentage",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -1486,7 +1486,7 @@
     {
       "message": "A protected database is reached only as a role an Admin chose for the AI tools in Data Files, never one that may change its design.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -1933,7 +1933,7 @@
     {
       "message": "AI Tools",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps-choice.js"
       ]
     },
@@ -1946,12 +1946,13 @@
     {
       "message": "AI apps on this computer, and on other machines that have the key below, can use these tools while they are on.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
       "message": "AI tools",
       "where": [
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/base/ai-tools.js"
       ]
@@ -2033,14 +2034,14 @@
     {
       "message": "About {mb} MB a minute",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
       "message": "About {minutes} minutes of space are left on the disk.",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -2077,7 +2078,7 @@
     {
       "message": "Absolute value",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -2089,7 +2090,7 @@
     {
       "message": "Accent 1",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -2101,31 +2102,31 @@
     {
       "message": "Accent 2",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Accent 3",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Accent 4",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Accent 5",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Accent 6",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -2365,6 +2366,7 @@
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/packs-dialog.js",
         "apps/desktop/renderer/redact.js",
         "packages/office-ui/src/proofing.js"
       ]
@@ -2414,7 +2416,7 @@
     {
       "message": "Add Folder…",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -2754,6 +2756,12 @@
       ]
     },
     {
+      "message": "Add it with Add or remove apps, and it opens what it opens from the next start.",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
       "message": "Add link",
       "where": [
         "apps/desktop/renderer/apps/mail/richtext.js",
@@ -2772,6 +2780,19 @@
       "message": "Add on a New Track",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Add or remove apps",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
+      "message": "Add or remove apps…",
+      "where": [
+        "apps/desktop/renderer/apps/home.js",
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -2819,7 +2840,7 @@
     {
       "message": "Add these lines to the AI app’s list of MCP servers, in its settings. The app starts the tools itself when it needs them.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -2948,6 +2969,12 @@
       ]
     },
     {
+      "message": "Added: here from the next start",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
       "message": "Added: {provider}",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js"
@@ -2983,7 +3010,8 @@
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
-        "apps/desktop/renderer/dav-accounts.js"
+        "apps/desktop/renderer/dav-accounts.js",
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -2995,7 +3023,7 @@
     {
       "message": "Address",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -3458,9 +3486,9 @@
     {
       "message": "All",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/mail/parts.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides/setup.js",
@@ -3745,7 +3773,7 @@
     {
       "message": "Also",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -3919,6 +3947,12 @@
       ]
     },
     {
+      "message": "An app added or removed here changes at the next start. Removing an app keeps your documents, mail and settings; add it again at any time.",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
       "message": "An app password, where the service gives one.",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
@@ -4030,7 +4064,7 @@
     {
       "message": "Angle brackets",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -4339,6 +4373,12 @@
       ]
     },
     {
+      "message": "Apps to install",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
+      ]
+    },
+    {
       "message": "Arabic",
       "where": [
         "apps/desktop/renderer/ocr-ui.js"
@@ -4580,8 +4620,8 @@
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/library-words.js",
-        "apps/desktop/renderer/apps/word/dialogs.js",
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js",
+        "apps/desktop/renderer/symbol-dialog.js"
       ]
     },
     {
@@ -4660,7 +4700,7 @@
     {
       "message": "As the screen",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -4678,7 +4718,7 @@
     {
       "message": "As they are",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -5359,8 +5399,8 @@
     {
       "message": "Batch edit",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js",
-        "apps/desktop/renderer/apps/pictures.js"
+        "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -5671,19 +5711,19 @@
     {
       "message": "Body font",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Body text body text body text. Body text body text.",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Body words",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -5916,19 +5956,19 @@
     {
       "message": "Braces",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "Bracket",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "Brackets",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -6146,8 +6186,8 @@
     {
       "message": "Built-in",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -6491,7 +6531,7 @@
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/library-words.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
+        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -6516,7 +6556,7 @@
     {
       "message": "Camera {n}",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/session.js"
+        "apps/desktop/renderer/recording/session.js"
       ]
     },
     {
@@ -6548,7 +6588,6 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
@@ -6562,6 +6601,7 @@
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pdf/ocr.js",
         "apps/desktop/renderer/apps/pdf/redact.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/filter-panel.js",
@@ -6575,7 +6615,6 @@
         "apps/desktop/renderer/apps/slides/album.js",
         "apps/desktop/renderer/apps/slides/comments.js",
         "apps/desktop/renderer/apps/slides/custom-shows.js",
-        "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/export-video.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/slides/setup.js",
@@ -6585,12 +6624,10 @@
         "apps/desktop/renderer/apps/talk/invite.js",
         "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/intro/brand.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/word/blocks.js",
         "apps/desktop/renderer/apps/word/compare.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
-        "apps/desktop/renderer/apps/word/equations.js",
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/list-dialog.js",
         "apps/desktop/renderer/apps/word/mailings.js",
@@ -6603,6 +6640,8 @@
         "apps/desktop/renderer/apps/word/style-dialog.js",
         "apps/desktop/renderer/apps/word/untracked.js",
         "apps/desktop/renderer/dav-accounts.js",
+        "apps/desktop/renderer/design.js",
+        "apps/desktop/renderer/equations.js",
         "apps/desktop/renderer/icons-insert.js",
         "apps/desktop/renderer/object-insert.js",
         "apps/desktop/renderer/ocr-ui.js",
@@ -6610,6 +6649,7 @@
         "apps/desktop/renderer/profiles.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/qrcode.js",
+        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/rotation-dialog.js",
         "apps/desktop/renderer/screenshot.js",
         "apps/desktop/renderer/shell.js",
@@ -6829,7 +6869,7 @@
     {
       "message": "Ceiling",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -7125,7 +7165,7 @@
     {
       "message": "Change…",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/sheets/picture-data.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/video/intro/brand.js"
@@ -7569,7 +7609,7 @@
     {
       "message": "Choose a folder the AI tools may use",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -7637,8 +7677,8 @@
       "message": "Choose a screen or a window to record.",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
-        "apps/desktop/renderer/apps/video/recorder/session.js"
+        "apps/desktop/renderer/recording/panel.js",
+        "apps/desktop/renderer/recording/session.js"
       ]
     },
     {
@@ -7776,7 +7816,7 @@
         "apps/desktop/renderer/apps/slides/motion.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/library-words.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
+        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -8089,7 +8129,7 @@
     {
       "message": "Click a symbol to insert it at the caret. The dialog stays open for the next one.",
       "where": [
-        "apps/desktop/renderer/apps/word/dialogs.js"
+        "apps/desktop/renderer/symbol-dialog.js"
       ]
     },
     {
@@ -8270,11 +8310,10 @@
     {
       "message": "Close",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/home.js",
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
@@ -8283,6 +8322,7 @@
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/mail/safety.js",
         "apps/desktop/renderer/apps/mail/smime.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/recorder/live-dialog.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -8305,8 +8345,10 @@
         "apps/desktop/renderer/dav-accounts.js",
         "apps/desktop/renderer/defaults.js",
         "apps/desktop/renderer/inspect.js",
+        "apps/desktop/renderer/packs-dialog.js",
         "apps/desktop/renderer/profiles.js",
         "apps/desktop/renderer/protect.js",
+        "apps/desktop/renderer/symbol-dialog.js",
         "apps/desktop/renderer/whatsnew.js",
         "packages/office-ui/src/index.js"
       ]
@@ -8584,10 +8626,10 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/design.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/intro/brand.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -8877,7 +8919,7 @@
     {
       "message": "Common",
       "where": [
-        "apps/desktop/renderer/apps/word/dialogs.js"
+        "apps/desktop/renderer/symbol-dialog.js"
       ]
     },
     {
@@ -8971,13 +9013,13 @@
       "message": "Computer sound",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
       "message": "Computer sound level",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -9044,7 +9086,7 @@
     {
       "message": "Connect an AI app",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -9056,7 +9098,7 @@
     {
       "message": "Connected now",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -9201,7 +9243,7 @@
     {
       "message": "Contour integral",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -9289,13 +9331,13 @@
       "message": "Convert {count} picture",
       "plural": "Convert {count} pictures",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
       "message": "Converting {done} of {total}: {name}",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -9343,7 +9385,7 @@
     {
       "message": "Copied. Paste it into your AI app’s MCP settings.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -9361,7 +9403,7 @@
     {
       "message": "Copy",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/mail/safety.js",
         "apps/desktop/renderer/apps/recorder.js",
@@ -9591,7 +9633,7 @@
     {
       "message": "Cosine",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -9657,7 +9699,7 @@
       "message": "Countdown",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -9792,13 +9834,13 @@
     {
       "message": "Create new theme colours",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Create new theme fonts",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -9931,7 +9973,7 @@
     {
       "message": "Cube root",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -9943,7 +9985,7 @@
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/word/dialogs.js"
+        "apps/desktop/renderer/symbol-dialog.js"
       ]
     },
     {
@@ -10151,14 +10193,14 @@
       "message": "Customise Colours…",
       "where": [
         "apps/desktop/renderer/apps/sheets/design.js",
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Customise Fonts…",
       "where": [
         "apps/desktop/renderer/apps/sheets/design.js",
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -11525,7 +11567,7 @@
     {
       "message": "Differential dx",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -11628,7 +11670,7 @@
     {
       "message": "Display — on a line of its own, centred",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -11699,6 +11741,12 @@
       "message": "Do It",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "Do not add",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -11945,7 +11993,7 @@
     {
       "message": "Double integral",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -12077,7 +12125,7 @@
       "message": "Drag on the picture to choose the part to record.",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -12101,7 +12149,7 @@
     {
       "message": "Drag the camera to a corner",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -12261,7 +12309,7 @@
     {
       "message": "Drawing this slide in each one…",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -12503,7 +12551,7 @@
     {
       "message": "Each mail account, calendar, address book, database and folder has its own setting, also shown in its own app. Everything is Off until you choose. Nothing is ever deleted or moved, and anything sent waits for your press here first.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -12633,7 +12681,7 @@
     {
       "message": "Edit Equation",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -12931,15 +12979,15 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets/design.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Effects reach shapes styled from the theme — PowerPoint's shape styles are.",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -13380,8 +13428,8 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
-        "apps/desktop/renderer/apps/word/equations.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -13405,7 +13453,7 @@
     {
       "message": "Equation — double-click to edit",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -13556,6 +13604,12 @@
       "message": "Every account, every archive, one inbox",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Every app is built into this copy of Rutba Office, so there is nothing to add or remove. The installed copy lets you choose.",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -14241,7 +14295,7 @@
     {
       "message": "Fast",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -14407,7 +14461,7 @@
     {
       "message": "File date",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -15233,7 +15287,7 @@
     {
       "message": "Floor",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -15333,7 +15387,7 @@
     {
       "message": "Followed Hyperlink",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -15368,9 +15422,9 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/design.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -15571,9 +15625,9 @@
       "message": "Format",
       "where": [
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/pdf/export.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
@@ -15781,19 +15835,19 @@
       "message": "Fraction",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "Fraction with no bar",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "Fractions and numbers",
       "where": [
-        "apps/desktop/renderer/apps/word/dialogs.js"
+        "apps/desktop/renderer/symbol-dialog.js"
       ]
     },
     {
@@ -15811,7 +15865,7 @@
       "message": "Frame rate",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -16241,7 +16295,7 @@
       "message": "Function",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -16555,8 +16609,8 @@
     {
       "message": "Greek",
       "where": [
-        "apps/desktop/renderer/apps/word/dialogs.js",
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js",
+        "apps/desktop/renderer/symbol-dialog.js"
       ]
     },
     {
@@ -17054,7 +17108,7 @@
       "message": "Heading",
       "where": [
         "apps/desktop/renderer/apps/base/documents.js",
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -17078,7 +17132,7 @@
     {
       "message": "Heading font",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -17141,8 +17195,8 @@
       "where": [
         "apps/desktop/renderer/apps/base/documents.js",
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/canvas-size.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
@@ -17272,7 +17326,7 @@
     {
       "message": "Hide",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -17789,7 +17843,7 @@
     {
       "message": "Hyperlink",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -17912,7 +17966,7 @@
     {
       "message": "Identity matrix",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -18595,8 +18649,8 @@
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/blocks.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
-        "apps/desktop/renderer/apps/word/equations.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/equations.js",
         "apps/desktop/renderer/icons-insert.js",
         "apps/desktop/renderer/qrcode.js",
         "packages/office-ui/src/proofing.js"
@@ -19307,6 +19361,24 @@
       ]
     },
     {
+      "message": "Install again",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
+      "message": "Installed",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
+      "message": "Installed, but would not load",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
       "message": "Institution",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -19321,13 +19393,13 @@
     {
       "message": "Integral",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "Integral with limits",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -19901,7 +19973,8 @@
     {
       "message": "Keep",
       "where": [
-        "apps/desktop/renderer/apps/slides/show-ink.js"
+        "apps/desktop/renderer/apps/slides/show-ink.js",
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -19943,7 +20016,7 @@
     {
       "message": "Keep both",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -20111,7 +20184,7 @@
     {
       "message": "Key",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/library-words.js"
       ]
@@ -20329,14 +20402,14 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
-        "apps/desktop/renderer/qrcode.js"
+        "apps/desktop/renderer/qrcode.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
       "message": "Large Operator",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -20548,7 +20621,13 @@
     {
       "message": "Last: {tool}, {when}",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
+      ]
+    },
+    {
+      "message": "Later",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -20824,7 +20903,7 @@
     {
       "message": "Left subscript and superscript",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -20923,7 +21002,7 @@
     {
       "message": "Let an AI app on this computer make and read documents, workbooks, presentations and PDFs with Rutba Office, in the folders you choose, and use the mail, calendars, contacts and databases you allow. It never overwrites or deletes a file.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -20957,8 +21036,8 @@
       "message": "Letters",
       "where": [
         "apps/desktop/renderer/apps/word.js",
-        "apps/desktop/renderer/apps/word/dialogs.js",
-        "apps/desktop/renderer/apps/word/mailings.js"
+        "apps/desktop/renderer/apps/word/mailings.js",
+        "apps/desktop/renderer/symbol-dialog.js"
       ]
     },
     {
@@ -21166,7 +21245,7 @@
     {
       "message": "Limit",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -21318,7 +21397,7 @@
     {
       "message": "Linear fraction",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -21337,7 +21416,7 @@
     {
       "message": "Lines copied from Rutba Office before this version name a file the AI app cannot find. Copy these and put them in its settings in place of the old ones. They open the tools in this profile.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -21354,12 +21433,12 @@
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
-        "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -21552,7 +21631,7 @@
     {
       "message": "Listening on port {port}.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -21674,7 +21753,7 @@
     {
       "message": "Logarithm",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -21749,7 +21828,7 @@
       "message": "Longest side",
       "where": [
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -21780,7 +21859,7 @@
       "message": "Looking at what is open…",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
+        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/screenshot.js"
       ]
     },
@@ -22542,7 +22621,7 @@
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/video/library-words.js",
-        "apps/desktop/renderer/apps/word/dialogs.js"
+        "apps/desktop/renderer/symbol-dialog.js"
       ]
     },
     {
@@ -22660,7 +22739,7 @@
     {
       "message": "Matrix",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -22758,8 +22837,8 @@
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/export.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/qrcode.js",
+        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -23101,19 +23180,19 @@
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/library-words.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
       "message": "Microphone level",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
       "message": "Microphone {n}",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/session.js"
+        "apps/desktop/renderer/recording/session.js"
       ]
     },
     {
@@ -23202,7 +23281,7 @@
       "message": "Minimise this window while recording",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -23235,7 +23314,7 @@
       "message": "Mirror the camera",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -23417,7 +23496,7 @@
     {
       "message": "More Themes: every theme, drawn on this slide",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -23431,7 +23510,7 @@
     {
       "message": "More Variants: the four colourings of this theme",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -23901,16 +23980,16 @@
         "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/contacts.js",
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/rules.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/recorder/live-dialog.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
-        "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/word/blocks.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
-        "apps/desktop/renderer/dav-accounts.js"
+        "apps/desktop/renderer/dav-accounts.js",
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -24034,7 +24113,7 @@
     {
       "message": "Natural logarithm",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -24216,7 +24295,7 @@
     {
       "message": "New Key",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -24713,7 +24792,7 @@
     {
       "message": "Next to the originals",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -24786,7 +24865,7 @@
     {
       "message": "No AI app is connected.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -24972,13 +25051,13 @@
     {
       "message": "No call yet",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
       "message": "No camera was found.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/camera.js"
+        "apps/desktop/renderer/recording/camera.js"
       ]
     },
     {
@@ -25314,7 +25393,7 @@
     {
       "message": "No microphone was found.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/session.js"
+        "apps/desktop/renderer/recording/session.js"
       ]
     },
     {
@@ -25369,7 +25448,7 @@
       "message": "No other window is open to record.",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -25539,7 +25618,7 @@
       "message": "No screen can be recorded.",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -25763,8 +25842,8 @@
       "where": [
         "apps/desktop/renderer/apps/base/reports.js",
         "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -25774,11 +25853,11 @@
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/video/timeline.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/protect.js"
+        "apps/desktop/renderer/protect.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -25808,7 +25887,7 @@
     {
       "message": "None yet. Turning the tools on asks you to choose one, and you can add more or remove any here.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -25838,7 +25917,7 @@
     {
       "message": "Norm",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -25849,9 +25928,9 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/print.js"
+        "apps/desktop/renderer/print.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -25900,7 +25979,7 @@
     {
       "message": "Not converted",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -25956,6 +26035,12 @@
       "message": "Not in dictionary",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Not installed",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -26143,7 +26228,7 @@
     {
       "message": "Nothing can connect while the tools are off.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -26275,7 +26360,7 @@
     {
       "message": "Nothing listens until the tools are turned on.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -26365,7 +26450,7 @@
     {
       "message": "Nothing yet.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
@@ -26386,14 +26471,14 @@
       "message": "Now: {major} / {minor}",
       "where": [
         "apps/desktop/renderer/apps/sheets/design.js",
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Now: {name}",
       "where": [
         "apps/desktop/renderer/apps/sheets/design.js",
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -26401,9 +26486,9 @@
       "where": [
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/form-designer.js",
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/mail/docnote.js",
         "apps/desktop/renderer/apps/pdf/found.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -26412,7 +26497,7 @@
     {
       "message": "Number as 001",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -26716,7 +26801,7 @@
     {
       "message": "On another machine, an AI app that connects to an MCP server at an address takes these lines, the key with them.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -26855,7 +26940,7 @@
     {
       "message": "Only AI apps on this computer can use these tools. Nothing listens on the network, so no other machine can connect.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -26971,6 +27056,12 @@
       "message": "Only senders on your Blocked Senders list go to Junk.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Only the apps you tick are put on this computer.",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
       ]
     },
     {
@@ -27322,7 +27413,7 @@
     {
       "message": "Opening the microphone…",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -27334,7 +27425,7 @@
     {
       "message": "Opening the screen…",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -27387,7 +27478,7 @@
     {
       "message": "Operators",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -27554,7 +27645,7 @@
     {
       "message": "Original name",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -28216,7 +28307,7 @@
     {
       "message": "Parentheses",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -28410,8 +28501,8 @@
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/apps/video/player.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
-        "apps/desktop/renderer/apps/video/ribbon.js"
+        "apps/desktop/renderer/apps/video/ribbon.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -28432,7 +28523,7 @@
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides/record.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -29338,7 +29429,7 @@
     {
       "message": "Pointer and clicks",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -29378,7 +29469,7 @@
     {
       "message": "Port",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/mail/dialogs.js"
       ]
@@ -29585,11 +29676,11 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/words.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/list-dialog.js",
         "apps/desktop/renderer/apps/word/mailings.js",
-        "apps/desktop/renderer/qrcode.js"
+        "apps/desktop/renderer/qrcode.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -30012,7 +30103,7 @@
     {
       "message": "Product with limits",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -30357,6 +30448,12 @@
       ]
     },
     {
+      "message": "Put apps on this computer or take them off",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Put mine back",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
@@ -30458,11 +30555,11 @@
       "message": "Quality",
       "where": [
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides/export-video.js",
         "apps/desktop/renderer/apps/video/export.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -30575,13 +30672,13 @@
     {
       "message": "Radical",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "Radical with degree",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -30903,6 +31000,12 @@
       ]
     },
     {
+      "message": "Reading what is installed…",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
       "message": "Reading {name}…",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
@@ -31063,9 +31166,9 @@
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/intro/scenes.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
-        "apps/desktop/renderer/apps/word/mailings.js"
+        "apps/desktop/renderer/apps/word/mailings.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -31127,7 +31230,7 @@
       "message": "Record Voice",
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -31239,8 +31342,8 @@
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/record.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
-        "apps/desktop/renderer/apps/video/ribbon.js"
+        "apps/desktop/renderer/apps/video/ribbon.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -31316,8 +31419,8 @@
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/library-words.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -31596,7 +31699,7 @@
       "message": "Refresh the list",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -31623,21 +31726,21 @@
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/design.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
       "message": "Region {w} × {h}",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
       "message": "Region: a part you draw, kept as a crop you can change later",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -31806,7 +31909,7 @@
     {
       "message": "Remove",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
@@ -31822,7 +31925,8 @@
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ruler.js",
-        "apps/desktop/renderer/dav-accounts.js"
+        "apps/desktop/renderer/dav-accounts.js",
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -32206,6 +32310,12 @@
       ]
     },
     {
+      "message": "Removed: goes at the next start",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
       "message": "Rename",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
@@ -32403,7 +32513,7 @@
     {
       "message": "Replace",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -32468,7 +32578,7 @@
     {
       "message": "Replace would write over the original pictures themselves.",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -32602,9 +32712,9 @@
       "message": "Reset",
       "where": [
         "apps/desktop/renderer/apps/image/tools.js",
-        "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -32794,6 +32904,12 @@
       ]
     },
     {
+      "message": "Restart and allow the change…",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
       "message": "Restart and install",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -32809,6 +32925,12 @@
       "message": "Restart each page",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Restart now",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -32863,7 +32985,7 @@
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/record.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -33236,14 +33358,14 @@
       "message": "Room for about {hours} hours on the disk",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
       "message": "Room for about {minutes} minutes on the disk",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -33440,7 +33562,7 @@
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -33640,7 +33762,7 @@
     {
       "message": "Ruler — drag to move, the wheel to turn it; a stroke begun along its top edge follows it",
       "where": [
-        "apps/desktop/renderer/apps/slides/ink.js"
+        "apps/desktop/renderer/ink.js"
       ]
     },
     {
@@ -33872,7 +33994,7 @@
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/index.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -34012,13 +34134,13 @@
     {
       "message": "Same as the original",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
       "message": "Sample",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -34057,13 +34179,13 @@
         "apps/desktop/renderer/apps/sheets/scripts.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/comments.js",
-        "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/dav-accounts.js",
+        "apps/desktop/renderer/design.js",
         "apps/desktop/renderer/shell.js",
         "packages/office-shell/src/electron/main.js"
       ]
@@ -34318,7 +34440,7 @@
     {
       "message": "Save in",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -34342,7 +34464,7 @@
     {
       "message": "Save the pictures in",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -34428,7 +34550,7 @@
     {
       "message": "Saved into this deck's theme: every slide that takes its colours from the theme follows, and Undo puts the old ones back.",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -34675,7 +34797,7 @@
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -34683,7 +34805,7 @@
       "where": [
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
+        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/screenshot.js"
       ]
     },
@@ -34720,7 +34842,7 @@
     {
       "message": "Screen: the whole of one screen",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -34756,7 +34878,7 @@
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/scripts.js",
         "apps/desktop/renderer/apps/video/intro/scenes.js",
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -36282,7 +36404,7 @@
       "message": "Sharper",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -36430,7 +36552,7 @@
     {
       "message": "Show",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pdf/index.js",
@@ -36595,8 +36717,8 @@
       "message": "Show in folder",
       "where": [
         "apps/desktop/renderer/apps/home.js",
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/recorder.js"
       ]
     },
@@ -37153,13 +37275,13 @@
     {
       "message": "Since {when}",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
       "message": "Sine",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -37203,20 +37325,20 @@
       "where": [
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/image/type-editor.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/parts.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/protect.js",
-        "apps/desktop/renderer/qrcode.js"
+        "apps/desktop/renderer/qrcode.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -37270,7 +37392,7 @@
     {
       "message": "Skewed fraction",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -37570,7 +37692,7 @@
     {
       "message": "Slow",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -37579,8 +37701,8 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
-        "apps/desktop/renderer/qrcode.js"
+        "apps/desktop/renderer/qrcode.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -37624,7 +37746,7 @@
       "message": "Smaller files",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -38349,13 +38471,13 @@
     {
       "message": "Square root",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "Square root of a² + b²",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -38367,7 +38489,7 @@
     {
       "message": "Stacked fraction",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -38386,7 +38508,7 @@
       "message": "Standard",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -38619,7 +38741,7 @@
       "message": "Starting…",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -38755,14 +38877,14 @@
     {
       "message": "Stop",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/pictures.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/scripts.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/library-words.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
+        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -38823,7 +38945,7 @@
     {
       "message": "Stopped.",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -38956,7 +39078,7 @@
     {
       "message": "Strip metadata: camera, date taken and place",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -38974,7 +39096,7 @@
     {
       "message": "Structures",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -39060,14 +39182,14 @@
     {
       "message": "Subscript",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "Subscript and superscript",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -39208,19 +39330,19 @@
     {
       "message": "Summation",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "Summation below",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "Summation with limits",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -39233,8 +39355,8 @@
     {
       "message": "Superscript",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -39303,8 +39425,8 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/dialogs.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/symbol-dialog.js"
       ]
     },
     {
@@ -39318,8 +39440,8 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/equations.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -39787,7 +39909,7 @@
     {
       "message": "Tangent",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -39833,7 +39955,7 @@
     {
       "message": "Teleprompter",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -39914,11 +40036,11 @@
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/references-figures.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/design.js",
         "apps/desktop/renderer/shared-words.js",
         "apps/desktop/renderer/smartart.js"
       ]
@@ -40147,6 +40269,12 @@
       ]
     },
     {
+      "message": "Text recognition",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
+      ]
+    },
+    {
       "message": "Text recognition could not start.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -40197,25 +40325,25 @@
     {
       "message": "Text/Background – Dark 1",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Text/Background – Dark 2",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Text/Background – Light 1",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "Text/Background – Light 2",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -40611,7 +40739,7 @@
     {
       "message": "The AI tools stay off until you choose a folder for them.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -40719,7 +40847,7 @@
     {
       "message": "The camera is in use by another program.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/camera.js"
+        "apps/desktop/renderer/recording/camera.js"
       ]
     },
     {
@@ -40737,7 +40865,7 @@
     {
       "message": "The camera was not allowed.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/camera.js"
+        "apps/desktop/renderer/recording/camera.js"
       ]
     },
     {
@@ -40851,7 +40979,7 @@
     {
       "message": "The computer's own sound could not be recorded.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/session.js"
+        "apps/desktop/renderer/recording/session.js"
       ]
     },
     {
@@ -40863,7 +40991,7 @@
     {
       "message": "The connection is not encrypted. Use it on a network you trust, or reach it through a secure tunnel. Anyone with the key can use the tools while they are on.",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -40962,7 +41090,7 @@
       "message": "The disk is nearly full: the recording was stopped and kept.",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -41064,7 +41192,7 @@
     {
       "message": "The equation appears here as you type.",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -41130,7 +41258,7 @@
     {
       "message": "The first will be {example}",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -41471,7 +41599,7 @@
     {
       "message": "The microphone was not allowed.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/session.js"
+        "apps/desktop/renderer/recording/session.js"
       ]
     },
     {
@@ -41639,7 +41767,7 @@
     {
       "message": "The originals are never changed. A file that is already there is never replaced without asking.",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -41864,7 +41992,7 @@
     {
       "message": "The pointer is not written down over another program's window. Record its screen to keep it.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -41934,7 +42062,7 @@
       "message": "The recording could not be kept: {reason}",
       "where": [
         "apps/desktop/renderer/apps/recorder/program.js",
-        "apps/desktop/renderer/apps/video/recorder/session.js"
+        "apps/desktop/renderer/recording/session.js"
       ]
     },
     {
@@ -42416,14 +42544,14 @@
       "message": "The usual camera",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
       "message": "The usual microphone",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -42571,7 +42699,7 @@
     {
       "message": "Theme colours",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -42597,9 +42725,9 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/design.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -42846,7 +42974,7 @@
       "message": "There is not enough space on the disk to record.",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -43225,7 +43353,7 @@
     {
       "message": "This computer",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
@@ -43244,7 +43372,7 @@
     {
       "message": "This computer does not let its own sound be recorded.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/session.js"
+        "apps/desktop/renderer/recording/session.js"
       ]
     },
     {
@@ -43265,6 +43393,12 @@
       "where": [
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This copy is installed for everyone on this computer, so Windows asks for permission when it restarts.",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -43504,7 +43638,7 @@
     {
       "message": "This folder has no pictures a batch can convert.",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -43849,7 +43983,7 @@
     {
       "message": "This presentation: {name}",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -43915,7 +44049,7 @@
     {
       "message": "This scene has no script. Write one in its card and it scrolls here while you record.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -44233,6 +44367,12 @@
       ]
     },
     {
+      "message": "Tick the apps to install. An app not ticked is not on this computer at all; add it later from Add or remove apps in Rutba Office.",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
+      ]
+    },
+    {
       "message": "Ticked ones are shown. Any that stand on a table the role cannot see are left out for it in any case.",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
@@ -44499,7 +44639,7 @@
     {
       "message": "To fit inside",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -45203,7 +45343,7 @@
     {
       "message": "Turn each picture upright by its EXIF orientation",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -45228,8 +45368,8 @@
     {
       "message": "Turn the microphone on to record your voice.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
-        "apps/desktop/renderer/apps/video/recorder/session.js"
+        "apps/desktop/renderer/recording/panel.js",
+        "apps/desktop/renderer/recording/session.js"
       ]
     },
     {
@@ -45315,7 +45455,7 @@
     {
       "message": "Type an equation — x=(-b±√(b^2-4ac))/2a, \\sum_(i=1)^n i, \\int_0^1 f(x)dx, a_i, \\alpha",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -45603,7 +45743,7 @@
     {
       "message": "Union with limits",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -45915,7 +46055,7 @@
     {
       "message": "Up to {n}p",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -45923,7 +46063,7 @@
       "where": [
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -46096,7 +46236,7 @@
     {
       "message": "Use",
       "where": [
-        "apps/desktop/renderer/ai-tools.js",
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
@@ -46316,8 +46456,8 @@
     {
       "message": "Variants",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -46598,14 +46738,14 @@
     {
       "message": "Voice",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
       "message": "Voice: the microphone alone, with no picture",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -46902,13 +47042,13 @@
     {
       "message": "What the tools have done",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
       "message": "What the tools may reach",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -47120,7 +47260,7 @@
     {
       "message": "Who can connect",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -47194,7 +47334,7 @@
       "message": "Whole picture",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -47263,8 +47403,8 @@
       "message": "Width",
       "where": [
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/canvas-size.js",
+        "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
@@ -47326,14 +47466,14 @@
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
       "message": "Window: one window, wherever it is",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -48027,7 +48167,7 @@
     {
       "message": "Your voice alone, as a sound file. In Video it goes onto a sound track at the playhead.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -48436,7 +48576,7 @@
     {
       "message": "archive, read only",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -48497,7 +48637,7 @@
     {
       "message": "brought in from a file",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -48817,7 +48957,7 @@
     {
       "message": "from {where}",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -49022,6 +49162,7 @@
     {
       "message": "kept in step with a server",
       "where": [
+        "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/ai-tools.js"
       ]
     },
@@ -49200,7 +49341,7 @@
     {
       "message": "not found",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -49369,11 +49510,11 @@
       "message": "px",
       "where": [
         "apps/desktop/renderer/apps/image.js",
-        "apps/desktop/renderer/apps/image/batch.js",
         "apps/desktop/renderer/apps/image/canvas-size.js",
         "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/image/tools.js",
-        "apps/desktop/renderer/apps/image/type-editor.js"
+        "apps/desktop/renderer/apps/image/type-editor.js",
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -49960,7 +50101,7 @@
     {
       "message": "themes",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -50058,7 +50199,7 @@
     {
       "message": "variants",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -50113,7 +50254,7 @@
     {
       "message": "works as {role}",
       "where": [
-        "apps/desktop/renderer/ai-tools.js"
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
@@ -50125,7 +50266,7 @@
     {
       "message": "x squared",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -50217,6 +50358,12 @@
       "message": "{align} tab at {value} cm — drag to move, drag off to remove",
       "where": [
         "apps/desktop/renderer/apps/word/ruler.js"
+      ]
+    },
+    {
+      "message": "{app} is not installed on this computer.",
+      "where": [
+        "apps/desktop/renderer/packs-dialog.js"
       ]
     },
     {
@@ -50644,7 +50791,7 @@
       "message": "{count} could not be converted",
       "plural": "{count} could not be converted",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -51062,7 +51209,7 @@
       "message": "{count} of these files is already there.",
       "plural": "{count} of these files are already there.",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -51175,7 +51322,7 @@
       "message": "{count} picture chosen",
       "plural": "{count} pictures chosen",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -51196,7 +51343,7 @@
       "message": "{count} picture written",
       "plural": "{count} pictures written",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
@@ -51603,7 +51750,7 @@
     {
       "message": "{error} (at character {at})",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -51731,7 +51878,7 @@
     {
       "message": "{key} stops it from anywhere",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -51909,7 +52056,7 @@
     {
       "message": "{name} (dark)",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -51964,7 +52111,7 @@
     {
       "message": "{name} closed or stopped sharing.",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/session.js"
+        "apps/desktop/renderer/recording/session.js"
       ]
     },
     {
@@ -51995,7 +52142,7 @@
     {
       "message": "{name} could not be recorded: {reason}",
       "where": [
-        "apps/desktop/renderer/apps/video/recorder/session.js"
+        "apps/desktop/renderer/recording/session.js"
       ]
     },
     {
@@ -52220,7 +52367,7 @@
     {
       "message": "{name} — apply this theme to every slide",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -52280,13 +52427,13 @@
     {
       "message": "{name} — pick a template to put in at the caret",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
       "message": "{name} — put it in the editor",
       "where": [
-        "apps/desktop/renderer/apps/word/equations.js"
+        "apps/desktop/renderer/equations.js"
       ]
     },
     {
@@ -52298,7 +52445,7 @@
     {
       "message": "{name} — this theme in these colours",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -52312,19 +52459,19 @@
       "message": "{name} — {description}",
       "where": [
         "apps/desktop/renderer/apps/sheets/design.js",
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "{name} — {major} and {minor}",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
       "message": "{name} — {major} and {minor}, dark",
       "where": [
-        "apps/desktop/renderer/apps/slides/design.js"
+        "apps/desktop/renderer/design.js"
       ]
     },
     {
@@ -52448,7 +52595,7 @@
       "message": "{n} frames a second",
       "where": [
         "apps/desktop/renderer/apps/recorder.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -52577,8 +52724,8 @@
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/library.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js",
-        "apps/desktop/renderer/apps/video/ribbon.js"
+        "apps/desktop/renderer/apps/video/ribbon.js",
+        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {

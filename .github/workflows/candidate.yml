@@ -1,0 +1,106 @@
+# A release candidate's installer proven on a clean Windows runner before
+# anything is published. The build is this branch's, its packs signed with a
+# key made for the run and thrown away after it, so the installer, the packs
+# and the core are the release's in everything but the key. Then, each on a
+# machine of its own:
+#
+#   installed           the previous release's installer, then this one over it
+#   portable            the two portable executables on one profile
+#   race-close          this installer started while the older copy is open
+#   race-never-close    the same, the older copy never closed
+#   short-list          this installer alone with /PACKS=word,sheets
+#
+# The upgrade modes are tools/upgrade-test.js, as upgrade.yml runs them after
+# a release; short-list is tools/install-short-list.ps1. It publishes
+# nothing. Run it from the Actions tab or `gh workflow run candidate.yml`.
+name: candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'The release to upgrade from, a tag (empty: the newest published)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: A pack key for this run only
+        shell: pwsh
+        run: node tools/make-pack-key.mjs "$env:RUNNER_TEMP\pack-key"
+      - name: Build the installers
+        shell: pwsh
+        run: |
+          $env:RUTBA_PACK_KEY_FILE = "$env:RUNNER_TEMP\pack-key\pack-key.pem"
+          npm run dist:win
+      - name: The packs check
+        run: node tools/check-packs.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate
+          path: |
+            apps/desktop/release/Rutba-Office-*-win-x64.exe
+            apps/desktop/release/Rutba-Office-*-win-x64.exe.blockmap
+            apps/desktop/release/Rutba-Office-*-portable.exe
+            apps/desktop/release/Rutba-Office-*.pack
+            apps/desktop/release/latest.yml
+          if-no-files-found: error
+
+  install:
+    needs: build
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [installed, portable, race-close, race-never-close, short-list]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: candidate
+          path: apps/desktop/release
+      - name: ${{ matrix.mode }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FROM: ${{ inputs.from }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ('${{ matrix.mode }}' -eq 'short-list') {
+            powershell -NoProfile -ExecutionPolicy Bypass -File tools\install-short-list.ps1 -Installer "apps\desktop\release\Rutba-Office-$version-win-x64.exe"
+            exit $LASTEXITCODE
+          }
+          $testArgs = @('tools/upgrade-test.js', '--open-file', '--out', "$env:RUNNER_TEMP\candidate-${{ matrix.mode }}.json")
+          if ($env:FROM) { $testArgs += @('--from', $env:FROM) }
+          switch ('${{ matrix.mode }}') {
+            'installed' { $testArgs += '--install' }
+            'race-close' { $testArgs += @('--install', '--race', 'close') }
+            'race-never-close' { $testArgs += @('--install', '--race', 'never-close') }
+          }
+          node @testArgs
+          exit $LASTEXITCODE
+      - name: Keep the verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-${{ matrix.mode }}
+          path: ${{ runner.temp }}/candidate-${{ matrix.mode }}.json
+          if-no-files-found: ignore

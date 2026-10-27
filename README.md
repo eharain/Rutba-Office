@@ -1,8 +1,9 @@
 # Rutba Office
 
-A free, open-source desktop office suite. Thirteen apps in one download, working
-with the network switched off. It starts with the Office apps; the others are
-added from Choose apps whenever you want them.
+A free, open-source desktop office suite. Thirteen apps, working with the
+network switched off. The installer asks which apps to install, and only those
+are put on the computer; Add or remove apps on the launcher adds the others, or
+takes one away, whenever you want. Each app is a pack signed for its release.
 
 **[office.rutba.io](https://office.rutba.io)** ·
 [Download](https://github.com/eharain/Rutba-Office/releases) ·

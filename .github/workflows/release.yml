@@ -35,6 +35,10 @@ jobs:
       - name: Performance budgets, run alone
         run: npm run test:perf
       - name: Build the installers
+        # Each app's pack is signed with the release key (docs/APP-PACKS.md),
+        # kept as the repository secret RUTBA_PACK_KEY; without it the build stops.
+        env:
+          RUTBA_PACK_KEY: ${{ secrets.RUTBA_PACK_KEY }}
         run: npm run dist:win
       # Beside the installers, so it goes up with them (docs/REPRODUCIBLE.md).
       - name: The software bill of materials

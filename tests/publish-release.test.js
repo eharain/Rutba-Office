@@ -88,6 +88,11 @@ test('the files of this version go up, the update feeds last, nothing of an olde
   assert.deepEqual(releaseAssets(names, TAG), ['Rutba-Office-2.1.0-portable.exe', 'Rutba-Office-2.1.0-sbom.cdx.json','Rutba-Office-2.1.0-win-x64.exe', 'Rutba-Office-2.1.0-win-x64.exe.blockmap', 'Rutba-Office-2.1.0-x86_64.AppImage', 'latest-linux.yml', 'latest.yml']);
 });
 
+test("each app's pack of this version goes up, for Add or remove apps to fetch", () => {
+  const names = ['latest.yml', INSTALLER, 'Rutba-Office-2.1.0-mail.pack', 'Rutba-Office-2.1.0-word.pack', 'Rutba-Office-2.0.0-mail.pack'];
+  assert.deepEqual(releaseAssets(names, TAG), ['Rutba-Office-2.1.0-mail.pack', 'Rutba-Office-2.1.0-win-x64.exe', 'Rutba-Office-2.1.0-word.pack', 'latest.yml']);
+});
+
 test('the update feed is read as electron-builder writes it', () => {
   const feed = parseFeed("version: 2.0.1\r\nfiles:\r\n  - url: Rutba-Office-2.0.1-win-x64.exe\r\n    sha512: YCra/x==\r\n    size: 119234685\r\npath: Rutba-Office-2.0.1-win-x64.exe\r\nsha512: YCra/x==\r\nreleaseDate: '2026-10-15T11:10:26.493Z'\r\n");
   assert.equal(feed.version, '2.0.1');
