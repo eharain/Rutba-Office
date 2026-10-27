@@ -54,6 +54,8 @@ export function findDrawings(body) {
   let depth = 0;
   let start = -1;
   let m;
+  // Asked once: looking back for one per drawing walked the whole body each time.
+  const alternates = body.includes('<mc:AlternateContent');
   while ((m = re.exec(body))) {
     const close = m[1] === '/';
     if (m[3] === '/') continue;
@@ -66,7 +68,7 @@ export function findDrawings(body) {
     } else {
       depth = Math.max(0, depth - 1);
       if (depth === 0 && start >= 0) {
-        out.push(locate(body, start, m.index + m[0].length));
+        out.push(locate(body, start, m.index + m[0].length, alternates));
         start = -1;
       }
     }
@@ -75,11 +77,11 @@ export function findDrawings(body) {
 }
 
 /** A drawing's span, its unit and its run, from where its `<w:drawing>` starts and ends. */
-function locate(body, start, end) {
+function locate(body, start, end, alternates = true) {
   const xml = body.slice(start, end);
   let unitStart = start;
   let unitEnd = end;
-  const acOpen = body.lastIndexOf('<mc:AlternateContent', start);
+  const acOpen = alternates ? body.lastIndexOf('<mc:AlternateContent', start) : -1;
   if (acOpen >= 0 && body.lastIndexOf('</mc:AlternateContent>', start) < acOpen) {
     const close = body.indexOf('</mc:AlternateContent>', end);
     if (close >= 0) { unitStart = acOpen; unitEnd = close + '</mc:AlternateContent>'.length; }
