@@ -103,7 +103,7 @@ check_commit() {
   fi
 
   # File names: one grep over the whole list, guard files excluded.
-  git diff-tree -r --no-commit-id --name-only --diff-filter=ACMR -z "$c" | tr '\0' '\n' > "$PATHS"
+  git diff-tree -r -M --no-commit-id --name-only --diff-filter=ACMR -z "$c" | tr '\0' '\n' > "$PATHS"
   : > "$SKIP"
   while IFS= read -r path; do
     [ -z "$path" ] && continue
@@ -125,7 +125,10 @@ check_commit() {
   #   L (lockfiles) and A (allow-listed): no AI-name check, as before; the
   #     character check still applies to allow-listed files, not to lockfiles.
   # The regexes go through the environment: awk -v would rewrite their backslashes (\y, \.).
-  git diff-tree -r -p --no-commit-id --diff-filter=ACMR "$c" | HOOK_RE="$AWK_CONTENT" HOOK_CRE="$CURSOR_PATTERN" LC_ALL=C awk \
+  # Renames found (-M): a file moved is not a file written, so only the lines
+  # a move changed are read, as git diff and the pre-commit hook read them
+  # (the owner, 2026-10-27, approving "Hook follows moves").
+  git diff-tree -r -M -p --no-commit-id --diff-filter=ACMR "$c" | HOOK_RE="$AWK_CONTENT" HOOK_CRE="$CURSOR_PATTERN" LC_ALL=C awk \
     -v kindfile="$SKIP.kind" -v cc="$charcheck" \
     -v d="$CH_DASH" -v a="$CH_ZWSP" -v b="$CH_ZWNJ" -v l="$CH_LRM" -v r="$CH_RLM" -v w="$CH_WJ" -v n="$CH_NBSP" -v m="$CH_BOM" \
     -v c="$c" -v ref="$ref" '
