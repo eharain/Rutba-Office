@@ -104,3 +104,12 @@ export function useFolderCount(shell, path, filter) {
   }, [shell, path, filter]);
   return n;
 }
+
+/** The own marks with the file's added: its rating where it has one, its tags beside the own ones. */
+export function adoptMarks(own = {}, file = {}) {
+  const rating = file.rating > 0 ? file.rating : own.rating || 0;
+  const tags = [...(own.tags || [])];
+  const have = new Set(tags.map((x) => x.toLowerCase()));
+  for (const tag of file.tags || []) if (!have.has(tag.toLowerCase())) { tags.push(tag); have.add(tag.toLowerCase()); }
+  return { rating, tags, changed: rating !== (own.rating || 0) || tags.length !== (own.tags || []).length };
+}

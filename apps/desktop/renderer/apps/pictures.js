@@ -35,6 +35,7 @@ import { durationOf, peekLength } from './pictures/durations.js';
 import { nextIndex, formatLength, advanceAfter } from './pictures/show.js';
 import { useMarks, useFolderCount } from './pictures/marks.js';
 import { BatchDialog, canBatch } from './pictures/batch.js';
+import { FileMarks, FILE_MARKS_CSS } from './pictures/file-marks.js';
 import { usePictureText, PictureTextBar, OcrLanguagesDialog, TextOverLayer, pixelsOf, loadPicture, OCR_CSS } from '../ocr-ui.js';
 
 const INTERVALS = [
@@ -1048,6 +1049,14 @@ export default function Pictures({ app, shell, boot }) {
               ))}
             </div>
             <Tags tags={marks[current]?.tags || []} onChange={(tags) => tag(current, tags)} />
+            <FileMarks
+              marks={details?.marks}
+              own={marks[current] || {}}
+              onUse={(next) => {
+                if (next.rating !== (marks[current]?.rating || 0)) rate(current, next.rating);
+                if (next.tags.length !== (marks[current]?.tags || []).length) tag(current, next.tags);
+              }}
+            />
             {details ? (
               <dl>
                 {details.probe?.format ? (
@@ -1093,7 +1102,7 @@ export default function Pictures({ app, shell, boot }) {
         <BatchDialog shell={shell} files={files} folder={folder} onClose={() => setBatching(false)} onDone={() => folder && list(folder)} />
       ) : null}
       {pictureText.asking ? <OcrLanguagesDialog onClose={() => pictureText.setAsking(false)} /> : null}
-      <style>{CSS + OCR_CSS}</style>
+      <style>{CSS + OCR_CSS + FILE_MARKS_CSS}</style>
     </AppFrame>
   );
 }
