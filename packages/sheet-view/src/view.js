@@ -1472,7 +1472,7 @@ export class SheetView {
           // the state its table or pivot is in now.
           slicer = this.slicerState(d.slicerName) ?? { name: d.slicerName, caption: d.slicerName, items: [], broken: 'its slicer part is missing' };
         } else if (d.spec) {
-          svg = renderSvg(buildChart({ ...this._liveChartSpec(d), width, height, mode: this.mode, palette }));
+          svg = renderSvg(buildChart({ ...this._liveChartSpec(d), width, height, mode: this.mode, palette, asWritten: true }));
         } else if (d.kind === 'equation' && d.omml) {
           svg = equationSvg(d.omml, { width, height, sizePt: d.sizePt, dark: this.mode === 'dark', title: d.name ?? 'Equation' });
         } else if (d.descriptor?.kind === 'shape') {
@@ -1502,7 +1502,7 @@ export class SheetView {
             };
             const own = pad ? { x: pad, y: pad, width: w, height: h } : { x: 0, y: 0, width: b.width, height: b.height };
             let child = null;
-            if (c.kind === 'chart' && c.spec) child = renderSvg(buildChart({ ...c.spec, width: b.width, height: b.height, mode: this.mode, palette }));
+            if (c.kind === 'chart' && c.spec) child = renderSvg(buildChart({ ...c.spec, width: b.width, height: b.height, mode: this.mode, palette, asWritten: true }));
             else if (c.kind === 'shape' && c.descriptor) child = renderSvg(scene({ width: b.width, height: b.height, mode: this.mode, background: 'none', title: c.name ?? 'Shape', children: [buildShape(c.descriptor, own, { mode: this.mode, palette })] }));
             else if (c.kind === 'image' && c.descriptor?.href) child = renderSvg(scene({ width: b.width, height: b.height, mode: this.mode, background: 'none', title: c.name ?? 'Picture', children: [buildPicture(c.descriptor, own)] }));
             return { key: i, ...b, svg: child, kind: c.kind };

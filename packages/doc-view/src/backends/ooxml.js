@@ -1414,7 +1414,7 @@ function drawingToImagePainted(d) {
       const height = d.heightPx || 300;
       const spec = parseChartXml(d.chartXml, { width, height });
       if (!spec) return null;
-      return { name: d.name ?? spec.title ?? 'Chart', widthPx: width, heightPx: height, href: svgDataUri(buildChart(spec)) };
+      return { name: d.name ?? spec.title ?? 'Chart', widthPx: width, heightPx: height, href: svgDataUri(buildChart({ ...spec, asWritten: true })) };
     }
     if (d.kind === 'shape') {
       const width = d.widthPx || 120;

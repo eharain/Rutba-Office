@@ -777,7 +777,7 @@ export function renderSlide(slide, opts = {}) {
       // leaves the frame empty rather than the slide unrendered.
       let inner = '';
       try {
-        const chartScene = buildChart({ ...shape.spec, width: Math.max(160, Math.round(g.w)), height: Math.max(120, Math.round(g.h)), mode: 'light' });
+        const chartScene = buildChart({ ...shape.spec, width: Math.max(160, Math.round(g.w)), height: Math.max(120, Math.round(g.h)), mode: 'light', asWritten: true });
         chartScene.background = 'none';
         inner = renderSvg(chartScene, { standalone: false });
       } catch {

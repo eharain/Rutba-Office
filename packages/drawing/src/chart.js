@@ -71,7 +71,10 @@ export function normaliseSpec(spec) {
   if (!CHART_TYPES.includes(type)) throw new Error('unknown chart type: ' + type);
 
   const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
-  const series = (spec.series ?? []).map((s, i) => ({
+  // A chart read from a file is drawn as its file has it: the refusals
+  // below are for a chart made here, not for one someone made in Excel.
+  const asWritten = Boolean(spec.asWritten);
+  let series = (spec.series ?? []).map((s, i) => ({
     name: s.name ?? 'Series ' + (i + 1),
     values: (s.values ?? []).map(num),
     id: s.id ?? s.name ?? 'series-' + i,
@@ -82,7 +85,7 @@ export function normaliseSpec(spec) {
   }));
   if (!series.length) throw new Error('a chart needs at least one series');
 
-  if (type === 'scatter' && series.length > SCATTER_SERIES_CAP) {
+  if (type === 'scatter' && series.length > SCATTER_SERIES_CAP && !asWritten) {
     throw new Error(
       'scatter charts are capped at ' + SCATTER_SERIES_CAP + ' series: only the first ' +
       SCATTER_SERIES_CAP + ' palette slots clear the all-pairs colour-blind floors. ' +
@@ -90,7 +93,10 @@ export function normaliseSpec(spec) {
     );
   }
   if ((type === 'pie' || type === 'doughnut') && series.length > 1) {
-    throw new Error('a pie shows one series; use small multiples for more');
+    // Excel draws a pie of several series from the first; a doughnut's
+    // further rings are not drawn here yet, its first ring is.
+    if (asWritten) series = series.slice(0, 1);
+    else throw new Error('a pie shows one series; use small multiples for more');
   }
 
   const categories = spec.categories ?? series[0].values.map((_, i) => String(i + 1));

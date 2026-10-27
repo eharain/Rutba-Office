@@ -272,6 +272,20 @@ class SheetPart {
   constructor(xml) {
     this.original = xml;
     const open = /<sheetData\s*\/>|<sheetData(\s[^>]*)?>/.exec(xml);
+    // A chart sheet is a tab holding one chart and no cells. It is kept as
+    // it was read: an empty grid to the engines, written back unchanged.
+    if (!open && /<(?:\w+:)?chartsheet\b/.test(xml)) {
+      this.chartsheet = true;
+      this.prefix = '';
+      this.openTag = '<sheetData>';
+      this.body = '';
+      this.suffix = '';
+      this.customViewsXml = null;
+      this.rows = [];
+      this._rowsChanged();
+      this.dirty = false;
+      return;
+    }
     if (!open) throw new Error('sheet part has no <sheetData>');
     if (open[0].endsWith('/>')) {
       this.prefix = xml.slice(0, open.index);
@@ -1337,6 +1351,7 @@ class SheetPart {
   }
 
   render() {
+    if (this.chartsheet) return this.original;
     const body = this.rows
       .map((r) => (r.dirty ? '<row' + r.attrsStr + '>' + r.inner + '</row>' : r.xml))
       .join('');
