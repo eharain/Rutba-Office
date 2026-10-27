@@ -9,6 +9,7 @@ import path from 'node:path';
 import { nativeImage } from 'electron';
 import { decodeWithSystem } from '@rutba/office-shell/electron/windows-codec';
 import { noisyPicture } from './verify-image-edits.js';
+import { NAME_OF } from './verify-pictures-tiff.js';
 
 /** A DNG-shaped file whose IFD0 is the camera's preview: one JPEG strip, the orientation given. */
 function dngWithPreview(jpeg, { width, height, orientation }) {
@@ -74,5 +75,60 @@ export async function verifyWindowsCodec({ check }, { dir }) {
     check('pictures: a HEIC Windows cannot decode is null from the system decoder, never a throw', none === null, String(none));
   } catch (err) {
     check('pictures: the Windows codec checks ran', false, err?.message || String(err));
+  }
+}
+
+/**
+ * Pictures shows what only the main process can draw (2.21): an EMF and a
+ * WMF drawn as SVG by the picture helper the application lends the file
+ * host, and a camera RAW through Windows' own codecs, the JPEG inside it at
+ * the screen's size; a HEIC that is not a picture is said in a sentence.
+ * Run alone with RUTBA_VERIFY_ONLY=pictures-drawn.
+ * @param {object} h the harness: open, check, until, wait, press, errorsIn
+ * @param {{ dir: string }} args
+ */
+export async function verifyPicturesDrawn({ open, check, until, wait, press, errorsIn }, { dir }) {
+  const root = path.join(dir, 'pictures-drawn');
+  try {
+    fs.mkdirSync(root, { recursive: true });
+    const { showcaseEmf, showcaseWmf } = await import('../../../tests/fixtures/metafiles.js');
+    const shot = noisyPicture(3000, 2000, 5);
+    const files = [
+      ['1 chart.emf', showcaseEmf()],
+      ['2 clip art.wmf', showcaseWmf()],
+      ['3 camera.dng', dngWithPreview(shot.toJPEG(92), { width: 3000, height: 2000, orientation: 1 })],
+    ];
+    for (const [name, bytes] of files) fs.writeFileSync(path.join(root, name), bytes);
+    const win = await open('pictures', path.join(root, files[0][0]));
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const seen = [];
+    for (let k = 0; k < files.length; k++) {
+      const name = files[k][0];
+      const shown = `(() => { ${NAME_OF} const i = document.querySelector('.pv-image'); return i && i.complete && nameOf(i.src) === ${JSON.stringify(name)} ? { w: i.naturalWidth, h: i.naturalHeight } : null; })()`;
+      let size = null;
+      await until(async () => { size = await js(shown); return Boolean(size?.w); }, `${name} drawn`, 20000).catch(() => {});
+      seen.push({ name, size });
+      if (k + 1 < files.length) {
+        win.focus();
+        await js(`document.querySelector('.pv-stage')?.focus?.(), 1`);
+        await press(win.webContents, 'Right');
+      }
+    }
+    const [emf, wmf, raw] = seen;
+    check('pictures: an EMF and a WMF open drawn, at the size each drawing says',
+      emf.size?.w > 100 && emf.size?.h > 50 && wmf.size?.w > 100 && wmf.size?.h > 50, JSON.stringify(seen.slice(0, 2)));
+    check('pictures: a camera RAW opens as the picture its camera put inside it, brought to 2048 on its long side',
+      raw.size?.w === 2048 && raw.size?.h === 1365, JSON.stringify(raw));
+    // What a window gets for a HEIC Windows cannot read: a sentence naming what to add.
+    const fake = path.join(root, 'not a picture.heic');
+    fs.writeFileSync(fake, 'words, not a picture');
+    const said = await js(`fetch(${JSON.stringify('rutba://file/')} + ${JSON.stringify(Buffer.from(fake, 'utf8').toString('base64url'))}).then(async (r) => ({ status: r.status, text: await r.text() }), (e) => ({ error: String(e) }))`);
+    check('pictures: a HEIC Windows cannot read is answered with what to add from the Microsoft Store, not a broken picture',
+      said?.status === 415 && /HEIF Image Extensions/.test(said.text || ''), JSON.stringify(said));
+    const complaints = await errorsIn(win);
+    check('pictures: those pictures report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    win.close();
+  } catch (err) {
+    check('pictures: the drawn-picture checks ran', false, err?.message || String(err));
   }
 }

@@ -10,7 +10,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app as electron, BrowserWindow } from 'electron';
-import { createShell, holdBlob, releaseBlob, blobUrl, broadcast } from '@rutba/office-shell/electron/main';
+import { createShell, holdBlob, releaseBlob, blobUrl, broadcast, lendPictureDrawer } from '@rutba/office-shell/electron/main';
+import { drawablePicture, setPictureDecoder } from '@rutba/office-formats/picture';
+import { decodePicture } from '@rutba/imaging/decode';
 import { useClipboard, memoryClipboard } from '@rutba/office-shell/electron/clipboard';
 import { useShortcuts } from '@rutba/office-shell/electron/shortcuts';
 import { fakeShortcuts } from '@rutba/office-shell/electron/machine-fakes';
@@ -25,6 +27,12 @@ if (CHECK_RUN && process.env.RUTBA_VERIFY_LANE !== 'machine') {
   useClipboard(memoryClipboard());
   useShortcuts(fakeShortcuts());
 }
+
+// Pictures served to the windows (rutba://file): an EMF or a WMF is drawn as
+// an SVG, and a picture inside a document that no window draws (a TIFF, a
+// Targa) is decoded by the one reader Pictures and Image use.
+lendPictureDrawer(drawablePicture);
+setPictureDecoder((bytes, name) => ({ type: 'image/png', bytes: decodePicture(bytes, name, { png: true }).png }));
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { fileAssociations, APPS, APPS_CHOICE_KEY, OFF_UNTIL_CHOSEN, APP_ORDER, APP_EXTENSIONS, OLD_EXTENSIONS } from '@rutba/office-formats/registry';
 import { createDocumentHost } from './doc-host.js';

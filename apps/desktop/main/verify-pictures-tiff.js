@@ -269,7 +269,7 @@ async function smallFormats(root) {
 }
 
 /** In a page: the file an address of the file host names (its path is base64). */
-const NAME_OF = `const nameOf = (src) => { try { const seg = new URL(src).pathname.split('/').pop(); const b = seg.replace(/-/g, '+').replace(/_/g, '/'); return decodeURIComponent(escape(atob(b + '='.repeat((4 - (b.length % 4)) % 4)))).split(/[\\\\/]/).pop(); } catch { return ''; } };`;
+export const NAME_OF = `const nameOf = (src) => { try { const seg = new URL(src).pathname.split('/').pop(); const b = seg.replace(/-/g, '+').replace(/_/g, '/'); return decodeURIComponent(escape(atob(b + '='.repeat((4 - (b.length % 4)) % 4)))).split(/[\\\\/]/).pop(); } catch { return ''; } };`;
 
 const resultOf = (js) => js(`document.querySelector('.im-canvas-wrap')?.dataset.result || ''`);
 

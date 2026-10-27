@@ -192,3 +192,22 @@ test('a rebuilt block from a TIFF original carries no strips of the original', (
   const tags = Array.from({ length: dv.getUint16(ifd, true) }, (_, i) => dv.getUint16(ifd + 2 + i * 12, true));
   assert.deepEqual(tags, [0x010f, 0x0110]);
 });
+
+test('a TIFF the suite\'s own writer made keeps its pixels and pages through keepExif, and gains the camera without its place', async () => {
+  const { encodeTiff } = await import('@rutba/imaging/encode');
+  const { decodePicture } = await import('@rutba/imaging/decode');
+  const page = (v) => ({ width: 5, height: 4, rgba: new Uint8Array(5 * 4 * 4).map((_, i) => (i % 4 === 3 ? 255 : v)) });
+  for (const compression of ['lzw', 'deflate', 'none']) {
+    const written = encodeTiff([page(40), page(200)], { compression });
+    const out = keepExif(written, 'tiff', ORIGINALS.jpeg, { width: 5, height: 4, location: false });
+    const exif = readExif(out);
+    assert.equal(exif.make, 'Rutba', compression);
+    assert.equal(exif.model, 'Test Phone 7', compression);
+    assert.equal(exif.latitude, undefined, `${compression}: no place`);
+    const first = decodePicture(out, 'kept.tif');
+    assert.equal(first.pages, 2, `${compression}: both pages kept`);
+    assert.equal(first.width, 5);
+    assert.equal(first.rgba[0], 40, `${compression}: the first page's pixels`);
+    assert.equal(decodePicture(out, 'kept.tif', { page: 1 }).rgba[0], 200, `${compression}: the second page's pixels`);
+  }
+});

@@ -174,10 +174,61 @@ function rangeResponse(filePath, rangeHeader, type) {
 let imaging = null;
 const imagingNow = () => (imaging ||= import('@rutba/imaging/decode'));
 
+// HEIC, JPEG XR and camera RAW: no reader of ours, but Windows' own codecs
+// (windows-codec.js), asked with the file's path on this process.
+let codec = null;
+const codecNow = () => (codec ||= import('./windows-codec.js'));
+const byWindows = async (target) => process.platform === 'win32' && (await codecNow()).CODEC_EXTS.includes(path.extname(target).toLowerCase());
+
+// EMF and WMF: drawn as an SVG by the picture helper the application lends
+// (@rutba/office-formats/picture), which this package does not reach itself.
+const METAFILE = /\.(emf|wmf|emz|wmz)$/i;
+let pictureDrawer = null;
+
+/** Lend the drawer for pictures kept as drawing calls: (bytes, name) => { type, bytes, width?, height? } or null. */
+export function lendPictureDrawer(draw) {
+  pictureDrawer = typeof draw === 'function' ? draw : null;
+}
+
 /** Whether a file is one a window cannot draw itself (by its name), so it is served decoded. */
 async function decodable(target) {
+  if (pictureDrawer && METAFILE.test(target)) return true;
+  if (await byWindows(target)) return true;
   const { needsDecoding } = await imagingNow();
   return needsDecoding(target);
+}
+
+/** A metafile as the SVG it draws, or the PNG made where no SVG could be. */
+async function metafileAnswer(target, info) {
+  let drawn = null;
+  try {
+    drawn = pictureDrawer(new Uint8Array(await fs.promises.readFile(target)), path.basename(target));
+  } catch {
+    drawn = null;
+  }
+  if (!drawn?.bytes) return { error: 'This drawing could not be read: it may be damaged.' };
+  const width = Math.round(drawn.width || 0);
+  const height = Math.round(drawn.height || 0);
+  if (info) return { info: { pages: 1, width, height } };
+  return { png: drawn.bytes, type: drawn.type, width, height, pages: 1, page: 0 };
+}
+
+/** What a picture needs from Windows when its codec answered nothing. */
+function windowsRefusal(target) {
+  if (/\.(heic|heif|hif|avci)$/i.test(target)) return 'This picture needs the HEIF Image Extensions and HEVC Video Extensions from the Microsoft Store.';
+  if (/\.(jxr|wdp|hdp)$/i.test(target)) return 'Windows could not read this JPEG XR picture: it may be damaged.';
+  return 'This camera picture needs the Raw Image Extension from the Microsoft Store, and it carries no picture of its own to show instead.';
+}
+
+/** A picture Windows' codecs read, as a PNG brought within `fit` (or the codec's own largest side). */
+async function windowsAnswer(target, { info, fit }) {
+  const { decodeWithSystem, MAX_SIDE } = await codecNow();
+  const png = await decodeWithSystem(target, fit > 0 ? fit : MAX_SIDE);
+  if (!png) return { error: windowsRefusal(target) };
+  const { pictureInfo } = await imagingNow();
+  const size = pictureInfo(png, 'system.png');
+  if (info) return { info: { pages: 1, width: size.width, height: size.height } };
+  return { png: new Uint8Array(png), width: size.width, height: size.height, pages: 1, page: 0 };
 }
 
 let worker = null;
@@ -270,7 +321,7 @@ export async function decodedPicture(target, { info = false, page = 0, fit = 0 }
     made.set(key, hit);
     return hit;
   }
-  let answer = await askWorker({ file: target, page, fit, info });
+  let answer = pictureDrawer && METAFILE.test(target) ? await metafileAnswer(target, info) : (await byWindows(target)) ? await windowsAnswer(target, { info, fit }) : await askWorker({ file: target, page, fit, info });
   if (answer.needsJpeg) {
     // On this thread, with Chromium's JPEG decoder lent: a JPEG-compressed TIFF.
     const { decodePicture } = await imagingNow();
@@ -302,7 +353,7 @@ async function pictureResponse(target, opts) {
   return new Response(answer.png, {
     status: 200,
     headers: {
-      'content-type': 'image/png',
+      'content-type': answer.type || 'image/png',
       'content-length': String(answer.png.length),
       'x-rutba-pages': String(answer.pages),
       'x-rutba-page': String(answer.page),

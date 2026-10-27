@@ -91,7 +91,8 @@ import { collectPasswordHashes, rememberPasswordHash, offerPasswordSalt, newPass
 import { passwordHost } from './password-host.js';
 import { randomBytes } from 'node:crypto';
 import { readZip } from '@rutba/ooxml/zip';
-import { drawablePicture, metafileKind } from '@rutba/office-formats/picture';
+import { drawablePicture, metafileKind, setPictureDecoder } from '@rutba/office-formats/picture';
+import { decodePicture } from '@rutba/imaging/decode';
 import { setPictureDrawer as lendDocumentPictures } from '@rutba/ooxml/document';
 import { setPictureDrawer as lendSheetPictures } from '@rutba/drawing/shapes';
 import { redactAction, inspectAction, deckReviewAction, reviewSummary } from './review-tools.js';
@@ -105,6 +106,8 @@ import { needsFor } from '@rutba/templates/versions';
 // one drawer here, since neither package can depend on the one that has it.
 lendDocumentPictures(drawablePicture);
 lendSheetPictures(drawablePicture);
+// A picture of a kind no window draws (a TIFF, a Targa) in a document: decoded by the reader Pictures and Image use.
+setPictureDecoder((bytes, name) => ({ type: 'image/png', bytes: decodePicture(bytes, name, { png: true }).png }));
 
 let seq = 0;
 const KIND_FOR_APP = { word: 'doc', sheets: 'sheet', slides: 'deck' };

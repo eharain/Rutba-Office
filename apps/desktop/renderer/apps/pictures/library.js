@@ -9,7 +9,7 @@
 import { t } from '@rutba/office-ui/messages';
 
 /** Everything the viewer will open. */
-export const STILL = ['.jpg', '.jpeg', '.jpe', '.png', '.bmp', '.tif', '.tiff', '.ico', '.cur', '.svg', '.avif', '.heic', '.heif', '.qoi', '.pbm', '.pgm', '.ppm', '.pnm', '.pam', '.tga', '.pcx', '.hdr', '.psd', '.psb'];
+export const STILL = ['.jpg', '.jpeg', '.jpe', '.png', '.bmp', '.tif', '.tiff', '.ico', '.cur', '.svg', '.avif', '.heic', '.heif', '.qoi', '.pbm', '.pgm', '.ppm', '.pnm', '.pam', '.tga', '.pcx', '.hdr', '.psd', '.psb', '.emf', '.wmf', '.jxr', '.wdp', '.dng', '.cr2', '.nef', '.arw', '.orf', '.rw2', '.raf'];
 export const ANIMATED = ['.gif', '.webp', '.apng'];
 export const VIDEO = ['.mp4', '.m4v', '.mov', '.webm', '.mkv', '.ogv', '.avi'];
 export const AUDIO = ['.mp3', '.m4a', '.wav', '.flac', '.ogg', '.opus'];

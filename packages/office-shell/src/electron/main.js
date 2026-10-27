@@ -532,5 +532,7 @@ export function createShell({
 }
 
 export { fileUrl, holdBlob, releaseBlob, blobUrl, sendEvent, broadcast, path };
+// The drawer for EMF and WMF pictures served to the windows, lent by the application.
+export { lendPictureDrawer } from './protocol.js';
 // The bytes behind a held blob, for the main process's own readers (the AI tools read an attachment so).
 export { heldBlob } from './blobs.js';
