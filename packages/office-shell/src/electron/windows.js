@@ -544,6 +544,9 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     // There the show's full screen is noted on the window, not done.
     if (process.env.RUTBA_WINDOW_DISPLAY === 'offscreen') {
       if (going && display != null) win.rutbaShowDisplay = String(showDisplayFor(win, display, presenter).id);
+      // Counted, so a check can tell a show that stays full screen from one
+      // that leaves it and comes back between two slides.
+      if (going !== Boolean(win.rutbaCheckFull)) win.rutbaFullChanges = (win.rutbaFullChanges || 0) + 1;
       win.rutbaCheckFull = going;
       return { fullscreen: going, display: win.rutbaShowDisplay ?? null };
     }

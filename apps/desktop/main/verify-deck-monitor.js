@@ -57,8 +57,50 @@ export async function verifyDeckMonitor(h, { dir }) {
     await until(() => win.rutbaShowDisplay != null, 'the show\'s screen', 3000).catch(() => {});
     const onPrimary = win.rutbaShowDisplay === String(screen.getPrimaryDisplay().id);
     const shown = win.rutbaShowDisplay;
+    // The next slide keeps the show full screen: leaving it and taking it
+    // again showed the taskbar between two slides.
+    const changesAtStart = win.rutbaFullChanges || 0;
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Right' });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
+    const slideShown = () => js(`document.querySelector('.sl-present .sl-show-layer[data-layer="shown"]')?.dataset.slide ?? null`);
+    await until(async () => (await slideShown()) === '1', 'the second slide', 4000).catch(() => {});
+    await wait(400);
+    const second = await slideShown();
+    const changesAfterNext = (win.rutbaFullChanges || 0) - changesAtStart;
+    const stillFull = Boolean(win.rutbaCheckFull);
     await endShow();
     check('presentations: with Monitor: Primary Monitor the show plays on the primary screen', onPrimary, JSON.stringify({ shown, primary: screen.getPrimaryDisplay().id }));
+    check('presentations: the next slide keeps the show full screen, never leaving it between two slides',
+      second === '1' && changesAfterNext === 0 && stillFull,
+      JSON.stringify({ second, changesAfterNext, stillFull }));
+
+    // Reading View stays in its window through every slide: the second
+    // change of slide once took it full screen.
+    const changesBeforeReading = win.rutbaFullChanges || 0;
+    const toTab = (name) => js(`(async () => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(); await new Promise((r) => setTimeout(r, 200)); return 1; })()`);
+    await toTab('View');
+    const readingPressed = await pressLabel('Reading View');
+    await until(() => presenting(), 'Reading View', 5000).catch(() => {});
+    const press = async (keyCode, want) => {
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode });
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode });
+      await until(async () => (await slideShown()) === want, `slide ${want}`, 4000).catch(() => {});
+      await wait(300);
+      return slideShown();
+    };
+    // It opens on the slide the deck is at; three changes of slide from there.
+    await until(async () => (await slideShown()) != null, 'a slide in Reading View', 4000).catch(() => {});
+    const startAt = await slideShown();
+    const steps = startAt === '1' ? [['Left', '0'], ['Right', '1'], ['Left', '0']] : [['Right', '1'], ['Left', '0'], ['Right', '1']];
+    const readingSlides = [];
+    for (const [key, want] of steps) readingSlides.push(await press(key, want));
+    const readingChanges = (win.rutbaFullChanges || 0) - changesBeforeReading;
+    const readingFull = Boolean(win.rutbaCheckFull);
+    await endShow();
+    await tab();
+    check('presentations: Reading View stays in its window, never full screen, however many slides it goes through',
+      readingSlides.join() === steps.map((s) => s[1]).join() && readingChanges === 0 && !readingFull,
+      JSON.stringify({ readingPressed, startAt, readingSlides, readingChanges, readingFull }));
 
     // Automatic, with Presenter View: another screen than the presenter's, when there is one.
     await openMenu();

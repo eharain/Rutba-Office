@@ -1075,14 +1075,22 @@ export default function Slides({ app, shell, boot }) {
       if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'Backspace') showKeys.current.prev();
     };
     window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [present, model, shell]);
+
+  // Full screen for the whole show, apart from the keys: the deck's model is
+  // new on every slide, and full screen left and taken again with it showed
+  // the taskbar between two slides.
+  useEffect(() => {
+    if (!present) return undefined;
     if (!reading) shell.win.fullscreen({ on: true, display: monitorRef.current, presenter: presenterOpen.current });
     return () => {
-      window.removeEventListener('keydown', onKey);
       if (!reading) shell.win.fullscreen({ on: false });
       setReading(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [present, model, shell]);
+  }, [present, shell]);
 
   /**
    * Where the show is: a slide and how many of its clicks have played —
