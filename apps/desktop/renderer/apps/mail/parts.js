@@ -504,7 +504,7 @@ export const CSS = `
 .ml-suggest .n { font-weight: 500; }
 .ml-suggest .e { color: var(--ink-3); font-size: 12px; }
 .ml-suggest .s { margin-left: auto; color: var(--ink-3); font-size: 11px; }
-.ml-address { position: relative; }
+.ml-address { position: relative; display: flex; flex-direction: column; }
 .ml-attachment {
   display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px;
   border: 1px solid var(--line); border-radius: 20px; background: var(--chrome);
@@ -625,14 +625,23 @@ select.rw-input { appearance: auto; }
 /* Docked in the reading pane, in place of the message read there. */
 .ml-compose-docked { height: 100%; min-height: 0; display: flex; flex-direction: column; background: var(--window); }
 .ml-compose-docked .ml-compose-page-head { padding: 8px 14px; }
-.ml-compose-docked .ml-compose-page-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; }
-.ml-compose-page-head { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line-soft); background: var(--chrome); }
-.ml-compose-page-head h2 { margin: 0; font-size: 15px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ml-compose-page-head .grow { flex: 1; }
-.ml-compose-page-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 24px; }
+.ml-compose-docked .ml-compose-page-body { padding: 12px 14px; }
+/* The buttons go to a second line in a narrow reading pane rather than out of sight. */
+.ml-compose-page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 20px; border-bottom: 1px solid var(--line-soft); background: var(--chrome); }
+.ml-compose-page-head h2 { flex: 1 1 180px; margin: 0; font-size: 15px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml-compose-page-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 24px; display: flex; flex-direction: column; }
+/* The editor takes the height the fields leave and scrolls in itself; the page
+   scrolls only when the window is too short for the fields and a few lines. */
+.ml-compose .ml-form { flex: 1 0 0; gap: 8px; width: 100%; box-sizing: border-box; }
+/* Each field's name beside it, not above: a line saved for each, so the editor has the room. */
+.ml-compose .ml-form > .rw-field:not(:has(> .ml-compose-body)) { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; column-gap: 10px; row-gap: 3px; }
+.ml-compose .ml-form > .rw-field:not(:has(> .ml-compose-body)) > :not(label) { grid-column: 2; }
+.ml-compose .ml-form > .rw-field:not(:has(> .ml-compose-body)) > label { grid-column: 1; text-align: end; }
+.ml-compose-editor, .ml-compose .ml-form > .rw-field:has(> .ml-compose-body) { flex: 1 1 0; display: flex; flex-direction: column; }
+.ml-compose .ml-rich, .ml-compose .ml-compose-body { flex: 1 1 0; min-height: 160px; max-height: none; resize: none; }
+/* Full view and a window of its own: a column wide enough to read, the title and the buttons along its edges. */
 .ml-compose-page .ml-form { max-width: 1000px; margin: 0 auto; }
-.ml-compose-page .ml-rich { max-height: none; min-height: 50vh; }
-.ml-compose-page .ml-compose-body { min-height: 50vh; }
+.ml-compose-page .ml-compose-page-head { padding-inline: max(24px, calc((100% - 1000px) / 2)); }
 .ml-rich blockquote { margin: 0 0 0 10px; padding-left: 10px; border-left: 3px solid var(--line); color: var(--ink-3); }
 .ml-toolbar { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; padding: 4px 0; }
 .ml-to-row { display: flex; align-items: center; gap: 8px; }

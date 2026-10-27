@@ -282,7 +282,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
         </Field>
 
         {rich ? (
-          <div>
+          <div className="ml-compose-editor">
             <div className="ml-toolbar">
               <Button icon="bold" title={t('Bold')} onClick={() => exec('bold')} />
               <Button icon="italic" title={t('Italic')} onClick={() => exec('italic')} />
@@ -330,7 +330,6 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
               className="rw-input ml-compose-body"
               value={draft.text || ''}
               onChange={(e) => onChange({ ...draft, text: e.target.value })}
-              rows={14}
             />
           </Field>
         )}

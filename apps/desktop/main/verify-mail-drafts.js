@@ -9,7 +9,60 @@
 // and docks again, and pops out to a window of its own (owner, 2026-10-21).
 // Run alone with RUTBA_VERIFY_ONLY=mail-drafts.
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { BrowserWindow } from 'electron';
+
+/**
+ * How Compose is laid out where it is: the address boxes beside Subject, the
+ * buttons along the top, what runs off the side, and the room under the
+ * editor (owner, 2026-10-27: "fix the email response screen layout ... when
+ * its popped out when its dialog and when its docked in").
+ */
+const LAYOUT = `(() => {
+  const root = document.querySelector('.ml-compose');
+  if (!root) return null;
+  const box = (n) => (n ? n.getBoundingClientRect() : null);
+  const control = (name) => [...root.querySelectorAll('.rw-field')].find((f) => f.querySelector('label')?.textContent === name)?.querySelector('input, select');
+  const wide = (n) => Math.round(box(n)?.width || 0);
+  const head = root.querySelector('.ml-compose-page-head');
+  const body = root.querySelector('.ml-compose-page-body');
+  const editor = root.querySelector('.ml-rich, .ml-compose-body');
+  const form = root.querySelector('.ml-form');
+  const buttons = [...head.querySelectorAll('button')].filter((b) => b.offsetParent);
+  const h = box(head);
+  return {
+    width: Math.round(box(root).width),
+    to: wide(control('To')), cc: wide(control('Cc')), bcc: wide(control('Bcc')), subject: wide(control('Subject')),
+    headOut: buttons.filter((b) => box(b).right > h.right + 1 || box(b).left < h.left - 1 || box(b).bottom > h.bottom + 1).map((b) => b.textContent.trim()),
+    overflowX: body.scrollWidth - body.clientWidth,
+    overflowY: body.scrollHeight - body.clientHeight,
+    gap: Math.round(box(body).bottom - box(form).bottom),
+    editor: Math.round(box(editor).height),
+    title: Math.round(box(head.querySelector('h2')).left - box(form).left),
+  };
+})()`;
+
+/**
+ * Laid out as a person would want it: To, Cc and Bcc as wide as Subject (To
+ * less the Cc / Bcc switch beside it), every button in sight, nothing off the
+ * side, and the editor filling the height down to the foot, with no page to
+ * scroll. In full view and a window of its own the title starts where the
+ * fields do.
+ */
+function laidOut(m, { column = false } = {}) {
+  if (!m) return false;
+  const along = (w) => w === 0 || Math.abs(w - m.subject) <= 2;
+  return m.to >= m.subject - 120 && along(m.cc) && along(m.bcc) && m.headOut.length === 0 && m.overflowX <= 0 && m.overflowY <= 1 && m.gap <= 30 && m.editor >= 160 && (!column || Math.abs(m.title) <= 2);
+}
+
+/** A picture of the window for whoever is working on the layout, when RUTBA_VERIFY_SHOTS names a folder. */
+async function shot(win, name) {
+  const dir = process.env.RUTBA_VERIFY_SHOTS;
+  if (!dir) return;
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${name}.png`), (await win.webContents.capturePage()).toPNG());
+}
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
@@ -42,6 +95,16 @@ export async function verifyMailDrafts(h) {
     check('mail drafts: a draft opened from Drafts is in Compose, docked in the reading pane beside the list (owner, 2026-10-21), with its To, Cc, Bcc, subject and attachment',
       composing && shown.noDialog && shown.list && /amina@work\.example/.test(shown.to || '') && /tomas@/.test(shown.cc || '') && /files@/.test(shown.bcc || '') && shown.subject === subject && shown.files.some((x) => x.includes('figures.txt')),
       JSON.stringify({ composing, shown }));
+    const laidDocked = await js(LAYOUT);
+    await shot(win, 'compose-docked');
+    // A narrow window: the reading pane is narrow too, and nothing may go out of sight sideways.
+    const [w0, h0] = win.getSize();
+    win.setSize(1000, 760);
+    await wait(500);
+    const laidNarrow = await js(LAYOUT);
+    await shot(win, 'compose-docked-narrow');
+    win.setSize(w0, h0);
+    await wait(300);
 
     // Full view (owner, 2026-10-20: "it should have conversion to full view as normal email"):
     // the message fills the window with what was written, Smaller docks it again, and the choice is kept.
@@ -49,6 +112,8 @@ export async function verifyMailDrafts(h) {
     const fullShown = await until(() => js(`Boolean(document.querySelector('.ml-compose-page .ml-form')) && !document.querySelector('.ml-compose-docked')`), 'the full view', 4000).then(() => true).catch(() => false);
     const inFull = await js(`({ subject: ${field('Subject')}, cc: ${field('Cc')}, body: document.querySelector('.ml-compose-page .ml-rich')?.textContent || '', files: document.querySelectorAll('.ml-compose-page .ml-attachment').length, wide: Math.round(document.querySelector('.ml-compose-page')?.getBoundingClientRect().width || 0), window: window.innerWidth })`);
     const keptFull = await js(`window.rutbaOffice.store.get({ key: 'mail.composePlace', fallback: null })`);
+    const laidFull = await js(LAYOUT);
+    await shot(win, 'compose-full');
     await js(`document.querySelector('.ml-compose-small')?.click(), 1`);
     const docked = await until(() => js(`Boolean(document.querySelector('.ml-compose-docked .ml-form')) && !document.querySelector('.ml-compose-page')`), 'docked again', 4000).then(() => true).catch(() => false);
     const body = await js(`document.querySelector('.ml-compose-docked .ml-rich')?.textContent || ''`);
@@ -92,8 +157,12 @@ export async function verifyMailDrafts(h) {
     const popped = findPopped();
     const pjs = (code) => popped.webContents.executeJavaScript(code);
     let there = null;
+    let laidAlone = null;
     if (popped) {
       await until(() => pjs(`Boolean(document.querySelector('.ml-compose-page.alone .ml-form'))`), 'Compose in its window', 8000).catch(() => {});
+      await wait(300);
+      laidAlone = await pjs(LAYOUT);
+      await shot(popped, 'compose-window');
       there = await pjs(`({ subject: [...document.querySelectorAll('.ml-compose .rw-field')].find((f) => f.querySelector('label')?.textContent === 'Subject')?.querySelector('input')?.value || '', popOut: Boolean(document.querySelector('.ml-compose-popout')) })`);
     }
     const leftHere = await until(() => js(`!document.querySelector('.ml-compose')`), 'the composer here to close', 4000).then(() => true, () => false);
@@ -102,6 +171,10 @@ export async function verifyMailDrafts(h) {
     check('mail drafts: Pop out puts the message as written in a Mail window of its own, closes it here, and Discard there closes that window',
       Boolean(popped) && there?.subject === `Popped out ${stamp}` && there?.popOut === false && leftHere && closed,
       JSON.stringify({ popped: Boolean(popped), there, leftHere, closed }));
+
+    check('mail drafts: Compose is laid out docked, in full view and in a window of its own: To, Cc and Bcc as wide as Subject, every button in sight, and the editor filling the height (owner, 2026-10-27)',
+      laidOut(laidDocked) && laidOut(laidFull, { column: true }) && laidOut(laidAlone, { column: true }) && laidOut(laidNarrow ? { ...laidNarrow, overflowY: 0, gap: 0 } : null),
+      JSON.stringify({ docked: laidDocked, narrow: laidNarrow, full: laidFull, window: laidAlone }));
 
     const complaints = await errorsIn(win);
     check('mail drafts: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
