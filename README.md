@@ -121,7 +121,7 @@ installations on the version they have.
 git clone --recurse-submodules https://github.com/eharain/Rutba-Office.git office
 cd office
 npm install
-npm test          # 3,510 tests, no network needed
+npm test          # 3,512 tests, no network needed
 npm run build     # bundle the renderer
 npm start         # run the app
 npm run dev       # run the app, rebuilding the window's code on every save
@@ -315,7 +315,7 @@ Other things worth reading:
 
 ```bash
 npm run gate            # all four passes, in the order that finds problems soonest
-npm test                # the engine suite: 3,510 checks, no windows
+npm test                # the engine suite: 3,512 checks, no windows
 npm run verify:edit     # do keystrokes reach the document?
 npm run verify:apps     # does each app open, change and save a real file?
 npm run smoke           # boot the real app, photograph every window, report
@@ -324,8 +324,8 @@ RUTBA_CORPUS_DIRS="D:\docs" npm run verify:corpus   # open every file in a folde
 node tools/fuzz-open.js 500                         # damage good files at random; every one must draw or refuse in a sentence
 ```
 
-`npm run gate` is what runs before a release: 3,518 engine tests, 12 editing checks,
-2,429 application checks (most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard) and 14 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about twenty minutes.
+`npm run gate` is what runs before a release: 3,520 engine tests, 12 editing checks,
+2,440 application checks (most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard) and 14 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about twenty minutes.
 
 The engine suite includes `tests/rich-fixtures.test.js`, which opens a workbook, a document and a deck that Excel, Word and PowerPoint themselves wrote — charts, shapes, pictures, cross-sheet formulas, names, number formats, notes, footnotes, tracked changes, fields, a watermark — and holds the engine to Excel's own results. `tools/make-rich-fixtures.ps1` regenerates them on a machine with Office; docs/TESTING.md says what they hold and what they found.
 
