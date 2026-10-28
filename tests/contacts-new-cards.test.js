@@ -23,7 +23,16 @@ function memory() {
 }
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-newcards-'));
-const settle = () => new Promise((r) => setTimeout(r, 600));
+// The store is written a moment after the step: wait for it there, not for a set time (a busy machine takes longer).
+async function written(read, ms = 10000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    let got = null;
+    try { got = read(); } catch { /* not there yet, or half written */ }
+    if (got || Date.now() > end) return got;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
 const card = (name, email) => ({ name: { full: name, given: name.split(' ')[0], family: name.split(' ')[1] || '' }, emails: [{ value: email }], phones: [], addresses: [] });
 
 /** A contacts store as 2.18 left it: cards, and no choice of where new ones go. */
@@ -44,8 +53,7 @@ test('A store from before 2.19 with no choice keeps new cards on this computer, 
   try {
     const { contacts, dav } = services(dir);
     assert.equal(contacts._dav.state().defaultBook, 'local', 'recorded as this computer at the first start');
-    await settle();
-    const onDisk = JSON.parse(fs.readFileSync(path.join(dir, 'contacts.json'), 'utf8'));
+    const onDisk = await written(() => { const j = JSON.parse(fs.readFileSync(path.join(dir, 'contacts.json'), 'utf8')); return j.newCardsSettled ? j : null; });
     assert.equal(onDisk.defaultBook, 'local');
     assert.equal(onDisk.newCardsSettled, 1);
     assert.equal(onDisk.contacts.length, 1, 'the cards are untouched');
@@ -97,11 +105,10 @@ test('A sealed store from before 2.19 is recorded through the vault and stays se
   const { contacts } = services(dir, createVault({ key }));
   assert.equal(contacts._dav.state().defaultBook, 'local');
   assert.equal(contacts.list().length, 1);
-  await settle();
-  assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /Kept Here|newCardsSettled/, 'still sealed after the step');
   const reopened = createVault({ key });
   reopened.cover(file);
-  const again = reopened.readJson(file, null);
+  const again = await written(() => { const j = reopened.readJson(file, null); return j?.newCardsSettled ? j : null; });
+  assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /Kept Here|newCardsSettled/, 'still sealed after the step');
   assert.equal(again.defaultBook, 'local');
   assert.equal(again.newCardsSettled, 1);
 });
