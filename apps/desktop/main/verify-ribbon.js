@@ -271,9 +271,10 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
       const backToTabs = await until(() => tipsNow().then((l) => l.some((t) => t.tab)), 'back to the tabs', 2000).then(() => true).catch(() => false);
       await key('Escape');
       const gone = await until(() => tipsNow().then((l) => !l.length), 'the KeyTips gone', 2000).then(() => true).catch(() => false);
-      check(`ribbon: ${app}'s KeyTips: Alt letters every tab, the second tab's letters (${second?.code}) choose it and letter its controls, all prefix-free, and Escape steps back and away`,
+      // The name holds no value found in the run: the gate's again-alone matches a failure to its rerun by name.
+      check(`ribbon: ${app}'s KeyTips: Alt letters every tab, the second tab's letters choose it and letter its controls, all prefix-free, and Escape steps back and away`,
         tabCodes.length === names.length && prefixFree(tabCodes) && chosen && onControls.length > 0 && prefixFree(onControls) && backToTabs && gone,
-        JSON.stringify({ tabs: tabCodes.map((t) => t.code).join(' '), controls: onControls.length, sample: onControls.slice(0, 8).map((t) => t.code).join(' '), chosen, backToTabs, gone }));
+        JSON.stringify({ tabs: tabCodes.map((t) => t.code).join(' '), second: second?.code, controls: onControls.length, sample: onControls.slice(0, 8).map((t) => t.code).join(' '), chosen, backToTabs, gone }));
 
       await pick(js, 0);
       // The page takes the keyboard first: a ring is drawn only in a page that has it (Chromium drops :focus in a page without it).
