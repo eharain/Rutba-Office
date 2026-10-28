@@ -14,6 +14,7 @@ import { app, BrowserWindow, screen, nativeTheme } from 'electron';
 import path from 'node:path';
 import { SCHEME, encodePath, releaseBlobsOf } from './protocol.js';
 import { grantPlace } from './grants.js';
+import { taskbarTile } from './taskbar-tile.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -39,6 +40,7 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
   /** @type {Map<number, { app: string, file: string|null, dirty: boolean, name: string, closing: boolean }>} */
   const meta = new Map();
   let focusTick = 0;
+  const tiles = new Map();
 
   function savedBounds(appKey) {
     const saved = stores.settings.get(`window.${appKey}`, null);
@@ -191,7 +193,7 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
       try {
         win.setAppDetails({
           appId: `${appUserModelId}.${appKey}`,
-          appIconPath: appIcons[appKey],
+          appIconPath: tiles.get(appKey) || tiles.set(appKey, taskbarTile(appKey, appIcons[appKey], path.join(app.getPath('userData'), 'tiles'))).get(appKey),
           appIconIndex: 0,
           relaunchCommand: relaunch,
           relaunchDisplayName: appNames[appKey] || 'Rutba Office',
