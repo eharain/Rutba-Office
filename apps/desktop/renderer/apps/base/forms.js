@@ -443,6 +443,8 @@ export const FORM_CSS = `
 /* A list in a form's row: no top and bottom padding, or Chromium squeezes its words into what is left and cuts them. */
 .bs-fc.bs-fc-list { padding-top: 0; padding-bottom: 0; }
 .bs-fc-search { display: block; }
+/* Each control's transform makes it a stacking context of its own, painted in turn, so the matches' own z-index cannot rise above the fields after it: the control being typed in rises instead. */
+.bs-fc-search:focus-within { z-index: 6; }
 .bs-fc-search-input { width: 100%; height: 100%; box-sizing: border-box; padding-top: 0; padding-bottom: 0; }
 .bs-fc-search-list { position: absolute; z-index: 5; left: 0; right: 0; top: 100%; margin: 2px 0 0; padding: 4px 0; list-style: none; max-height: 220px; overflow: auto; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-2); box-shadow: var(--shadow-2, 0 4px 12px rgba(0,0,0,.12)); }
 .bs-fc-search-list li { padding: 4px 10px; cursor: pointer; font-size: 13px; }
