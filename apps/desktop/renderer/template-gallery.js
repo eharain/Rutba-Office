@@ -62,6 +62,8 @@ const EXT_APP = { dotx: 'word', xltx: 'sheets', potx: 'slides' };
 export async function personalTemplates(shell) {
   try {
     const dir = await templatesFolder(shell);
+    // No folder yet is no templates yet: asked to list it, the main process would log an error.
+    if (!(await shell.fs.exists({ path: dir }))) return [];
     const list = await shell.fs.list({ path: dir, filter: ['dotx', 'xltx', 'potx'] });
     return (list || [])
       .filter((f) => !f.dir)
