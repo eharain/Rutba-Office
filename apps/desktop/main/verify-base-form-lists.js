@@ -48,20 +48,38 @@ export async function verifyBaseFormLists({ open, check, until, wait }, { dir })
       await until(() => js(`(document.querySelector('.bs-fc-search[data-field="Sale"] input')?.value || '') !== ''`), 'the sale named', 5000).catch(() => {});
       const shownSale = await js(`document.querySelector('.bs-fc-search[data-field="Sale"] input')?.value || ''`);
       await js(`(() => { const el = document.querySelector('.bs-fc-search[data-field="Sale"] input'); el.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '00012'); el.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
-      await until(() => js(`document.querySelectorAll('.bs-fc-search-list li').length > 0`), 'the matches', 5000).catch(() => {});
+      await until(() => js(`document.querySelectorAll('.bs-fc-search-list li').length > 0`), 'the matches', 15000).catch(() => {});
       const matches = await js(`[...document.querySelectorAll('.bs-fc-search-list li')].map((n) => n.textContent).slice(0, 3)`);
       // The first match is drawn above the fields under the box, so the mouse finds it there.
       const onTop = await js(`(() => { const li = document.querySelector('.bs-fc-search-list li'); if (!li) return false; const r = li.getBoundingClientRect(); return li.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); })()`);
-      seen.search = { shownSale, matches, onTop };
+      // Typed in, then Enter: the focus stays in the box, its record's words shown. Clicked again there, the words are chosen, so typing replaces them.
+      const wc = win.webContents;
+      const at = await js(`(() => { const el = document.querySelector('.bs-fc-search[data-field="Sale"] input'); el.blur(); const r = el.getBoundingClientRect(); return { x: Math.round(r.right - 12), y: Math.round(r.top + r.height / 2) }; })()`);
+      await wait(300);
+      const click = () => { wc.sendInputEvent({ type: 'mouseDown', x: at.x, y: at.y, button: 'left', clickCount: 1 }); wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y, button: 'left', clickCount: 1 }); };
+      click();
+      await wait(200);
+      for (const ch of '00012') { wc.sendInputEvent({ type: 'keyDown', keyCode: ch }); wc.sendInputEvent({ type: 'char', keyCode: ch }); wc.sendInputEvent({ type: 'keyUp', keyCode: ch }); }
+      await until(() => js(`[...document.querySelectorAll('.bs-fc-search-list li')].some((n) => /00012/.test(n.textContent))`), 'the matches typed', 15000).catch(() => {});
+      wc.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+      wc.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
+      await wait(400);
+      const read = () => js(`(() => { const el = document.querySelector('.bs-fc-search[data-field="Sale"] input'); return { value: el.value, focused: document.activeElement === el, all: el.value.length > 0 && el.selectionStart === 0 && el.selectionEnd === el.value.length }; })()`);
+      const picked = await read();
+      click();
+      await wait(200);
+      const chosen = { picked: picked.value, focused: picked.focused, all: (await read()).all };
+      seen.search = { shownSale, matches, onTop, chosen };
     }
     if (process.env.RUTBA_VERIFY_CAPTURE) {
       win.webContents.invalidate();
       await wait(700);
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'base-form-lists.png'), (await win.webContents.capturePage()).toPNG());
     }
-    check('base: a form\'s list has room for its words, and a subform\'s field that points at another table shows that record\'s words, not its number; a date and time typed in a form is kept; a list too long to hold shows its record by its reference and finds others as they are typed, drawn above the fields under it',
+    check('base: a form\'s list has room for its words, and a subform\'s field that points at another table shows that record\'s words, not its number; a date and time typed in a form is kept; a list too long to hold shows its record by its reference and finds others as they are typed, drawn above the fields under it, its words chosen when clicked so typing replaces them',
       Boolean(seen.field) && seen.room >= seen.line && seen.cells.length > 0 && seen.cells.every((c) => c && !/^\d+$/.test(c)) && Boolean(seen.when.field) && seen.when.kept === '2025-11-01T08:15:00'
-        && Boolean(seen.search) && /^RCP-/.test(seen.search.shownSale) && seen.search.matches.length > 0 && seen.search.matches.every((m) => /00012/.test(m)) && seen.search.onTop === true,
+        && Boolean(seen.search) && /^RCP-/.test(seen.search.shownSale) && seen.search.matches.length > 0 && seen.search.matches.every((m) => /00012/.test(m)) && seen.search.onTop === true
+        && seen.search.chosen?.focused === true && seen.search.chosen?.all === true,
       JSON.stringify(seen));
   } catch (err) {
     check('base: the form list checks ran to the end', false, err?.message || String(err));

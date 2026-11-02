@@ -58,7 +58,10 @@ function SearchList({ shell, db, control: c, common, value, onPick }) {
   return (
     <span className="bs-fc bs-fc-search" style={common.style} data-field={c.field}>
       <input className="rw-input bs-fc-search-input" aria-label={c.label} role="combobox" aria-expanded={open} placeholder={t('Type to find')}
-        value={typed ?? words} onFocus={() => search(typed ?? '')} onChange={(e) => search(e.target.value)}
+        value={typed ?? words} onFocus={() => search(typed ?? '')}
+        // Clicked again while it has the focus: the words are chosen, as a browser's address bar does, so typing replaces them.
+        onMouseUp={(e) => { if (typed === null && e.target.selectionStart === e.target.selectionEnd) e.target.select(); }}
+        onChange={(e) => search(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') { setOpen(false); setTyped(null); } if (e.key === 'Enter' && found[0]) pick(found[0]); }}
         onBlur={() => setTimeout(() => { setOpen(false); setTyped(null); }, 150)} />
       {open && found.length ? (
