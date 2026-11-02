@@ -5,12 +5,14 @@
 // handshake, connect, createStream, publish) and keeps what it is sent. The
 // check adds it as a destination in Go Live's box with a test key, adds a
 // YouTube destination with no key (left out, and said so), and goes live on
-// a Documents window this check opens (recorded as the stand-in screen,
-// withScreenStandIn), with the stand-in camera and microphone. The ingest is given the metadata, the H.264 and AAC
+// a Documents window this check opens (shown from the list on the right and
+// recorded as the stand-in screen, withScreenStandIn), with the stand-in
+// camera and microphone. Go Live is one button that turns red with the time
+// while live, and Take Picture still takes one. The ingest is given the metadata, the H.264 and AAC
 // configurations and a key frame first, then frames on a steady clock, and
 // the copy is recorded on disk at the same time. The connection is cut: the
 // destination says it is reconnecting, comes back, and is given the
-// configurations again before more frames. End Live unpublishes and keeps
+// configurations again before more frames. Go Live pressed again unpublishes and keeps
 // the copy. The key is never handed back to the window, only its last four
 // characters. Nothing leaves this computer's loopback.
 // Run alone with RUTBA_VERIFY_ONLY=recorder-live.
@@ -98,15 +100,24 @@ async function liveChecks(h, { dir }) {
     await open('word', docFile);
     const win = await open('recorder');
     js = (code) => win.webContents.executeJavaScript(code);
-    kept = await js(`window.rutbaOffice.store.get({ key: 'recorder.studio', fallback: null })`);
+    kept = await js(`Promise.all([window.rutbaOffice.store.get({ key: 'recorder.studio', fallback: null }), window.rutbaOffice.store.get({ key: 'recorder.stack', fallback: null })])`);
     for (const d of await js(`window.rutbaOffice.live.destinations()`)) await js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`);
-    await js(`window.rutbaOffice.store.set({ key: 'recorder.studio', value: ${JSON.stringify({ scene: 'screen-camera', size: 720, fps: 30, countdown: 0, camera: true, mic: true, system: false, folder, liveCopy: true, minimise: false })} }).then(() => 1)`);
+    const stack = { version: 2, items: [], sounds: [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', name: '', live: false, muted: false, gain: 1 }], scenes: [], video: 'on', sound: 'on' };
+    await js(`Promise.all([
+      window.rutbaOffice.store.set({ key: 'recorder.studio', value: ${JSON.stringify({ size: 720, fps: 30, countdown: 0, folder, liveCopy: true, minimise: false, shot: 'program', shotTimer: 0 })} }),
+      window.rutbaOffice.store.set({ key: 'recorder.stack', value: ${JSON.stringify(stack)} }),
+    ]).then(() => 1)`);
     await win.webContents.reload();
-    await until(() => js(`Boolean(document.querySelector('.st-canvas'))`), 'the Recorder window', 10000);
-    await js(`document.querySelector('.st-kinds button[data-value="window"]')?.click(), 1`);
-    await until(() => js(`[...document.querySelectorAll('.st-sources .rec-source')].some((n) => (n.dataset.tip || '').includes('live-fixture'))`), 'the fixture window', 10000).catch(() => {});
-    await js(`(() => { const b = [...document.querySelectorAll('.st-sources .rec-source')].find((n) => (n.dataset.tip || '').includes('live-fixture')); b?.click(); return 1; })()`);
-    await until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'screen camera'`), 'the program', 25000).catch(() => {});
+    await until(() => js(`Boolean(document.querySelector('.st-canvas')) && Boolean(document.querySelector('.st-list'))`), 'the Recorder window', 10000);
+    // The fixture window and the camera put on the share from the list, as the Screen and camera scene.
+    const fixture = `[...document.querySelectorAll('.st-list .st-spare[data-kind="window"]')].find((n) => (n.dataset.tip || '').includes('live-fixture'))`;
+    await until(() => js(`Boolean(${fixture})`), 'the fixture window', 10000).catch(() => {});
+    await js(`${fixture}?.querySelector('.st-eye')?.click(), 1`);
+    await until(() => js(`Boolean(document.querySelector('.st-list .st-spare[data-kind="camera"]'))`), 'the camera in the list', 8000).catch(() => {});
+    await js(`document.querySelector('.st-list .st-spare[data-kind="camera"] .st-eye')?.click(), 1`);
+    await until(() => js(`document.querySelectorAll('.st-list .st-card[data-on="1"]').length === 2`), 'both on the share', 6000).catch(() => {});
+    await js(`document.querySelector('.st-scene[data-scene="screen-camera"]')?.click(), 1`);
+    await until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'window camera'`), 'the program', 25000).catch(() => {});
 
     // Go Live with nowhere to go opens the box; a custom server is added with a test key, and YouTube with none.
     await until(() => js(`(() => { const b = document.querySelector('.st-golive'); return Boolean(b) && !b.disabled; })()`), 'Go Live ready', 8000).catch(() => {});
@@ -144,11 +155,19 @@ async function liveChecks(h, { dir }) {
     const tsUp = c1.video.slice(firstFrame).every((v, i, a) => i === 0 || v.ts >= a[i - 1].ts);
     const keys = c1.video.filter((v) => v.kind === 'key').length;
     const wellFormed = c1.video.every((v) => v.sound) && c1.audio.every((a) => a.sound);
-    const recordingCopy = await js(`Boolean(document.querySelector('.st-stop'))`);
+    const recordingCopy = await js(`Boolean(document.querySelector('.st-record.on'))`);
     const badge = await js(`document.querySelector('.st-live-badge')?.textContent || ''`);
-    check('recorder live: live on the destination with its key, the metadata, the H.264 and AAC configurations (well formed: an avcC record, AAC-LC) and a key frame first, every frame whole NAL units, frames on a rising clock, sound alongside, a copy recording, and LIVE on the picture',
-      went && c1.key === 'check-key-7Q4z' && c1.data.length === 1 && c1.data[0][2]?.width === 1280 && c1.video[0]?.kind === 'config' && c1.video[firstFrame]?.kind === 'key' && c1.video.length > 40 && keys >= 1 && tsUp && c1.audio[0]?.kind === 'config' && c1.audio.length > 40 && wellFormed && recordingCopy && /LIVE/.test(badge),
-      JSON.stringify({ went, wellFormed, key: c1.key === 'check-key-7Q4z', data: c1.data.length, video: c1.video.length, first: c1.video.slice(0, 3).map((v) => v.kind), keys, tsUp, audio: c1.audio.length, recordingCopy, badge }));
+    const button = await js(`(() => { const b = document.querySelector('.st-golive'); return { on: b?.classList.contains('on'), pressed: b?.getAttribute('aria-pressed'), text: b?.textContent || '' }; })()`);
+    check('recorder live: live on the destination with its key, the metadata, the H.264 and AAC configurations (well formed: an avcC record, AAC-LC) and a key frame first, every frame whole NAL units, frames on a rising clock, sound alongside, a copy recording, LIVE on the picture, and Go Live red with the time',
+      button.on && button.pressed === 'true' && /\d:\d\d/.test(button.text) && went && c1.key === 'check-key-7Q4z' && c1.data.length === 1 && c1.data[0][2]?.width === 1280 && c1.video[0]?.kind === 'config' && c1.video[firstFrame]?.kind === 'key' && c1.video.length > 40 && keys >= 1 && tsUp && c1.audio[0]?.kind === 'config' && c1.audio.length > 40 && wellFormed && recordingCopy && /LIVE/.test(badge),
+      JSON.stringify({ went, wellFormed, key: c1.key === 'check-key-7Q4z', data: c1.data.length, video: c1.video.length, first: c1.video.slice(0, 3).map((v) => v.kind), keys, tsUp, audio: c1.audio.length, recordingCopy, badge, button }));
+
+    // Take Picture while live: a PNG of the program, and the stream goes on.
+    const pictures = () => fs.readdirSync(folder).filter((n) => /^Picture .*\.png$/.test(n));
+    await js(`document.querySelector('.st-shoot')?.click(), 1`);
+    const pictured = await ok(until(() => pictures().length === 1, 'a picture while live', 8000));
+    const stillLive = await js(`document.querySelector('.st-golive')?.classList.contains('on') && [...document.querySelectorAll('.st-dest')].some((n) => n.dataset.state === 'live')`);
+    check('recorder live: Take Picture takes one while live, and the stream goes on', pictured && stillLive, JSON.stringify({ pictured, stillLive, pictures: pictures() }));
 
     // The line cut: reconnecting, then back, with the configurations again first.
     ingest.cut();
@@ -171,14 +190,14 @@ async function liveChecks(h, { dir }) {
       lowered && /\d+ kb\/s/.test(rateText), rateText.slice(0, 160));
     await wait(1500);
 
-    // End Live: unpublished, and the copy kept.
-    await js(`document.querySelector('.st-endlive')?.click(), 1`);
-    const ended = await ok(until(() => js(`Boolean(document.querySelector('.st-golive')) && Boolean(document.querySelector('.st-saved'))`), 'ended and saved', 15000));
+    // Go Live pressed again ends it: unpublished, and the copy kept.
+    await js(`document.querySelector('.st-golive')?.click(), 1`);
+    const ended = await ok(until(() => js(`!document.querySelector('.st-golive')?.classList.contains('on') && /Go Live/.test(document.querySelector('.st-golive')?.textContent || '') && Boolean(document.querySelector('.st-saved'))`), 'ended and saved', 15000));
     await wait(500);
     const unpublished = (ingest.seen.connections[1]?.commands || []).includes('FCUnpublish');
     const copies = fs.readdirSync(folder).filter((n) => /\.webm$/.test(n));
     const probe = copies.length === 1 ? probeMedia(new Uint8Array(fs.readFileSync(path.join(folder, copies[0]))), { complete: true }) : null;
-    check('recorder live: End Live unpublishes from the server and keeps the copy recorded meanwhile, picture and sound',
+    check('recorder live: Go Live pressed again unpublishes from the server and keeps the copy recorded meanwhile, picture and sound',
       ended && unpublished && copies.length === 1 && probe?.hasVideo && probe?.hasAudio && probe.duration > 5,
       JSON.stringify({ ended, unpublished, copies, probe: probe ? { v: probe.hasVideo, a: probe.hasAudio, d: probe.duration } : null }));
 
@@ -190,7 +209,7 @@ async function liveChecks(h, { dir }) {
     if (js) {
       await js(`window.rutbaOffice.live.stop()`).catch(() => {});
       for (const d of (await js(`window.rutbaOffice.live.destinations()`).catch(() => [])) || []) await js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`).catch(() => {});
-      await js(`window.rutbaOffice.store.set({ key: 'recorder.studio', value: ${JSON.stringify(kept ?? null)} }).then(() => 1)`).catch(() => {});
+      if (kept) await js(`Promise.all([window.rutbaOffice.store.set({ key: 'recorder.studio', value: ${JSON.stringify(kept[0] ?? null)} }), window.rutbaOffice.store.set({ key: 'recorder.stack', value: ${JSON.stringify(kept[1] ?? null)} })]).then(() => 1)`).catch(() => {});
     }
     ingest?.cut();
     ingest?.server.close();

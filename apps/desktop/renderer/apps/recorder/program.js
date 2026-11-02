@@ -1,53 +1,26 @@
-// The Recorder's program: the one picture made live from the sources, and the
-// file it is recorded to.
+// The Recorder's program: the one picture made live from the studio's stack,
+// and the file it is recorded to.
 //
-// A Program draws the scene on a canvas on a timer (not on animation frames,
+// A Program draws the stack on a canvas on a timer (not on animation frames,
 // which stop while the window is minimised; windows are made with background
-// throttling off, so the timer keeps time). The canvas's own stream is the
-// picture recorded, with the microphone and the computer's sound mixed in the
-// rig, and the same canvas is what a stream will be encoded from. The scene
-// can change while it records: the next frame is drawn the new way.
+// throttling off, so the timer keeps time): the shown items bottom first,
+// each its clip of its source in its box and shape, a title as a band. The
+// first line's Video switch draws black, or the placeholder, instead. The
+// canvas's own stream is the picture recorded, with the studio's one sound
+// output, and the same canvas is what a stream is encoded from. The stack can
+// change while it records: the next frame is drawn the new way.
 //
 // The recording is one WebM written in pieces as it goes, as the recorder's
-// takes are, so a recording a crash cut short still plays.
+// takes are, so a recording a crash cut short still plays. With the picture
+// off it is the sound alone, in a sound file.
 
-import { sceneLayout, titleBand, logoBox, coverCrop, containRect, OUTPUT_SIZES } from '@rutba/studio/compositor';
+import { OUTPUT_SIZES, coverCrop, containRect } from '@rutba/studio/compositor';
+import { drawOrder } from '@rutba/studio/stack';
 import { createClock, createChunkWriter, videoBitrate, AUDIO_BITRATE } from '@rutba/studio/recorder';
+import { voiceType } from '../../recording/session.js';
 import { t } from '@rutba/office-ui';
 
 const FONT = '"Segoe UI", "Segoe UI Variable", system-ui, sans-serif';
-
-/**
- * A stream as a video element the canvas can draw from, playing. It is kept
- * in the page, a pixel square and invisible: a video outside the page was
- * not always given the frames of a still window's capture, and the scene
- * then left the screen out.
- */
-function sourceVideo(stream) {
-  let shelf = document.getElementById('st-sources-shelf');
-  if (!shelf) {
-    shelf = document.createElement('div');
-    shelf.id = 'st-sources-shelf';
-    shelf.setAttribute('aria-hidden', 'true');
-    shelf.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;';
-    document.body.appendChild(shelf);
-  }
-  const v = document.createElement('video');
-  v.muted = true;
-  v.playsInline = true;
-  v.autoplay = true;
-  v.style.cssText = 'width:1px;height:1px;';
-  v.srcObject = stream;
-  shelf.appendChild(v);
-  v.play().catch(() => {});
-  return v;
-}
-
-function letGo(v) {
-  if (!v) return;
-  v.srcObject = null;
-  v.remove();
-}
 
 /** The container the program is recorded in. */
 export function programType() {
@@ -70,34 +43,24 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 export class Program {
-  /** @param {{ rig, canvas: HTMLCanvasElement, accent?: string }} o */
-  constructor({ rig, canvas, accent = '#e03b4c' }) {
-    this.rig = rig;
+  /** @param {{ media, canvas: HTMLCanvasElement, accent?: string }} o */
+  constructor({ media, canvas, accent = '#e03b4c' }) {
+    this.media = media;
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.accent = accent;
     this.settings = {};
-    this.videos = { screen: null, camera: null };
-    this.streams = { screen: null, camera: null };
-    this.logo = null;
-    this.logoPath = '';
+    this.stack = null;
     this.timer = null;
     this.fps = 30;
     this.frames = 0;
     this.recording = null;
     this.listeners = new Set();
     this.track = null;
-    // A source that is live but has given no frame: when it was opened, and what to do about it.
-    this.opened = { screen: 0, camera: 0 };
-    this.onStall = null;
-    // Region: the part of the screen or window recorded, as fractions of it,
-    // or null for the whole of it; and where the screen was last drawn, for
-    // a drag on the picture to be read back as a part of the source.
-    this.crop = null;
-    this.screenAt = null;
+    this.onTick = null;
   }
 
-  /** The settings the next frame is drawn with (normalised by the window). */
+  /** The settings the next frame is drawn with (size, frame rate, quality). */
   set(settings) {
     this.settings = settings;
     const size = OUTPUT_SIZES[settings.size] || OUTPUT_SIZES[1080];
@@ -108,57 +71,8 @@ export class Program {
     if (settings.fps !== this.fps) { this.fps = settings.fps; if (this.timer) this.start(); }
   }
 
-  /** The logo drawn in its corner, from a picture's bytes as a blob URL, or none. */
-  setLogo(url) {
-    if (!url) { this.logo = null; return; }
-    const img = new Image();
-    img.onload = () => { this.logo = img; };
-    img.src = url;
-  }
-
-  /** The part of the screen recorded, as fractions of it ({ x, y, w, h }), or null for all of it. */
-  setCrop(crop) {
-    this.crop = crop || null;
-  }
-
-  /**
-   * A point on the picture (fractions of the canvas) as a point on the
-   * screen source (fractions of the whole source), or null when the screen
-   * is not under it. Through the region already chosen, so a region can be
-   * drawn inside one.
-   */
-  toSource(fx, fy) {
-    const at = this.screenAt;
-    if (!at) return null;
-    const x = fx * this.canvas.width;
-    const y = fy * this.canvas.height;
-    const u = Math.max(0, Math.min(1, (x - at.x) / at.w));
-    const v = Math.max(0, Math.min(1, (y - at.y) / at.h));
-    const c = at.crop || { x: 0, y: 0, w: 1, h: 1 };
-    return { x: c.x + u * c.w, y: c.y + v * c.h };
-  }
-
-  /** Keeps the sources' video elements in step with the rig's streams. */
-  follow() {
-    for (const name of ['screen', 'camera']) {
-      const stream = this.rig[name].stream || null;
-      if (stream === this.streams[name]) continue;
-      this.streams[name] = stream;
-      letGo(this.videos[name]);
-      this.videos[name] = stream ? sourceVideo(stream) : null;
-      this.opened[name] = stream ? performance.now() : 0;
-    }
-    // Three seconds live without a single frame: the window is told, once per opening.
-    for (const name of ['screen', 'camera']) {
-      const v = this.videos[name];
-      if (v && !v.videoWidth && this.opened[name] && performance.now() - this.opened[name] > 3000) {
-        this.opened[name] = 0;
-        this.onStall?.(name);
-      }
-    }
-    // A source that has not started playing is asked again.
-    for (const v of Object.values(this.videos)) if (v && v.paused) v.play().catch(() => {});
-  }
+  /** The stack the next frame is drawn from. */
+  setStack(stack) { this.stack = stack; }
 
   start() {
     clearInterval(this.timer);
@@ -175,120 +89,132 @@ export class Program {
     return () => this.listeners.delete(fn);
   }
 
-  /** One frame: the scene's background, its sources, then the title and the logo over them. */
+  /** One item: its clip of its source, in its box, in its shape, mirrored when it is. */
+  drawItem(it, W, H) {
+    const { ctx } = this;
+    const box = { x: it.box.x * W, y: it.box.y * H, w: it.box.w * W, h: it.box.h * H };
+    if (it.kind === 'title') return this.drawTitle(it, box);
+    const d = this.media.drawable(it);
+    if (!d) return false;
+    const sw = d.videoWidth || d.naturalWidth || d.width;
+    const sh = d.videoHeight || d.naturalHeight || d.height;
+    if (!sw || !sh) return false;
+    const c = it.crop || { x: 0, y: 0, w: 1, h: 1 };
+    const part = { sx: c.x * sw, sy: c.y * sh, sw: c.w * sw, sh: c.h * sh };
+    ctx.save();
+    if (it.shape === 'circle') {
+      ctx.beginPath();
+      ctx.ellipse(box.x + box.w / 2, box.y + box.h / 2, box.w / 2, box.h / 2, 0, 0, Math.PI * 2);
+      ctx.clip();
+    } else if (it.shape === 'rounded') {
+      roundRect(ctx, box.x, box.y, box.w, box.h, Math.min(box.w, box.h) * 0.06);
+      ctx.clip();
+    }
+    // A rectangle shows the whole of its clip; a circle or a rounded box is filled by it.
+    let dest;
+    let src = part;
+    if (it.shape === 'rect') {
+      dest = containRect(part.sw, part.sh, box);
+    } else {
+      const k = coverCrop(part.sw, part.sh, box);
+      src = { sx: part.sx + k.sx, sy: part.sy + k.sy, sw: k.sw, sh: k.sh };
+      dest = box;
+    }
+    if (it.mirror) {
+      ctx.translate(dest.x * 2 + dest.w, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(d, src.sx, src.sy, src.sw, src.sh, dest.x, dest.y, dest.w, dest.h);
+    ctx.restore();
+    // A ring round a shaped picture over another, so it reads as a window onto it.
+    if (it.shape !== 'rect' && !(it.box.w >= 0.999 && it.box.h >= 0.999)) {
+      ctx.save();
+      ctx.lineWidth = Math.max(2, W * 0.002);
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      if (it.shape === 'circle') { ctx.beginPath(); ctx.ellipse(box.x + box.w / 2, box.y + box.h / 2, box.w / 2, box.h / 2, 0, 0, Math.PI * 2); ctx.stroke(); }
+      else { roundRect(ctx, box.x, box.y, box.w, box.h, Math.min(box.w, box.h) * 0.06); ctx.stroke(); }
+      ctx.restore();
+    }
+    return true;
+  }
+
+  /** A title: its band, an accent on its edge, its two lines. Answers whether there was anything to draw. */
+  drawTitle(it, box) {
+    if (!it.text && !it.subtitle) return false;
+    const { ctx } = this;
+    ctx.save();
+    if (it.shape !== 'rect') { roundRect(ctx, box.x, box.y, box.w, box.h, it.shape === 'circle' ? box.h / 2 : box.h * 0.12); ctx.clip(); }
+    ctx.fillStyle = 'rgba(12,14,20,0.82)';
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    ctx.fillStyle = this.accent;
+    ctx.fillRect(box.x, box.y, Math.max(4, box.w * 0.017), box.h);
+    const pad = box.x + Math.max(10, box.w * 0.048);
+    const big = Math.round(box.h * 0.34);
+    const small = Math.round(box.h * 0.22);
+    ctx.fillStyle = '#ffffff';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = `700 ${big}px ${FONT}`;
+    // With no line under it, the title sits in the middle of its band.
+    ctx.fillText(it.text || '', pad, it.subtitle ? box.y + box.h * 0.46 : box.y + box.h * 0.5 + big * 0.36, box.w * 0.9);
+    ctx.fillStyle = 'rgba(255,255,255,0.78)';
+    ctx.font = `500 ${small}px ${FONT}`;
+    ctx.fillText(it.subtitle || '', pad, box.y + box.h * 0.8, box.w * 0.9);
+    ctx.restore();
+    return true;
+  }
+
+  /** The placeholder: the person's picture over the frame, or a card with its words. */
+  drawPlaceholder(stack, W, H) {
+    const { ctx } = this;
+    if (stack.placeholder) this.media.loadImage(stack.placeholder);
+    const pic = stack.placeholder ? this.media.drawable({ kind: 'picture', path: stack.placeholder }) : null;
+    if (pic) {
+      const r = containRect(pic.naturalWidth, pic.naturalHeight, { x: 0, y: 0, w: W, h: H });
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(pic, r.x, r.y, r.w, r.h);
+      return;
+    }
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#1d2230');
+    g.addColorStop(1, '#0d1018');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `700 ${Math.round(H * 0.085)}px ${FONT}`;
+    ctx.fillText(stack.placeholderText || t('Back soon'), W / 2, H * 0.47, W * 0.86);
+    ctx.fillStyle = this.accent;
+    ctx.fillRect(W / 2 - W * 0.05, H * 0.56, W * 0.1, Math.max(4, H * 0.006));
+    ctx.restore();
+  }
+
+  /** One frame. */
   draw() {
-    this.follow();
+    this.onTick?.();
     const { ctx, canvas } = this;
     const W = canvas.width;
     const H = canvas.height;
-    const s = this.settings;
-    const size = (v) => (v && v.videoWidth ? { w: v.videoWidth, h: v.videoHeight } : null);
-    // The screen's region, in its own pixels: the scene is laid out for the part recorded.
-    const sv = this.videos.screen;
-    const crop = this.crop && sv?.videoWidth ? { sx: this.crop.x * sv.videoWidth, sy: this.crop.y * sv.videoHeight, sw: this.crop.w * sv.videoWidth, sh: this.crop.h * sv.videoHeight } : null;
-    const screenSize = crop ? { w: crop.sw, h: crop.sh } : size(sv);
-    const layout = sceneLayout(s.scene, { W, H, screen: screenSize, camera: size(this.videos.camera), settings: s });
-    this.screenAt = null;
-
-    // The ground.
-    if (layout.background === 'card' || layout.background === 'studio') {
-      const g = ctx.createLinearGradient(0, 0, W, H);
-      g.addColorStop(0, '#1d2230');
-      g.addColorStop(1, '#0d1018');
-      ctx.fillStyle = g;
+    const stack = this.stack;
+    const drawn = [];
+    if (!stack || stack.video === 'off') {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+    } else if (stack.video === 'placeholder') {
+      this.drawPlaceholder(stack, W, H);
     } else {
       ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      for (const it of drawOrder(stack)) if (this.drawItem(it, W, H)) drawn.push(it);
     }
-    ctx.fillRect(0, 0, W, H);
-
-    for (const layer of layout.layers) {
-      const v = this.videos[layer.source];
-      if (!v || !v.videoWidth) continue;
-      const { box } = layer;
-      ctx.save();
-      if (layer.shape === 'circle') {
-        ctx.beginPath();
-        ctx.ellipse(box.x + box.w / 2, box.y + box.h / 2, box.w / 2, box.h / 2, 0, 0, Math.PI * 2);
-        ctx.clip();
-      } else if (layer.shape === 'rounded') {
-        roundRect(ctx, box.x, box.y, box.w, box.h, Math.min(box.w, box.h) * 0.06);
-        ctx.clip();
-      }
-      if (layer.fit === 'cover') {
-        const c = coverCrop(v.videoWidth, v.videoHeight, box);
-        if (layer.mirror) {
-          ctx.translate(box.x + box.w, box.y);
-          ctx.scale(-1, 1);
-          ctx.drawImage(v, c.sx, c.sy, c.sw, c.sh, 0, 0, box.w, box.h);
-        } else {
-          ctx.drawImage(v, c.sx, c.sy, c.sw, c.sh, box.x, box.y, box.w, box.h);
-        }
-      } else {
-        const part = layer.source === 'screen' && crop ? crop : { sx: 0, sy: 0, sw: v.videoWidth, sh: v.videoHeight };
-        const r = containRect(part.sw, part.sh, box);
-        ctx.drawImage(v, part.sx, part.sy, part.sw, part.sh, r.x, r.y, r.w, r.h);
-        if (layer.source === 'screen') this.screenAt = { ...r, crop: this.crop };
-      }
-      ctx.restore();
-      // A ring round the camera over the screen, so it reads as a window onto the person.
-      if (layer.source === 'camera' && layout.layers.length > 1) {
-        ctx.save();
-        ctx.lineWidth = Math.max(2, W * 0.002);
-        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-        if (layer.shape === 'circle') { ctx.beginPath(); ctx.ellipse(box.x + box.w / 2, box.y + box.h / 2, box.w / 2, box.h / 2, 0, 0, Math.PI * 2); ctx.stroke(); }
-        else if (layer.shape === 'rounded') { roundRect(ctx, box.x, box.y, box.w, box.h, Math.min(box.w, box.h) * 0.06); ctx.stroke(); }
-        else ctx.strokeRect(box.x, box.y, box.w, box.h);
-        ctx.restore();
-      }
-    }
-
-    // A card: its words in the middle, large.
-    if (layout.card) {
-      ctx.save();
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = `700 ${Math.round(H * 0.085)}px ${FONT}`;
-      ctx.fillText(layout.card.text, W / 2, H * 0.47, W * 0.86);
-      ctx.fillStyle = this.accent;
-      ctx.fillRect(W / 2 - W * 0.05, H * 0.56, W * 0.1, Math.max(4, H * 0.006));
-      ctx.restore();
-    }
-
-    // The title band, when it is on and has words.
-    if (s.titleOn && (s.title || s.subtitle) && !layout.card) {
-      const b = titleBand({ W, H });
-      ctx.save();
-      ctx.fillStyle = 'rgba(12,14,20,0.82)';
-      roundRect(ctx, b.band.x, b.band.y, b.band.w, b.band.h, b.band.h * 0.12);
-      ctx.fill();
-      ctx.fillStyle = this.accent;
-      ctx.fillRect(b.accent.x, b.accent.y, b.accent.w, b.accent.h);
-      ctx.fillStyle = '#ffffff';
-      ctx.textBaseline = 'alphabetic';
-      ctx.font = `700 ${b.title.size}px ${FONT}`;
-      // With no line under it, the title sits in the middle of its band.
-      ctx.fillText(s.title || '', b.title.x, s.subtitle ? b.title.y : b.band.y + b.band.h * 0.5 + b.title.size * 0.36, b.band.w * 0.9);
-      ctx.fillStyle = 'rgba(255,255,255,0.78)';
-      ctx.font = `500 ${b.subtitle.size}px ${FONT}`;
-      ctx.fillText(s.subtitle || '', b.subtitle.x, b.subtitle.y, b.band.w * 0.9);
-      ctx.restore();
-    }
-
-    if (this.logo && this.logo.naturalWidth) {
-      const r = logoBox({ W, H, w: this.logo.naturalWidth, h: this.logo.naturalHeight, corner: s.logoCorner });
-      ctx.drawImage(this.logo, r.x, r.y, r.w, r.h);
-    }
-
     this.frames += 1;
-    // What was drawn, for the checks: how many frames, which scene, which sources.
+    // What was drawn, for the checks: how many frames, and the items drawn bottom first, by kind and by id.
     canvas.dataset.frames = String(this.frames);
-    canvas.dataset.scene = s.scene || '';
-    canvas.dataset.layers = layout.layers.map((l) => l.source).join(' ');
-    canvas.dataset.crop = this.crop ? `${this.crop.x},${this.crop.y},${this.crop.w},${this.crop.h}` : '';
-    { const v = this.videos.screen; const tr = this.streams.screen?.getVideoTracks()[0]; canvas.dataset.screen = v ? `${v.videoWidth}x${v.videoHeight} r${v.readyState} p${v.paused ? 1 : 0} ${tr?.readyState} m${tr?.muted ? 1 : 0}` : 'none'; }
-    { const v = this.videos.camera; canvas.dataset.camera = v && v.videoWidth ? `${v.videoWidth}x${v.videoHeight}` : 'none'; }
-    canvas.dataset.title = s.titleOn && (s.title || s.subtitle) && !layout.card ? '1' : '0';
+    canvas.dataset.video = stack?.video || 'on';
+    canvas.dataset.layers = drawn.map((it) => it.kind).join(' ');
+    canvas.dataset.ids = drawn.map((it) => it.id).join(' ');
     this.track?.requestFrame?.();
     for (const fn of this.listeners) fn(canvas);
   }
@@ -300,33 +226,34 @@ export class Program {
       this.track = s.getVideoTracks()[0];
     }
     const tracks = [this.track];
-    const mixed = sound ? this.rig.mix(['mic', 'system']) : null;
-    tracks.push(mixed || this.rig.silence());
-    return { stream: new MediaStream(tracks), heard: Boolean(mixed) };
+    tracks.push(sound ? this.media.mix() : this.media.silence());
+    return { stream: new MediaStream(tracks), heard: sound && this.media.heard() };
   }
 
   /**
-   * A still picture as PNG bytes: the program as it was last drawn, or the
-   * screen (its region, when one is chosen) or the camera at their own size,
-   * the camera mirrored as it is shown. Answers { bytes, width, height }, or
-   * null when that source shows nothing yet.
+   * A still picture as PNG bytes: the program as it was last drawn, or one
+   * item at its source's own size, through its clip, mirrored as it is
+   * shown. Answers { bytes, width, height }, or null when there is nothing
+   * to take yet.
    */
-  async snapshot(what = 'program') {
+  async snapshot(item = null) {
     let canvas = this.canvas;
-    if (what === 'screen' || what === 'camera') {
-      const v = this.videos[what];
-      if (!v || !v.videoWidth) return null;
-      const c = what === 'screen' && this.crop ? this.crop : { x: 0, y: 0, w: 1, h: 1 };
-      const sx = Math.round(c.x * v.videoWidth);
-      const sy = Math.round(c.y * v.videoHeight);
-      const sw = Math.max(1, Math.min(v.videoWidth - sx, Math.round(c.w * v.videoWidth)));
-      const sh = Math.max(1, Math.min(v.videoHeight - sy, Math.round(c.h * v.videoHeight)));
+    if (item && item.kind !== 'title') {
+      const d = this.media.drawable(item);
+      const w = d?.videoWidth || d?.naturalWidth || d?.width;
+      const h = d?.videoHeight || d?.naturalHeight || d?.height;
+      if (!w || !h) return null;
+      const c = item.crop || { x: 0, y: 0, w: 1, h: 1 };
+      const sx = Math.round(c.x * w);
+      const sy = Math.round(c.y * h);
+      const sw = Math.max(1, Math.min(w - sx, Math.round(c.w * w)));
+      const sh = Math.max(1, Math.min(h - sy, Math.round(c.h * h)));
       canvas = document.createElement('canvas');
       canvas.width = sw;
       canvas.height = sh;
       const ctx = canvas.getContext('2d');
-      if (what === 'camera' && this.settings.mirror) { ctx.translate(sw, 0); ctx.scale(-1, 1); }
-      ctx.drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh);
+      if (item.mirror) { ctx.translate(sw, 0); ctx.scale(-1, 1); }
+      ctx.drawImage(d, sx, sy, sw, sh, 0, 0, sw, sh);
     } else if (!this.frames) {
       return null;
     }
@@ -335,16 +262,26 @@ export class Program {
     return { bytes: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height };
   }
 
-  /** Start recording the program to `path`; answers when it has begun. */
-  async record({ shell, path }) {
-    const type = programType();
-    const { stream, heard } = this.stream();
-    const bits = videoBitrate({ width: this.canvas.width, height: this.canvas.height, fps: this.fps, quality: this.settings.quality });
+  /** Start recording the program to `path` (picture and sound, or with `soundOnly` the sound alone); answers when it has begun. */
+  async record({ shell, path, soundOnly = false }) {
     let rec;
-    try {
-      rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: bits, audioBitsPerSecond: AUDIO_BITRATE });
-    } catch {
-      rec = new MediaRecorder(stream);
+    let heard;
+    let type;
+    if (soundOnly) {
+      ({ type } = voiceType());
+      heard = this.media.heard();
+      const stream = new MediaStream([this.media.mix()]);
+      try { rec = new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: AUDIO_BITRATE }); } catch { rec = new MediaRecorder(stream); }
+    } else {
+      type = programType();
+      const made = this.stream();
+      heard = made.heard;
+      const bits = videoBitrate({ width: this.canvas.width, height: this.canvas.height, fps: this.fps, quality: this.settings.quality });
+      try {
+        rec = new MediaRecorder(made.stream, { mimeType: type, videoBitsPerSecond: bits, audioBitsPerSecond: AUDIO_BITRATE });
+      } catch {
+        rec = new MediaRecorder(made.stream);
+      }
     }
     const writer = createChunkWriter({ append: (bytes) => shell.fs.append({ path, bytes }) });
     rec.ondataavailable = (e) => { if (e.data?.size) writer.push(e.data); };
@@ -352,7 +289,7 @@ export class Program {
     const clock = createClock();
     rec.start(1000);
     clock.start(performance.now());
-    this.recording = { rec, writer, stopped, clock, path, heard, type };
+    this.recording = { rec, writer, stopped, clock, path, heard, type, soundOnly };
     return this.recording;
   }
 
@@ -384,14 +321,12 @@ export class Program {
     const done = await r.writer.done();
     this.recording = null;
     if (done.failed) throw new Error(t('The recording could not be kept: {reason}', { reason: done.failed.message || String(done.failed) }));
-    return { path: r.path, written: done.written, seconds, heard: r.heard };
+    return { path: r.path, written: done.written, seconds, heard: r.heard, soundOnly: r.soundOnly };
   }
 
   dispose() {
     this.stopDrawing();
     if (this.recording) { try { this.recording.rec.stop(); } catch { /* stopped */ } }
-    for (const v of Object.values(this.videos)) letGo(v);
-    this.videos = { screen: null, camera: null };
     try { this.track?.stop(); } catch { /* ended */ }
     this.listeners.clear();
   }

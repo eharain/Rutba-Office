@@ -39,9 +39,14 @@ export async function verifyRecorderTools(h, { dir }) {
     for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed() && /app=recorder\b/.test(w.webContents.getURL())) w.destroy();
     await wait(300);
     const own = await js(`window.rutbaOffice.store.get({ key: 'recorder.studio', fallback: null })`);
-    const mine = { ...(own || {}), scene: 'split', size: 720, fps: 24, countdown: 5, camera: true, mic: true, system: false, titleOn: false, title: 'My own title', folder: path.join(dir, 'my recordings') };
-    await js(`window.rutbaOffice.store.set({ key: 'recorder.studio', value: ${JSON.stringify(mine)} }).then(() => 1)`);
+    const mine = { ...(own || {}), size: 720, fps: 24, countdown: 5, folder: path.join(dir, 'my recordings') };
+    // The person's share: their camera alone, as a circle, with their title over it, and no sound from the computer.
+    const myStack = { version: 2, video: 'on', sound: 'on', scenes: [],
+      items: [{ id: 'title-1', kind: 'title', text: 'My own title', on: true, live: true, box: { x: 0.04, y: 0.78, w: 0.5, h: 0.14 } }, { id: 'camera-1', kind: 'camera', ref: '', on: true, live: true, shape: 'circle', box: { x: 0.3, y: 0.1, w: 0.4, h: 0.71 } }],
+      sounds: [{ id: 'mic-1', kind: 'mic', ref: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', live: false, muted: false, gain: 1 }] };
+    await js(`Promise.all([window.rutbaOffice.store.set({ key: 'recorder.studio', value: ${JSON.stringify(mine)} }), window.rutbaOffice.store.set({ key: 'recorder.stack', value: ${JSON.stringify(myStack)} })]).then(() => 1)`);
     const settingsWere = await js(`window.rutbaOffice.store.get({ key: 'recorder.studio', fallback: null })`);
+    const stackWas = await js(`window.rutbaOffice.store.get({ key: 'recorder.stack', fallback: null })`);
     const listedOff = await js(`window.rutbaOffice.ai.things().then((r) => r.things.find((x) => x.kind === 'recorder') || null)`);
 
     // An AI app, as AI Tools says to start one.
@@ -91,14 +96,18 @@ export async function verifyRecorderTools(h, { dir }) {
     const probe = there ? probeMedia(new Uint8Array(fs.readFileSync(file)), { complete: true }) : null;
     const after = textOf(await tool('recorder_state'));
     const settingsNow = await js(`window.rutbaOffice.store.get({ key: 'recorder.studio', fallback: null })`);
+    await wait(500);
+    const stackNow = await js(`window.rutbaOffice.store.get({ key: 'recorder.stack', fallback: null })`);
     check('recorder tools: set to record, an AI app lists the windows, records one for five seconds into its folder and stops; the file it is told of plays, as long as it was told',
       Boolean(source) && started && !started.result?.isError && /^phase\trecording/.test(during) && there && probe?.hasVideo && probe.duration >= 4 && probe.duration <= 8
         && Math.abs(Number(said[2]) - probe.duration) <= 1.5 && Number(said[3]) === fs.statSync(file).size && /^phase\tsetup/.test(after),
       JSON.stringify({ source, started: textOf(started), during, stopped: textOf(stopped), probe: probe ? { video: probe.hasVideo, duration: probe.duration } : null, after }));
     const keys = Object.keys(mine);
     const pick = (o) => JSON.stringify(Object.fromEntries(keys.map((k) => [k, o?.[k]])));
-    check('recorder tools: the Recorder\'s own settings are as the person left them once the tools\' recording ends',
-      pick(settingsNow) === pick(settingsWere) && settingsWere?.countdown === 5, JSON.stringify({ settingsWere, settingsNow }).slice(0, 900));
+    const shareOf = (st) => JSON.stringify((st?.items || []).map((it) => [it.id, it.kind, it.on, it.shape, it.text || '']));
+    check('recorder tools: the Recorder\'s own settings and share are as the person left them once the tools\' recording ends',
+      pick(settingsNow) === pick(settingsWere) && settingsWere?.countdown === 5 && shareOf(stackNow) === shareOf(stackWas) && (stackWas?.items || []).length === 2,
+      JSON.stringify({ settingsWere, settingsNow, stackWas: shareOf(stackWas), stackNow: shareOf(stackNow) }).slice(0, 900));
 
     // The log: the tools and the Recorder at the step they used.
     const log = await js(`window.rutbaOffice.ai.state().then((s) => s.log.slice(0, 8))`);

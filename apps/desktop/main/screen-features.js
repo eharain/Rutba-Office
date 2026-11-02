@@ -134,21 +134,37 @@ const LANDSCAPE = path.join('Sample Pictures', 'Lakeside at dawn.png');
 
 /**
  * Recorder recording a document: the quarterly review opened in Documents,
- * Window chosen and that window picked, and the program drawn with it.
+ * shown from the list on the right with the camera, and the scene chosen.
  */
-async function recordWindowIn(h) {
+async function recordWindowIn(h, scene = 'screen-camera') {
   const doc = h.windows.create({ app: 'word', file: h.sample('quarterly-review.docx') });
   await new Promise((resolve) => doc.webContents.once('did-finish-load', resolve));
   await h.untilHere(() => doc.webContents.executeJavaScript(`Boolean(document.querySelector('.wd-block'))`), 'the document to record', 12000);
   await h.wait(1200);
-  await h.until(`Boolean(document.querySelector('.st-kinds button[data-value="window"]'))`, 'the source kinds', 8000);
-  await h.click('.st-kinds button[data-value="window"]', 'Window');
-  // The list was read when the window opened, before the document was: read again.
-  await h.button('Refresh the list');
-  await h.until(`[...document.querySelectorAll('.st-sources .rec-source')].some((n) => /quarterly-review/.test(n.dataset.tip || ''))`, 'the document in the list', 10000);
-  await h.js(`(() => { [...document.querySelectorAll('.st-sources .rec-source')].find((n) => /quarterly-review/.test(n.dataset.tip || ''))?.click(); return 1; })()`);
-  await h.until(`(document.querySelector('.st-canvas')?.dataset.layers || '').includes('screen')`, 'the window in the program', 20000);
+  await h.until(`Boolean(document.querySelector('.st-list .st-add'))`, 'the list', 8000);
+  // The list was read when the window opened, before the document was: read again, from Add.
+  await h.click('.st-list .st-add', 'Add');
+  await h.button('Refresh the list', '[role="menuitem"]');
+  const listed = `[...document.querySelectorAll('.st-list .st-spare[data-kind="window"]')].find((n) => /quarterly-review/.test(n.dataset.tip || ''))`;
+  await h.until(`Boolean(${listed})`, 'the document in the list', 10000);
+  await h.js(`${listed}.querySelector('.st-eye').click(), 1`);
+  await h.until(`(document.querySelector('.st-canvas')?.dataset.layers || '').includes('window')`, 'the window in the program', 20000);
+  await h.js(`document.querySelector('.st-scene[data-scene="${scene}"]')?.click(), 1`);
+  await h.until(`/window camera/.test(document.querySelector('.st-canvas')?.dataset.layers || '')`, 'the scene', 20000);
 }
+
+/** The Recorder's share before a run: the camera and a title, the document added by recordWindowIn. */
+const recorderStack = (title) => ({
+  version: 2,
+  video: 'on',
+  sound: 'on',
+  scenes: [],
+  items: [
+    ...(title ? [{ id: 'title-1', kind: 'title', text: 'Imogen Hartley', subtitle: 'Northbank Logistics, quarterly review', on: true, live: true }] : []),
+    { id: 'camera-1', kind: 'camera', ref: '', on: true, live: true, shape: 'circle', mirror: true },
+  ],
+  sounds: [{ id: 'mic-1', kind: 'mic', ref: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', live: false, muted: false, gain: 1 }],
+});
 
 /** Video's playhead moved, as dragging the slider under the preview moves it. */
 const scrubVideo = async (h, t) => {
@@ -858,7 +874,8 @@ export const FEATURES = [
     app: 'recorder',
     asApp: 'recorder',
     async before({ stores, samples }) {
-      stores.settings.set('recorder.studio', { scene: 'screen-camera', size: 1080, fps: 30, countdown: 3, camera: true, mic: true, system: false, titleOn: true, title: 'Imogen Hartley', subtitle: 'Northbank Logistics, quarterly review', folder: samples, minimise: true, shape: 'circle', corner: 'br', insetSize: 'medium' });
+      stores.settings.set('recorder.studio', { size: 1080, fps: 30, countdown: 3, folder: samples, minimise: true });
+      stores.settings.set('recorder.stack', recorderStack(true));
     },
     async setup(h) {
       await recordWindowIn(h);
@@ -871,13 +888,15 @@ export const FEATURES = [
     name: 'recorder-go-live',
     app: 'recorder',
     async before({ stores, samples }) {
-      stores.settings.set('recorder.studio', { scene: 'split', size: 1080, fps: 30, countdown: 3, camera: true, mic: true, system: false, titleOn: false, folder: samples, minimise: true, liveCopy: true });
+      stores.settings.set('recorder.studio', { size: 1080, fps: 30, countdown: 3, folder: samples, minimise: true, liveCopy: true });
+      stores.settings.set('recorder.stack', recorderStack(false));
     },
     async setup(h) {
-      await recordWindowIn(h);
+      await recordWindowIn(h, 'split');
       for (const d of await h.js(`window.rutbaOffice.live.destinations()`)) await h.js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`);
       await h.js(`window.rutbaOffice.live.saveDestination({ platform: 'youtube', name: 'YouTube', on: true, key: 'sample-stream-key-2025' })`);
       await h.js(`window.rutbaOffice.live.saveDestination({ platform: 'facebook', name: 'Facebook page', on: true })`);
+      await h.click('.st-gear', 'Recorder settings');
       await h.click('.st-dests-btn', 'Destinations');
       await h.until(`document.querySelectorAll('.lv-dest').length === 2`, 'the destinations', 6000);
       await h.wait(800);

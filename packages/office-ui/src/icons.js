@@ -160,6 +160,7 @@ const PATHS = {
   rotateLeft: [P('M4 11a8 8 0 1 1 2 6'), P('M4 5v6h6')],
   flipVertical: [P('M3 12h18'), P('M7 8 12 4l5 4zM7 16l5 4 5-4z')],
   mkRect: [P('M4 6h16v12H4z')],
+  mkRounded: [P('M8 6h8a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-4a4 4 0 0 1 4-4z')],
   mkEllipse: [P('M12 18.5c4.7 0 8.5-2.9 8.5-6.5S16.7 5.5 12 5.5 3.5 8.4 3.5 12s3.8 6.5 8.5 6.5z')],
   mkArrow: [P('M5 19 18 6'), P('M10 6h8v8')],
   mkLine: [P('M5 19 19 5')],

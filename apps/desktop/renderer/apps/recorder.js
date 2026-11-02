@@ -1,46 +1,47 @@
-// Rutba Recorder: record the screen, the camera and the voice as one finished
-// video, made live from scenes (owner, 2026-10-19: "split the recording tool
-// out to be able to record video and stream videos live"), and take still
-// pictures of the same (owner, 2026-10-20: "there should be a way to capture
-// pictures on camera and from screens etc.").
+// Rutba Recorder: record the screen, cameras and sound as one finished video,
+// go live, and take pictures, from one studio (owner, 2026-10-19: "split the
+// recording tool out to be able to record video and stream videos live";
+// 2026-10-20: "there should be a way to capture pictures on camera and from
+// screens etc.").
 //
-// The window is a small studio. On the left the scenes: the screen with the
-// camera in a corner, the screen alone, the camera alone, the two side by
-// side, and a Be right back card. In the middle the program, the picture as
-// it is recorded, drawn live. On the right the sources: the screen or window,
-// the camera, the microphone and the computer's sound with their levels, a
-// title across the foot of the frame and a logo in a corner. A scene can be
-// changed while it records. Stop keeps one file, a WebM in the recordings
-// folder, to play, to edit in Video, or to find in its folder.
+// Rebuilt as one studio (owner, 2026-11-02, D-2026-11-02-13): "the screen and
+// cameras all should work exactly same way so no separate features and
+// functions on top. i can clip screen i should be able to clip camera."
 //
-// The sources are the screen recorder's own rig (Video → Record Screen), so
-// the screen, window, camera and sound behave the same in both.
+// The first line holds Take Picture, Go Live and Record side by side (each of
+// the last two a toggle that shows it is on, with its time), the Video switch
+// (video, no video, placeholder) and the Sound switch (sound, no sound,
+// music). In the middle is the share, the picture as it is recorded and
+// streamed, with the selected source's bar over it and the scenes under it.
+// On the right, one list of every source: on the share top first, not shown,
+// and the sounds. Every screen, window and camera is clipped, shaped, placed,
+// mirrored, started and stopped the same way, and any of them can sit on any
+// other.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ribbon, Group, Button, Rows, Select, Icon, Input, Panel, Content, Spinner, useToast, formatBytes, basename, t } from '@rutba/office-ui';
-import { normaliseStudio, SCENES, STUDIO_DEFAULTS } from '@rutba/studio/compositor';
+import { Button, Icon, Panel, Content, Menu, useToast, formatBytes, basename, t } from '@rutba/office-ui';
+import { normaliseStudio, STUDIO_DEFAULTS } from '@rutba/studio/compositor';
+import {
+  normaliseStack, emptyStack, stackFromSettings, addItem, removeItem, duplicateItem, moveItem, showItem, placeItem, shapeItem, clipItem,
+  updateItem, updateSound, frameToSource, itemAt, saveScene, removeScene, applyScene, builtInScenes, recordKind, clampBox, newId,
+} from '@rutba/studio/stack';
 import { takeFileName, bytesPerSecond, diskState, regionCrop } from '@rutba/studio/recorder';
 import { AppFrame, useAppMenu } from '../shell.js';
-import { RecorderRig } from '../recording/session.js';
-import { Toggle, Segments, Meter } from '../recording/panel.js';
 import { RECORDER_CSS } from '../recording/css.js';
 import { Program } from './recorder/program.js';
+import { StudioMedia, sourceKey } from './recorder/media.js';
 import { LiveEncoder, AUDIO_KBPS } from './recorder/live.js';
 import { LiveDialog, LIVE_CSS } from './recorder/live-dialog.js';
+import { SourceList, itemName } from './recorder/list.js';
+import { SourceBar } from './recorder/bar.js';
+import { StudioSettings } from './recorder/settings-dialog.js';
 import { liveBitrate } from '@rutba/stream/endpoints';
 import { STUDIO_CSS } from './recorder/css.js';
 
 const STORE_KEY = 'recorder.studio';
+const STACK_KEY = 'recorder.stack';
 const DISK_EVERY_MS = 5000;
-
-const SCENE_ICON = { 'screen-camera': 'layers', screen: 'screen', camera: 'camera', split: 'grid', brb: 'clock' };
-const SCENE_NAMES = () => ({
-  'screen-camera': t('Screen and camera'),
-  screen: t('Screen'),
-  camera: t('Camera'),
-  split: t('Side by side'),
-  brb: t('Be right back'),
-});
+const SOUND_EXT = ['webm', 'weba', 'ogg', 'mp4', 'mov', 'mkv', 'm4a', 'mp3', 'wav'];
 
 const clock = (ms) => {
   const s = Math.floor(ms / 1000);
@@ -50,32 +51,41 @@ const clock = (ms) => {
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 };
 
+const SCENE_NAMES = () => ({ 'screen-camera': t('Screen and camera'), screen: t('Screen'), camera: t('Camera'), split: t('Side by side') });
+
+/** A source's picture aspect, from what is open or what the capture list says. */
+function aspectOf(media, item, sources) {
+  const size = media.sizeOf(item);
+  if (size) return size.w / size.h;
+  const d = sources?.find((s) => s.id === item.ref)?.display;
+  return d?.width && d?.height ? d.width / d.height : 16 / 9;
+}
+
 export default function Recorder({ app, shell }) {
   const toast = useToast();
   const [settings, setSettings] = useState(() => normaliseStudio(null));
+  const [stack, setStack] = useState(() => emptyStack());
   const [loaded, setLoaded] = useState(false);
   const [sources, setSources] = useState(null);
-  const [kind, setKind] = useState('screen');
-  // Region (owner, 2026-10-20: "in recorder the region is not present as in
-  // video is"): the part of the screen or window recorded, and the one being drawn.
-  const [crop, setCrop] = useState(null);
-  const [drawing, setDrawing] = useState(null);
-  const [sourceId, setSourceId] = useState(null);
   const [devices, setDevices] = useState({ cameras: [], mics: [] });
-  const [phase, setPhase] = useState('setup'); // setup | countdown | recording | stopping
+  const [selected, setSelected] = useState(null);
+  const [clipping, setClipping] = useState(false);
+  const [drawing, setDrawing] = useState(null);
+  const [phase, setPhase] = useState('setup'); // setup | countdown | starting | recording | stopping
   const [count, setCount] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [paused, setPaused] = useState(false);
   const [disk, setDisk] = useState(null);
   const [keys, setKeys] = useState(null);
-  const [saved, setSaved] = useState(null); // { path, written, seconds }
-  // Take Picture: the last picture kept, the seconds left on its timer, and a flash each time.
-  const [picture, setPicture] = useState(null); // { path, width, height, url }
+  const [saved, setSaved] = useState(null);
+  const [picture, setPicture] = useState(null);
   const [shotCount, setShotCount] = useState(null);
   const [flash, setFlash] = useState(0);
-  const [logoUrl, setLogoUrl] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sceneMenu, setSceneMenu] = useState(null);
+  const [lastScene, setLastScene] = useState(null);
+  const [recent, setRecent] = useState([]);
   const [, setTick] = useState(0);
-  const [tab, setTab] = useState('home');
   // Go Live: off, starting, live or ending; the destinations as the main process reports them.
   const [livePhase, setLivePhase] = useState('off');
   const [liveStatus, setLiveStatus] = useState([]);
@@ -84,41 +94,24 @@ export default function Recorder({ app, shell }) {
   const encoder = useRef(null);
   const liveRecord = useRef(false);
   const canvasRef = useRef(null);
+  const frameRef = useRef(null);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+  const stackRef = useRef(stack);
+  stackRef.current = stack;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const stopRef = useRef(null);
   const pauseRef = useRef(null);
   const warned = useRef(false);
-  const rig = useMemo(() => new RecorderRig({ shell, onChange: () => setTick((n) => n + 1) }), [shell]);
+  const media = useMemo(() => new StudioMedia({ shell, onChange: () => setTick((n) => n + 1) }), [shell]);
   const program = useRef(null);
-  const stalls = useRef(0);
   // The AI tools' requests (capture:command 'remote'): the latest handler, the recording they asked for, and the take's path.
   const remoteRef = useRef(null);
   const remote = useRef(null);
   const takenRef = useRef(null);
 
-  const appMenu = useAppMenu({ shell, appKey: 'recorder', onNew: () => shell.win.create({ app: 'recorder' }), onOpen: async () => {
-    const files = await shell.dialog.open({ title: t('Open'), filters: [{ name: t('Video and sound'), extensions: ['webm', 'mp4', 'mov', 'mkv', 'weba', 'm4a', 'mp3', 'wav'] }] });
-    if (files?.[0]) shell.win.create({ app: 'video', file: files[0] });
-  } });
-
-  // The settings this person last recorded with, and where recordings go.
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      const stored = await shell.store.get({ key: STORE_KEY, fallback: null }).catch(() => null);
-      const paths = await shell.app.paths().catch(() => null);
-      if (!live) return;
-      const s = normaliseStudio(stored);
-      // The card's words in the window's language until the person writes their own.
-      if (!stored?.brb || stored.brb === STUDIO_DEFAULTS.brb) s.brb = t('Be right back');
-      const sep = paths?.separator || '\\';
-      if (!s.folder && paths?.videos) s.folder = `${paths.videos}${sep}${t('Rutba Recordings')}`;
-      setSettings(s);
-      setLoaded(true);
-    })();
-    return () => { live = false; };
-  }, [shell]);
+  /* ── the stack and the settings, kept ──────────────────────────────── */
 
   const change = useCallback((patch) => {
     setSettings((s) => {
@@ -128,106 +121,264 @@ export default function Recorder({ app, shell }) {
     });
   }, [shell]);
 
-  // The program, drawn from the start, and let go with the window.
-  useEffect(() => {
-    const p = new Program({ rig, canvas: canvasRef.current });
-    program.current = p;
-    // A screen that gives no picture is opened again, twice at most for each choice of source.
-    p.onStall = (name) => {
-      if (name !== 'screen' || stalls.current >= 2) return;
-      stalls.current += 1;
-      rig.refreshScreen();
-    };
-    p.set(settings);
-    p.start();
-    return () => { p.dispose(); rig.dispose(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rig]);
-  useEffect(() => { program.current?.set(settings); }, [settings]);
+  /** The stack changed by `fn`; kept unless `keep` is false (a drag keeps it once, at its end). */
+  const changeStack = useCallback((fn, keep = true) => {
+    setStack((s) => {
+      const next = normaliseStack(fn(s));
+      if (keep) shell.store.set({ key: STACK_KEY, value: next }).catch(() => {});
+      return next;
+    });
+  }, [shell]);
 
-  // The logo, read from its file.
+  // The settings and the stack this person last had, and where recordings go.
+  const storedRef = useRef(null);
   useEffect(() => {
-    let url = null;
     let live = true;
-    if (!settings.logo) { setLogoUrl(null); program.current?.setLogo(null); return undefined; }
-    shell.fs.read({ path: settings.logo }).then(({ bytes }) => {
+    (async () => {
+      const stored = await shell.store.get({ key: STORE_KEY, fallback: null }).catch(() => null);
+      const kept = await shell.store.get({ key: STACK_KEY, fallback: null }).catch(() => null);
+      const paths = await shell.app.paths().catch(() => null);
       if (!live) return;
-      url = URL.createObjectURL(new Blob([bytes]));
-      setLogoUrl(url);
-      program.current?.setLogo(url);
-    }).catch(() => { if (live) toast(t('The logo could not be read.'), { tone: 'bad' }); });
-    return () => { live = false; if (url) URL.revokeObjectURL(url); };
-  }, [shell, settings.logo, toast]);
+      const s = normaliseStudio(stored);
+      const sep = paths?.separator || '\\';
+      if (!s.folder && paths?.videos) s.folder = `${paths.videos}${sep}${t('Rutba Recordings')}`;
+      setSettings(s);
+      storedRef.current = { stored, kept };
+      if (kept) setStack(normaliseStack(kept));
+      setLoaded(true);
+    })();
+    return () => { live = false; };
+  }, [shell]);
 
-  // What there is to record.
+  // What there is to show: the screens and windows, the cameras and microphones.
   const loadSources = useCallback(async () => {
-    try {
-      setSources((await shell.capture.sources()) || []);
-    } catch {
-      setSources([]);
-    }
+    try { setSources((await shell.capture.sources()) || []); } catch { setSources([]); }
+    setDevices(await StudioMedia.devices());
   }, [shell]);
   useEffect(() => { loadSources(); }, [loadSources]);
-  const listed = useMemo(() => {
-    const all = sources || [];
-    // A region is drawn on a screen or a window: the screens first, then the windows.
-    if (kind === 'region') return [...all.filter((s) => s.kind === 'screen'), ...all.filter((s) => s.kind === 'window')];
-    return all.filter((s) => s.kind === kind);
-  }, [sources, kind]);
-  useEffect(() => {
-    if (!sources) return;
-    if (!listed.some((s) => s.id === sourceId)) setSourceId(listed[0]?.id || null);
-  }, [listed, sources, sourceId]);
-  const source = listed.find((s) => s.id === sourceId) || null;
-  useEffect(() => { stalls.current = 0; }, [sourceId]);
-  // A region belongs to its source: another source, or another kind, starts whole.
-  useEffect(() => { setCrop(null); }, [sourceId, kind]);
-  useEffect(() => { program.current?.setCrop(kind === 'region' ? crop : null); }, [crop, kind]);
 
-  /** A drag on the picture, read as the part of the source under it. */
-  const frameRef = useRef(null);
-  const drawRegion = (e) => {
-    if (kind !== 'region' || phase !== 'setup' || e.button !== 0 || !program.current?.screenAt) return;
+  // A first stack, once the screens are known: from the Recorder's settings before it was a stack.
+  useEffect(() => {
+    if (!loaded || !sources || storedRef.current?.kept || storedRef.current?.made) return;
+    storedRef.current = { ...storedRef.current, made: true };
+    const screen = sources.find((x) => x.kind === 'screen') || sources[0] || null;
+    const raw = storedRef.current?.stored;
+    const first = stackFromSettings({ ...(raw || {}), brb: raw?.brb && raw.brb !== STUDIO_DEFAULTS.brb ? raw.brb : t('Back soon') }, { screen });
+    changeStack(() => first);
+  }, [loaded, sources, changeStack]);
+
+  // The program, drawn from the start, and let go with the window.
+  useEffect(() => {
+    const p = new Program({ media, canvas: canvasRef.current });
+    program.current = p;
+    p.onTick = () => media.revive(stackRef.current, { fps: settingsRef.current.fps, size: settingsRef.current.size });
+    p.set(settings);
+    p.start();
+    return () => { p.dispose(); media.dispose(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media]);
+  useEffect(() => { program.current?.set(settings); }, [settings]);
+  useEffect(() => { program.current?.setStack(stack); }, [stack]);
+
+  // The sources open as the stack says; the sound as its sounds and the Sound switch say.
+  useEffect(() => {
+    if (!loaded || !sources) return;
+    media.sync(stack, sources, { fps: settings.fps, size: settings.size });
+  }, [media, loaded, sources, stack, settings.fps, settings.size]);
+  const soundKey = JSON.stringify([stack.sounds, stack.sound, stack.music]);
+  useEffect(() => {
+    if (!loaded) return;
+    media.syncSounds(stackRef.current).then(() => StudioMedia.devices().then(setDevices));
+  }, [media, loaded, soundKey]);
+
+  /* ── the list's actions ────────────────────────────────────────────── */
+
+  const thumbs = useMemo(() => Object.fromEntries((sources || []).map((s) => [s.id, s.thumbnail])), [sources]);
+  const firstCamera = devices.cameras[0]?.id || '';
+  const firstMic = devices.mics[0]?.id || '';
+  const spare = useMemo(() => {
+    const has = (kind, ref) => stack.items.some((it) => (kind === 'camera' ? it.kind === 'camera' && (it.ref || firstCamera) === ref : it.ref === ref));
+    const out = [];
+    for (const s of sources || []) if ((s.kind === 'screen' || s.kind === 'window') && !has(s.kind, s.id)) out.push({ kind: s.kind, ref: s.id, name: s.name, thumb: s.thumbnail, aspect: s.display?.width && s.display?.height ? s.display.width / s.display.height : 16 / 9 });
+    for (const c of devices.cameras) if (!has('camera', c.id)) out.push({ kind: 'camera', ref: c.id, name: c.name, thumb: null, aspect: 16 / 9 });
+    // The cameras first: there are few of them, and many windows.
+    return [...out.filter((x) => x.kind === 'camera'), ...out.filter((x) => x.kind === 'screen'), ...out.filter((x) => x.kind === 'window')];
+  }, [sources, devices, stack.items, firstCamera]);
+  const spareSounds = useMemo(() => devices.mics.filter((m) => !stack.sounds.some((s) => s.kind === 'mic' && (s.ref || firstMic) === m.id)).map((m) => ({ kind: 'mic', ref: m.id, name: m.name })), [devices, stack.sounds, firstMic]);
+  // The sounds' names, from the devices.
+  const named = useMemo(() => ({
+    ...stack,
+    sounds: stack.sounds.map((s) => ({ ...s, name: s.name || (s.kind === 'system' ? t('Computer sound') : devices.mics.find((m) => m.id === (s.ref || firstMic))?.name || t('Microphone')) })),
+    items: stack.items.map((it) => (it.kind === 'camera' && !it.name ? { ...it, name: devices.cameras.find((c) => c.id === (it.ref || firstCamera))?.name || '' } : it)),
+  }), [stack, devices, firstMic, firstCamera]);
+
+  const act = {
+    show: (id, on) => changeStack((s) => {
+      let next = showItem(s, id, on);
+      if (on) next = updateItem(next, id, { live: true });
+      return next;
+    }),
+    live: (id, on) => changeStack((s) => {
+      const it = s.items.find((x) => x.id === id);
+      if (!it) return s;
+      // Every copy of a source starts and stops with it: they are one capture.
+      return { ...s, items: s.items.map((x) => (sourceKey(x) === sourceKey(it) ? { ...x, live: on } : x)) };
+    }),
+    move: (id, at) => changeStack((s) => {
+      const from = s.items.findIndex((x) => x.id === id);
+      return moveItem(s, id, from >= 0 && from < at ? at - 1 : at);
+    }),
+    addSpare: (sp, { on = true, live = true, at = null, select = false } = {}) => {
+      let added = null;
+      changeStack((s) => {
+        const r = addItem(s, { kind: sp.kind, ref: sp.ref, name: sp.name, on, live, shape: 'rect' }, { aspect: sp.aspect });
+        added = r.id;
+        return at == null ? r.stack : moveItem(r.stack, r.id, at);
+      });
+      if (select) setTimeout(() => { if (added) setSelected(added); }, 0);
+    },
+    sound: (id, patch) => changeStack((s) => updateSound(s, id, patch)),
+    addSound: (sp) => changeStack((s) => ({ ...s, sounds: [...s.sounds, { id: newId('mic', s.sounds.map((x) => x.id)), kind: 'mic', ref: sp.ref, name: '', live: true, muted: false, gain: 1 }] })),
+    addItems: () => [
+      { label: t('Title'), icon: 'textbox', run: () => { let id; changeStack((s) => { const r = addItem(s, { kind: 'title', text: t('Your name, or the title') }); id = r.id; return r.stack; }); setTimeout(() => setSelected(id), 0); } },
+      { label: t('Picture or Logo…'), icon: 'picture', run: () => choosePicture(null) },
+      ...(selItem && ['screen', 'window', 'camera'].includes(selItem.kind) ? [{ label: t('Another copy of {name}', { name: itemName(selItem) }), icon: 'duplicate', run: () => barAct.copy() }] : []),
+      '-',
+      { label: t('Refresh the list'), icon: 'refresh', run: loadSources },
+    ],
+  };
+
+  const selItem = named.items.find((it) => it.id === selected) || null;
+  const selSound = named.sounds.find((s) => s.id === selected) || null;
+  useEffect(() => { if (!selItem) setClipping(false); }, [selItem]);
+
+  const choosePicture = async (id) => {
+    const picked = await shell.dialog.open({ title: t('Choose a picture'), filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }] });
+    if (!picked?.[0]) return;
+    if (id) { changeStack((s) => updateItem(s, id, { path: picked[0] })); return; }
+    let added;
+    changeStack((s) => { const r = addItem(s, { kind: 'picture', path: picked[0] }, { aspect: 1 }); added = r.id; return r.stack; });
+    setTimeout(() => setSelected(added), 0);
+  };
+
+  const barAct = {
+    live: (on) => selItem && act.live(selItem.id, on),
+    clip: () => setClipping((v) => !v),
+    whole: () => selItem && changeStack((s) => clipItem(s, selItem.id, null, { aspect: aspectOf(media, selItem, sources) })),
+    shape: (shape) => selItem && changeStack((s) => shapeItem(s, selItem.id, shape, { aspect: aspectOf(media, selItem, sources) })),
+    place: (place) => selItem && changeStack((s) => placeItem(s, selItem.id, place, { aspect: aspectOf(media, selItem, sources) })),
+    mirror: () => selItem && changeStack((s) => updateItem(s, selItem.id, { mirror: !selItem.mirror })),
+    text: (patch) => selItem && changeStack((s) => updateItem(s, selItem.id, patch)),
+    change: () => selItem && choosePicture(selItem.id),
+    copy: () => { if (!selItem) return; let id; changeStack((s) => { const r = duplicateItem(s, selItem.id); id = r.id; return r.stack; }); setTimeout(() => setSelected(id), 0); },
+    remove: () => { if (!selItem) return; changeStack((s) => removeItem(s, selItem.id)); setSelected(null); },
+    sound: (patch) => selSound && act.sound(selSound.id, patch),
+  };
+
+  /* ── the share: select, move, resize, clip ─────────────────────────── */
+
+  const frameAt = (e) => {
+    const r = frameRef.current.getBoundingClientRect();
+    return { fx: (e.clientX - r.left) / r.width, fy: (e.clientY - r.top) / r.height };
+  };
+  const snap = (v, size) => {
+    for (const edge of [0, 1 - size, 0.5 - size / 2]) if (Math.abs(v - edge) < 0.012) return edge;
+    return v;
+  };
+  const onFramePointer = (e) => {
+    if (e.button !== 0 || !frameRef.current) return;
+    const p = frameAt(e);
+    const handle = e.target?.dataset?.c;
+    const s = stackRef.current;
+    // Clip: a part of the selected source dragged out over its box.
+    if (clipping && selItem && !handle) {
+      e.preventDefault();
+      const it = s.items.find((x) => x.id === selItem.id);
+      const b = it.box;
+      if (p.fx < b.x || p.fy < b.y || p.fx > b.x + b.w || p.fy > b.y + b.h) { setClipping(false); return; }
+      setDrawing({ a: p, b: p });
+      const move = (ev) => setDrawing({ a: p, b: frameAt(ev) });
+      const up = (ev) => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        setDrawing(null);
+        const q = frameAt(ev);
+        const fit = { aspect: aspectOf(media, it, sources) };
+        const from = frameToSource(it, p.fx, p.fy, fit);
+        const to = frameToSource(it, q.fx, q.fy, fit);
+        const crop = regionCrop({ x: Math.min(from.x, to.x), y: Math.min(from.y, to.y), w: Math.abs(to.x - from.x), h: Math.abs(to.y - from.y) }, { width: 1, height: 1 });
+        if (crop) changeStack((st) => clipItem(st, it.id, crop, { aspect: aspectOf(media, it, sources) }));
+        setClipping(false);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      return;
+    }
+    const hit = handle ? s.items.find((x) => x.id === selected) : itemAt(s, p.fx, p.fy);
+    if (!hit) { setSelected(null); return; }
     e.preventDefault();
-    const box = frameRef.current.getBoundingClientRect();
-    const at = (ev) => ({ fx: (ev.clientX - box.left) / box.width, fy: (ev.clientY - box.top) / box.height });
-    const a = at(e);
-    const from = program.current.toSource(a.fx, a.fy);
-    if (!from) return;
-    setDrawing({ a, b: a });
-    const move = (ev) => setDrawing({ a, b: at(ev) });
-    const up = (ev) => {
+    frameRef.current.focus();
+    setSelected(hit.id);
+    const start = hit.box;
+    const aspect = start.w / start.h;
+    const move = (ev) => {
+      const q = frameAt(ev);
+      const dx = q.fx - p.fx;
+      const dy = q.fy - p.fy;
+      let box;
+      if (!handle) {
+        box = { ...start, x: snap(start.x + dx, start.w), y: snap(start.y + dy, start.h) };
+      } else {
+        // The corner opposite the one held stays where it is; the shape is kept unless Shift is held.
+        const left = handle.includes('w');
+        const top = handle.includes('n');
+        const ax = left ? start.x + start.w : start.x;
+        const ay = top ? start.y + start.h : start.y;
+        let w = Math.max(0.04, left ? ax - q.fx : q.fx - ax);
+        let h = Math.max(0.04, top ? ay - q.fy : q.fy - ay);
+        if (!ev.shiftKey || hit.shape === 'circle') { if (w / h > aspect) h = w / aspect; else w = h * aspect; }
+        box = { x: left ? ax - w : ax, y: top ? ay - h : ay, w, h };
+      }
+      changeStack((st) => updateItem(st, hit.id, { box: clampBox(box) }), false);
+    };
+    const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      setDrawing(null);
-      const b = at(ev);
-      const to = program.current.toSource(b.fx, b.fy);
-      if (!to) return;
-      const next = regionCrop({ x: from.x, y: from.y, w: to.x - from.x, h: to.y - from.y }, { width: 1, height: 1 });
-      if (next) setCrop(next);
+      changeStack((st) => st);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
+  const onFrameKey = (e) => {
+    if (!selItem || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+    e.preventDefault();
+    const step = e.shiftKey ? 0.05 : 0.005;
+    const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+    const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+    changeStack((s) => updateItem(s, selItem.id, (it) => ({ ...it, box: clampBox({ ...it.box, x: it.box.x + dx, y: it.box.y + dy }) })));
+  };
 
-  // The sources open as the settings say. The screen stays as it is while it records.
-  const needsScreen = settings.scene !== 'camera' && settings.scene !== 'brb';
-  useEffect(() => {
-    if (!loaded || phase !== 'setup') return;
-    rig.setScreen(source, { fps: settings.fps, cap: settings.size, system: settings.system });
-  }, [rig, loaded, phase, source, settings.fps, settings.size, settings.system]);
-  useEffect(() => {
-    if (!loaded) return;
-    rig.setCamera(settings.camera, { cameraId: settings.cameraId, cameraHeight: 720 });
-  }, [rig, loaded, settings.camera, settings.cameraId]);
-  useEffect(() => {
-    if (!loaded || phase !== 'setup') return;
-    rig.setMic(settings.mic, { micId: settings.micId }).then(() => RecorderRig.devices().then(setDevices));
-  }, [rig, loaded, phase, settings.mic, settings.micId]);
-  useEffect(() => { RecorderRig.devices().then(setDevices); }, [rig.camera.stream]);
+  /* ── scenes ────────────────────────────────────────────────────────── */
 
-  // The disk, before and while it records.
-  const rate = useMemo(() => bytesPerSecond({ fps: settings.fps, cap: settings.size, quality: settings.quality, camera: false, mic: settings.mic, system: settings.system }, { screen: settings.size === 720 ? { width: 1280, height: 720 } : { width: 1920, height: 1080 } }), [settings.fps, settings.size, settings.quality, settings.mic, settings.system]);
+  const builtIns = useMemo(() => builtInScenes(stack, SCENE_NAMES()), [stack]);
+  const scenes = [...builtIns.map((sc) => ({ ...sc, own: false })), ...stack.scenes.map((sc, i) => ({ ...sc, key: `own-${i}`, own: true, index: i }))];
+  const pickScene = useCallback((sc) => { changeStack((s) => applyScene(s, sc)); setLastScene(sc.key); }, [changeStack]);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return;
+      const n = Number(e.key);
+      if (n >= 1 && n <= 9 && scenes[n - 1]) { e.preventDefault(); pickScene(scenes[n - 1]); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  /* ── the disk ──────────────────────────────────────────────────────── */
+
+  const camerasShown = stack.items.filter((it) => it.on && it.kind === 'camera').length;
+  const rate = useMemo(() => bytesPerSecond({ fps: settings.fps, cap: settings.size, quality: settings.quality, camera: false, mic: true, system: false }, { screen: settings.size === 720 ? { width: 1280, height: 720 } : { width: 1920, height: 1080 } }), [settings.fps, settings.size, settings.quality]);
   const checkDisk = useCallback(async () => {
     if (!settings.folder) return null;
     try {
@@ -241,32 +392,46 @@ export default function Recorder({ app, shell }) {
   }, [shell, settings.folder, rate]);
   useEffect(() => { if (phase === 'setup') checkDisk(); }, [phase, checkDisk]);
 
+  // The recordings folder's latest takes, for the menu's Recent Recordings.
+  const loadRecent = useCallback(async () => {
+    if (!settings.folder) return;
+    try {
+      const list = await shell.fs.list({ path: settings.folder });
+      setRecent((list || []).filter((f) => !f.dir && SOUND_EXT.includes(String(f.ext || '').replace(/^\./, '').toLowerCase())).sort((a, b) => (b.mtime || 0) - (a.mtime || 0)).slice(0, 10));
+    } catch { setRecent([]); }
+  }, [shell, settings.folder]);
+  useEffect(() => { loadRecent(); }, [loadRecent, saved]);
+
   /* ── recording ─────────────────────────────────────────────────────── */
 
+  const kind = recordKind(stack);
   const begin = useCallback(async () => {
     try {
       setSaved(null);
-      const { path } = await shell.capture.take({ dir: settings.folder, name: takeFileName(t('Recording'), new Date(), 'webm') });
+      const soundOnly = recordKind(stackRef.current) === 'sound';
+      const name = soundOnly ? takeFileName(t('Sound'), new Date(), 'weba') : takeFileName(t('Recording'), new Date(), 'webm');
+      const { path } = await shell.capture.take({ dir: settingsRef.current.folder, name });
       takenRef.current = path;
-      await program.current.record({ shell, path });
+      await program.current.record({ shell, path, soundOnly });
       setPhase('recording');
       setPaused(false);
       warned.current = false;
-      const c = await shell.capture.controls({ on: true, paused: false, minimise: settings.minimise }).catch(() => null);
+      const c = await shell.capture.controls({ on: true, paused: false, minimise: settingsRef.current.minimise }).catch(() => null);
       setKeys(c);
     } catch (err) {
       setPhase('setup');
       toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
     }
-  }, [shell, settings.folder, settings.minimise, toast]);
+  }, [shell, toast]);
 
   const record = useCallback(async () => {
     if (phaseRef.current !== 'setup') return;
+    if (!recordKind(stackRef.current)) { toast(t('Video and Sound are both off: there is nothing to record.'), { ms: 5000 }); return; }
     const state = await checkDisk();
     if (state?.level === 'stop') { toast(t('There is not enough space on the disk to record.'), { tone: 'bad', ms: 6000 }); return; }
-    if (settings.countdown > 0) { setCount(settings.countdown); setPhase('countdown'); }
+    if (settingsRef.current.countdown > 0) { setCount(settingsRef.current.countdown); setPhase('countdown'); }
     else { setPhase('starting'); begin(); }
-  }, [checkDisk, settings.countdown, begin, toast]);
+  }, [checkDisk, begin, toast]);
 
   useEffect(() => {
     if (phase !== 'countdown') return undefined;
@@ -276,6 +441,7 @@ export default function Recorder({ app, shell }) {
   }, [phase, count, begin]);
 
   const stop = useCallback(async () => {
+    if (phaseRef.current === 'countdown') { setPhase('setup'); return; }
     if (phaseRef.current !== 'recording') return;
     setPhase('stopping');
     shell.capture.controls({ on: false }).catch(() => {});
@@ -334,17 +500,17 @@ export default function Recorder({ app, shell }) {
     return () => { clearInterval(tick); clearInterval(watch); };
   }, [phase, checkDisk, toast]);
 
-  /* ── pictures ──────────────────────────────────────────────────────── */
+  /* ── pictures, at any time ─────────────────────────────────────────── */
 
-  const snap = useCallback(async () => {
+  const selRef = useRef(null);
+  selRef.current = selItem;
+  const snapNow = useCallback(async () => {
     setShotCount(null);
     try {
-      const shot = await program.current?.snapshot(settings.shot);
-      if (!shot) {
-        toast(settings.shot === 'camera' ? t('The camera shows nothing to take yet.') : settings.shot === 'screen' ? t('The screen shows nothing to take yet.') : t('There is nothing to take yet.'), { tone: 'bad', ms: 5000 });
-        return;
-      }
-      const { path } = await shell.capture.take({ dir: settings.folder, name: takeFileName(t('Picture'), new Date(), 'png') });
+      const of = settingsRef.current.shot === 'program' ? null : selRef.current;
+      const shot = await program.current?.snapshot(of);
+      if (!shot) { toast(t('There is nothing to take yet.'), { tone: 'bad', ms: 5000 }); return; }
+      const { path } = await shell.capture.take({ dir: settingsRef.current.folder, name: takeFileName(t('Picture'), new Date(), 'png') });
       await shell.fs.write({ path, bytes: shot.bytes });
       setFlash((n) => n + 1);
       setPicture((old) => {
@@ -354,21 +520,21 @@ export default function Recorder({ app, shell }) {
     } catch (err) {
       toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
     }
-  }, [shell, settings.shot, settings.folder, toast]);
+  }, [shell, toast]);
 
   const takePicture = useCallback(() => {
     if (shotCount != null) return;
-    if (settings.shotTimer > 0) setShotCount(settings.shotTimer);
-    else snap();
-  }, [shotCount, settings.shotTimer, snap]);
+    if (settingsRef.current.shotTimer > 0) setShotCount(settingsRef.current.shotTimer);
+    else snapNow();
+  }, [shotCount, snapNow]);
   pictureRef.current = takePicture;
 
   useEffect(() => {
     if (shotCount == null) return undefined;
-    if (shotCount <= 0) { snap(); return undefined; }
+    if (shotCount <= 0) { snapNow(); return undefined; }
     const timer = setTimeout(() => setShotCount((n) => (n == null ? n : n - 1)), 1000);
     return () => clearTimeout(timer);
-  }, [shotCount, snap]);
+  }, [shotCount, snapNow]);
 
   useEffect(() => () => { if (picture?.url) URL.revokeObjectURL(picture.url); }, [picture]);
 
@@ -408,7 +574,7 @@ export default function Recorder({ app, shell }) {
     try {
       const r = await shell.live.start({ video: { width: canvas.width, height: canvas.height, fps: settings.fps, kbps }, audio: { kbps: AUDIO_KBPS, sampleRate: 48000, channels: 2 } });
       if (r.skipped?.length) toast(t('Not streamed to {names}: no stream key.', { names: r.skipped.map((x) => x.name).join(', ') }), { ms: 6000 });
-      const enc = new LiveEncoder({ shell, program: program.current, rig });
+      const enc = new LiveEncoder({ shell, program: program.current, rig: media });
       await enc.start({ video: checked.video });
       encoder.current = enc;
       setLiveSince(Date.now());
@@ -425,7 +591,7 @@ export default function Recorder({ app, shell }) {
       setLivePhase('off');
       toast(err?.message || String(err), { tone: 'bad', ms: 8000 });
     }
-  }, [livePhase, settings.fps, settings.liveCopy, kbps, shell, rig, toast, begin]);
+  }, [livePhase, settings.fps, settings.liveCopy, kbps, shell, media, toast, begin]);
 
   const endLive = useCallback(async () => {
     if (livePhase !== 'live' && livePhase !== 'starting') return;
@@ -457,16 +623,19 @@ export default function Recorder({ app, shell }) {
     const picked = await shell.dialog.open({ title: t('Save recordings in'), directory: true, defaultPath: settings.folder });
     if (picked?.[0]) change({ folder: picked[0] });
   }, [shell, settings.folder, change]);
-
-  const chooseLogo = useCallback(async () => {
-    const picked = await shell.dialog.open({ title: t('Choose a logo'), filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'] }] });
-    if (picked?.[0]) change({ logo: picked[0] });
-  }, [shell, change]);
+  const choosePlaceholder = useCallback(async () => {
+    const picked = await shell.dialog.open({ title: t('Choose a picture'), filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }] });
+    if (picked?.[0]) changeStack((s) => ({ ...s, placeholder: picked[0] }));
+  }, [shell, changeStack]);
+  const chooseMusic = useCallback(async () => {
+    const picked = await shell.dialog.open({ title: t('Choose music'), filters: [{ name: t('Sound'), extensions: ['mp3', 'm4a', 'wav', 'ogg', 'weba', 'webm', 'flac'] }] });
+    if (picked?.[0]) changeStack((s) => ({ ...s, music: picked[0] }));
+  }, [shell, changeStack]);
 
   /* ── the AI tools' Recorder (recorder_* tools, office-shell recorder-remote.js) ── */
 
-  // A recording the tools ask for is made as a person's is: the source chosen, the settings set,
-  // Record pressed, without the countdown. The person's own settings come back when it ends.
+  // A recording the tools ask for is made as a person's is: the source shown, the settings set,
+  // Record pressed, without the countdown. The person's own stack and settings come back when it ends.
   // What it answers goes to the AI app, in English as every tool's answer is, not the window's words.
   const answer = useCallback((reply, result, error = null) => {
     shell.capture.remoteReply({ reply, result, error: error ? String(error) : null }).catch(() => {});
@@ -497,21 +666,25 @@ export default function Recorder({ app, shell }) {
       try { list = (await shell.capture.sources()) || []; } catch { /* none to give */ }
       const src = list.find((x) => x.id === args.source);
       if (!src) { answer(reply, null, 'That window or screen is not there to record. recorder_windows names those there are.'); return; }
-      remote.current = { startReply: reply, kept: settings, source: src.id, folder: args.folder, triggered: false };
+      // A stack of its own: the source, the camera when asked, the title, the sounds asked for.
+      let s = { ...emptyStack(), sounds: [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: Boolean(args.microphone), muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', name: '', live: args.sound !== false, muted: false, gain: 1 }] };
+      const screenAdded = addItem(s, { kind: src.kind === 'window' ? 'window' : 'screen', ref: src.id, name: src.name });
+      s = screenAdded.stack;
+      if (args.camera) s = addItem(s, { kind: 'camera', ref: '', shape: 'circle' }).stack;
+      const want = builtInScenes(s).find((sc) => sc.key === (args.scene || 'screen')) || builtInScenes(s).find((sc) => sc.key === 'screen');
+      s = applyScene(s, want);
+      if (args.title) s = addItem(s, { kind: 'title', text: args.title }).stack;
+      remote.current = { startReply: reply, kept: { stack: stackRef.current, settings: settingsRef.current }, item: screenAdded.id, source: src.id, folder: args.folder, triggered: false };
       setSources(list);
-      setKind(src.kind);
-      setSourceId(src.id);
-      change({
-        scene: args.scene || 'screen', titleOn: Boolean(args.title), title: args.title || settings.title, logo: args.logo ? settings.logo : '',
-        size: args.size ?? settings.size, fps: args.fps ?? settings.fps, folder: args.folder, countdown: 0,
-        camera: Boolean(args.camera), mic: Boolean(args.microphone), system: args.sound !== false,
-      });
-      // A source that gives no picture: said, and the person's settings put back.
+      setStack(normaliseStack(s));
+      change({ size: args.size ?? settings.size, fps: args.fps ?? settings.fps, folder: args.folder, countdown: 0 });
+      // A source that gives no picture: said, and the person's own put back.
       const asked = remote.current;
       setTimeout(() => {
         if (remote.current !== asked || asked.triggered) return;
         remote.current = null;
-        change(asked.kept);
+        setStack(asked.kept.stack);
+        change(asked.kept.settings);
         answer(reply, null, 'The Recorder had no picture of that window to record.');
       }, 20000);
       return;
@@ -522,22 +695,22 @@ export default function Recorder({ app, shell }) {
       stopRef.current?.();
     }
   };
-  // Record pressed once the source, its picture and the settings are in place.
-  // The picture must be the asked-for source's own, not the one open before it.
-  const remoteScreen = rig.screen.stream ? rig.screen.source?.id : null;
+  // Record pressed once the asked-for source gives its picture and the settings are in place.
+  const remoteItem = remote.current ? stack.items.find((it) => it.id === remote.current.item) : null;
+  const remoteReady = Boolean(remoteItem && media.stateOf(remoteItem) === 'live');
   useEffect(() => {
     const r = remote.current;
-    if (!r?.startReply || r.triggered || phase !== 'setup' || remoteScreen !== r.source) return;
-    if (source?.id !== r.source || settings.folder !== r.folder || settings.countdown !== 0) return;
+    if (!r?.startReply || r.triggered || phase !== 'setup' || !remoteReady) return;
+    if (settings.folder !== r.folder || settings.countdown !== 0) return;
     r.triggered = true;
     record();
-  }, [phase, remoteScreen, source, settings, record]);
+  }, [phase, remoteReady, settings, record]);
   // Its answers: started, stopped and saved, or ended by the person's own Stop.
   useEffect(() => {
     const r = remote.current;
     if (!r) return;
     if (r.startReply && r.triggered && phase === 'recording') {
-      answer(r.startReply, { recording: true, path: takenRef.current, source: source?.name || r.source });
+      answer(r.startReply, { recording: true, path: takenRef.current, source: remoteItem?.name || r.source });
       r.startReply = null;
       return;
     }
@@ -545,8 +718,26 @@ export default function Recorder({ app, shell }) {
     if (r.startReply) answer(r.startReply, null, 'The recording did not start.');
     if (r.stopReply) answer(r.stopReply, saved ? { path: saved.path, seconds: Math.round(saved.seconds ?? 0), bytes: saved.written ?? null } : null, saved ? null : 'The recording could not be saved.');
     remote.current = null;
-    if (r.kept) change(r.kept);
-  }, [phase, saved, source, answer, change]);
+    if (r.kept) { setStack(r.kept.stack); change(r.kept.settings); }
+  }, [phase, saved, remoteItem, answer, change]);
+
+  /* ── the menu ──────────────────────────────────────────────────────── */
+
+  const appMenu = useAppMenu({
+    shell,
+    appKey: 'recorder',
+    // No New or Open: a second Recorder would share the one camera, and a recording is opened in Video.
+    own: [
+      { label: t('Open in Video…'), icon: 'video', run: async () => {
+        const files = await shell.dialog.open({ title: t('Open in Video'), defaultPath: settings.folder, filters: [{ name: t('Video and sound'), extensions: SOUND_EXT }] });
+        if (files?.[0]) shell.win.create({ app: 'video', file: files[0] });
+      } },
+      { label: t('Recordings Folder'), icon: 'folderOpen', run: () => { if (settings.folder) shell.shell.openPath({ path: settings.folder }).catch(() => {}); } },
+      { label: t('Recent Recordings'), icon: 'clock', items: recent.length ? recent.map((f) => ({ label: f.name, icon: 'video', title: f.path, run: () => shell.win.create({ app: 'video', file: f.path }) })) : [{ label: t('No recordings yet'), disabled: true }] },
+      { label: t('Live Destinations…'), icon: 'globe', run: () => setLiveOpen(true) },
+      { label: t('Recorder settings…'), icon: 'settings', run: () => setSettingsOpen(true) },
+    ],
+  });
 
   /* ── the window ────────────────────────────────────────────────────── */
 
@@ -555,84 +746,49 @@ export default function Recorder({ app, shell }) {
   const busy = phase !== 'setup' || live;
   const liveFor = live && liveSince ? Date.now() - liveSince : 0;
   const LIVE_WORDS = { waiting: t('Waiting'), connecting: t('Connecting…'), live: t('Live'), reconnecting: t('Reconnecting…'), error: t('Not streaming'), ended: t('Ended'), closed: t('Ended') };
-  const names = SCENE_NAMES();
-  const haveScreen = Boolean(rig.screen.stream);
-  const canRecord = phase === 'setup' && (haveScreen || rig.camera.stream || settings.scene === 'brb') && disk?.level !== 'stop';
-  const canShoot = shotCount == null && Boolean(settings.folder) && (settings.shot === 'screen' ? haveScreen : settings.shot === 'camera' ? Boolean(rig.camera.stream) : Boolean(haveScreen || rig.camera.stream || settings.scene === 'brb'));
-  const SHOT_NAMES = { program: t('What is shown'), screen: t('The screen'), camera: t('The camera') };
-  const micName = devices.mics.find((d) => d.id === settings.micId)?.name || t('The usual microphone');
+  const anyShown = stack.items.some((it) => it.on);
+  const canRecord = phase === 'setup' && Boolean(kind) && disk?.level !== 'stop';
   const minutes = disk ? Math.floor(disk.minutes) : null;
   const diskNote = disk == null ? '' : disk.level === 'stop' ? t('There is not enough space on the disk to record.')
     : disk.minutes < 120 ? t('Room for about {minutes} minutes on the disk', { minutes: Math.max(0, minutes) })
       : t('Room for about {hours} hours on the disk', { hours: Math.floor(disk.minutes / 60) });
+  const viewers = live ? liveStatus.reduce((n, d) => (Number.isFinite(d.viewers) ? (n ?? 0) + d.viewers : n), null) : null;
 
-  const ribbon = (
-    <Ribbon
-      tabs={[{ id: 'home', label: t('Home') }]}
-      active={tab}
-      onTab={setTab}
-      quick={recording ? <Button icon="stop" title={t('Stop')} onClick={stop} /> : <Button icon="record" title={t('Record')} disabled={!canRecord} onClick={record} />}
-    >
-      <Group label={t('Record')}>
+  const recordLabel = phase === 'countdown' ? t('Starting in {n}', { n: count })
+    : recording ? `${paused ? t('Paused') : t('Recording')} ${clock(elapsed)}`
+      : kind === 'sound' ? t('Record sound') : t('Record video');
+  const switchRow = (label, value, options, onPick, cls) => (
+    <span className={`st-switch ${cls}`} role="radiogroup" aria-label={label}>
+      {options.map(([v, icon, text]) => (
+        <button key={v} type="button" role="radio" aria-checked={value === v} data-value={v} className={value === v ? 'on' : ''} onClick={() => onPick(v)}><Icon name={icon} size={14} />{text}</button>
+      ))}
+    </span>
+  );
+  const top = (
+    <div className="st-top" role="toolbar" aria-label={t('Recorder')}>
+      <span className="st-acts">
+        <button type="button" className="st-act st-shoot" title={`${t('Take Picture')}${pictureKey ? ` (${pictureKey})` : ''}`} disabled={shotCount != null || !settings.folder} onClick={takePicture}>
+          <Icon name="picture" size={16} />{shotCount != null ? t('In {seconds} s', { seconds: shotCount }) : t('Picture')}
+        </button>
+        <button type="button" className={`st-act st-golive${live ? ' on' : ''}`} aria-pressed={live} title={live ? t('End Live') : t('Go Live')} disabled={livePhase === 'ending' || (!live && (phase === 'countdown' || phase === 'starting'))} onClick={live ? endLive : goLive}>
+          {live ? <i className="st-dot" /> : <Icon name="globe" size={16} />}
+          {live ? (livePhase === 'starting' ? t('Starting…') : `${t('Live')} ${clock(liveFor)}`) : t('Go Live')}
+          {live && viewers != null ? <span className="st-viewers" title={t('Watching now')}><Icon name="eye" size={13} />{viewers}</span> : null}
+        </button>
+        <button type="button" className={`st-act st-record${recording || phase === 'countdown' ? ' on' : ' rec'}${paused ? ' held' : ''}`} aria-pressed={recording} title={recording ? (keys?.stop ? `${t('Stop')} (${keys.stop})` : t('Stop')) : recordLabel} disabled={phase === 'stopping' || phase === 'starting' || (!recording && phase !== 'countdown' && !canRecord)} onClick={recording || phase === 'countdown' ? stop : record}>
+          <i className="st-dot" />{recordLabel}
+        </button>
         {recording ? (
-          <>
-            <Button tall icon="stop" label={t('Stop')} className="st-stop" title={keys?.stop ? `${t('Stop')} (${keys.stop})` : t('Stop')} disabled={phase !== 'recording'} onClick={stop} />
-            <Button tall icon={paused ? 'play' : 'pause'} label={paused ? t('Resume') : t('Pause')} className="st-pause" disabled={phase !== 'recording'} onClick={togglePause} />
-          </>
-        ) : (
-          <Button tall primary icon="record" label={phase === 'countdown' ? t('Starting…') : t('Record')} className="st-record" disabled={!canRecord} onClick={record} />
-        )}
-      </Group>
-      <Group label={t('Picture')}>
-        <Button tall icon="picture" label={shotCount != null ? t('In {seconds} s', { seconds: shotCount }) : t('Take Picture')} className="st-shoot" title={`${t('Take Picture: {of}, saved as a PNG', { of: SHOT_NAMES[settings.shot] })}${pictureKey ? ` (${pictureKey})` : ''}`} disabled={!canShoot} onClick={takePicture} />
-        <Rows>
-          <Select value={settings.shot} className="st-shot-of" aria-label={t('Picture of')} onChange={(e) => change({ shot: e.target.value })}>
-            {Object.entries(SHOT_NAMES).map(([k, name]) => <option key={k} value={k}>{name}</option>)}
-          </Select>
-          <Select value={String(settings.shotTimer)} className="st-shot-timer" aria-label={t('Picture timer')} onChange={(e) => change({ shotTimer: Number(e.target.value) })}>
-            <option value="0">{t('At once')}</option>
-            {[3, 5, 10].map((n) => <option key={n} value={String(n)}>{t('After {seconds} s', { seconds: n })}</option>)}
-          </Select>
-        </Rows>
-      </Group>
-      <Group label={t('Live')}>
-        {live ? (
-          <Button tall icon="stop" label={livePhase === 'starting' ? t('Starting…') : t('End Live')} className="st-endlive" disabled={livePhase === 'ending'} onClick={endLive} />
-        ) : (
-          <Button tall icon="globe" label={t('Go Live')} className="st-golive" disabled={phase === 'countdown' || phase === 'starting'} onClick={goLive} />
-        )}
-        <Button icon="settings" label={t('Destinations…')} className="st-dests-btn" onClick={() => setLiveOpen(true)} />
-      </Group>
-      <Group label={t('Scenes')}>
-        {SCENES.map((s) => (
-          <Button key={s} tall icon={SCENE_ICON[s]} label={names[s]} pressed={settings.scene === s} className={`st-scene-btn st-scene-${s}`} onClick={() => change({ scene: s })} />
-        ))}
-      </Group>
-      <Group label={t('Overlays')}>
-        <Rows>
-          <Button icon="textbox" label={t('Title')} pressed={settings.titleOn} className="st-title-btn" onClick={() => change({ titleOn: !settings.titleOn })} />
-          <Button icon="picture" label={settings.logo ? t('Change Logo…') : t('Logo…')} onClick={chooseLogo} />
-          {settings.logo ? <Button icon="close" label={t('Remove Logo')} onClick={() => change({ logo: '' })} /> : null}
-        </Rows>
-      </Group>
-      <Group label={t('Output')}>
-        <Rows>
-          <Select value={String(settings.size)} disabled={busy} aria-label={t('Size')} onChange={(e) => change({ size: Number(e.target.value) })}>
-            <option value="1080">1080p (1920 × 1080)</option>
-            <option value="720">720p (1280 × 720)</option>
-          </Select>
-          <Select value={String(settings.fps)} disabled={busy} aria-label={t('Frame rate')} onChange={(e) => change({ fps: Number(e.target.value) })}>
-            {[24, 30, 60].map((n) => <option key={n} value={String(n)}>{t('{n} frames a second', { n })}</option>)}
-          </Select>
-          <Select value={settings.quality} disabled={busy} aria-label={t('Quality')} onChange={(e) => change({ quality: e.target.value })}>
-            <option value="small">{t('Smaller files')}</option>
-            <option value="standard">{t('Standard')}</option>
-            <option value="high">{t('Sharper')}</option>
-          </Select>
-        </Rows>
-        <Button tall icon="folderOpen" label={t('Folder…')} title={settings.folder} disabled={busy} onClick={chooseFolder} />
-      </Group>
-    </Ribbon>
+          <button type="button" className={`st-act st-act-pause st-pause${paused ? ' on held' : ''}`} title={paused ? t('Resume') : t('Pause')} aria-label={paused ? t('Resume') : t('Pause')} aria-pressed={paused} disabled={phase !== 'recording'} onClick={togglePause}>
+            <Icon name={paused ? 'play' : 'pause'} size={15} />
+          </button>
+        ) : null}
+      </span>
+      {switchRow(t('Video'), stack.video, [['on', 'video', t('Video')], ['off', 'eyeOff', t('No video')], ['placeholder', 'picture', t('Placeholder')]], (v) => changeStack((s) => ({ ...s, video: v })), 'st-video')}
+      {switchRow(t('Sound'), stack.sound, [['on', 'mic', t('Sound')], ['off', 'micOff', t('No sound')], ['music', 'headphones', t('Music')]], (v) => changeStack((s) => ({ ...s, sound: v })), 'st-sound')}
+      <span className="st-top-gap" />
+      <button type="button" className="st-gear" title={t('Recorder settings')} aria-label={t('Recorder settings')} onClick={() => setSettingsOpen(true)}><Icon name="settings" size={16} /></button>
+    </div>
   );
 
   const status = (
@@ -641,177 +797,101 @@ export default function Recorder({ app, shell }) {
       {live && liveRate?.kbps ? `${t('{n} kb/s', { n: liveRate.kbps })}${liveRate.kbps < liveRate.target ? ` ${t('(lowered to keep up with the upload)')}` : ''} · ` : ''}
       {recording ? `${paused ? t('Paused') : t('Recording')} · ${clock(elapsed)}` : saved ? t('Saved {name}', { name: basename(saved.path) }) : t('Ready')}
       {` · ${settings.size === 720 ? '1280 × 720' : '1920 × 1080'} · ${t('{n} frames a second', { n: settings.fps })}`}
+      {camerasShown > 1 ? ` · ${t('{n} cameras', { n: camerasShown })}` : ''}
       {diskNote && !recording ? ` · ${diskNote}` : ''}
     </span>
   );
 
+  const shownBoxes = stack.video === 'on' ? stack.items.filter((it) => it.on) : [];
+  const selBox = selItem && selItem.on ? selItem.box : null;
+
   return (
-    <AppFrame app={app} shell={shell} title={live ? `${t('Live')} ${clock(liveFor)}` : recording ? `${paused ? t('Paused') : t('Recording')} ${clock(elapsed)}` : t('Recorder')} menu={appMenu} ribbon={ribbon} status={status}>
+    <AppFrame app={app} shell={shell} title={live ? `${t('Live')} ${clock(liveFor)}` : recording ? `${paused ? t('Paused') : t('Recording')} ${clock(elapsed)}` : t('Recorder')} menu={appMenu} ribbon={top} status={status}>
       <style>{RECORDER_CSS}</style>
       <style>{STUDIO_CSS}</style>
       <style>{LIVE_CSS}</style>
       {liveOpen ? <LiveDialog shell={shell} toast={toast} kbps={kbps} busy={live} recordCopy={settings.liveCopy} onRecordCopy={(v) => change({ liveCopy: v })} onClose={() => setLiveOpen(false)} /> : null}
-      <Panel name="scenes" width={210} title={t('Scenes')}>
-        <div className="st-scenes" role="radiogroup" aria-label={t('Scenes')}>
-          {SCENES.map((s) => (
-            <button key={s} type="button" role="radio" aria-checked={settings.scene === s} className={`st-scene${settings.scene === s ? ' on' : ''}`} data-scene={s} onClick={() => change({ scene: s })}>
-              <span className="st-scene-mark"><Icon name={SCENE_ICON[s]} size={18} /></span>
-              <span>{names[s]}</span>
-              {recording && settings.scene === s ? <i className="st-live-dot" aria-hidden="true" /> : null}
-            </button>
-          ))}
-        </div>
-        <p className="st-hint">{t('Change the scene at any time, while it records too.')}</p>
-      </Panel>
+      {settingsOpen ? (
+        <StudioSettings settings={settings} stack={stack} busy={busy} change={change} changeStack={changeStack} chooseFolder={chooseFolder} choosePlaceholder={choosePlaceholder} chooseMusic={chooseMusic}
+          openDestinations={() => { setSettingsOpen(false); setLiveOpen(true); }} onClose={() => setSettingsOpen(false)} />
+      ) : null}
 
       <Content>
         <div className="st-stage">
-          <div ref={frameRef} className={`st-frame${recording ? ' live' : ''}${paused ? ' held' : ''}${kind === 'region' && phase === 'setup' ? ' drawing' : ''}`} data-scene={settings.scene} onPointerDown={drawRegion}>
-            <canvas ref={canvasRef} className="st-canvas" width={1920} height={1080} aria-label={t('Program')} />
-            {recording ? <span className="rec-badge st-badge"><i />{paused ? t('Paused') : t('Recording')} {clock(elapsed)}</span> : null}
-            {live ? <span className="st-live-badge" data-phase={livePhase}><i />{t('LIVE')} {clock(liveFor)}</span> : null}
-            {phase === 'countdown' ? <div className="rec-count" aria-live="assertive"><span key={count}>{count}</span></div> : null}
-            {shotCount != null && shotCount > 0 && phase !== 'countdown' ? <div className="rec-count st-shot-count" aria-live="assertive"><span key={shotCount}>{shotCount}</span></div> : null}
-            {flash ? <div key={flash} className="st-flash" aria-hidden="true" /> : null}
-            {drawing ? (
-              <div className="rec-region st-drawn" style={{ left: `${Math.min(drawing.a.fx, drawing.b.fx) * 100}%`, top: `${Math.min(drawing.a.fy, drawing.b.fy) * 100}%`, width: `${Math.abs(drawing.b.fx - drawing.a.fx) * 100}%`, height: `${Math.abs(drawing.b.fy - drawing.a.fy) * 100}%` }}><span>{t('Region')}</span></div>
+          <SourceBar item={selItem} sound={selSound} clipping={clipping} act={barAct} />
+          <div className="st-share">
+            <div ref={frameRef} tabIndex={0} aria-label={t('The share')} className={`st-frame${recording ? ' live' : ''}${paused ? ' held' : ''}`} onPointerDown={onFramePointer} onKeyDown={onFrameKey}>
+              <canvas ref={canvasRef} className="st-canvas" width={1920} height={1080} aria-label={t('Program')} />
+              <div className="st-boxes">
+                {shownBoxes.map((it) => (
+                  <div key={it.id} className={`st-box${it.shape === 'circle' ? ' circle' : ''}${selected === it.id ? ' on' : ''}${selected === it.id && clipping ? ' clipping' : ''}`} data-id={it.id}
+                    style={{ left: `${it.box.x * 100}%`, top: `${it.box.y * 100}%`, width: `${it.box.w * 100}%`, height: `${it.box.h * 100}%` }}>
+                    {selected === it.id && !clipping ? ['nw', 'ne', 'sw', 'se'].map((c) => <span key={c} className="st-handle" data-c={c} />) : null}
+                  </div>
+                ))}
+              </div>
+              {drawing ? (
+                <div className="rec-region st-drawn" style={{ left: `${Math.min(drawing.a.fx, drawing.b.fx) * 100}%`, top: `${Math.min(drawing.a.fy, drawing.b.fy) * 100}%`, width: `${Math.abs(drawing.b.fx - drawing.a.fx) * 100}%`, height: `${Math.abs(drawing.b.fy - drawing.a.fy) * 100}%` }}><span>{t('Clip')}</span></div>
+              ) : null}
+              {clipping && selBox && !drawing ? <div className="rec-hint">{t('Drag over the part of {name} to show.', { name: itemName(selItem) })}</div> : null}
+              {recording ? <span className="rec-badge st-badge"><i />{paused ? t('Paused') : t('Recording')} {clock(elapsed)}</span> : null}
+              {live ? <span className="st-live-badge" data-phase={livePhase}><i />{t('LIVE')} {clock(liveFor)}</span> : null}
+              {phase === 'countdown' ? <div className="rec-count" aria-live="assertive"><span key={count}>{count}</span></div> : null}
+              {shotCount != null && shotCount > 0 && phase !== 'countdown' ? <div className="rec-count st-shot-count" aria-live="assertive"><span key={shotCount}>{shotCount}</span></div> : null}
+              {flash ? <div key={flash} className="st-flash" aria-hidden="true" /> : null}
+              {stack.video === 'on' && !anyShown && loaded ? <div className="st-empty">{sources == null ? t('Looking at what is open…') : t('Show a screen, a window or a camera from the list on the right.')}</div> : null}
+            </div>
+          </div>
+          <div className="st-scenes" role="toolbar" aria-label={t('Scenes')}>
+            <span className="st-scenes-label">{t('Scenes')}</span>
+            {scenes.map((sc, i) => (
+              <button key={sc.key} type="button" className={`st-scene${lastScene === sc.key ? ' on' : ''}`} data-scene={sc.key} title={sc.name} onClick={() => pickScene(sc)}
+                onContextMenu={sc.own ? (e) => { e.preventDefault(); setSceneMenu({ x: e.clientX, y: e.clientY, index: sc.index }); } : undefined}>
+                {i < 9 ? <kbd>{i + 1}</kbd> : null}{sc.name}
+              </button>
+            ))}
+            <button type="button" className="st-scene st-scene-save" title={t('Keep what is on the share as a scene')} aria-label={t('Keep what is on the share as a scene')} disabled={!anyShown || stack.scenes.length >= 9} onClick={() => changeStack((s) => saveScene(s, t('Scene {n}', { n: s.scenes.length + 1 })))}>
+              <Icon name="plus" size={14} />
+            </button>
+            {sceneMenu ? <Menu x={sceneMenu.x} y={sceneMenu.y} items={[{ label: t('Remove the scene'), icon: 'trash', run: () => changeStack((s) => removeScene(s, sceneMenu.index)) }]} onClose={() => setSceneMenu(null)} /> : null}
+          </div>
+          <div className="st-under">
+            {live && liveStatus.length ? (
+              <div className="st-dests" aria-live="polite">
+                {liveStatus.map((d) => (
+                  <span key={d.id} className="st-dest" data-state={d.state} title={d.detail || ''}>
+                    <i />{d.name}: {d.state === 'error' && d.detail ? d.detail : LIVE_WORDS[d.state] || d.state}{d.reconnects && d.state === 'reconnecting' ? ` (${d.reconnects})` : ''}
+                  </span>
+                ))}
+              </div>
             ) : null}
-            {kind === 'region' && haveScreen && phase === 'setup' && !drawing ? (
-              <div className="rec-hint">{crop ? t('Drag on the picture again to choose a smaller part.') : t('Drag on the picture to choose the part to record.')}</div>
+            {picture ? (
+              <div className="st-shot" role="status">
+                <img src={picture.url} alt="" />
+                <span className="st-shot-name">{basename(picture.path)}</span>
+                <span className="st-shot-meta">{picture.width} × {picture.height}</span>
+                <Button icon="picture" label={t('Open')} className="st-shot-open" onClick={() => shell.win.create({ app: 'pictures', file: picture.path })} />
+                <Button icon="image" label={t('Edit in Image')} className="st-shot-edit" onClick={() => shell.win.create({ app: 'image', file: picture.path })} />
+                <Button icon="copy" label={t('Copy')} className="st-shot-copy" onClick={copyPicture} />
+                <Button icon="folderOpen" label={t('Show in folder')} onClick={() => shell.shell.showInFolder({ path: picture.path })} />
+              </div>
             ) : null}
-            {needsScreen && !haveScreen && phase === 'setup' ? (
-              <div className="st-wait">{rig.screen.error ? rig.screen.error : sources == null ? <><Spinner /> {t('Looking at what is open…')}</> : t('Choose a screen or a window to record.')}</div>
+            {saved && phase === 'setup' ? (
+              <div className="st-saved" role="status">
+                <Icon name="check" size={18} />
+                <span className="st-saved-name">{basename(saved.path)}</span>
+                <span className="st-saved-meta">{clock(saved.seconds * 1000)} · {formatBytes(saved.written)}</span>
+                <Button icon="play" label={t('Play')} className="st-play" onClick={() => shell.win.create({ app: 'video', file: saved.path })} />
+                <Button icon="video" label={t('Edit in Video')} className="st-edit" onClick={() => shell.win.create({ app: 'video', file: saved.path, query: { edit: 1 } })} />
+                <Button icon="folderOpen" label={t('Show in folder')} onClick={() => shell.shell.showInFolder({ path: saved.path })} />
+              </div>
             ) : null}
           </div>
-          {kind === 'region' && crop ? (
-            <div className="st-region-bar">
-              <span>{t('Region {w} × {h}', { w: Math.round(crop.w * (rig.screen.stream?.getVideoTracks()[0]?.getSettings?.().width || 0)), h: Math.round(crop.h * (rig.screen.stream?.getVideoTracks()[0]?.getSettings?.().height || 0)) })}</span>
-              {phase === 'setup' ? <Button ghost icon="close" label={t('Whole picture')} className="st-whole" onClick={() => setCrop(null)} /> : null}
-            </div>
-          ) : null}
-          {live && liveStatus.length ? (
-            <div className="st-dests" aria-live="polite">
-              {liveStatus.map((d) => (
-                <span key={d.id} className="st-dest" data-state={d.state} title={d.detail || ''}>
-                  <i />{d.name}: {d.state === 'error' && d.detail ? d.detail : LIVE_WORDS[d.state] || d.state}{d.reconnects && d.state === 'reconnecting' ? ` (${d.reconnects})` : ''}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          {picture ? (
-            <div className="st-shot" role="status">
-              <img src={picture.url} alt="" />
-              <span className="st-shot-name">{basename(picture.path)}</span>
-              <span className="st-shot-meta">{picture.width} × {picture.height}</span>
-              <Button icon="picture" label={t('Open')} className="st-shot-open" onClick={() => shell.win.create({ app: 'pictures', file: picture.path })} />
-              <Button icon="image" label={t('Edit in Image')} className="st-shot-edit" onClick={() => shell.win.create({ app: 'image', file: picture.path })} />
-              <Button icon="copy" label={t('Copy')} className="st-shot-copy" onClick={copyPicture} />
-              <Button icon="folderOpen" label={t('Show in folder')} onClick={() => shell.shell.showInFolder({ path: picture.path })} />
-            </div>
-          ) : null}
-          {saved && phase === 'setup' ? (
-            <div className="st-saved" role="status">
-              <Icon name="check" size={18} />
-              <span className="st-saved-name">{basename(saved.path)}</span>
-              <span className="st-saved-meta">{clock(saved.seconds * 1000)} · {formatBytes(saved.written)}</span>
-              <Button icon="play" label={t('Play')} className="st-play" onClick={() => shell.win.create({ app: 'video', file: saved.path })} />
-              <Button icon="video" label={t('Edit in Video')} className="st-edit" onClick={() => shell.win.create({ app: 'video', file: saved.path, query: { edit: 1 } })} />
-              <Button icon="folderOpen" label={t('Show in folder')} onClick={() => shell.shell.showInFolder({ path: saved.path })} />
-            </div>
-          ) : null}
         </div>
       </Content>
 
-      <Panel name="sources" width={300} title={t('Sources')}>
-        <div className="st-side" aria-disabled={busy}>
-          <section className="rec-sec">
-            <h3>{t('Screen')}</h3>
-            <Segments value={kind} disabled={busy} className="st-kinds" onChange={setKind} options={[{ value: 'screen', label: t('Screen'), icon: 'screen' }, { value: 'window', label: t('Window'), icon: 'window' }, { value: 'region', label: t('Region'), icon: 'region', tip: t('Region: a part you draw, kept as a crop you can change later') }]} />
-            <div className="rec-sources st-sources">
-              {sources && !listed.length ? <div className="rec-wait">{kind === 'window' ? t('No other window is open to record.') : t('No screen can be recorded.')}</div> : null}
-              {listed.map((s) => (
-                <button key={s.id} type="button" className={`rec-source${s.id === sourceId ? ' on' : ''}`} data-source={s.id} data-tip={s.name} disabled={busy} onClick={() => setSourceId(s.id)}>
-                  <img src={s.thumbnail} alt="" draggable={false} />
-                  <span>{s.name}</span>
-                </button>
-              ))}
-            </div>
-            <Button ghost icon="refresh" label={t('Refresh the list')} disabled={busy} onClick={loadSources} />
-          </section>
-
-          <section className="rec-sec">
-            <Toggle on={settings.camera} icon="camera" label={t('Camera')} onChange={(v) => change({ camera: v })} className="st-camera-toggle" />
-            {settings.camera ? (
-              <div className="rec-sub">
-                {rig.camera.error ? <small className="rec-err">{rig.camera.error}</small> : null}
-                {devices.cameras.length > 1 ? (
-                  <Select value={settings.cameraId} aria-label={t('Camera')} onChange={(e) => change({ cameraId: e.target.value })}>
-                    <option value="">{t('The usual camera')}</option>
-                    {devices.cameras.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </Select>
-                ) : null}
-                <Segments value={settings.shape} onChange={(v) => change({ shape: v })} options={[{ value: 'circle', label: t('Circle') }, { value: 'rounded', label: t('Rounded') }, { value: 'rect', label: t('Rectangle') }]} />
-                <Segments value={settings.insetSize} onChange={(v) => change({ insetSize: v })} options={[{ value: 'small', label: t('Small') }, { value: 'medium', label: t('Medium') }, { value: 'large', label: t('Large') }]} />
-                <Segments value={settings.corner} className="st-corners" onChange={(v) => change({ corner: v })} options={[{ value: 'tl', label: '↖', tip: t('Top left') }, { value: 'tr', label: '↗', tip: t('Top right') }, { value: 'bl', label: '↙', tip: t('Bottom left') }, { value: 'br', label: '↘', tip: t('Bottom right') }]} />
-                <Toggle on={settings.mirror} label={t('Mirror the camera')} onChange={(v) => change({ mirror: v })} />
-              </div>
-            ) : null}
-          </section>
-
-          <section className="rec-sec">
-            <Toggle on={settings.mic} icon="mic" label={t('Microphone')} disabled={busy} onChange={(v) => change({ mic: v })} className="st-mic-toggle" />
-            {settings.mic ? (
-              <div className="rec-sub">
-                {devices.mics.length > 1 ? (
-                  <Select value={settings.micId} disabled={busy} aria-label={t('Microphone')} onChange={(e) => change({ micId: e.target.value })}>
-                    <option value="">{t('The usual microphone')}</option>
-                    {devices.mics.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </Select>
-                ) : <small className="st-device">{micName}</small>}
-                {rig.mic.error ? <small className="rec-err">{rig.mic.error}</small> : <Meter rig={rig} name="mic" active={Boolean(rig.mic.stream)} />}
-              </div>
-            ) : null}
-            <Toggle on={settings.system} icon="speaker" label={t('Computer sound')} disabled={busy} onChange={(v) => change({ system: v })} className="st-system-toggle" />
-            {settings.system ? (
-              <div className="rec-sub">
-                {rig.system.error ? <small className="rec-err">{rig.system.error}</small> : <Meter rig={rig} name="system" active={Boolean(rig.nodes.system)} />}
-              </div>
-            ) : null}
-          </section>
-
-          <section className="rec-sec">
-            <Toggle on={settings.titleOn} icon="textbox" label={t('Title')} onChange={(v) => change({ titleOn: v })} className="st-title-toggle" />
-            {settings.titleOn ? (
-              <div className="rec-sub">
-                <Input className="st-title" value={settings.title} placeholder={t('Your name, or the title')} aria-label={t('Title')} onChange={(e) => change({ title: e.target.value })} />
-                <Input className="st-subtitle" value={settings.subtitle} placeholder={t('A line under it')} aria-label={t('A line under it')} onChange={(e) => change({ subtitle: e.target.value })} />
-              </div>
-            ) : null}
-            <label className="rec-field st-brb-field">
-              <span>{t('Be right back says')}</span>
-              <Input className="st-brb" value={settings.brb} aria-label={t('Be right back says')} onChange={(e) => change({ brb: e.target.value })} />
-            </label>
-            {settings.logo ? (
-              <div className="st-logo">
-                {logoUrl ? <img src={logoUrl} alt="" /> : null}
-                <span>{basename(settings.logo)}</span>
-                <Segments value={settings.logoCorner} onChange={(v) => change({ logoCorner: v })} options={[{ value: 'tl', label: '↖', tip: t('Top left') }, { value: 'tr', label: '↗', tip: t('Top right') }, { value: 'bl', label: '↙', tip: t('Bottom left') }, { value: 'br', label: '↘', tip: t('Bottom right') }]} />
-              </div>
-            ) : null}
-          </section>
-
-          <section className="rec-sec">
-            <label className="rec-field">
-              <span>{t('Countdown')}</span>
-              <Select value={String(settings.countdown)} disabled={busy} onChange={(e) => change({ countdown: Number(e.target.value) })}>
-                <option value="0">{t('None')}</option>
-                {[3, 5, 10].map((n) => <option key={n} value={String(n)}>{t('{seconds} s', { seconds: n })}</option>)}
-              </Select>
-            </label>
-            <Toggle on={settings.minimise} label={t('Minimise this window while recording')} disabled={busy} onChange={(v) => change({ minimise: v })} />
-            <small className="st-folder" title={settings.folder}>{t('Saved in {folder}', { folder: settings.folder || '…' })}</small>
-          </section>
-        </div>
+      <Panel name="recorder-sources" width={280} right resizable title={t('Sources')}>
+        <SourceList stack={named} spare={spare} spareSounds={spareSounds} media={media} selected={selected} onSelect={setSelected} act={act} thumbs={thumbs} />
       </Panel>
     </AppFrame>
   );

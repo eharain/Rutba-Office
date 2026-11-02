@@ -82,7 +82,7 @@ export function normaliseStudio(raw) {
         folder: text(r.folder, '', 2000),
         minimise: bool('minimise'),
         liveCopy: bool('liveCopy'),
-        shot: pick(r.shot, ['program', 'screen', 'camera'], d.shot),
+        shot: pick(r.shot, ['program', 'screen', 'camera', 'selected'], d.shot),
         shotTimer: pick(Number(r.shotTimer), [0, 3, 5, 10], d.shotTimer),
     };
 }
