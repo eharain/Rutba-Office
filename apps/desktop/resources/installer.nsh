@@ -222,6 +222,7 @@
   Var rutbaBox_image
   Var rutbaBox_video
   Var rutbaBox_recorder
+  Var rutbaBox_broadcast
   Var rutbaBox_talk
   Var rutbaBox_base
   Var rutbaBox_ai
@@ -292,12 +293,25 @@ Function rutbaAppsPageShow
   !insertmacro rutbaAppBox image "$rutbaW_image" 52% 34u 1 0
   !insertmacro rutbaAppBox video "$rutbaW_video" 52% 47u 1 0
   !insertmacro rutbaAppBox recorder "$rutbaW_recorder" 52% 60u 1 0
-  !insertmacro rutbaAppBox talk "$rutbaW_talk" 52% 73u 1 0
+  ; New in 2.22, and Recorder's Go Live before that: ticked wherever Recorder was, unless turned off itself.
+  !insertmacro rutbaAppBox broadcast "$rutbaW_broadcast" 52% 73u 1 1
+  ${If} $rutbaAppsOnKnown == "1"
+  ${AndIf} $rutbaPack_broadcast == "1"
+    ${WordFind} ",$rutbaAppsOnBefore," ",recorder," "E*" $0
+    ${IfNot} ${Errors}
+      ${WordFind} ",$rutbaAppsBefore," ",broadcast," "E*" $0
+      ${If} ${Errors}
+        ${NSD_Check} $rutbaBox_broadcast
+      ${EndIf}
+    ${EndIf}
+    ClearErrors
+  ${EndIf}
+  !insertmacro rutbaAppBox talk "$rutbaW_talk" 52% 86u 1 0
   ; New in 2.9: a 2.8 copy's AppsOff never listed it.
-  !insertmacro rutbaAppBox base "$rutbaW_base" 52% 86u 1 1
-  ${NSD_CreateLabel} 52% 106u 46% 10u "$rutbaW_addons"
+  !insertmacro rutbaAppBox base "$rutbaW_base" 52% 99u 1 1
+  ${NSD_CreateLabel} 52% 113u 46% 10u "$rutbaW_addons"
   Pop $0
-  ${NSD_CreateCheckbox} 52% 118u 46% 12u "$rutbaW_ai"
+  ${NSD_CreateCheckbox} 52% 125u 46% 12u "$rutbaW_ai"
   Pop $rutbaBox_ai
   ${WordFind} ",$rutbaAddOnsBefore," ",ai," "E*" $0
   ${IfNot} ${Errors}
@@ -326,6 +340,7 @@ Function rutbaAppsPageLeave
   !insertmacro rutbaAppRead image
   !insertmacro rutbaAppRead video
   !insertmacro rutbaAppRead recorder
+  !insertmacro rutbaAppRead broadcast
   !insertmacro rutbaAppRead talk
   !insertmacro rutbaAppRead base
   ${If} $2 == 0

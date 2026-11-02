@@ -192,6 +192,8 @@ const PATHS = {
   trDissolve: [P('M4 6h16v12H4z'), P('M8 9h.01M12 11h.01M16 9h.01M9 14h.01M15 14h.01M12 15.5h.01', { strokeWidth: 2.4 })],
   // the recorder: record, the screen, a window, a region, the camera, the microphone, the computer's sound
   record: [P('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z'), P('M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', { fill: 'currentColor' })],
+  // A dot sending out waves on both sides: Live Broadcast.
+  broadcast: [P('M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', { fill: 'currentColor' }), P('M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7'), P('M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8')],
   // Video's introductions: captions, scenes, a brand kit, a teleprompter, the pointer.
   captions: [P('M3 6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z'), P('M10.5 10a2.4 2.4 0 1 0 0 4'), P('M17 10a2.4 2.4 0 1 0 0 4')],
   scenes: [P('M3 7a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z'), P('M19 7.5v9M22 9v6')],

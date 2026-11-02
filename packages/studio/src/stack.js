@@ -30,6 +30,12 @@ export const SHAPES = ['rect', 'rounded', 'circle'];
 /** The first line's two switches. */
 export const VIDEO_MODES = ['on', 'off', 'placeholder'];
 export const SOUND_MODES = ['on', 'off', 'music'];
+/** How one shot gives way to the next: at once, or the old one fading out over the new. */
+export const TRANSITIONS = ['cut', 'fade'];
+/** How long a fade takes, in milliseconds. */
+export const FADE_MS = 400;
+/** The seconds a timed rotation may hold each shot for. */
+export const ROTATE_EVERY = [3, 5, 8, 10, 15, 30];
 
 const MARGIN = 0.03;
 const CORNER_W = 0.24;
@@ -157,7 +163,7 @@ export function newId(kind, taken = []) {
 
 /** An empty studio. */
 export function emptyStack() {
-    return { version: 2, items: [], sounds: [], scenes: [], video: 'on', sound: 'on', placeholder: '', placeholderText: '', music: '' };
+    return { version: 2, items: [], sounds: [], scenes: [], video: 'on', sound: 'on', placeholder: '', placeholderText: '', music: '', follow: {}, rotate: { every: 8, keys: [] }, transition: 'fade' };
 }
 
 /** A stored stack, or anything, as a stack the studio can use. */
@@ -188,7 +194,23 @@ export function normaliseStack(raw) {
         placeholder: str(r.placeholder, '', 2000),
         placeholderText: str(r.placeholderText, '', 120),
         music: str(r.music, '', 2000),
+        // Live Broadcast's switching: which microphone each shot follows, the
+        // timed rotation's pace and shots, and how one shot gives way to the next.
+        follow: normaliseFollow(r.follow),
+        rotate: {
+            every: pick(Number(r.rotate?.every), ROTATE_EVERY, 8),
+            keys: (Array.isArray(r.rotate?.keys) ? r.rotate.keys : []).filter((k) => typeof k === 'string' && k).slice(0, 20).map((k) => k.slice(0, 80)),
+        },
+        transition: pick(r.transition, TRANSITIONS, 'fade'),
     };
+}
+
+/** Each shot's microphone, by the shot's key and the sound's id; at most twenty. */
+function normaliseFollow(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object') return out;
+    for (const [k, v] of Object.entries(raw).slice(0, 20)) if (typeof v === 'string' && v) out[k.slice(0, 80)] = v.slice(0, 40);
+    return out;
 }
 
 /**
@@ -460,21 +482,94 @@ export function applyScene(stack, scene) {
 }
 
 /**
- * The ready-made scenes, made from the first screen or window and the first
- * camera there are: screen and camera, screen alone, camera alone, side by
- * side. A scene that needs what there is not is left out.
+ * The ready-made scenes, made from the first screen or window and the
+ * cameras there are: screen and camera, screen alone, side by side, and the
+ * camera alone. With two cameras or more (a front and a side, or one on
+ * each speaker), each camera has a shot of its own, keyed `cam:<id>`, and
+ * the wide shot puts them all side by side. A scene that needs what there
+ * is not is left out. `names.cameraN(index, item)` names a camera's shot.
  */
 export function builtInScenes(stack, names = {}) {
     const screen = stack.items.find((it) => it.kind === 'screen' || it.kind === 'window');
-    const camera = stack.items.find((it) => it.kind === 'camera');
+    // The cameras in the order they were added (camera-1 first), whatever their order on the share.
+    const cameras = stack.items.filter((it) => it.kind === 'camera').sort((x, y) => x.id.localeCompare(y.id, undefined, { numeric: true }));
+    const camera = cameras[0];
     const overlays = stack.items.filter((it) => (it.kind === 'title' || it.kind === 'picture') && it.on).map((it) => ({ id: it.id, box: it.box, crop: it.crop, shape: it.shape }));
     const out = [];
     const layer = (it, box, shape = it.shape) => ({ id: it.id, box, crop: it.crop, shape });
     if (screen && camera) out.push({ key: 'screen-camera', name: names['screen-camera'] || 'Screen and camera', layers: [...overlays, layer(camera, placeBox('br', { shape: 'circle' }), 'circle'), layer(screen, placeBox('fill'), 'rect')] });
     if (screen) out.push({ key: 'screen', name: names.screen || 'Screen', layers: [...overlays, layer(screen, placeBox('fill'), 'rect')] });
-    if (camera) out.push({ key: 'camera', name: names.camera || 'Camera', layers: [...overlays, layer(camera, placeBox('fill'), 'rect')] });
     if (screen && camera) out.push({ key: 'split', name: names.split || 'Side by side', layers: [...overlays, layer(camera, placeBox('right', { aspect: 9 / 16 }), 'rounded'), layer(screen, placeBox('left'), 'rounded')] });
+    if (cameras.length === 1) out.push({ key: 'camera', name: names.camera || 'Camera', layers: [...overlays, layer(camera, placeBox('fill'), 'rect')] });
+    if (cameras.length > 1) {
+        cameras.forEach((cam, i) => out.push({ key: `cam:${cam.id}`, name: names.cameraN ? names.cameraN(i, cam) : `Camera ${i + 1}`, layers: [...overlays, layer(cam, placeBox('fill'), 'rect')] }));
+        out.push({ key: 'wide', name: names.wide || 'Everyone', layers: [...overlays, ...wideLayers(cameras).map((b, i) => layer(cameras[i], b, 'rounded'))] });
+    }
     return out;
+}
+
+/** The wide shot: up to four cameras side by side across the frame, each filled by its picture. */
+function wideLayers(cameras) {
+    const n = Math.min(4, cameras.length);
+    const gap = MARGIN / 2;
+    const w = (1 - gap * (n + 1)) / n;
+    // As tall as a 9:16 picture would be at that width, within the frame's height.
+    const h = Math.min(1 - 2 * gap * FRAME_ASPECT, (w * FRAME_ASPECT) / (9 / 16) > 1 ? 1 - 2 * gap * FRAME_ASPECT : (w * FRAME_ASPECT) / (9 / 16));
+    return cameras.slice(0, n).map((_, i) => clampBox({ x: gap + i * (w + gap), y: (1 - h) / 2, w, h }));
+}
+
+/* ── following the speaker ─────────────────────────────────────────────── */
+
+/**
+ * The timings Follow the speaker keeps (D-2026-11-03-02): a voice must go on
+ * for `speakMs` before its shot is cut to, a shot stays on for `holdMs` at
+ * least, and after `quietMs` with nobody speaking (or with more than one)
+ * the wide shot is cut to.
+ */
+export const FOLLOW = Object.freeze({ speakMs: 1500, holdMs: 3000, quietMs: 2500 });
+
+/**
+ * One step of Follow the speaker. `state` is what the last step returned
+ * (or nothing); `speaking` is the ids of the sounds heard just now; `pairs`
+ * is each shot's microphone (stack.follow); `wide` is the shot to go to when
+ * nobody, or more than one, speaks (null to stay where it is). Answers the
+ * state to keep and the shot to cut to now, or null.
+ */
+export function followStep(state, { now, speaking = [], pairs = {}, wide = null, on = null, timing = FOLLOW } = {}) {
+    const s = { on: state?.on ?? on, cand: state?.cand ?? null, candSince: state?.candSince ?? now, switchedAt: state?.switchedAt ?? -Infinity, quietSince: state?.quietSince ?? null };
+    const heard = new Set(speaking);
+    const keys = Object.keys(pairs).filter((k) => heard.has(pairs[k]));
+    let target = null;
+    let wait = timing.speakMs;
+    if (keys.length === 1) {
+        target = keys[0];
+        s.quietSince = null;
+    } else if (keys.length > 1) {
+        target = wide;
+        s.quietSince = null;
+    } else {
+        if (s.quietSince == null) s.quietSince = now;
+        if (now - s.quietSince >= timing.quietMs) { target = wide; wait = 0; }
+    }
+    // A pause between words, not yet long enough to go wide, keeps whoever was about to be shown waiting.
+    if (!target) return { state: s, cut: null };
+    if (target === s.on) { s.cand = null; return { state: s, cut: null }; }
+    if (s.cand !== target) { s.cand = target; s.candSince = now; }
+    if (now - s.candSince < wait || now - s.switchedAt < timing.holdMs) return { state: s, cut: null };
+    s.on = target;
+    s.cand = null;
+    s.switchedAt = now;
+    return { state: s, cut: target };
+}
+
+/**
+ * The shot after `current` in a timed rotation: through `keys` in order, back
+ * to the first after the last; the first when `current` is not among them.
+ */
+export function nextInRotation(keys, current) {
+    if (!keys.length) return null;
+    const i = keys.indexOf(current);
+    return keys[(i + 1) % keys.length];
 }
 
 /* ── what Record makes ─────────────────────────────────────────────────── */

@@ -74,6 +74,26 @@ export const STUDIO_CSS = `
 .st-scene kbd { font: inherit; font-size: 11px; color: var(--ink-3); }
 
 .st-under { display: flex; flex-direction: column; gap: 8px; }
+/* Live Broadcast's preview: what goes out next beside what is on air, with Cut and Fade between. */
+.st-share.duo { gap: 14px; align-items: flex-start; }
+.st-pane { display: flex; flex-direction: column; gap: 6px; flex: 1 1 0; min-width: 0; align-items: center; }
+.st-pane.off { display: none; }
+.st-share.duo .st-pane:not(.on-air) { order: -1; }
+.st-pane-label { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); }
+.st-pane.on-air .st-pane-label { color: #d93a40; }
+.st-pane.on-air .st-pane-label i { width: 7px; height: 7px; border-radius: 50%; background: #d93a40; }
+.st-share.duo .st-frame { width: min(100%, calc((100cqh - 200px) * 16 / 9)); }
+.st-share.duo .st-pane.on-air .st-frame { box-shadow: 0 0 0 2px #d93a40, 0 12px 32px rgba(0,0,0,0.3); }
+.st-take { display: flex; gap: 8px; justify-content: center; }
+.st-take .st-act { min-width: 96px; justify-content: center; }
+/* The shots: the one on air marked red, the one picked next marked as picked; a paired microphone and the rotation on each. */
+.st-scene.air { border-color: #d93a40; box-shadow: inset 0 0 0 1px #d93a40; }
+.st-scene .st-scene-tags { display: inline-flex; gap: 2px; color: var(--ink-3); }
+.st-scene.on .st-scene-tags { color: inherit; }
+.st-switching { display: inline-flex; align-items: center; gap: 6px; margin-inline-start: auto; flex-wrap: wrap; }
+.st-switching .st-tool { height: 28px; }
+.st-switching select { height: 28px; }
+
 .st-dests { display: flex; flex-wrap: wrap; gap: 6px; }
 .st-flash { position: absolute; inset: 0; background: #fff; pointer-events: none; animation: st-flash 420ms ease-out forwards; }
 @keyframes st-flash { from { opacity: 0.85; } to { opacity: 0; } }

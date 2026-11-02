@@ -64,7 +64,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * verify:apps names each part's app; 'shell' is what every app shares. A run
  * can be limited to some apps, and picks up after the apps that passed.
  */
-export const VERIFY_APPS = ['shell', 'ribbon', 'look', 'theme', 'access', 'languages', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'recorder', 'talk', 'base', 'pdf', 'mail', 'calendar', 'contacts'];
+export const VERIFY_APPS = ['shell', 'ribbon', 'look', 'theme', 'access', 'languages', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'recorder', 'broadcast', 'talk', 'base', 'pdf', 'mail', 'calendar', 'contacts'];
 
 /** The apps a changed file touches; 'shell' means every app. */
 export function appsForPath(file) {
@@ -75,16 +75,18 @@ export function appsForPath(file) {
     const key = { home: 'shell', edit: 'shell' }[app] || app;
     return VERIFY_APPS.includes(key) ? [key] : ['shell'];
   }
+  // The studio both the Recorder and Live Broadcast are.
+  if (/^apps\/desktop\/renderer\/studio\//.test(f)) return ['recorder', 'broadcast'];
   const check = /^apps\/desktop\/main\/verify-([a-z]+)/.exec(f)?.[1];
-  if (check) return [{ word: 'word', sheet: 'sheets', deck: 'slides', slide: 'slides', mail: 'mail', video: 'video', recorder: 'recorder', talk: 'talk', base: 'base', pdf: 'pdf', picture: 'pictures', pictures: 'pictures', image: 'image', calendar: 'calendar', contacts: 'contacts', ribbon: 'ribbon', polish: 'theme', dark: 'theme', gallery: 'look', soon: 'look', panels: 'look', icons: 'look', a11y: 'access', keyboard: 'access', high: 'access', screen: 'access', dialog: 'access', lost: 'access', accessibility: 'access', urdu: 'languages', spelling: 'languages' }[check] || 'shell'];
+  if (check) return [{ word: 'word', sheet: 'sheets', deck: 'slides', slide: 'slides', mail: 'mail', video: 'video', recorder: 'recorder', broadcast: 'broadcast', talk: 'talk', base: 'base', pdf: 'pdf', picture: 'pictures', pictures: 'pictures', image: 'image', calendar: 'calendar', contacts: 'contacts', ribbon: 'ribbon', polish: 'theme', dark: 'theme', gallery: 'look', soon: 'look', panels: 'look', icons: 'look', a11y: 'access', keyboard: 'access', high: 'access', screen: 'access', dialog: 'access', lost: 'access', accessibility: 'access', urdu: 'languages', spelling: 'languages' }[check] || 'shell'];
   const service = /^apps\/desktop\/main\/([a-z]+)/.exec(f)?.[1];
-  if (service) return [{ mail: 'mail', live: 'recorder', talk: 'talk', base: 'base', pdf: 'pdf', calendar: 'calendar', contacts: 'contacts', dav: 'calendar' }[service] || 'shell'];
+  if (service) return [{ mail: 'mail', live: 'broadcast', talk: 'talk', base: 'base', pdf: 'pdf', calendar: 'calendar', contacts: 'contacts', dav: 'calendar' }[service] || 'shell'];
   const pkg = /^packages\/([a-z-]+)\//.exec(f)?.[1];
   if (pkg) {
     return {
       ooxml: ['word', 'sheets', 'slides'], 'doc-view': ['word'], 'sheet-view': ['sheets'], formula: ['sheets'], presentation: ['slides'],
       mailbox: ['mail'], calendar: ['calendar', 'mail'], contacts: ['contacts', 'mail'], pdf: ['pdf', 'word', 'sheets', 'slides'],
-      imaging: ['image', 'pictures'], media: ['video', 'recorder'], stream: ['recorder'], studio: ['video', 'recorder'], database: ['base'], ocr: ['pdf', 'pictures', 'sheets'],
+      imaging: ['image', 'pictures'], media: ['video', 'recorder', 'broadcast'], stream: ['broadcast'], studio: ['video', 'recorder', 'broadcast'], database: ['base'], ocr: ['pdf', 'pictures', 'sheets'],
     }[pkg] || ['shell'];
   }
   return ['shell'];
@@ -298,7 +300,7 @@ const TIMING = path.join(STATE_DIR, 'timing.json');
 const LOGS = path.join(STATE_DIR, 'logs');
 const PARTS_DIR = path.join(STATE_DIR, 'parts');
 /** A chunk's length the first time, before a run has measured it, in seconds. */
-const FIRST_GUESS = { shell: 900, ribbon: 550, look: 400, theme: 400, word: 420, sheets: 400, slides: 350, access: 300, mail: 300, video: 300, languages: 200, pdf: 150, image: 150, recorder: 90, pictures: 60, talk: 40, base: 30, calendar: 40, contacts: 20 };
+const FIRST_GUESS = { shell: 900, ribbon: 550, look: 400, theme: 400, word: 420, sheets: 400, slides: 350, access: 300, mail: 300, video: 300, languages: 200, pdf: 150, image: 150, recorder: 90, broadcast: 90, pictures: 60, talk: 40, base: 30, calendar: 40, contacts: 20 };
 
 /** The chunks in the order they start: the longest first, so the last to finish is a short one. */
 export function longestFirst(chunks, timing = {}) {

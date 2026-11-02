@@ -33,7 +33,7 @@
     "pkg:presentation": "core",
     "pkg:proofing": "core",
     "pkg:sheet-view": "core",
-    "pkg:stream": "recorder",
+    "pkg:stream": "broadcast",
     "pkg:studio": "core",
     "pkg:templates": "ai+base+core"
   }

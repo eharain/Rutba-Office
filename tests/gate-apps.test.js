@@ -8,17 +8,19 @@ test('gate by app: an app\'s own files, its checks and its service name that app
   assert.deepEqual(appsForPath('apps/desktop/renderer/apps/mail.js'), ['mail']);
   assert.deepEqual(appsForPath('apps/desktop/renderer/apps/mail/reader.js'), ['mail']);
   assert.deepEqual(appsForPath('apps/desktop/renderer/apps/video/player.js'), ['video']);
-  assert.deepEqual(appsForPath('apps/desktop/renderer/apps/recorder/program.js'), ['recorder']);
+  assert.deepEqual(appsForPath('apps/desktop/renderer/apps/recorder.js'), ['recorder']);
+  assert.deepEqual(appsForPath('apps/desktop/renderer/apps/broadcast/live.js'), ['broadcast']);
+  assert.deepEqual(appsForPath('apps/desktop/renderer/studio/program.js'), ['recorder', 'broadcast']);
   assert.deepEqual(appsForPath('apps/desktop/main/verify-deck-zoom.js'), ['slides']);
   assert.deepEqual(appsForPath('apps/desktop/main/verify-sheet-pointing.js'), ['sheets']);
   assert.deepEqual(appsForPath('apps/desktop/main/mail-archive.js'), ['mail']);
-  assert.deepEqual(appsForPath('apps/desktop/main/live.js'), ['recorder']);
+  assert.deepEqual(appsForPath('apps/desktop/main/live.js'), ['broadcast']);
 });
 
 test('gate by app: an engine names the apps built on it; notes and engine tests name none', () => {
   assert.deepEqual(appsForPath('packages/ooxml/src/docx.js'), ['word', 'sheets', 'slides']);
   assert.deepEqual(appsForPath('packages/mailbox/src/store.js'), ['mail']);
-  assert.deepEqual(appsForPath('packages/studio/src/compositor.js'), ['video', 'recorder']);
+  assert.deepEqual(appsForPath('packages/studio/src/compositor.js'), ['video', 'recorder', 'broadcast']);
   assert.deepEqual(appsForPath('docs/releases/v2.7.0.md'), []);
   assert.deepEqual(appsForPath('README.md'), []);
   assert.deepEqual(appsForPath('tests/gate-apps.test.js'), []);

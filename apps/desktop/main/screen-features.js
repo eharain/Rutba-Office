@@ -166,6 +166,12 @@ const recorderStack = (title) => ({
   sounds: [{ id: 'mic-1', kind: 'mic', ref: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', live: false, muted: false, gain: 1 }],
 });
 
+/** Live Broadcast's share: the Recorder's, with a second camera (the side one) for its own shot and the wide one. */
+const broadcastStack = () => {
+  const s = recorderStack(true);
+  return { ...s, items: [...s.items, { id: 'camera-2', kind: 'camera', ref: '', on: false, live: true, shape: 'rounded', mirror: true }] };
+};
+
 /** Video's playhead moved, as dragging the slider under the preview moves it. */
 const scrubVideo = async (h, t) => {
   await h.js(`(() => { const s = document.querySelector('.vd-scrub'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, ${JSON.stringify(String(t))}); s.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
@@ -882,21 +888,42 @@ export const FEATURES = [
       await h.wait(1500);
     },
   },
+
+  /* ── Live Broadcast ────────────────────────────────────────────────── */
+  {
+    // Live Broadcast's main picture: the document and the front camera side
+    // by side on air, and the next shot, both cameras together, in the
+    // preview beside it with Cut and Fade under it.
+    name: 'broadcast-studio',
+    app: 'broadcast',
+    asApp: 'broadcast',
+    async before({ stores, samples }) {
+      stores.settings.set('broadcast.studio', { size: 1080, fps: 30, countdown: 3, folder: samples, minimise: true });
+      stores.settings.set('broadcast.stack', broadcastStack());
+    },
+    async setup(h) {
+      await recordWindowIn(h, 'split');
+      await h.click('.st-preview-btn', 'Preview');
+      await h.click('.st-scene[data-scene="wide"]', 'Everyone');
+      await h.until(`(document.querySelector('.st-preview-canvas')?.dataset.layers || '').split(' ').filter((k) => k === 'camera').length === 2`, 'both cameras in the next shot', 20000);
+      await h.wait(1500);
+    },
+  },
   {
     // Go Live's box: YouTube with its key kept (a sample key, never used to
     // connect) and Facebook waiting for one, and the copy recorded meanwhile.
-    name: 'recorder-go-live',
-    app: 'recorder',
+    name: 'broadcast-go-live',
+    app: 'broadcast',
     async before({ stores, samples }) {
-      stores.settings.set('recorder.studio', { size: 1080, fps: 30, countdown: 3, folder: samples, minimise: true, liveCopy: true });
-      stores.settings.set('recorder.stack', recorderStack(false));
+      stores.settings.set('broadcast.studio', { size: 1080, fps: 30, countdown: 3, folder: samples, minimise: true, liveCopy: true });
+      stores.settings.set('broadcast.stack', recorderStack(false));
     },
     async setup(h) {
       await recordWindowIn(h, 'split');
       for (const d of await h.js(`window.rutbaOffice.live.destinations()`)) await h.js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`);
       await h.js(`window.rutbaOffice.live.saveDestination({ platform: 'youtube', name: 'YouTube', on: true, key: 'sample-stream-key-2025' })`);
       await h.js(`window.rutbaOffice.live.saveDestination({ platform: 'facebook', name: 'Facebook page', on: true })`);
-      await h.click('.st-gear', 'Recorder settings');
+      await h.click('.st-gear', 'Live Broadcast settings');
       await h.click('.st-dests-btn', 'Destinations');
       await h.until(`document.querySelectorAll('.lv-dest').length === 2`, 'the destinations', 6000);
       await h.wait(800);

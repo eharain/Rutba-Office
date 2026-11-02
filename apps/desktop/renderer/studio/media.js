@@ -14,7 +14,7 @@
 // started, stopped and muted under it. With Sound off nothing reaches it; with
 // Music, the placeholder music does instead of the sounds.
 
-import { openCameraPatiently, closeCamera, cameraTrouble } from '../../recording/camera.js';
+import { openCameraPatiently, closeCamera, cameraTrouble } from '../recording/camera.js';
 import { capSize } from '@rutba/studio/recorder';
 import { t } from '@rutba/office-ui';
 

@@ -1,4 +1,4 @@
-// Recorder → Go Live (owner, 2026-10-19: "stream videos live on youtube and
+// Live Broadcast → Go Live (owner, 2026-10-19: "stream videos live on youtube and
 // facebook etc").
 //
 // A server on this computer answers as a platform's ingest does (the
@@ -15,7 +15,7 @@
 // configurations again before more frames. Go Live pressed again unpublishes and keeps
 // the copy. The key is never handed back to the window, only its last four
 // characters. Nothing leaves this computer's loopback.
-// Run alone with RUTBA_VERIFY_ONLY=recorder-live.
+// Run alone with RUTBA_VERIFY_ONLY=broadcast-live.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -81,7 +81,7 @@ function startIngest() {
  * @param {object} h the harness: open, check, until, wait, errorsIn
  * @param {{ dir: string }} args the run's scratch folder
  */
-export function verifyRecorderLive(h, args) {
+export function verifyBroadcastLive(h, args) {
   return withScreenStandIn(() => liveChecks(h, args));
 }
 
@@ -98,17 +98,17 @@ async function liveChecks(h, { dir }) {
     ingest = await startIngest();
     fs.writeFileSync(docFile, buildDocx({ styles: true, paragraphs: [{ text: 'Streamed by the Go Live check.' }] }));
     await open('word', docFile);
-    const win = await open('recorder');
+    const win = await open('broadcast');
     js = (code) => win.webContents.executeJavaScript(code);
-    kept = await js(`Promise.all([window.rutbaOffice.store.get({ key: 'recorder.studio', fallback: null }), window.rutbaOffice.store.get({ key: 'recorder.stack', fallback: null })])`);
+    kept = await js(`Promise.all([window.rutbaOffice.store.get({ key: 'broadcast.studio', fallback: null }), window.rutbaOffice.store.get({ key: 'broadcast.stack', fallback: null })])`);
     for (const d of await js(`window.rutbaOffice.live.destinations()`)) await js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`);
     const stack = { version: 2, items: [], sounds: [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', name: '', live: false, muted: false, gain: 1 }], scenes: [], video: 'on', sound: 'on' };
     await js(`Promise.all([
-      window.rutbaOffice.store.set({ key: 'recorder.studio', value: ${JSON.stringify({ size: 720, fps: 30, countdown: 0, folder, liveCopy: true, minimise: false, shot: 'program', shotTimer: 0 })} }),
-      window.rutbaOffice.store.set({ key: 'recorder.stack', value: ${JSON.stringify(stack)} }),
+      window.rutbaOffice.store.set({ key: 'broadcast.studio', value: ${JSON.stringify({ size: 720, fps: 30, countdown: 0, folder, liveCopy: true, minimise: false, shot: 'program', shotTimer: 0 })} }),
+      window.rutbaOffice.store.set({ key: 'broadcast.stack', value: ${JSON.stringify(stack)} }),
     ]).then(() => 1)`);
     await win.webContents.reload();
-    await until(() => js(`Boolean(document.querySelector('.st-canvas')) && Boolean(document.querySelector('.st-list'))`), 'the Recorder window', 10000);
+    await until(() => js(`Boolean(document.querySelector('.st-canvas')) && Boolean(document.querySelector('.st-list'))`), 'the Live Broadcast window', 10000);
     // The fixture window and the camera put on the share from the list, as the Screen and camera scene.
     const fixture = `[...document.querySelectorAll('.st-list .st-spare[data-kind="window"]')].find((n) => (n.dataset.tip || '').includes('live-fixture'))`;
     await until(() => js(`Boolean(${fixture})`), 'the fixture window', 10000).catch(() => {});
@@ -136,7 +136,7 @@ async function liveChecks(h, { dir }) {
     const listed = await js(`window.rutbaOffice.live.destinations()`);
     const shown = await js(`document.querySelector('.lv-dialog')?.textContent || ''`);
     const custom = listed.find((d) => d.platform === 'custom');
-    check('recorder live: Go Live with nowhere to go opens the box; a server is added with its key, which is kept and shown only by its last four characters',
+    check('broadcast live: Go Live with nowhere to go opens the box; a server is added with its key, which is kept and shown only by its last four characters',
       asked && custom?.hasKey && custom.keyHint === '••••7Q4z' && !JSON.stringify(listed).includes('check-key') && !shown.includes('check-key') && listed.some((d) => d.platform === 'youtube' && !d.hasKey && /youtube\.com/.test(d.url)),
       JSON.stringify({ asked, filled, saveState, listed }));
     await js(`document.querySelector('.lv-done')?.click(), 1`);
@@ -158,7 +158,7 @@ async function liveChecks(h, { dir }) {
     const recordingCopy = await js(`Boolean(document.querySelector('.st-record.on'))`);
     const badge = await js(`document.querySelector('.st-live-badge')?.textContent || ''`);
     const button = await js(`(() => { const b = document.querySelector('.st-golive'); return { on: b?.classList.contains('on'), pressed: b?.getAttribute('aria-pressed'), text: b?.textContent || '' }; })()`);
-    check('recorder live: live on the destination with its key, the metadata, the H.264 and AAC configurations (well formed: an avcC record, AAC-LC) and a key frame first, every frame whole NAL units, frames on a rising clock, sound alongside, a copy recording, LIVE on the picture, and Go Live red with the time',
+    check('broadcast live: live on the destination with its key, the metadata, the H.264 and AAC configurations (well formed: an avcC record, AAC-LC) and a key frame first, every frame whole NAL units, frames on a rising clock, sound alongside, a copy recording, LIVE on the picture, and Go Live red with the time',
       button.on && button.pressed === 'true' && /\d:\d\d/.test(button.text) && went && c1.key === 'check-key-7Q4z' && c1.data.length === 1 && c1.data[0][2]?.width === 1280 && c1.video[0]?.kind === 'config' && c1.video[firstFrame]?.kind === 'key' && c1.video.length > 40 && keys >= 1 && tsUp && c1.audio[0]?.kind === 'config' && c1.audio.length > 40 && wellFormed && recordingCopy && /LIVE/.test(badge),
       JSON.stringify({ went, wellFormed, key: c1.key === 'check-key-7Q4z', data: c1.data.length, video: c1.video.length, first: c1.video.slice(0, 3).map((v) => v.kind), keys, tsUp, audio: c1.audio.length, recordingCopy, badge, button }));
 
@@ -167,7 +167,7 @@ async function liveChecks(h, { dir }) {
     await js(`document.querySelector('.st-shoot')?.click(), 1`);
     const pictured = await ok(until(() => pictures().length === 1, 'a picture while live', 8000));
     const stillLive = await js(`document.querySelector('.st-golive')?.classList.contains('on') && [...document.querySelectorAll('.st-dest')].some((n) => n.dataset.state === 'live')`);
-    check('recorder live: Take Picture takes one while live, and the stream goes on', pictured && stillLive, JSON.stringify({ pictured, stillLive, pictures: pictures() }));
+    check('broadcast live: Take Picture takes one while live, and the stream goes on', pictured && stillLive, JSON.stringify({ pictured, stillLive, pictures: pictures() }));
 
     // The line cut: reconnecting, then back, with the configurations again first.
     ingest.cut();
@@ -176,7 +176,7 @@ async function liveChecks(h, { dir }) {
     await until(() => sent(ingest.seen.connections[1], 20, 0), 'the frames after the reconnect', 60000).catch(() => {});
     const c2 = ingest.seen.connections[1] || { video: [], audio: [], data: [] };
     const again = c2.video.findIndex((v) => v.kind !== 'config');
-    check('recorder live: when the line is cut the destination says it is reconnecting, comes back by itself, and is given the configurations and a key frame before more frames',
+    check('broadcast live: when the line is cut the destination says it is reconnecting, comes back by itself, and is given the configurations and a key frame before more frames',
       dropped && back && c2.data.length === 1 && c2.video[0]?.kind === 'config' && c2.video[again]?.kind === 'key' && c2.audio[0]?.kind === 'config' && c2.video.length > 20,
       JSON.stringify({ dropped, back, data: c2.data.length, first: c2.video.slice(0, 3).map((v) => v.kind), video: c2.video.length, audio: c2.audio.length }));
 
@@ -186,7 +186,7 @@ async function liveChecks(h, { dir }) {
     const lowered = await ok(until(() => js(`/lowered to keep up/.test(document.querySelector('.st-status')?.textContent || '')`), 'the bitrate lowered', 30000));
     const rateText = await js(`document.querySelector('.st-status')?.textContent || ''`);
     for (const sock of ingest.seen.sockets) sock.resume();
-    check('recorder live: when the line cannot keep up, the picture\'s bitrate comes down and the status bar says so',
+    check('broadcast live: when the line cannot keep up, the picture\'s bitrate comes down and the status bar says so',
       lowered && /\d+ kb\/s/.test(rateText), rateText.slice(0, 160));
     await wait(1500);
 
@@ -197,19 +197,19 @@ async function liveChecks(h, { dir }) {
     const unpublished = (ingest.seen.connections[1]?.commands || []).includes('FCUnpublish');
     const copies = fs.readdirSync(folder).filter((n) => /\.webm$/.test(n));
     const probe = copies.length === 1 ? probeMedia(new Uint8Array(fs.readFileSync(path.join(folder, copies[0]))), { complete: true }) : null;
-    check('recorder live: Go Live pressed again unpublishes from the server and keeps the copy recorded meanwhile, picture and sound',
+    check('broadcast live: Go Live pressed again unpublishes from the server and keeps the copy recorded meanwhile, picture and sound',
       ended && unpublished && copies.length === 1 && probe?.hasVideo && probe?.hasAudio && probe.duration > 5,
       JSON.stringify({ ended, unpublished, copies, probe: probe ? { v: probe.hasVideo, a: probe.hasAudio, d: probe.duration } : null }));
 
     const complaints = await errorsIn(win);
-    check('recorder live: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    check('broadcast live: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
-    check('recorder live: the check ran to the end', false, err?.message || String(err));
+    check('broadcast live: the check ran to the end', false, err?.message || String(err));
   } finally {
     if (js) {
       await js(`window.rutbaOffice.live.stop()`).catch(() => {});
       for (const d of (await js(`window.rutbaOffice.live.destinations()`).catch(() => [])) || []) await js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`).catch(() => {});
-      if (kept) await js(`Promise.all([window.rutbaOffice.store.set({ key: 'recorder.studio', value: ${JSON.stringify(kept[0] ?? null)} }), window.rutbaOffice.store.set({ key: 'recorder.stack', value: ${JSON.stringify(kept[1] ?? null)} })]).then(() => 1)`).catch(() => {});
+      if (kept) await js(`Promise.all([window.rutbaOffice.store.set({ key: 'broadcast.studio', value: ${JSON.stringify(kept[0] ?? null)} }), window.rutbaOffice.store.set({ key: 'broadcast.stack', value: ${JSON.stringify(kept[1] ?? null)} })]).then(() => 1)`).catch(() => {});
     }
     ingest?.cut();
     ingest?.server.close();

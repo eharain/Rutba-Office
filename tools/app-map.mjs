@@ -52,7 +52,7 @@ const MAIN_HOMES = [
   [/^ocr\.js$/, 'ocr'],
   // The program AI apps run (mcp/node.js) is the core's: it loads AI Tools' pack.
   [/^ai-tools\.js$|^mcp\/(?!node\.js$)/, 'ai'],
-  [/^live\.js$/, 'recorder'],
+  [/^live\.js$/, 'broadcast'],
   [/^talk(-[\w-]+)?\.js$/, 'talk'],
   // The old .ppt reader (legacy-deck*.js) and mail merge's sources
   // (mailmerge-source.js) are the document service's, so the core's.
@@ -111,6 +111,7 @@ const CHECK_PACK = [
   [/^verify-image/, 'image'],
   [/^verify-(video|intro-video)/, 'video'],
   [/^verify-recorder/, 'recorder'],
+  [/^verify-broadcast/, 'broadcast'],
   [/^verify-(mail|smime)|^seed-mail/, 'mail'],
   [/^verify-calendar/, 'calendar'],
   [/^verify-base/, 'base'],

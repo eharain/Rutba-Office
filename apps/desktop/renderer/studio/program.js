@@ -17,7 +17,7 @@
 import { OUTPUT_SIZES, coverCrop, containRect } from '@rutba/studio/compositor';
 import { drawOrder } from '@rutba/studio/stack';
 import { createClock, createChunkWriter, videoBitrate, AUDIO_BITRATE } from '@rutba/studio/recorder';
-import { voiceType } from '../../recording/session.js';
+import { voiceType } from '../recording/session.js';
 import { t } from '@rutba/office-ui';
 
 const FONT = '"Segoe UI", "Segoe UI Variable", system-ui, sans-serif';
@@ -58,6 +58,8 @@ export class Program {
     this.listeners = new Set();
     this.track = null;
     this.onTick = null;
+    // A fade under way: the last frame before the shot changed, faded out over the new one.
+    this.fade = null;
   }
 
   /** The settings the next frame is drawn with (size, frame rate, quality). */
@@ -71,8 +73,21 @@ export class Program {
     if (settings.fps !== this.fps) { this.fps = settings.fps; if (this.timer) this.start(); }
   }
 
-  /** The stack the next frame is drawn from. */
-  setStack(stack) { this.stack = stack; }
+  /**
+   * The stack the next frame is drawn from. With `fade`, a shot's change
+   * (milliseconds): the frame as it is now stays over the new one and fades
+   * out, as a vision mixer's dissolve does.
+   */
+  setStack(stack, { fade = 0 } = {}) {
+    if (fade > 0 && this.frames > 0 && this.stack && stack !== this.stack) {
+      const was = this.fade?.still || document.createElement('canvas');
+      was.width = this.canvas.width;
+      was.height = this.canvas.height;
+      was.getContext('2d').drawImage(this.canvas, 0, 0);
+      this.fade = { still: was, from: performance.now(), ms: fade };
+    }
+    this.stack = stack;
+  }
 
   start() {
     clearInterval(this.timer);
@@ -209,6 +224,19 @@ export class Program {
       ctx.fillRect(0, 0, W, H);
       for (const it of drawOrder(stack)) if (this.drawItem(it, W, H)) drawn.push(it);
     }
+    if (this.fade) {
+      const left = 1 - (performance.now() - this.fade.from) / this.fade.ms;
+      if (left > 0) {
+        ctx.save();
+        ctx.globalAlpha = left;
+        ctx.drawImage(this.fade.still, 0, 0, W, H);
+        ctx.restore();
+      } else {
+        this.fade.done = true;
+      }
+    }
+    canvas.dataset.fading = this.fade && !this.fade.done ? '1' : '0';
+    if (this.fade?.done) this.fade = null;
     this.frames += 1;
     // What was drawn, for the checks: how many frames, and the items drawn bottom first, by kind and by id.
     canvas.dataset.frames = String(this.frames);

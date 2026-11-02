@@ -593,6 +593,7 @@ export const PACKS = [
   { id: 'image', name: 'Image' },
   { id: 'video', name: 'Video' },
   { id: 'recorder', name: 'Recorder' },
+  { id: 'broadcast', name: 'Live Broadcast' },
   { id: 'mail', name: 'Mail' },
   { id: 'calendar', name: 'Calendar' },
   { id: 'contacts', name: 'Contacts' },
@@ -617,7 +618,7 @@ export const NAMESPACE_PACK = {
   ocr: 'ocr',
   base: 'base',
   talk: 'talk',
-  live: 'recorder',
+  live: 'broadcast',
   ai: 'ai',
   present: 'slides',
 };
@@ -630,7 +631,7 @@ export const NAMESPACE_PACK = {
 export const EVENT_PACK = {
   'talk:state': 'talk',
   'talk:event': 'talk',
-  'live:status': 'recorder',
+  'live:status': 'broadcast',
   'mail:progress': 'mail',
   'mail:archives': 'mail',
   'mail:indexing': 'mail',

@@ -697,6 +697,8 @@ const PLAN = [
   ['video', at('Our year.rvid')],
   // Recorder's own picture is taken the feature way (recorder-studio, asApp), which needs a window picked first.
   ['recorder', null],
+  // Live Broadcast's too (broadcast-studio).
+  ['broadcast', null],
   // Data Files on a sample of its own (writeClubDatabase above), never a real database.
   ['base', at('Walking club.rbase')],
 ];

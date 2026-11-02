@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   emptyStack, normaliseStack, stackFromSettings, addItem, removeItem, duplicateItem, moveItem, nudgeItem, showItem,
   placeItem, placeBox, shapeItem, clipItem, frameToSource, itemAt, drawOrder, sceneOf, saveScene, applyScene,
-  builtInScenes, recordKind, updateSound, PLACES,
+  builtInScenes, recordKind, updateSound, PLACES, followStep, nextInRotation, FOLLOW,
 } from '../packages/studio/src/stack.js';
 
 const near = (a, b, what, eps = 0.002) => assert.ok(Math.abs(a - b) <= eps, `${what}: ${a} is not ${b}`);
@@ -140,7 +140,7 @@ test('a second copy of a source can be clipped apart from the first', () => {
 test('a scene keeps the shown items\' places and order, and puts them back', () => {
   let s = studio();
   s = saveScene(s, 'Talk');
-  s = applyScene(s, builtInScenes(s).find((sc) => sc.key === 'camera'));
+  s = applyScene(s, builtInScenes(s).find((sc) => sc.key === 'cam:camera-1'));
   assert.deepEqual(on(s), ['camera-1']);
   assert.deepEqual(s.items[0].box, { x: 0, y: 0, w: 1, h: 1 });
   s = applyScene(s, s.scenes[0]);
@@ -185,4 +185,64 @@ test('a sound is muted and its level set without touching the others', () => {
   let s = normaliseStack({ sounds: [{ kind: 'mic', id: 'mic-1', live: true }, { kind: 'system', id: 'system-1', live: true }] });
   s = updateSound(s, 'mic-1', { muted: true, gain: 5 });
   assert.deepEqual(s.sounds.map((x) => [x.id, x.muted, x.gain]), [['mic-1', true, 2], ['system-1', false, 1]]);
+});
+
+test('with two cameras each has a shot of its own, named in the order they were added, and the wide shot has them side by side', () => {
+  let s = studio();
+  const shots = builtInScenes(s, { cameraN: (i) => `Camera ${i + 1}` });
+  assert.deepEqual(shots.map((sc) => sc.key), ['screen-camera', 'screen', 'split', 'cam:camera-1', 'cam:camera-2', 'wide']);
+  assert.deepEqual(shots.filter((sc) => sc.key.startsWith('cam:')).map((sc) => sc.name), ['Camera 1', 'Camera 2']);
+  s = applyScene(s, shots.find((sc) => sc.key === 'wide'));
+  assert.deepEqual(on(s).sort(), ['camera-1', 'camera-2']);
+  const [a, b] = s.items.filter((it) => it.on).map((it) => it.box).sort((x, y) => x.x - y.x);
+  inside(a, 'the left one');
+  inside(b, 'the right one');
+  assert.ok(a.x + a.w <= b.x, 'side by side, not over each other');
+  assert.ok(a.h > 0.8 && Math.abs(a.y - b.y) < 0.001, 'both tall, level with each other');
+  assert.ok(s.items.filter((it) => it.on).every((it) => it.shape === 'rounded'));
+});
+
+test('the switching settings are kept as given, and nonsense in them is dropped', () => {
+  const s = normaliseStack({ follow: { 'cam:camera-1': 'mic-1', 'cam:camera-2': 7 }, rotate: { every: 5, keys: ['wide', 3, ''] }, transition: 'cut' });
+  assert.deepEqual(s.follow, { 'cam:camera-1': 'mic-1' });
+  assert.deepEqual(s.rotate, { every: 5, keys: ['wide'] });
+  assert.equal(s.transition, 'cut');
+  const d = normaliseStack({ rotate: { every: 7 }, transition: 'wipe' });
+  assert.deepEqual([d.rotate.every, d.transition], [8, 'fade']);
+});
+
+test('follow the speaker: a voice held long enough takes its shot, a shot is held, and nobody or everybody speaking goes wide', () => {
+  const pairs = { 'cam:a': 'mic-a', 'cam:b': 'mic-b' };
+  const run = (steps) => {
+    let state = null;
+    const cuts = [];
+    for (const [now, speaking] of steps) {
+      const r = followStep(state, { now, speaking, pairs, wide: 'wide', on: 'wide' });
+      state = r.state;
+      if (r.cut) cuts.push([now, r.cut]);
+    }
+    return cuts;
+  };
+  // A speaks: after 1.5 s the shot is A's.
+  const ms = (from, to, speaking, step = 100) => Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => [from + i * step, speaking]);
+  assert.deepEqual(run(ms(0, 2000, ['mic-a'])), [[FOLLOW.speakMs, 'cam:a']]);
+  // A word from B under a second and a half does not take the shot.
+  assert.deepEqual(run([...ms(0, 2000, ['mic-a']), ...ms(2100, 2900, ['mic-b']), ...ms(3000, 4000, ['mic-a'])]), [[1500, 'cam:a']]);
+  // B answers at once: A's shot is held three seconds before B's is cut to.
+  assert.deepEqual(run([...ms(0, 1600, ['mic-a']), ...ms(1700, 6000, ['mic-b'])]), [[1500, 'cam:a'], [4500, 'cam:b']]);
+  // Both at once, held: the wide shot.
+  assert.deepEqual(run([...ms(0, 1600, ['mic-a']), ...ms(1700, 6000, ['mic-a', 'mic-b'])]), [[1500, 'cam:a'], [4500, 'wide']]);
+  // Silence: wide once it has been quiet two and a half seconds, and the shot held its three.
+  assert.deepEqual(run([...ms(0, 1600, ['mic-a']), ...ms(1700, 6000, [])]), [[1500, 'cam:a'], [4500, 'wide']]);
+  // A pause between words does not start the wait again.
+  assert.deepEqual(run([...ms(0, 700, ['mic-a']), ...ms(800, 1300, []), ...ms(1400, 2000, ['mic-a'])]), [[1500, 'cam:a']]);
+  // A microphone with no shot changes nothing.
+  assert.deepEqual(run(ms(0, 3000, ['mic-c'])), []);
+});
+
+test('a timed rotation goes through its shots in order and back to the first', () => {
+  assert.equal(nextInRotation(['a', 'b', 'c'], 'a'), 'b');
+  assert.equal(nextInRotation(['a', 'b', 'c'], 'c'), 'a');
+  assert.equal(nextInRotation(['a', 'b'], 'x'), 'a');
+  assert.equal(nextInRotation([], 'a'), null);
 });

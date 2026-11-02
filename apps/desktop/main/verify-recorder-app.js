@@ -75,12 +75,12 @@ async function appChecks(h, { dir }) {
     const itemOf = async (kind) => ((await stack())?.items || []).find((it) => it.kind === kind) || null;
     const canvas = () => js(`(() => { const c = document.querySelector('.st-canvas'); return { layers: c.dataset.layers, ids: c.dataset.ids, video: c.dataset.video, frames: Number(c.dataset.frames), size: [c.width, c.height] }; })()`);
 
-    // The first line, in its order: Picture, Go Live, Record, then the Video and Sound switches, then the gear.
+    // The first line, in its order: Picture and Record, then the Video and Sound switches, then the gear. Go Live is Live Broadcast's.
     const line = await js(`[...document.querySelectorAll('.st-top .st-shoot, .st-top .st-golive, .st-top .st-record, .st-top .st-video, .st-top .st-sound, .st-top .st-gear')].map((n) => n.classList.contains('st-shoot') ? 'picture' : n.classList.contains('st-golive') ? 'live' : n.classList.contains('st-record') ? 'record' : n.classList.contains('st-video') ? 'video' : n.classList.contains('st-sound') ? 'sound' : 'gear').join(' ')`);
     const recordSays = await js(`document.querySelector('.st-record')?.textContent || ''`);
     const empty = await js(`Boolean(document.querySelector('.st-empty'))`);
-    check('recorder app: the first line holds Picture, Go Live and Record side by side, then the Video and Sound switches and the settings, and Record says it records video',
-      line === 'picture live record video sound gear' && /video/i.test(recordSays) && empty, JSON.stringify({ line, recordSays, empty }));
+    check('recorder app: the first line holds Picture and Record side by side, then the Video and Sound switches and the settings, with no Go Live and no switching, and Record says it records video',
+      line === 'picture record video sound gear' && !(await js(`Boolean(document.querySelector('.st-switching'))`)) && /video/i.test(recordSays) && empty, JSON.stringify({ line, recordSays, empty }));
 
     // The fixture window and the camera, from the list's Not shown, put on the share with their eyes.
     const fixture = `[...document.querySelectorAll('.st-list .st-spare[data-kind="window"]')].find((n) => (n.dataset.tip || '').includes('studio-fixture'))`;

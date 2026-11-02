@@ -1,21 +1,22 @@
 // The studio's settings, behind the gear on the first line: what is made
 // (size, frame rate, quality), where it goes, the countdown, Take Picture's
-// subject and timer, the placeholder picture, words and music, and Go Live's
-// destinations.
+// subject and timer, the placeholder picture, words and music, and, in Live
+// Broadcast, Go Live's destinations.
 
 import React from 'react';
 import { Dialog, Field, Select, Input, Button, basename, t } from '@rutba/office-ui';
-import { Toggle } from '../../recording/panel.js';
+import { Toggle } from '../recording/panel.js';
 
 /**
  * @param {object} p
  * @param {object} p.settings  normaliseStudio's
  * @param {object} p.stack
  * @param {boolean} p.busy  recording or live: what is made cannot change
+ * @param {boolean} [p.live]  Live Broadcast's: the copy kept while live, and the destinations
  */
-export function StudioSettings({ settings, stack, busy, change, changeStack, chooseFolder, choosePlaceholder, chooseMusic, openDestinations, onClose }) {
+export function StudioSettings({ settings, stack, busy, live = false, title = null, change, changeStack, chooseFolder, choosePlaceholder, chooseMusic, openDestinations, onClose }) {
   return (
-    <Dialog title={t('Recorder settings')} className="st-settings-dialog" width={560} onClose={onClose} actions={<Button primary label={t('Done')} className="st-settings-done" onClick={onClose} />}>
+    <Dialog title={title || t('Recorder settings')} className="st-settings-dialog" width={560} onClose={onClose} actions={<Button primary label={t('Done')} className="st-settings-done" onClick={onClose} />}>
       <div className="st-settings">
         <Field label={t('Size')}>
           <Select value={String(settings.size)} disabled={busy} className="st-size" onChange={(e) => change({ size: Number(e.target.value) })}>
@@ -84,8 +85,12 @@ export function StudioSettings({ settings, stack, busy, change, changeStack, cho
             </div>
           </Field>
         </div>
-        <div className="wide"><Toggle on={settings.liveCopy} label={t('Record a copy on this computer while live')} onChange={(v) => change({ liveCopy: v })} /></div>
-        <div className="wide"><Button icon="globe" label={t('Live Destinations…')} className="st-dests-btn" onClick={openDestinations} /></div>
+        {live ? (
+          <>
+            <div className="wide"><Toggle on={settings.liveCopy} label={t('Record a copy on this computer while live')} onChange={(v) => change({ liveCopy: v })} /></div>
+            <div className="wide"><Button icon="globe" label={t('Live Destinations…')} className="st-dests-btn" onClick={openDestinations} /></div>
+          </>
+        ) : null}
       </div>
     </Dialog>
   );

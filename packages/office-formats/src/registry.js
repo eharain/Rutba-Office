@@ -25,7 +25,7 @@ export const SITE = {
   company: 'https://tech-style.co',
 };
 
-/** @typedef {'mail'|'word'|'sheets'|'slides'|'pdf'|'pictures'|'image'|'video'|'recorder'|'talk'|'base'|'calendar'|'contacts'} AppKey */
+/** @typedef {'mail'|'word'|'sheets'|'slides'|'pdf'|'pictures'|'image'|'video'|'recorder'|'broadcast'|'talk'|'base'|'calendar'|'contacts'} AppKey */
 
 export const APPS = {
   mail: {
@@ -105,9 +105,9 @@ export const APPS = {
     accent: '#c2408f',
     icon: 'video',
   },
-  // Recording and, from Recorder, streaming: the screen, the camera and the
-  // voice made into one picture live (owner, 2026-10-19: "split the recording
-  // tool out"). It opens no kind of file, so it claims none.
+  // Recording: the screen, the camera and the voice made into one picture
+  // (owner, 2026-10-19: "split the recording tool out"). It opens no kind of
+  // file, so it claims none.
   recorder: {
     key: 'recorder',
     name: 'Rutba Recorder',
@@ -115,6 +115,17 @@ export const APPS = {
     tagline: 'Record your screen, camera and voice as one video',
     accent: '#e03b4c',
     icon: 'record',
+  },
+  // Going live, the Recorder's studio with several cameras' shots switched
+  // (D-2026-11-03-01: "my problem is recorder dose not say it clearly its
+  // purpose from name it feels like a recording app").
+  broadcast: {
+    key: 'broadcast',
+    name: 'Rutba Live Broadcast',
+    short: 'Live Broadcast',
+    tagline: 'Go live with your cameras, screen and sound',
+    accent: '#ea580c',
+    icon: 'broadcast',
   },
   calendar: {
     key: 'calendar',
@@ -154,7 +165,7 @@ export const APPS = {
 };
 
 /** The apps in the launcher's order. */
-export const APP_ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'recorder', 'talk', 'base'];
+export const APP_ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'recorder', 'broadcast', 'talk', 'base'];
 
 /**
  * Which apps a person wants (owner, 2026-10-20: "since the number of
@@ -177,9 +188,14 @@ export const APPS_CHOICE_KEY = 'apps.choice';
  */
 export const APP_GROUPS = [
   { id: 'office', apps: ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures'] },
-  { id: 'more', apps: ['image', 'video', 'recorder', 'talk', 'base'] },
+  { id: 'more', apps: ['image', 'video', 'recorder', 'broadcast', 'talk', 'base'] },
 ];
-export const OFF_UNTIL_CHOSEN = ['image', 'video', 'recorder', 'talk', 'base'];
+export const OFF_UNTIL_CHOSEN = ['image', 'video', 'recorder', 'broadcast', 'talk', 'base'];
+/**
+ * An app split out of another: on wherever that one is chosen, until it is
+ * turned off itself (Live Broadcast was the Recorder's Go Live).
+ */
+export const FOLLOWS = { broadcast: 'recorder' };
 export const ADDONS = ['ai'];
 
 /** The add-ons added, from the stored choice. */
@@ -191,7 +207,7 @@ export function addonsChosen(choice) {
 export function chosenApps(choice) {
   const off = new Set(Array.isArray(choice?.off) ? choice.off : []);
   const on = new Set(Array.isArray(choice?.on) ? choice.on : []);
-  const picked = APP_ORDER.filter((k) => (OFF_UNTIL_CHOSEN.includes(k) ? on.has(k) : !off.has(k)));
+  const picked = APP_ORDER.filter((k) => (OFF_UNTIL_CHOSEN.includes(k) ? on.has(k) || (FOLLOWS[k] && on.has(FOLLOWS[k]) && !off.has(k)) : !off.has(k)));
   // Nothing at all would leave a launcher with nothing in it: every app, then.
   return picked.length ? picked : APP_ORDER.filter((k) => !OFF_UNTIL_CHOSEN.includes(k));
 }
@@ -200,7 +216,7 @@ export function chosenApps(choice) {
 export function choiceFor(keys, addons = []) {
   const want = new Set(keys);
   return {
-    off: APP_ORDER.filter((k) => !OFF_UNTIL_CHOSEN.includes(k) && !want.has(k)),
+    off: APP_ORDER.filter((k) => (!OFF_UNTIL_CHOSEN.includes(k) || FOLLOWS[k]) && !want.has(k)),
     on: APP_ORDER.filter((k) => OFF_UNTIL_CHOSEN.includes(k) && want.has(k)),
     addons: ADDONS.filter((a) => addons.includes(a)),
   };

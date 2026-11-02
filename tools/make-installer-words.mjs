@@ -38,6 +38,7 @@ export const WORDS = [
   ['image', 'Image'],
   ['video', 'Video'],
   ['recorder', 'Recorder'],
+  ['broadcast', 'Live Broadcast'],
   ['talk', 'Talk'],
   ['base', 'Data Files'],
   // The page that says which apps are put on the computer at all (docs/APP-PACKS.md 5.3).

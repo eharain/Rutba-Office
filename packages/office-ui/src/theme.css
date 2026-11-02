@@ -144,6 +144,7 @@
 [data-app='image'] { --accent: #e08b2b; }
 [data-app='video'] { --accent: #c2408f; }
 [data-app='recorder'] { --accent: #e03b4c; }
+[data-app='broadcast'] { --accent: #ea580c; }
 [data-app='talk'] { --accent: #0891b2; }
 [data-app='base'] { --accent: #8e2a52; }
 :root:not([data-theme='dark']) [data-app='base'] { --accent-text: color-mix(in srgb, var(--accent) 80%, black); --accent-fill: color-mix(in srgb, var(--accent) 90%, black); }
@@ -172,6 +173,7 @@
 :root:not([data-theme='dark']) [data-app='image'] { --accent-text: color-mix(in srgb, var(--accent) 65%, black); --accent-fill: color-mix(in srgb, var(--accent) 72%, black); }
 :root:not([data-theme='dark']) [data-app='video'] { --accent-text: color-mix(in srgb, var(--accent) 84%, black); }
 :root:not([data-theme='dark']) [data-app='recorder'] { --accent-text: color-mix(in srgb, var(--accent) 76%, black); --accent-fill: color-mix(in srgb, var(--accent) 88%, black); }
+:root:not([data-theme='dark']) [data-app='broadcast'] { --accent-text: color-mix(in srgb, var(--accent) 68%, black); --accent-fill: color-mix(in srgb, var(--accent) 76%, black); }
 :root:not([data-theme='dark']) [data-app='calendar'] { --accent-text: color-mix(in srgb, var(--accent) 71%, black); --accent-fill: color-mix(in srgb, var(--accent) 82%, black); }
 :root:not([data-theme='dark']) [data-app='talk'] { --accent-text: color-mix(in srgb, var(--accent) 74%, black); --accent-fill: color-mix(in srgb, var(--accent) 86%, black); }
 :root:not([data-theme='dark']) [data-app='contacts'] { --accent-text: color-mix(in srgb, var(--accent) 91%, black); }

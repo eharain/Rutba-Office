@@ -47,6 +47,7 @@ const READY_IN = {
   image: '.im-canvas',
   video: '.vd-clip, .vd-empty, .vp-stage',
   recorder: '.st-canvas',
+  broadcast: '.st-canvas',
   pdf: '.pdf-thumb, .pdf-empty',
   mail: '.ml-row, .ml-list, .ml-compose-cta',
   calendar: '.rw-app',

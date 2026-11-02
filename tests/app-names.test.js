@@ -23,6 +23,7 @@ test('the apps carry their names: Documents and Presentations, plurals beside Wo
     image: 'Image',
     video: 'Video',
     recorder: 'Recorder',
+    broadcast: 'Live Broadcast',
     talk: 'Talk',
     base: 'Data Files',
     calendar: 'Calendar',

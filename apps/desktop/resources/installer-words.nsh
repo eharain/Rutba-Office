@@ -21,6 +21,7 @@
   Var rutbaW_image
   Var rutbaW_video
   Var rutbaW_recorder
+  Var rutbaW_broadcast
   Var rutbaW_talk
   Var rutbaW_base
   Var rutbaW_ocr
@@ -48,6 +49,7 @@ Function rutbaPickWords
   StrCpy $rutbaW_image "Image"
   StrCpy $rutbaW_video "Video"
   StrCpy $rutbaW_recorder "Recorder"
+  StrCpy $rutbaW_broadcast "Live Broadcast"
   StrCpy $rutbaW_talk "Talk"
   StrCpy $rutbaW_base "Data Files"
   StrCpy $rutbaW_ocr "Text recognition"
@@ -80,6 +82,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_image "محرر الصور"
     StrCpy $rutbaW_video "فيديو"
     StrCpy $rutbaW_recorder "المسجّل"
+    StrCpy $rutbaW_broadcast "البث المباشر"
     StrCpy $rutbaW_talk "توك"
     StrCpy $rutbaW_base "ملفات البيانات"
     StrCpy $rutbaW_ocr "التعرف على النص"
@@ -106,6 +109,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_image "امیج"
     StrCpy $rutbaW_video "ویڈیو"
     StrCpy $rutbaW_recorder "ریکارڈر"
+    StrCpy $rutbaW_broadcast "لائیو نشریات"
     StrCpy $rutbaW_talk "ٹاک"
     StrCpy $rutbaW_base "ڈیٹا فائلز"
     StrCpy $rutbaW_ocr "متن کی پہچان"
@@ -132,6 +136,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_image "इमेज"
     StrCpy $rutbaW_video "वीडियो"
     StrCpy $rutbaW_recorder "रिकॉर्डर"
+    StrCpy $rutbaW_broadcast "लाइव प्रसारण"
     StrCpy $rutbaW_talk "टॉक"
     StrCpy $rutbaW_base "डेटा फ़ाइलें"
     StrCpy $rutbaW_ocr "टेक्स्ट पहचान"
