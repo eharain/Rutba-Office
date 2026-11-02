@@ -43,7 +43,8 @@ export async function verifyAppsChoice(h) {
     check('apps choice: Choose apps shows Office apps, More apps and Add-ons with the Office apps on; Worksheets off and Recorder and AI Tools added change the tiles and templates, and the card goes',
       shown && groups === GROUPS && onAtFirst === OFFICE && count.includes(`${OFFICE} of ${APP_ORDER.length}`) && gone && after.length === OFFICE && !after.includes('sheets') && after.includes('recorder') && !after.includes('video')
         && !templates.includes('sheets') && templates.includes('word') && !recordShown && cardGone
-        && JSON.stringify(stored) === JSON.stringify({ off: ['sheets'], on: ['recorder'], addons: ['ai'] }),
+        // Live Broadcast left unticked beside the Recorder is kept off: it would follow the Recorder otherwise (registry FOLLOWS).
+        && JSON.stringify(stored) === JSON.stringify({ off: ['sheets', 'broadcast'], on: ['recorder'], addons: ['ai'] }),
       JSON.stringify({ shown, groups, onAtFirst, count, after, templates, recordShown, cardGone, stored }));
 
     // The template gallery from the launcher shows only the apps chosen.

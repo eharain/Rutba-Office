@@ -141,7 +141,9 @@ export async function verifyMailWindow(h) {
 
     // Deleted from the middle of three (owner, 2026-10-24: "it should be
     // selecting the next rather than first"): the third is selected and read.
-    const three = ['first', 'second', 'third'].map((n, i) => ({ n, s: `Window: the ${n} of three ${stamp}`, at: stamp + (3 - i) * 60000 }));
+    // Dated a day ahead, so they are the top three together: other checks date theirs minutes
+    // ahead of their own start (Links does), which on a slow run fell between these.
+    const three = ['first', 'second', 'third'].map((n, i) => ({ n, s: `Window: the ${n} of three ${stamp}`, at: stamp + 86400000 + (3 - i) * 60000 }));
     for (const { n, s, at } of three) {
       await mail('deliverTest', { accountId, folder: 'Inbox', raw: raw.replace(subject, s).replace(`<window-${stamp}@`, `<window-three-${n}-${stamp}@`).replace(new Date(stamp).toUTCString(), new Date(at).toUTCString()) });
     }

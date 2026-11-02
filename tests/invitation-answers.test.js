@@ -39,8 +39,10 @@ test('an answer is remembered when the invitation is opened again, and a later v
     calendar.respond({ text: invitation({ uid: 'review@other.example' }), partstat: 'DECLINED' });
     assert.equal(calendar.openFile({ text: invitation({ uid: 'review@other.example' }) }).invitation.me.partstat, 'DECLINED');
 
-    // Kept by the next run.
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    // Kept by the next run, once the write a moment after the last change has landed (a fixed wait missed it on a busy machine).
+    const file = path.join(dir, 'calendar.json');
+    const written = () => { try { return JSON.parse(fs.readFileSync(file, 'utf8')).answers?.['review@other.example']?.partstat === 'DECLINED'; } catch { return false; } };
+    for (const end = Date.now() + 10000; !written() && Date.now() < end;) await new Promise((resolve) => setTimeout(resolve, 50));
     const again = createCalendarService({ stores: { dir }, broadcast: null, mail: { accounts: () => [{ email: 'me@example.com' }] } });
     assert.equal(again.openFile({ text: invitation() }).invitation.me.partstat, 'TENTATIVE');
   } finally {
