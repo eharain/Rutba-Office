@@ -101,6 +101,16 @@ import { createProofing } from './proofing.js';
 import { TEMPLATES as GALLERY, CATEGORIES as GALLERY_CATEGORIES, templateById, templateForLegacy, readTemplate, thumbPath, templatePage } from '@rutba/templates/active';
 import { needsFor } from '@rutba/templates/versions';
 
+// The folders an embedded object is written to for its app to open: each goes
+// when Rutba Office ends. One still open in its app then is swept on a later
+// start (office-shell temp-sweep.js).
+const objectDirs = new Set();
+process.once('exit', () => {
+  for (const dir of objectDirs) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* still open */ }
+  }
+});
+
 // A picture kept as drawing calls (an EMF, a WMF) is drawn as an SVG, the
 // same way in all three apps: Documents' and Worksheets' readers are lent the
 // one drawer here, since neither package can depend on the one that has it.
@@ -3410,6 +3420,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       const bytes = deck ? session.engine.media(part) : pkg?.has(part) ? pkg.read(part) : null;
       if (!bytes) throw new Error('The embedded document is missing from the deck.');
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-object-'));
+      objectDirs.add(dir);
       const file = path.join(dir, path.basename(part).replace(/\d+(\.\w+)$/, '$1'));
       fs.writeFileSync(file, bytes);
       return { path: file };

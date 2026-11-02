@@ -24,6 +24,7 @@ import { createWindowManager } from './windows.js';
 import { buildImplementations, installIpc, installContract, sendEvent, broadcast } from './ipc.js';
 import { METHODS, EVENTS } from '../contract.js';
 import { speakAs, t } from './words.js';
+import { sweepTemps } from './temp-sweep.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -357,6 +358,8 @@ export function createShell({
   if (process.env.RUTBA_WINDOW_DISPLAY === 'offscreen') app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
   app.whenReady().then(async () => {
+    // A day-old temp folder of ours, left by a crash or held open at quit, goes, once the windows are up.
+    setTimeout(() => { try { sweepTemps(app.getPath('temp')); } catch { /* the next start tries again */ } }, 30000).unref?.();
     // A profile with a password asks for it before anything of it is read:
     // the key it makes opens the files sealed with it. Cancelled, this Rutba
     // Office goes and the profile is left as it was.
