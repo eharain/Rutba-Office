@@ -6,7 +6,7 @@
 // the same place, and files dropped on a window open in the right app.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Window, TitleBar, Body, StatusBar, Menu, Icon, useToast, useTheme, Button, Progress, t, msg, language } from '@rutba/office-ui';
+import { Window, TitleBar, Body, StatusBar, Menu, Dialog, Icon, useToast, useTheme, Button, Progress, t, msg, language, windowCommands, prettyKey } from '@rutba/office-ui';
 import { APPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { pathOf, installedPacks } from '@rutba/office-shell/client';
@@ -45,10 +45,62 @@ function withLanguage(href, tag, key = 'lang') {
   return url.toString();
 }
 
-/** The menu behind the app mark: new, open, recent, and the way out. */
-export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
+/**
+ * Help ▸ Keyboard Shortcuts: every command this window has a key for, as the
+ * ribbon and the keys run it, by name; read from the window's own commands,
+ * so it is never behind what the keys do.
+ */
+function ShortcutsSheet({ onClose }) {
+  const [rows] = useState(() => {
+    const seen = new Set();
+    const out = [];
+    for (const c of Object.values(windowCommands())) {
+      if (!c?.key || !c.label) continue;
+      const label = String(c.label).replace(/…$/, '');
+      const key = prettyKey(c.key);
+      if (seen.has(`${label}\u0000${key}`)) continue;
+      seen.add(`${label}\u0000${key}`);
+      out.push({ label, key });
+    }
+    return out.sort((a, b) => a.label.localeCompare(b.label));
+  });
+  return (
+    <Dialog title={t('Keyboard Shortcuts')} className="rw-shortcuts" width={480} onClose={onClose} actions={<Button label={t('Close')} onClick={onClose} />}>
+      {rows.length ? (
+        <table className="rw-shortcuts-list">
+          <tbody>{rows.map((r) => <tr key={`${r.label}:${r.key}`}><td>{r.label}</td><td><kbd>{r.key}</kbd></td></tr>)}</tbody>
+        </table>
+      ) : <p>{t('This window has no keyboard shortcuts of its own.')}</p>}
+    </Dialog>
+  );
+}
+
+/** The site's name for each app, for its how-to films (office.rutba.io/how-to). */
+const SITE_APP = { sheets: 'worksheets', slides: 'presentation', base: 'data-files' };
+
+/** How many recent files each list shows. */
+const RECENT_MAX = 15;
+
+/**
+ * The menu behind the app mark, in the same order in every app (the owner,
+ * 2026-11-02, D-2026-11-02-09: "menu in 2.22"); a row an app does not have
+ * is left out, never greyed:
+ *   New, New from Template…, the app's other new things, Open…, Open Recent ▸
+ *   Save, Save As…, Export ▸, Print…          the app's slots
+ *   the app's own few                           `own`
+ *   Window ▸, Settings ▸, Help ▸
+ *   Close Window
+ * An app fills the slots it has (`save` and `print` are what each runs;
+ * `saveAs` too, or the list of its ways to save a copy; `exports` and `own`
+ * lists of items; `newItems` its other new things). A slot the app leaves
+ * empty is taken from its commands when it has one that can run now
+ * (file.save, file.saveAs, file.export, file.pdf in the document apps,
+ * file.print), so the menu says what the ribbon and the keys do. Open Recent has this app's files first, then the other apps' in
+ * a submenu of their own.
+ */
+export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, saveAs, exports = [], print, own = [] }) {
   const [menu, setMenu] = useState(null);
-  const [recent, setRecent] = useState([]);
+  const [shortcuts, setShortcuts] = useState(false);
   const { mode, setTheme } = useTheme();
   const toast = useToast();
   // The language setting as stored: a tag, or none for the system's.
@@ -61,7 +113,6 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
   const { addons: chosenAddons } = useChosenApps(shell);
 
   useEffect(() => {
-    shell.app.recent().then(setRecent).catch(() => {});
     shell.store.get({ key: 'language', fallback: null }).then((v) => setChosenLanguage(v || null)).catch(() => setChosenLanguage(null));
     shell.store.get({ key: 'digits', fallback: null }).then((v) => setChosenDigits(v || null)).catch(() => setChosenDigits(null));
   }, [shell]);
@@ -93,58 +144,100 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
   }, [shell, appKey, toast]);
 
   const open = useCallback(
-    (e) => {
+    async (e) => {
       const rect = e.currentTarget.getBoundingClientRect();
-      const items = [];
-      if (onNew) items.push({ label: t('New'), icon: 'new', key: 'Ctrl+N', run: onNew });
-      if (galleryApp) items.push({ label: t('New from Template…'), icon: 'grid', run: () => setGallery(true) });
-      if (onOpen) items.push({ label: t('Open…'), icon: 'open', key: 'Ctrl+O', run: onOpen });
-      if (extra.length) items.push('-', ...extra);
+      // Right to left, the menu drops from the mark's far edge and its submenus open to the left.
+      const rtl = getComputedStyle(e.currentTarget).direction === 'rtl';
+      const keyboard = e.detail === 0;
+      // The recent files and this app's windows as they are now, not as they were when the window opened.
+      const [recent, windows] = await Promise.all([shell.app.recent().catch(() => []), shell.win.list?.().catch(() => []) ?? []]);
+      const appOf = (r) => r.app || appFor(kindFromExtension(r.path)) || 'home';
+      const fileRow = (r) => ({ label: r.name, icon: 'file', title: r.path, run: () => shell.win.create({ app: appOf(r), file: r.path }) });
+      const groups = [];
 
+      // New and open.
+      const first = [];
+      if (onNew) first.push({ label: t('New'), icon: 'new', key: prettyKey('Mod+N'), run: onNew });
+      if (galleryApp) first.push({ label: t('New from Template…'), icon: 'grid', run: () => setGallery(true) });
+      first.push(...newItems);
+      if (onOpen) first.push({ label: t('Open…'), icon: 'open', key: prettyKey('Mod+O'), run: onOpen });
+      const mine = appKey === 'home' ? recent : recent.filter((r) => appOf(r) === appKey);
+      const others = appKey === 'home' ? [] : recent.filter((r) => appOf(r) !== appKey);
       if (recent.length) {
-        items.push('-');
-        for (const r of recent.slice(0, 8)) {
-          items.push({
-            label: r.name,
-            icon: 'file',
-            run: () => shell.win.create({ app: r.app || appFor(kindFromExtension(r.path)) || 'home', file: r.path }),
-          });
-        }
+        const list = mine.slice(0, RECENT_MAX).map(fileRow);
+        if (others.length) list.push(...(list.length ? ['-'] : []), { label: t('Other apps’ files'), icon: 'grid', items: others.slice(0, RECENT_MAX).map(fileRow) });
+        list.push('-', { label: t('Clear the List'), icon: 'trash', run: () => shell.app.clearRecent().catch(() => {}) });
+        first.push({ label: t('Open Recent'), icon: 'clock', items: list });
       }
+      groups.push(first);
 
-      items.push('-');
-      items.push({
-        label: mode === 'dark' ? t('Light theme') : mode === 'light' ? t('Follow system') : t('Dark theme'),
-        icon: mode === 'dark' ? 'sun' : 'moon',
-        run: () => setTheme(mode === 'dark' ? 'light' : mode === 'light' ? 'system' : 'dark'),
-      });
-      items.push({ label: t('All apps'), icon: 'grid', run: () => shell.win.create({ app: 'home' }) });
-      items.push('-');
-      // The language, each named in its own words, the window's own ticked.
-      items.push({ heading: true, label: t('Language') });
-      for (const [tag, name] of LANGUAGES) {
-        items.push({ label: tag ? name : t('As the system is'), icon: (tag || null) === (chosenLanguage ?? null) ? 'check' : undefined, run: () => chooseLanguage(tag) });
-      }
+      // The document's own: save, export, print; an empty slot from the window's commands, when one can run now.
+      const cmds = windowCommands();
+      const can = (id) => {
+        const c = cmds[id];
+        return c && !c.disabled && (!c.when || c.when()) ? c : null;
+      };
+      const asItem = (c, label) => ({ label: label || c.label, icon: c.icon, key: prettyKey(c.key), run: () => c.run() });
+      const doc = [];
+      if (save) doc.push({ label: t('Save'), icon: 'save', key: prettyKey('Mod+S'), run: save });
+      else if (can('file.save')) doc.push(asItem(can('file.save'), t('Save')));
+      // Save As: one way, or the app's several (a copy, the other form of the file, a template), each a row.
+      if (typeof saveAs === 'function') doc.push({ label: t('Save As…'), icon: 'save', key: prettyKey('Mod+Shift+S'), run: saveAs });
+      else if (Array.isArray(saveAs)) doc.push(...saveAs.filter(Boolean));
+      else if (can('file.saveAs')) doc.push(asItem(can('file.saveAs')));
+      const out = exports.length ? exports : [can('file.export'), galleryApp ? can('file.pdf') : null].filter(Boolean).map((c) => asItem(c));
+      if (out.length === 1) doc.push(out[0]);
+      else if (out.length) doc.push({ label: t('Export'), icon: 'export', items: out });
+      if (print) doc.push({ label: t('Print…'), icon: 'print', key: prettyKey('Mod+P'), run: print });
+      else if (can('file.print')) doc.push(asItem(can('file.print'), t('Print…')));
+      groups.push(doc);
+
+      // The app's own few.
+      groups.push(own);
+
+      // Windows, settings and help.
+      const otherWindows = windows.filter((w) => !w.current);
+      const settings = [
+        { label: t('Theme'), icon: 'theme', items: [
+          { label: t('Light theme'), checked: mode === 'light', run: () => setTheme('light') },
+          { label: t('Dark theme'), checked: mode === 'dark', run: () => setTheme('dark') },
+          { label: t('As the system is'), checked: mode === 'system', run: () => setTheme('system') },
+        ] },
+        // The language, each named in its own words, the window's own ticked.
+        { label: t('Language'), icon: 'globe', items: LANGUAGES.map(([tag, name]) => ({ label: tag ? name : t('As the system is'), checked: (tag || null) === (chosenLanguage ?? null), run: () => chooseLanguage(tag) })) },
+      ];
       // The digits, in a window whose language has digits of its own.
       const digits = DIGITS[language()];
-      if (digits) {
-        items.push('-');
-        items.push({ heading: true, label: t('Digits') });
-        for (const [system, label] of digits) {
-          items.push({ label: t(label), icon: (system || null) === (chosenDigits ?? null) ? 'check' : undefined, run: () => chooseDigits(system) });
-        }
-      }
-      items.push('-');
-      items.push({ label: t('What’s new'), icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) });
-      items.push({ label: t('About Rutba Office'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) });
+      if (digits) settings.push({ label: t('Digits'), icon: 'listNumber', items: digits.map(([system, label]) => ({ label: t(label), checked: (system || null) === (chosenDigits ?? null), run: () => chooseDigits(system) })) });
       // Profiles: the people, or the parts of one's work, each in its own windows (profiles.js).
-      items.push({ label: t('Manage Profiles…'), icon: 'contacts', run: () => openManageProfiles() });
+      settings.push('-', { label: t('Profiles…'), icon: 'contacts', run: () => openManageProfiles() });
       // AI Tools is an add-on: in the menu once it is added in Choose apps.
-      if (chosenAddons.includes('ai')) items.push({ label: t('AI Tools…'), icon: 'wand', run: () => window.dispatchEvent(new Event('rutba-ai-tools')) });
+      if (chosenAddons.includes('ai')) settings.push({ label: t('AI Tools…'), icon: 'wand', run: () => window.dispatchEvent(new Event('rutba-ai-tools')) });
+      const site = appKey === 'home' ? '' : `#${SITE_APP[appKey] || appKey}`;
+      groups.push([
+        { label: t('Window'), icon: 'window', items: [
+          ...otherWindows.map((w) => ({ label: w.name || t('Untitled'), icon: 'window', run: () => shell.win.focus({ id: w.id }) })),
+          ...(otherWindows.length ? ['-'] : []),
+          { label: t('All apps'), icon: 'grid', run: () => shell.win.create({ app: 'home' }) },
+        ] },
+        { label: t('Settings'), icon: 'settings', items: settings },
+        { label: t('Help'), icon: 'info', items: [
+          { label: t('What’s new'), icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) },
+          { label: t('Keyboard Shortcuts'), icon: 'mouse', run: () => setShortcuts(true) },
+          { label: t('How-to Films'), icon: 'play', run: () => shell.shell.openExternal({ url: `https://office.rutba.io/how-to${site}` }).catch(() => {}) },
+          { label: t('Contact Us'), icon: 'mail', run: () => shell.shell.openExternal({ url: 'https://office.rutba.io/contact' }).catch(() => {}) },
+          '-',
+          { label: t('About Rutba Office'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) },
+        ] },
+      ]);
+      // The launcher is the suite itself: closing it is quitting, which its own window does.
+      if (appKey !== 'home') groups.push([{ label: t('Close Window'), icon: 'close', key: prettyKey('Mod+W'), run: () => shell.win.close({}).catch(() => {}) }]);
 
-      setMenu({ x: rect.left, y: rect.bottom + 4, items, keyboard: e.detail === 0 });
+      const items = [];
+      for (const g of groups.filter((x) => x.length)) items.push(...(items.length ? ['-'] : []), ...g);
+      setMenu({ x: rtl ? rect.right : rect.left, y: rect.bottom + 4, rtl, items, keyboard });
     },
-    [recent, onNew, onOpen, extra, mode, setTheme, shell, appKey, galleryApp, chosenLanguage, chooseLanguage, chosenDigits, chooseDigits, chosenAddons]
+    [onNew, onOpen, newItems, save, saveAs, exports, print, own, mode, setTheme, shell, appKey, galleryApp, chosenLanguage, chooseLanguage, chosenDigits, chooseDigits, chosenAddons]
   );
 
   return {
@@ -153,6 +246,7 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
     node: (
       <>
         {menu ? <Menu {...menu} onClose={() => setMenu(null)} /> : null}
+        {shortcuts ? <ShortcutsSheet onClose={() => setShortcuts(false)} /> : null}
         {gallery && galleryApp ? <TemplateGallery shell={shell} app={galleryApp} onClose={() => setGallery(false)} /> : null}
       </>
     ),

@@ -173,7 +173,7 @@ export default function Mail({ app, shell }) {
   const appMenu = useAppMenu({
     shell,
     appKey: 'mail',
-    extra: [
+    own: [
       { label: t('Import mail…'), icon: 'import', run: () => setDialog({ kind: 'import' }) },
       { label: t('Add account…'), icon: 'plus', run: () => setDialog({ kind: 'account' }) },
       { label: t('Open files with Rutba Office…'), icon: 'settings', run: () => setDialog({ kind: 'defaults' }) },

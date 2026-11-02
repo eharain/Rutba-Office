@@ -1284,15 +1284,40 @@ export function Dialog({ title, children, actions, onClose, width, className = n
 /**
  * A context menu placed where it was asked for, then nudged back on screen —
  * a menu opened near the bottom edge should not run off it.
+ *
+ * An item with `items` opens them as a submenu beside it: on a short hover,
+ * on a click, or on the arrow toward it (Right, or Left right to left);
+ * the arrow back, or Escape, closes the submenu alone and the keyboard is on
+ * its item again. A letter goes to the next item that starts with it.
+ * A submenu is a Menu too (`nested`), drawn inside its parent's box, so
+ * the parent's keys, its focus and its closing hold for both.
  */
-export function Menu({ x, y, rtl = false, items, onClose, keyboard = false }) {
+export function Menu({ x, y, rtl = false, items, onClose, keyboard = false, nested = false, onBack, alt, label }) {
   const ref = useRef(null);
   const [pos, setPos] = useState({ x, y });
   const [from] = useState(() => (typeof document === 'undefined' ? null : document.activeElement));
-  const entries = () => [...(ref.current?.querySelectorAll('button:not(:disabled)') || [])];
+  // This menu's own items, not a submenu's drawn inside it.
+  const entries = () => [...(ref.current?.querySelectorAll(':scope > button:not(:disabled)') || [])];
+  // The submenu open: { at, x, y, alt, keyboard }; a hover opens or closes one after a moment.
+  const [sub, setSub] = useState(null);
+  const hover = useRef(0);
+  useEffect(() => () => clearTimeout(hover.current), []);
+  // A submenu opens against this menu's edge, level with its item.
+  const openSub = (i, button, byKey) => {
+    clearTimeout(hover.current);
+    const r = button.getBoundingClientRect();
+    const box = ref.current.getBoundingClientRect();
+    setSub({ at: i, x: rtl ? box.left + 2 : box.right - 2, y: r.top - 7, alt: rtl ? box.right - 2 : box.left + 2, keyboard: byKey });
+  };
+  const back = () => {
+    const at = sub?.at;
+    setSub(null);
+    ref.current?.querySelector(`:scope > button[data-sub="${at}"]`)?.focus({ preventScroll: true });
+  };
   // The keyboard goes back while the items are still on the page, so it is never on nothing for a moment
   // (a sheet takes the keyboard whenever it finds it there).
   useLayoutEffect(() => {
+    if (nested) return undefined;
     const box = ref.current;
     return () => {
       if (box?.contains(document.activeElement) && from && from.isConnected && from !== document.body) from.focus({ preventScroll: true });
@@ -1300,6 +1325,7 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (keyboard || modality.last === 'key') entries()[0]?.focus({ preventScroll: true });
+    if (nested) return undefined;
     const box = ref.current;
     return () => {
       const now = document.activeElement;
@@ -1313,22 +1339,41 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false }) {
     const all = entries();
     if (!all.length) return;
     const at = all.indexOf(document.activeElement);
+    // A key pressed in a submenu is that submenu's: it reaches here only when it was not.
+    if (at < 0 && ref.current?.querySelector(':scope > .rw-menu')?.contains(document.activeElement)) return;
     const to = e.key === 'ArrowDown' ? (at + 1) % all.length : e.key === 'ArrowUp' ? (at <= 0 ? all.length - 1 : at - 1) : e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : -1;
     if (to >= 0) { e.preventDefault(); e.stopPropagation(); all[to].focus(); return; }
-    if (e.key === 'Tab') { e.preventDefault(); onClose?.(); }
+    const toward = rtl ? 'ArrowLeft' : 'ArrowRight';
+    const away = rtl ? 'ArrowRight' : 'ArrowLeft';
+    const row = at >= 0 ? all[at] : null;
+    if (e.key === toward && row?.dataset.sub != null) { e.preventDefault(); e.stopPropagation(); openSub(Number(row.dataset.sub), row, true); return; }
+    if (nested && (e.key === away || e.key === 'Escape')) { e.preventDefault(); e.stopPropagation(); onBack?.(); return; }
+    if (e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); onClose?.(); return; }
+    // A letter: the next item that starts with it.
+    if (e.key.length === 1 && /\p{L}|\p{N}/u.test(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      const k = e.key.toLocaleLowerCase();
+      const starts = (b) => (b.querySelector('.rw-menu-label')?.textContent || '').trim().toLocaleLowerCase().startsWith(k);
+      const next = [...all.slice(at + 1), ...all.slice(0, at + 1)].find(starts);
+      if (next) { e.preventDefault(); e.stopPropagation(); next.focus(); }
+    }
   };
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
+    // A submenu with no room on its side opens on the other side of its parent.
+    let left = rtl ? x - r.width : x;
+    if (alt != null && !rtl && left + r.width > window.innerWidth - 8) left = alt - r.width;
+    if (alt != null && rtl && left < 8) left = alt;
     setPos({
-      x: Math.max(8, Math.min(rtl ? x - r.width : x, window.innerWidth - r.width - 8)),
-      y: Math.min(y, window.innerHeight - r.height - 8),
+      x: Math.max(8, Math.min(left, window.innerWidth - r.width - 8)),
+      y: Math.max(8, Math.min(y, window.innerHeight - r.height - 8)),
     });
-  }, [x, y, rtl]);
+  }, [x, y, rtl, alt]);
 
   useEffect(() => {
+    if (nested) return undefined;
     const off = () => onClose?.();
     const key = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); onClose?.(); return; }
@@ -1348,14 +1393,39 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false }) {
     };
   }, [onClose]);
 
+  const subItems = sub ? items[sub.at]?.items : null;
   return (
-    <div ref={ref} className="rw-menu" role="menu" style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={keys}>
+    <div ref={ref} className={`rw-menu${nested ? ' rw-submenu' : ''}`} role="menu" aria-label={label} style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.stopPropagation()} onKeyDown={keys}
+      onMouseEnter={nested ? undefined : () => clearTimeout(hover.current)}>
       {items.map((item, i) =>
         item === '-' ? (
           <hr key={`sep${i}`} role="separator" />
         ) : item.heading ? (
           // A section's name over its items, the way Office heads Entrance, Emphasis and Exit.
           <div key={`head${i}`} className="rw-menu-head" role="presentation">{item.label}</div>
+        ) : item.items ? (
+          // An item that opens more: a submenu beside it.
+          <button
+            key={`${i}:${item.label}`}
+            type="button"
+            role="menuitem"
+            aria-haspopup="menu"
+            aria-expanded={sub?.at === i}
+            className={sub?.at === i ? 'on' : undefined}
+            data-sub={i}
+            disabled={item.disabled || !item.items.length}
+            title={item.title}
+            onClick={(e) => (sub?.at === i ? back() : openSub(i, e.currentTarget, e.detail === 0))}
+            onMouseEnter={(e) => {
+              const b = e.currentTarget;
+              clearTimeout(hover.current);
+              if (sub?.at !== i) hover.current = setTimeout(() => openSub(i, b, false), 220);
+            }}
+          >
+            {item.icon ? <Icon name={item.icon} /> : <span style={{ width: 15 }} />}
+            <span className="rw-menu-label">{item.label}</span>
+            <span className="rw-menu-more" aria-hidden="true"><Icon name={rtl ? 'chevronLeft' : 'chevronRight'} /></span>
+          </button>
         ) : (
           <button
             key={`${i}:${item.label}`}
@@ -1364,6 +1434,10 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false }) {
             aria-checked={item.icon === 'check' || item.checked !== undefined ? Boolean(item.checked ?? item.icon === 'check') : undefined}
             disabled={item.disabled}
             title={item.title}
+            onMouseEnter={() => {
+              clearTimeout(hover.current);
+              if (sub) hover.current = setTimeout(() => setSub(null), 220);
+            }}
             onClick={() => {
               item.run?.();
               onClose?.();
@@ -1371,11 +1445,14 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false }) {
           >
             {/* A gallery's sample, where an item shows what it makes (a WordArt style), in place of an icon. */}
             {item.preview ? <span className="rw-menu-preview">{item.preview}</span> : item.icon ? <Icon name={item.icon} /> : <span style={{ width: 15 }} />}
-            <span>{item.label}</span>
+            <span className="rw-menu-label">{item.label}</span>
             {item.key ? <span className="key" aria-hidden="true">{item.key}</span> : null}
           </button>
         )
       )}
+      {subItems ? (
+        <Menu key={sub.at} nested x={sub.x} y={sub.y} alt={sub.alt} rtl={rtl} items={subItems} label={items[sub.at].label} keyboard={sub.keyboard} onClose={onClose} onBack={back} />
+      ) : null}
     </div>
   );
 }

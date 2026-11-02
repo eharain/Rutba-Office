@@ -376,15 +376,14 @@ export default function Word({ app, shell, boot }) {
     appKey: 'word',
     onNew: () => shell.win.create({ app: 'word' }),
     onOpen: () => openFileRef.current?.(),
-    // Save As beside Open and Save as Template: a copy under a new name from
-    // the menu, not only from Ctrl+Shift+S.
-    extra: doc ? [
+    // The ways to save a copy: under a new name, in the file's other form, as a template.
+    saveAs: doc ? [
       { label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) },
       // Strict Open XML beside the usual form, as Word offers it; a Strict file offers the usual form.
       { label: otherFormLabel('word', doc), icon: 'save', run: async () => { const picked = await pickSaveOtherForm(shell, 'word', doc); if (picked) saveRef.current?.(true, picked.target, picked.conformance); } },
       { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'word', doc?.name); if (target) saveRef.current?.(true, target); } },
-      protection.menuItem,
-    ] : [],
+    ] : null,
+    own: doc ? [protection.menuItem].filter(Boolean) : [],
   });
 
   const apply = useCallback(

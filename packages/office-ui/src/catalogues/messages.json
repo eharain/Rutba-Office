@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8362,
+  "count": 8367,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -8036,6 +8036,12 @@
       ]
     },
     {
+      "message": "Clear the List",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
       "message": "Clear the list",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -8366,6 +8372,7 @@
         "apps/desktop/renderer/packs-dialog.js",
         "apps/desktop/renderer/profiles.js",
         "apps/desktop/renderer/protect.js",
+        "apps/desktop/renderer/shell.js",
         "apps/desktop/renderer/symbol-dialog.js",
         "apps/desktop/renderer/whatsnew.js",
         "packages/office-ui/src/index.js"
@@ -8422,6 +8429,7 @@
     {
       "message": "Close Window",
       "where": [
+        "apps/desktop/renderer/shell.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
@@ -9178,6 +9186,7 @@
     {
       "message": "Contact Us",
       "where": [
+        "apps/desktop/renderer/shell.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
@@ -13934,7 +13943,8 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/export.js",
-        "apps/desktop/renderer/apps/video/index.js"
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -15395,12 +15405,6 @@
       "message": "Follow for more",
       "where": [
         "apps/desktop/renderer/apps/video/starters.js"
-      ]
-    },
-    {
-      "message": "Follow system",
-      "where": [
-        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -17276,7 +17280,8 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -17844,6 +17849,12 @@
       "message": "How {table} is kept",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "How-to Films",
+      "where": [
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -20250,6 +20261,7 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/shell.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
@@ -22288,8 +22300,7 @@
     {
       "message": "Manage Profiles…",
       "where": [
-        "apps/desktop/renderer/profiles.js",
-        "apps/desktop/renderer/shell.js"
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -27198,6 +27209,7 @@
     {
       "message": "Open Recent",
       "where": [
+        "apps/desktop/renderer/shell.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
@@ -27734,6 +27746,12 @@
       "message": "Other Sound…",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Other apps’ files",
+      "where": [
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -30152,6 +30170,7 @@
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js",
+        "apps/desktop/renderer/shell.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
@@ -30251,6 +30270,12 @@
       "message": "Profiles: open Rutba Office as another person, or for other work, side by side.",
       "where": [
         "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Profiles…",
+      "where": [
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -34349,6 +34374,7 @@
       "message": "Save As…",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js",
+        "apps/desktop/renderer/shell.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
@@ -36265,7 +36291,8 @@
     {
       "message": "Settings",
       "where": [
-        "apps/desktop/renderer/apps/video/inspector.js"
+        "apps/desktop/renderer/apps/video/inspector.js",
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -42851,6 +42878,12 @@
       ]
     },
     {
+      "message": "Theme",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
       "message": "Theme applied to every slide",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -44392,6 +44425,12 @@
       "message": "This window",
       "where": [
         "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "This window has no keyboard shortcuts of its own.",
+      "where": [
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -47635,7 +47674,8 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/recording/panel.js",
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {

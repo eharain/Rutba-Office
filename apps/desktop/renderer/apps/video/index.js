@@ -220,7 +220,7 @@ function VideoEditor({ app, shell, boot }) {
     appKey: 'video',
     onNew: () => shell.win.create({ app: 'video' }),
     onOpen: () => appMenuOpen.current?.(),
-    extra: [
+    newItems: [
       { label: t('New Introduction Video'), icon: 'scenes', run: () => appMenuNewIntro.current?.() },
       // The starters, from any window: in one with work in it, each opens a window of its own.
       ...STARTERS.map((s) => ({ label: STARTER_MENU()[s.key], icon: STARTER_ICONS[s.key], run: () => startStarterRef.current?.(s.key) })),

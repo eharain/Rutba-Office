@@ -281,7 +281,7 @@ export default function Sheets({ app, shell, boot }) {
   });
   // File → Save as Template, from the menu made before `save` is.
   const saveRef = useRef(null);
-  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.(), extra: doc ? [{ label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) }, { label: otherFormLabel('sheets', doc), icon: 'save', run: async () => { const picked = await pickSaveOtherForm(shell, 'sheets', doc); if (picked) saveRef.current?.(true, picked.target, picked.conformance); } }, protection.menuItem, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'sheets', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
+  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.(), saveAs: doc ? [{ label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) }, { label: otherFormLabel('sheets', doc), icon: 'save', run: async () => { const picked = await pickSaveOtherForm(shell, 'sheets', doc); if (picked) saveRef.current?.(true, picked.target, picked.conformance); } }, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'sheets', doc?.name); if (target) saveRef.current?.(true, target); } }] : null, own: doc ? [protection.menuItem].filter(Boolean) : [] });
 
   const dispatch = useCallback(
     async (...ops) => {

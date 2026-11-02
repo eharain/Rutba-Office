@@ -510,7 +510,7 @@ export default function Slides({ app, shell, boot }) {
   });
   // File → Save as Template, from the menu made before `save` is.
   const saveRef = useRef(null);
-  const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.(), extra: doc && !presenterFor ? [{ label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) }, { label: otherFormLabel('slides', doc), icon: 'save', run: async () => { const picked = await pickSaveOtherForm(shell, 'slides', doc); if (picked) saveRef.current?.(true, picked.target, picked.conformance); } }, protection.menuItem, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'slides', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
+  const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.(), saveAs: doc && !presenterFor ? [{ label: t('Save as…'), icon: 'save', key: 'Ctrl+Shift+S', run: () => saveRef.current?.(true) }, { label: otherFormLabel('slides', doc), icon: 'save', run: async () => { const picked = await pickSaveOtherForm(shell, 'slides', doc); if (picked) saveRef.current?.(true, picked.target, picked.conformance); } }, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'slides', doc?.name); if (target) saveRef.current?.(true, target); } }] : null, own: doc && !presenterFor ? [protection.menuItem].filter(Boolean) : [] });
 
   const load = useCallback(
     async (next = index) => {

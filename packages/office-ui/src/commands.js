@@ -61,6 +61,17 @@ function matches(combo, event) {
   return pressed === key || (key.length === 1 && pressed === key);
 }
 
+// The window's command tables, as they are now: the app menu takes Save and
+// Print from them, and the keyboard shortcuts sheet lists their keys.
+const live = new Set();
+
+/** Every command this window has bound, by id (a later table's over an earlier one's). */
+export function windowCommands() {
+  const out = {};
+  for (const table of live) Object.assign(out, table.current || {});
+  return out;
+}
+
 /**
  * Bind a command table to the window.
  * @param {Record<string, { run: Function, key?: string, when?: () => boolean, label?: string, icon?: string }>} commands
@@ -68,6 +79,10 @@ function matches(combo, event) {
 export function useCommands(commands, deps = []) {
   const table = useRef(commands);
   table.current = commands;
+  useEffect(() => {
+    live.add(table);
+    return () => { live.delete(table); };
+  }, []);
 
   const run = useCallback((id, ...args) => {
     const cmd = table.current[id];

@@ -1465,7 +1465,8 @@ export default function PdfApp({ app, shell, boot }) {
     appKey: 'pdf',
     onNew: () => shell.win.create({ app: 'pdf' }),
     onOpen: () => openFileRef.current?.(),
-    extra: [{ label: t('Merge Files…'), icon: 'pdf', run: () => mergeFiles() }],
+    // Merging other files into one PDF is this app's export.
+    exports: [{ label: t('Merge Files…'), icon: 'pdf', run: () => mergeFiles() }],
   });
 
   const thumbMenu = useCallback((e, key) => {

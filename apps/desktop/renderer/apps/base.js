@@ -676,7 +676,7 @@ export default function Databases({ app, shell, boot }) {
     appKey: 'base',
     onNew: () => shell.win.create({ app: 'base' }),
     onOpen: () => appMenuOpen.current?.(),
-    extra: [{ label: t('Save As'), icon: 'save', run: () => saveAs() }],
+    saveAs: () => saveAs(),
   });
   const sideMenu = useMenu();
 
