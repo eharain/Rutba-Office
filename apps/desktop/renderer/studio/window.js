@@ -482,7 +482,7 @@ export function StudioWindow({ app, shell, kind = 'recorder', live: liveKit = nu
       const now = performance.now();
       const st = stackRef.current;
       for (const s of st.sounds) if (s.live && !s.muted && media.level(s.id) > SPEAK_LEVEL) loud.set(s.id, now);
-      const speaking = [...loud].filter(([, at]) => now - at < SPEAK_HANG_MS).map(([id]) => id);
+      const speaking = [...loud].filter((e) => now - e[1] < SPEAK_HANG_MS).map(([id]) => id);
       const there = new Set(scenesRef.current.map((sc) => sc.key));
       const pairs = Object.fromEntries(Object.entries(st.follow).filter(([k]) => there.has(k)));
       const r = followStep(state, { now, speaking, pairs, wide: there.has('wide') ? 'wide' : null, on: onAirRef.current });
