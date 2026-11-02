@@ -343,6 +343,19 @@ export default function Mail({ app, shell }) {
     setInsight(null);
   }, [refreshList, alone]);
 
+  // A server's folder opened is asked for what the server has in it, quietly: one never
+  // opened here (mail a server's filter put in Junk, a folder made in webmail) is otherwise empty.
+  useEffect(() => {
+    if (alone || unified || !accountId || !folder) return undefined;
+    if (accounts.find((a) => a.id === accountId)?.local) return undefined;
+    let live = true;
+    shell.mail.sync({ accountId, folder })
+      .then((r) => { if (live && (r?.added || 0) > 0) refreshList(); })
+      .catch(() => { /* offline: Send/Receive says so when asked */ });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId, folder, unified, alone]);
+
   // Opening a message: the body and the report on it come together, because
   // showing the body first and the warning a moment later is exactly backwards.
   useEffect(() => {

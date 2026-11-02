@@ -415,3 +415,14 @@ test('folders made, renamed and deleted at the server elsewhere show here (A6.4)
     await s.close();
   }
 });
+
+test('mail a server filed in its Junk before the first fetch comes in with the first fetch, without the folder being asked for', async () => {
+  const s = await setUp();
+  try {
+    s.server.deliver('Junk', message(9));
+    await s.service.sync({ accountId: s.accountId });
+    assert.deepEqual(s.subjects('Junk'), ['Message 9']);
+  } finally {
+    await s.close();
+  }
+});

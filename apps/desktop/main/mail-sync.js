@@ -666,7 +666,9 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
       const condstore = Boolean(client.enabled?.has?.('CONDSTORE') || client.capabilities?.has?.('CONDSTORE'));
       const inbox = all.find((f) => f.role === 'inbox')?.path || 'INBOX';
       const named = [...asked].filter((p) => ctx.listed.has(p));
-      const before = all.filter((f) => !f.local && f.path !== inbox && !named.includes(f.path) && store.syncState(accountId, f.path)).map((f) => f.path);
+      // The server's Junk is watched from the start: a server's filter files mail there that no one here has asked for yet.
+      const junk = all.find((f) => f.role === 'junk' && !f.local)?.path;
+      const before = all.filter((f) => !f.local && f.path !== inbox && !named.includes(f.path) && (f.path === junk || store.syncState(accountId, f.path))).map((f) => f.path);
       const targets = [{ path: inbox, quick: false }, ...named.filter((p) => p !== inbox).map((p) => ({ path: p, quick: false })), ...before.map((p) => ({ path: p, quick: true }))];
       const arrived = [];
       let added = 0;
