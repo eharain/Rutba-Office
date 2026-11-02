@@ -436,7 +436,7 @@ export default function SheetsRibbon({
               { label: t('Row height…'), run: () => openDialog('rowHeight') },
               { label: t('Column width…'), run: () => openDialog('colWidth') },
               { label: t('AutoFit column width'), run: () => act('autoFit') },
-              { label: '-' },
+              '-',
               { label: protectedSheet ? t('Unprotect sheet') : t('Protect sheet'), icon: 'lock', run: () => dispatch({ op: protectedSheet ? 'unprotect' : 'protect' }) },
               { label: format.locked === false ? t('Lock cells') : t('Unlock cells'), icon: 'lock', run: () => setFormat({ locked: format.locked === false }) },
             ])} />
