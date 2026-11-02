@@ -13,7 +13,7 @@ import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Panel, Content, Field, Input, Select, Dialog,
   useToast, useCommands, useMenu, menuItems, t, tn, language, numberTag,
 } from '@rutba/office-ui';
-import { localToUtc, utcToLocal, ianaZone, offsetMinutes } from '@rutba/calendar/tz';
+import { localToUtc, utcToLocal, ianaZone, offsetMinutes, localZone, currentZone } from '@rutba/calendar/tz';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
 import { AccountsDialog } from '../dav-accounts.js';
 
@@ -98,15 +98,9 @@ const clock = (ms) => {
 
 /* ── time zones ────────────────────────────────────────────────────────── */
 
-/** This computer's zone, as Intl names it. */
-const LOCAL_ZONE = (() => {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  } catch {
-    return 'UTC';
-  }
-})();
-/** Every zone the runtime knows, this computer's among them. */
+/** This computer's zone, by today's name ("Asia/Kolkata", where Intl still says "Asia/Calcutta"). */
+const LOCAL_ZONE = localZone();
+/** Every zone the runtime knows, each once by today's name, this computer's among them. */
 const ZONES = (() => {
   let all = [];
   try {
@@ -114,7 +108,7 @@ const ZONES = (() => {
   } catch {
     /* an older runtime: this computer's zone and UTC */
   }
-  return [...new Set([LOCAL_ZONE, 'UTC', ...all])].sort();
+  return [...new Set([LOCAL_ZONE, 'UTC', ...all.map(currentZone)])].sort();
 })();
 /** A zone as a person reads it: its place, without the underscores. */
 const zonePlace = (zone) => String(zone || '').split('/').pop().replace(/_/g, ' ');
@@ -295,7 +289,7 @@ export default function Calendar({ app, shell, boot }) {
   // A second zone's hours beside this computer's in the day and the week, as Outlook shows one; the choice is kept.
   const [secondZone, setSecondZone] = useState(null);
   useEffect(() => {
-    shell.store.get({ key: 'calendar.secondZone', fallback: null }).then((v) => { if (v && ianaZone(v)) setSecondZone(v); }).catch(() => {});
+    shell.store.get({ key: 'calendar.secondZone', fallback: null }).then((v) => { if (v && ianaZone(v)) setSecondZone(ianaZone(v)); }).catch(() => {});
   }, [shell]);
   const chooseSecondZone = useCallback((zone) => {
     setSecondZone(zone || null);

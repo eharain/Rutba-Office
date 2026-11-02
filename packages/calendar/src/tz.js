@@ -61,6 +61,39 @@ export const WINDOWS_ZONES = {
   'Coordinated Universal Time': 'UTC',
 };
 
+/**
+ * The runtime lists some zones by names the zone database has since replaced
+ * (ICU keeps them as its canonical ids): someone in India saw "Asia/Calcutta".
+ * Each is shown and kept by today's name; Intl reads both.
+ */
+export const CURRENT_ZONE = {
+  'Asia/Calcutta': 'Asia/Kolkata',
+  'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+  'Asia/Katmandu': 'Asia/Kathmandu',
+  'Asia/Rangoon': 'Asia/Yangon',
+  'Europe/Kiev': 'Europe/Kyiv',
+  'America/Godthab': 'America/Nuuk',
+  'Atlantic/Faeroe': 'Atlantic/Faroe',
+  'America/Buenos_Aires': 'America/Argentina/Buenos_Aires',
+  'America/Catamarca': 'America/Argentina/Catamarca',
+  'America/Cordoba': 'America/Argentina/Cordoba',
+  'America/Jujuy': 'America/Argentina/Jujuy',
+  'America/Mendoza': 'America/Argentina/Mendoza',
+  'America/Indianapolis': 'America/Indiana/Indianapolis',
+  'America/Louisville': 'America/Kentucky/Louisville',
+  'Pacific/Truk': 'Pacific/Chuuk',
+  'Pacific/Ponape': 'Pacific/Pohnpei',
+  'Pacific/Enderbury': 'Pacific/Kanton',
+  'Africa/Asmera': 'Africa/Asmara',
+  'America/Coral_Harbour': 'America/Atikokan',
+};
+
+/** A zone by today's name, when the runtime knows that name too. */
+export function currentZone(tzid) {
+  const now = CURRENT_ZONE[tzid];
+  return now && knownZone(now) ? now : tzid;
+}
+
 const formatters = new Map();
 
 /** Whether Intl knows the zone. */
@@ -79,7 +112,7 @@ export function ianaZone(tzid) {
   if (!tzid) return null;
   const bare = String(tzid).replace(/^\/?(mozilla\.org|apple\.com|microsoft)?[^/]*\/?/i, (m) => (m.includes('/') && !/^[A-Z][a-z]+\/[A-Z]/.test(tzid) ? '' : m)).trim();
   for (const candidate of [tzid, bare, WINDOWS_ZONES[tzid], WINDOWS_ZONES[bare]]) {
-    if (candidate && knownZone(candidate)) return candidate;
+    if (candidate && knownZone(candidate)) return currentZone(candidate);
   }
   // "(UTC+01:00) Amsterdam, Berlin…" and the like: nothing to do but the offset, if there is one.
   return null;
@@ -139,7 +172,7 @@ export function utcToLocal(epochMs, tzid) {
 /** This machine's zone, as Intl names it. */
 export function localZone() {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    return currentZone(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   } catch {
     return 'UTC';
   }

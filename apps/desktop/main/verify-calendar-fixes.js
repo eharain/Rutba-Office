@@ -9,13 +9,13 @@
 // RUTBA_VERIFY_ONLY=calendar-fixes.
 
 import { BrowserWindow } from 'electron';
-import { localToUtc } from '@rutba/calendar';
+import { localToUtc, localZone } from '@rutba/calendar';
 
 const pad = (n) => String(n).padStart(2, '0');
 const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 export async function verifyCalendarFixes({ open, check, until, wait, errorsIn }) {
-  const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const local = localZone();
   const away = local === 'America/New_York' ? 'Asia/Tokyo' : 'America/New_York';
   const second = local === 'Asia/Tokyo' ? 'Europe/London' : 'Asia/Tokyo';
   let mail = null;
@@ -65,6 +65,10 @@ export async function verifyCalendarFixes({ open, check, until, wait, errorsIn }
     await click('.rw-ribbon .rw-btn', 'New event');
     await until(() => js(`Boolean(document.querySelector('.cal-zone'))`), 'the editor with its time zone', 4000).catch(() => {});
     const zoneShown = await js(`document.querySelector('.cal-zone')?.value`);
+    const zoneNames = await js(`[...document.querySelectorAll('.cal-zone option')].map((o) => o.value)`);
+    check('calendar: the time zones are listed by the names in use today, Kolkata not Calcutta, Kyiv not Kiev, each once',
+      zoneNames.includes('Asia/Kolkata') && zoneNames.includes('Europe/Kyiv') && !zoneNames.includes('Asia/Calcutta') && !zoneNames.includes('Europe/Kiev') && new Set(zoneNames).size === zoneNames.length,
+      JSON.stringify(zoneNames.filter((z) => /Kolkata|Calcutta|Kyiv|Kiev/.test(z))));
     await pick(REPEAT, 'weekly');
     await wait(100);
     const reminderWhenRepeating = await js(`Boolean(document.querySelector('.cal-reminder'))`);
