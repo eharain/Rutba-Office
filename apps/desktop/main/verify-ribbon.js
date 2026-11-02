@@ -205,7 +205,7 @@ export async function verifyRibbon({ open, check, until, wait }, { dir, files })
         await snap(win, `ribbon-${app}-${min}-dropped.png`);
         await js(`document.querySelector('.rw-groups > .rw-group.folded[data-open]')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 1`);
         const shut = await until(() => js(`!document.querySelector('.rw-group[data-open]')`), 'the dropped group to close', 3000).then(() => true).catch(() => false);
-        check(`ribbon: ${app}'s folded group (${dropped.label}) drops its controls under its button inside the window, and Escape puts them away`,
+        check(`ribbon: ${app}'s folded group drops its controls under its button inside the window, and Escape puts them away`,
           !dropped.none && dropped.open && dropped.controls > 0 && dropped.under && dropped.inside && dropped.icon && shut, JSON.stringify({ ...dropped, shut }));
       }
 
