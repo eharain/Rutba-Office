@@ -151,7 +151,7 @@ export function AiToolsDialog({ shell, onClose }) {
       )}
 
       <h3 className="ai-h">{t('What the tools may reach')}</h3>
-      <p className="ai-note">{t('Each mail account, calendar, address book, database and folder has its own setting, also shown in its own app. Everything is Off until you choose. Nothing is ever deleted or moved, and anything sent waits for your press here first.')}</p>
+      <p className="ai-note">{t('Each mail account, calendar, address book, database and folder has its own setting, also shown in its own app, and so does the Recorder. Everything is Off until you choose. Nothing is ever deleted or moved, and anything sent waits for your press here first.')}</p>
       <dl className="ai-step-key">
         {Object.entries(STEP_NAMES()).map(([k, name]) => (
           <React.Fragment key={k}><dt>{name}</dt><dd>{STEP_NOTES()[k]}</dd></React.Fragment>
@@ -175,6 +175,7 @@ export function AiToolsDialog({ shell, onClose }) {
                       {x.server ? <small>{` ${t('kept in step with a server')}`}</small> : null}
                       {x.kind === 'database' && x.role ? <small>{` ${t('works as {role}', { role: x.role })}`}</small> : null}
                       {x.kind === 'database' && x.missing ? <small>{` ${t('not found')}`}</small> : null}
+                      {x.kind === 'recorder' ? <small>{` ${t('records into a folder below; going live stays yours')}`}</small> : null}
                     </span>
                     <StepSelect thing={x} onSet={(step) => act(async () => { await shell.ai.setStep({ kind: x.kind, id: x.id, step }); return shell.ai.state(); })} />
                     {x.kind === 'folder' ? <Button label={t('Remove')} onClick={() => act(() => shell.ai.removeFolder({ path: x.id }))} /> : null}

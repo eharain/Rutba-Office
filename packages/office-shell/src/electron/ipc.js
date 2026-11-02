@@ -16,6 +16,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { ipcMain } from 'electron';
 import { METHODS, CHANNEL_PREFIX, CONTRACT_CHANNEL } from '../contract.js';
+import { recorderRemote } from './recorder-remote.js';
 import { blobOwner } from './blobs.js';
 import { runsWhenOpened } from '../runs.js';
 import { writeWhole } from '../write-whole.js';
@@ -69,6 +70,7 @@ function canWrite(p) {
 }
 
 export function buildImplementations({ stores, windows, quitting, thumbnailer = null, iconPath = null }) {
+  recorderRemote.attach(windows);
   const impl = {};
 
   impl.app = {
@@ -685,6 +687,9 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
      * Take Picture from anywhere while Recorder is open, minimised too: one
      * key, held by one Recorder window at a time and let go with it.
      */
+    // The AI tools' Recorder (recorder-remote.js): the Recorder window says it listens, and answers each request.
+    remoteListen: ({ on = true } = {}, win) => void recorderRemote.listening(win, Boolean(on)),
+    remoteReply: ({ reply, result = null, error = null } = {}) => ({ delivered: recorderRemote.answer({ reply, result, error }) }),
     pictureKey: ({ on = false }, win) => {
       const release = () => {
         if (!pictureHeld) return;

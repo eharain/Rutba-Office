@@ -92,6 +92,10 @@ export default function Recorder({ app, shell }) {
   const rig = useMemo(() => new RecorderRig({ shell, onChange: () => setTick((n) => n + 1) }), [shell]);
   const program = useRef(null);
   const stalls = useRef(0);
+  // The AI tools' requests (capture:command 'remote'): the latest handler, the recording they asked for, and the take's path.
+  const remoteRef = useRef(null);
+  const remote = useRef(null);
+  const takenRef = useRef(null);
 
   const appMenu = useAppMenu({ shell, appKey: 'recorder', onNew: () => shell.win.create({ app: 'recorder' }), onOpen: async () => {
     const files = await shell.dialog.open({ title: t('Open'), filters: [{ name: t('Video and sound'), extensions: ['webm', 'mp4', 'mov', 'mkv', 'weba', 'm4a', 'mp3', 'wav'] }] });
@@ -243,6 +247,7 @@ export default function Recorder({ app, shell }) {
     try {
       setSaved(null);
       const { path } = await shell.capture.take({ dir: settings.folder, name: takeFileName(t('Recording'), new Date(), 'webm') });
+      takenRef.current = path;
       await program.current.record({ shell, path });
       setPhase('recording');
       setPaused(false);
@@ -299,8 +304,9 @@ export default function Recorder({ app, shell }) {
   pauseRef.current = togglePause;
 
   const pictureRef = useRef(null);
-  useEffect(() => shell.on('capture:command', ({ command } = {}) => {
-    if (command === 'stop') stopRef.current?.();
+  useEffect(() => shell.on('capture:command', ({ command, ...request } = {}) => {
+    if (command === 'remote') remoteRef.current?.(request);
+    else if (command === 'stop') stopRef.current?.();
     else if (command === 'pause') pauseRef.current?.();
     else if (command === 'picture') pictureRef.current?.();
   }), [shell]);
@@ -456,6 +462,91 @@ export default function Recorder({ app, shell }) {
     const picked = await shell.dialog.open({ title: t('Choose a logo'), filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'] }] });
     if (picked?.[0]) change({ logo: picked[0] });
   }, [shell, change]);
+
+  /* ── the AI tools' Recorder (recorder_* tools, office-shell recorder-remote.js) ── */
+
+  // A recording the tools ask for is made as a person's is: the source chosen, the settings set,
+  // Record pressed, without the countdown. The person's own settings come back when it ends.
+  // What it answers goes to the AI app, in English as every tool's answer is, not the window's words.
+  const answer = useCallback((reply, result, error = null) => {
+    shell.capture.remoteReply({ reply, result, error: error ? String(error) : null }).catch(() => {});
+  }, [shell]);
+  useEffect(() => {
+    shell.capture.remoteListen({ on: true }).catch(() => {});
+    return () => { shell.capture.remoteListen({ on: false }).catch(() => {}); };
+  }, [shell]);
+  remoteRef.current = async ({ op, args = {}, reply } = {}) => {
+    if (op === 'sources') {
+      try {
+        const list = (await shell.capture.sources()) || [];
+        setSources(list);
+        answer(reply, list.map((x) => ({ id: x.id, name: x.name, kind: x.kind })));
+      } catch (err) {
+        answer(reply, null, err?.message || err);
+      }
+      return;
+    }
+    if (op === 'state') {
+      answer(reply, { phase, seconds: Math.round(elapsed / 1000), disk: disk ? { level: disk.level, minutes: Math.floor(disk.minutes) } : null, saved, forTools: Boolean(remote.current) });
+      return;
+    }
+    if (op === 'start') {
+      if (livePhase !== 'off') { answer(reply, null, 'The Recorder is live. Nothing else is recorded until Go Live ends.'); return; }
+      if (phaseRef.current !== 'setup' || remote.current) { answer(reply, null, 'The Recorder is already recording.'); return; }
+      let list = [];
+      try { list = (await shell.capture.sources()) || []; } catch { /* none to give */ }
+      const src = list.find((x) => x.id === args.source);
+      if (!src) { answer(reply, null, 'That window or screen is not there to record. recorder_windows names those there are.'); return; }
+      remote.current = { startReply: reply, kept: settings, source: src.id, folder: args.folder, triggered: false };
+      setSources(list);
+      setKind(src.kind);
+      setSourceId(src.id);
+      change({
+        scene: args.scene || 'screen', titleOn: Boolean(args.title), title: args.title || settings.title, logo: args.logo ? settings.logo : '',
+        size: args.size ?? settings.size, fps: args.fps ?? settings.fps, folder: args.folder, countdown: 0,
+        camera: Boolean(args.camera), mic: Boolean(args.microphone), system: args.sound !== false,
+      });
+      // A source that gives no picture: said, and the person's settings put back.
+      const asked = remote.current;
+      setTimeout(() => {
+        if (remote.current !== asked || asked.triggered) return;
+        remote.current = null;
+        change(asked.kept);
+        answer(reply, null, 'The Recorder had no picture of that window to record.');
+      }, 20000);
+      return;
+    }
+    if (op === 'stop') {
+      if (phaseRef.current !== 'recording') { answer(reply, null, 'Nothing is recording.'); return; }
+      remote.current = { ...(remote.current || { kept: null, triggered: true }), stopReply: reply };
+      stopRef.current?.();
+    }
+  };
+  // Record pressed once the source, its picture and the settings are in place.
+  // The picture must be the asked-for source's own, not the one open before it.
+  const remoteScreen = rig.screen.stream ? rig.screen.source?.id : null;
+  useEffect(() => {
+    const r = remote.current;
+    if (!r?.startReply || r.triggered || phase !== 'setup' || remoteScreen !== r.source) return;
+    if (source?.id !== r.source || settings.folder !== r.folder || settings.countdown !== 0) return;
+    r.triggered = true;
+    record();
+  }, [phase, remoteScreen, source, settings, record]);
+  // Its answers: started, stopped and saved, or ended by the person's own Stop.
+  useEffect(() => {
+    const r = remote.current;
+    if (!r) return;
+    if (r.startReply && r.triggered && phase === 'recording') {
+      answer(r.startReply, { recording: true, path: takenRef.current, source: source?.name || r.source });
+      r.startReply = null;
+      return;
+    }
+    if (phase !== 'setup' || !r.triggered) return;
+    if (r.startReply) answer(r.startReply, null, 'The recording did not start.');
+    if (r.stopReply) answer(r.stopReply, saved ? { path: saved.path, seconds: Math.round(saved.seconds ?? 0), bytes: saved.written ?? null } : null, saved ? null : 'The recording could not be saved.');
+    remote.current = null;
+    if (r.kept) change(r.kept);
+  }, [phase, saved, source, answer, change]);
 
   /* ── the window ────────────────────────────────────────────────────── */
 

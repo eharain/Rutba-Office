@@ -26,7 +26,8 @@ export const TOOL_PACK = {
 /**
  * The apps an AI Tools tool reaches into (mcp/reach-tools.js): AI Tools'
  * own, offered only while every app it reaches is installed too. An
- * invitation is mailed from the person's own account and kept in a calendar.
+ * invitation is mailed from the person's own account and kept in a calendar;
+ * a recording is the Recorder's.
  */
 export const TOOL_NEEDS = {
   search_mail: ['mail'],
@@ -48,6 +49,10 @@ export const TOOL_NEEDS = {
   read_records: ['base'],
   add_record: ['base'],
   change_record: ['base'],
+  recorder_windows: ['recorder'],
+  recorder_start: ['recorder'],
+  recorder_stop: ['recorder'],
+  recorder_state: ['recorder'],
 };
 
 /** Where the core writes the packs it loaded. */

@@ -18,6 +18,7 @@
     "./electron/pack-install": "./src/electron/pack-install.js",
     "./electron/pack-resolve": "./src/electron/pack-resolve.js",
     "./electron/windows-codec": "./src/electron/windows-codec.js",
+    "./electron/recorder-remote": "./src/electron/recorder-remote.js",
     "./electron/preload": "./src/electron/preload.cjs",
     "./client": "./src/client.js",
     "./runs": "./src/runs.js",

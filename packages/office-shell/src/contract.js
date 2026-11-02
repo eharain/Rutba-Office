@@ -535,6 +535,8 @@ export const METHODS = {
     'space',        // ({ path }) -> { free, total }   bytes on the disk that holds path
     'take',         // ({ dir, name }) -> { path }   a new file in dir for a recording, written to by fs.append and let go of by fs.dropTemp
     'pointer',      // ({ on, id, fps, paused }) -> on: { tracking } | off: { samples, clicks }   the pointer over the source being recorded, a sample a frame, as fractions of it
+    'remoteListen', // ({ on }) -> void   the Recorder window takes the AI tools' requests (capture:command 'remote'), or no longer does
+    'remoteReply',  // ({ reply, result, error }) -> { delivered }   its answer to one of them
   ],
 };
 

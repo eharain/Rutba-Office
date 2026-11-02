@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8359,
+  "count": 8362,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -12568,7 +12568,7 @@
       ]
     },
     {
-      "message": "Each mail account, calendar, address book, database and folder has its own setting, also shown in its own app. Everything is Off until you choose. Nothing is ever deleted or moved, and anything sent waits for your press here first.",
+      "message": "Each mail account, calendar, address book, database and folder has its own setting, also shown in its own app, and so does the Recorder. Everything is Off until you choose. Nothing is ever deleted or moved, and anything sent waits for your press here first.",
       "where": [
         "apps/desktop/renderer/ai-tools-dialog.js"
       ]
@@ -31357,6 +31357,12 @@
       ]
     },
     {
+      "message": "Record windows and screens",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "Record your screen, camera and voice as one video",
       "where": [
         "apps/desktop/renderer/registry-words.js"
@@ -31425,6 +31431,7 @@
     {
       "message": "Recorder",
       "where": [
+        "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/recorder.js",
         "apps/desktop/renderer/registry-words.js"
       ]
@@ -40860,6 +40867,12 @@
       ]
     },
     {
+      "message": "The AI tools may record a window or a screen into a folder they may make files in. Going live stays yours.",
+      "where": [
+        "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
       "message": "The AI tools stay off until you choose a folder for them.",
       "where": [
         "apps/desktop/renderer/ai-tools-dialog.js"
@@ -49706,6 +49719,12 @@
       "message": "recipient",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "records into a folder below; going live stays yours",
+      "where": [
+        "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {

@@ -16,6 +16,11 @@
 //   databases  records; new and changed records, never the design, within
 //              the role chosen for the tools when the database is
 //              protected; a change written to a linked engine confirmed
+//   recorder   a window or a screen recorded into a folder the tools may
+//              make files in, as the Recorder window records it; stopped,
+//              its file's path, length and size (2.22, D-2026-10-30-06).
+//              Go Live is never a tool: it publishes, so it stays a
+//              person's press
 // Attachments go only from folders the tools may read, invitations only from
 // calendars they may read, and an attachment is read only from mail they
 // may read. Nothing is ever deleted or moved: there is no tool for it.
@@ -25,7 +30,7 @@
 
 import path from 'node:path';
 import { readCalendar, dateTimeAt } from '@rutba/calendar';
-import { STEPS, STEP_WORDS, LOCAL_BOOK, DATABASES_KEY, FOLDERS_KEY, stepOf, allows, refuse, folderEntries, databaseSetting } from './reach.js';
+import { STEPS, STEP_WORDS, LOCAL_BOOK, DATABASES_KEY, FOLDERS_KEY, RECORDER_KEY, stepOf, allows, refuse, folderEntries, databaseSetting } from './reach.js';
 
 const MAX_CHARS = 60000;
 const text = (t) => ({ content: [{ type: 'text', text: String(t) }] });
@@ -198,6 +203,42 @@ export const REACH_TOOL_LIST = [
     description: 'Change fields of a record (by its _rowid, as read_records gives it) in a database set to Read and prepare or more. A table linked to a database engine writes to the engine, so it needs Read, prepare and act and is shown to the person first.',
     inputSchema: { type: 'object', properties: { database: DATABASE, table: STR, rowid: { type: 'integer' }, values: { type: 'object' } }, required: ['database', 'table', 'rowid', 'values'], additionalProperties: false },
   },
+  {
+    name: 'recorder_windows',
+    description: 'The windows and screens the Recorder can record, each with its id and title. Opens the Recorder when it is not open. Needs the Recorder set to record in AI Tools.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'recorder_start',
+    description: 'Record one window or screen (its id from recorder_windows) into a folder the AI tools may make files in, as the Recorder records it: the computer\'s sound on, the microphone and camera off unless asked, no countdown. Answers once it is recording, with the file it is writing. Going live is not a tool: only the person starts a live stream.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string', description: 'The window\'s or screen\'s id, as recorder_windows gives it.' },
+        folder: { type: 'string', description: 'The folder to record into, one the AI tools may make files in (the first such folder when not given).' },
+        scene: { type: 'string', enum: ['screen', 'screen-camera', 'split', 'camera'], description: 'What the picture shows, in the names the Recorder uses: the window alone (screen, the default), the window with the camera in a corner (screen-camera), the two side by side (split), or the camera alone.' },
+        title: { type: 'string', description: 'A title line drawn on the recording; none when not given.' },
+        logo: { type: 'boolean', description: 'Draw the logo the person chose in the Recorder. Off when not given.' },
+        sound: { type: 'boolean', description: 'Record the computer\'s sound. On when not given.' },
+        microphone: { type: 'boolean', description: 'Record the microphone. Off when not given.' },
+        camera: { type: 'boolean', description: 'Use the camera. Off when not given.' },
+        size: { type: 'integer', enum: [720, 1080], description: 'The picture\'s height. The Recorder\'s own setting when not given.' },
+        fps: { type: 'integer', enum: [24, 30, 60], description: 'Frames a second. The Recorder\'s own setting when not given.' },
+      },
+      required: ['source'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'recorder_stop',
+    description: 'Stop the recording and keep it: answers with the file\'s path, its length in seconds and its size in bytes.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'recorder_state',
+    description: 'What the Recorder is doing: closed, setup (not recording), countdown, starting, recording or stopping; the seconds recorded; and the disk\'s warning when it is filling.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
 ];
 
 export const REACH_TOOLS = new Set(REACH_TOOL_LIST.map((t) => t.name));
@@ -217,9 +258,11 @@ function whenOf(given, name) {
  * `confirm` asks the person (confirm.js); `files.readable(path)` is a file
  * in a folder the tools may read, or throws why not; `readers` turn a
  * document's bytes into its words; `attachmentBytes(args)` an attachment's
- * bytes.
+ * bytes; `recorder.ask(op, args)` the Recorder window's answer
+ * (office-shell recorder-remote.js), and `files.writable(given)` a folder
+ * the tools may make files in, or throws why not.
  */
-export function createReachTools({ settings, mail = null, calendar = null, contacts = null, base = null, confirm, files, readers = {}, attachmentBytes = null }) {
+export function createReachTools({ settings, mail = null, calendar = null, contacts = null, base = null, recorder = null, confirm, files, readers = {}, attachmentBytes = null }) {
   /* ── what there is, each with its step ─────────────────────────────── */
 
   const mailThings = () => [
@@ -233,6 +276,8 @@ export function createReachTools({ settings, mail = null, calendar = null, conta
     return { kind: 'database', id: file, name: path.basename(file).replace(/\.[^.]+$/, ''), file, role: s.role, step: s.step };
   });
   const folderThings = () => folderEntries(settings.get(FOLDERS_KEY, [])).map((f) => ({ kind: 'folder', id: f.path, name: f.path, step: f.step }));
+  const recorderThings = () => (recorder ? [{ kind: 'recorder', id: 'recorder', name: 'Recorder', step: stepOf('recorder', settings.get(RECORDER_KEY, 'off')) }] : []);
+  const allThings = () => [...mailThings(), ...calendarThings(), ...bookThings(), ...databaseThings(), ...folderThings(), ...recorderThings()];
 
   const need = (thing, want) => {
     if (!allows(thing.step, want)) throw refuse(thing.kind, thing.name, thing.step, want);
@@ -245,6 +290,11 @@ export function createReachTools({ settings, mail = null, calendar = null, conta
     return hit;
   };
   const mailOf = (given, want) => need(pick(mailThings(), given, 'mail account or archive'), want);
+  /** The Recorder, set to record: every recorder_* call needs it, a window's titles as much as a recording. */
+  const recorderThing = () => {
+    if (!recorder) throw Object.assign(new Error('This Rutba Office has no Recorder.'), { refusal: true });
+    return need(recorderThings()[0], 'prepare');
+  };
   const calendarOf = (id) => calendarThings().find((c) => c.id === id) || null;
   const bookOf = (id) => bookThings().find((b) => b.id === (id || LOCAL_BOOK)) || null;
 
@@ -335,10 +385,10 @@ export function createReachTools({ settings, mail = null, calendar = null, conta
 
   const handlers = {
     list_allowed: async () => {
-      const all = [...mailThings(), ...calendarThings(), ...bookThings(), ...databaseThings(), ...folderThings()];
+      const all = allThings();
       const on = all.filter((x) => x.step !== 'off');
-      const kindWords = { mail: 'mail account', archive: 'mail archive', calendar: 'calendar', book: 'address book', database: 'database', folder: 'folder' };
-      const lines = on.map((x) => `${kindWords[x.kind]}\t${x.name}\t${STEP_WORDS[x.step]}${x.kind === 'calendar' || x.kind === 'book' ? (x.server ? '\tkept in step with a server' : '\ton this computer') : ''}${x.kind === 'database' && x.role ? `\tas the role ${x.role}` : ''}`);
+      const kindWords = { mail: 'mail account', archive: 'mail archive', calendar: 'calendar', book: 'address book', database: 'database', folder: 'folder', recorder: 'recorder' };
+      const lines = on.map((x) => `${kindWords[x.kind]}\t${x.name}\t${x.kind === 'recorder' ? 'Records windows and screens' : STEP_WORDS[x.step]}${x.kind === 'calendar' || x.kind === 'book' ? (x.server ? '\tkept in step with a server' : '\ton this computer') : ''}${x.kind === 'database' && x.role ? `\tas the role ${x.role}` : ''}`);
       const off = all.length - on.length;
       return text([
         on.length ? `kind\tname\tallows\n${lines.join('\n')}` : 'Nothing beyond files is set for the AI tools yet.',
@@ -636,12 +686,47 @@ export function createReachTools({ settings, mail = null, calendar = null, conta
 
     add_record: async (args) => writeRecord(args, 'add'),
     change_record: async (args) => writeRecord(args, 'change'),
+
+    /* ── the Recorder ─────────────────────────────────────────────────── */
+
+    recorder_windows: async () => {
+      const thing = recorderThing();
+      const list = (await recorder.ask('sources')) || [];
+      return { result: text(list.length ? `kind\tid\ttitle\n${list.map((s) => `${s.kind}\t${s.id}\t${String(s.name || '').replace(/[\t\n]/g, ' ')}`).join('\n')}` : 'The Recorder finds no window or screen to record.'), log: thing };
+    },
+
+    recorder_start: async (args) => {
+      const thing = recorderThing();
+      const folder = files.writable(words(args.folder));
+      const r = await recorder.ask('start', {
+        source: words(args.source), folder, scene: args.scene, title: words(args.title), logo: Boolean(args.logo),
+        sound: args.sound !== false, microphone: Boolean(args.microphone), camera: Boolean(args.camera) || ['screen-camera', 'split', 'camera'].includes(args.scene),
+        ...(args.size ? { size: Number(args.size) } : {}), ...(args.fps ? { fps: Number(args.fps) } : {}),
+      });
+      return { result: text(`Recording ${r?.source || args.source} into ${r?.path || folder}. recorder_stop ends it and keeps the file.`), log: thing };
+    },
+
+    recorder_stop: async () => {
+      const thing = recorderThing();
+      const r = await recorder.ask('stop');
+      return { result: text(`Kept ${r?.path}: ${r?.seconds ?? '?'} seconds, ${r?.bytes ?? '?'} bytes.`), log: thing };
+    },
+
+    recorder_state: async () => {
+      const thing = recorderThing();
+      const r = (await recorder.ask('state')) || {};
+      const lines = [`phase\t${r.phase || 'closed'}`];
+      if (r.phase === 'recording' || r.phase === 'stopping') lines.push(`seconds\t${r.seconds ?? 0}`);
+      if (r.disk && r.disk.level !== 'ok') lines.push(`disk\t${r.disk.level}, about ${r.disk.minutes} minutes left`);
+      if (r.saved?.path && r.phase === 'setup') lines.push(`last kept\t${r.saved.path}`);
+      return { result: text(lines.join('\n')), log: thing };
+    },
   };
 
   return {
     list: () => REACH_TOOL_LIST.map((t) => ({ ...t })),
     /** Everything there is, each with its step: the AI Tools window lists them. */
-    things: () => [...mailThings(), ...calendarThings(), ...bookThings(), ...databaseThings(), ...folderThings()],
+    things: () => allThings(),
     /**
      * One call: { result, log }, `log` the thing it used and the step that
      * call needed ({ kind, name, step }) for the log, never what was read.
@@ -663,7 +748,7 @@ export function createReachTools({ settings, mail = null, calendar = null, conta
 /** The step a call used, for the log: what it needed of the thing. */
 function stepNeeded(name, thing) {
   if (['send_message', 'send_invitation', 'answer_invitation'].includes(name)) return 'act';
-  if (['create_draft', 'add_record', 'change_record'].includes(name)) return 'prepare';
+  if (['create_draft', 'add_record', 'change_record'].includes(name) || thing.kind === 'recorder') return 'prepare';
   if (['create_event', 'create_contact'].includes(name)) return thing.server ? 'act' : 'prepare';
   return 'read';
 }

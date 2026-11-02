@@ -48,15 +48,17 @@ export const GROUPS = () => [
   [['calendar'], t('Calendars'), 'calendar'],
   [['book'], t('Address books'), 'contacts'],
   [['database'], t('Databases'), 'grid'],
+  [['recorder'], t('Recorder'), 'record'],
   [['folder'], t('Folders'), 'open'],
 ];
 
 /** A thing's name as its row shows it. */
-export const thingName = (x) => (x.kind === 'book' && !x.name ? t('On this computer') : x.name);
+export const thingName = (x) => (x.kind === 'book' && !x.name ? t('On this computer') : x.kind === 'recorder' ? t('Recorder') : x.name);
 
 /** The step chosen for one thing, from its steps; a change goes to the one setting. */
 export function StepSelect({ thing, onSet, label = t('AI tools') }) {
-  const names = STEP_NAMES();
+  // The Recorder is Off, or records: a file kept on this computer, never a live stream.
+  const names = thing.kind === 'recorder' ? { ...STEP_NAMES(), prepare: t('Record windows and screens') } : STEP_NAMES();
   return (
     <Select
       className="ai-step-select"
@@ -64,7 +66,7 @@ export function StepSelect({ thing, onSet, label = t('AI tools') }) {
       data-ai-kind={thing.kind}
       data-ai-id={thing.id}
       value={thing.step}
-      title={STEP_NOTES()[thing.step]}
+      title={thing.kind === 'recorder' && thing.step === 'prepare' ? t('The AI tools may record a window or a screen into a folder they may make files in. Going live stays yours.') : STEP_NOTES()[thing.step]}
       onChange={(e) => onSet(e.target.value)}
     >
       {thing.steps.map((k) => <option key={k} value={k}>{names[k]}</option>)}

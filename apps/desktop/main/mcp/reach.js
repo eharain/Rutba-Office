@@ -17,6 +17,10 @@
 //   a folder of files    settings ai.tools.folders: a path alone is a folder
 //                        given before 2.19, which keeps what it allowed then
 //                        (read, and new files); { path, step } one set since
+//   the Recorder         settings ai.tools.recorder: Off, or Read and prepare,
+//                        which lets the tools record a window or a screen
+//                        into a folder they may make files in (2.22,
+//                        D-2026-10-30-06); Go Live is never theirs
 // The same four steps everywhere, and Off until the person chooses:
 //   off      nothing
 //   read     read and search
@@ -33,9 +37,10 @@
 // (ai-tools.js) hands in what it reads, and the tools ask these rules.
 
 export const STEPS = ['off', 'read', 'prepare', 'act'];
-export const KINDS = ['mail', 'archive', 'calendar', 'book', 'database', 'folder'];
+export const KINDS = ['mail', 'archive', 'calendar', 'book', 'database', 'folder', 'recorder'];
 export const FOLDERS_KEY = 'ai.tools.folders';
 export const DATABASES_KEY = 'ai.tools.databases';
+export const RECORDER_KEY = 'ai.tools.recorder';
 /** The address book of the cards kept on this computer only, which has no record of its own. */
 export const LOCAL_BOOK = 'local';
 
@@ -45,11 +50,13 @@ export const STEP_WORDS = { off: 'Off', read: 'Read only', prepare: 'Read and pr
 /**
  * The steps a thing may be given: an archive opened in place is read only;
  * a mailbox brought in from a file has no server to send through, and a
- * folder nothing to send, so neither goes past prepare.
+ * folder nothing to send, so neither goes past prepare; the Recorder is Off
+ * or records, a file kept on this computer.
  */
 export function stepsFor(kind, thing = null) {
   if (kind === 'archive') return ['off', 'read'];
   if (kind === 'folder') return ['off', 'read', 'prepare'];
+  if (kind === 'recorder') return ['off', 'prepare'];
   if (kind === 'mail' && thing?.local) return ['off', 'read', 'prepare'];
   return STEPS;
 }
@@ -70,8 +77,9 @@ const WHERE = {
   book: 'in Contacts under Accounts, or in AI Tools',
   database: 'in Data Files (the database\'s AI tools, in its side panel), or in AI Tools',
   folder: 'in AI Tools, under Folders',
+  recorder: 'in AI Tools, under Recorder',
 };
-const NOUN = { mail: 'the mail account', archive: 'the archive', calendar: 'the calendar', book: 'the address book', database: 'the database', folder: 'the folder' };
+const NOUN = { mail: 'the mail account', archive: 'the archive', calendar: 'the calendar', book: 'the address book', database: 'the database', folder: 'the folder', recorder: 'the' };
 const NEED = {
   read: 'Read only',
   prepare: 'Read and prepare',

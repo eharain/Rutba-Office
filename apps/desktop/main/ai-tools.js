@@ -30,7 +30,8 @@ import { MODE_KEY, SESSION_KEY, FOLDERS_KEY, MODES, foldersOf, readLog, readConn
 import { mcpCommand as commandFor } from './mcp/command.js';
 import { createRemote, REACH_KEY, REACHES, REMOTE_KEY, REMOTE_PORT_KEY, DEFAULT_PORT, newKey, addresses } from './mcp/remote.js';
 import { LOADED_KEY } from '@rutba/office-shell/pack-tools';
-import { KINDS, STEPS, DATABASES_KEY, LOCAL_BOOK, stepsFor, stepOf, folderEntries, withFolderStep, databaseSetting } from './mcp/reach.js';
+import { KINDS, STEPS, DATABASES_KEY, RECORDER_KEY, LOCAL_BOOK, stepsFor, stepOf, folderEntries, withFolderStep, databaseSetting } from './mcp/reach.js';
+import { recorderRemote } from '@rutba/office-shell/electron/recorder-remote';
 import { createConfirmations } from './mcp/confirm.js';
 import { createChannelServer } from './mcp/channel.js';
 
@@ -59,6 +60,11 @@ export function createAiToolsService({ stores, dataDir = app.getPath('userData')
     return MODES.includes(mode) ? mode : 'off';
   };
   const folders = () => foldersOf({ [FOLDERS_KEY]: settings.get(FOLDERS_KEY, []) });
+  // The Recorder is among the apps loaded (no list: a copy from before packs has them all).
+  const hasRecorder = () => {
+    const loaded = settings.get(LOADED_KEY, null);
+    return !Array.isArray(loaded) || loaded.includes('recorder');
+  };
   const addon = () => {
     const choice = settings.get('apps.choice', null);
     return !choice || (Array.isArray(choice.addons) && choice.addons.includes('ai'));
@@ -92,7 +98,7 @@ export function createAiToolsService({ stores, dataDir = app.getPath('userData')
   /** Built the first time the tools are asked for them: the readers they need load then, not at every start. */
   const reach = async () => {
     if (reachTools) return reachTools;
-    const [{ createReachTools }, { READERS }, { resolveIn }] = await Promise.all([import('./mcp/reach-tools.js'), import('./mcp/tools.js'), import('./mcp/access.js')]);
+    const [{ createReachTools }, { READERS }, { resolveIn, foldersOf: foldersFor }] = await Promise.all([import('./mcp/reach-tools.js'), import('./mcp/tools.js'), import('./mcp/access.js')]);
     // Built when first asked, by which time every service is.
     const s = () => services() || {};
     reachTools = createReachTools({
@@ -101,8 +107,17 @@ export function createAiToolsService({ stores, dataDir = app.getPath('userData')
       calendar: s().calendar,
       contacts: s().contacts,
       base: s().base,
+      recorder: hasRecorder() ? recorderRemote : null,
       confirm,
-      files: { readable: (given) => resolveIn(folders(), given) },
+      files: {
+        readable: (given) => resolveIn(folders(), given),
+        // A folder the tools may make files in; the first of them when none is named.
+        writable: (given) => {
+          const made = foldersFor({ [FOLDERS_KEY]: settings.get(FOLDERS_KEY, []) }, 'prepare');
+          if (!given && made.length) return made[0];
+          return resolveIn(made, given);
+        },
+      },
       readers: READERS,
       attachmentBytes: async (args) => {
         const held = await s().mail?.attachment(args);
@@ -247,6 +262,7 @@ export function createAiToolsService({ stores, dataDir = app.getPath('userData')
       list.push({ kind: 'database', id: file, name: path.basename(file).replace(/\.[^.]+$/, ''), file, step: d.step, role: d.role, steps: stepsFor('database'), missing: !fs.existsSync(file) });
     }
     for (const f of folderEntries(settings.get(FOLDERS_KEY, []))) list.push({ kind: 'folder', id: f.path, name: f.path, step: f.step, steps: stepsFor('folder') });
+    if (hasRecorder()) list.push({ kind: 'recorder', id: 'recorder', name: 'Recorder', step: stepOf('recorder', settings.get(RECORDER_KEY, 'off')), steps: stepsFor('recorder') });
     return list;
   };
 
@@ -294,6 +310,9 @@ export function createAiToolsService({ stores, dataDir = app.getPath('userData')
       const full = path.resolve(String(id || ''));
       if (!stepsFor('folder').includes(step)) throw new Error('The AI tools read a folder and make new files in it; nothing in a folder is sent anywhere.');
       settings.set(FOLDERS_KEY, withFolderStep(settings.get(FOLDERS_KEY, []), full, step, sameFile));
+    } else if (kind === 'recorder') {
+      if (!stepsFor('recorder').includes(step)) throw new Error('The Recorder is Off, or records for the AI tools.');
+      settings.set(RECORDER_KEY, step);
     }
     const now = await stepOfThing({ kind, id });
     broadcast('ai:changed', { kind, id, step: now.step });
