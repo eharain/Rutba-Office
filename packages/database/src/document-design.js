@@ -342,7 +342,11 @@ export function wizardDocument({ table, fieldsOf, relationships, tables = [], na
   const business = tables.find((t) => /^(business|company)( details| info(rmation)?)?$/i.test(t)) || null;
   // Headed by what one record is (Invoices: Invoice), whatever the template is called.
   const blocks = [{ type: 'heading', text: table.replace(/s$/, '') }];
-  blocks.push({ type: 'fields', columns: 2, items: [{ field: (fieldsOf(table).find((f) => f.type === 'autonumber') || { name: 'ID' }).name, label: 'Number' }, ...fields.slice(0, 7).map((f) => ({ field: f.name }))] });
+  // The record's own number heads the fields, called Number, unless the table keeps a number of its own
+  // (a Sales table's Number, S1001): then that is the one shown, and a receipt never reads "Number 1 Number S1001".
+  const ownNumber = fields.some((f) => /^(number|no\.?|ref(erence)?( (number|no\.?))?|(invoice|receipt|order|sale|quote|job) (number|no\.?))$/i.test(f.name));
+  const keyItem = { field: (fieldsOf(table).find((f) => f.type === 'autonumber') || { name: 'ID' }).name, label: 'Number' };
+  blocks.push({ type: 'fields', columns: 2, items: [...(ownNumber ? [] : [keyItem]), ...fields.slice(0, 7).map((f) => ({ field: f.name }))] });
   const child = children[0];
   if (child) {
     const cf = fieldsOf(child.table).filter((f) => f.type !== 'autonumber' && f.name !== child.link);
