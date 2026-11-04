@@ -7,9 +7,14 @@ to be registered before it works in a build you ship.
 
 **A client id is not a secret.** It is published in every open-source mail client
 there is; Thunderbird's is in its source tree. What makes the flow safe is PKCE
-and the loopback redirect, not the id. Do not treat it as a credential, and do
-not put a *client secret* in this application — a downloadable binary cannot keep
-one, which is exactly why the flow is designed not to need one.
+and the loopback redirect, not the id. Do not treat it as a credential.
+
+Google's **Desktop app** client comes with a "client secret" as well, and its
+token endpoint will not exchange a code without it. Google says plainly that for
+an installed application it is not treated as a secret: a downloadable binary
+cannot keep one. It ships in the build beside the id. It is still never
+committed: the id and the secret belong to whoever ships the build, and are read
+from Google's download when the release is built.
 
 ---
 
@@ -19,10 +24,12 @@ one, which is exactly why the flow is designed not to need one.
    a project (or use one you have).
 2. **APIs & Services → OAuth consent screen.** External. Fill in the application
    name, the support email and the developer email. Add the scope
-   `https://mail.google.com/`.
+   `https://mail.google.com/`, `openid` and `email` (the id token then names
+   the mailbox signed in to).
 3. **APIs & Services → Credentials → Create credentials → OAuth client ID.**
    Application type: **Desktop app**.
-4. Copy the client id. It looks like `1234567890-abcdef.apps.googleusercontent.com`.
+4. Download the client's JSON file. Keep it outside the repository; the build
+   reads it (see "Putting them in").
 
 Google's Desktop app type allows a loopback redirect on any port, which is what
 this uses — there is no redirect URI to register.
@@ -52,6 +59,17 @@ video and a privacy policy.
 
 ## Putting them in
 
+**In a release build** (Google): point `RUTBA_GOOGLE_CLIENT_FILE` at the JSON
+file Google's console downloaded for the Desktop app client, and build as
+usual (`npm run dist:win`). `build/make-oauth-clients.js` reads the id and
+secret out of it into `build/oauth/clients.json` (ignored by git), and
+electron-builder puts that in the resources as `oauth/clients.json`, which
+`main/oauth.js` reads. Without the variable the build has no Google sign-in,
+and Mail offers an app password instead. From the source, `RUTBA_OAUTH_CLIENTS`
+names a `clients.json` of the same shape.
+
+**On one computer**, an id set there wins over the build's, with its own secret
+if it has one (`oauth.<provider>.clientSecret`), and never with the build's.
 Either from the running application, once:
 
 ```js

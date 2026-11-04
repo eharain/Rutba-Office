@@ -32,6 +32,8 @@ const builder = require.resolve('electron-builder/cli.js');
 const config = ['--config', 'electron-builder.config.cjs', '--publish', 'never'];
 
 step([path.join(APP, 'build', 'make-app-packs.js'), '--release', 'release']);
+// The sign-in clients, from RUTBA_GOOGLE_CLIENT_FILE (docs/OAUTH.md).
+step([path.join(APP, 'build', 'make-oauth-clients.js')]);
 if (platform === 'win') {
   step([builder, ...config, '--win', 'nsis'], { RUTBA_ALL_PACKS: '' });
   step([builder, ...config, '--win', 'portable'], { RUTBA_ALL_PACKS: '1' });

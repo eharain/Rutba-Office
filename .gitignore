@@ -14,6 +14,8 @@ apps/desktop/build/out/
 apps/desktop/build/smoke/
 # The app packs and the installer's include made from them (build/make-app-packs.js).
 apps/desktop/build/packs/
+# The sign-in clients a release carries, made from the provider's download (build/make-oauth-clients.js).
+apps/desktop/build/oauth/
 # What went into each renderer file, for the packs (build/bundle.js).
 apps/desktop/build/meta/
 # Website screenshots, from `npm run screens`. Ignored for the same reason the

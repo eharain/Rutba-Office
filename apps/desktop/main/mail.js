@@ -765,8 +765,14 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     },
 
     removeAccount: ({ id, keepMail }) => {
+      const gone = accounts().find((a) => a.id === id);
       setAccounts(accounts().filter((a) => a.id !== id));
       stores.secrets.delete(passwordKey(id));
+      // A signed-in account's refresh token goes with it, unless another account still signs in as that address.
+      if (gone && (gone.auth === 'oauth' || gone.imap?.auth === 'oauth') && oauth?.signOut
+        && !accounts().some((a) => a.email?.toLowerCase() === gone.email?.toLowerCase() && (a.auth === 'oauth' || a.imap?.auth === 'oauth'))) {
+        oauth.signOut({ email: gone.email, provider: gone.provider });
+      }
       if (!keepMail) {
         try {
           fs.rmSync(path.join(userData, 'mail', id), { recursive: true, force: true });

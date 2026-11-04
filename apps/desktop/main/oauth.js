@@ -22,14 +22,18 @@
 //   PKCE, always. A public client cannot keep a secret — anything compiled into
 //   a downloadable binary is published — so the authorisation code is bound to
 //   a verifier this process generated and never sent, which is what makes the
-//   code useless to anyone who intercepts it.
+//   code useless to anyone who intercepts it. Google still asks a Desktop
+//   client for the "secret" it issued with the id, and says itself that it is
+//   not one: it ships in the build beside the id (builtInClients below).
 //
 // What is stored afterwards is a refresh token, in the operating system's
 // keystore alongside the passwords. Access tokens live an hour and are never
 // written down.
 
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import http from 'node:http';
+import path from 'node:path';
 import { listBrowsers, openIn } from './browsers.js';
 
 // Loaded when it is needed rather than at import time: everything above the
@@ -54,7 +58,8 @@ export const PROVIDERS = {
     matches: /@(gmail\.com|googlemail\.com)$/i,
     authorize: 'https://accounts.google.com/o/oauth2/v2/auth',
     token: 'https://oauth2.googleapis.com/token',
-    scope: 'https://mail.google.com/',
+    // openid and email so the id token names the mailbox signed in to.
+    scope: 'https://mail.google.com/ openid email',
     imap: { host: 'imap.gmail.com', port: 993, secure: true },
     smtp: { host: 'smtp.gmail.com', port: 465, secure: true },
     // Where a person makes an app password, offered when no client id is set up.
@@ -95,13 +100,35 @@ function pkce() {
 
 /* ── the service ─────────────────────────────────────────────────────────── */
 
-export function createOAuthService({ stores, broadcast }) {
-  const clientIdFor = (provider) => stores.settings.get(`oauth.${provider}.clientId`, '') || '';
+/**
+ * The clients a release build carries: oauth/clients.json in its resources,
+ * written by build/make-oauth-clients.js from the provider's own download
+ * ({ google: { clientId, clientSecret } }). RUTBA_OAUTH_CLIENTS names another
+ * file, for a run from the source. None is an empty table.
+ */
+export function builtInClients(file = process.env.RUTBA_OAUTH_CLIENTS || (process.resourcesPath ? path.join(process.resourcesPath, 'oauth', 'clients.json') : '')) {
+  try {
+    const table = file ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+    return table && typeof table === 'object' ? table : {};
+  } catch {
+    return {};
+  }
+}
+
+export function createOAuthService({ stores, broadcast, built = builtInClients() }) {
+  // A client id set on this computer wins, with its own secret if it has one;
+  // otherwise the build's id and secret, which belong together.
+  const ownId = (provider) => stores.settings.get(`oauth.${provider}.clientId`, '') || '';
+  const clientIdFor = (provider) => ownId(provider) || built[provider]?.clientId || '';
+  const secretFor = (provider) => (ownId(provider) ? stores.settings.get(`oauth.${provider}.clientSecret`, '') || '' : built[provider]?.clientSecret || '');
+  /** The client's part of a token request: its id, and its secret where it has one. */
+  const client = (provider) => ({ client_id: clientIdFor(provider), ...(secretFor(provider) ? { client_secret: secretFor(provider) } : {}) });
   const key = (email, provider) => `oauth:${provider}:${String(email).toLowerCase()}`;
 
   /**
    * Trade a code or a refresh token for an access token.
-   * The exchange is a plain form post, and PKCE means there is no secret in it.
+   * The exchange is a plain form post; PKCE binds the code to this process, and
+   * Google's Desktop "secret", where there is one, goes with the id.
    */
   async function exchange(provider, body) {
     const response = await fetch(provider.token, {
@@ -190,7 +217,7 @@ export function createOAuthService({ stores, broadcast }) {
 
       const code = await wait;
       const tokens = await exchange(provider, {
-        client_id: clientId,
+        ...client(provider.id),
         code,
         code_verifier: verifier,
         grant_type: 'authorization_code',
@@ -234,7 +261,7 @@ export function createOAuthService({ stores, broadcast }) {
       if (!refresh) throw new Error(`${email} is not signed in. Add the account again to sign in.`);
 
       const tokens = await exchange(provider, {
-        client_id: clientIdFor(provider.id),
+        ...client(provider.id),
         refresh_token: refresh,
         grant_type: 'refresh_token',
       });
