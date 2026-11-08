@@ -91,13 +91,10 @@ export async function sealFile({ source, target, rootKey, headerBuf, meta, stage
     if (read.sha256 !== sealed.sha256 || read.size !== sealed.size) throw new LockerError('failed', 'The locked copy did not read back as the original.');
     await at('verified');
 
-    try {
-      await renameRetry(rename, stage, target, retries);
-    } catch (err) {
-      if (err?.code !== 'EXDEV') throw err;
-      await copyIn(stage, target, sealed, rootKey, { rename, retries, at });
-    }
-    await flushDir(path.dirname(target));
+    await placeStaged(stage, target, async (near) => {
+      const again = await verifyLocked(near, rootKey);
+      if (again.sha256 !== sealed.sha256 || again.size !== sealed.size) throw new LockerError('failed', 'The locked copy did not read back as the original.');
+    }, { rename, retries, at });
     await at('swapped');
     await fsp.rm(stage, { force: true }).catch(() => {});
     return sealed;
@@ -107,8 +104,23 @@ export async function sealFile({ source, target, rootKey, headerBuf, meta, stage
   }
 }
 
+/**
+ * A finished, verified file swapped into its place: renamed when the stage is
+ * on the same drive, otherwise copied beside the target, flushed, checked by
+ * `check`, and renamed. The target's old content stays untouched until the rename.
+ */
+export async function placeStaged(stage, target, check, { rename = fsp.rename, retries = 5, at = async () => {} } = {}) {
+  try {
+    await renameRetry(rename, stage, target, retries);
+  } catch (err) {
+    if (err?.code !== 'EXDEV') throw err;
+    await copyIn(stage, target, check, { rename, retries, at });
+  }
+  await flushDir(path.dirname(target));
+}
+
 /** The finished file carried across drives: copied beside its target, flushed, read back, then renamed. */
-async function copyIn(stage, target, sealed, rootKey, { rename, retries, at }) {
+async function copyIn(stage, target, check, { rename, retries, at }) {
   const dir = path.dirname(target);
   const near = path.join(dir, tempName());
   try {
@@ -120,8 +132,7 @@ async function copyIn(stage, target, sealed, rootKey, { rename, retries, at }) {
       await fh.close();
     }
     await at('copied');
-    const read = await verifyLocked(near, rootKey);
-    if (read.sha256 !== sealed.sha256 || read.size !== sealed.size) throw new LockerError('failed', 'The locked copy did not read back as the original.');
+    await check(near);
     await renameRetry(rename, near, target, retries);
   } catch (err) {
     await fsp.rm(near, { force: true }).catch(() => {});
@@ -142,6 +153,28 @@ async function copyIn(stage, target, sealed, rootKey, { rename, retries, at }) {
  * @returns {Promise<{ size, sha256, meta }>}
  */
 export async function writePlain({ locked, dest, rootKey, overwrite = false, hooks = null }) {
+  if (!overwrite) {
+    try {
+      await fsp.access(dest);
+      throw new LockerError('exists', 'A file of that name is already there.');
+    } catch (err) {
+      if (err.code === 'exists') throw err;
+    }
+  }
+  const opened = await openLocked(locked, rootKey);
+  try {
+    return await writePlainFrom(opened, dest, { overwrite: true, hooks });
+  } finally {
+    await opened.close();
+  }
+}
+
+/**
+ * The bytes of something that opens as frames written to `dest` the same
+ * way: a working file beside it, flushed, its hash checked, then renamed. The
+ * caller closes `opened`. Takes a locked file (openLocked) or one in pieces.
+ */
+export async function writePlainFrom(opened, dest, { overwrite = false, hooks = null } = {}) {
   const at = async (step) => { await hooks?.at?.(step); };
   const rename = hooks?.rename || fsp.rename;
   const dir = path.dirname(dest);
@@ -155,7 +188,6 @@ export async function writePlain({ locked, dest, rootKey, overwrite = false, hoo
     }
   }
   const part = path.join(dir, tempName());
-  const opened = await openLocked(locked, rootKey);
   let out = null;
   try {
     out = await fsp.open(part, 'wx');
@@ -179,8 +211,6 @@ export async function writePlain({ locked, dest, rootKey, overwrite = false, hoo
     await out?.close().catch(() => {});
     await fsp.rm(part, { force: true }).catch(() => {});
     throw err;
-  } finally {
-    await opened.close();
   }
 }
 

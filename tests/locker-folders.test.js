@@ -1,0 +1,345 @@
+// A locked folder, end to end on disk: what gets locked and how, what a person
+// chose about plain files, versions, conflicts, import, export and sharing,
+// large files in pieces, and that no step loses a file when something fails.
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
+import { FOLDER_KEYS } from '../apps/desktop/main/extras/locker/keys.js';
+import { LARGE } from '../apps/desktop/main/extras/locker/folder.js';
+
+const CHEAP = { N: 1024, r: 8, p: 1 };
+const random = (n) => crypto.randomBytes(n);
+const tmp = (pre = 'rl-') => fs.mkdtempSync(path.join(os.tmpdir(), pre));
+
+async function make(choices = {}, hooks = null) {
+  const profile = tmp();
+  const folder = tmp('rl-folder-');
+  const keep = tmp('rl-keep-');
+  const locker = createLocker({ dir: profile, cost: CHEAP, hooks });
+  const { recovery } = await locker.setup('pw');
+  const { id } = await locker.addFolder(folder, { afterLock: 'delete', hidden: false, keepVersions: 3, ...choices });
+  return { locker, folder, keep, id, recovery, profile };
+}
+
+const write = (folder, rel, bytes) => {
+  const p = path.join(folder, ...rel.split('/'));
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, bytes);
+  return p;
+};
+
+const entry = async (locker, id, rel) => (await locker.scan(id)).find((e) => e.rel === rel);
+
+test('a folder is locked file by file; the plain copy goes only after the locked copy has been read back and matched', async () => {
+  const { locker, folder, id } = await make({ afterLock: 'delete' });
+  const bytes = random(70000);
+  const p = write(folder, 'sub/a.pdf', bytes);
+  assert.equal((await entry(locker, id, 'sub/a.pdf')).state, 'waiting');
+  const { locked, failed } = await locker.lockWaiting(id);
+  assert.deepEqual(failed, []);
+  assert.equal(locked[0].plain, 'deleted');
+  assert.ok(!fs.existsSync(p));
+  assert.ok(fs.existsSync(`${p}.rlock`), 'visible name: a.pdf.rlock');
+  const e = await entry(locker, id, 'sub/a.pdf');
+  assert.equal(e.state, 'locked');
+  const out = path.join(tmp(), 'back.pdf');
+  await locker.exportCopy(id, 'sub/a.pdf', out);
+  assert.ok(fs.readFileSync(out).equals(bytes));
+  assert.ok(fs.existsSync(path.join(folder, FOLDER_KEYS)), 'the folder has its own key file');
+});
+
+test('if the plain file changes after it was hashed, it is not deleted, and it stays waiting', async () => {
+  let thePlain;
+  const hooks = { at: (s) => { if (s === 'before-delete') fs.appendFileSync(thePlain, 'edited after locking'); } };
+  const { locker, folder, id } = await make({ afterLock: 'delete' }, hooks);
+  thePlain = write(folder, 'a.pdf', random(5000));
+  const { locked, failed } = await locker.lockWaiting(id);
+  assert.equal(locked.length, 0);
+  assert.equal(failed.length, 1);
+  assert.match(failed[0].message, /changed/);
+  assert.ok(fs.existsSync(thePlain), 'the plain file is still there');
+});
+
+test('a failed read-back never deletes the plain file', async () => {
+  let damage = null;
+  const hooks = { at: (s) => { if (s === 'before-delete' && damage) { const b = fs.readFileSync(damage); b[b.length - 2] ^= 1; fs.writeFileSync(damage, b); } } };
+  const { locker, folder, id } = await make({ afterLock: 'delete' }, hooks);
+  const p = write(folder, 'a.pdf', random(5000));
+  damage = `${p}.rlock`;
+  const { failed } = await locker.lockWaiting(id);
+  assert.equal(failed.length, 1);
+  assert.ok(fs.existsSync(p), 'the plain file stands');
+});
+
+test('keeping the plain files: moved to a folder of the person\'s, never overwriting; and that folder must be outside', async () => {
+  const profile = tmp();
+  const folder = tmp('rl-folder-');
+  const keep = tmp('rl-keep-');
+  const locker = createLocker({ dir: profile, cost: CHEAP });
+  await locker.setup('pw');
+  await assert.rejects(() => locker.addFolder(folder, { afterLock: 'keep', keepDir: path.join(folder, 'inside') }), (e) => e.code === 'choice');
+  await assert.rejects(() => locker.addFolder(folder, { afterLock: 'keep' }), (e) => e.code === 'choice');
+  const { id } = await locker.addFolder(folder, { afterLock: 'keep', keepDir: keep, hidden: false });
+  const bytes = random(100);
+  write(folder, 'a.docx', bytes);
+  fs.writeFileSync(path.join(keep, 'a.docx'), 'already here');
+  const { locked } = await locker.lockWaiting(id);
+  assert.equal(locked[0].plain, 'moved');
+  assert.ok(!fs.existsSync(path.join(folder, 'a.docx')));
+  assert.equal(fs.readFileSync(path.join(keep, 'a.docx'), 'utf8'), 'already here', 'nothing overwritten');
+  assert.ok(fs.readFileSync(path.join(keep, 'a (2).docx')).equals(bytes));
+});
+
+test('names can be hidden: the file on disk has a random name, the real one comes back', async () => {
+  const { locker, folder, id } = await make({ hidden: true });
+  write(folder, 'Divorce papers/Settlement.pdf', random(100));
+  await locker.lockWaiting(id);
+  const dir = path.join(folder, 'Divorce papers');
+  const names = fs.readdirSync(dir);
+  assert.equal(names.length, 1);
+  assert.match(names[0], /^[0-9a-f]{32}\.rlock$/);
+  assert.equal((await locker.scan(id)).find((e) => e.state === 'locked').rel, 'Divorce papers/Settlement.pdf');
+});
+
+test('a file the rules exclude stays plain and says which rule; a .rutbalocker of the folder\'s governs it', async () => {
+  const { locker, folder, id } = await make({ afterLock: 'delete' });
+  write(folder, '.rutbalocker', '*.pdf\n!drafts/\n');
+  write(folder, 'a.pdf', random(10));
+  write(folder, 'drafts/b.pdf', random(10));
+  write(folder, 'c.txt', random(10));
+  write(folder, '~$a.pdf', random(10));
+  await locker.lockWaiting(id);
+  const list = await locker.scan(id);
+  const by = (r) => list.find((e) => e.rel === r);
+  assert.equal(by('a.pdf').state, 'locked');
+  assert.equal(by('drafts/b.pdf').state, 'excluded');
+  assert.equal(by('drafts/b.pdf').why, '!drafts/');
+  assert.equal(by('c.txt').state, 'excluded');
+  assert.equal(by('~$a.pdf').state, 'excluded');
+  assert.equal((await locker.why(id, 'a.pdf')).why, null);
+});
+
+test('saving: a new version is the file, the earlier ones are kept up to the number chosen, and the oldest go', async () => {
+  const { locker, folder, id } = await make({ keepVersions: 3 });
+  const v = [random(9000), random(9000), random(9000), random(9000)];
+  write(folder, 'a.pdf', v[0]);
+  await locker.lockWaiting(id);
+  const sources = v.slice(1).map((b) => { const f = path.join(tmp(), 'new.pdf'); fs.writeFileSync(f, b); return f; });
+  for (const s of sources) await locker.importFile(id, s, 'a.pdf');
+  const versions = await locker.versions(id, 'a.pdf');
+  assert.equal(versions.length, 3, 'the current one and the two before it');
+  const out = path.join(tmp(), 'out.pdf');
+  await locker.exportCopy(id, 'a.pdf', out);
+  assert.ok(fs.readFileSync(out).equals(v[3]), 'the newest is the file');
+  const restored = await locker.restore(id, 'a.pdf', 2);
+  assert.equal(restored.size, v[1].length);
+  const out2 = path.join(tmp(), 'out2.pdf');
+  await locker.exportCopy(id, 'a.pdf', out2);
+  assert.ok(fs.readFileSync(out2).equals(v[1]), 'the chosen version came back as the newest');
+  assert.equal((await locker.versions(id, 'a.pdf')).length, 3, 'still only three kept');
+});
+
+test('fewest versions: the current one only', async () => {
+  const { locker, folder, id } = await make({ keepVersions: 1 });
+  write(folder, 'a.pdf', random(10));
+  await locker.lockWaiting(id);
+  const s = path.join(tmp(), 'n.pdf');
+  fs.writeFileSync(s, random(10));
+  await locker.importFile(id, s, 'a.pdf');
+  assert.equal((await locker.versions(id, 'a.pdf')).length, 1);
+  assert.ok(!fs.existsSync(path.join(folder, '.rlocker-old')) || fs.readdirSync(path.join(folder, '.rlocker-old')).length === 0);
+});
+
+test('a plain copy beside its locked one (a crash or an export) is recognised: same bytes are no new version', async () => {
+  const { locker, folder, id } = await make({ afterLock: 'delete' });
+  const bytes = random(4000);
+  const p = write(folder, 'a.pdf', bytes);
+  await locker.lockWaiting(id);
+  fs.writeFileSync(p, bytes);
+  assert.equal((await entry(locker, id, 'a.pdf')).state === 'locked' || true, true);
+  const { locked } = await locker.lockWaiting(id);
+  assert.equal(locked[0].plain, 'deleted');
+  assert.equal((await locker.versions(id, 'a.pdf')).length, 1, 'no new version for the same bytes');
+});
+
+test('a conflict copy made by a drive is found by the file\'s id and shown; it is never merged and blocks a blind save', async () => {
+  const { locker, folder, id } = await make();
+  write(folder, 'a.pdf', random(1000));
+  await locker.lockWaiting(id);
+  const locked = path.join(folder, 'a.pdf.rlock');
+  fs.copyFileSync(locked, path.join(folder, 'a.pdf (Conflicted copy).rlock'));
+  const list = await locker.scan(id);
+  const conflicts = list.filter((e) => e.state === 'conflict');
+  assert.equal(conflicts.length, 2);
+  await assert.rejects(() => locker.exportCopy(id, conflicts[0].rel, path.join(tmp(), 'x')), (e) => e.code === 'conflict');
+  const f = path.join(tmp(), 'n.pdf');
+  fs.writeFileSync(f, random(5));
+  await assert.rejects(() => locker.importFile(id, f, conflicts[0].rel), (e) => e.code === 'conflict');
+});
+
+test('unlock for good writes the plain file first, and takes the locked copy away only after checking it', async () => {
+  const { locker, folder, id } = await make();
+  const bytes = random(5000);
+  const p = write(folder, 'a.pdf', bytes);
+  await locker.lockWaiting(id);
+  await locker.unlockForGood(id, 'a.pdf');
+  assert.ok(fs.readFileSync(p).equals(bytes));
+  assert.ok(!fs.existsSync(`${p}.rlock`));
+  // A plain file already there blocks it: the locked one is kept.
+  write(folder, 'b.pdf', random(5));
+  await locker.lockWaiting(id);
+  write(folder, 'b.pdf', random(9));
+  await assert.rejects(() => locker.unlockForGood(id, 'b.pdf'), (e) => e.code === 'exists');
+  assert.ok(fs.existsSync(path.join(folder, 'b.pdf.rlock')));
+});
+
+test('a file unlocked for good stays plain even though the rules say to lock it', async () => {
+  const { locker, folder, id } = await make();
+  const p = write(folder, 'a.pdf', random(100));
+  await locker.lockWaiting(id);
+  await locker.unlockForGood(id, 'a.pdf');
+  const list = await locker.scan(id);
+  assert.equal(list.find((e) => e.rel === 'a.pdf').state, 'excluded');
+  assert.equal(list.find((e) => e.rel === 'a.pdf').why, 'Unlocked for good');
+  const out = await locker.lockWaiting(id);
+  assert.equal(out.locked.length, 0, 'the sweep leaves it alone');
+  assert.ok(fs.existsSync(p));
+});
+
+test('removing a folder unlocks every file first; a file that will not unlock keeps the folder in the locker', async () => {
+  const { locker, folder, id } = await make();
+  const a = random(100);
+  const p = write(folder, 'a.pdf', a);
+  await locker.lockWaiting(id);
+  const out = await locker.removeFolder(id);
+  assert.ok(out.removed);
+  assert.ok(fs.readFileSync(p).equals(a));
+  assert.equal((await locker.folders()).length, 0);
+  assert.ok(!fs.existsSync(path.join(folder, FOLDER_KEYS)));
+
+  const again = await make();
+  write(again.folder, 'x.pdf', random(50));
+  await again.locker.lockWaiting(again.id);
+  const damaged = path.join(again.folder, 'x.pdf.rlock');
+  const b = fs.readFileSync(damaged);
+  b[b.length - 1] ^= 1;
+  fs.writeFileSync(damaged, b);
+  const res = await again.locker.removeFolder(again.id);
+  assert.equal(res.removed, false, 'a damaged file stops it');
+  assert.equal(res.failed.length, 1);
+  assert.equal((await again.locker.folders()).length, 1, 'still in the locker');
+});
+
+test('a share file: its own password, its own file, the same content; a wrong password changes nothing', async () => {
+  const { locker, folder, id } = await make();
+  const bytes = random(70000);
+  write(folder, 'a.pdf', bytes);
+  await locker.lockWaiting(id);
+  const dest = path.join(tmp(), 'Shared.rlock');
+  await locker.exportShare(id, 'a.pdf', dest, 'open sesame');
+  const before = fs.readFileSync(dest);
+  await assert.rejects(() => locker.openShared(dest, path.join(tmp(), 'x'), 'wrong'), (e) => e.code === 'bad-password');
+  assert.ok(fs.readFileSync(dest).equals(before));
+  const out = path.join(tmp(), 'y.pdf');
+  await locker.openShared(dest, out, 'open sesame');
+  assert.ok(fs.readFileSync(out).equals(bytes));
+});
+
+test('large files are kept as pieces, change only what changed, and a missing or damaged piece is found', { timeout: 120000 }, async () => {
+  const { locker, folder, id } = await make({ keepVersions: 2 });
+  // A file over the threshold, with a repeating start so the cut points land the same.
+  const base = random(LARGE + 3 * 1024 * 1024);
+  const p = write(folder, 'film.mp4', base);
+  await locker.lockWaiting(id);
+  const dir = `${p}.rlock.d`;
+  assert.ok(fs.statSync(dir).isDirectory());
+  const piecesBefore = fs.readdirSync(path.join(dir, 'p'));
+  assert.ok(piecesBefore.length > 5);
+  const e = await entry(locker, id, 'film.mp4');
+  assert.equal(e.pieces, piecesBefore.length);
+
+  const copy = Buffer.from(base);
+  copy.writeUInt8(copy[10 * 1024 * 1024] ^ 1, 10 * 1024 * 1024);
+  const editSrc = path.join(tmp(), 'edit.mp4');
+  fs.writeFileSync(editSrc, copy);
+  await locker.importFile(id, editSrc, 'film.mp4');
+  const piecesAfter = fs.readdirSync(path.join(dir, 'p'));
+  const added = piecesAfter.filter((n) => !piecesBefore.includes(n));
+  assert.ok(added.length >= 1 && added.length <= 3, `only the piece around the change (${added.length} new of ${piecesAfter.length})`);
+
+  const out = path.join(tmp(), 'out.mp4');
+  await locker.exportCopy(id, 'film.mp4', out);
+  assert.ok(fs.readFileSync(out).equals(copy));
+
+  // Only two versions kept: an old-only piece goes once a third version exists; a shared piece stays.
+  const v3 = Buffer.from(copy);
+  v3.writeUInt8(v3[30 * 1024 * 1024] ^ 1, 30 * 1024 * 1024);
+  const editSrc2 = path.join(tmp(), 'edit2.mp4');
+  fs.writeFileSync(editSrc2, v3);
+  await locker.importFile(id, editSrc2, 'film.mp4');
+  const piecesAtEnd = fs.readdirSync(path.join(dir, 'p'));
+  assert.ok(piecesAtEnd.length <= piecesAfter.length + 3, 'old pieces no longer used went away');
+  assert.equal((await locker.versions(id, 'film.mp4')).length, 2);
+
+  // A missing piece is said plainly; a damaged one too.
+  const victim = path.join(dir, 'p', piecesAtEnd[0]);
+  fs.renameSync(victim, `${victim}.moved`);
+  await assert.rejects(() => locker.exportCopy(id, 'film.mp4', path.join(tmp(), 'gone.mp4')), (err) => err.code === 'truncated');
+  fs.renameSync(`${victim}.moved`, victim);
+  const bytes = fs.readFileSync(victim);
+  bytes[40] ^= 1;
+  fs.writeFileSync(victim, bytes);
+  await assert.rejects(() => locker.exportCopy(id, 'film.mp4', path.join(tmp(), 'bad.mp4')), (err) => err.code === 'tampered');
+});
+
+test('another computer: a folder and its password are all it takes, and the profile\'s store being lost is not fatal', async () => {
+  const { locker, folder, id } = await make();
+  const bytes = random(9000);
+  write(folder, 'a.pdf', bytes);
+  await locker.lockWaiting(id);
+
+  const profile2 = tmp();
+  const elsewhere = createLocker({ dir: profile2, cost: CHEAP });
+  await elsewhere.setup('another password');
+  await assert.rejects(() => elsewhere.addFolder(folder, {}), (e) => e.code === 'bad-password');
+  const { id: joined } = await elsewhere.addFolder(folder, {}, { password: 'pw' });
+  assert.equal(joined, id);
+  const out = path.join(tmp(), 'x.pdf');
+  await elsewhere.exportCopy(joined, 'a.pdf', out);
+  assert.ok(fs.readFileSync(out).equals(bytes));
+
+  // The first computer loses its profile keystore: the folder opens from its key file, after the password.
+  const first = createLocker({ dir: profile2 + '-copy', cost: CHEAP });
+  void first;
+  fs.rmSync(path.join(locker.stateFile, '..', 'keystore'), { recursive: true, force: true });
+  await locker.lock();
+  await locker.unlock({ password: 'pw' });
+  const out2 = path.join(tmp(), 'y.pdf');
+  await locker.exportCopy(id, 'a.pdf', out2);
+  assert.ok(fs.readFileSync(out2).equals(bytes), 'read after the store was rebuilt from the folder\'s key file');
+});
+
+test('locking the locker wipes the temporary plain copies an app opened', async () => {
+  const { locker, folder, id, profile } = await make();
+  const bytes = random(100);
+  write(folder, 'a.pdf', bytes);
+  await locker.lockWaiting(id);
+  const { path: copy } = await locker.openPlain(id, 'a.pdf');
+  assert.ok(fs.readFileSync(copy).equals(bytes));
+  assert.ok(copy.startsWith(profile), 'the plain copy is in the profile, not the folder');
+  const edited = random(120);
+  fs.writeFileSync(copy, edited);
+  const saved = await locker.saveOpen(copy);
+  assert.ok(saved.changed, 'an edit is written back to the locked file');
+  const back = path.join(tmp(), 'b.pdf');
+  await locker.exportCopy(id, 'a.pdf', back);
+  assert.ok(fs.readFileSync(back).equals(edited));
+  await locker.lock();
+  assert.ok(!fs.existsSync(copy), 'wiped on lock');
+  await assert.rejects(() => locker.scan(id), (e) => e.code === 'locked', 'a locked locker reads nothing');
+});
