@@ -207,7 +207,7 @@ async function liveChecks(h, { dir }) {
     const tsUp = c1.video.slice(firstFrame).every((v, i, x) => i === 0 || v.ts >= x[i - 1].ts);
     const keys = c1.video.filter((v) => v.kind === 'key').length;
     const wellFormed = c1.video.every((v) => v.sound) && c1.audio.every((x) => x.sound);
-    const recordingCopy = await js(`Boolean(document.querySelector('.st-record.on'))`);
+    const recordingCopy = await js(`document.querySelector('.st-status')?.dataset.phase === 'recording'`);
     const badge = await js(`document.querySelector('.st-live-badge')?.textContent || ''`);
     const barLive = await js(`({ air: document.querySelector('.lv-air')?.textContent, end: document.querySelector('.lv-end')?.textContent, go: Boolean(document.querySelector('.lv-go')), tip: document.querySelector(${JSON.stringify(tile(a))})?.textContent })`);
     await capture('live-bar-live.png');
@@ -274,7 +274,7 @@ async function liveChecks(h, { dir }) {
     await click(`${tile(b)} .lv-tile-go`);
     const offline = await ok(until(() => js(`document.querySelector('.lv-bar')?.dataset.air === 'offline'`), 'offline', 8000));
     await ok(until(() => cB.closedAt > 0, 'the second closed', 8000));
-    const held = await js(`({ air: document.querySelector('.lv-air')?.textContent, end: Boolean(document.querySelector('.lv-end')), note: document.querySelector('.lv-note')?.textContent, rec: Boolean(document.querySelector('.st-record.on')) })`);
+    const held = await js(`({ air: document.querySelector('.lv-air')?.textContent, end: Boolean(document.querySelector('.lv-end')), note: document.querySelector('.lv-note')?.textContent, rec: document.querySelector('.st-status')?.dataset.phase === 'recording' })`);
     await wait(1200);
     const clockRan = (await js(`document.querySelector('.lv-air')?.textContent`)) !== held.air;
     await capture('live-bar-offline.png');
@@ -313,7 +313,7 @@ async function liveChecks(h, { dir }) {
     await click('.lv-end');
     const askedEnd = await seen('.lv-ask', 'the question');
     await click('.lv-ask .lv-end-now');
-    const ended = await ok(until(() => js(`Boolean(document.querySelector('.lv-go')) && !document.querySelector('.lv-end') && Boolean(document.querySelector('.st-saved'))`), 'ended and saved', 15000));
+    const ended = await ok(until(() => js(`Boolean(document.querySelector('.lv-go')) && !document.querySelector('.lv-end') && /Saved/.test(document.querySelector('.st-status')?.textContent || '')`), 'ended and saved', 15000));
     await wait(500);
     const unpublished = (cA2.commands || []).includes('FCUnpublish');
     const copies = fs.readdirSync(folder).filter((n) => /\.webm$/.test(n));

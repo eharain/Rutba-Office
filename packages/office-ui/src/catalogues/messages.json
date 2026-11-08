@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8560,
+  "count": 8557,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -9311,8 +9311,7 @@
       "message": "Connecting…",
       "where": [
         "apps/desktop/renderer/apps/talk.js",
-        "apps/desktop/renderer/studio/live-bar.js",
-        "apps/desktop/renderer/studio/window.js"
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -13478,9 +13477,7 @@
     {
       "message": "End broadcast",
       "where": [
-        "apps/desktop/renderer/studio/live-bar.js",
-        "apps/desktop/renderer/studio/live-panel.js",
-        "apps/desktop/renderer/studio/window.js"
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -13498,8 +13495,7 @@
     {
       "message": "End broadcast…",
       "where": [
-        "apps/desktop/renderer/studio/live-bar.js",
-        "apps/desktop/renderer/studio/live-panel.js"
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -13524,12 +13520,6 @@
       "message": "End time",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
-      ]
-    },
-    {
-      "message": "Ended",
-      "where": [
-        "apps/desktop/renderer/studio/window.js"
       ]
     },
     {
@@ -16793,8 +16783,7 @@
       "message": "Go live",
       "where": [
         "apps/desktop/renderer/apps/home.js",
-        "apps/desktop/renderer/studio/live-bar.js",
-        "apps/desktop/renderer/studio/live-panel.js"
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -24456,8 +24445,7 @@
       "message": "My streams",
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js",
-        "apps/desktop/renderer/studio/live-bar.js",
-        "apps/desktop/renderer/studio/live-panel.js"
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -26688,14 +26676,7 @@
     {
       "message": "Not streamed to {names}: no stream key.",
       "where": [
-        "apps/desktop/renderer/studio/live-bar.js",
-        "apps/desktop/renderer/studio/window.js"
-      ]
-    },
-    {
-      "message": "Not streaming",
-      "where": [
-        "apps/desktop/renderer/studio/window.js"
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -31937,8 +31918,7 @@
     {
       "message": "Reconnecting…",
       "where": [
-        "apps/desktop/renderer/apps/talk.js",
-        "apps/desktop/renderer/studio/window.js"
+        "apps/desktop/renderer/apps/talk.js"
       ]
     },
     {
@@ -39784,8 +39764,7 @@
       "where": [
         "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/list.js",
-        "apps/desktop/renderer/studio/live-bar.js",
-        "apps/desktop/renderer/studio/live-panel.js"
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -43626,14 +43605,7 @@
     {
       "message": "The stream has ended.",
       "where": [
-        "apps/desktop/renderer/studio/live-bar.js",
-        "apps/desktop/renderer/studio/window.js"
-      ]
-    },
-    {
-      "message": "The stream stops for everyone watching.",
-      "where": [
-        "apps/desktop/renderer/studio/window.js"
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -48052,8 +48024,7 @@
     {
       "message": "Waiting",
       "where": [
-        "apps/desktop/renderer/apps/mail/accounts-bulk.js",
-        "apps/desktop/renderer/studio/window.js"
+        "apps/desktop/renderer/apps/mail/accounts-bulk.js"
       ]
     },
     {
@@ -48119,7 +48090,7 @@
     {
       "message": "Watching now",
       "where": [
-        "apps/desktop/renderer/studio/live-panel.js"
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -48472,8 +48443,7 @@
     {
       "message": "Where it goes",
       "where": [
-        "apps/desktop/renderer/studio/live-bar.js",
-        "apps/desktop/renderer/studio/live-panel.js"
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {

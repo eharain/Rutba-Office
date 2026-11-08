@@ -17,6 +17,7 @@
 // The panels draw it: record-panel.js, live-panel.js, setup-panel.js.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Panel, Content, Icon, useToast, basename, t } from '@rutba/office-ui';
 import { normaliseStudio } from '@rutba/studio/compositor';
 import {
@@ -91,7 +92,7 @@ function stillOf(canvas) {
 /**
  * @param {object} p
  * @param {'recorder'|'broadcast'} p.kind  which app this window is
- * @param {object} [p.live]  Live Broadcast's going live: { LiveEncoder, AUDIO_KBPS, LiveDialog, LIVE_CSS, liveBitrate }
+ * @param {object} [p.live]  Live Broadcast's going live: { LiveBar, LiveDialog, LIVE_CSS, liveBitrate }
  */
 export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live: liveKit = null }) {
   const isLive = kind === 'broadcast' && Boolean(liveKit);
@@ -137,10 +138,11 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const [liveStatus, setLiveStatus] = useState([]);
   const [liveSince, setLiveSince] = useState(0);
   const [liveOpen, setLiveOpen] = useState(false);
-  const [endAsk, setEndAsk] = useState(false);
   const [closeAsk, setCloseAsk] = useState(false);
   const [cameraAsk, setCameraAsk] = useState(null);
-  const encoder = useRef(null);
+  // The bar's way in, and the element it is drawn in: kept for the window's life, so a broadcast goes on while Set up is open.
+  const liveControl = useRef(null);
+  const liveBarHost = useMemo(() => { const el = document.createElement('div'); el.className = 'st-livebar-host'; return el; }, []);
   const liveRecord = useRef(false);
   const editFrameRef = useRef(null);
   const phaseRef = useRef(phase);
@@ -1015,45 +1017,9 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const [liveRate, setLiveRate] = useState(null);
   useEffect(() => (isLive ? shell.on('live:status', ({ destinations = [], kbps, target } = {}) => {
     setLiveStatus(destinations);
-    if (kbps) { setLiveRate({ kbps, target }); encoder.current?.setBitrate(kbps); }
+    if (kbps) setLiveRate({ kbps, target });
   }) : undefined), [shell, isLive]);
   const kbps = isLive ? liveKit.liveBitrate(settings.size, settings.fps) : 0;
-
-  const goLive = useCallback(async () => {
-    if (!isLive || livePhase !== 'off') return;
-    const { LiveEncoder, AUDIO_KBPS } = liveKit;
-    const canvas = canvases.air;
-    let checked;
-    try {
-      checked = await LiveEncoder.check({ width: canvas.width, height: canvas.height, fps: settings.fps, kbps });
-    } catch (err) {
-      toast(err.message, { tone: 'bad', ms: 8000 });
-      return;
-    }
-    const dests = await shell.live.destinations().catch(() => []);
-    if (!dests.some((d) => d.on && d.hasKey)) { setLiveOpen(true); return; }
-    setLivePhase('starting');
-    try {
-      const r = await shell.live.start({ video: { width: canvas.width, height: canvas.height, fps: settings.fps, kbps }, audio: { kbps: AUDIO_KBPS, sampleRate: 48000, channels: 2 } });
-      if (r.skipped?.length) toast(t('Not streamed to {names}: no stream key.', { names: r.skipped.map((x) => x.name).join(', ') }), { ms: 6000 });
-      const enc = new LiveEncoder({ shell, program: program.current, rig: media });
-      await enc.start({ video: checked.video });
-      encoder.current = enc;
-      setLiveSince(Date.now());
-      setLivePhase('live');
-      if (settings.liveCopy && phaseRef.current === 'setup') {
-        liveRecord.current = true;
-        setPhase('starting');
-        begin();
-      }
-    } catch (err) {
-      await encoder.current?.stop().catch(() => {});
-      encoder.current = null;
-      await shell.live.stop().catch(() => {});
-      setLivePhase('off');
-      toast(err?.message || String(err), { tone: 'bad', ms: 8000 });
-    }
-  }, [isLive, liveKit, livePhase, settings.fps, settings.liveCopy, kbps, shell, media, toast, begin, canvases]);
 
   // The bar on top of the Live panel runs the broadcast; here a copy is kept as it goes.
   const barPhase = useCallback((p, since) => {
@@ -1063,22 +1029,17 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     if (p === 'off' && liveRecord.current) { liveRecord.current = false; stopRef.current?.(); }
   }, [begin]);
 
-  const endLive = useCallback(async () => {
-    if (livePhase !== 'live' && livePhase !== 'starting') return;
-    setLivePhase('ending');
-    await encoder.current?.stop().catch(() => {});
-    encoder.current = null;
-    await shell.live.stop().catch(() => {});
-    setLivePhase('off');
-    toast(t('The stream has ended.'), { ms: 4000 });
-    if (liveRecord.current) {
-      liveRecord.current = false;
-      stopRef.current?.();
-    }
-  }, [livePhase, shell, toast]);
+  const endLive = useCallback(async () => { await liveControl.current?.end(); }, []);
 
-  // Gone while live: the stream is ended with the window.
-  useEffect(() => () => { if (encoder.current) { encoder.current.stop().catch(() => {}); shell.live.stop().catch(() => {}); } }, [shell]);
+  // Which streams are on is the setup's.
+  const changeLiveOn = useCallback((ids) => {
+    const doc = setupRef.current;
+    if (!doc) return;
+    const fresh = { ...doc, liveOn: ids };
+    putSetup(fresh);
+    if (!doc.tools) store.save(fresh);
+  }, [putSetup, store]);
+
   const [, setLiveTick] = useState(0);
   useEffect(() => {
     if (livePhase !== 'live') return undefined;
@@ -1266,7 +1227,6 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const busy = phase !== 'setup' || live;
   busyRef.current = busy || Boolean(setup?.tools);
   const liveFor = live && liveSince ? Date.now() - liveSince : 0;
-  const LIVE_WORDS = { waiting: t('Waiting'), connecting: t('Connecting…'), live: t('Live'), reconnecting: t('Reconnecting…'), error: t('Not streaming'), ended: t('Ended'), closed: t('Ended') };
   const anyShown = stack.items.some((it) => it.on);
   const canRecord = phase === 'setup' && Boolean(recKind) && disk?.level !== 'stop';
   const minutes = disk ? Math.floor(disk.minutes) : null;
@@ -1274,7 +1234,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     : disk.minutes < 120 ? t('Room for about {minutes} minutes on the disk', { minutes: Math.max(0, minutes) })
       : t('Room for about {hours} hours on the disk', { hours: Math.floor(disk.minutes / 60) });
   const viewers = live ? liveStatus.reduce((n, d) => (Number.isFinite(d.viewers) ? (n ?? 0) + d.viewers : n), null) : null;
-  const liveRateText = live && liveRate?.kbps ? `${t('{n} kb/s', { n: liveRate.kbps })}${liveRate.kbps < liveRate.target ? ` ${t('(lowered to keep up with the upload)')}` : ''}` : '';
+  const liveRateText = live && liveRate?.kbps && liveRate.kbps < liveRate.target ? `${t('{n} kb/s', { n: liveRate.kbps })} ${t('(lowered to keep up with the upload)')}` : '';
   const recordLabel = recKind === 'sound' ? t('Record sound') : t('Record');
   const stopTip = keys?.stop ? `${t('Stop')} (${keys.stop})` : t('Stop');
   const QUALITY_WORDS = { small: t('Smaller files'), standard: t('Standard'), high: t('Sharper') };
@@ -1345,7 +1305,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     holding, air, airStack, onAirKey: airStack.scene, nextKey: stack.scene, anyShown,
     phase, recording, paused, elapsed, count, busy, canRecord, recordLabel, stopTip, record, stop, togglePause,
     saved, setSaved, picture, takePicture, copyPicture, pictureKey, shotCount, overlayShared,
-    live, livePhase, liveFor, liveStatus, LIVE_WORDS, liveRateText, viewers, liveBlocked: !live && (phase === 'countdown' || phase === 'starting'), goLive, askEndLive: () => setEndAsk(true), setLiveOpen,
+    live, livePhase, liveFor, liveBarHost, setLiveOpen,
     change, changeStack, changeFrame, act, barAct, take, togglePreview, setAuto, startFollow, startRotate,
     pickScene, sceneLost, unsetScene, openSetupAt, sceneMenu, setSceneMenu, sceneMenuItems, moveSceneBy, saveAsScene,
     pickRow, setPickRow, choosePick, useMic, useCamera, toggleCamera,
@@ -1358,13 +1318,13 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       <style>{RECORDER_CSS}</style>
       <style>{STUDIO_CSS}</style>
       {isLive ? <style>{liveKit.LIVE_CSS}</style> : null}
-      {isLive && liveOpen ? <liveKit.LiveDialog shell={shell} toast={toast} kbps={kbps} busy={live} recordCopy={settings.liveCopy} onRecordCopy={(v) => change({ liveCopy: v })} onClose={() => setLiveOpen(false)} /> : null}
+      {isLive && loaded ? createPortal(<liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} size={settings.size} airKey={airStack.scene} copy={live && settings.liveCopy} blocked={phase === 'countdown' || phase === 'starting'} on={setup ? setup.liveOn : undefined} onChangeOn={changeLiveOn} onPhase={barPhase} rateText={liveRateText} viewers={viewers} control={liveControl} />, liveBarHost) : null}
+      {isLive && liveOpen ? <liveKit.LiveDialog shell={shell} toast={toast} onChanged={(list) => liveControl.current?.setList(list)} onClose={() => setLiveOpen(false)} /> : null}
       {settingsOpen ? (
         <StudioSettings settings={settings} stack={stack} busy={busy} live={isLive} title={settingsLabel.replace('…', '')} change={change} changeStack={changeStack} chooseFolder={chooseFolder} choosePlaceholder={choosePlaceholder} chooseMusic={chooseMusic}
           openDestinations={() => { setSettingsOpen(false); setLiveOpen(true); }} onClose={() => setSettingsOpen(false)} />
       ) : null}
       <OpenSetupDialog s={s} />
-      {endAsk ? <ConfirmDialog title={t('End broadcast?')} body={t('The stream stops for everyone watching.')} okLabel={t('End broadcast')} onOk={endLive} onClose={() => setEndAsk(false)} /> : null}
       {closeAsk ? <ConfirmDialog title={t('End broadcast?')} body={t('You are live. Closing this window ends the broadcast.')} okLabel={t('End broadcast and close')} onOk={async () => { closing.current = true; await endLive(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
       {cameraAsk ? <ConfirmDialog tone="plain" title={t('Change the camera on air?')} body={t('The picture on air changes to {name} at once.', { name: cameraAsk.name })} okLabel={t('Change')} onOk={() => setCameraTo(cameraAsk)} onClose={() => setCameraAsk(null)} /> : null}
       {sceneAsk?.what === 'rename' ? <NameDialog title={t('Rename')} label={t('Name')} value={sceneAsk.sc.name} okLabel={t('Rename')} onOk={(name) => { changeStack((st) => renameScene(st, sceneAsk.sc.key, name)); setSceneAsk(null); }} onClose={() => setSceneAsk(null)} /> : null}

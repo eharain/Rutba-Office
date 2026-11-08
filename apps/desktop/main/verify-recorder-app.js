@@ -77,7 +77,7 @@ async function appChecks(h, { dir }) {
     // Two panels, the Record panel holding the few controls a recording needs.
     const line = await js(`[...document.querySelectorAll('.st-panels [data-panel]')].map((n) => n.textContent).join(' | ')`);
     const recordSays = await js(`document.querySelector('.st-dock .st-record')?.textContent || ''`);
-    const noLive = await js(`!document.querySelector('.st-golive') && !document.querySelector('.st-auto') && Boolean(document.querySelector('.st-dock .st-shoot')) && Boolean(document.querySelector('.st-top .st-setup-btn'))`);
+    const noLive = await js(`!document.querySelector('.lv-go') && !document.querySelector('.st-auto') && Boolean(document.querySelector('.st-dock .st-shoot')) && Boolean(document.querySelector('.st-top .st-setup-btn'))`);
     check('recorder app: two panels, Set up and Record, with the setup at the top and Picture and Record on the bar at the foot, no Go Live and no switching',
       line === 'Set up | Record' && /Record/.test(recordSays) && noLive, JSON.stringify({ line, recordSays, noLive }));
 

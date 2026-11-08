@@ -3,10 +3,10 @@
 // large with the scenes under it; Preview first puts a smaller Next left of
 // it, and Take (Space) sends it on air. Auto is one menu.
 //
-// The bar's streams come from `liveBar` when that part is wired in. Until then
-// it is today's destinations, set up in My streams.
+// The bar is the window's (live-bar.js, kept going while Set up is open, or the
+// broadcast would end with the panel) and only shown here.
 
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Button, Icon, Menu, t } from '@rutba/office-ui';
 import { ROTATE_EVERY } from '@rutba/studio/stack';
 import { Frame, Seg } from './parts.js';
@@ -18,31 +18,12 @@ import { Toggle } from './toggle.js';
 const AUTO_LABEL = (auto, every) => (auto === 'follow' ? t('Auto: Follow the speaker') : auto === 'rotate' ? t('Auto: Rotate every {n} s', { n: every }) : t('Auto: Off'));
 
 /** The strip across the top: where it goes, and the one button. */
-function LiveBar({ s }) {
-  const { live, livePhase, liveFor, liveStatus, LIVE_WORDS } = s;
-  return (
-    <div className={`st-livebar${live ? ' on' : ''}`} role="group" aria-label={t('Where it goes')} data-phase={livePhase}>
-      {live ? <span className="st-live-clock"><i />{t('LIVE')} {clock(liveFor)}</span> : null}
-      <div className="st-livebar-slot">
-        {live && liveStatus.length ? (
-          <span className="st-dests" aria-live="polite">
-            {liveStatus.map((d) => (
-              <span key={d.id} className="st-dest" data-state={d.state} data-tip={d.detail || d.name}>
-                <i />{d.name}: {d.state === 'error' && d.detail ? d.detail : LIVE_WORDS[d.state] || d.state}{d.reconnects && d.state === 'reconnecting' ? ` (${d.reconnects})` : ''}
-              </span>
-            ))}
-          </span>
-        ) : null}
-        <Button icon="globe" label={t('My streams')} className="st-streams-btn" onClick={() => s.setLiveOpen(true)} />
-      </div>
-      {s.liveRateText ? <span className="st-live-rate">{s.liveRateText}</span> : null}
-      <button type="button" className={`st-golive${live ? ' on' : ''}`} aria-pressed={live} disabled={livePhase === 'ending' || s.liveBlocked} data-tip={live ? t('End broadcast') : t('Go live')} onClick={live ? s.askEndLive : s.goLive}>
-        {live ? <i className="st-dot" /> : <Icon name="globe" size={16} />}
-        {live ? (livePhase === 'starting' ? t('Starting…') : t('End broadcast…')) : t('Go live')}
-        {live && s.viewers != null ? <span className="st-viewers" data-tip={t('Watching now')}><Icon name="eye" size={13} />{s.viewers}</span> : null}
-      </button>
-    </div>
-  );
+function LiveBarSlot({ host }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    if (host && host.parentNode !== ref.current) ref.current.appendChild(host);
+  }, [host]);
+  return <div ref={ref} className="st-livebar" />;
 }
 
 /** @param {{ s: object }} p  the studio (window.js) */
@@ -58,7 +39,7 @@ export function LivePanel({ s }) {
   const transition = <Seg value={stack.transition} options={[['cut', t('Cut')], ['fade', t('Fade')]]} label={t('Transition')} className="st-transition" onChange={(v) => s.changeStack((st) => ({ ...st, transition: v }))} />;
   return (
     <div className="st-panel" data-panel="live">
-      <LiveBar s={s} />
+      <LiveBarSlot host={s.liveBarHost} />
       <div className="st-stage">
         <div className={`st-share${holding ? ' duo' : ''}`}>
           {holding ? (

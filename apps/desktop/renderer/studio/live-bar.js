@@ -77,8 +77,11 @@ function Group({ group, label, platforms, onToggleGroup, onToggle, onAddKey }) {
  * @param {number} [p.size]  the studio's output size, 720 or 1080: what the tall picture is made at
  * @param {string|null} [p.airKey]  the key of the scene on air, whose tall layout the tall picture shows
  * @param {(() => object|null)} [p.makeTall]  a tall picture's Program, in place of the one made here
+ * @param {string} [p.rateText]  said when the picture's bitrate has been lowered
+ * @param {number|null} [p.viewers]  how many are watching, when a platform says
+ * @param {{ current: object }} [p.control]  filled with { end, setList }: the window ends the broadcast when it closes, and tells the bar of a change made in My streams from the settings
  */
-export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false, blocked = false, on: onProp, onChangeOn, onPhase, size = 1080, airKey = null, makeTall = null }) {
+export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false, blocked = false, on: onProp, onChangeOn, onPhase, size = 1080, airKey = null, makeTall = null, rateText = '', viewers = null, control = null }) {
   const [streams, setStreams] = useState([]);
   const [platforms, setPlatforms] = useState(null);
   const [onKept, setOnKept] = useState([]);
@@ -185,6 +188,12 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
     toast(t('The stream has ended.'), { ms: 4000 });
   }, [setPhase, toast]);
 
+  useEffect(() => {
+    if (!control) return undefined;
+    control.current = { end: endBroadcast, setList };
+    return () => { control.current = null; };
+  }, [control, endBroadcast, setList]);
+
   const rate = (shape) => status.rates?.[shape]?.kbps || kbps;
   const upload = uploadMbps(model.tiles, { wide: kbps, tall: kbps });
   const copyWord = copy ? ` · ${t('keeping a copy')}` : '';
@@ -212,6 +221,8 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
         <Icon name="plus" size={18} />{t('My streams')}
       </button>
       <span className="lv-note">{note}</span>
+      {rateText && model.air !== 'offline' ? <span className="st-live-rate">{rateText}</span> : null}
+      {open && viewers != null ? <span className="st-viewers" data-tip={t('Watching now')}><Icon name="eye" size={13} />{viewers}</span> : null}
       {phase === 'off' || phase === 'starting' ? (
         <button type="button" className={`lv-go${model.canGo ? '' : ' no'}`} disabled={phase === 'starting' || !model.canGo || blocked} title={model.canGo ? t('Go live') : t('Turn on a stream to go live')} onClick={goLive}>
           <i />{phase === 'starting' ? t('Starting…') : t('Go live')}
@@ -238,11 +249,8 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
 }
 
 export const LIVE_BAR_CSS = `
-.st-golive, .st-dests { display: none !important; }
-.lv-bar ~ .st-share .st-frame { width: min(100%, calc((100cqh - 232px) * 16 / 9)); }
-.lv-bar ~ .st-share.duo .st-frame { width: min(100%, calc((100cqh - 292px) * 16 / 9)); }
-.lv-bar[data-air="offline"] ~ .st-share .st-live-badge { display: none; }
-.lv-bar { flex: none; display: flex; align-items: center; gap: 12px; min-height: 72px; margin: -12px -16px 0; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line-soft); }
+.st-panel:has(.lv-bar[data-air="offline"]) .st-live-badge { display: none; }
+.lv-bar { flex: none; display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 0 16px; background: var(--surface); }
 .lv-air { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px; border-radius: 14px; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lv-air i { width: 9px; height: 9px; border-radius: 50%; background: #fff; display: block; }
 .lv-air.ready { background: var(--n-10, #eceef1); color: var(--ink-2); }

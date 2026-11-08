@@ -146,17 +146,8 @@ export const STUDIO_CSS = `
 .st-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink); cursor: pointer; white-space: nowrap; }
 
 /* The Live panel's bar. */
-.st-livebar { flex: none; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 16px; border-bottom: 1px solid var(--line-soft); background: var(--chrome, var(--surface)); }
-.st-livebar-slot { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.st-live-clock { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: #d93a40; color: #fff; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.st-live-clock i { width: 8px; height: 8px; border-radius: 50%; background: #fff; animation: rec-blink 1.2s infinite; }
+.st-livebar { flex: none; border-bottom: 1px solid var(--line-soft); background: var(--chrome, var(--surface)); }
 .st-live-rate { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.st-golive { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; min-width: 168px; padding: 0 18px; border-radius: var(--r-2); border: 0; background: #d93a40; color: #fff; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.st-golive:hover:not(:disabled) { background: #c2323a; }
-.st-golive:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.st-golive:disabled { opacity: 0.5; cursor: default; }
-.st-golive.on { background: #2a2d33; }
-.st-golive .st-dot { width: 10px; height: 10px; border-radius: 50%; background: #e5484d; }
 .st-flip-slot:empty { display: none; }
 .st-take { flex: none; align-self: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .st-take-btn { min-width: 96px; justify-content: center; height: 44px; font-size: 14px; }
@@ -196,7 +187,6 @@ export const STUDIO_CSS = `
 .st-switching .st-tool { height: 28px; }
 .st-switching select { height: 28px; }
 
-.st-dests { display: flex; flex-wrap: wrap; gap: 6px; }
 .st-flash { position: absolute; inset: 0; background: #fff; pointer-events: none; animation: st-flash 420ms ease-out forwards; }
 @keyframes st-flash { from { opacity: 0.85; } to { opacity: 0; } }
 .st-saved { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--r-2); background: var(--surface); border: 1px solid var(--line-soft); box-shadow: var(--shadow-1); color: var(--ink); }

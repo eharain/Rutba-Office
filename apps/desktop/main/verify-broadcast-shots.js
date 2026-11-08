@@ -65,7 +65,7 @@ export async function verifyBroadcastShots(h, { dir }) {
     const go = async (p) => { await js(PANEL(p)); await until(() => js(IN_PANEL(p)), `the ${p} panel`, 4000).catch(() => {}); };
 
     // The bar over the panel holds the one Go live button; Back soon is the last scene.
-    const line = await js(`[Boolean(document.querySelector('.st-livebar .st-golive')), !document.querySelector('.st-record'), [...document.querySelectorAll('.st-panels [data-panel]')].map((n) => n.textContent).join(' | '), [...document.querySelectorAll('.st-scene[data-scene]')].pop()?.dataset.scene].join(' ')`);
+    const line = await js(`[Boolean(document.querySelector('.st-livebar .lv-go')), !document.querySelector('.st-record'), [...document.querySelectorAll('.st-panels [data-panel]')].map((n) => n.textContent).join(' | '), [...document.querySelectorAll('.st-scene[data-scene]')].pop()?.dataset.scene].join(' ')`);
     const keys = await js(`[...document.querySelectorAll('.st-scene[data-scene]')].map((n) => n.dataset.scene + '=' + n.textContent.replace(/^\\d/, '')).join(' | ')`);
     check('broadcast shots: Go live is on the bar over the Live panel, the panels are Set up and Live, Back soon comes last, and each camera has a shot of its own, named, with the wide one of both and no single Camera shot',
       line === 'true true Set up | Live back-soon' && /cam:camera-1=Camera 1/.test(keys) && /cam:camera-2=Camera 2/.test(keys) && /wide=Everyone/.test(keys) && !/(^| )camera=/.test(keys),
