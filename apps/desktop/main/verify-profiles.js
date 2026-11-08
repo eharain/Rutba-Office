@@ -139,7 +139,7 @@ export async function verifyProfiles(h) {
     // Closed, the second profile can go, and its folder with it.
     fs.writeFileSync(`${report}.quit`, '');
     const closed = await until(async () => { const l = await profiles(); return l.profiles.find((p) => p.id === work.id)?.running === false ? true : null; }, 'the second profile closed', 30000).catch(() => false);
-    // Its lock goes before the process does, and a process still ending keeps writing to its folder.
+    // Its lock goes before the process does, and removal has to cope with a process still ending: no waiting for it here.
     const peerPid = event(report, 'start')?.pid;
     const peerAlive = () => {
       try {
@@ -148,7 +148,6 @@ export async function verifyProfiles(h) {
         return false;
       }
     };
-    await until(() => (peerAlive() ? null : true), 'the second profile\'s process ended', 30000).catch(() => {});
     await click(`.pf-row[data-profile="${work.id}"] .pf-remove-btn`);
     const asked = await until(() => js(`document.querySelector('.pf-remove-dialog')?.textContent || null`), 'the question before removing', 5000).catch(() => '');
     await click('.pf-remove-go');

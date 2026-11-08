@@ -150,6 +150,35 @@ test('removing: never Default, never the last, never this window\'s or one that 
   }
 });
 
+test('removing: a folder that comes back or will not go yet is tried again, and one that never goes keeps the profile listed', async () => {
+  const base = scratch();
+  try {
+    const { profile: work } = makeProfile(base, { name: 'Work' });
+    const folder = path.join(base, 'Profiles', work.id);
+    let calls = 0;
+    const list = await removeProfile(base, work.id, {
+      running: () => false,
+      settle: 1,
+      discard: async (f) => {
+        calls += 1;
+        if (calls === 1) throw new Error('a file is held open');
+        fs.rmSync(f, { recursive: true });
+        // The ending process writes once more, after the first time the folder went.
+        if (calls === 2) setTimeout(() => { fs.mkdirSync(f, { recursive: true }); fs.writeFileSync(path.join(f, 'Local State'), '{}'); }, 0);
+      },
+    });
+    assert.equal(calls, 3);
+    assert.equal(fs.existsSync(folder), false);
+    assert.deepEqual(list.profiles.map((p) => p.id), [DEFAULT_ID]);
+
+    const { profile: stuck } = makeProfile(base, { name: 'Stuck' });
+    await assert.rejects(removeProfile(base, stuck.id, { running: () => false, settle: 1, discard: async () => {} }), /not finished closing/);
+    assert.ok(readProfiles(base).profiles.some((p) => p.id === stuck.id), 'still listed');
+  } finally {
+    gone(base);
+  }
+});
+
 test('a profile is open while a running copy holds its lock file, and not when there is none', () => {
   const base = scratch();
   try {

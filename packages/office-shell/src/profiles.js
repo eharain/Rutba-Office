@@ -315,14 +315,27 @@ export function removalRefused(base, id, { current = null, running = isRunning }
 }
 
 /** A profile taken off the list, its folder handed to `discard` (the Recycle Bin, in the app). */
-export async function removeProfile(base, id, { current = null, running = isRunning, discard }) {
+export async function removeProfile(base, id, { current = null, running = isRunning, discard, settle = 500 }) {
   const refused = removalRefused(base, id, { current, running });
   if (refused) throw new Error(refused);
   const list = readProfiles(base);
   const p = entry(list, id);
   const folder = profileFolder(base, p);
   // The folder goes first: a profile still listed with its folder gone opens empty, never the other way round.
-  if (fs.existsSync(folder)) await discard(folder);
+  // A copy lets go of its lock before its process has ended, and what is ending can still write there or hold
+  // a file open, so the folder has to stay gone for a moment. If it will not, the profile stays on the list.
+  const LOOKS_GONE = 3;
+  const TRIES = 8;
+  for (let gone = 0, tries = 0; gone < LOOKS_GONE;) {
+    if (fs.existsSync(folder)) {
+      gone = 0;
+      if (tries++ === TRIES) throw new Error('That profile has not finished closing. Try again in a moment.');
+      try { await discard(folder); } catch { /* still held; the next look tries again */ }
+    } else {
+      gone += 1;
+    }
+    if (gone < LOOKS_GONE) await new Promise((resolve) => setTimeout(resolve, settle));
+  }
   const now = readProfiles(base);
   now.profiles = now.profiles.filter((x) => x.id !== id);
   if (now.openFirst === id) now.openFirst = DEFAULT_ID;
