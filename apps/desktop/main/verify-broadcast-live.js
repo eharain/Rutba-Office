@@ -29,6 +29,7 @@ import { ChunkReader, chunkMessage, encodeAmf0, decodeAmf0 } from '@rutba/stream
 import { addItem, emptyStack } from '@rutba/studio/stack';
 import { withScreenStandIn } from './verify-recorder.js';
 import { seedSetup, restoreSetup, PANEL, IN_PANEL } from './verify-studio-seed.js';
+import { letGoOfStudioWindows } from './verify-let-go.js';
 
 /** A local ingest: answers a publisher as YouTube's does, and keeps what each connection sent. */
 export function startIngest() {
@@ -334,5 +335,6 @@ async function liveChecks(h, { dir }) {
     }
     ingest?.cut();
     ingest?.server.close();
+    letGoOfStudioWindows();
   }
 }

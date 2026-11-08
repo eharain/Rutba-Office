@@ -16,6 +16,7 @@ import { addItem, emptyStack } from '@rutba/studio/stack';
 import { STORE } from '@rutba/studio/setup';
 import { withScreenStandIn } from './verify-recorder.js';
 import { seedSetup, restoreSetup, readSetup, CHECK_SETUP, PANEL, IN_PANEL } from './verify-studio-seed.js';
+import { letGoOfStudioWindows } from './verify-let-go.js';
 
 const SOUNDS = [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', name: '', live: false, muted: false, gain: 1 }];
 
@@ -228,5 +229,6 @@ async function checks(h, { dir }) {
     check('studio setups: the check ran to the end', false, err?.message || String(err));
   } finally {
     if (js && kept) await restoreSetup(js, kept).catch(() => {});
+    letGoOfStudioWindows();
   }
 }

@@ -15,6 +15,7 @@
 // RUTBA_VERIFY_ONLY=broadcast-shots.
 
 import { seedSetup, restoreSetup, readSetup, PANEL, IN_PANEL } from './verify-studio-seed.js';
+import { letGoOfStudioWindows } from './verify-let-go.js';
 
 const START_STACK = {
   version: 2,
@@ -147,5 +148,6 @@ export async function verifyBroadcastShots(h, { dir }) {
     check('broadcast shots: the check ran to the end', false, err?.message || String(err));
   } finally {
     if (js && kept) await restoreSetup(js, kept).catch(() => {});
+    letGoOfStudioWindows();
   }
 }

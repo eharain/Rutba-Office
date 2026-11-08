@@ -29,6 +29,7 @@ import { probeMedia } from '@rutba/media/probe';
 import { addItem, emptyStack } from '@rutba/studio/stack';
 import { withScreenStandIn } from './verify-recorder.js';
 import { seedSetup, restoreSetup, readSetup, PANEL, IN_PANEL } from './verify-studio-seed.js';
+import { letGoOfStudioWindows } from './verify-let-go.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
@@ -299,5 +300,6 @@ async function appChecks(h, { dir }) {
     check('recorder app: the check ran to the end', false, err?.message || String(err));
   } finally {
     if (js && kept) await restoreSetup(js, kept).catch(() => {});
+    letGoOfStudioWindows();
   }
 }

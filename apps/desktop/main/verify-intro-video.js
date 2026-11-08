@@ -572,8 +572,11 @@ export async function verifyIntroScenes(h, { dir }) {
         refused = await js(`[...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent).join(' | ')`);
         return Boolean(refused);
       }, `the ${preset} export`, Math.round(length * 1000) + 40000));
+      // When nothing came, what the window was doing: the button, the progress and whether the file began.
+      const stuck = made ? null : await js(`(() => { const go = document.querySelector('.vd-export-go'); const busy = document.querySelector('.vd-export-busy'); return { go: go ? { disabled: go.disabled, text: go.textContent } : null, busy: busy ? busy.textContent : null, box: Boolean(document.querySelector('.vd-export-preset')) }; })()`);
+      const begun = made ? null : fs.existsSync(target) ? fs.statSync(target).size : -1;
       await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 10000));
-      if (!made || refused) return { refused: refused || 'nothing written in time' };
+      if (!made || refused) return { refused: refused || `nothing written in time ${JSON.stringify({ stuck, begun })}` };
       await wait(400);
       return { name: path.basename(target), bytes: fs.statSync(target).size, ...probeMedia(new Uint8Array(fs.readFileSync(target)), { complete: true }) };
     };

@@ -18,6 +18,7 @@ import { startIngest } from './verify-broadcast-live.js';
 import { addItem, emptyStack } from '@rutba/studio/stack';
 import { seedSetup, restoreSetup, readSetup, PANEL, IN_PANEL } from './verify-studio-seed.js';
 import { probeMedia } from '@rutba/media/probe';
+import { letGoOfStudioWindows } from './verify-let-go.js';
 
 /** The picture size in an FLV AVC sequence header's first SPS. */
 export function spsSize(body) {
@@ -269,5 +270,6 @@ async function tallChecks(h, { dir }) {
     }
     ingest?.cut();
     ingest?.server.close();
+    letGoOfStudioWindows();
   }
 }
