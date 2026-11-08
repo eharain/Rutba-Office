@@ -45,7 +45,7 @@ export async function seedFor({ stores, mail }) {
   return seedMail({ stores, mail });
 }
 
-export async function runSmoke({ windows, outDir, stores, mail }) {
+export async function runSmoke({ windows, outDir, stores, mail, refusedPacks = () => [] }) {
   const asked = process.argv.slice(2).filter((a) => ALL.includes(a));
   const list = asked.length ? asked : ALL;
   const file = process.env.RUTBA_SMOKE_FILE || null;
@@ -75,6 +75,9 @@ export async function runSmoke({ windows, outDir, stores, mail }) {
 
   const results = [];
   if (seedFault) results.push({ app: 'mail-seed', ok: false, ms: 0, capture: null, messages: [seedFault] });
+  // A pack that would not load leaves its app "not installed" on a page that
+  // renders perfectly, so a clean window proves nothing about it.
+  for (const r of refusedPacks()) results.push({ app: `pack ${r.id}`, ok: false, ms: 0, capture: null, messages: [r.reason] });
   const opened = [];
   let samples = null;
   for (const app of list) {

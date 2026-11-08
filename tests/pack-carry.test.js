@@ -240,3 +240,30 @@ test('a module in a pack that imports a package it does not carry gets the core\
   await assert.rejects(import(pathToFileURL(path.join(main, 'misses-file.mjs')).href), /not-here\.mjs/);
   await assert.rejects(import(pathToFileURL(path.join(main, 'misses-package.mjs')).href), /no-such-package-anywhere/);
 });
+
+test('a node_modules above the packs folder is never used: the pack gets its own copy or the core\'s', async () => {
+  const above = path.join(tmp, 'above', 'node_modules');
+  const put = (root, name, body) => {
+    const dir = path.join(root, ...name.split('/'));
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name, type: 'module', exports: { './contract': './c.js', '.': './c.js' } }));
+    fs.writeFileSync(path.join(dir, 'c.js'), body);
+  };
+  // A second copy of a core package, and a package only the folder above has.
+  put(above, '@rutba/office-shell', "export const PACKS = 'the copy above';\n");
+  put(above, 'only-above', "export const where = 'above';\n");
+  const packsDir = path.join(tmp, 'above', 'packs');
+  const main = path.join(packsDir, 'demo.asar.unpacked', 'main');
+  fs.mkdirSync(main, { recursive: true });
+  put(path.join(packsDir, 'demo.asar.unpacked', 'node_modules'), 'its-own', "export const where = 'pack';\n");
+  fs.writeFileSync(path.join(main, 'core.mjs'), "export { PACKS } from '@rutba/office-shell/contract';\n");
+  fs.writeFileSync(path.join(main, 'above.mjs'), "export { where } from 'only-above';\n");
+  fs.writeFileSync(path.join(main, 'own.mjs'), "export { where } from 'its-own';\nexport { readFileSync } from 'fs';\n");
+  installPackResolution({ packsDir, coreFile: path.join(ROOT, 'apps', 'desktop', 'main', 'main.js') });
+  const core = await import('@rutba/office-shell/contract');
+  assert.equal((await import(pathToFileURL(path.join(main, 'core.mjs')).href)).PACKS, core.PACKS, 'the core\'s copy, not the one above');
+  await assert.rejects(import(pathToFileURL(path.join(main, 'above.mjs')).href), /only-above/);
+  const own = await import(pathToFileURL(path.join(main, 'own.mjs')).href);
+  assert.equal(own.where, 'pack');
+  assert.equal(typeof own.readFileSync, 'function', 'the runtime\'s own modules are untouched');
+});

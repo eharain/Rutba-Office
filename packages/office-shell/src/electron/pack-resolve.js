@@ -10,6 +10,12 @@
 // as if the core's main module had made it: the core's copy, the one every
 // other module of the run shares.
 //
+// Node's own search does not stop at the pack: it climbs every folder above
+// the packs folder. A node_modules up there (a build run inside this
+// repository, a developer's home folder) would hand the pack a second copy of
+// a core module, whose top level then runs again. So what that search finds
+// outside the packs folder is thrown away, and the core is asked instead.
+//
 // Only bare names are looked for in the core, and only for a module inside
 // the packs folder. A relative import a pack cannot answer stays an error:
 // it names a file the pack should have carried.
@@ -40,16 +46,22 @@ export function installPackResolution({ packsDir, coreFile }) {
   state = next;
   module.registerHooks({
     resolve(specifier, context, nextResolve) {
+      const from = String(context.parentURL || '').toLowerCase();
+      const inPack = Boolean(state) && isBare(specifier) && from.startsWith(state.prefix);
+      // A require() is resolved from the module that made it whatever the
+      // context says, so the core's own require answers it.
+      const fromCore = () => (context.conditions?.includes('require')
+        ? { url: pathToFileURL(module.createRequire(state.core).resolve(specifier)).href, shortCircuit: true }
+        : nextResolve(specifier, { ...context, parentURL: state.core }));
+      let found;
       try {
-        return nextResolve(specifier, context);
+        found = nextResolve(specifier, context);
       } catch (err) {
-        const from = String(context.parentURL || '').toLowerCase();
-        if (!isBare(specifier) || !state || !from.startsWith(state.prefix)) throw err;
-        // A require() is resolved from the module that made it whatever the
-        // context says, so the core's own require answers it.
-        if (context.conditions?.includes('require')) return { url: pathToFileURL(module.createRequire(state.core).resolve(specifier)).href, shortCircuit: true };
-        return nextResolve(specifier, { ...context, parentURL: state.core });
+        if (!inPack) throw err;
+        return fromCore();
       }
+      if (!inPack || !found.url?.startsWith('file:') || found.url.toLowerCase().startsWith(state.prefix)) return found;
+      return fromCore();
     },
   });
 }

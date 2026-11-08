@@ -520,6 +520,7 @@ createShell({
           outDir: process.env.RUTBA_SMOKE_OUT || path.join(app, 'build', 'smoke'),
           stores,
           mail: services?.mail,
+          refusedPacks: () => packsNow().refused,
         });
       });
     }
