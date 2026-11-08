@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8590,
+  "count": 8593,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -617,6 +617,12 @@
       ]
     },
     {
+      "message": "1280 × 720 (HD)",
+      "where": [
+        "apps/desktop/renderer/studio/settings-dialog.js"
+      ]
+    },
+    {
       "message": "15 minutes before",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -626,6 +632,12 @@
       "message": "16:9 widescreen",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "1920 × 1080 (Full HD)",
+      "where": [
+        "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
     {
@@ -867,12 +879,6 @@
       "message": "A card needs a name, an address or a company.",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
-      ]
-    },
-    {
-      "message": "A card with words",
-      "where": [
-        "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
     {
@@ -1541,12 +1547,6 @@
       "message": "A query reads a .csv, .tsv or .txt file",
       "where": [
         "apps/desktop/renderer/engine-words.js"
-      ]
-    },
-    {
-      "message": "A quiet chord, made here",
-      "where": [
-        "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
     {
@@ -5355,7 +5355,6 @@
       "where": [
         "apps/desktop/renderer/studio/program.js",
         "apps/desktop/renderer/studio/properties.js",
-        "apps/desktop/renderer/studio/settings-dialog.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -14023,6 +14022,12 @@
       ]
     },
     {
+      "message": "Every setup",
+      "where": [
+        "apps/desktop/renderer/studio/settings-dialog.js"
+      ]
+    },
+    {
       "message": "Every sheet ({count})",
       "where": [
         "apps/desktop/renderer/print.js"
@@ -22173,7 +22178,6 @@
     {
       "message": "Live Destinations…",
       "where": [
-        "apps/desktop/renderer/studio/settings-dialog.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -24472,12 +24476,6 @@
       ]
     },
     {
-      "message": "Music, played when Sound is on Music",
-      "where": [
-        "apps/desktop/renderer/studio/settings-dialog.js"
-      ]
-    },
-    {
       "message": "Music: a quiet chord, made here",
       "where": [
         "apps/desktop/renderer/studio/properties.js"
@@ -24486,8 +24484,7 @@
     {
       "message": "Music…",
       "where": [
-        "apps/desktop/renderer/studio/properties.js",
-        "apps/desktop/renderer/studio/settings-dialog.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -29880,8 +29877,7 @@
       "where": [
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js",
-        "apps/desktop/renderer/studio/properties.js",
-        "apps/desktop/renderer/studio/settings-dialog.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -30081,12 +30077,6 @@
       "message": "Placeholder text",
       "where": [
         "apps/desktop/renderer/apps/word/forms.js"
-      ]
-    },
-    {
-      "message": "Placeholder, shown when Video is on Placeholder",
-      "where": [
-        "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
     {
@@ -40977,6 +40967,12 @@
       ]
     },
     {
+      "message": "Take Picture's key",
+      "where": [
+        "apps/desktop/renderer/studio/settings-dialog.js"
+      ]
+    },
+    {
       "message": "Take a picture",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -42147,8 +42143,7 @@
     {
       "message": "The card says",
       "where": [
-        "apps/desktop/renderer/studio/properties.js",
-        "apps/desktop/renderer/studio/settings-dialog.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -43469,6 +43464,12 @@
       "message": "The rows go in from the selected cell, {cell}, a date as a date and the amounts as numbers.",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
+      "message": "The same whichever setup is open",
+      "where": [
+        "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
     {
@@ -45425,6 +45426,12 @@
       "message": "This sends a message to {address}.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "This setup",
+      "where": [
+        "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
     {
@@ -47776,8 +47783,7 @@
     {
       "message": "Use the chord",
       "where": [
-        "apps/desktop/renderer/studio/properties.js",
-        "apps/desktop/renderer/studio/settings-dialog.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -47796,8 +47802,7 @@
     {
       "message": "Use words",
       "where": [
-        "apps/desktop/renderer/studio/properties.js",
-        "apps/desktop/renderer/studio/settings-dialog.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -54197,6 +54202,12 @@
       "message": "{name}: double-click to add it after the clips on the picked track",
       "where": [
         "apps/desktop/renderer/apps/video/library.js"
+      ]
+    },
+    {
+      "message": "{name}: kept with the setup, and in its file",
+      "where": [
+        "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
     {

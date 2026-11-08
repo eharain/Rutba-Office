@@ -144,11 +144,45 @@ async function checks(h, { dir }) {
     const opened = await stack();
     await openMenu();
     const menu = await js(`[...document.querySelectorAll('[role^="menuitem"]')].map((n) => n.textContent).join(' | ')`);
-    await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 1`);
-    await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 1`);
     await js(`document.querySelector('.rw-menu-backdrop, .rw-overlay')?.click(), 1`).catch(() => {});
+    await js(`document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 1`);
+    await until(() => js(`document.querySelectorAll('[role^="menuitem"]').length === 0`), 'the menu closed', 3000).catch(() => {});
     check('studio setups: a setup saved to a .rstudio file opens as another, saying what was found, with its scenes, and both are in the menu',
       written && asked && added && opened?.scenes.some((sc) => sc.name === 'Close up') && (menu.match(/My setup/g) || []).length >= 2 && /Found/.test(rows), JSON.stringify({ written, asked, added, rows: rows.slice(0, 120), menu: menu.slice(0, 200) }));
+
+    /* ── settings: this setup and every setup ── */
+    const globalBefore = await get(STORE.global);
+    const secondId = await currentId();
+    const onValue = (cls) => js(`document.querySelector('.${cls} [aria-checked="true"]')?.dataset.value || ''`);
+    const settingsOpen = async () => {
+      await js(`document.querySelector('.st-gear')?.click(), 1`);
+      return ok(until(() => js(`Boolean(document.querySelector('.st-quality'))`), 'the settings', 4000));
+    };
+    const settingsDone = async () => {
+      await js(`document.querySelector('.st-settings-done')?.click(), 1`);
+      await until(() => js(`!document.querySelector('.st-quality')`), 'the settings closed', 4000).catch(() => {});
+    };
+    const shown = await settingsOpen();
+    const parts = await js(`[...document.querySelectorAll('.st-set-head h2')].map((n) => n.textContent).join(' | ')`);
+    await js(`document.querySelector('.st-quality [data-value="high"]')?.click(), 1`);
+    await js(`document.querySelector('.st-countdown [data-value="5"]')?.click(), 1`);
+    await until(async () => (await get(STORE.setup(secondId)))?.settings?.quality === 'high' && (await get(STORE.global))?.countdown === 5, 'the settings kept', 4000).catch(() => {});
+    await wait(200);
+    await shot('studio-settings.png');
+    await settingsDone();
+    const inSetup = (await get(STORE.setup(secondId)))?.settings?.quality;
+    const inGlobal = (await get(STORE.global))?.countdown;
+    await openMenu();
+    await menuPick('/^My setup(?! 2)/');
+    const switched = await ok(until(async () => (await currentId()) === firstId, 'the first setup again', 5000));
+    await wait(300);
+    const shownAgain = await settingsOpen();
+    const qualityThere = await onValue('st-quality');
+    const countdownThere = await onValue('st-countdown');
+    await settingsDone();
+    check('studio setups: Settings has This setup and Every setup; quality set in one setup stays with it, and the countdown is the same in the other',
+      shown && shownAgain && parts === 'This setup | Every setup' && inSetup === 'high' && inGlobal === 5 && switched && qualityThere !== 'high' && countdownThere === '5', JSON.stringify({ shown, parts, inSetup, inGlobal, switched, qualityThere, countdownThere }));
+    await set(STORE.global, globalBefore);
 
     /* ── found again ── */
     let s = { ...emptyStack(), sounds: SOUNDS };

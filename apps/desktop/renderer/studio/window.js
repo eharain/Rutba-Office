@@ -1364,8 +1364,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       <style>{FLIP_CSS}</style>
       {askWeb ? <WebPageDialog allowLoopback={Boolean(window.__rutbaLocalPages)} onClose={() => setAskWeb(false)} onAdd={({ url, name }) => { setAskWeb(false); changeStack((s) => addItem(s, { kind: 'web', ref: url, name, sound: false }).stack); }} /> : null}
       {settingsOpen ? (
-        <StudioSettings settings={settings} stack={stack} busy={busy} live={isLive} title={settingsLabel.replace('…', '')} change={change} changeStack={changeStack} chooseFolder={chooseFolder} choosePlaceholder={choosePlaceholder} chooseMusic={chooseMusic}
-          openDestinations={() => { setSettingsOpen(false); setLiveOpen(true); }} onClose={() => setSettingsOpen(false)} />
+        <StudioSettings settings={settings} setupName={setup.name} busy={busy} live={isLive} pictureKey={pictureKey} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />
       ) : null}
       <OpenSetupDialog s={s} />
       {closeAsk ? <ConfirmDialog title={t('End broadcast?')} body={t('You are live. Closing this window ends the broadcast.')} okLabel={t('End broadcast and close')} onOk={async () => { closing.current = true; await endLive(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}

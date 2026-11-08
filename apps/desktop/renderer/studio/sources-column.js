@@ -75,7 +75,7 @@ export function SourcesColumn({ s, thumbs }) {
     const unset = it.kind === 'window' && !it.ref;
     const err = capture && !miss ? media.errorOf(it) : null;
     const name = it.label || itemName(it);
-    const cls = ['st-card st-src', selected === it.id ? 'sel' : '', miss ? 'miss' : '', it.on ? '' : 'off', drag === it.id ? 'dragging' : '', over === index ? 'over-top' : ''].filter(Boolean).join(' ');
+    const cls = ['st-card st-src', selected === it.id ? 'sel' : '', miss ? 'miss' : '', unset ? 'unset' : '', it.on ? '' : 'off', drag === it.id ? 'dragging' : '', over === index ? 'over-top' : ''].filter(Boolean).join(' ');
     return (
       <div key={it.id} className={cls} data-id={it.id} data-kind={it.kind} data-on={it.on ? '1' : '0'} data-state={state} data-tip={name} tabIndex={0} role="option" aria-selected={selected === it.id}
         aria-label={`${kindName(it.kind)}: ${name}${it.on ? '' : `, ${t('not shown')}`}`} draggable

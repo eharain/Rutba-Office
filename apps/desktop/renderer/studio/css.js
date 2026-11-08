@@ -187,6 +187,7 @@ export const STUDIO_CSS = `
 .st-src-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .st-src-text small { font-size: 11px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-src-text small.st-src-err { color: var(--bad, #d93a40); }
+.st-src.unset .st-src-name { white-space: normal; }
 .st-src-miss { font-size: 11px; font-weight: 700; color: #a56a00; }
 .st-src-choose { flex: none; align-self: flex-start; margin-top: 3px; height: 24px; padding: 0 8px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
 .st-src-choose:hover { border-color: var(--accent-line); }
@@ -296,8 +297,17 @@ export const STUDIO_CSS = `
 .st-err { color: var(--bad, #d93a40); font-size: 11.5px; padding: 0 10px 6px; }
 .st-add { margin-top: 6px; }
 
-.st-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
-.st-settings .wide { grid-column: 1 / -1; }
+.st-settings { display: flex; flex-direction: column; gap: 18px; }
+.st-set-section { display: flex; flex-direction: column; gap: 10px; }
+.st-set-section + .st-set-section { padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.st-set-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.st-set-head h2 { margin: 0; font-size: 13.5px; font-weight: 650; color: var(--ink); }
+.st-set-head span { font-size: 12px; color: var(--ink-3); }
+.st-set-row { display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 12px; min-height: 32px; }
+.st-set-label { font-size: 13px; color: var(--ink-2); }
+.st-set-value { min-width: 0; }
+.st-set-value .rw-select { width: 100%; }
+.st-set-key { font: inherit; font-size: 12px; font-weight: 600; color: var(--ink-2); background: var(--sunken); border-radius: 4px; padding: 2px 7px; }
 .st-settings-row { display: flex; align-items: center; gap: 8px; }
 .st-open-title { margin: 0 0 2px; font-size: 18px; }
 .st-open-sub { margin: 0 0 12px; color: var(--ink-2); }

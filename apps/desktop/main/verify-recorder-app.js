@@ -173,7 +173,7 @@ async function appChecks(h, { dir }) {
     // the program as shown, the selected source at its own size, and one after a timer, each one PNG in the folder.
     const pictures = () => { try { return fs.readdirSync(folder).filter((n) => /^Picture .*\.png$/.test(n)).sort(); } catch { return []; } };
     const pngSize = (name) => { const b = fs.readFileSync(path.join(folder, name)); return b.length > 24 && b.readUInt32BE(0) === 0x89504e47 ? { w: b.readUInt32BE(16), h: b.readUInt32BE(20) } : null; };
-    const pick = (cls, value) => js(`(() => { const n = document.querySelector('.${cls}'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(n, ${JSON.stringify(value)}); n.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    const pick = (cls, value) => js(`document.querySelector('.${cls} [data-value="${value}"]')?.click(), 1`);
     const settings = async (fn) => {
       await js(`document.querySelector('.st-gear')?.click(), 1`);
       await until(() => js(`Boolean(document.querySelector('.st-shot-of'))`), 'the settings', 4000).catch(() => {});

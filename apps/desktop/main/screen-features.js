@@ -930,8 +930,7 @@ export const FEATURES = [
       for (const d of await h.js(`window.rutbaOffice.live.destinations()`)) await h.js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`);
       await h.js(`window.rutbaOffice.live.saveDestination({ platform: 'youtube', name: 'YouTube', on: true, key: 'sample-stream-key-2025' })`);
       await h.js(`window.rutbaOffice.live.saveDestination({ platform: 'facebook', name: 'Facebook page', on: true })`);
-      await h.click('.st-gear', 'Live Broadcast settings');
-      await h.click('.st-dests-btn', 'Destinations');
+      await h.click('.st-streams-btn', 'My streams');
       await h.until(`document.querySelectorAll('.lv-dest').length === 2`, 'the destinations', 6000);
       await h.wait(800);
     },
