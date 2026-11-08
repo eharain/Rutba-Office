@@ -30,6 +30,8 @@ import { EXPORT_EXT } from './verify-video-editor.js';
 import { buildDocx } from '@rutba/ooxml/build';
 import { BrowserWindow } from 'electron';
 import { gradientPng } from './sample-picture.js';
+import { addItem, emptyStack } from '@rutba/studio/stack';
+import { seedSetup, restoreSetup, recorderOpened, windowsNow, CHECK_SOUNDS, RECORDING, PRESS_RECORD } from './verify-studio-seed.js';
 
 /** The run's capture: a window's picture, saved when RUTBA_VERIFY_CAPTURE names a folder. */
 function capturer(wait) {
@@ -247,29 +249,30 @@ export async function verifyIntroPointer(h, { dir }) {
     await open('word', docFile);
     win = await open('video');
     const js = (code) => win.webContents.executeJavaScript(code);
-    settingsWere = await js(`window.rutbaOffice.store.get({ key: 'recorder.settings', fallback: null })`);
-    await js(`window.rutbaOffice.store.set({ key: 'recorder.settings', value: ${JSON.stringify({ source: 'window', fps: 30, cap: 720, quality: 'standard', countdown: 0, camera: false, mic: false, system: false, minimise: true, pointer: true, folder })} }).then(() => 1)`);
+    await until(() => js(`window.rutbaOffice.capture.sources().then((l) => l.some((x) => x.name.includes('intro-pointer-fixture')))`), 'the fixture window to be there', 10000).catch(() => {});
+    const source = (await js(`window.rutbaOffice.capture.sources()`)).find((x) => x.name.includes('intro-pointer-fixture'));
+    fs.mkdirSync(folder, { recursive: true });
+    settingsWere = await seedSetup(js, { app: 'recorder', stack: addItem({ ...emptyStack(), sounds: CHECK_SOUNDS(false) }, { kind: 'window', ref: source.id, name: source.name }).stack, studio: { size: 720, fps: 30, quality: 'standard', countdown: 0, folder, minimise: true } });
+    const known = windowsNow();
     await js(pressJs('Record Screen', 'Home'));
-    await ok(until(() => js(`[...document.querySelectorAll('.rec-source')].some((n) => (n.dataset.tip || '').includes('intro-pointer-fixture'))`), 'the fixture window in the list', 10000));
-    await js(`(() => { const b = [...document.querySelectorAll('.rec-source')].find((n) => (n.dataset.tip || '').includes('intro-pointer-fixture')); b?.click(); return Boolean(b); })()`);
-    await ok(until(() => js(`(() => { const v = document.querySelector('.rec-screen'); return Boolean(v && v.videoWidth > 0 && document.querySelector('.rec-source.on')?.dataset.tip.includes('intro-pointer-fixture')); })()`), 'the window live', 12000));
-    const toggle = await js(`(() => { const n = document.querySelector('.rec-pointer-toggle input'); return n ? n.checked : null; })()`);
-    await js(`document.querySelector('.rec-go')?.click(), 1`);
-    const recording = await ok(until(() => js(`(() => { const b = document.querySelector('.rec-stop'); return Boolean(b) && !b.disabled; })()`), 'the recording', 9000));
+    const { rw, rjs } = await recorderOpened(until, known);
+    await ok(until(() => rjs(`document.querySelector('.st-canvas')?.dataset.layers === 'window'`), 'the window live', 12000));
+    await rjs(PRESS_RECORD);
+    const recording = await ok(until(() => rjs(RECORDING), 'the recording', 9000));
     const feed = await ok(until(() => Boolean(globalThis.__rutbaPointerFeed), 'the pointer feed', 4000));
     // The pointer: across the window, three clicks on one spot, a rest.
     const f = globalThis.__rutbaPointerFeed;
     for (let i = 0; i <= 20; i++) { f?.move(0.15 + i * 0.022, 0.3 + i * 0.008); await wait(50); }
     for (const [x, y] of [[0.6, 0.45], [0.62, 0.47], [0.58, 0.44]]) { f?.move(x, y); await wait(250); f?.click(x, y); await wait(450); }
     await wait(1500);
-    await js(`document.querySelector('.rec-stop')?.click(), 1`);
-    const landed = await ok(until(() => js(`Boolean(document.querySelector('.vd-clip[data-take="pointer"]') && document.querySelector('.vd-clip[data-take="screen"]')) && !document.querySelector('.rec-dialog')`), 'the takes on the timeline', 20000));
+    await rjs(`document.querySelector('.st-record')?.click(), 1`);
+    const landed = await ok(until(async () => rw.isDestroyed() && await js(`Boolean(document.querySelector('.vd-clip[data-take="pointer"]') && document.querySelector('.vd-clip[data-take="screen"]'))`), 'the takes on the timeline', 20000));
     const clips = await js(`[...document.querySelectorAll('.vd-clip')].map((n) => ({ take: n.dataset.take, lane: Number(n.dataset.lane), start: Number(n.dataset.start), end: Number(n.dataset.end), clicks: n.dataset.clicks }))`);
     const scr = clips.find((c) => c.take === 'screen');
     const ptr = clips.find((c) => c.take === 'pointer');
     check('intro-video: the recorder writes the pointer down beside the screen, and it lands as a layer of its own on the lane above, as long as the screen, with its three clicks',
-      toggle === true && recording && feed && landed && ptr?.lane === scr?.lane + 1 && ptr.start === scr.start && ptr.end === scr.end && ptr.clicks === '3',
-      JSON.stringify({ toggle, recording, feed, clips }));
+      recording && feed && landed && ptr?.lane === scr?.lane + 1 && ptr.start === scr.start && ptr.end === scr.end && ptr.clicks === '3',
+      JSON.stringify({ recording, feed, clips }));
     const released = !globalThis.__rutbaPointerFeed;
     check('intro-video: the pointer is let go when the recording stops', released, released ? 'released' : 'still followed');
 
@@ -329,7 +332,7 @@ export async function verifyIntroPointer(h, { dir }) {
     check('intro-video: the pointer checks ran', false, err.message);
   } finally {
     if (win && !win.isDestroyed()) {
-      await win.webContents.executeJavaScript(`window.rutbaOffice.store.set({ key: 'recorder.settings', value: ${JSON.stringify(settingsWere ?? null)} }).then(() => 1)`).catch(() => {});
+      if (settingsWere) await restoreSetup((code) => win.webContents.executeJavaScript(code), settingsWere).catch(() => {});
       letGo(win);
     }
   }
@@ -379,10 +382,10 @@ export async function verifyIntroScenes(h, { dir }) {
     home = await open('home');
     const hjs = (code) => home.webContents.executeJavaScript(code);
     kept = {
-      settings: await hjs(`window.rutbaOffice.store.get({ key: 'recorder.settings', fallback: null })`),
       brand: await hjs(`window.rutbaOffice.store.get({ key: 'video.brand', fallback: null })`),
     };
-    await hjs(`window.rutbaOffice.store.set({ key: 'recorder.settings', value: ${JSON.stringify({ source: 'window', fps: 30, cap: 720, quality: 'standard', countdown: 0, camera: true, mirror: true, corner: 'br', insetSize: 'medium', shape: 'circle', mic: true, system: false, minimise: true, pointer: true, folder })} }).then(() => 1)`);
+    fs.mkdirSync(folder, { recursive: true });
+    kept.setup = await seedSetup(hjs, { app: 'recorder', stack: { ...emptyStack(), sounds: CHECK_SOUNDS() }, studio: { size: 720, fps: 30, quality: 'standard', countdown: 0, folder, minimise: true } });
     await hjs(`window.rutbaOffice.store.set({ key: 'video.brand', value: null }).then(() => 1)`);
 
     // The launcher's card: a new Video window on an introduction of four scenes.
@@ -455,26 +458,25 @@ export async function verifyIntroScenes(h, { dir }) {
     const recordTake = async (sceneId, seconds, onRecording = null) => {
       await pick(sceneId);
       const had = Number(await js(`document.querySelector('.vi-scene[data-scene="${sceneId}"]')?.dataset.takes || 0`));
+      const knownNow = windowsNow();
       await js(`document.querySelector('.vi-scene.open .vi-record')?.click(), 1`);
-      await ok(until(() => js(`Boolean(document.querySelector('.rec-dialog'))`), 'the recorder', 6000));
-      await ok(until(() => js(`[...document.querySelectorAll('.rec-source')].some((n) => (n.dataset.tip || '').includes('intro-scenes-fixture'))`), 'the fixture window', 10000));
-      await js(`(() => { const b = [...document.querySelectorAll('.rec-source')].find((n) => (n.dataset.tip || '').includes('intro-scenes-fixture')); b?.click(); return 1; })()`);
-      await ok(until(() => js(`(() => { const v = document.querySelector('.rec-screen'); const c = document.querySelector('.rec-inset .rec-cam'); return Boolean(v && v.videoWidth > 0 && c && c.videoWidth > 0 && document.querySelector('.rec-source.on')?.dataset.tip.includes('intro-scenes-fixture')); })()`), 'the window and the camera live', 15000));
-      const before = await js(`({ prompter: document.querySelector('.rec-prompter-text')?.textContent || '', progress: Number(document.querySelector('.rec-prompter')?.dataset.progress || -1) })`);
-      // Record once the box can: the first scene opens the camera and the microphone for the first time, which takes a while.
+      const { rw, rjs } = await recorderOpened(until, knownNow);
+      await ok(until(() => rjs(`(() => { const l = document.querySelector('.st-canvas')?.dataset.layers || ''; return /screen|window/.test(l) && l.includes('camera') && Boolean(document.querySelector('.rec-prompter')); })()`), 'the screen and the camera live, under the script', 15000));
+      const before = await rjs(`({ prompter: document.querySelector('.rec-prompter-text')?.textContent || '', progress: Number(document.querySelector('.rec-prompter')?.dataset.progress || -1) })`);
+      // Record once it can: the first scene opens the camera and the microphone for the first time, which takes a while.
       for (let attempt = 0; attempt < 3; attempt++) {
-        await ok(until(() => js(`(() => { const b = document.querySelector('.rec-go'); return Boolean(b) && !b.disabled; })()`), 'Record ready', 10000));
-        await js(`document.querySelector('.rec-go')?.click(), 1`);
-        if (await ok(until(() => js(`(() => { const b = document.querySelector('.rec-stop'); return Boolean(b) && !b.disabled; })()`), 'recording', 9000))) break;
-        starts.push(await js(`[...document.querySelectorAll('[class*="toast"]')].map((n) => n.textContent.trim()).join(' | ') || 'no word'`));
+        await ok(until(() => rjs(`(() => { const b = document.querySelector('.st-record'); return Boolean(b) && !b.disabled; })()`), 'Record ready', 10000));
+        await rjs(PRESS_RECORD);
+        if (await ok(until(() => rjs(RECORDING), 'recording', 9000))) break;
+        starts.push(await rjs(`[...document.querySelectorAll('[class*="toast"]')].map((n) => n.textContent.trim()).join(' | ') || 'no word'`));
         await wait(1000);
       }
       if (onRecording) await onRecording();
       else await wait(seconds * 1000);
-      const during = await js(`Number(document.querySelector('.rec-prompter')?.dataset.progress || -1)`);
-      if (sceneId === talkId && !shotPrompter) { shotPrompter = true; await capture(win, 'intro-4-teleprompter.png'); }
-      await js(`document.querySelector('.rec-stop')?.click(), 1`);
-      await ok(until(() => js(`!document.querySelector('.rec-dialog') && Number(document.querySelector('.vi-scene[data-scene="${sceneId}"]')?.dataset.takes) > ${had}`), 'the take in its scene', 20000));
+      const during = await rjs(`Number(document.querySelector('.rec-prompter')?.dataset.progress || -1)`);
+      if (sceneId === talkId && !shotPrompter) { shotPrompter = true; await capture(rw, 'intro-4-teleprompter.png'); }
+      await rjs(`document.querySelector('.st-record')?.click(), 1`);
+      await ok(until(async () => rw.isDestroyed() && Number(await js(`document.querySelector('.vi-scene[data-scene="${sceneId}"]')?.dataset.takes`)) > had, 'the take in its scene', 20000));
       await wait(500);
       return { before, during };
     };
@@ -564,15 +566,20 @@ export async function verifyIntroScenes(h, { dir }) {
       await ok(until(() => js(`document.querySelector('.vd-export-preset')?.dataset.value === '${preset}'`), preset, 2000));
       await until(() => js(`document.querySelector('.vd-export-go')?.disabled === false`), 'the export format found', 6000).catch(() => {});
       await js(`document.querySelector('.vd-export-go')?.click(), 1`);
-      const made = await ok(until(() => { try { return fs.statSync(target).size > 4000; } catch { return false; } }, `the ${preset} export`, Math.round(length * 1000) + 40000));
+      let refused = '';
+      const made = await ok(until(async () => {
+        try { if (fs.statSync(target).size > 4000) return true; } catch { /* not yet */ }
+        refused = await js(`[...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent).join(' | ')`);
+        return Boolean(refused);
+      }, `the ${preset} export`, Math.round(length * 1000) + 40000));
       await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 10000));
-      if (!made) return null;
+      if (!made || refused) return { refused: refused || 'nothing written in time' };
       await wait(400);
       return { name: path.basename(target), bytes: fs.statSync(target).size, ...probeMedia(new Uint8Array(fs.readFileSync(target)), { complete: true }) };
     };
     const wide = await exportAs('youtube', 'intro-youtube');
     const tall = await exportAs('vertical', 'intro-vertical');
-    const say = (p) => (p ? `${p.name}: ${p.width}x${p.height}, ${p.duration?.toFixed(2)} s of ${length.toFixed(2)}, ${Math.round(p.bytes / 1024)} KB, tracks ${(p.tracks || []).map((x) => `${x.type} ${x.codec}`).join(', ')}` : 'no file');
+    const say = (p) => (p?.refused ? `no file: ${p.refused}` : p ? `${p.name}: ${p.width}x${p.height}, ${p.duration?.toFixed(2)} s of ${length.toFixed(2)}, ${Math.round(p.bytes / 1024)} KB, tracks ${(p.tracks || []).map((x) => `${x.type} ${x.codec}`).join(', ')}` : 'no file');
     check('intro-video: the three-scene introduction exports for YouTube as a 1920 by 1080 video as long as the project, with its picture and its sound',
       Boolean(wide?.hasVideo && wide.hasAudio && wide.width === 1920 && wide.height === 1080 && Math.abs(wide.duration - length) < 0.8), say(wide));
     check('intro-video: and for Reels, Shorts and TikTok as a 1080 by 1920 video of the same length, its scenes laid out upright',
@@ -587,8 +594,9 @@ export async function verifyIntroScenes(h, { dir }) {
   } finally {
     const any = (win && !win.isDestroyed() && win) || (home && !home.isDestroyed() && home);
     if (any) {
-      await any.webContents.executeJavaScript(`Promise.all([window.rutbaOffice.store.set({ key: 'recorder.settings', value: ${JSON.stringify(kept.settings ?? null)} }), window.rutbaOffice.store.set({ key: 'video.brand', value: ${JSON.stringify(kept.brand ?? null)} })]).then(() => 1)`).catch(() => {});
+      await any.webContents.executeJavaScript(`window.rutbaOffice.store.set({ key: 'video.brand', value: ${JSON.stringify(kept.brand ?? null)} }).then(() => 1)`).catch(() => {});
     }
+    if (any && kept?.setup) await restoreSetup((code) => any.webContents.executeJavaScript(code), kept.setup).catch(() => {});
     letGo(win);
   }
 }

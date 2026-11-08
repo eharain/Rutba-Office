@@ -775,3 +775,19 @@ export function recordKind(stack) {
     if (stack.video === 'off') return stack.sound === 'off' ? null : 'sound';
     return 'video';
 }
+
+/**
+ * Each source as a file of its own (A7): what the frame shows now, screens and
+ * windows first, each with its role on Video's timeline. One take carries the
+ * sound: the camera's when there is one, as a voice belongs with a face; with
+ * no picture at all, the sound is the one take.
+ * @returns {{ role: 'screen'|'camera'|'voice', itemId: string|null, sound: boolean }[]}
+ */
+export function takesPlan(stack) {
+  const shown = stack.items.filter((it) => it.on && it.live && (it.kind === 'camera' || ((it.kind === 'screen' || it.kind === 'window') && it.ref)));
+  const cameras = shown.filter((it) => it.kind === 'camera');
+  const screens = shown.filter((it) => it.kind !== 'camera');
+  if (!cameras.length && !screens.length) return [{ role: 'voice', itemId: null, sound: true }];
+  const carrier = cameras[0] || screens[0];
+  return [...screens, ...cameras].map((it) => ({ role: it.kind === 'camera' ? 'camera' : 'screen', itemId: it.id, sound: it === carrier }));
+}

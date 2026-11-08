@@ -816,10 +816,7 @@ export const FEATURES = [
       await h.js(`window.rutbaOffice.store.set({ key: 'recorder.settings', value: { source: 'window', fps: 30, cap: 1080, quality: 'standard', countdown: 3, camera: false, mic: true, system: false, minimise: true } }), 1`);
       await h.tab('Home');
       await h.button('Record Screen');
-      await h.until(`Boolean(document.querySelector('.rec-dialog'))`, 'the recorder', 6000);
-      await h.until(`[...document.querySelectorAll('.rec-source')].some((n) => /quarterly-review/.test(n.dataset.tip || n.textContent))`, 'the window listed', 10000);
-      await h.js(`[...document.querySelectorAll('.rec-source')].find((n) => /quarterly-review/.test(n.dataset.tip || n.textContent)).click(), 1`);
-      await h.until(`(document.querySelector('.rec-screen')?.videoWidth || 0) > 0`, 'the window live in the recorder', 10000);
+      // The Recorder is a window of its own now (A7): what this shot shows is the Video window it was opened from.
       await h.wait(1500);
     },
   },

@@ -17,7 +17,7 @@ export function CanvasSlot({ canvas }) {
 /** The picture at its real shape, drawn over by what the panel needs. */
 export function Frame({ canvas, frameRef, label, className = '', children, ...rest }) {
   return (
-    <div ref={frameRef} aria-label={label} className={`st-frame ${className}`.trim()} {...rest}>
+    <div ref={frameRef} aria-label={label} className={`st-frame ${className}`.trim()} dir="ltr" {...rest}>
       <CanvasSlot canvas={canvas} />
       {children}
     </div>

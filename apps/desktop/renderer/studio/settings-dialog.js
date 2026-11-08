@@ -25,8 +25,9 @@ const Section = ({ title, note, children }) => (
  * @param {boolean} p.busy  recording or live: what is made cannot change
  * @param {string} [p.pictureKey]  the key that takes a picture
  * @param {boolean} [p.live]  Live Broadcast's: the copy kept while live
+ * @param {boolean} [p.apart]  the Recorder on its own: each source as its own file can be asked for
  */
-export function StudioSettings({ settings, setupName, busy, pictureKey = '', live = false, title = null, change, chooseFolder, onClose }) {
+export function StudioSettings({ settings, setupName, busy, pictureKey = '', live = false, apart = false, title = null, change, chooseFolder, onClose }) {
   return (
     <Dialog title={title || t('Recorder settings')} className="st-settings-dialog" width={620} onClose={onClose} actions={<Button primary label={t('Done')} className="st-settings-done" onClick={onClose} />}>
       <div className="st-settings">
@@ -48,6 +49,7 @@ export function StudioSettings({ settings, setupName, busy, pictureKey = '', liv
           <Row label={t('Recordings are saved in')}>
             <div className="st-settings-row"><span title={settings.folder}>{settings.folder || '…'}</span><Button label={t('Change…')} disabled={busy} onClick={chooseFolder} /></div>
           </Row>
+          {apart ? <Row label={t('Each source as its own file')}><Toggle on={settings.isolated} className="st-isolated" label={t('Also keep the screen, camera and sound apart, to edit as layers in Video')} disabled={busy} onChange={(v) => change({ isolated: v })} /></Row> : null}
           {live ? <Row label=""><Toggle on={settings.liveCopy} label={t('Record a copy on this computer while live')} onChange={(v) => change({ liveCopy: v })} /></Row> : null}
         </Section>
         <Section title={t('Every setup')} note={t('The same whichever setup is open')}>

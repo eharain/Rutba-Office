@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8599,
+  "count": 8577,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2092,15 +2092,8 @@
       ]
     },
     {
-      "message": "About {mb} MB a minute",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
-      ]
-    },
-    {
       "message": "About {minutes} minutes of space are left on the disk.",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -2429,7 +2422,6 @@
         "apps/desktop/renderer/packs-dialog.js",
         "apps/desktop/renderer/redact.js",
         "apps/desktop/renderer/studio/flip-strip.js",
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/sources-column.js",
         "packages/office-ui/src/proofing.js"
       ]
@@ -3884,6 +3876,12 @@
       ]
     },
     {
+      "message": "Also keep the screen, camera and sound apart, to edit as layers in Video",
+      "where": [
+        "apps/desktop/renderer/studio/settings-dialog.js"
+      ]
+    },
+    {
       "message": "Alt",
       "where": [
         "packages/office-ui/src/commands.js"
@@ -4820,12 +4818,6 @@
       "message": "As recorded",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
-      ]
-    },
-    {
-      "message": "As the screen",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -6688,11 +6680,11 @@
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/library-words.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shared-words.js",
         "apps/desktop/renderer/studio/bottom-bar.js",
         "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/properties.js",
+        "apps/desktop/renderer/studio/takes.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -6717,7 +6709,6 @@
     {
       "message": "Camera {n}",
       "where": [
-        "apps/desktop/renderer/recording/session.js",
         "apps/desktop/renderer/studio/media.js",
         "apps/desktop/renderer/studio/window.js"
       ]
@@ -6813,7 +6804,6 @@
         "apps/desktop/renderer/profiles.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/qrcode.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/rotation-dialog.js",
         "apps/desktop/renderer/screenshot.js",
         "apps/desktop/renderer/shell.js",
@@ -7845,13 +7835,6 @@
       ]
     },
     {
-      "message": "Choose a screen or a window to record.",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js",
-        "apps/desktop/renderer/recording/session.js"
-      ]
-    },
-    {
       "message": "Choose a window",
       "where": [
         "apps/desktop/renderer/studio/scene-strip.js"
@@ -8016,7 +7999,6 @@
         "apps/desktop/renderer/apps/slides/motion.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/library-words.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shared-words.js",
         "apps/desktop/renderer/studio/properties.js"
       ]
@@ -9241,15 +9223,8 @@
     {
       "message": "Computer sound",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/window.js"
-      ]
-    },
-    {
-      "message": "Computer sound level",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -9941,7 +9916,6 @@
     {
       "message": "Countdown",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -12378,12 +12352,6 @@
       ]
     },
     {
-      "message": "Drag on the picture to choose the part to record.",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
-      ]
-    },
-    {
       "message": "Drag on the sheet to move; the handles resize and turn.",
       "where": [
         "apps/desktop/renderer/apps/sheets/objects.js"
@@ -12405,12 +12373,6 @@
       "message": "Drag over the part of {name} to show.",
       "where": [
         "apps/desktop/renderer/studio/window.js"
-      ]
-    },
-    {
-      "message": "Drag the camera to a corner",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -12864,6 +12826,12 @@
       "message": "Each slide then moves on by itself after the time it was on screen, and Use Timings is turned on.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Each source as its own file",
+      "where": [
+        "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
     {
@@ -14622,7 +14590,7 @@
     {
       "message": "Fast",
       "where": [
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/studio/prompter.js"
       ]
     },
     {
@@ -15910,7 +15878,7 @@
     {
       "message": "For the tools",
       "where": [
-        "apps/desktop/renderer/studio/setups-menu.js"
+        "apps/desktop/renderer/studio/window.js"
       ]
     },
     {
@@ -16259,7 +16227,6 @@
     {
       "message": "Frame rate",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -20896,8 +20863,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js",
-        "apps/desktop/renderer/qrcode.js",
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -21555,7 +21521,6 @@
     {
       "message": "Level",
       "where": [
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/parts.js",
         "apps/desktop/renderer/studio/properties.js"
       ]
@@ -22386,7 +22351,6 @@
     {
       "message": "Looking at what is open…",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/screenshot.js",
         "apps/desktop/renderer/studio/window.js"
       ]
@@ -23383,7 +23347,6 @@
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/qrcode.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -23724,22 +23687,14 @@
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/library-words.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/bottom-bar.js",
         "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
     {
-      "message": "Microphone level",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
-      ]
-    },
-    {
       "message": "Microphone {n}",
       "where": [
-        "apps/desktop/renderer/recording/session.js",
         "apps/desktop/renderer/studio/media.js"
       ]
     },
@@ -23828,7 +23783,6 @@
     {
       "message": "Minimise this window while recording",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -23857,12 +23811,6 @@
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/studio/properties.js"
-      ]
-    },
-    {
-      "message": "Mirror the camera",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -24506,7 +24454,6 @@
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/player.js",
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/sources-column.js"
       ]
@@ -26059,7 +26006,6 @@
     {
       "message": "No microphone was found.",
       "where": [
-        "apps/desktop/renderer/recording/session.js",
         "apps/desktop/renderer/studio/bottom-bar.js",
         "apps/desktop/renderer/studio/media.js"
       ]
@@ -26110,12 +26056,6 @@
       "message": "No other mail client was found on this computer. Choose a file below if you have an archive elsewhere.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
-      ]
-    },
-    {
-      "message": "No other window is open to record.",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -26285,12 +26225,6 @@
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/print.js"
-      ]
-    },
-    {
-      "message": "No screen can be recorded.",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -26522,7 +26456,6 @@
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/protect.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -26608,7 +26541,7 @@
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/print.js",
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/studio/prompter.js"
       ]
     },
     {
@@ -26658,7 +26591,6 @@
       "message": "Not available",
       "where": [
         "apps/desktop/renderer/studio/flip-strip.js",
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/media.js"
       ]
     },
@@ -26805,7 +26737,6 @@
     {
       "message": "Not shown",
       "where": [
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
@@ -27578,12 +27509,6 @@
       ]
     },
     {
-      "message": "On the share",
-      "where": [
-        "apps/desktop/renderer/studio/list.js"
-      ]
-    },
-    {
       "message": "On the timeline",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
@@ -28253,21 +28178,9 @@
       ]
     },
     {
-      "message": "Opening the microphone…",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
-      ]
-    },
-    {
       "message": "Opening the project",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
-      ]
-    },
-    {
-      "message": "Opening the screen…",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -29349,7 +29262,6 @@
         "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/apps/video/player.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/record-panel.js"
       ]
     },
@@ -29370,7 +29282,6 @@
       "where": [
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/slides/record.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/record-panel.js",
         "apps/desktop/renderer/studio/window.js"
       ]
@@ -30303,12 +30214,6 @@
       ]
     },
     {
-      "message": "Pointer and clicks",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
-      ]
-    },
-    {
       "message": "Pointers",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
@@ -30555,8 +30460,7 @@
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/list-dialog.js",
         "apps/desktop/renderer/apps/word/mailings.js",
-        "apps/desktop/renderer/qrcode.js",
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -31463,7 +31367,6 @@
         "apps/desktop/renderer/apps/pictures/batch.js",
         "apps/desktop/renderer/apps/slides/export-video.js",
         "apps/desktop/renderer/apps/video/export.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -32084,7 +31987,6 @@
         "apps/desktop/renderer/apps/video/intro/scenes.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/mailings.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -32146,8 +32048,7 @@
     {
       "message": "Record Voice",
       "where": [
-        "apps/desktop/renderer/apps/video/index.js",
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -32292,7 +32193,18 @@
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
-        "apps/desktop/renderer/recording/panel.js",
+        "apps/desktop/renderer/studio/window.js"
+      ]
+    },
+    {
+      "message": "Recording for a slide",
+      "where": [
+        "apps/desktop/renderer/studio/window.js"
+      ]
+    },
+    {
+      "message": "Recording into {name}",
+      "where": [
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -32387,7 +32299,6 @@
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/properties.js"
       ]
     },
@@ -32667,7 +32578,6 @@
     {
       "message": "Refresh the list",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -32693,20 +32603,7 @@
       "message": "Region",
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
-        "apps/desktop/renderer/apps/sheets/design.js",
-        "apps/desktop/renderer/recording/panel.js"
-      ]
-    },
-    {
-      "message": "Region {w} × {h}",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
-      ]
-    },
-    {
-      "message": "Region: a part you draw, kept as a crop you can change later",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/apps/sheets/design.js"
       ]
     },
     {
@@ -33970,7 +33867,6 @@
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/record.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/record-panel.js"
       ]
     },
@@ -34355,14 +34251,12 @@
     {
       "message": "Room for about {hours} hours on the disk",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
     {
       "message": "Room for about {minutes} minutes on the disk",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -34566,7 +34460,6 @@
       "message": "Rounded",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/properties.js"
       ]
     },
@@ -34998,7 +34891,6 @@
       "message": "Rutba Recordings",
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -35852,8 +35744,8 @@
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/takes.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -35862,7 +35754,6 @@
       "where": [
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/screenshot.js"
       ]
     },
@@ -35894,12 +35785,6 @@
       "message": "Screen with camera",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
-      ]
-    },
-    {
-      "message": "Screen: the whole of one screen",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -37517,7 +37402,6 @@
     {
       "message": "Sharper",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/settings-dialog.js",
         "apps/desktop/renderer/studio/window.js"
       ]
@@ -37866,12 +37750,6 @@
       "message": "Show on the frame",
       "where": [
         "apps/desktop/renderer/studio/sources-column.js"
-      ]
-    },
-    {
-      "message": "Show on the share",
-      "where": [
-        "apps/desktop/renderer/studio/list.js"
       ]
     },
     {
@@ -38483,7 +38361,6 @@
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/qrcode.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -38844,7 +38721,7 @@
     {
       "message": "Slow",
       "where": [
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/studio/prompter.js"
       ]
     },
     {
@@ -38853,8 +38730,7 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js",
         "apps/desktop/renderer/apps/video/export.js",
-        "apps/desktop/renderer/qrcode.js",
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/qrcode.js"
       ]
     },
     {
@@ -38903,7 +38779,6 @@
     {
       "message": "Smaller files",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/settings-dialog.js",
         "apps/desktop/renderer/studio/window.js"
       ]
@@ -39259,7 +39134,6 @@
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/sources-column.js",
         "apps/desktop/renderer/studio/window.js"
       ]
@@ -39349,7 +39223,6 @@
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
@@ -39707,7 +39580,6 @@
     {
       "message": "Standard",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/settings-dialog.js",
         "apps/desktop/renderer/studio/window.js"
       ]
@@ -39774,7 +39646,6 @@
       "message": "Start",
       "where": [
         "apps/desktop/renderer/apps/slides/presenter.js",
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/sources-column.js"
       ]
@@ -39950,8 +39821,6 @@
     {
       "message": "Starting…",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
@@ -40094,9 +39963,7 @@
         "apps/desktop/renderer/apps/sheets/scripts.js",
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/video/library-words.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shared-words.js",
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/record-panel.js",
         "apps/desktop/renderer/studio/sources-column.js",
@@ -40154,7 +40021,6 @@
     {
       "message": "Stopped",
       "where": [
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
@@ -41027,12 +40893,6 @@
       ]
     },
     {
-      "message": "Take off the share",
-      "where": [
-        "apps/desktop/renderer/studio/list.js"
-      ]
-    },
-    {
       "message": "Take the field picked off the form. It stays in the table.",
       "where": [
         "apps/desktop/renderer/apps/base/form-designer.js"
@@ -41235,7 +41095,7 @@
     {
       "message": "Teleprompter",
       "where": [
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/studio/prompter.js"
       ]
     },
     {
@@ -42277,7 +42137,6 @@
     {
       "message": "The computer's own sound could not be recorded.",
       "where": [
-        "apps/desktop/renderer/recording/session.js",
         "apps/desktop/renderer/studio/media.js"
       ]
     },
@@ -42394,7 +42253,6 @@
     {
       "message": "The disk is nearly full: the recording was stopped and kept.",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -42916,7 +42774,6 @@
     {
       "message": "The microphone was not allowed.",
       "where": [
-        "apps/desktop/renderer/recording/session.js",
         "apps/desktop/renderer/studio/media.js"
       ]
     },
@@ -43340,7 +43197,7 @@
     {
       "message": "The pointer is not written down over another program's window. Record its screen to keep it.",
       "where": [
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/studio/window.js"
       ]
     },
     {
@@ -43403,7 +43260,6 @@
     {
       "message": "The recording could not be kept: {reason}",
       "where": [
-        "apps/desktop/renderer/recording/session.js",
         "apps/desktop/renderer/studio/program.js"
       ]
     },
@@ -43919,18 +43775,6 @@
       ]
     },
     {
-      "message": "The usual camera",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
-      ]
-    },
-    {
-      "message": "The usual microphone",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
-      ]
-    },
-    {
       "message": "The video could not be made: {reason}",
       "where": [
         "apps/desktop/renderer/apps/slides/export-video.js"
@@ -44349,7 +44193,6 @@
     {
       "message": "There is not enough space on the disk to record.",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -44760,7 +44603,6 @@
     {
       "message": "This computer does not let its own sound be recorded.",
       "where": [
-        "apps/desktop/renderer/recording/session.js",
         "apps/desktop/renderer/studio/media.js"
       ]
     },
@@ -45431,6 +45273,12 @@
       ]
     },
     {
+      "message": "This recording",
+      "where": [
+        "apps/desktop/renderer/studio/window.js"
+      ]
+    },
+    {
       "message": "This report is not in the database.",
       "where": [
         "apps/desktop/renderer/apps/base/reports.js"
@@ -45445,7 +45293,7 @@
     {
       "message": "This scene has no script. Write one in its card and it scrolls here while you record.",
       "where": [
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/studio/prompter.js"
       ]
     },
     {
@@ -46235,12 +46083,6 @@
       ]
     },
     {
-      "message": "Top first",
-      "where": [
-        "apps/desktop/renderer/studio/list.js"
-      ]
-    },
-    {
       "message": "Top left",
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
@@ -46807,13 +46649,6 @@
       ]
     },
     {
-      "message": "Turn the microphone on to record your voice.",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js",
-        "apps/desktop/renderer/recording/session.js"
-      ]
-    },
-    {
       "message": "Turn the page's sound off",
       "where": [
         "apps/desktop/renderer/studio/flip-strip.js"
@@ -47289,7 +47124,6 @@
       "where": [
         "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/video/player.js",
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/sources-column.js"
       ]
@@ -47519,12 +47353,6 @@
       "message": "Up to 31 characters; none of [ ] : * ? / or the backslash. Formulas that read the sheet follow the new name.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
-      ]
-    },
-    {
-      "message": "Up to {n}p",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -48245,13 +48073,7 @@
       "message": "Voice",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/recording/panel.js"
-      ]
-    },
-    {
-      "message": "Voice: the microphone alone, with no picture",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
+        "apps/desktop/renderer/studio/takes.js"
       ]
     },
     {
@@ -48886,7 +48708,6 @@
     {
       "message": "Whole picture",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/properties.js"
       ]
     },
@@ -49041,7 +48862,6 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shell.js",
         "apps/desktop/renderer/studio/list.js"
       ]
@@ -49050,12 +48870,6 @@
       "message": "Window closed",
       "where": [
         "apps/desktop/renderer/studio/media.js"
-      ]
-    },
-    {
-      "message": "Window: one window, wherever it is",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -49764,12 +49578,6 @@
       "message": "Your title here",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
-      ]
-    },
-    {
-      "message": "Your voice alone, as a sound file. In Video it goes onto a sound track at the playhead.",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
       ]
     },
     {
@@ -50967,7 +50775,6 @@
     {
       "message": "not shown",
       "where": [
-        "apps/desktop/renderer/studio/list.js",
         "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
@@ -53559,12 +53366,6 @@
       ]
     },
     {
-      "message": "{key} stops it from anywhere",
-      "where": [
-        "apps/desktop/renderer/recording/panel.js"
-      ]
-    },
-    {
       "message": "{kind} Labels",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
@@ -53794,7 +53595,6 @@
     {
       "message": "{name} closed or stopped sharing.",
       "where": [
-        "apps/desktop/renderer/recording/session.js",
         "apps/desktop/renderer/studio/media.js"
       ]
     },
@@ -53833,7 +53633,6 @@
     {
       "message": "{name} could not be recorded: {reason}",
       "where": [
-        "apps/desktop/renderer/recording/session.js",
         "apps/desktop/renderer/studio/media.js"
       ]
     },
@@ -54328,7 +54127,6 @@
     {
       "message": "{n} frames a second",
       "where": [
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/settings-dialog.js",
         "apps/desktop/renderer/studio/window.js"
       ]
@@ -54367,6 +54165,12 @@
       "message": "{n} semitones",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
+      "message": "{n} sources kept apart",
+      "where": [
+        "apps/desktop/renderer/studio/record-panel.js"
       ]
     },
     {
@@ -54465,7 +54269,6 @@
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/library.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
-        "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },

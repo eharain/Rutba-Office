@@ -185,7 +185,7 @@ async function appChecks(h, { dir }) {
       await until(() => js(`(() => { const b = document.querySelector('.st-shoot'); return Boolean(b) && !b.disabled; })()`), 'Take Picture ready', 6000).catch(() => {});
       await js(`document.querySelector('.st-shoot')?.click(), 1`);
       await until(() => pictures().length >= n, 'picture ' + n, 9000).catch(() => {});
-      await wait(300);
+      await until(() => { try { return Boolean(pngSize(pictures()[n - 1])); } catch { return false; } }, 'picture ' + n + ' written', 4000).catch(() => {});
       const name = pictures()[n - 1] || '';
       return { name, size: name ? pngSize(name) : null };
     };

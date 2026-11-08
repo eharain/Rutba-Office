@@ -298,8 +298,10 @@ export const STUDIO_CSS = `
 .st-add { margin-top: 6px; }
 
 .st-settings { display: flex; flex-direction: column; gap: 18px; }
+.st-into { display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 10px; padding: 3px 10px; border-radius: 999px; background: var(--wash-strong); color: var(--accent-text); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
 .st-set-section { display: flex; flex-direction: column; gap: 10px; }
-.st-set-section + .st-set-section { padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.st-set-section + .st-into { display: inline-flex; align-items: center; gap: 6px; margin-inline-start: 10px; padding: 3px 10px; border-radius: 999px; background: var(--wash-strong); color: var(--accent-text); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.st-set-section { padding-top: 16px; border-top: 1px solid var(--line-soft); }
 .st-set-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .st-set-head h2 { margin: 0; font-size: 13.5px; font-weight: 650; color: var(--ink); }
 .st-set-head span { font-size: 12px; color: var(--ink-3); }

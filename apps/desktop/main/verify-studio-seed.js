@@ -3,6 +3,7 @@
 
 import { STORE, normaliseIndex, normaliseSetup, withSetup, markUsed, setupSettings, globalSettings } from '@rutba/studio/setup';
 import { materialiseScenes, normaliseStack } from '@rutba/studio/stack';
+import { BrowserWindow } from 'electron';
 
 export const CHECK_SETUP = 'setup-check';
 
@@ -38,6 +39,25 @@ export function seedSetupStore(stores, o) {
   stores.settings.set(STORE.setup(CHECK_SETUP), setup);
   stores.settings.set(STORE.global, global);
 }
+
+export const CHECK_SOUNDS = (mic = true) => [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: mic, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', name: '', live: false, muted: false, gain: 1 }];
+
+/** The windows there are now, for recorderOpened to tell the new one by. */
+export const windowsNow = () => new Set(BrowserWindow.getAllWindows().map((w) => w.id));
+
+/** The Recorder window another window has just opened (A7), once it is drawn: { rw, rjs }. */
+export async function recorderOpened(until, known, ms = 15000) {
+  const fresh = () => BrowserWindow.getAllWindows().find((w) => !known.has(w.id) && !w.isDestroyed() && w.webContents.getURL().includes('app=recorder')) || null;
+  await until(() => Boolean(fresh()), 'the Recorder window', ms);
+  const rw = fresh();
+  const rjs = (code) => rw.webContents.executeJavaScript(code);
+  await until(() => rjs(`Boolean(document.querySelector('.st-panels'))`).catch(() => false), 'the Recorder drawn', ms);
+  return { rw, rjs };
+}
+
+/** Pressed Record, and recording. */
+export const RECORDING = `document.querySelector('.st-status')?.dataset.phase === 'recording'`;
+export const PRESS_RECORD = `document.querySelector('.st-record')?.click(), 1`;
 
 /** Between the panels, from a check. `h` has js (a code string run in the window) and until. */
 export const PANEL = (p) => `document.querySelector('.st-panels [data-panel="${p}"]')?.click(), 1`;

@@ -42,7 +42,7 @@ import { PhotoAlbumDialog, ALBUM_CSS } from './slides/album.js';
 import { CustomShowsDialog, CUSTOM_SHOWS_CSS } from './slides/custom-shows.js';
 import { HandoutSlots, HANDOUT_CSS } from './slides/handout.js';
 import { StageMedia, MEDIA_CSS, MEDIA_FILES, posterFrame, fileSrc } from './slides/media.js';
-import { RecorderPanel } from '../recording/panel.js';
+import { useRecorderWindow } from '../recording/open-recorder.js';
 import { placeTakes } from '@rutba/studio/recorder';
 import { emptyProject } from '@rutba/studio/project';
 import { writeRvid } from '@rutba/studio/rvid';
@@ -185,6 +185,23 @@ export default function Slides({ app, shell, boot }) {
   const [recPick, setRecPick] = useState(false);
   // While Screen Recording runs, the take so far is kept as a recovery copy under this key.
   const recCopy = useRef(`slides-rec-${Date.now().toString(36)}`);
+  // Insert > Screen Recording: the Recorder, for a slide (A7).
+  useRecorderWindow(shell, recPick, {
+    into: 'slide',
+    onCancel: () => { setRecPick(false); shell.doc.dropCopy({ key: recCopy.current }).catch(() => {}); },
+    onProgress: (takes) => {
+            // A crash while recording leaves the take for the launcher to offer, in Video.
+            const { doc: kept } = placeTakes(emptyProject(), takes.map((k) => ({ ...k, url: k.path, name: t('Screen Recording') })), { unfinished: true });
+            shell.doc.keepCopy({ key: recCopy.current, kind: 'video', name: t('Screen Recording'), path: null, bytes: writeRvid(kept, {}) }).catch(() => {});
+          },
+    onDone: async ({ takes }) => {
+            setRecPick(false);
+            shell.doc.dropCopy({ key: recCopy.current }).catch(() => {});
+            const clip = takes.find((k) => k.role === 'screen');
+            if (clip) await placeMedia({ kind: 'video', path: clip.path, contentType: clip.contentType, name: `${t('Screen Recording {time}', { time: new Date().toLocaleTimeString() })}.${clip.ext || 'webm'}` });
+          },
+  });
+
   const [iconsOpen, setIconsOpen] = useState(false);
   // Insert > QR Code: {} for a new one, { shape, initial } for one double-clicked.
   const [qrDialog, setQrDialog] = useState(null);
@@ -3629,25 +3646,6 @@ export default function Slides({ app, shell, boot }) {
             onInsert={async (clip) => { setRecordAudioOpen(false); await placeMedia({ kind: 'audio', bytes: clip.wav, contentType: 'audio/wav', name: t('Recorded Sound') }); }}
           />
         </>
-      ) : null}
-      {recPick ? (
-        <RecorderPanel
-          shell={shell}
-          mode="slide"
-          toast={toast}
-          onCancel={() => { setRecPick(false); shell.doc.dropCopy({ key: recCopy.current }).catch(() => {}); }}
-          onProgress={(takes) => {
-            // A crash while recording leaves the take for the launcher to offer, in Video.
-            const { doc: kept } = placeTakes(emptyProject(), takes.map((k) => ({ ...k, url: k.path, name: t('Screen Recording') })), { unfinished: true });
-            shell.doc.keepCopy({ key: recCopy.current, kind: 'video', name: t('Screen Recording'), path: null, bytes: writeRvid(kept, {}) }).catch(() => {});
-          }}
-          onDone={async ({ takes }) => {
-            setRecPick(false);
-            shell.doc.dropCopy({ key: recCopy.current }).catch(() => {});
-            const clip = takes.find((k) => k.role === 'screen');
-            if (clip) await placeMedia({ kind: 'video', path: clip.path, contentType: clip.contentType, name: `${t('Screen Recording {time}', { time: new Date().toLocaleTimeString() })}.${clip.ext || 'webm'}` });
-          }}
-        />
       ) : null}
 
       {shotOpen ? (

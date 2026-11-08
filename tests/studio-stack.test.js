@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   emptyStack, normaliseStack, stackFromSettings, addItem, removeItem, duplicateItem, moveItem, nudgeItem, showItem,
   placeItem, placeBox, shapeItem, clipItem, frameToSource, itemAt, drawOrder, sceneOf, saveScene, applyScene,
-  builtInScenes, recordKind, updateSound, PLACES, followStep, nextInRotation, FOLLOW,
+  builtInScenes, recordKind, updateSound, PLACES, followStep, nextInRotation, FOLLOW, takesPlan,
 } from '../packages/studio/src/stack.js';
 
 const near = (a, b, what, eps = 0.002) => assert.ok(Math.abs(a - b) <= eps, `${what}: ${a} is not ${b}`);
@@ -245,4 +245,12 @@ test('a timed rotation goes through its shots in order and back to the first', (
   assert.equal(nextInRotation(['a', 'b', 'c'], 'c'), 'a');
   assert.equal(nextInRotation(['a', 'b'], 'x'), 'a');
   assert.equal(nextInRotation([], 'a'), null);
+});
+
+test('each source as its own file: what the frame shows, screens first, the camera carrying the sound', () => {
+  const live = (over) => ({ on: true, live: true, ...over });
+  const roles = (items) => takesPlan({ items }).map((p) => `${p.role}:${p.itemId}:${p.sound}`);
+  assert.deepEqual(roles([live({ id: 'c', kind: 'camera' }), live({ id: 's', kind: 'screen', ref: 'screen:1' })]), ['screen:s:false', 'camera:c:true']);
+  assert.deepEqual(roles([live({ id: 'w', kind: 'window', ref: 'window:1' })]), ['screen:w:true']);
+  assert.deepEqual(roles([live({ id: 'w', kind: 'window', ref: '' }), { id: 'c', kind: 'camera', on: false, live: true }, { id: 'd', kind: 'camera', on: true, live: false }, live({ id: 't', kind: 'title' })]), ['voice:null:true']);
 });

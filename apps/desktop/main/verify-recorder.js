@@ -10,9 +10,8 @@
 // handed their press by the main process rather than taken from the
 // keyboard, and the recordings go to this run's own folder.
 //
-// The recorder opens from the ribbon, lists the window, shows it live with
-// the camera's inset where it will sit and the microphone's level moving;
-// the inset is dragged to a corner and a region is drawn. Record counts down
+// Record Screen on the ribbon opens the Recorder for this project (A7), on a
+// setup that shows the window, clipped, and the camera in a corner. Record counts down
 // from three, both files grow on disk as they are recorded, Pause holds the
 // clock, the global key resumes it and stops it, and the recording is copied
 // for the launcher while it runs. On stop the takes land on the timeline:
@@ -21,7 +20,7 @@
 // sound lane. The takes and an export are read back with probeMedia for
 // their length and their tracks; a copy made while recording, recovered,
 // settles to the files' real lengths. getDisplayMedia is answered with the
-// source chosen; the launcher offers Record a screen; and in Urdu the box
+// source chosen; the launcher offers Record a screen; and in Urdu the Recorder
 // speaks Urdu right to left with the picture left to right.
 // Run alone with RUTBA_VERIFY_ONLY=recorder.
 
@@ -32,6 +31,8 @@ import { buildDocx } from '@rutba/ooxml/build';
 import { probeMedia } from '@rutba/media/probe';
 import { EXPORT_EXT } from './verify-video-editor.js';
 import { readRvid } from '@rutba/studio/rvid';
+import { addItem, emptyStack } from '@rutba/studio/stack';
+import { seedSetup, restoreSetup, recorderOpened, windowsNow, CHECK_SOUNDS, RECORDING, PRESS_RECORD } from './verify-studio-seed.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn, doc
@@ -61,78 +62,42 @@ async function recorderChecks(h, { dir }) {
   const ok = (p) => p.then(() => true).catch(() => false);
   const controls = () => globalThis.__rutbaCaptureControls || { on: false };
   let win = null;
-  let settingsWere = null;
+  let keptSetup = null;
   try {
+    fs.mkdirSync(folder, { recursive: true });
     fs.writeFileSync(docFile, buildDocx({ styles: true, paragraphs: [{ text: 'Recorded by the recorder check.' }, { text: 'A second line, so the page has something on it.' }] }));
     await open('word', docFile);
     win = await open('video');
     const js = (code, gesture = false) => win.webContents.executeJavaScript(code, gesture);
-    settingsWere = await js(`window.rutbaOffice.store.get({ key: 'recorder.settings', fallback: null })`);
-    await js(`window.rutbaOffice.store.set({ key: 'recorder.settings', value: ${JSON.stringify({ source: 'window', fps: 30, cap: 720, quality: 'standard', countdown: 3, camera: true, mirror: true, corner: 'br', insetSize: 'medium', shape: 'circle', mic: true, system: false, minimise: true, folder })} }).then(() => 1)`);
+    // What the Recorder will show: the window with a part of it clipped, the camera a circle in the top left, the microphone on.
+    await until(() => js(`window.rutbaOffice.capture.sources().then((l) => l.some((x) => x.name.includes('rec-fixture')))`), 'the fixture window to be there', 10000).catch(() => {});
+    const source = (await js(`window.rutbaOffice.capture.sources()`)).find((x) => x.name.includes('rec-fixture'));
+    let seeded = { ...emptyStack(), sounds: CHECK_SOUNDS() };
+    seeded = addItem(seeded, { kind: 'window', ref: source.id, name: source.name, crop: { x: 0.35, y: 0.3, w: 0.5, h: 0.55 } }).stack;
+    seeded = addItem(seeded, { kind: 'camera', ref: '', shape: 'circle', mirror: true, box: { x: 0.02, y: 0.03, w: 0.2, h: 0.3556 } }).stack;
+    keptSetup = await seedSetup(js, { app: 'recorder', stack: seeded, studio: { size: 720, fps: 30, quality: 'standard', countdown: 3, folder, minimise: true } });
 
-    // The start screen offers it, and the ribbon's Record Screen opens it.
+    // The start screen offers it, and the ribbon's Record Screen opens the Recorder for this project.
     const offered = await js(`Boolean(document.querySelector('.vd-start-record'))`);
+    const known = windowsNow();
     const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Record Screen')); if (!b || b.disabled) return 'no button'; b.click(); return 'clicked'; })()`);
-    const shown = await ok(until(() => js(`Boolean(document.querySelector('.rec-dialog'))`), 'the recorder', 6000));
-    check('recorder: Video offers Record Screen on its start screen and its ribbon, and it opens the recorder',
-      offered && pressed === 'clicked' && shown, JSON.stringify({ offered, pressed, shown }));
+    const { rw, rjs } = await recorderOpened(until, known);
+    const says = await rjs(`document.querySelector('.st-into')?.textContent || ''`);
+    check('recorder: Video offers Record Screen on its start screen and its ribbon, and it opens the Recorder, saying what it records into',
+      offered && pressed === 'clicked' && /Recording into Untitled video/.test(says), JSON.stringify({ offered, pressed, says }));
 
-    // The window to record, picked from the list: live, with the camera inset and the microphone's level.
-    const listed = await ok(until(() => js(`[...document.querySelectorAll('.rec-source')].some((n) => (n.dataset.tip || '').includes('rec-fixture'))`), 'the fixture window in the list', 10000));
-    await js(`(() => { const b = [...document.querySelectorAll('.rec-source')].find((n) => (n.dataset.tip || '').includes('rec-fixture')); b?.click(); return Boolean(b); })()`);
-    const live = await ok(until(() => js(`(() => { const v = document.querySelector('.rec-screen'); return Boolean(v && v.videoWidth > 0 && document.querySelector('.rec-source.on')?.dataset.tip.includes('rec-fixture')); })()`), 'the window live', 12000));
-    const cam = await ok(until(() => js(`(() => { const v = document.querySelector('.rec-inset .rec-cam'); return Boolean(v && v.videoWidth > 0); })()`), 'the camera live', 15000));
-    const heard = await ok(until(() => js(`Number(document.querySelector('.rec-meter-mic')?.dataset.peak || 0) > 0`), 'the microphone level', 8000));
-    const sized = await js(`(() => { const v = document.querySelector('.rec-screen'); return v ? [v.videoWidth, v.videoHeight] : null; })()`);
-    check('recorder: a window picked from the list shows live in the frame, with the camera in its inset and the microphone\'s level moving',
-      listed && live && cam && heard, JSON.stringify({ listed, live, cam, heard, sized }));
-    const disk = await js(`document.querySelector('.rec-disk')?.textContent || ''`);
+    const live = await ok(until(() => rjs(`(() => { const l = document.querySelector('.st-canvas')?.dataset.layers || ''; return l.includes('window') && l.includes('camera'); })()`), 'the window and the camera live', 15000));
+    check('recorder: the setup shows live in the Recorder, the window and the camera together', live, await rjs(`document.querySelector('.st-canvas')?.dataset.layers || ''`));
+    const disk = await rjs(`document.querySelector('.st-status')?.textContent || ''`);
     const space = await js(`window.rutbaOffice.capture.space({ path: ${JSON.stringify(folder)} })`).catch((err) => ({ error: err.message }));
-    check('recorder: the disk is checked before recording and the box says how long there is room for', /\d/.test(disk) && space.free > 0, `${disk}; ${space.free ? `${Math.round(space.free / 1e9)} GB free` : space.error}`);
-
-    // The camera dragged to the top left corner, where it settles.
-    const dragged = await js(`(async () => {
-      const n = document.querySelector('.rec-inset');
-      const f = document.querySelector('.rec-frame').getBoundingClientRect();
-      if (!n) return 'no inset';
-      const r = n.getBoundingClientRect();
-      const x0 = r.left + r.width / 2; const y0 = r.top + r.height / 2;
-      const x1 = f.left + f.width * 0.12; const y1 = f.top + f.height * 0.15;
-      n.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: x0, clientY: y0, pointerId: 1 }));
-      for (let k = 1; k <= 8; k++) {
-        window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: x0 + ((x1 - x0) * k) / 8, clientY: y0 + ((y1 - y0) * k) / 8, pointerId: 1 }));
-        await new Promise((res) => setTimeout(res, 25));
-      }
-      window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: x1, clientY: y1, pointerId: 1 }));
-      return 'dragged';
-    })()`);
-    const cornered = await ok(until(() => js(`document.querySelector('.rec-inset')?.dataset.corner === 'tl'`), 'the inset in the top left', 4000));
-    const kept = await js(`window.rutbaOffice.store.get({ key: 'recorder.settings', fallback: null }).then((s) => s?.corner)`);
-    check('recorder: the camera\'s inset is dragged in the preview and settles in the nearest corner, remembered for next time', dragged === 'dragged' && cornered && kept === 'tl', JSON.stringify({ dragged, cornered, kept }));
-
-    // A region drawn on the window: recorded whole, kept as a crop.
-    await js(`(() => { document.querySelector('.rec-kinds button[data-value="region"]')?.click(); return 1; })()`);
-    await ok(until(() => js(`document.querySelector('.rec-frame')?.classList.contains('drawing') && document.querySelector('.rec-source.on') && document.querySelector('.rec-screen').videoWidth > 0`), 'region mode', 8000));
-    await wait(400);
-    const drawn = await js(`(async () => {
-      const f = document.querySelector('.rec-frame');
-      const r = f.getBoundingClientRect();
-      const at = (x, y) => ({ bubbles: true, cancelable: true, button: 0, clientX: r.left + r.width * x, clientY: r.top + r.height * y, pointerId: 1 });
-      f.dispatchEvent(new PointerEvent('pointerdown', at(0.35, 0.3)));
-      for (let k = 1; k <= 6; k++) { window.dispatchEvent(new PointerEvent('pointermove', at(0.35 + 0.5 * k / 6, 0.3 + 0.55 * k / 6))); await new Promise((res) => setTimeout(res, 25)); }
-      window.dispatchEvent(new PointerEvent('pointerup', at(0.85, 0.85)));
-      return 'drawn';
-    })()`);
-    const region = await ok(until(() => js(`Boolean(document.querySelector('.rec-region')) && Boolean(document.querySelector('.rec-clear-region'))`), 'the region', 4000));
-    check('recorder: a region is drawn by dragging on the picture, and shown as the part to be kept', drawn === 'drawn' && region, `${drawn}; ${region ? 'region shown' : 'no region'}`);
-    await capture(win, 'recorder-1-setup.png');
+    check('recorder: the disk is checked before recording and the Recorder says how long there is room for', /Room for about \d/.test(disk) && space.free > 0, `${disk}; ${space.free ? `${Math.round(space.free / 1e9)} GB free` : space.error}`);
+    await capture(rw, 'recorder-1-setup.png');
 
     // Record: a countdown from three, then both files growing on disk.
     const startedAt = Date.now();
-    await js(`document.querySelector('.rec-go')?.click(), 1`);
-    const counted = await ok(until(() => js(`document.querySelector('.rec-count span')?.textContent === '3'`), 'the countdown', 3000));
-    if (counted) await capture(win, 'recorder-2-countdown.png');
-    const recording = await ok(until(() => js(`(() => { const b = document.querySelector('.rec-stop'); return Boolean(b) && !b.disabled; })()`), 'the recording to start', 9000));
+    await rjs(PRESS_RECORD);
+    const counted = await ok(until(() => rjs(`document.querySelector('.rec-count span')?.textContent === '3'`), 'the countdown', 3000));
+    const recording = await ok(until(() => rjs(RECORDING), 'the recording to start', 9000));
     const waited = Date.now() - startedAt;
     check('recorder: Record counts down from three, then records', counted && recording && waited >= 2500, JSON.stringify({ counted, recording, waited }));
     const files = () => { try { return fs.readdirSync(folder).filter((n) => /\.(webm|mp4)$/.test(n)).map((n) => ({ name: n, size: fs.statSync(path.join(folder, n)).size })); } catch { return []; } };
@@ -141,16 +106,17 @@ async function recorderChecks(h, { dir }) {
     check('recorder: the screen and the camera are recorded at once, each to a file of its own that grows on disk as it goes, and a global Stop key is held while it runs',
       grown && ctl.on === true && /F10/.test(ctl.keys?.stop || ''), JSON.stringify({ files: files(), on: ctl.on, keys: ctl.keys }));
     await wait(1800);
-    await capture(win, 'recorder-3-recording.png');
+    await capture(rw, 'recorder-3-recording.png');
 
     // Pause holds the clock; the global key resumes.
-    await js(`document.querySelector('.rec-pause')?.click(), 1`);
-    const held = await ok(until(() => js(`Boolean(document.querySelector('.rec-chip')) && document.querySelector('.rec-frame').classList.contains('held')`), 'paused', 3000));
-    const t1 = await js(`document.querySelector('.rec-time')?.textContent`);
+    await rjs(`document.querySelector('.st-pause')?.click(), 1`);
+    const held = await ok(until(() => rjs(`Boolean(document.querySelector('.st-pause.on'))`), 'paused', 3000));
+    const clockNow = () => rjs(`document.querySelector('.st-record')?.textContent`);
+    const t1 = await clockNow();
     await wait(1500);
-    const t2 = await js(`document.querySelector('.rec-time')?.textContent`);
+    const t2 = await clockNow();
     controls().press?.('pause');
-    const resumed = await ok(until(() => js(`!document.querySelector('.rec-chip')`), 'resumed', 3000));
+    const resumed = await ok(until(() => rjs(`!document.querySelector('.st-pause.on')`), 'resumed', 3000));
     check('recorder: Pause holds the recording and its clock, and the global key resumes it', held && t1 === t2 && resumed, JSON.stringify({ held, t1, t2, resumed }));
 
     // While it runs, the recording is the window's recovery copy.
@@ -169,7 +135,7 @@ async function recorderChecks(h, { dir }) {
 
     // Stop from the global key: the takes land on the timeline.
     controls().press?.('stop');
-    const landed = await ok(until(() => js(`Boolean(document.querySelector('.vd-clip[data-take="screen"]') && document.querySelector('.vd-clip[data-take="camera"]') && document.querySelector('.vd-clip[data-take="voice"]')) && !document.querySelector('.rec-dialog')`), 'the takes on the timeline', 20000));
+    const landed = await ok(until(async () => rw.isDestroyed() && await js(`Boolean(document.querySelector('.vd-clip[data-take="screen"]') && document.querySelector('.vd-clip[data-take="camera"]') && document.querySelector('.vd-clip[data-take="voice"]'))`), 'the takes on the timeline', 20000));
     const clips = await js(`[...document.querySelectorAll('.vd-clip')].map((n) => ({ kind: n.dataset.kind, take: n.dataset.take, lane: Number(n.dataset.lane), start: Number(n.dataset.start), end: Number(n.dataset.end), inset: n.dataset.inset, crop: n.dataset.crop }))`);
     const screenClip = clips.find((c) => c.take === 'screen');
     const camClip = clips.find((c) => c.take === 'camera');
@@ -307,7 +273,7 @@ async function recorderChecks(h, { dir }) {
 
     // The computer's own sound: getDisplayMedia is answered with the source chosen, and refused without one.
     const display = await js(`(async () => {
-      const id = [...document.querySelectorAll('.rec-source')][0]?.dataset.source || (await window.rutbaOffice.capture.sources()).find((s) => s.name.includes('rec-fixture'))?.id;
+      const id = (await window.rutbaOffice.capture.sources()).find((s) => s.name.includes('rec-fixture'))?.id;
       let refused = false;
       try { const s0 = await navigator.mediaDevices.getDisplayMedia({ video: true }); s0.getTracks().forEach((t) => t.stop()); } catch { refused = true; }
       const answer = await window.rutbaOffice.capture.choose({ id, audio: false });
@@ -352,20 +318,19 @@ async function recorderChecks(h, { dir }) {
     const was = await js(`window.rutbaOffice.store.get({ key: 'language', fallback: null })`).catch(() => null);
     try {
       await js(`window.rutbaOffice.store.set({ key: 'language', value: 'ur' }).then(() => 1)`);
-      const ur = await open('video');
+      const ur = await open('recorder');
       const ujs = (code) => ur.webContents.executeJavaScript(code);
-      await ujs(`document.querySelector('.vd-start-record')?.click(), 1`);
-      await ok(until(() => ujs(`Boolean(document.querySelector('.rec-dialog .rec-source'))`), 'the recorder in Urdu', 10000));
+      await ok(until(() => ujs(`Boolean(document.querySelector('.st-panels') && document.querySelector('.st-frame'))`), 'the Recorder in Urdu', 10000));
       await wait(1200);
-      const frame = await ujs(`({ dir: document.documentElement.dir, picture: getComputedStyle(document.querySelector('.rec-frame')).direction, english: [...document.querySelectorAll('.rec-dialog button, .rec-dialog h3, .rec-toggle-label, .rw-dialog-head')].map((n) => n.textContent.trim()).filter((s) => /^(Record|Camera|Microphone|Computer sound|Quality|Cancel|Screen|Window|Region)$/.test(s)) })`);
+      const frame = await ujs(`({ dir: document.documentElement.dir, picture: getComputedStyle(document.querySelector('.st-frame')).direction, english: [...document.querySelectorAll('.st-top button, .st-record, .st-scene-foot')].map((n) => n.textContent.trim()).filter((s) => /^(Record|Set up|Picture|Camera|Microphone|Screen|Window)$/.test(s)) })`);
       await capture(ur, 'recorder-6-urdu.png');
       check('recorder: in Urdu the recorder speaks Urdu, right to left, and the picture stays left to right', frame.dir === 'rtl' && frame.picture === 'ltr' && frame.english.length === 0, JSON.stringify(frame));
-      await ujs(`(() => { const b = document.querySelector('.rec-dialog .rw-dialog-foot .rw-btn:not(.primary)'); b?.click(); return 1; })()`);
+      ur.destroy();
     } catch (err) {
       check('recorder: the Urdu checks ran', false, err.message);
     } finally {
       await js(`window.rutbaOffice.store.set({ key: 'language', value: ${JSON.stringify(was ?? null)} }).then(() => 1)`).catch(() => {});
-      await js(`window.rutbaOffice.store.set({ key: 'recorder.settings', value: ${JSON.stringify(settingsWere ?? null)} }).then(() => 1)`).catch(() => {});
+      if (keptSetup) await restoreSetup(js, keptSetup).catch(() => {});
     }
   }
 }
@@ -410,25 +375,27 @@ export async function verifyRecorderScreen(h, { dir }) {
     await open('word', docFile);
     const win = await open('video');
     js = (code) => win.webContents.executeJavaScript(code);
-    settingsWere = await js(`window.rutbaOffice.store.get({ key: 'recorder.settings', fallback: null })`);
-    await js(`window.rutbaOffice.store.set({ key: 'recorder.settings', value: ${JSON.stringify({ source: 'window', fps: 30, cap: 720, quality: 'standard', countdown: 0, camera: false, mic: false, system: false, minimise: false, folder })} }).then(() => 1)`);
+    const listed = await ok(until(() => js(`window.rutbaOffice.capture.sources().then((l) => l.some((x) => x.name.includes('rec-real-screen')))`), 'the window in the computer\'s list', 15000));
+    const source = (await js(`window.rutbaOffice.capture.sources()`)).find((x) => x.name.includes('rec-real-screen'));
+    const stack = addItem({ ...emptyStack(), sounds: CHECK_SOUNDS(false) }, { kind: 'window', ref: source.id, name: source.name }).stack;
+    fs.mkdirSync(folder, { recursive: true });
+    settingsWere = await seedSetup(js, { app: 'recorder', stack, studio: { size: 720, fps: 30, quality: 'standard', countdown: 0, folder, minimise: false } });
+    const known = windowsNow();
     await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Record Screen')); b?.click(); return Boolean(b); })()`);
-    await ok(until(() => js(`Boolean(document.querySelector('.rec-dialog'))`), 'the recorder', 10000));
-    const listed = await ok(until(() => js(`[...document.querySelectorAll('.rec-source')].some((n) => (n.dataset.tip || '').includes('rec-real-screen'))`), 'the window in the computer\'s list', 15000));
-    await js(`(() => { const b = [...document.querySelectorAll('.rec-source')].find((n) => (n.dataset.tip || '').includes('rec-real-screen')); b?.click(); return Boolean(b); })()`);
-    const live = await ok(until(() => js(`(() => { const v = document.querySelector('.rec-screen'); return Boolean(v && v.videoWidth > 0 && document.querySelector('.rec-source.on')?.dataset.tip.includes('rec-real-screen')); })()`), 'the window live', 15000));
+    const { rw, rjs } = await recorderOpened(until, known);
+    const live = await ok(until(() => rjs(`document.querySelector('.st-canvas')?.dataset.layers === 'window'`), 'the window live', 15000));
+    await wait(800);
     // The window's own picture: its page is white, a stand-in's pattern is not.
-    const page = live ? await js(`(() => {
-      const v = document.querySelector('.rec-screen'); const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
-      const g = c.getContext('2d'); g.drawImage(v, 0, 0);
-      const d = g.getImageData(Math.floor(c.width * 0.4), Math.floor(c.height * 0.6), 16, 16).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2];
+    const page = live ? await rjs(`(() => {
+      const c = document.querySelector('.st-canvas');
+      const d = c.getContext('2d').getImageData(Math.floor(c.width * 0.4), Math.floor(c.height * 0.6), 16, 16).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2];
       return { size: [c.width, c.height], light: Math.round(s / (d.length / 4)) };
     })()`) : null;
-    await js(`document.querySelector('.rec-go')?.click(), 1`);
-    const recording = await ok(until(() => js(`(() => { const b = document.querySelector('.rec-stop'); return Boolean(b) && !b.disabled; })()`), 'the recording to start', 15000));
+    await rjs(PRESS_RECORD);
+    const recording = await ok(until(() => rjs(RECORDING), 'the recording to start', 15000));
     await wait(2000);
-    await js(`document.querySelector('.rec-stop')?.click(), 1`);
-    const landed = await ok(until(() => js(`Boolean(document.querySelector('.vd-clip[data-take="screen"]')) && !document.querySelector('.rec-dialog')`), 'the take on the timeline', 30000));
+    await rjs(`document.querySelector('.st-record')?.click(), 1`);
+    const landed = await ok(until(async () => rw.isDestroyed() && await js(`Boolean(document.querySelector('.vd-clip[data-take="screen"]'))`), 'the take on the timeline', 30000));
     const made = (() => { try { return fs.readdirSync(folder).filter((n) => /^Screen .*\.(webm|mp4)$/.test(n)); } catch { return []; } })();
     const probe = made.length === 1 ? probeMedia(new Uint8Array(fs.readFileSync(path.join(folder, made[0]))), { complete: true }) : null;
     check('recorder screen: a window of the computer\'s own screen, picked from its list, shows live with its own picture and records to a take on the timeline',
@@ -438,6 +405,6 @@ export async function verifyRecorderScreen(h, { dir }) {
     check('recorder screen: the check ran to the end', false, err?.message || String(err));
   } finally {
     globalThis.__rutbaScreenStandIn = standIn;
-    if (js) await js(`window.rutbaOffice.store.set({ key: 'recorder.settings', value: ${JSON.stringify(settingsWere ?? null)} }).then(() => 1)`).catch(() => {});
+    if (js && settingsWere) await restoreSetup(js, settingsWere).catch(() => {});
   }
 }

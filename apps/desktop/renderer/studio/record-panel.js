@@ -8,6 +8,7 @@ import { Frame } from './parts.js';
 import { SceneStrip, PickRow } from './scene-strip.js';
 import { BottomBar } from './bottom-bar.js';
 import { clock, PictureStrip, PictureButton } from './shared.js';
+import { Prompter } from './prompter.js';
 import { FlipStrip } from './flip-strip.js';
 
 /** Length as a person says it: 12 min 34 s. */
@@ -27,12 +28,12 @@ function SavedCard({ s }) {
         <div className="st-saved-text">
           <div className="st-saved-kicker">{t('Saved')}</div>
           <div className="st-saved-name" data-tip={saved.path}>{basename(saved.path)}</div>
-          <div className="st-saved-meta">{spoken(saved.seconds)} · {formatBytes(saved.written)} · {dirname(saved.path).split('/').slice(-2).join('\\')}</div>
+          <div className="st-saved-meta">{spoken(saved.seconds)} · {formatBytes(saved.written)} · {dirname(saved.path).split('/').slice(-2).join('\\')}{saved.takes?.length ? ` · ${t('{n} sources kept apart', { n: saved.takes.length })}` : ''}</div>
         </div>
       </div>
       <div className="st-saved-btns">
         <Button icon="play" label={t('Play')} className="st-play" onClick={() => s.shell.win.create({ app: 'video', file: saved.path })} />
-        <Button primary icon="video" label={t('Edit in Video')} className="st-edit" onClick={() => s.shell.win.create({ app: 'video', file: saved.path, query: { edit: 1 } })} />
+        <Button primary icon="video" label={t('Edit in Video')} className="st-edit" onClick={() => s.shell.win.create(saved.takes?.length ? { app: 'video', query: { takes: JSON.stringify(saved.takes) } } : { app: 'video', file: saved.path, query: { edit: 1 } })} />
         <Button icon="folderOpen" label={t('Show in folder')} onClick={() => s.shell.shell.showInFolder({ path: saved.path })} />
         <span className="st-dock-gap" />
         <Button label={t('Record again')} className="st-again" onClick={() => s.setSaved(null)} />
@@ -49,6 +50,7 @@ export function RecordPanel({ s }) {
   return (
     <div className="st-panel" data-panel="record">
       <div className="st-stage">
+        <Prompter s={s} />
         <div className="st-share">
           <Frame canvas={s.canvases.air} className={`st-air${recording ? ' live' : ''}${paused ? ' held' : ''}`} label={t('The picture as it will be recorded')}>
             {recording ? <span className="rec-badge st-badge"><i />{paused ? t('Paused') : t('REC')}</span> : null}

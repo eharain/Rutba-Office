@@ -20,6 +20,9 @@ import { createClock, createChunkWriter, videoBitrate, AUDIO_BITRATE } from '@ru
 import { voiceType } from '../recording/session.js';
 import { t } from '@rutba/office-ui';
 
+/** A take as it is told to the window that asked: everything but its recorder. */
+const takeOut = ({ rec, ...rest }) => rest;
+
 const FONT = '"Segoe UI", "Segoe UI Variable", system-ui, sans-serif';
 
 /** The container the program is recorded in. */
@@ -291,34 +294,47 @@ export class Program {
     return { bytes: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.height };
   }
 
-  /** Start recording the program to `path` (picture and sound, or with `soundOnly` the sound alone); answers when it has begun. */
-  async record({ shell, path, soundOnly = false }) {
-    let rec;
-    let heard;
-    let type;
-    if (soundOnly) {
-      ({ type } = voiceType());
-      heard = this.media.heard();
-      const stream = new MediaStream([this.media.mix()]);
-      try { rec = new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: AUDIO_BITRATE }); } catch { rec = new MediaRecorder(stream); }
-    } else {
-      type = programType();
-      const made = this.stream();
-      heard = made.heard;
-      const bits = videoBitrate({ width: this.canvas.width, height: this.canvas.height, fps: this.fps, quality: this.settings.quality });
-      try {
-        rec = new MediaRecorder(made.stream, { mimeType: type, videoBitsPerSecond: bits, audioBitsPerSecond: AUDIO_BITRATE });
-      } catch {
-        rec = new MediaRecorder(made.stream);
+  /**
+   * Start recording: the program to `path` (picture and sound, or with `soundOnly` the sound alone),
+   * and `takes` (takes.js), each source's file, all on one clock. `path` null: the takes alone.
+   * Answers when it has begun.
+   */
+  async record({ shell, path = null, soundOnly = false, type: wanted = null, takes = [] }) {
+    const part = (rec, file) => {
+      const writer = createChunkWriter({ append: (bytes) => shell.fs.append({ path: file, bytes }) });
+      rec.ondataavailable = (e) => { if (e.data?.size) writer.push(e.data); };
+      return { rec, writer, stopped: new Promise((resolve) => rec.addEventListener('stop', resolve, { once: true })) };
+    };
+    let main = null;
+    let heard = false;
+    let type = null;
+    if (path) {
+      let rec;
+      if (soundOnly) {
+        ({ type } = voiceType());
+        heard = this.media.heard();
+        const stream = new MediaStream([this.media.mix()]);
+        try { rec = new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: AUDIO_BITRATE }); } catch { rec = new MediaRecorder(stream); }
+      } else {
+        type = wanted || programType();
+        const made = this.stream();
+        heard = made.heard;
+        const bits = videoBitrate({ width: this.canvas.width, height: this.canvas.height, fps: this.fps, quality: this.settings.quality });
+        try {
+          rec = new MediaRecorder(made.stream, { mimeType: type, videoBitsPerSecond: bits, audioBitsPerSecond: AUDIO_BITRATE });
+        } catch {
+          rec = new MediaRecorder(made.stream);
+        }
       }
+      main = part(rec, path);
     }
-    const writer = createChunkWriter({ append: (bytes) => shell.fs.append({ path, bytes }) });
-    rec.ondataavailable = (e) => { if (e.data?.size) writer.push(e.data); };
-    const stopped = new Promise((resolve) => rec.addEventListener('stop', resolve, { once: true }));
+    const side = takes.map((k) => ({ take: k, ...part(k.rec, k.path) }));
+    const parts = [...(main ? [main] : []), ...side];
     const clock = createClock();
-    rec.start(1000);
+    // One tick for all: every recorder started before any piece is handed over.
+    for (const p of parts) p.rec.start(1000);
     clock.start(performance.now());
-    this.recording = { rec, writer, stopped, clock, path, heard, type, soundOnly };
+    this.recording = { parts, main, side, clock, path, heard, type, soundOnly };
     return this.recording;
   }
 
@@ -329,33 +345,50 @@ export class Program {
   pause() {
     const r = this.recording;
     if (!r || r.clock.paused) return;
-    if (r.rec.state === 'recording') r.rec.pause();
+    for (const p of r.parts) if (p.rec.state === 'recording') p.rec.pause();
     r.clock.pause(performance.now());
   }
 
   resume() {
     const r = this.recording;
     if (!r || !r.clock.paused) return;
-    if (r.rec.state === 'paused') r.rec.resume();
+    for (const p of r.parts) if (p.rec.state === 'paused') p.rec.resume();
     r.clock.resume(performance.now());
   }
 
-  /** Stop: every piece written. Answers { path, written, seconds, heard }, or throws why it could not be kept. */
+  /** What has been recorded so far, as the takes it will be: for the window that asked to keep a copy. */
+  takesSoFar() {
+    const r = this.recording;
+    if (!r) return [];
+    const duration = this.elapsed / 1000;
+    if (!r.side.length) return [{ role: 'screen', path: r.path, contentType: r.type.split(';')[0], hasAudio: r.heard, width: this.canvas.width, height: this.canvas.height, duration, written: r.main.writer.written }];
+    return r.side.map((p) => ({ ...takeOut(p.take), duration, written: p.writer.written }));
+  }
+
+  /** Stop: every piece written. Answers { path, written, seconds, heard, type, takes }, or throws why it could not be kept. */
   async stop() {
     const r = this.recording;
     if (!r) return null;
     const seconds = this.elapsed / 1000;
-    if (r.rec.state !== 'inactive') { try { r.rec.stop(); } catch { /* stopped */ } }
-    await r.stopped;
-    const done = await r.writer.done();
+    for (const p of r.parts) if (p.rec.state !== 'inactive') { try { p.rec.stop(); } catch { /* stopped */ } }
+    await Promise.all(r.parts.map((p) => p.stopped));
+    let failed = null;
+    let written = 0;
+    const takes = [];
+    for (const p of r.parts) {
+      const done = await p.writer.done();
+      if (done.failed) failed = done.failed;
+      if (p === r.main) written = done.written;
+      else takes.push({ ...takeOut(p.take), duration: seconds, written: done.written });
+    }
     this.recording = null;
-    if (done.failed) throw new Error(t('The recording could not be kept: {reason}', { reason: done.failed.message || String(done.failed) }));
-    return { path: r.path, written: done.written, seconds, heard: r.heard, soundOnly: r.soundOnly };
+    if (failed) throw new Error(t('The recording could not be kept: {reason}', { reason: failed.message || String(failed) }));
+    return { path: r.path, written, seconds, heard: r.heard, soundOnly: r.soundOnly, type: r.type, takes };
   }
 
   dispose() {
     this.stopDrawing();
-    if (this.recording) { try { this.recording.rec.stop(); } catch { /* stopped */ } }
+    for (const p of this.recording?.parts || []) { try { p.rec.stop(); } catch { /* stopped */ } }
     try { this.track?.stop(); } catch { /* ended */ }
     this.listeners.clear();
   }

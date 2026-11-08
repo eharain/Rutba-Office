@@ -18,7 +18,7 @@ export function SetupsButton({ s }) {
   const { setup, index, busy } = s;
   if (!setup) return null;
   if (busy) {
-    return <span className="st-setup-btn locked" data-tip={t('Setups can be changed when not recording or live')}><span className="st-setup-word">{t('Setup:')}</span> <b>{setup.tools ? t('For the tools') : setup.name}</b></span>;
+    return <span className="st-setup-btn locked" data-tip={t('Setups can be changed when not recording or live')}><span className="st-setup-word">{t('Setup:')}</span> <b>{setup.name}</b></span>;
   }
   const list = index ? menuOrder(index) : [];
   const items = [

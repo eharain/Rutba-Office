@@ -10,6 +10,7 @@ import { TallFrame } from './tall-frame.js';
 import { SceneStrip } from './scene-strip.js';
 import { SourcesColumn } from './sources-column.js';
 import { PropertiesColumn } from './properties.js';
+import { Prompter } from './prompter.js';
 
 /** @param {{ s: object }} p  the studio (window.js) */
 export function SetupPanel({ s }) {
@@ -21,6 +22,7 @@ export function SetupPanel({ s }) {
       <div className="st-setup-grid">
         <SourcesColumn s={s} thumbs={s.thumbs} />
         <div className="st-stage">
+          <Prompter s={s} />
           <div className="st-frame-head">
             <b>{scene ? scene.name : t('The frame')}</b>
             <span className="st-frame-size">{s.isLive && s.frameShape === 'tall' ? (s.settings.size === 720 ? '720 × 1280' : '1080 × 1920') : (s.settings.size === 720 ? '1280 × 720' : '1920 × 1080')}</span>

@@ -36,7 +36,7 @@ import {
 import ScenesPanel, { LAYOUT_NAMES } from './intro/scenes.js';
 import { BrandDialog, BRAND_KEY } from './intro/brand.js';
 import { INTRO_CSS } from './intro/css.js';
-import { RecorderPanel } from '../../recording/panel.js';
+import { useRecorderWindow } from '../../recording/open-recorder.js';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
 import { MediaLibrary, mediaKind, MEDIA_EXTENSIONS, seekTo } from './media.js';
 import Timeline from './timeline.js';
@@ -825,8 +825,9 @@ function VideoEditor({ app, shell, boot }) {
   // Opened on a file, or on recovered work.
   useEffect(() => {
     const recover = new URLSearchParams(location.search).get('recover');
-    // The launcher's Record a screen: a new video that opens on the recorder.
-    if (new URLSearchParams(location.search).get('record')) setRecordOpen(true);
+    // Edit in Video from the Recorder, each source kept apart: the takes on a new timeline.
+    const handedTakes = new URLSearchParams(location.search).get('takes');
+    if (handedTakes) { try { landTakesRef.current?.({ takes: JSON.parse(handedTakes) }); } catch { /* an address that says nothing */ } }
     // The launcher's Introduction video, or New Introduction Video: a new introduction.
     if (new URLSearchParams(location.search).get('intro')) startIntroRef.current?.();
     // New from a starter, opened in a window of its own.
@@ -1024,6 +1025,9 @@ function VideoEditor({ app, shell, boot }) {
       copied.current = { at: 0, doc: null };
     }
   }, [media, edit, stop, seek, fitTo, toast]);
+
+  const landTakesRef = useRef(null);
+  landTakesRef.current = landTakes;
 
   /** Record closed without a recording: the copy goes back to the project as it is. */
   const recordClosed = useCallback(() => {
@@ -1247,6 +1251,22 @@ function VideoEditor({ app, shell, boot }) {
       },
     };
   }
+  // Record Screen, Record Voice and a scene of an introduction: the Recorder, in a mode (A7).
+  const projectName = path ? basename(path) : t('Untitled video');
+  useRecorderWindow(shell, recordOpen, { into: 'video', title: projectName, kind: recordOpen === 'voice' ? 'voice' : 'picture', onDone: landTakes, onCancel: recordClosed, onProgress: recordingCopy });
+  useRecorderWindow(shell, sceneRecord && doc.intro && sceneById(doc, sceneRecord) ? sceneRecord : null, {
+    into: 'intro',
+    title: projectName,
+    onDone: landScene,
+    onCancel: () => setSceneRecord(null),
+    onSpeed: (v) => edit(t('Teleprompter speed'), (d) => setPrompterSpeed(d, v)),
+    prompter: () => ({
+      title: t('Scene {n}: {name}', { n: doc.intro.scenes.findIndex((sc) => sc.id === sceneRecord) + 1, name: LAYOUT_NAMES()[sceneById(doc, sceneRecord).layout] }),
+      script: sceneById(doc, sceneRecord).script || '',
+      speed: doc.intro.prompter?.speed || 140,
+    }),
+  });
+
   useCommands(cmds, [doc, selected, time, path, dirty, clipboard.current, playing, exporting, transitionSeconds, follow, duration, recordOpen, sceneId]);
 
   // A clip's own menu, on a right-click: the clip is picked first, and the
@@ -1509,23 +1529,6 @@ function VideoEditor({ app, shell, boot }) {
       </Content>
       {contextMenu.node}
       {exportOpen ? <ExportDialog doc={doc} initialPreset={lastPreset} onClose={() => setExportOpen(false)} onExport={runExport} /> : null}
-      {recordOpen ? <RecorderPanel shell={shell} mode="video" kind={recordOpen === 'voice' ? 'voice' : 'picture'} toast={toast} onDone={landTakes} onCancel={recordClosed} onProgress={recordingCopy} /> : null}
-      {sceneRecord && intro && sceneById(doc, sceneRecord) ? (
-        <RecorderPanel
-          shell={shell}
-          mode="video"
-          toast={toast}
-          onDone={landScene}
-          onCancel={() => setSceneRecord(null)}
-          force={{ camera: true }}
-          prompter={{
-            title: t('Scene {n}: {name}', { n: doc.intro.scenes.findIndex((s) => s.id === sceneRecord) + 1, name: LAYOUT_NAMES()[sceneById(doc, sceneRecord).layout] }),
-            script: sceneById(doc, sceneRecord).script || '',
-            speed: doc.intro.prompter?.speed || 140,
-            onSpeed: (v) => edit(t('Teleprompter speed'), (d) => setPrompterSpeed(d, v)),
-          }}
-        />
-      ) : null}
       {brandOpen ? <BrandDialog shell={shell} brand={doc.intro?.brand || brand} onClose={() => setBrandOpen(false)} onSave={saveBrand} /> : null}
       {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} fast={exporting.fast} since={exporting.since} from={exporting.from} note={exporting.note} onCancel={() => exportAbort.current?.abort()} /> : null}
       <style>{CSS}</style>

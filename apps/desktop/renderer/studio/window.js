@@ -24,7 +24,7 @@ import {
   normaliseStack, emptyStack, addItem, removeItem, duplicateItem, moveItem, showItem, placeItem, shapeItem, clipItem,
   updateItem, updateSound, frameToSource, itemAt, saveScene, removeScene, renameScene, duplicateScene, moveScene, updateSceneFromFrame,
   applyScene, builtInScenes, recordKind, clampBox, newId, followStep, nextInRotation, followFrame, backSoonScene, soundOnlyScene, snapMove, snapPoint,
-  FADE_MS, BACK_SOON,
+  FADE_MS, BACK_SOON, SOUND_ONLY,
 } from '@rutba/studio/stack';
 import {
   SETUP_EXT, SETUP_KEYS, GLOBAL_KEYS, setupSettings, globalSettings, joinSettings, newSetup, duplicateSetup, migrate, rematch, sceneMissing,
@@ -32,7 +32,10 @@ import {
 } from '@rutba/studio/setup';
 import { takeFileName, bytesPerSecond, diskState, regionCrop } from '@rutba/studio/recorder';
 import { AppFrame, useAppMenu } from '../shell.js';
-import { RECORDER_CSS } from '../recording/css.js';
+import { RECORDER_CSS, PROMPTER_CSS } from '../recording/css.js';
+import { recordingType } from '../recording/session.js';
+import { readInto, openLink } from './into.js';
+import { makeTakes } from './takes.js';
 import { Program } from './program.js';
 import { WebPageDialog, FLIP_CSS } from './flip-strip.js';
 import { TALL_FRAME_CSS } from './tall-frame.js';
@@ -51,6 +54,7 @@ import { SetupPanel } from './setup-panel.js';
 import { clock } from './shared.js';
 
 const DISK_EVERY_MS = 5000;
+const COPY_EVERY_MS = 5000;
 const SOUND_EXT = ['webm', 'weba', 'ogg', 'mp4', 'mov', 'mkv', 'm4a', 'mp3', 'wav'];
 // Follow the speaker: how loud a microphone is when someone speaks into it, and how long a pause between words still counts as speaking.
 const SPEAK_LEVEL = 0.06;
@@ -179,6 +183,13 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const previewProgram = useRef(null);
   // The AI tools' requests (capture:command 'remote', the Recorder's): the latest handler, the recording they asked for, and the take's path.
   const remoteRef = useRef(null);
+  // Opened for another window (A7): what for, what it sent, the line back to it, and the answer waited for at Stop.
+  const into = useMemo(() => (kind === 'recorder' ? readInto() : null), [kind]);
+  const [brief, setBrief] = useState(null);
+  const link = useRef(null);
+  const handed = useRef(null);
+  const finished = useRef(false);
+  const pointerOn = useRef(false);
   const remote = useRef(null);
   const takenRef = useRef(null);
 
@@ -919,16 +930,34 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const begin = useCallback(async () => {
     try {
       setSaved(null);
-      const soundOnly = recordKind(program.current?.stack || stackRef.current) === 'sound';
-      const name = soundOnly ? takeFileName(t('Sound'), new Date(), 'weba') : takeFileName(t('Recording'), new Date(), 'webm');
-      const { path } = await shell.capture.take({ dir: settingsRef.current.folder, name });
+      const current = program.current?.stack || stackRef.current;
+      const soundOnly = recordKind(current) === 'sound';
+      const set = settingsRef.current;
+      // For Video every source is a file of its own and there is no other; for a slide one file; on its own the Recorder makes one, and the sources too when asked.
+      const takes = (into ? into.into !== 'slide' : set.isolated && !soundOnly) ? await makeTakes({ stack: current, media, shell, settings: set }) : [];
+      let path = null;
+      let type = null;
+      if (into?.into === 'slide') {
+        type = recordingType();
+        ({ path } = await shell.fs.temp({ ext: type.startsWith('video/mp4') ? 'mp4' : 'webm' }));
+      } else if (!into) {
+        const name = soundOnly ? takeFileName(t('Sound'), new Date(), 'weba') : takeFileName(t('Recording'), new Date(), 'webm');
+        ({ path } = await shell.capture.take({ dir: set.folder, name }));
+      }
       takenRef.current = path;
       if (liveRecord.current && !soundOnly && settingsRef.current.liveCopyShape === 'tall') {
         const tall = getTall();
         tall.attach();
         copyProgram.current = tall;
       }
-      await recorderNow().record({ shell, path, soundOnly });
+      await recorderNow().record({ shell, path, soundOnly, type, takes });
+      pointerOn.current = false;
+      const screenTake = takes.find((k) => k.role === 'screen');
+      if (into && screenTake?.ref) {
+        const pt = await shell.capture.pointer({ on: true, id: screenTake.ref, fps: set.fps }).catch(() => null);
+        pointerOn.current = Boolean(pt?.tracking);
+        if (!pt?.tracking) toast(t('The pointer is not written down over another program\'s window. Record its screen to keep it.'), { ms: 7000 });
+      }
       setPhase('recording');
       setPaused(false);
       warned.current = false;
@@ -938,7 +967,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       setPhase('setup');
       toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
     }
-  }, [shell, toast]);
+  }, [shell, toast, into, media]);
 
   const record = useCallback(async () => {
     if (phaseRef.current !== 'setup') return;
@@ -956,6 +985,49 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     return () => clearTimeout(timer);
   }, [phase, count, begin]);
 
+  /* ── for another window (A7) ───────────────────────────────────────── */
+
+  useEffect(() => {
+    if (!into) return undefined;
+    const line = openLink(into.channel, (m) => {
+      if (m.type === 'brief') setBrief(m);
+      else if (m.type === 'took') handed.current?.(true);
+      else if (m.type === 'gone') { link.current = null; handed.current?.(false); }
+    });
+    link.current = line;
+    line.post({ type: 'ready' });
+    const bye = () => { if (link.current && !finished.current) line.post({ type: 'cancel' }); };
+    window.addEventListener('pagehide', bye);
+    if (into.title) shell.win.setTitle({ title: t('Recording into {name}', { name: into.title }) }).catch(() => {});
+    return () => { window.removeEventListener('pagehide', bye); link.current = null; line.close(); };
+  }, [into, shell]);
+
+  /** The takes given to the window that asked. Answers false if nobody took them: they are then shown here, as a recording is. */
+  const handOver = useCallback((done, pointer) => new Promise((resolve) => {
+    if (!link.current) { resolve(false); return; }
+    const marks = pointer && (pointer.samples?.length || pointer.clicks?.length) ? pointer : null;
+    const firstScreen = done.takes.findIndex((k) => k.role === 'screen');
+    const takes = done.takes.length ? done.takes.map((k, i) => (i === firstScreen && marks ? { ...k, pointer: marks } : k)) : [{
+      role: 'screen', path: done.path, contentType: done.type.split(';')[0], ext: done.path.split('.').pop(), hasAudio: done.heard,
+      width: canvases.air.width, height: canvases.air.height, duration: done.seconds, written: done.written,
+    }];
+    const answered = (took) => {
+      clearTimeout(timer);
+      handed.current = null;
+      if (took) shell.win.close({ force: true }).catch(() => {});
+      resolve(took);
+    };
+    const timer = setTimeout(() => answered(false), 4000);
+    handed.current = answered;
+    finished.current = true;
+    link.current.post({ type: 'done', takes });
+  }), [shell, canvases]);
+
+  const setPrompterSpeed = useCallback((speed) => {
+    setBrief((b) => ({ ...b, prompter: { ...b.prompter, speed } }));
+    link.current?.post({ type: 'speed', value: speed });
+  }, []);
+
   const stop = useCallback(async () => {
     if (phaseRef.current === 'countdown') { setPhase('setup'); return; }
     if (phaseRef.current !== 'recording') return;
@@ -963,11 +1035,16 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     shell.capture.controls({ on: false }).catch(() => {});
     const thumb = stillOf(canvases.air);
     try {
+      const pointer = pointerOn.current ? await shell.capture.pointer({ on: false }).catch(() => null) : null;
+      pointerOn.current = false;
       const done = await recorderNow().stop();
       copyProgram.current?.detach();
       copyProgram.current = null;
-      setSaved({ ...done, thumb });
-      toast(t('Saved {name}', { name: basename(done.path) }), { tone: 'good', ms: 5000 });
+      if (into && await handOver(done, pointer)) return;
+      // Kept apart with no file of the whole: the first take stands for it on the card.
+      const shown = done.path ? done : { ...done, path: done.takes[0]?.path || '', written: done.takes.reduce((n, k) => n + (k.written || 0), 0) };
+      setSaved({ ...shown, thumb });
+      toast(t('Saved {name}', { name: basename(shown.path) }), { tone: 'good', ms: 5000 });
     } catch (err) {
       toast(err?.message || String(err), { tone: 'bad', ms: 8000 });
     } finally {
@@ -975,7 +1052,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       setPaused(false);
       setElapsed(0);
     }
-  }, [shell, toast, canvases]);
+  }, [shell, toast, canvases, into, handOver]);
   stopRef.current = stop;
 
   const togglePause = useCallback(() => {
@@ -985,8 +1062,10 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     else p.pause();
     setPaused(p.paused);
     shell.capture.controls({ on: true, paused: p.paused }).catch(() => {});
+    if (pointerOn.current) shell.capture.pointer({ on: true, paused: p.paused }).catch(() => {});
   }, [shell]);
   pauseRef.current = togglePause;
+  useEffect(() => () => { if (pointerOn.current) shell.capture.pointer({ on: false }).catch(() => {}); }, [shell]);
 
   const pictureRef = useRef(null);
   useEffect(() => shell.on('capture:command', ({ command, ...request } = {}) => {
@@ -1016,7 +1095,9 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         toast(t('About {minutes} minutes of space are left on the disk.', { minutes: Math.max(1, Math.floor(state.minutes)) }), { ms: 8000 });
       }
     }, DISK_EVERY_MS);
-    return () => { clearInterval(tick); clearInterval(watch); };
+    // The window that asked keeps a copy of what is recorded so far, to offer back after a crash.
+    const copy = link.current ? setInterval(() => { if (phaseRef.current === 'recording') link.current?.post({ type: 'progress', takes: program.current.takesSoFar() }); }, COPY_EVERY_MS) : null;
+    return () => { clearInterval(tick); clearInterval(watch); if (copy) clearInterval(copy); };
   }, [phase, checkDisk, toast]);
 
   /* ── pictures, at any time ─────────────────────────────────────────── */
@@ -1039,7 +1120,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     } catch (err) {
       toast(err?.message || String(err), { tone: 'bad', ms: 6000 });
     }
-  }, [shell, toast]);
+  }, [shell, toast, into, media]);
 
   const takePicture = useCallback(() => {
     if (shotCount != null) return;
@@ -1140,6 +1221,24 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     if (picked?.[0]) changeStack((s) => ({ ...s, music: picked[0] }));
   }, [shell, changeStack]);
 
+  // Opened for a slide, a scene or a voice: a setup of its own, never saved and never in the menu, as the tools' is.
+  const intoReady = useRef(false);
+  useEffect(() => {
+    if (!into || !loaded || !sources || intoReady.current) return;
+    intoReady.current = true;
+    setPanel('main');
+    if (into.into === 'video' && into.kind !== 'voice') return;
+    const voice = into.kind === 'voice';
+    let st = { ...emptyStack(), sounds: stackRef.current.sounds.map((x) => (voice && x.kind === 'mic' ? { ...x, live: true, muted: false } : x)) };
+    const screen = sources.find((x) => x.kind === 'screen') || sources[0];
+    if (!voice && screen) st = addItem(st, { kind: screen.kind === 'window' ? 'window' : 'screen', ref: screen.id, name: screen.name }).stack;
+    if (into.into === 'intro') st = addItem(st, { kind: 'camera', ref: '', shape: 'circle' }).stack;
+    if (voice) st = applyScene(st, { key: SOUND_ONLY });
+    putSetup({ ...setupRef.current, tools: true, name: t('This recording') });
+    putStack(normaliseStack(st));
+    setAir(null);
+  }, [into, loaded, sources, putSetup, putStack]);
+
   /* ── the AI tools' Recorder (recorder_* tools, office-shell recorder-remote.js) ── */
 
   // A recording the tools ask for is made as a person's is: the source shown, the settings set,
@@ -1151,7 +1250,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     shell.capture.remoteReply({ reply, result, error: error ? String(error) : null }).catch(() => {});
   }, [shell]);
   useEffect(() => {
-    if (kind !== 'recorder') return undefined;
+    if (kind !== 'recorder' || into) return undefined;
     shell.capture.remoteListen({ on: true }).catch(() => {});
     return () => { shell.capture.remoteListen({ on: false }).catch(() => {}); };
   }, [shell, kind]);
@@ -1160,7 +1259,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     putStack(kept.stack);
     change(kept.settings);
   }, [putSetup, putStack, change]);
-  remoteRef.current = kind !== 'recorder' ? null : async ({ op, args = {}, reply } = {}) => {
+  remoteRef.current = kind !== 'recorder' || into ? null : async ({ op, args = {}, reply } = {}) => {
     if (op === 'sources') {
       try {
         const list = (await shell.capture.sources()) || [];
@@ -1192,7 +1291,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       const kept = { setup: setupRef.current, stack: stackRef.current, settings: settingsRef.current };
       remote.current = { startReply: reply, kept, item: screenAdded.id, source: src.id, folder: args.folder, triggered: false };
       setSources(list);
-      putSetup({ ...kept.setup, tools: true, name: 'For the AI tools' });
+      putSetup({ ...kept.setup, tools: true, name: t('For the tools') });
       putStack(normaliseStack(s));
       setAir(null);
       change({ size: args.size ?? settings.size, fps: args.fps ?? settings.fps, folder: args.folder, countdown: 0 });
@@ -1307,6 +1406,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const top = (
     <div className="st-top" role="toolbar" aria-label={appName}>
       <SetupsButton s={{ setup, index, busy: busy || Boolean(setup?.tools), openSetup, newSetupNamed, duplicateNamed, renameSetup, deleteSetup, saveToFile, openFromFile }} />
+      {into ? <span className="st-into"><Icon name="record" size={13} />{into.title ? t('Recording into {name}', { name: into.title }) : t('Recording for a slide')}</span> : null}
       {panel === 'setup' ? (
         <span className="st-undo">
           <button type="button" className="st-hist st-undo-btn" disabled={!history.current.back.length} aria-label={t('Undo')} data-tip={t('Undo')} onClick={undo}><Icon name="undo" size={15} /></button>
@@ -1365,6 +1465,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
 
   // Everything the panels draw from and act on.
   const s = {
+    into, brief, setPrompterSpeed,
     shell, media, program: program.current, canvases, isLive, stack, named, scenes, sources, devices, settings, setup, missing, loaded,
     holding, air, airStack, onAirKey: airStack.scene, nextKey: stack.scene, anyShown,
     phase, recording, paused, elapsed, count, busy, canRecord, recordLabel, stopTip, record, stop, togglePause,
@@ -1380,6 +1481,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   return (
     <AppFrame app={app} shell={shell} title={live ? `${t('Live')} ${clock(liveFor)}` : recording ? `${paused ? t('Paused') : t('Recording')} ${clock(elapsed)}` : appName} menu={appMenu} ribbon={top} status={status}>
       <style>{RECORDER_CSS}</style>
+      {brief?.prompter ? <style>{PROMPTER_CSS}</style> : null}
       <style>{STUDIO_CSS}</style>
       {isLive ? <style>{liveKit.LIVE_CSS}</style> : null}
       {isLive && loaded ? createPortal(<liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} size={settings.size} makeTall={getTall} copy={live && settings.liveCopy} blocked={phase === 'countdown' || phase === 'starting'} on={setup ? setup.liveOn : undefined} onChangeOn={changeLiveOn} onPhase={barPhase} rateText={liveRateText} viewers={viewers} control={liveControl} />, liveBarHost) : null}
@@ -1388,7 +1490,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       <style>{TALL_FRAME_CSS}</style>
       {askWeb ? <WebPageDialog allowLoopback={Boolean(window.__rutbaLocalPages)} onClose={() => setAskWeb(false)} onAdd={({ url, name }) => { setAskWeb(false); changeStack((s) => addItem(s, { kind: 'web', ref: url, name, sound: false }).stack); }} /> : null}
       {settingsOpen ? (
-        <StudioSettings settings={settings} setupName={setup.name} busy={busy} live={isLive} pictureKey={pictureKey} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />
+        <StudioSettings settings={settings} setupName={setup.name} busy={busy} live={isLive} pictureKey={pictureKey} apart={!isLive && !into} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />
       ) : null}
       <OpenSetupDialog s={s} />
       {closeAsk ? <ConfirmDialog title={t('End broadcast?')} body={t('You are live. Closing this window ends the broadcast.')} okLabel={t('End broadcast and close')} onOk={async () => { closing.current = true; await endLive(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
