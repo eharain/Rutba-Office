@@ -692,6 +692,14 @@ export function StudioWindow({ app, shell, kind = 'recorder', live: liveKit = nu
   }, [shotCount, snapNow]);
   pictureRef.current = takePicture;
 
+  // Home's Take a picture (?picture=1): one taken, once what was kept has had a moment to show.
+  const askedPicture = useRef(new URLSearchParams(location.search).has('picture'));
+  useEffect(() => {
+    if (!loaded || !askedPicture.current || !stack.items.length) return;
+    askedPicture.current = false;
+    setTimeout(() => pictureRef.current?.(), 1500);
+  }, [loaded, stack]);
+
   useEffect(() => {
     if (shotCount == null) return undefined;
     if (shotCount <= 0) { snapNow(); return undefined; }

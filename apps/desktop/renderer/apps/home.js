@@ -7,22 +7,35 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, Search, Empty, Button, Chip, Spacer, Dialog, useMenu, useToast, formatBytes, formatWhen, basename, t, tn } from '@rutba/office-ui';
-import { APPS, NEW_DOCUMENTS, SITE } from '@rutba/office-formats/registry';
+import { APPS, APP_GROUPS, NEW_DOCUMENTS, SITE } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension, KINDS } from '@rutba/office-formats/sniff';
 import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop, templatesFolder } from '../shell.js';
 import { WhatsNew } from '../whatsnew.js';
 import { TemplateGallery } from '../template-gallery.js';
-import { useChosenApps, AppsChooser } from '../apps-choice.js';
+import { useChosenApps, AppsChooser, setWords } from '../apps-choice.js';
 import { PacksNotice, PacksDialog } from '../packs-dialog.js';
 import { useProfiles, profileName } from '../profiles.js';
 
 /** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
 const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : r.kind === 'image' ? 'image' : r.kind === 'pdf' ? 'pdf' : 'word');
 
+/** One of Start something's chips: an app's mark and what it starts. */
+function StartChip({ app, icon, label, tip, className = '', onClick, template }) {
+  return (
+    <button type="button" className={`home-template${className ? ` ${className}` : ''}`} data-tip={tip} data-template={template} onClick={onClick}>
+      <span className={`tpl-glyph${app ? '' : ' more'}`} data-app={app}>
+        <Icon name={icon} size={16} />
+      </span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
 function AppCard({ app, onOpen, onNew }) {
   return (
     <div className="home-card" data-app={app.key}>
-      <button type="button" className="home-card-main" onClick={onOpen}>
+      {/* The first line of what it does, and the whole of it on hover. */}
+      <button type="button" className="home-card-main" data-tip={`${app.short}: ${app.tagline}`} onClick={onOpen}>
         <span className="home-card-glyph">
           <Icon name={app.icon} size={22} />
         </span>
@@ -66,6 +79,8 @@ export default function Home({ app, shell }) {
   const chosen = useChosenApps(shell);
   const [choosing, setChoosing] = useState(() => new URLSearchParams(location.search).has('apps'));
   const has = (key) => chosen.apps.includes(key);
+  // The two sets with what is on in each; a set with nothing on leaves the other the whole width.
+  const sets = APP_GROUPS.map((g) => ({ id: g.id, apps: g.apps.filter(has) })).filter((g) => g.apps.length);
   // Add or remove apps (packs-dialog.js; ?packs opens with it).
   const [packing, setPacking] = useState(() => new URLSearchParams(location.search).has('packs'));
   // The other profiles, for a recent file's Open in (profiles.js).
@@ -159,6 +174,26 @@ export default function Home({ app, shell }) {
     return recent.filter((r) => r.name.toLowerCase().includes(q) || (r.path || '').toLowerCase().includes(q));
   }, [recent, query]);
 
+  // Office's starts: the new documents, the gallery of every template, and the templates of one's own.
+  const officeStarts = () => {
+    const docs = NEW_DOCUMENTS.filter((tpl) => has(tpl.app));
+    return [
+      ...docs.map((tpl) => <StartChip key={`${tpl.app}-${tpl.template}`} app={tpl.app} icon={APPS[tpl.app].icon} label={tpl.label} onClick={() => newDocument(tpl)} />),
+      ...(docs.length ? [<StartChip key="more" className="home-more" icon="grid" label={t('More templates')} tip={t('More templates: letters, reports, budgets, invoices, decks and more, and your own')} onClick={() => setGallery(true)} />] : []),
+      // Each makes a new document, the template left as it is.
+      ...personal.filter((tpl) => has(tpl.app)).map((tpl) => <StartChip key={tpl.path} className="personal" app={tpl.app} icon={APPS[tpl.app].icon} label={tpl.name} tip={t('Your template: a new document made from {name}', { name: tpl.name })} template={tpl.path} onClick={() => shell.win.create({ app: tpl.app, query: { templateFile: tpl.path } })} />),
+    ];
+  };
+
+  // Studio's starts, each with the app that does it. A chip of an app turned off is not offered.
+  const studioStarts = () => [
+    has('recorder') ? <StartChip key="record" className="home-record" app="recorder" icon="record" label={t('Record a screen')} tip={t('Record a screen: a screen, a window or your camera, with sound, in the Recorder')} onClick={() => shell.win.create({ app: 'recorder' })} /> : null,
+    has('broadcast') ? <StartChip key="live" className="home-golive" app="broadcast" icon="broadcast" label={t('Go live')} tip={t('Go live: to the places you stream to, from Live Broadcast')} onClick={() => shell.win.create({ app: 'broadcast' })} /> : null,
+    has('video') ? <StartChip key="intro" className="home-intro" app="video" icon="scenes" label={t('Introduction video')} tip={t('Introduction video: a title, you on camera, your screen and an end card, recorded scene by scene in your brand')} onClick={() => shell.win.create({ app: 'video', query: { intro: 1 } })} /> : null,
+    has('video') ? <StartChip key="video" className="home-newvideo" app="video" icon="video" label={t('New video')} tip={t('New video: an empty timeline in Video')} onClick={() => shell.win.create({ app: 'video' })} /> : null,
+    has('recorder') ? <StartChip key="picture" className="home-picture" app="recorder" icon="picture" label={t('Take a picture')} tip={t('Take a picture: the Recorder opens and takes one of what it shows')} onClick={() => shell.win.create({ app: 'recorder', query: { picture: 1 } })} /> : null,
+  ].filter(Boolean);
+
   return (
     // words-ok: the suite's own name
     <AppFrame app={app} shell={shell} title="Rutba Office" menu={menu} status={<HomeStatus version={version} recent={recent.length} shell={shell} />}>
@@ -172,7 +207,7 @@ export default function Home({ app, shell }) {
             {/* words-ok: the suite's own name */}
             <h1>Rutba Office</h1>
             <p>
-              {t('Mail, documents, worksheets, presentations and media — free, open source, and working with the network switched off.')}
+              {t('Documents, mail and calls in Office; pictures, video and going live in Studio. Free, open source, and working with the network switched off.')}
             </p>
           </div>
           <div className="home-hero-actions">
@@ -196,7 +231,7 @@ export default function Home({ app, shell }) {
             <Icon name="grid" size={20} />
             <span className="home-choose-text">
               <strong>{t('Choose your apps')}</strong>
-              <span>{t('The {n} Office apps are on. Add Image, Video, Recorder, Talk or AI Tools when you want them, and turn off what you do not use, at any time.', { n: chosen.apps.length })}</span>
+              <span>{t('The Office apps are on. Add Talk, Data Files and the Studio apps when you want them, and turn off what you do not use, at any time.')}</span>
             </span>
             <Button label={t('Keep as it is')} className="home-keep-all" onClick={() => chosen.choose(chosen.apps, chosen.addons)} />
             <Button primary label={t('Choose apps…')} className="home-choose-btn" onClick={() => setChoosing(true)} />
@@ -254,66 +289,38 @@ export default function Home({ app, shell }) {
             <Button ghost icon="grid" label={t('Choose apps…')} className="home-apps-btn" title={t('Choose which apps are shown and open their kinds of file')} onClick={() => setChoosing(true)} />
             <Button ghost icon="download" label={t('Add or remove apps…')} className="home-packs-btn" title={t('Put apps on this computer or take them off')} onClick={() => setPacking(true)} />
           </div>
-          <div className="home-grid">
-            {chosen.apps.map((key) => (
-              <AppCard
-                key={key}
-                app={APPS[key]}
-                onOpen={() => openApp(key)}
-                onNew={NEW_DOCUMENTS.some((n) => n.app === key)
-                  ? () => newDocument({ app: key, template: 'blank' })
-                  // A new PDF is made of other files: the window opens asking for them.
-                  : key === 'pdf' ? () => shell.win.create({ app: 'pdf', query: { combine: 1 } }) : null}
-              />
-            ))}
-          </div>
-        </section>
-
-        <section className="home-section">
-          <h2>{t('Start something')}</h2>
-          <div className="home-templates">
-            {NEW_DOCUMENTS.filter((tpl) => has(tpl.app)).map((tpl) => (
-              <button key={`${tpl.app}-${tpl.template}`} type="button" className="home-template" onClick={() => newDocument(tpl)}>
-                <span className="tpl-glyph" data-app={tpl.app}>
-                  <Icon name={APPS[tpl.app].icon} size={16} />
-                </span>
-                <span>{tpl.label}</span>
-              </button>
-            ))}
-            {/* The screen recorder, in a new Video window: what it records lands on that window's timeline. */}
-            {has('video') ? (
-              <button type="button" className="home-template home-record" data-tip={t('Record a screen: a screen, a window or a region, with the camera and sound, in a new video')} onClick={() => shell.win.create({ app: 'video', query: { record: 1 } })}>
-                <span className="tpl-glyph" data-app="video">
-                  <Icon name="record" size={16} />
-                </span>
-                <span>{t('Record a screen')}</span>
-              </button>
-            ) : null}
-            {/* An introduction: scenes recorded one at a time, in one's brand. */}
-            {has('video') ? (
-              <button type="button" className="home-template home-intro" data-tip={t('Introduction video: a title, you on camera, your screen and an end card, recorded scene by scene in your brand')} onClick={() => shell.win.create({ app: 'video', query: { intro: 1 } })}>
-                <span className="tpl-glyph" data-app="video">
-                  <Icon name="scenes" size={16} />
-                </span>
-                <span>{t('Introduction video')}</span>
-              </button>
-            ) : null}
-            {/* Templates of one's own: each makes a new document, the template left as it is. */}
-            {personal.filter((tpl) => has(tpl.app)).map((tpl) => (
-              <button key={tpl.path} type="button" className="home-template personal" title={t('Your template: a new document made from {name}', { name: tpl.name })} data-template={tpl.path} onClick={() => shell.win.create({ app: tpl.app, query: { templateFile: tpl.path } })}>
-                <span className="tpl-glyph" data-app={tpl.app}>
-                  <Icon name={APPS[tpl.app].icon} size={16} />
-                </span>
-                <span>{tpl.name}</span>
-              </button>
-            ))}
-            {/* Every template, by app and by category: the gallery. */}
-            <button type="button" className="home-template home-more" data-tip={t('More templates: letters, reports, budgets, invoices, decks and more, and your own')} onClick={() => setGallery(true)}>
-              <span className="tpl-glyph more">
-                <Icon name="grid" size={16} />
-              </span>
-              <span>{t('More templates')}</span>
-            </button>
+          <div className={`home-sets${sets.length === 1 ? ' one' : ''}`}>
+            {sets.map((set) => {
+              const words = setWords()[set.id];
+              const starts = set.id === 'office' ? officeStarts() : studioStarts();
+              return (
+                <section key={set.id} className="home-set" data-set={set.id} aria-label={words.title}>
+                  <div className="home-set-head">
+                    <h3>{words.title}</h3>
+                    <p>{words.line}</p>
+                  </div>
+                  <div className="home-grid">
+                    {set.apps.map((key) => (
+                      <AppCard
+                        key={key}
+                        app={APPS[key]}
+                        onOpen={() => openApp(key)}
+                        onNew={NEW_DOCUMENTS.some((n) => n.app === key)
+                          ? () => newDocument({ app: key, template: 'blank' })
+                          // A new PDF is made of other files: the window opens asking for them.
+                          : key === 'pdf' ? () => shell.win.create({ app: 'pdf', query: { combine: 1 } }) : null}
+                      />
+                    ))}
+                  </div>
+                  {starts.length ? (
+                    <div className="home-set-starts">
+                      <div className="home-set-label">{t('Start something')}</div>
+                      <div className="home-templates">{starts}</div>
+                    </div>
+                  ) : null}
+                </section>
+              );
+            })}
           </div>
         </section>
 
@@ -746,9 +753,27 @@ const CSS = `
   text-transform: uppercase; color: var(--ink-3);
 }
 
-/* Five tiles across the launcher's own width, scrollbar or not: nine apps
-   in two rows leaves the recent list a screen it can be seen on. */
-.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(206px, 1fr)); gap: 10px; }
+/* Office and Studio side by side, each its own column of tiles at the same
+   width (nine tiles three across, five two across) and its own starts; below
+   about 1100 px they stack, Office first, and a set alone takes the width. */
+.home-sets { display: grid; grid-template-columns: minmax(0, 9fr) minmax(0, 6fr); gap: 14px; align-items: stretch; }
+.home-sets.one { grid-template-columns: minmax(0, 1fr); }
+.home-set {
+  display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px 16px 16px;
+  border: 1px solid var(--line); border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+.home-set-head h3 { margin: 0; font-family: var(--font-display); font-size: 17px; font-weight: 650; letter-spacing: -0.015em; }
+.home-set-head p { margin: 1px 0 0; font-size: 12px; color: var(--ink-3); }
+.home-set-starts { display: flex; flex-direction: column; gap: 8px; }
+.home-set-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.home-set[data-set='studio'] .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.home-sets.one .home-set .home-grid { grid-template-columns: repeat(auto-fill, minmax(206px, 1fr)); }
+@media (max-width: 1100px) {
+  .home-sets { grid-template-columns: minmax(0, 1fr); }
+  .home-set .home-grid, .home-set[data-set='studio'] .home-grid { grid-template-columns: repeat(auto-fill, minmax(206px, 1fr)); }
+}
 .home-card {
   position: relative; display: flex; background: var(--surface);
   border: 1px solid var(--line); border-radius: var(--r-3); overflow: hidden;
@@ -756,13 +781,13 @@ const CSS = `
 }
 .home-card:hover { border-color: var(--accent-line); box-shadow: var(--shadow-2); transform: translateY(-1px); }
 .home-card-main {
-  flex: 1; display: flex; align-items: center; gap: 12px; padding: 13px 14px;
+  flex: 1; display: flex; align-items: center; gap: 11px; padding: 10px 12px;
   border: 0; background: transparent; color: var(--ink); text-align: left; min-width: 0;
 }
 /* The tile wears the app's own colour — the theme names one per app, so a
    new app never draws a blank tile again (Calendar and Contacts did). */
 .home-card-glyph {
-  width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; flex: none;
+  width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none;
   color: #fff;
   background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 82%, white), var(--accent) 55%, color-mix(in srgb, var(--accent) 78%, black));
   box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.25);
@@ -772,10 +797,14 @@ const CSS = `
 .home-card-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .home-card-text strong { font-size: 13.5px; font-weight: 600; }
 .home-card-text span { font-size: 11.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* New, for the apps that have one: over the tile's end, shown only when the tile is worth looking at. */
 .home-card-new {
-  width: 34px; border: 0; border-left: 1px solid var(--line-soft); background: transparent;
-  color: var(--ink-3); display: grid; place-items: center; transition: background var(--fast), color var(--fast);
+  position: absolute; inset-block: 0; inset-inline-end: 0; width: 32px; border: 0;
+  border-inline-start: 1px solid var(--line-soft); background: var(--surface);
+  color: var(--ink-3); display: grid; place-items: center; opacity: 0;
+  transition: background var(--fast), color var(--fast), opacity var(--fast);
 }
+.home-card:hover .home-card-new, .home-card:focus-within .home-card-new { opacity: 1; }
 .home-card-new:hover { background: var(--hover); color: var(--accent-text); }
 
 .home-templates { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -791,6 +820,8 @@ const CSS = `
 .tpl-glyph[data-app='sheets'] { background: #0f9d58; }
 .tpl-glyph[data-app='slides'] { background: #d9534f; }
 .tpl-glyph[data-app='video'] { background: #c2408f; }
+.tpl-glyph[data-app='recorder'] { background: #e03b4c; }
+.tpl-glyph[data-app='broadcast'] { background: #ea580c; }
 .tpl-glyph[data-app='pdf'] { background: #b3261e; }
 .tpl-glyph.more { background: var(--ink-3); }
 .home-more { font-weight: 600; }

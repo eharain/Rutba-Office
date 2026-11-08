@@ -164,8 +164,21 @@ export const APPS = {
   },
 };
 
-/** The apps in the launcher's order. */
-export const APP_ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video', 'recorder', 'broadcast', 'talk', 'base'];
+/**
+ * The two sets the suite is in (D-2026-11-05-17): Office for documents, mail
+ * and calls, Studio for pictures, video and going live. Home, Choose apps,
+ * the installer's two pages, the Window menu and the macOS menu all read
+ * this, so the names and the order are the same in each. Which apps are on
+ * until chosen is a separate matter (OFF_UNTIL_CHOSEN): Talk and Data Files
+ * are in Office and wait to be chosen, Pictures is in Studio and is on.
+ */
+export const APP_GROUPS = [
+  { id: 'office', apps: ['mail', 'calendar', 'contacts', 'talk', 'word', 'sheets', 'slides', 'pdf', 'base'] },
+  { id: 'studio', apps: ['pictures', 'image', 'video', 'recorder', 'broadcast'] },
+];
+
+/** The apps in the launcher's order: Office's, then Studio's. */
+export const APP_ORDER = APP_GROUPS.flatMap((g) => g.apps);
 
 /**
  * Which apps a person wants (owner, 2026-10-20: "since the number of
@@ -186,10 +199,6 @@ export const APPS_CHOICE_KEY = 'apps.choice';
  * add on"). A copy that ran before keeps what it had (the main process's
  * defaults.js settles that on its first start).
  */
-export const APP_GROUPS = [
-  { id: 'office', apps: ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pdf', 'pictures'] },
-  { id: 'more', apps: ['image', 'video', 'recorder', 'broadcast', 'talk', 'base'] },
-];
 export const OFF_UNTIL_CHOSEN = ['image', 'video', 'recorder', 'broadcast', 'talk', 'base'];
 /**
  * An app split out of another: on wherever that one is chosen, until it is

@@ -20,7 +20,7 @@ const isMac = process.platform === 'darwin';
 
 /** Default geometry per app — a mail client and a picture viewer want different rooms. */
 const GEOMETRY = {
-  home: { width: 1180, height: 760, minWidth: 900, minHeight: 560 },
+  home: { width: 1280, height: 840, minWidth: 900, minHeight: 560 },
   mail: { width: 1440, height: 900, minWidth: 1000, minHeight: 600 },
   word: { width: 1280, height: 900, minWidth: 820, minHeight: 560 },
   sheets: { width: 1440, height: 900, minWidth: 900, minHeight: 560 },

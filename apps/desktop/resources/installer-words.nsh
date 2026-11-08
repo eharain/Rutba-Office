@@ -6,7 +6,7 @@
   Var rutbaW_sub
   Var rutbaW_lead
   Var rutbaW_office
-  Var rutbaW_more
+  Var rutbaW_studio
   Var rutbaW_addons
   Var rutbaW_ai
   Var rutbaW_none
@@ -33,8 +33,8 @@ Function rutbaPickWords
   StrCpy $rutbaW_title "Choose apps"
   StrCpy $rutbaW_sub "The apps you want to see and to open your files."
   StrCpy $rutbaW_lead "Tick the apps and add-ons you want. Any of them can be added or taken away later, from Choose apps in Rutba Office."
-  StrCpy $rutbaW_office "Office apps"
-  StrCpy $rutbaW_more "More apps"
+  StrCpy $rutbaW_office "Office"
+  StrCpy $rutbaW_studio "Studio"
   StrCpy $rutbaW_addons "Add-ons"
   StrCpy $rutbaW_ai "AI Tools"
   StrCpy $rutbaW_none "Choose one app at least."
@@ -66,8 +66,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_title "اختيار التطبيقات"
     StrCpy $rutbaW_sub "التطبيقات التي تريد أن تراها وأن تفتح ملفاتك."
     StrCpy $rutbaW_lead "حدّد التطبيقات والإضافات التي تريدها. يمكن إضافة أيٍّ منها أو إزالته لاحقًا من «اختيار التطبيقات» في Rutba Office."
-    StrCpy $rutbaW_office "تطبيقات أوفيس"
-    StrCpy $rutbaW_more "تطبيقات أخرى"
+    StrCpy $rutbaW_studio "استوديو"
     StrCpy $rutbaW_addons "الإضافات"
     StrCpy $rutbaW_ai "أدوات الذكاء الاصطناعي"
     StrCpy $rutbaW_none "اختر تطبيقًا واحدًا على الأقل."
@@ -93,8 +92,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_title "ایپس چنیں"
     StrCpy $rutbaW_sub "وہ ایپس جو آپ دیکھنا اور اپنی فائلیں کھولنے کے لیے چاہتے ہیں۔"
     StrCpy $rutbaW_lead "جو ایپس اور ایڈ آنز آپ چاہتے ہیں ان پر نشان لگائیں۔ ان میں سے کوئی بھی بعد میں Rutba Office میں «ایپس چنیں» سے شامل کی یا ہٹائی جا سکتی ہے۔"
-    StrCpy $rutbaW_office "آفس ایپس"
-    StrCpy $rutbaW_more "مزید ایپس"
+    StrCpy $rutbaW_studio "اسٹوڈیو"
     StrCpy $rutbaW_addons "اضافے"
     StrCpy $rutbaW_ai "AI ٹولز"
     StrCpy $rutbaW_none "کم از کم ایک ایپ چنیں۔"
@@ -120,8 +118,7 @@ Function rutbaPickWords
     StrCpy $rutbaW_title "ऐप चुनें"
     StrCpy $rutbaW_sub "वे ऐप जिन्हें आप देखना और अपनी फ़ाइलें खोलने के लिए चाहते हैं।"
     StrCpy $rutbaW_lead "जो ऐप और ऐड-ऑन आप चाहते हैं उन पर निशान लगाएँ। इनमें से कोई भी बाद में Rutba Office में «ऐप चुनें» से जोड़ा या हटाया जा सकता है।"
-    StrCpy $rutbaW_office "Office ऐप"
-    StrCpy $rutbaW_more "और ऐप"
+    StrCpy $rutbaW_studio "स्टूडियो"
     StrCpy $rutbaW_addons "ऐड-ऑन"
     StrCpy $rutbaW_ai "AI टूल"
     StrCpy $rutbaW_none "कम से कम एक ऐप चुनें।"

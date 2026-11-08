@@ -35,7 +35,7 @@ lendPictureDrawer(drawablePicture);
 setPictureDecoder((bytes, name) => ({ type: 'image/png', bytes: decodePicture(bytes, name, { png: true }).png }));
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { buildExtras } from './build-extras.js';
-import { fileAssociations, APPS, APPS_CHOICE_KEY, OFF_UNTIL_CHOSEN, APP_ORDER, APP_EXTENSIONS, OLD_EXTENSIONS } from '@rutba/office-formats/registry';
+import { fileAssociations, APPS, APPS_CHOICE_KEY, OFF_UNTIL_CHOSEN, APP_ORDER, APP_GROUPS, APP_EXTENSIONS, OLD_EXTENSIONS } from '@rutba/office-formats/registry';
 import { createDocumentHost } from './doc-host.js';
 import { createPrintService } from './print.js';
 import { createMathMeasurer } from './math-raster.js';
@@ -201,6 +201,7 @@ createShell({
   appIcons,
   appNames: Object.fromEntries(Object.entries(APPS).map(([key, a]) => [key, a.name])),
   appShortNames: Object.fromEntries(Object.entries(APPS).map(([key, a]) => [key, a.short])),
+  appGroups: APP_GROUPS,
 
   /**
    * Which window a double-clicked file opens. The extension decides, because

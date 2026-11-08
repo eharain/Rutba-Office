@@ -31,6 +31,7 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PACKS } from '@rutba/office-shell/contract';
+import { APP_GROUPS } from '@rutba/office-formats/registry';
 import { writeZip, ZipEntry } from '@rutba/ooxml/zip';
 import { makePacks, readPrivateKey } from '../../../tools/make-packs.mjs';
 import { describePack } from '../main/app-packs.js';
@@ -232,12 +233,19 @@ export function installerScript({ dir, packs, archives = {} }) {
     '!macroend',
     '!macro rutbaPackBoxes',
   );
-  const half = Math.ceil(ids.length / 2);
-  ids.forEach((id, i) => {
-    const col = i < half ? '0' : '52%';
-    const row = i < half ? i : i - half;
-    push(`  !insertmacro rutbaPackBox ${id} "$rutbaW_${id}" ${col} ${24 + row * 13}u`);
-  });
+  // Office on the left; Studio and the add-ons on the right, as on Choose apps.
+  const inSet = (id) => ids.includes(id);
+  const office = APP_GROUPS.find((g) => g.id === 'office').apps.filter(inSet);
+  const studio = APP_GROUPS.find((g) => g.id === 'studio').apps.filter(inSet);
+  const addons = ids.filter((id) => !office.includes(id) && !studio.includes(id));
+  const column = (word, col, list, top) => {
+    if (!list.length) return top;
+    push(`  \${NSD_CreateLabel} ${col} ${top}u 46% 10u "$rutbaW_${word}"`, '  Pop $0');
+    list.forEach((id, i) => push(`  !insertmacro rutbaPackBox ${id} "$rutbaW_${id}" ${col} ${top + 11 + i * 12}u`));
+    return top + 11 + list.length * 12 + 5;
+  };
+  column('office', '0', office, 21);
+  column('addons', '52%', addons, column('studio', '52%', studio, 21));
   push(
     '!macroend',
     '',

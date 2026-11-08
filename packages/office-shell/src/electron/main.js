@@ -25,6 +25,7 @@ import { buildImplementations, installIpc, installContract, sendEvent, broadcast
 import { METHODS, EVENTS } from '../contract.js';
 import { speakAs, t } from './words.js';
 import { sweepTemps } from './temp-sweep.js';
+import { menuAppSets } from '../menu-sets.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -33,10 +34,7 @@ const isMac = process.platform === 'darwin';
 // run at import time.
 registerSchemePrivileges();
 
-/** The apps the Apps menu offers, in its order. */
-const MENU_APPS = ['mail', 'word', 'sheets', 'slides', 'pdf', 'pictures', 'image', 'video'];
-
-function buildMenu({ send, appName, appShortNames = {}, installed = null }) {
+function buildMenu({ send, appName, appShortNames = {}, appGroups = null, installed = null }) {
   const cmd = (command, args) => () => send(command, args);
   const template = [
     ...(isMac
@@ -122,7 +120,11 @@ function buildMenu({ send, appName, appShortNames = {}, installed = null }) {
         // taskbar are, so a rename reaches the menu too: written out here,
         // the menu still said Rutba Word after the app had a new name.
         // Only the apps installed: an app not on this computer is not offered.
-        ...MENU_APPS.filter((key) => !installed || installed.includes(key)).map((key) => ({ label: t(appShortNames[key] || key), click: cmd('open.app', { app: key }) })),
+        // The two sets, in the registry's order, with a line between them.
+        ...menuAppSets(appGroups || [{ apps: Object.keys(appShortNames) }], installed).flatMap((set, i) => [
+          ...(i ? [{ type: 'separator' }] : []),
+          ...set.map((key) => ({ label: t(appShortNames[key] || key), click: cmd('open.app', { app: key }) })),
+        ]),
       ],
     },
     {
@@ -152,6 +154,7 @@ function buildMenu({ send, appName, appShortNames = {}, installed = null }) {
  * @param {Record<string,string>} [o.appIcons]  per-app .ico paths on disk, for the taskbar
  * @param {Record<string,string>} [o.appNames]  per-app display names, for a pinned taskbar entry
  * @param {Record<string,string>} [o.appShortNames]  per-app short names, for the Apps menu
+ * @param {{ apps: string[] }[]} [o.appGroups]  the sets of apps, in the order the Apps menu lists them
  * @param {string} [o.appName]
  * @param {(ctx) => object} [o.namespaces] extra IPC namespaces, given the shell context
  * @param {(path: string) => string} [o.appForFile] which app opens this file
@@ -172,6 +175,7 @@ export function createShell({
   appIcons = {},
   appNames = {},
   appShortNames = {},
+  appGroups = null,
   appName = 'Rutba Office',
   namespaces,
   appForFile = () => 'home',
@@ -496,7 +500,7 @@ export function createShell({
     installContract({ methods, events: offered?.events || EVENTS, packs: offered?.packs || [], refused: offered?.refused || [] });
 
     speakAs(stores);
-    Menu.setApplicationMenu(buildMenu({ send, appName, appShortNames, installed: offered ? offered.packs.map((p) => p.id) : null }));
+    Menu.setApplicationMenu(buildMenu({ send, appName, appShortNames, appGroups, installed: offered ? offered.packs.map((p) => p.id) : null }));
     // Ctrl and the wheel that the page left alone (over a mail message's
     // sandboxed frame, which the page cannot hear) is Chromium's own request
     // to zoom: it goes to the window as Zoom In or Zoom Out, for the app to

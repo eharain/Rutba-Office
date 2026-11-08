@@ -278,23 +278,27 @@ Function rutbaAppsPageShow
   ${EndIf}
   ${NSD_CreateLabel} 0 0 100% 20u "$rutbaW_lead"
   Pop $0
-  ${NSD_CreateLabel} 0 22u 46% 10u "$rutbaW_office"
+  ; The two sets, in the order Home and Choose apps have them: nine boxes fill the page's height at 12u each.
+  ${NSD_CreateLabel} 0 21u 46% 10u "$rutbaW_office"
   Pop $0
-  !insertmacro rutbaAppBox mail "$rutbaW_mail" 0 34u 0 0
-  !insertmacro rutbaAppBox calendar "$rutbaW_calendar" 0 47u 0 0
-  !insertmacro rutbaAppBox contacts "$rutbaW_contacts" 0 60u 0 0
-  !insertmacro rutbaAppBox word "$rutbaW_word" 0 73u 0 0
-  !insertmacro rutbaAppBox sheets "$rutbaW_sheets" 0 86u 0 0
-  !insertmacro rutbaAppBox slides "$rutbaW_slides" 0 99u 0 0
-  !insertmacro rutbaAppBox pdf "$rutbaW_pdf" 0 112u 0 0
-  !insertmacro rutbaAppBox pictures "$rutbaW_pictures" 0 125u 0 0
-  ${NSD_CreateLabel} 52% 22u 46% 10u "$rutbaW_more"
+  !insertmacro rutbaAppBox mail "$rutbaW_mail" 0 32u 0 0
+  !insertmacro rutbaAppBox calendar "$rutbaW_calendar" 0 44u 0 0
+  !insertmacro rutbaAppBox contacts "$rutbaW_contacts" 0 56u 0 0
+  !insertmacro rutbaAppBox talk "$rutbaW_talk" 0 68u 1 0
+  !insertmacro rutbaAppBox word "$rutbaW_word" 0 80u 0 0
+  !insertmacro rutbaAppBox sheets "$rutbaW_sheets" 0 92u 0 0
+  !insertmacro rutbaAppBox slides "$rutbaW_slides" 0 104u 0 0
+  !insertmacro rutbaAppBox pdf "$rutbaW_pdf" 0 116u 0 0
+  ; New in 2.9: a 2.8 copy's AppsOff never listed it.
+  !insertmacro rutbaAppBox base "$rutbaW_base" 0 128u 1 1
+  ${NSD_CreateLabel} 52% 21u 46% 10u "$rutbaW_studio"
   Pop $0
-  !insertmacro rutbaAppBox image "$rutbaW_image" 52% 34u 1 0
-  !insertmacro rutbaAppBox video "$rutbaW_video" 52% 47u 1 0
-  !insertmacro rutbaAppBox recorder "$rutbaW_recorder" 52% 60u 1 0
+  !insertmacro rutbaAppBox pictures "$rutbaW_pictures" 52% 32u 0 0
+  !insertmacro rutbaAppBox image "$rutbaW_image" 52% 44u 1 0
+  !insertmacro rutbaAppBox video "$rutbaW_video" 52% 56u 1 0
+  !insertmacro rutbaAppBox recorder "$rutbaW_recorder" 52% 68u 1 0
   ; New in 2.22, and Recorder's Go Live before that: ticked wherever Recorder was, unless turned off itself.
-  !insertmacro rutbaAppBox broadcast "$rutbaW_broadcast" 52% 73u 1 1
+  !insertmacro rutbaAppBox broadcast "$rutbaW_broadcast" 52% 80u 1 1
   ${If} $rutbaAppsOnKnown == "1"
   ${AndIf} $rutbaPack_broadcast == "1"
     ${WordFind} ",$rutbaAppsOnBefore," ",recorder," "E*" $0
@@ -306,12 +310,9 @@ Function rutbaAppsPageShow
     ${EndIf}
     ClearErrors
   ${EndIf}
-  !insertmacro rutbaAppBox talk "$rutbaW_talk" 52% 86u 1 0
-  ; New in 2.9: a 2.8 copy's AppsOff never listed it.
-  !insertmacro rutbaAppBox base "$rutbaW_base" 52% 99u 1 1
-  ${NSD_CreateLabel} 52% 113u 46% 10u "$rutbaW_addons"
+  ${NSD_CreateLabel} 52% 97u 46% 10u "$rutbaW_addons"
   Pop $0
-  ${NSD_CreateCheckbox} 52% 125u 46% 12u "$rutbaW_ai"
+  ${NSD_CreateCheckbox} 52% 108u 46% 12u "$rutbaW_ai"
   Pop $rutbaBox_ai
   ${WordFind} ",$rutbaAddOnsBefore," ",ai," "E*" $0
   ${IfNot} ${Errors}
@@ -332,17 +333,17 @@ Function rutbaAppsPageLeave
   !insertmacro rutbaAppRead mail
   !insertmacro rutbaAppRead calendar
   !insertmacro rutbaAppRead contacts
+  !insertmacro rutbaAppRead talk
   !insertmacro rutbaAppRead word
   !insertmacro rutbaAppRead sheets
   !insertmacro rutbaAppRead slides
   !insertmacro rutbaAppRead pdf
+  !insertmacro rutbaAppRead base
   !insertmacro rutbaAppRead pictures
   !insertmacro rutbaAppRead image
   !insertmacro rutbaAppRead video
   !insertmacro rutbaAppRead recorder
   !insertmacro rutbaAppRead broadcast
-  !insertmacro rutbaAppRead talk
-  !insertmacro rutbaAppRead base
   ${If} $2 == 0
     MessageBox MB_OK|MB_ICONEXCLAMATION "$rutbaW_none"
     Abort

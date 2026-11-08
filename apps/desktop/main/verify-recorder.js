@@ -324,7 +324,7 @@ async function recorderChecks(h, { dir }) {
     const complaints = await errorsIn(win);
     check('recorder: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
 
-    // The launcher's Start something offers Record a screen: a new video on the recorder.
+    // Studio's Start something offers Record a screen: the Recorder.
     const home = await open('home');
     const hjs = (code) => home.webContents.executeJavaScript(code);
     // The launcher drawn before it is read: beside other work it was read while still empty.
@@ -332,17 +332,16 @@ async function recorderChecks(h, { dir }) {
     const known2 = new Set(BrowserWindow.getAllWindows().map((w) => w.id));
     await hjs(`document.querySelector('.home-record')?.click(), 1`);
     const fresh2 = () => BrowserWindow.getAllWindows().find((w) => !known2.has(w.id) && !w.isDestroyed()) || null;
-    await ok(until(() => Boolean(fresh2()), 'the new Video window', 8000));
+    await ok(until(() => Boolean(fresh2()), 'the new Recorder window', 8000));
     const nv = fresh2();
     let opened = false;
     if (nv) {
       await new Promise((r) => (nv.webContents.isLoading() ? nv.webContents.once('did-finish-load', r) : r()));
-      opened = await ok(until(() => nv.webContents.executeJavaScript(`Boolean(document.querySelector('.rec-dialog'))`), 'the recorder in the new window', 8000));
-      await nv.webContents.executeJavaScript(`[...document.querySelectorAll('.rec-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`).catch(() => {});
+      opened = /[?&]app=recorder\b/.test(nv.webContents.getURL());
       await wait(300);
       nv.destroy();
     }
-    check('recorder: the launcher offers Record a screen, which opens a new video on the recorder', card && opened, JSON.stringify({ card, opened }));
+    check('recorder: the launcher offers Record a screen, which opens the Recorder', card && opened, JSON.stringify({ card, opened }));
   } catch (err) {
     check('recorder: the checks ran', false, err.message);
   }

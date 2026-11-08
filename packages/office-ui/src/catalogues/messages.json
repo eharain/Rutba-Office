@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8461,
+  "count": 8467,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -11931,6 +11931,12 @@
       ]
     },
     {
+      "message": "Documents, mail and calls in Office; pictures, video and going live in Studio. Free, open source, and working with the network switched off.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Documents, mail and media all work with no network connection",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -16609,7 +16615,14 @@
     {
       "message": "Go live",
       "where": [
+        "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
+      "message": "Go live: to the places you stream to, from Live Broadcast",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -22351,9 +22364,9 @@
       ]
     },
     {
-      "message": "Mail, documents, worksheets, presentations and media — free, open source, and working with the network switched off.",
+      "message": "Mail, calls, documents and data",
       "where": [
-        "apps/desktop/renderer/apps/home.js"
+        "apps/desktop/renderer/apps-choice.js"
       ]
     },
     {
@@ -23744,12 +23757,6 @@
       ]
     },
     {
-      "message": "More apps",
-      "where": [
-        "apps/desktop/renderer/apps-choice.js"
-      ]
-    },
-    {
       "message": "More colours",
       "where": [
         "apps/desktop/renderer/apps/image.js",
@@ -24861,6 +24868,18 @@
       "message": "New text",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "New video",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "New video: an empty timeline in Video",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -27038,13 +27057,8 @@
     {
       "message": "Office",
       "where": [
+        "apps/desktop/renderer/apps-choice.js",
         "apps/desktop/renderer/icons-insert.js"
-      ]
-    },
-    {
-      "message": "Office apps",
-      "where": [
-        "apps/desktop/renderer/apps-choice.js"
       ]
     },
     {
@@ -29455,6 +29469,12 @@
       ]
     },
     {
+      "message": "Pictures, video, recording and going live",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
+      ]
+    },
+    {
       "message": "Picture…",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
@@ -31738,7 +31758,7 @@
       ]
     },
     {
-      "message": "Record a screen: a screen, a window or a region, with the camera and sound, in a new video",
+      "message": "Record a screen: a screen, a window or your camera, with sound, in the Recorder",
       "where": [
         "apps/desktop/renderer/apps/home.js"
       ]
@@ -39744,6 +39764,7 @@
     {
       "message": "Studio",
       "where": [
+        "apps/desktop/renderer/apps-choice.js",
         "apps/desktop/renderer/shared-words.js"
       ]
     },
@@ -40413,6 +40434,18 @@
       "message": "Take Picture of",
       "where": [
         "apps/desktop/renderer/studio/settings-dialog.js"
+      ]
+    },
+    {
+      "message": "Take a picture",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Take a picture: the Recorder opens and takes one of what it shows",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -41443,6 +41476,12 @@
       "message": "The Data Files copy needs a file of its own. Choose another name or folder.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The Office apps are on. Add Talk, Data Files and the Studio apps when you want them, and turn off what you do not use, at any time.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -43380,12 +43419,6 @@
       "plural": "The {count} selected pages",
       "where": [
         "apps/desktop/renderer/apps/pdf/ocr.js"
-      ]
-    },
-    {
-      "message": "The {n} Office apps are on. Add Image, Video, Recorder, Talk or AI Tools when you want them, and turn off what you do not use, at any time.",
-      "where": [
-        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -48490,6 +48523,12 @@
       "message": "Work backwards: name a formula cell, the answer you want from it, and the cell that may change to get there.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Work inside the apps above",
+      "where": [
+        "apps/desktop/renderer/apps-choice.js"
       ]
     },
     {

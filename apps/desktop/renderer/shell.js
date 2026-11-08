@@ -7,7 +7,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Window, TitleBar, Body, StatusBar, Menu, Dialog, Icon, useToast, useTheme, Button, Progress, t, msg, language, windowCommands, prettyKey } from '@rutba/office-ui';
-import { APPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
+import { APPS, APP_GROUPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { pathOf, installedPacks } from '@rutba/office-shell/client';
 import { WhatsNew } from './whatsnew.js';
@@ -17,7 +17,7 @@ import { AiBadge, AiConfirm, AI_TOOLS_CSS } from './ai-tools.js';
 
 // The AI Tools window is AI Tools' own, in its pack: loaded when it is opened.
 const AiToolsDialog = React.lazy(() => import('./ai-tools-dialog.js').then((m) => ({ default: m.AiToolsDialog })));
-import { useChosenApps } from './apps-choice.js';
+import { useChosenApps, setWords } from './apps-choice.js';
 import { ProfileBadge, ManageProfiles, KeystoreNotice, PROFILES_CSS, useProfiles, profileName, openManageProfiles } from './profiles.js';
 
 /**
@@ -110,7 +110,7 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
   const [gallery, setGallery] = useState(false);
   const galleryApp = ['word', 'sheets', 'slides'].includes(appKey) ? appKey : null;
   // The add-ons added in Choose apps: AI Tools is in this menu once it is.
-  const { addons: chosenAddons } = useChosenApps(shell);
+  const { addons: chosenAddons, apps: chosenAppKeys } = useChosenApps(shell);
 
   useEffect(() => {
     shell.store.get({ key: 'language', fallback: null }).then((v) => setChosenLanguage(v || null)).catch(() => setChosenLanguage(null));
@@ -214,10 +214,19 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
       // AI Tools is an add-on: in the menu once it is added in Choose apps.
       if (chosenAddons.includes('ai')) settings.push({ label: t('AI Tools…'), icon: 'wand', run: () => window.dispatchEvent(new Event('rutba-ai-tools')) });
       const site = appKey === 'home' ? '' : `#${SITE_APP[appKey] || appKey}`;
+      // The two sets, each with the apps on in it (an app turned off leaves the menus).
+      const appSets = APP_GROUPS
+        .map((g) => ({
+          label: setWords()[g.id].title,
+          icon: g.id === 'office' ? 'word' : 'video',
+          items: g.apps.filter((k) => chosenAppKeys.includes(k)).map((k) => ({ label: APPS[k].short, icon: APPS[k].icon, run: () => shell.win.create({ app: k, query: { start: '1' } }) })),
+        }))
+        .filter((s) => s.items.length);
       groups.push([
         { label: t('Window'), icon: 'window', items: [
           ...otherWindows.map((w) => ({ label: w.name || t('Untitled'), icon: 'window', run: () => shell.win.focus({ id: w.id }) })),
           ...(otherWindows.length ? ['-'] : []),
+          ...appSets,
           { label: t('All apps'), icon: 'grid', run: () => shell.win.create({ app: 'home' }) },
         ] },
         { label: t('Settings'), icon: 'settings', items: settings },
@@ -237,7 +246,7 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, newItems = [], save, 
       for (const g of groups.filter((x) => x.length)) items.push(...(items.length ? ['-'] : []), ...g);
       setMenu({ x: rtl ? rect.right : rect.left, y: rect.bottom + 4, rtl, items, keyboard });
     },
-    [onNew, onOpen, newItems, save, saveAs, exports, print, own, mode, setTheme, shell, appKey, galleryApp, chosenLanguage, chooseLanguage, chosenDigits, chooseDigits, chosenAddons]
+    [onNew, onOpen, newItems, save, saveAs, exports, print, own, mode, setTheme, shell, appKey, galleryApp, chosenLanguage, chooseLanguage, chosenDigits, chooseDigits, chosenAddons, chosenAppKeys]
   );
 
   return {

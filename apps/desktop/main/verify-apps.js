@@ -32,6 +32,7 @@ import { verifyRecorderApp } from './verify-recorder-app.js';
 import { verifyRecorderTools } from './verify-recorder-tools.js';
 import { verifyAppMenu } from './verify-app-menu.js';
 import { verifyAppsChoice } from './verify-apps-choice.js';
+import { verifyHomeSets } from './verify-home-sets.js';
 import { verifyMailSafety } from './verify-mail-safety.js';
 import { verifyTalk } from './verify-talk.js';
 import { verifyTalkSignIn } from './verify-talk-signin.js';
@@ -4988,7 +4989,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,recorder-tools,app-menu,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,keystore,ai-tools,ai-reach,profiles,exif-location,pictures-ratings,windows-codec,metafile-drawn,pictures-tiff,image-formats,pictures-formats,image-open,pictures-drawn: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,home-sets,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,recorder-tools,app-menu,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,keystore,ai-tools,ai-reach,profiles,exif-location,pictures-ratings,windows-codec,metafile-drawn,pictures-tiff,image-formats,pictures-formats,image-open,pictures-drawn: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -5168,6 +5169,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('app-menu')) await verifyAppMenu({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder-tools')) await verifyRecorderTools({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('apps-choice')) await verifyAppsChoice({ open, check, until, wait, errorsIn });
+    if (only.includes('home-sets')) await verifyHomeSets({ open, check, until, wait, errorsIn, capture: shotTo });
     if (only.includes('mail-safety')) await verifyMailSafety({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('talk')) await verifyTalk({ open, check, until, wait, errorsIn });
     if (only.includes('talk-signin')) await verifyTalkSignIn({ open, check, until, wait });
@@ -5438,6 +5440,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('recorder', () => verifyRecorderApp({ open, check, until, wait, errorsIn }, { dir }));
   await part('recorder', () => verifyRecorderTools({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   await part('shell', () => verifyAppsChoice({ open, check, until, wait, errorsIn }));
+  await part('shell', () => verifyHomeSets({ open, check, until, wait, errorsIn, capture: shotTo }));
   await part('broadcast', () => verifyBroadcastLive({ open, check, until, wait, errorsIn }, { dir }));
   await part('broadcast', () => verifyBroadcastShots({ open, check, until, wait, errorsIn }, { dir }));
   // The recorder's checks above record a stand-in for the screen; this one the real screen, alone.

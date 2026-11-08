@@ -18,7 +18,12 @@ const addonsChosen = (choice) => addonsOf(choice).filter(isInstalled);
 
 /** The add-ons, as Choose apps shows them. */
 const ADDON_INFO = () => ({ ai: { key: 'ai', short: t('AI Tools'), tagline: t('Let AI apps on this computer make and read documents with Office'), icon: 'wand' } });
-const GROUP_TITLES = () => ({ office: t('Office apps'), more: t('More apps'), addons: t('Add-ons') });
+/** The sets' names and their one line each: Home, Choose apps and the Window menu say the same. */
+export const setWords = () => ({
+  office: { title: t('Office'), line: t('Mail, calls, documents and data') },
+  studio: { title: t('Studio'), line: t('Pictures, video, recording and going live') },
+  addons: { title: t('Add-ons'), line: t('Work inside the apps above') },
+});
 
 /**
  * The installer's Choose apps page says these too (the rest of its words are
@@ -76,17 +81,20 @@ export function AppsChooser({ chosen, addons = [], onChoose, onClose }) {
   const tile = (item) => {
     const picked = on.has(item.key);
     return (
-      <button key={item.key} type="button" role="checkbox" aria-checked={picked} className={`apps-tile${picked ? ' on' : ''}`} data-app={item.key} onClick={() => flip(item.key)}>
-        <span className="apps-glyph"><Icon name={item.icon} size={20} /></span>
-        <span className="apps-text">
-          <strong>{item.short}</strong>
-          <span>{item.tagline}</span>
-        </span>
-        <span className="apps-check" aria-hidden="true">{picked ? <Icon name="check" size={14} /> : null}</span>
+      <button key={item.key} type="button" role="checkbox" aria-checked={picked} className={`apps-tile${picked ? ' on' : ''}`} data-app={item.key} data-tip={`${item.short}: ${item.tagline}`} onClick={() => flip(item.key)}>
+        <span className="apps-glyph"><Icon name={item.icon} size={15} /></span>
+        <strong className="apps-name">{item.short}</strong>
+        <span className="apps-check" aria-hidden="true" />
       </button>
     );
   };
-  const titles = GROUP_TITLES();
+  const words = setWords();
+  const head = (id) => (
+    <div className="apps-group-head">
+      <h3>{words[id].title}</h3>
+      <span>{words[id].line}</span>
+    </div>
+  );
   return (
     <Dialog
       title={t('Choose apps')}
@@ -106,14 +114,14 @@ export function AppsChooser({ chosen, addons = [], onChoose, onClose }) {
       <p className="apps-lead">{t('Turn on the apps and add-ons you want, now or at any time. An app turned off is not shown and does not open its kinds of file; it stays installed, so it can be turned on again here.')}</p>
       {APP_GROUPS.filter((g) => g.apps.some(isInstalled)).map((g) => (
         <section key={g.id} className="apps-group" data-group={g.id}>
-          <h3>{titles[g.id]}</h3>
-          <div className="apps-grid" role="group" aria-label={titles[g.id]}>{g.apps.filter(isInstalled).map((key) => tile(APPS[key]))}</div>
+          {head(g.id)}
+          <div className="apps-grid" role="group" aria-label={words[g.id].title}>{g.apps.filter(isInstalled).map((key) => tile(APPS[key]))}</div>
         </section>
       ))}
       {ADDONS.length ? (
         <section className="apps-group" data-group="addons">
-          <h3>{titles.addons}</h3>
-          <div className="apps-grid" role="group" aria-label={titles.addons}>{ADDONS.map((a) => tile(ADDON_INFO()[a]))}</div>
+          {head('addons')}
+          <div className="apps-grid" role="group" aria-label={words.addons.title}>{ADDONS.map((a) => tile(ADDON_INFO()[a]))}</div>
         </section>
       ) : null}
       <p className="apps-count" aria-live="polite">{count ? t('{n} of {total} apps on', { n: count, total: APP_ORDER.length }) : t('Choose one app at least.')}</p>
@@ -123,18 +131,20 @@ export function AppsChooser({ chosen, addons = [], onChoose, onClose }) {
 
 const CHOOSER_CSS = `
 .apps-lead { margin: 0 0 14px; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
-.apps-group h3 { margin: 14px 0 8px; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-3); }
-.apps-group:first-of-type h3 { margin-top: 0; }
-.apps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
-.apps-tile { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-2); border: 1px solid var(--line-soft); background: var(--surface); color: var(--ink-3); font: inherit; text-align: start; cursor: pointer; }
-.apps-tile:hover { border-color: var(--line); background: var(--wash); }
-.apps-tile.on { color: var(--ink); border-color: var(--accent); background: var(--wash-strong); }
-.apps-glyph { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: var(--sunken); flex: none; }
+.apps-group + .apps-group { margin-top: 14px; }
+.apps-group-head { display: flex; align-items: baseline; gap: 10px; margin: 0 2px 7px; }
+.apps-group-head h3 { margin: 0; font-size: 14.5px; font-weight: 650; color: var(--ink); }
+.apps-group-head span { font-size: 12px; color: var(--ink-3); }
+.apps-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.apps-tile { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 7px 10px; border-radius: var(--r-2); border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font: inherit; text-align: start; cursor: pointer; }
+.apps-tile:hover { border-color: var(--accent-line); background: var(--wash); }
+.apps-tile.on { color: var(--ink); }
+.apps-glyph { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: var(--sunken); flex: none; }
 .apps-tile.on .apps-glyph { background: var(--accent-fill); color: #fff; }
-.apps-text { flex: 1; min-width: 0; display: grid; }
-.apps-text strong { font-weight: 600; }
-.apps-text span { font-size: 11.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.apps-check { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--line); display: grid; place-items: center; flex: none; }
-.apps-tile.on .apps-check { border-color: var(--accent); background: var(--accent-fill); color: #fff; }
+.apps-name { flex: 1; min-width: 0; font-weight: 500; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.apps-check { position: relative; width: 34px; height: 20px; border-radius: 10px; background: var(--n-50, var(--line)); flex: none; transition: background var(--fast); }
+.apps-check::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: inset-inline-start var(--fast); }
+.apps-tile.on .apps-check { background: var(--accent-fill); }
+.apps-tile.on .apps-check::after { inset-inline-start: 17px; }
 .apps-count { margin: 12px 0 0; font-size: 12px; color: var(--ink-3); }
 `;
