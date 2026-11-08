@@ -457,8 +457,13 @@ action replayed over a folder.
 
 ## 8. The screen recorder
 
-Recorded on this computer, never uploaded. Lives in Video (Record) and is
-offered from Presentations (Insert → Screen Recording) and the launcher.
+Recorded on this computer, never uploaded. Since 2.23.0 there is one
+recorder: the Recorder's window, with its Set up and Record panels. Video
+(Record) and Presentations (Insert → Screen Recording) open it and take back
+what it records, each source as its own file (`renderer/studio/into.js`,
+`takes.js`). The items below are the original plan; R1's Region drawing is
+now Clip, and the pointer is always tracked when recording into Video or
+Presentations, its layer deletable there.
 
 | # | Item | Notes |
 |---|---|---|

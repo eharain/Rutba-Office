@@ -545,7 +545,11 @@ holds each item's number and state.
   the rest, a sound-only crossfade, picture fades, a level meter, a library
   of the project's media, titles, word art, shapes, icons and sound effects,
   folding panels, four starters with Replace Media, and the preview on a
-  second screen. Not yet: keyframes on the timeline, colour, a volume
+  second screen. Since 2.23.0 Export shows each destination as a card with
+  its size, adds Compact and Small, and Fit under a size reads the written
+  file back and encodes again lower if it is over. Very busy pictures can
+  stay over, in which case the file is handed over and the box says so; it
+  does not step the frame down by itself. Not yet: keyframes on the timeline, colour, a volume
   envelope, loudness and noise reduction (the plan is in STUDIO.md); media
   is read whole into memory. Since 1.45.0, introductory videos (Phase 3): scenes
   from a template with layouts switchable after recording, a teleprompter,
