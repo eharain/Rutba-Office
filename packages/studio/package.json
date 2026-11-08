@@ -18,6 +18,7 @@
     "./compositor": "./src/compositor.js",
     "./stack": "./src/stack.js",
     "./setup": "./src/setup.js",
+    "./tall": "./src/tall.js",
     "./captions": "./src/captions.js",
     "./presets": "./src/presets.js",
     "./pointer": "./src/pointer.js",

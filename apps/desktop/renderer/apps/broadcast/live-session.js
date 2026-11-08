@@ -74,6 +74,7 @@ export class LiveSession {
     if (this.encoders.has(shape)) return this.encoders.get(shape);
     const program = this.programFor(shape);
     if (!program) return null;
+    program.attach?.();
     const video = this.videoFor(shape);
     const checked = await LiveEncoder.check(video);
     const enc = new LiveEncoder({ shell: this.shell, program, shape, t0: this.t0 });
@@ -87,6 +88,7 @@ export class LiveSession {
     if (!enc) return;
     this.encoders.delete(shape);
     await enc.stop();
+    this.programFor(shape)?.detach?.();
   }
 
   /** The icons changed: each stream that changed joins or leaves, and the encoders follow. */

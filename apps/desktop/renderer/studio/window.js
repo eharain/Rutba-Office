@@ -1024,7 +1024,7 @@ export function StudioWindow({ app, shell, kind = 'recorder', live: liveKit = nu
 
       <Content>
         <div className="st-stage">
-          {isLive ? <liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} copy={live && settings.liveCopy} blocked={phase === 'countdown' || phase === 'starting'} onPhase={barPhase} /> : null}
+          {isLive ? <liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} size={settings.size} airKey={onAir} copy={live && settings.liveCopy} blocked={phase === 'countdown' || phase === 'starting'} onPhase={barPhase} /> : null}
           <SourceBar item={selItem} sound={selSound} clipping={clipping} act={barAct} />
           <div className={`st-share${preview ? ' duo' : ''}`}>
             <div className="st-pane on-air">

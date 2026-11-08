@@ -15,9 +15,10 @@
 // so the whole of it is tested in Node.
 
 import { normaliseStudio } from './compositor.js';
+import { normaliseTallLayouts } from './tall.js';
 
 /** The kinds of picture an item can be, in the order the list groups what is not shown. */
-export const PICTURE_KINDS = ['screen', 'window', 'camera', 'title', 'picture'];
+export const PICTURE_KINDS = ['screen', 'window', 'camera', 'title', 'picture', 'web'];
 
 /** The kinds of sound. */
 export const SOUND_KINDS = ['mic', 'system'];
@@ -146,6 +147,7 @@ export function normaliseItem(raw) {
         size: normaliseSize(raw.size),
         // Standing in for another screen until one is chosen: which it was ("Was Screen 2 (2560 × 1440)").
         was: str(raw.was, '', 200),
+        ...(raw.kind === 'web' ? { sound: Boolean(raw.sound) } : {}),
     };
 }
 
@@ -180,7 +182,7 @@ export function newId(kind, taken = []) {
 
 /** An empty studio. */
 export function emptyStack() {
-    return { version: 3, items: [], sounds: [], scenes: [], video: 'on', sound: 'on', placeholder: '', placeholderText: '', music: '', follow: {}, rotate: { every: 8, keys: [] }, auto: 'off', transition: 'fade', previewFirst: false, cameraOff: false };
+    return { version: 3, items: [], sounds: [], scenes: [], video: 'on', sound: 'on', placeholder: '', placeholderText: '', music: '', follow: {}, rotate: { every: 8, keys: [] }, auto: 'off', transition: 'fade', previewFirst: false, cameraOff: false, tall: {} };
 }
 
 /** A stored stack, or anything, as a stack the studio can use. */
@@ -227,6 +229,8 @@ export function normaliseStack(raw) {
         previewFirst: Boolean(r.previewFirst),
         // The Camera button on the bar: off, no camera is opened or drawn, in any scene.
         cameraOff: Boolean(r.cameraOff),
+        // Each scene's tall layout, when it was changed by hand (tall.js).
+        tall: normaliseTallLayouts(r.tall),
     };
 }
 

@@ -13,6 +13,7 @@ import { Button, Dialog, Icon, t } from '@rutba/office-ui';
 import { barModel, reconcileOn, toggleGroup, toggleStream, uploadMbps } from '@rutba/stream/bar';
 import { LiveDialog, Logo, platformName } from '../apps/broadcast/live-dialog.js';
 import { LiveSession } from '../apps/broadcast/live-session.js';
+import { makeTallProgram } from './tall-program.js';
 
 const clock = (ms) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -73,9 +74,11 @@ function Group({ group, label, platforms, onToggleGroup, onToggle, onAddKey }) {
  * @param {string[]} [p.on]  which streams are on, when a setup holds that; with `p.onChangeOn`. Left out, they are kept with the streams.
  * @param {(ids: string[]) => void} [p.onChangeOn]
  * @param {(phase: 'off'|'starting'|'live'|'ending', since: number) => void} [p.onPhase]  told as the broadcast opens and ends
- * @param {(() => object|null)} [p.makeTall]  a tall picture's Program, made when a tall stream is first on
+ * @param {number} [p.size]  the studio's output size, 720 or 1080: what the tall picture is made at
+ * @param {string|null} [p.airKey]  the key of the scene on air, whose tall layout the tall picture shows
+ * @param {(() => object|null)} [p.makeTall]  a tall picture's Program, in place of the one made here
  */
-export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false, blocked = false, on: onProp, onChangeOn, onPhase, makeTall = null }) {
+export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false, blocked = false, on: onProp, onChangeOn, onPhase, size = 1080, airKey = null, makeTall = null }) {
   const [streams, setStreams] = useState([]);
   const [platforms, setPlatforms] = useState(null);
   const [onKept, setOnKept] = useState([]);
@@ -89,6 +92,9 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
   const memory = useRef({});
   const loaded = useRef(false);
 
+  const airKeyNow = useRef(airKey);
+  airKeyNow.current = airKey;
+  const tallFor = useCallback(() => (makeTall ? makeTall() : makeTallProgram({ wide: program.current, media, size, airKey: () => airKeyNow.current })), [makeTall, program, media, size]);
   const on = onProp === undefined ? onKept : onProp;
   const open = phase !== 'off';
   const model = useMemo(() => barModel({ streams, on, status: status.destinations, open }), [streams, on, status, open]);
@@ -152,7 +158,7 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
   const goLive = useCallback(async () => {
     if (phase !== 'off' || !model.canGo || !program.current) return;
     setPhase('starting');
-    const s = new LiveSession({ shell, media, program: program.current, fps, kbps, makeTall });
+    const s = new LiveSession({ shell, media, program: program.current, fps, kbps, makeTall: tallFor });
     try {
       const r = await s.open({ ids: model.onIds, streams });
       if (r?.skipped?.length) toast(t('Not streamed to {names}: no stream key.', { names: r.skipped.map((x) => x.name).join(', ') }), { ms: 6000 });
@@ -165,7 +171,7 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
       setPhase('off');
       toast(err?.message || String(err), { tone: 'bad', ms: 8000 });
     }
-  }, [phase, model, program, shell, media, fps, kbps, streams, makeTall, setPhase, toast]);
+  }, [phase, model, program, shell, media, fps, kbps, streams, tallFor, setPhase, toast]);
 
   const endBroadcast = useCallback(async () => {
     setAsking(false);

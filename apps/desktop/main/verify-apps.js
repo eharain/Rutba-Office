@@ -63,6 +63,7 @@ import { verifyBaseSampleShots } from './verify-base-sample-shots.js';
 import { verifyVideoSound } from './verify-video-sound.js';
 import { verifyVideoLibrary, verifyVideoStarters } from './verify-video-library.js';
 import { verifyBroadcastLive } from './verify-broadcast-live.js';
+import { verifyBroadcastTall } from './verify-broadcast-tall.js';
 import { verifyBroadcastShots } from './verify-broadcast-shots.js';
 import { verifyIntroVideo } from './verify-intro-video.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
@@ -5203,6 +5204,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('video-library')) await verifyVideoLibrary({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-starters')) await verifyVideoStarters({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('broadcast-live')) await verifyBroadcastLive({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('broadcast-tall')) await verifyBroadcastTall({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('broadcast-shots')) await verifyBroadcastShots({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder-screen')) await verifyRecorderScreen({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('intro-video')) await verifyIntroVideo({ open, check, until, wait, errorsIn, doc }, { dir });
@@ -5442,6 +5444,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('shell', () => verifyAppsChoice({ open, check, until, wait, errorsIn }));
   await part('shell', () => verifyHomeSets({ open, check, until, wait, errorsIn, capture: shotTo }));
   await part('broadcast', () => verifyBroadcastLive({ open, check, until, wait, errorsIn }, { dir }));
+  await part('broadcast', () => verifyBroadcastTall({ open, check, until, wait, errorsIn }, { dir }));
   await part('broadcast', () => verifyBroadcastShots({ open, check, until, wait, errorsIn }, { dir }));
   // The recorder's checks above record a stand-in for the screen; this one the real screen, alone.
   await part('recorder', () => verifyRecorderScreen({ open, check, until, wait, errorsIn }, { dir }), { machine: true });

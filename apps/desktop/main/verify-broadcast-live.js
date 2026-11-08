@@ -29,10 +29,10 @@ import { ChunkReader, chunkMessage, encodeAmf0, decodeAmf0 } from '@rutba/stream
 import { withScreenStandIn } from './verify-recorder.js';
 
 /** A local ingest: answers a publisher as YouTube's does, and keeps what each connection sent. */
-function startIngest() {
+export function startIngest() {
   const seen = { connections: [], sockets: new Set() };
   const server = net.createServer((sock) => {
-    const conn = { key: null, data: [], video: [], audio: [], commands: [], closedAt: 0 };
+    const conn = { key: null, data: [], video: [], audio: [], commands: [], closedAt: 0, sock };
     seen.connections.push(conn);
     seen.sockets.add(sock);
     sock.on('close', () => { seen.sockets.delete(sock); conn.closedAt = Date.now(); });
@@ -71,7 +71,7 @@ function startIngest() {
           let sound = false;
           if (kind === 'config') sound = m.body[5] === 1 && [66, 77, 100].includes(m.body[6]);
           else { let at = 5; let units = 0; while (at + 4 <= m.body.length) { const n = m.body.readUInt32BE(at); at += 4 + n; units += 1; } sound = at === m.body.length && units > 0; }
-          conn.video.push({ ts: m.timestamp, kind, size: m.body.length, sound, at: Date.now() });
+          conn.video.push({ ts: m.timestamp, kind, size: m.body.length, sound, at: Date.now(), avcc: kind === 'config' ? Buffer.from(m.body) : null });
         } else if (m.type === 8) conn.audio.push({ ts: m.timestamp, kind: m.body[1] === 0 ? 'config' : 'frame', sound: m.body[0] === 0xaf && (m.body[1] !== 0 || (m.body[2] >> 3) === 2) });
       }
     });

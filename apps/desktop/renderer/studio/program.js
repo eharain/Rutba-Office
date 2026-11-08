@@ -87,6 +87,7 @@ export class Program {
       this.fade = { still: was, from: performance.now(), ms: fade };
     }
     this.stack = stack;
+    this.onStack?.(stack, { fade });
   }
 
   start() {
