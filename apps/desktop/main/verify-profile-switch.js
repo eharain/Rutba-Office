@@ -96,8 +96,10 @@ export async function verifyProfileSwitch(h) {
     const again = await until(() => events(report, 'second-instance').find((e) => e.app === '--app=mail') || null, 'the second switch handed over', 30000).catch(() => null);
     const forward = await until(() => events(report, 'focused').slice(focusedBefore).find((e) => e.app === 'mail') || null, 'its Mail brought forward', 8000).catch(() => null);
     await wait(700);
+    // The copy that hands over and quits can write its own empty list to the report after the running copy's.
+    const runningNow = events(report, 'windows').filter((e) => e.pid === again?.pid).at(-1) || null;
     check('profile switch: a second switch goes to the same running copy and brings its Mail forward, opening no other window',
-      Boolean(again) && Boolean(forward) && JSON.stringify(appsIn(latest(report))) === '["mail"]' && events(report, 'start').length === 1, JSON.stringify({ again, forward, now: latest(report) }));
+      Boolean(again) && Boolean(forward) && JSON.stringify(appsIn(runningNow)) === '["mail"]' && events(report, 'start').length === 1, JSON.stringify({ again, forward, now: runningNow }));
 
     // All apps: its Home, beside its Mail.
     await openMenu(mjs);
