@@ -166,14 +166,14 @@ export async function verifyIntroCaptions(h, { dir }) {
     const boxed = await ok(until(() => js(`Boolean(document.querySelector('.vd-export-preset'))`), 'the Export box', 4000));
     const frames = {};
     for (const id of ['youtube', 'social-wide', 'social-square', 'vertical', 'email', 'project']) {
-      await js(`(() => { const s = document.querySelector('.vd-export-preset'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, '${id}'); s.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
-      await ok(until(() => js(`document.querySelector('.vd-export-preset')?.value === '${id}'`), id, 2000));
+      await js(`document.querySelector('.vd-export-card[data-preset="${id}"]')?.click(), 1`);
+      await ok(until(() => js(`document.querySelector('.vd-export-preset')?.dataset.value === '${id}'`), id, 2000));
       frames[id] = await js(`(() => { const f = document.querySelector('.vd-export-frame'); return f ? \`\${f.dataset.width}x\${f.dataset.height}\` : ''; })()`);
     }
     check('intro-video: Export offers each destination with its frame: YouTube 1920x1080, LinkedIn and X 16:9 or square, Reels, Shorts and TikTok 1080x1920, email 854x480',
       boxed && frames.youtube === '1920x1080' && frames['social-wide'] === '1920x1080' && frames['social-square'] === '1080x1080' && frames.vertical === '1080x1920' && frames.email === '854x480' && frames.project === '1920x1080',
       JSON.stringify(frames));
-    await js(`(() => { const s = document.querySelector('.vd-export-preset'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'email'); s.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    await js(`document.querySelector('.vd-export-card[data-preset="email"]')?.click(), 1`);
     await wait(200);
     await capture(win, 'intro-presets-box.png');
     const ext = await js(EXPORT_EXT);
@@ -560,8 +560,8 @@ export async function verifyIntroScenes(h, { dir }) {
       answer('save', target);
       await js(pressJs('Export', 'Home'));
       await ok(until(() => js(`Boolean(document.querySelector('.vd-export-preset'))`), 'the Export box', 4000));
-      await js(fillJs('.vd-export-preset', preset, 'change'));
-      await ok(until(() => js(`document.querySelector('.vd-export-preset')?.value === '${preset}'`), preset, 2000));
+      await js(`document.querySelector('.vd-export-card[data-preset="${preset}"]')?.click(), 1`);
+      await ok(until(() => js(`document.querySelector('.vd-export-preset')?.dataset.value === '${preset}'`), preset, 2000));
       await until(() => js(`document.querySelector('.vd-export-go')?.disabled === false`), 'the export format found', 6000).catch(() => {});
       await js(`document.querySelector('.vd-export-go')?.click(), 1`);
       const made = await ok(until(() => { try { return fs.statSync(target).size > 4000; } catch { return false; } }, `the ${preset} export`, Math.round(length * 1000) + 40000));

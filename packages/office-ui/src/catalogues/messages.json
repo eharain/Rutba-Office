@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8467,
+  "count": 8494,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -3304,6 +3304,12 @@
       ]
     },
     {
+      "message": "Aims for about {size}, at {rate}, so the file comes in under {limit}. The written file is checked; if it is still over, it is made again a little lower and you are told.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Align",
       "where": [
         "apps/desktop/renderer/apps/image/layers-panel.js",
@@ -4796,6 +4802,12 @@
       ]
     },
     {
+      "message": "Ask for a larger size, or export a shorter stretch.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Ask once — one answer for every record",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -4901,6 +4913,12 @@
       "message": "At the time",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "At {limit} this would get {rate}, too little for a clear picture at {lines}.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -9017,7 +9035,14 @@
       "message": "Compact",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
+        "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Compact: 1080p at about 4 Mb/s, for a smaller file that still looks right",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -15272,6 +15297,18 @@
       ]
     },
     {
+      "message": "Fit under",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "Fit under a size",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Five Lines",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -20247,6 +20284,12 @@
       ]
     },
     {
+      "message": "Keep the full size",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Keep the logo in a corner of recorded scenes",
       "where": [
         "apps/desktop/renderer/apps/video/intro/brand.js"
@@ -22189,7 +22232,8 @@
     {
       "message": "Low",
       "where": [
-        "apps/desktop/renderer/apps/mail/dialogs.js"
+        "apps/desktop/renderer/apps/mail/dialogs.js",
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -22232,6 +22276,12 @@
       "message": "Luminosity",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "MB",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -24245,6 +24295,7 @@
     {
       "message": "NEW",
       "where": [
+        "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/starters.js"
       ]
     },
@@ -38008,6 +38059,12 @@
       ]
     },
     {
+      "message": "Size in MB",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Size: larger or smaller than",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -38342,6 +38399,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/pictures/library.js",
+        "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/qrcode.js",
         "apps/desktop/renderer/recording/panel.js"
       ]
@@ -38368,6 +38426,12 @@
       "message": "Small tiles",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Small: 720p at about 2 Mb/s, the size to send",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -38457,6 +38521,18 @@
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
+      "message": "Social, square",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "Social, wide",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -41121,6 +41197,12 @@
       ]
     },
     {
+      "message": "That came out at {size}, over {limit}. Encoding it again at {rate}.",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "That cipher is too weak to keep a message private now.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
@@ -43745,6 +43827,12 @@
       ]
     },
     {
+      "message": "There is nothing to export yet.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "There is nothing to take yet.",
       "where": [
         "apps/desktop/renderer/studio/window.js"
@@ -44067,6 +44155,12 @@
       "message": "This cell runs past the table's grid, so it cannot be split.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This choice already comes to about {size}, under {limit}, so it stays as it is. The written file is still checked.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -44783,6 +44877,12 @@
       "message": "This project was made by a newer Rutba Office. Update to open it.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This project's settings",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -46213,6 +46313,12 @@
       ]
     },
     {
+      "message": "Type a size in MB, like 50.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Type a tag name for the placeholder. Fill it in later from Manage Sources — every citation of it follows.",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -47134,6 +47240,12 @@
       "message": "Use words",
       "where": [
         "apps/desktop/renderer/studio/settings-dialog.js"
+      ]
+    },
+    {
+      "message": "Use {lines} instead",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -49295,6 +49407,12 @@
       ]
     },
     {
+      "message": "about {rate}",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "accepted",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
@@ -50258,6 +50376,12 @@
       ]
     },
     {
+      "message": "or",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "or the space bar; J and L shuttle back and forward",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -50570,6 +50694,12 @@
       ]
     },
     {
+      "message": "square",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "stacked",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -50609,6 +50739,12 @@
       "message": "taken away {fields}",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "tall",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -51025,6 +51161,12 @@
       ]
     },
     {
+      "message": "under {size}",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "undisclosed recipients",
       "where": [
         "apps/desktop/renderer/apps/mail/reader.js"
@@ -51087,7 +51229,8 @@
     {
       "message": "wide",
       "where": [
-        "apps/desktop/renderer/apps/sheets.js"
+        "apps/desktop/renderer/apps/sheets.js",
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -52900,6 +53043,12 @@
       ]
     },
     {
+      "message": "{made}. The first go came out over {limit}, so it was encoded again lower.",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "{matched} matched — {moved} moved, {starred} starred, {read} marked read, {deleted} deleted",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
@@ -53144,6 +53293,12 @@
       "message": "{name} is unlinked. The engine keeps its records.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "{name} is {size}, still over {limit} after {tries} goes: this picture will not go smaller at this frame. Try 720, a larger size, or a shorter stretch.",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -53465,6 +53620,12 @@
       ]
     },
     {
+      "message": "{n} MB",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "{n} apps on",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -53648,6 +53809,12 @@
       "message": "{size} in total",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js"
+      ]
+    },
+    {
+      "message": "{size} leaves no room for the picture over {length}. Ask for a larger size, or export a shorter stretch.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {

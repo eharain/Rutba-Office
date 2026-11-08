@@ -39,6 +39,7 @@
  */
 
 import { soundRate, stretchedBuffer } from './stretch.js';
+import { QUALITY_BPP } from './presets.js';
 import { warpPixels, quadBounds } from './warp.js';
 
 // ── output shapes ────────────────────────────────────────────────────────────
@@ -98,7 +99,6 @@ export const DEFAULTS = {
     audioRandomStart: true, // start a random distance into the track
 };
 
-const QUALITY_BPP = { high: 0.10, medium: 0.06, low: 0.035 };
 
 // Throwaway recording that brings the encoder up before the real take starts.
 // See primeEncoder.

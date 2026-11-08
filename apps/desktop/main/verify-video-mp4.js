@@ -51,7 +51,7 @@ async function settled(limitMs = 120_000) {
 
 
 /** Runs in the window: a 1080p clip as H.264 with a tone as AAC, as base64 samples with their times (microseconds). */
-async function encodeHd({ seconds, fps, width, height, freq }) {
+async function encodeHd({ seconds, fps, width, height, freq, busy = false, bitrate = 2500000 }) {
   if (typeof VideoEncoder === 'undefined') return null;
   const b64 = (u8) => {
     let s = '';
@@ -74,7 +74,21 @@ async function encodeHd({ seconds, fps, width, height, freq }) {
     },
     error: (e) => { failed = e.message; },
   });
-  venc.configure({ codec: 'avc1.640028', width, height, bitrate: 2500000, framerate: fps, avc: { format: 'avc' } });
+  venc.configure({ codec: 'avc1.640028', width, height, bitrate, framerate: fps, avc: { format: 'avc' } });
+  // Detail that pans as a film's does (blocks of colour from a fixed sequence): an encoder has to spend what it is given, and can.
+  let tile = null;
+  if (busy) {
+    tile = document.createElement('canvas');
+    tile.width = width * 2;
+    tile.height = height;
+    const tg = tile.getContext('2d');
+    let seed = 4242;
+    const next = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+    for (let k = 0; k < 16000; k++) {
+      tg.fillStyle = `rgb(${Math.floor(next() * 256)},${Math.floor(next() * 256)},${Math.floor(next() * 256)})`;
+      tg.fillRect(next() * tile.width, next() * height, 4 + next() * 30, 4 + next() * 30);
+    }
+  }
   const frames = Math.round(seconds * fps);
   for (let i = 0; i < frames; i++) {
     const p = i / frames;
@@ -83,6 +97,7 @@ async function encodeHd({ seconds, fps, width, height, freq }) {
     grad.addColorStop(1, `hsl(${260 + p * 120}, 65%, 22%)`);
     g.fillStyle = grad;
     g.fillRect(0, 0, width, height);
+    if (tile) g.drawImage(tile, -(i * 5) % width, 0);
     g.fillStyle = 'rgba(255,255,255,0.9)';
     g.beginPath();
     g.arc(120 + p * (width - 240), height / 2 + Math.sin(p * Math.PI * 6) * 260, 90, 0, Math.PI * 2);
@@ -135,8 +150,8 @@ async function encodeHd({ seconds, fps, width, height, freq }) {
 }
 
 /** The 1080p clip, muxed by our own writer: its path, or null. */
-async function makeHdClip(webContents, root, { seconds = 13, fps = 30 } = {}) {
-  const enc = await webContents.executeJavaScript(`(${encodeHd.toString()})(${JSON.stringify({ seconds, fps, width: 1920, height: 1080, freq: 523 })})`);
+export async function makeHdClip(webContents, root, { seconds = 13, fps = 30, busy = false, bitrate = 2500000, name = 'clip-1080p.mp4' } = {}) {
+  const enc = await webContents.executeJavaScript(`(${encodeHd.toString()})(${JSON.stringify({ seconds, fps, width: 1920, height: 1080, freq: 523, busy, bitrate })})`);
   if (!enc || enc.failed || !enc.video?.length) return { error: enc?.failed || 'no encoder' };
   const sink = memorySink();
   const w = new Mp4Writer({
@@ -154,7 +169,7 @@ async function makeHdClip(webContents, root, { seconds = 13, fps = 30 } = {}) {
   }
   for (; a < enc.audio.length; a++) await w.add('audio', { data: Buffer.from(enc.audio[a].b64, 'base64'), timestamp: enc.audio[a].ts, duration: enc.audio[a].dur });
   await w.finish();
-  const file = path.join(root, 'clip-1080p.mp4');
+  const file = path.join(root, name);
   fs.writeFileSync(file, sink.bytes());
   return { file, withSound: enc.audio.length > 0 };
 }
@@ -217,14 +232,8 @@ export async function verifyVideoMp4(h, { dir }) {
     await clickTab('Home');
     await press('Export');
     await until(() => js(`Boolean(document.querySelector('.vd-export-go'))`), 'the Export box', 6000).catch(() => {});
-    await js(`(() => {
-      const s = document.querySelector('.vd-export-preset');
-      if (!s || s.value === 'youtube') return 1;
-      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'youtube');
-      s.dispatchEvent(new Event('change', { bubbles: true }));
-      return 1;
-    })()`);
-    await until(() => js(`document.querySelector('.vd-export-preset')?.value === 'youtube' && document.querySelector('.vd-export-format')?.dataset.fast === '1' && !document.querySelector('.vd-export-go')?.disabled`), 'the YouTube preset and our own MP4', 8000).catch(() => {});
+    await js(`document.querySelector('.vd-export-card[data-preset="youtube"]')?.click(), 1`);
+    await until(() => js(`document.querySelector('.vd-export-preset')?.dataset.value === 'youtube' && document.querySelector('.vd-export-format')?.dataset.fast === '1' && !document.querySelector('.vd-export-go')?.disabled`), 'the YouTube preset and our own MP4', 8000).catch(() => {});
   };
   await openBox();
   const box = await js(`({ format: document.querySelector('.vd-export-format')?.textContent.trim(), fast: document.querySelector('.vd-export-format')?.dataset.fast, frame: document.querySelector('.vd-export-frame')?.dataset.width + 'x' + document.querySelector('.vd-export-frame')?.dataset.height, hint: document.querySelector('.vd-export-dialog .rw-hint')?.textContent.trim() })`);

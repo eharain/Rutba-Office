@@ -109,12 +109,37 @@ export const CSS = `
 .vd-zoom-row .rw-select { flex: 1; min-width: 0; padding: 3px 6px; }
 .vd-zoom-len { font-size: 11px; color: var(--ink-2); white-space: nowrap; }
 .vd-zoom-on, .vd-zoom-off { margin-top: 6px; }
-.vd-export-frame { display: flex; align-items: center; gap: 10px; margin: 8px 0 6px; font-size: 12px; color: var(--ink-2); line-height: 1.45; }
-.vd-export-shape { flex: none; display: block; border: 1.5px solid currentColor; border-radius: 3px; opacity: 0.8; }
-.vd-export-shape.s-landscape { width: 32px; height: 18px; }
-.vd-export-shape.s-square { width: 22px; height: 22px; }
-.vd-export-shape.s-vertical { width: 15px; height: 26px; }
-.vd-export-warn { margin-top: 6px; font-size: 12px; color: var(--bad, #c62828); }
+.vd-export-dialog .rw-dialog-body { display: flex; flex-direction: column; gap: 14px; }
+.vd-export-section { display: flex; flex-direction: column; gap: 6px; }
+.vd-export-label { font-size: 11.5px; font-weight: 600; color: var(--ink-2); }
+.vd-export-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.vd-export-card { display: flex; flex-direction: column; gap: 2px; min-height: 44px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; text-align: start; cursor: pointer; }
+.vd-export-card:hover { background: var(--hover); }
+.vd-export-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.vd-export-card[aria-checked="true"] { border-color: var(--accent); background: var(--selected); box-shadow: inset 0 0 0 1px var(--accent); }
+.vd-export-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.vd-export-card-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.vd-export-card-size { flex: none; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.vd-export-card-detail { display: block; font-size: 11.5px; color: var(--ink-3); line-height: 1.35; }
+.vd-export-new { display: inline-block; margin-inline-start: 6px; padding: 0 5px; border-radius: 3px; background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); font-size: 10px; font-style: normal; font-weight: 700; vertical-align: 1px; }
+.vd-export-fit { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.vd-export-fit-on { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.vd-export-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.vd-export-chip { height: 30px; padding: 0 12px; border-radius: 15px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer; }
+.vd-export-chip:hover { background: var(--hover); }
+.vd-export-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.vd-export-chip[aria-pressed="true"] { border-color: var(--accent); background: var(--selected); font-weight: 600; }
+.vd-export-typed { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+.vd-export-typed .rw-input { width: 70px; }
+.vd-export-aim { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+.vd-export-too-low { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--ink); font-size: 12.5px; line-height: 1.45; }
+.vd-export-too-low svg { flex: none; margin-top: 1px; color: var(--warn); }
+.vd-export-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.vd-export-warn { font-size: 12px; color: var(--bad, #c62828); }
+.vd-export-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.vd-export-row.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.vd-export-row .vd-export-format { padding: 7px 0 0; }
+.vd-export-again { margin-top: 8px; font-size: 12px; color: var(--ink-2); line-height: 1.4; }
 .vd-clip.k-caption { background: linear-gradient(180deg, #2f6f8f, #22566f); }
 .vd-clip.k-pointer { background: repeating-linear-gradient(135deg, #5a4a1f 0 6px, #4a3d19 6px 12px); }
 .vd-clip.selected { border: 2px solid #ffd54a; box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 0 12px rgba(255,213,74,0.35); z-index: 2; }

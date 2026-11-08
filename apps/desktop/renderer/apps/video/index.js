@@ -14,7 +14,7 @@
 
 import { RecentFiles } from '../../start-page.js';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Spacer, Chip, Empty, Button, Icon, Panel, Content, useToast, useCommands, useMenu, menuItems, formatBytes, basename, t, tn } from '@rutba/office-ui';
+import { Spacer, Chip, Empty, Button, Icon, Panel, Content, useToast, useCommands, useMenu, menuItems, basename, t, tn } from '@rutba/office-ui';
 import { History } from '@rutba/editing/history';
 import { timecode } from '@rutba/media/timeline';
 import { PlayMeter, METER_CSS } from './meter.js';
@@ -44,6 +44,7 @@ import Stage from './stage.js';
 import VideoRibbon, { TITLE_NAMES } from './ribbon.js';
 import Inspector from './inspector.js';
 import { ExportDialog, ExportProgress, exportProject, exportFormat, PRESET_TAGS } from './export.js';
+import { bitrateWords, megabytes } from '@rutba/studio/presets';
 import { CSS } from './css.js';
 import { writeReversed } from './reverse.js';
 import Library, { LIBRARY_CSS, LIBRARY_TABS, EFFECT_NAMES } from './library.js';
@@ -1037,15 +1038,16 @@ function VideoEditor({ app, shell, boot }) {
 
   /* ── export ────────────────────────────────────────────────────────── */
 
-  const runExport = useCallback(async ({ quality, range, format, preset = 'project' }) => {
+  const runExport = useCallback(async ({ quality, range, format, preset = 'project', fit = null }) => {
     setExportOpen(false);
     setLastPreset(preset);
     shell.store.set({ key: 'video.exportPreset', value: preset }).catch(() => {});
     const base = (path ? basename(path) : t('Untitled video')).replace(/\.[^.]+$/, '');
-    const tag = PRESET_TAGS()[preset];
+    // A file fitted under a size says so in its name, after where it is going.
+    const tags = [PRESET_TAGS()[preset], fit ? t('under {size}', { size: megabytes(fit.limit) }) : null].filter(Boolean).join(', ');
     const target = await shell.dialog.save({
       title: t('Export video'),
-      defaultPath: `${base}${tag ? ` (${tag})` : ''}.${format.ext}`,
+      defaultPath: `${base}${tags ? ` (${tags})` : ''}.${format.ext}`,
       filters: [{ name: format.ext === 'mp4' ? t('MP4 Video (.mp4)') : t('WebM Video (.webm)'), extensions: [format.ext] }],
     });
     if (!target) return;
@@ -1053,7 +1055,7 @@ function VideoEditor({ app, shell, boot }) {
     const total = range ? range.out - range.in : projectDuration(docRef.current);
     const abort = new AbortController();
     exportAbort.current = abort;
-    setExporting({ progress: 0, total, fast: Boolean(format.fast), since: null, from: 0 });
+    setExporting({ progress: 0, total, fast: Boolean(format.fast), since: null, from: 0, note: null });
     // The box is drawn again a few times a second, not once a frame: the
     // window's own redraws would otherwise take the time the encoder needs.
     let shown = 0;
@@ -1065,6 +1067,9 @@ function VideoEditor({ app, shell, boot }) {
         preset,
         relayout: relayoutRef.current,
         signal: abort.signal,
+        fit,
+        // Over the size: the next go starts from nothing, with the reason on the box.
+        onAgain: ({ size, limit, video }) => setExporting((e) => (e ? { ...e, progress: 0, since: null, from: 0, note: t('That came out at {size}, over {limit}. Encoding it again at {rate}.', { size: megabytes(size), limit: megabytes(limit), rate: bitrateWords(video) }) } : e)),
         onProgress: (p) => {
           const now = performance.now();
           if (p < 1 && now - shown < 150) return;
@@ -1075,9 +1080,17 @@ function VideoEditor({ app, shell, boot }) {
         },
       });
       setLastExport({ ...out, total });
-      toast(out.fast
-        ? t('Exported {name} ({size}) in {time}', { name: basename(target), size: formatBytes(out.size), time: timecode(out.seconds) })
-        : t('Exported {name} ({size})', { name: basename(target), size: formatBytes(out.size) }), { tone: 'good', ms: 6000 });
+      const size = megabytes(out.size);
+      const made = out.fast
+        ? t('Exported {name} ({size}) in {time}', { name: basename(target), size, time: timecode(out.seconds) })
+        : t('Exported {name} ({size})', { name: basename(target), size });
+      if (out.fit?.over) {
+        toast(t('{name} is {size}, still over {limit} after {tries} goes: this picture will not go smaller at this frame. Try 720, a larger size, or a shorter stretch.', { name: basename(target), size, limit: megabytes(out.fit.limit), tries: out.fit.tries.length }), { tone: 'bad', ms: 12000 });
+      } else if (out.fit?.tries.length > 1) {
+        toast(t('{made}. The first go came out over {limit}, so it was encoded again lower.', { made, limit: megabytes(out.fit.limit) }), { tone: 'good', ms: 9000 });
+      } else {
+        toast(made, { tone: 'good', ms: 6000 });
+      }
     } catch (err) {
       if (err?.name !== 'AbortError') toast(t('The export stopped: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
     } finally {
@@ -1332,7 +1345,7 @@ function VideoEditor({ app, shell, boot }) {
       }
     >
       <Content>
-        <div className="vd-editor" ref={editorRef} data-duration={duration} data-clips={doc.patches.filter((p) => p.timing).length} data-dirty={dirty ? '1' : '0'} data-copy={copyKey.current} data-starts={playStarts.current} data-export={lastExport ? JSON.stringify({ seconds: Number(lastExport.seconds.toFixed(2)), length: Number(lastExport.total.toFixed(2)), size: lastExport.size, fast: lastExport.fast, hardware: Boolean(lastExport.hardware), codec: lastExport.codec || null, audio: lastExport.audio || null, spent: lastExport.spent || null, sources: lastExport.sources || null }) : undefined}>
+        <div className="vd-editor" ref={editorRef} data-duration={duration} data-clips={doc.patches.filter((p) => p.timing).length} data-dirty={dirty ? '1' : '0'} data-copy={copyKey.current} data-starts={playStarts.current} data-export={lastExport ? JSON.stringify({ seconds: Number(lastExport.seconds.toFixed(2)), length: Number(lastExport.total.toFixed(2)), size: lastExport.size, fast: lastExport.fast, hardware: Boolean(lastExport.hardware), codec: lastExport.codec || null, audio: lastExport.audio || null, spent: lastExport.spent || null, sources: lastExport.sources || null, fit: lastExport.fit || null }) : undefined}>
           <div className="vd-top">
             {intro ? (
               <Panel title={t('Scenes')} width={272} resizable min={200} max={420}>
@@ -1514,7 +1527,7 @@ function VideoEditor({ app, shell, boot }) {
         />
       ) : null}
       {brandOpen ? <BrandDialog shell={shell} brand={doc.intro?.brand || brand} onClose={() => setBrandOpen(false)} onSave={saveBrand} /> : null}
-      {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} fast={exporting.fast} since={exporting.since} from={exporting.from} onCancel={() => exportAbort.current?.abort()} /> : null}
+      {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} fast={exporting.fast} since={exporting.since} from={exporting.from} note={exporting.note} onCancel={() => exportAbort.current?.abort()} /> : null}
       <style>{CSS}</style>
       <style>{METER_CSS}</style>
       <style>{LIBRARY_CSS}</style>

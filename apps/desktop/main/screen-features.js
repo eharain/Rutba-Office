@@ -823,7 +823,7 @@ export const FEATURES = [
       await h.tab('Home');
       await h.button('Export');
       await h.until(`Boolean(document.querySelector('.vd-export-preset'))`, 'the Export box', 6000);
-      await h.field('.vd-export-preset', 'youtube');
+      await h.js(`document.querySelector('.vd-export-card[data-preset="compact"]')?.click(), 1`);
       await h.wait(1000);
     },
   },

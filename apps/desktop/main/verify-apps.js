@@ -25,6 +25,7 @@ import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { verifyViewer } from './verify-viewer.js';
 import { verifyVideoEditor, verifyVideoBasics, verifyVideoSplit } from './verify-video-editor.js';
 import { verifyVideoMp4 } from './verify-video-mp4.js';
+import { verifyVideoFit } from './verify-video-fit.js';
 import { verifyRecorder, verifyRecorderScreen } from './verify-recorder.js';
 import { verifyRecorderVoice } from './verify-recorder-voice.js';
 import { verifyVideoPlayer } from './verify-video-player.js';
@@ -4991,6 +4992,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   };
 
   // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,home-sets,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,recorder-tools,app-menu,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,keystore,ai-tools,ai-reach,profiles,exif-location,pictures-ratings,windows-codec,metafile-drawn,pictures-tiff,image-formats,pictures-formats,image-open,pictures-drawn: those blocks alone, for working on them.
+  // video-fit: Video's Compact and Small presets and Fit under a size, each file read back.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -5163,6 +5165,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir });
     }
     if (only.includes('video-mp4')) await verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('video-fit')) await verifyVideoFit({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder')) await verifyRecorder({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('recorder-voice')) await verifyRecorderVoice({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-player')) await verifyVideoPlayer({ open, check, until, wait, errorsIn }, { dir });
@@ -5619,6 +5622,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('video', () => verifyVideoEditor({ open, check, until, wait, errorsIn, doc }, { dir }));
   // A minute of 1080p in under a minute is a timing: run alone, or it measures the lanes beside it.
   await part('video', () => verifyVideoMp4({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
+  await part('video', () => verifyVideoFit({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   // Talk and the later Video checks: out of Mail's section, so an --apps run of either finds them.
   await part('talk', () => verifyTalk({ open, check, until, wait, errorsIn }));
   await part('talk', () => verifyTalkSignIn({ open, check, until, wait }));
