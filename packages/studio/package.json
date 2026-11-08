@@ -17,6 +17,7 @@
     "./recorder": "./src/recorder.js",
     "./compositor": "./src/compositor.js",
     "./stack": "./src/stack.js",
+    "./setup": "./src/setup.js",
     "./captions": "./src/captions.js",
     "./presets": "./src/presets.js",
     "./pointer": "./src/pointer.js",

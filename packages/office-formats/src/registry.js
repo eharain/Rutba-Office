@@ -233,6 +233,8 @@ export const APP_EXTENSIONS = {
   pictures: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'heif', 'jxr', 'wdp', 'dng', 'cr2', 'nef', 'arw', 'orf', 'rw2', 'raf', 'bmp', 'tif', 'tiff', 'ico', 'cur', 'svg', 'qoi', 'pbm', 'pgm', 'ppm', 'pnm', 'pam', 'tga', 'pcx', 'hdr', 'psd', 'psb', 'emf', 'wmf', 'pdf'],
   image: ['rimg', 'jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'avif', 'tif', 'tiff', 'ico', 'cur', 'svg', 'qoi', 'pbm', 'pgm', 'ppm', 'pnm', 'pam', 'tga', 'pcx', 'hdr', 'psd', 'psb'],
   video: ['rvid', 'mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'mp3', 'm4a', 'wav', 'flac', 'ogg'],
+  // A setup of the Recorder and Live Broadcast, with its pictures and music (packages/studio/src/setup.js).
+  recorder: ['rstudio'],
   mail: ['eml', 'emlx', 'msg', 'mbox', 'pst', 'ost', 'olm'],
   calendar: ['ics'],
   contacts: ['vcf', 'csv'],
@@ -292,6 +294,7 @@ const TITLES = {
   pictures: 'Pictures and PDFs',
   image: 'Images',
   video: 'Video and audio',
+  recorder: 'Rutba Studio setups',
   mail: 'Mail files',
   calendar: 'Calendars',
   contacts: 'Address books',

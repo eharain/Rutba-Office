@@ -50,6 +50,8 @@ const FAMILIES = {
   pictures: { colour: '#7b5cd6', glyph: 'pictures' },
   image: { colour: '#e08b2b', glyph: 'image' },
   video: { colour: '#c2408f', glyph: 'video' },
+  // A setup of the Recorder and Live Broadcast, .rstudio.
+  recorder: { colour: '#e03b4c', glyph: 'recorder' },
   mail: { colour: '#3b7de0', glyph: 'mail' },
   calendar: { colour: '#1a9f7a', glyph: 'calendar' },
   contacts: { colour: '#5d6d7e', glyph: 'contacts' },
@@ -65,7 +67,7 @@ const FAMILIES = {
  */
 function svgFor({ colour, glyph, text }) {
   const mark = glyph
-    ? `<g transform="translate(46 146) scale(3.4)" fill="none" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[glyph].map((d) => `<path d="${d}"/>`).join('')}</g>`
+    ? `<g transform="translate(46 146) scale(3.4)" fill="none" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${GLYPHS[glyph].map((d) => (typeof d === 'object' ? `<path d="${d.fill}" fill="#ffffff" stroke="none"/>` : `<path d="${d}"/>`)).join('')}</g>`
     : `<text x="80" y="200" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-weight="700" font-size="40" fill="#ffffff">${text}</text>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
   <path d="M68 16h92l52 52v168a12 12 0 0 1-12 12H68a12 12 0 0 1-12-12V28a12 12 0 0 1 12-12z" fill="#ffffff" stroke="#b9bfc9" stroke-width="5"/>

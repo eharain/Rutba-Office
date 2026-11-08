@@ -36,11 +36,18 @@ export const TRANSITIONS = ['cut', 'fade'];
 export const FADE_MS = 400;
 /** The seconds a timed rotation may hold each shot for. */
 export const ROTATE_EVERY = [3, 5, 8, 10, 15, 30];
+/** Auto: nothing, Follow the speaker, or a timed rotation (the one menu in place of two buttons, A3). */
+export const AUTO_MODES = ['off', 'follow', 'rotate'];
+/** The key of the Back soon scene, the last of the scenes on Live: the placeholder and its music. */
+export const BACK_SOON = 'back-soon';
+/** The key of the Recorder's Sound only scene: the picture off, the sound recorded alone. */
+export const SOUND_ONLY = 'sound-only';
 
 const MARGIN = 0.03;
 const CORNER_W = 0.24;
 const FRAME_ASPECT = 16 / 9;
-const MAX_SCENES = 9;
+// Scenes are as many as a person wants; this only guards against a damaged file.
+const MAX_SCENES = 500;
 
 const r4 = (n) => Math.round(n * 10000) / 10000;
 const num = (v, lo, hi, fallback) => (Number.isFinite(Number(v)) ? Math.max(lo, Math.min(hi, Number(v))) : fallback);
@@ -135,7 +142,17 @@ export function normaliseItem(raw) {
         text: str(raw.text, '', 120),
         subtitle: str(raw.subtitle, '', 120),
         path: str(raw.path, '', 2000),
+        // A screen's size, so it is found again by what it is on another computer (A4.1).
+        size: normaliseSize(raw.size),
+        // Standing in for another screen until one is chosen: which it was ("Was Screen 2 (2560 × 1440)").
+        was: str(raw.was, '', 200),
     };
+}
+
+function normaliseSize(raw) {
+    const w = Math.round(Number(raw?.w));
+    const h = Math.round(Number(raw?.h));
+    return w > 0 && h > 0 ? { w, h } : null;
 }
 
 /** A sound as stored, or anything, as a sound; null when it cannot be one. */
@@ -163,7 +180,7 @@ export function newId(kind, taken = []) {
 
 /** An empty studio. */
 export function emptyStack() {
-    return { version: 2, items: [], sounds: [], scenes: [], video: 'on', sound: 'on', placeholder: '', placeholderText: '', music: '', follow: {}, rotate: { every: 8, keys: [] }, transition: 'fade' };
+    return { version: 3, items: [], sounds: [], scenes: [], video: 'on', sound: 'on', placeholder: '', placeholderText: '', music: '', follow: {}, rotate: { every: 8, keys: [] }, auto: 'off', transition: 'fade', previewFirst: false, cameraOff: false };
 }
 
 /** A stored stack, or anything, as a stack the studio can use. */
@@ -183,9 +200,12 @@ export function normaliseStack(raw) {
         if (!s.id || sounds.some((o) => o.id === s.id)) s.id = newId(s.kind, sounds.map((o) => o.id));
         sounds.push(s);
     }
-    const scenes = (Array.isArray(r.scenes) ? r.scenes : []).map(normaliseScene).filter(Boolean).slice(0, MAX_SCENES);
+    const scenes = normaliseScenes(r.scenes);
+    // A stack from before scenes had keys named a person's own scene by its place: own-0, own-1.
+    const ownKey = (k) => { const m = /^own-(\d+)$/.exec(k); return m && scenes[Number(m[1])] ? scenes[Number(m[1])].key : k; };
+    const follow = Object.fromEntries(Object.entries(normaliseFollow(r.follow)).map(([k, v]) => [ownKey(k), v]));
     return {
-        version: 2,
+        version: 3,
         items,
         sounds,
         scenes,
@@ -196,12 +216,17 @@ export function normaliseStack(raw) {
         music: str(r.music, '', 2000),
         // Live Broadcast's switching: which microphone each shot follows, the
         // timed rotation's pace and shots, and how one shot gives way to the next.
-        follow: normaliseFollow(r.follow),
+        follow,
         rotate: {
             every: pick(Number(r.rotate?.every), ROTATE_EVERY, 8),
-            keys: (Array.isArray(r.rotate?.keys) ? r.rotate.keys : []).filter((k) => typeof k === 'string' && k).slice(0, 20).map((k) => k.slice(0, 80)),
+            keys: (Array.isArray(r.rotate?.keys) ? r.rotate.keys : []).filter((k) => typeof k === 'string' && k).slice(0, 20).map((k) => ownKey(k.slice(0, 80))),
         },
+        auto: pick(r.auto, AUTO_MODES, 'off'),
         transition: pick(r.transition, TRANSITIONS, 'fade'),
+        // Preview first: a scene clicked waits in Next until Take (A3); straight on air is the default.
+        previewFirst: Boolean(r.previewFirst),
+        // The Camera button on the bar: off, no camera is opened or drawn, in any scene.
+        cameraOff: Boolean(r.cameraOff),
     };
 }
 
@@ -445,22 +470,77 @@ function normaliseScene(raw) {
     const layers = raw.layers
         .filter((l) => l && typeof l === 'object' && typeof l.id === 'string')
         .map((l) => ({ id: l.id.slice(0, 60), box: clampBox(l.box), crop: clampCrop(l.crop), shape: pick(l.shape, SHAPES, 'rect') }));
-    return { name: str(raw.name, '', 60), layers };
+    return { key: str(raw.key, '', 80), name: str(raw.name, '', 60), layers };
+}
+
+/** Stored scenes as scenes, each with a key of its own. */
+function normaliseScenes(raw) {
+    const scenes = (Array.isArray(raw) ? raw : []).map(normaliseScene).filter(Boolean).slice(0, MAX_SCENES);
+    const taken = new Set();
+    for (const sc of scenes) {
+        if (sc.key && sc.key !== BACK_SOON && sc.key !== SOUND_ONLY && !taken.has(sc.key)) { taken.add(sc.key); continue; }
+        sc.key = '';
+    }
+    for (const sc of scenes) {
+        if (sc.key) continue;
+        sc.key = newSceneKey(taken);
+        taken.add(sc.key);
+    }
+    return scenes;
+}
+
+/** A new scene key, not among `taken`. */
+export function newSceneKey(taken = []) {
+    const used = taken instanceof Set ? taken : new Set(taken);
+    for (let n = 1; ; n++) {
+        const key = `scene-${n}`;
+        if (!used.has(key)) return key;
+    }
 }
 
 /** The shown items' places kept as a scene, top first. */
 export function sceneOf(stack, name) {
-    return { name: str(name, '', 60), layers: stack.items.filter((it) => it.on).map((it) => ({ id: it.id, box: it.box, crop: it.crop, shape: it.shape })) };
+    return { key: '', name: str(name, '', 60), layers: stack.items.filter((it) => it.on).map((it) => ({ id: it.id, box: it.box, crop: it.crop, shape: it.shape })) };
 }
 
-/** A scene kept, in its own place among the person's scenes; at most nine. */
+/** A scene kept: what the frame shows, under a name, last among the scenes. */
 export function saveScene(stack, name) {
     if (stack.scenes.length >= MAX_SCENES) return stack;
-    return { ...stack, scenes: [...stack.scenes, sceneOf(stack, name)] };
+    return { ...stack, scenes: [...stack.scenes, { ...sceneOf(stack, name), key: newSceneKey(stack.scenes.map((sc) => sc.key)) }] };
 }
 
-export function removeScene(stack, index) {
-    return { ...stack, scenes: stack.scenes.filter((_, i) => i !== index) };
+/** A scene by its key (or its place, from before scenes had keys) taken out. */
+export function removeScene(stack, which) {
+    return { ...stack, scenes: stack.scenes.filter((sc, i) => (typeof which === 'number' ? i !== which : sc.key !== which)) };
+}
+
+export function renameScene(stack, key, name) {
+    return { ...stack, scenes: stack.scenes.map((sc) => (sc.key === key ? { ...sc, name: str(name, sc.name, 60) } : sc)) };
+}
+
+/** A copy of a scene, just after it, under `name`. */
+export function duplicateScene(stack, key, name) {
+    const at = stack.scenes.findIndex((sc) => sc.key === key);
+    if (at < 0 || stack.scenes.length >= MAX_SCENES) return stack;
+    const copy = { ...stack.scenes[at], key: newSceneKey(stack.scenes.map((sc) => sc.key)), name: str(name, stack.scenes[at].name, 60), layers: stack.scenes[at].layers.map((l) => ({ ...l })) };
+    const scenes = [...stack.scenes];
+    scenes.splice(at + 1, 0, copy);
+    return { ...stack, scenes };
+}
+
+/** A scene moved to the gap `to` (0 to the number of scenes), as a drop gives it. */
+export function moveScene(stack, key, to) {
+    const from = stack.scenes.findIndex((sc) => sc.key === key);
+    if (from < 0) return stack;
+    const scenes = [...stack.scenes];
+    const [sc] = scenes.splice(from, 1);
+    scenes.splice(Math.max(0, Math.min(scenes.length, from < to ? to - 1 : to)), 0, sc);
+    return { ...stack, scenes };
+}
+
+/** A scene made again from what the frame shows now: Update from the frame. */
+export function updateSceneFromFrame(stack, key) {
+    return { ...stack, scenes: stack.scenes.map((sc) => (sc.key === key ? { ...sc, layers: sceneOf(stack, sc.name).layers } : sc)) };
 }
 
 /**
@@ -469,6 +549,8 @@ export function removeScene(stack, index) {
  */
 export function applyScene(stack, scene) {
     if (!scene) return stack;
+    if (scene.key === BACK_SOON) return { ...stack, video: 'placeholder', sound: 'music' };
+    if (scene.key === SOUND_ONLY) return { ...stack, video: 'off', sound: 'on' };
     const byId = new Map(stack.items.map((it) => [it.id, it]));
     const shown = [];
     for (const l of scene.layers) {
@@ -478,7 +560,62 @@ export function applyScene(stack, scene) {
         byId.delete(l.id);
     }
     const hidden = stack.items.filter((it) => byId.has(it.id)).map((it) => ({ ...it, on: false }));
-    return { ...stack, items: [...shown, ...hidden] };
+    // Any scene but Back soon or Sound only brings the picture and the sounds back.
+    return { ...stack, items: [...shown, ...hidden], video: 'on', sound: 'on' };
+}
+
+/** The Back soon scene, the last on Live: the placeholder's picture or card, and its music. */
+export function backSoonScene(names = {}) {
+    return { key: BACK_SOON, name: names.backSoon || 'Back soon', layers: [], back: true };
+}
+
+/** The Recorder's Sound only scene: no picture, the sounds recorded alone. */
+export function soundOnlyScene(names = {}) {
+    return { key: SOUND_ONLY, name: names.soundOnly || 'Sound only', layers: [], soundOnly: true };
+}
+
+/**
+ * The quick scenes of a new setup, ordinary scenes from then on: Screen, A
+ * window, Screen and camera, and Camera, from the first screen, window and
+ * camera the stack has. One that needs what there is not is left out.
+ */
+export function quickScenes(stack, names = {}) {
+    const screen = stack.items.find((it) => it.kind === 'screen');
+    const win = stack.items.find((it) => it.kind === 'window');
+    const camera = stack.items.find((it) => it.kind === 'camera');
+    const layer = (it, box, shape) => ({ id: it.id, box, crop: null, shape });
+    const out = [];
+    if (screen) out.push({ key: 'screen', name: names.screen || 'Screen', layers: [layer(screen, placeBox('fill'), 'rect')] });
+    if (win) out.push({ key: 'window', name: names.window || 'A window', layers: [layer(win, placeBox('fill'), 'rect')] });
+    if (screen && camera) out.push({ key: 'screen-camera', name: names['screen-camera'] || 'Screen and camera', layers: [layer(camera, placeBox('br', { shape: 'circle' }), 'circle'), layer(screen, placeBox('fill'), 'rect')] });
+    if (camera) out.push({ key: 'camera', name: names.camera || 'Camera', layers: [layer(camera, placeBox('fill'), 'rect')] });
+    return out;
+}
+
+/**
+ * The stack of a new setup: the main screen, a window yet to be chosen, the
+ * first camera, the microphone and the computer's sound, with the four quick
+ * scenes and Screen and camera up (or Screen, with no camera).
+ */
+export function newSetupStack({ screen = null, hasCamera = true, names = {} } = {}) {
+    let s = emptyStack();
+    ({ stack: s } = addItem(s, { kind: 'screen', ref: screen?.id || '', name: screen?.name || '', on: false, size: screen?.display?.width ? { w: screen.display.width, h: screen.display.height } : null, box: placeBox('fill') }));
+    ({ stack: s } = addItem(s, { kind: 'window', ref: '', name: '', on: false, box: placeBox('fill') }));
+    if (hasCamera) ({ stack: s } = addItem(s, { kind: 'camera', ref: '', name: '', on: false, box: placeBox('br', { shape: 'circle' }), shape: 'circle' }));
+    s.sounds = [normaliseSound({ id: 'mic-1', kind: 'mic', live: true }), normaliseSound({ id: 'system-1', kind: 'system', live: false })];
+    s.scenes = quickScenes(s, names);
+    return normaliseStack(applyScene(s, s.scenes.find((sc) => sc.key === 'screen-camera') || s.scenes[0]));
+}
+
+/**
+ * The scenes that used to be made up on the spot (Screen and camera, Side by
+ * side, Camera 1, Everyone), turned into ordinary scenes in front of the
+ * person's own, for a stack carried over from before setups (A4.2).
+ */
+export function materialiseScenes(stack, names = {}) {
+    const made = builtInScenes(stack, names).map((sc) => ({ key: sc.key, name: sc.name, layers: sc.layers }));
+    const taken = new Set(made.map((sc) => sc.key));
+    return normaliseStack({ ...stack, scenes: [...made, ...stack.scenes.filter((sc) => !taken.has(sc.key))] });
 }
 
 /**
