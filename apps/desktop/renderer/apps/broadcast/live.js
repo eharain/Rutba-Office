@@ -191,7 +191,8 @@ export class LiveSound {
   /** Read the program's track and encode it, until stopped. */
   async start() {
     this.running = true;
-    const track = this.rig.mix(['mic', 'system']) || this.rig.silence();
+    // A copy of the window's one output: stopping it at the end leaves the output for the next broadcast and recording.
+    const track = this.rig.mix(['mic', 'system'])?.clone() || this.rig.silence();
     if (!track || typeof MediaStreamTrackProcessor === 'undefined') return;
     this.soundTrack = track;
     const processor = new MediaStreamTrackProcessor({ track });

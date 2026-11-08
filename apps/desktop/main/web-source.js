@@ -165,8 +165,13 @@ export function createWebSources({ allowLoopback = false, frameRate = 30 } = {})
     wc.on('paint', (_e, dirty, image) => {
       if (page.closed || page.status === 'unavailable' || page.badResponse) return;
       if (!dirty.width || !dirty.height) return;
+      // A rectangle can come with no picture in it, while the page is being resized or closed.
+      const piece = image.crop(dirty);
+      const bytes = piece.toBitmap();
+      if (!bytes.length) return;
+      const { width: w, height: h } = piece.getSize();
       page.painted = true;
-      tell(page, 'web:frame', { x: dirty.x, y: dirty.y, w: dirty.width, h: dirty.height, width: page.width, height: page.height, bytes: new Uint8Array(image.crop(dirty).toBitmap()) });
+      tell(page, 'web:frame', { x: dirty.x, y: dirty.y, w, h, width: page.width, height: page.height, bytes: new Uint8Array(bytes) });
     });
 
     wc.loadURL(url).catch(() => {});

@@ -246,15 +246,17 @@ async function tallChecks(h, { dir }) {
     await until(async () => (await tileState(tall)) === 'live', 'live with a tall copy', 30000);
     await until(() => js(`document.querySelector('.st-status')?.dataset.phase === 'recording'`), 'the copy recording', 8000);
     await wait(3000);
+    // The window's sound outlives a broadcast: the second one in the same window has it too.
+    const secondHeard = await ok(until(() => (named('tall-key-2B').at(-1)?.audio.length || 0) > 5 && named('tall-key-2B').length > 1, 'sound on the second broadcast', 15000));
     await click('.lv-end');
     await until(() => js(`Boolean(document.querySelector('.lv-ask'))`), 'the question', 8000);
     await click('.lv-ask .lv-end-now');
-    const copySaved = await ok(until(() => js(`/Saved/.test(document.querySelector('.st-status')?.textContent || '')`), 'the copy saved', 15000));
+    const copySaved =await ok(until(() => js(`/Saved/.test(document.querySelector('.st-status')?.textContent || '')`), 'the copy saved', 15000));
     const copies = fs.readdirSync(folder).filter((n) => /\.webm$/.test(n));
     const probe = copies.length === 1 ? probeMedia(new Uint8Array(fs.readFileSync(path.join(folder, copies[0]))), { complete: true }) : null;
-    check('broadcast tall: Keep a copy set to Tall records the tall picture, sized as the tall stream is',
-      copySaved && copies.length === 1 && probe?.hasVideo && probe.width === 720 && probe.height === 1280,
-      JSON.stringify({ copySaved, copies, probe: probe ? { v: probe.hasVideo, w: probe.width, h: probe.height, d: probe.duration } : null }));
+    check('broadcast tall: a second broadcast from the same window has its sound, and Keep a copy set to Tall records the tall picture with that sound, sized as the tall stream is',
+      secondHeard && copySaved && copies.length === 1 && probe?.hasVideo && probe.hasAudio && probe.width === 720 && probe.height === 1280,
+      JSON.stringify({ secondHeard, copySaved, copies, probe: probe ? { v: probe.hasVideo, a: probe.hasAudio, w: probe.width, h: probe.height, d: probe.duration } : null }));
     const complaints = await errorsIn(win);
     check('broadcast tall: End broadcast ends both, and none of that reported an error', ended && complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
