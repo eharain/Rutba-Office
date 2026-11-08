@@ -14,6 +14,7 @@ import { SceneStrip, PickRow } from './scene-strip.js';
 import { BottomBar } from './bottom-bar.js';
 import { clock, PictureStrip, PictureButton } from './shared.js';
 import { Toggle } from './toggle.js';
+import { FlipStrip } from './flip-strip.js';
 
 const AUTO_LABEL = (auto, every) => (auto === 'follow' ? t('Auto: Follow the speaker') : auto === 'rotate' ? t('Auto: Rotate every {n} s', { n: every }) : t('Auto: Off'));
 
@@ -66,7 +67,7 @@ export function LivePanel({ s }) {
           </div>
         </div>
         {/* The strip that flips a web page sits here, under On air. */}
-        <div className="st-flip-slot" />
+        <div className="st-flip-slot"><FlipStrip stack={s.airStack} web={s.media.web} /></div>
         <div className="st-under-frame">
           <div className="st-scenes-head">
             <span className="st-scenes-label">{t('Scenes')}</span>

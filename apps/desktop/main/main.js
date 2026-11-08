@@ -22,6 +22,8 @@ import { fakeShortcuts } from '@rutba/office-shell/electron/machine-fakes';
 // the gate's machine lane alone uses the computer's, to check them.
 // A second profile the profile checks start beside them is a check run too (verify-profiles.js).
 const PROFILE_PEER = process.env.RUTBA_PROFILE_PEER || null;
+import { createWebSources } from './web-source.js';
+
 const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE || process.env.RUTBA_SCREENS_FEATURES || PROFILE_PEER);
 if (CHECK_RUN && process.env.RUTBA_VERIFY_LANE !== 'machine') {
   useClipboard(memoryClipboard());
@@ -307,6 +309,8 @@ createShell({
       app: {
         renameRecent: (p) => renameRecent({ stores, doc, ...p }),
       },
+      // A web page as a picture source; the shell's own capture namespace knows nothing of them.
+      capture: createWebSources({ allowLoopback: CHECK_RUN }),
     };
 
     // Each installed app registers itself (app-packs.js, <id>-pack.js), handed

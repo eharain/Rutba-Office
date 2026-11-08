@@ -34,6 +34,7 @@ import { takeFileName, bytesPerSecond, diskState, regionCrop } from '@rutba/stud
 import { AppFrame, useAppMenu } from '../shell.js';
 import { RECORDER_CSS } from '../recording/css.js';
 import { Program } from './program.js';
+import { WebPageDialog, FLIP_CSS } from './flip-strip.js';
 import { StudioMedia, sourceKey } from './media.js';
 import { itemName } from './list.js';
 import { StudioSettings } from './settings-dialog.js';
@@ -123,6 +124,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const [picture, setPicture] = useState(null);
   const [shotCount, setShotCount] = useState(null);
   const [flash, setFlash] = useState(0);
+  const [askWeb, setAskWeb] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sceneMenu, setSceneMenu] = useState(null);
   const [sceneAsk, setSceneAsk] = useState(null); // { what: 'rename' | 'delete', sc }
@@ -477,6 +479,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       '-',
       { label: t('Title'), icon: 'textbox', run: () => { let id; changeFrame((s) => { const r = addItem(s, { kind: 'title', text: t('Your name, or the title') }); id = r.id; return r.stack; }); setSelected(id); } },
       { label: t('Picture or Logo…'), icon: 'picture', run: () => choosePicture(null) },
+      { label: t('Web page…'), icon: 'globe', run: () => setAskWeb(true) },
       ...(selItem && ['screen', 'window', 'camera'].includes(selItem.kind) ? [{ label: t('Another copy of {name}', { name: itemName(selItem) }), icon: 'duplicate', run: () => barAct.copy() }] : []),
       '-',
       { label: t('Refresh the list'), icon: 'refresh', run: loadSources },
@@ -1358,6 +1361,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       {isLive ? <style>{liveKit.LIVE_CSS}</style> : null}
       {isLive && loaded ? createPortal(<liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} size={settings.size} airKey={airStack.scene} copy={live && settings.liveCopy} blocked={phase === 'countdown' || phase === 'starting'} on={setup ? setup.liveOn : undefined} onChangeOn={changeLiveOn} onPhase={barPhase} rateText={liveRateText} viewers={viewers} control={liveControl} />, liveBarHost) : null}
       {isLive && liveOpen ? <liveKit.LiveDialog shell={shell} toast={toast} onChanged={(list) => liveControl.current?.setList(list)} onClose={() => setLiveOpen(false)} /> : null}
+      <style>{FLIP_CSS}</style>
+      {askWeb ? <WebPageDialog allowLoopback={Boolean(window.__rutbaLocalPages)} onClose={() => setAskWeb(false)} onAdd={({ url, name }) => { setAskWeb(false); changeStack((s) => addItem(s, { kind: 'web', ref: url, name, sound: false }).stack); }} /> : null}
       {settingsOpen ? (
         <StudioSettings settings={settings} stack={stack} busy={busy} live={isLive} title={settingsLabel.replace('…', '')} change={change} changeStack={changeStack} chooseFolder={chooseFolder} choosePlaceholder={choosePlaceholder} chooseMusic={chooseMusic}
           openDestinations={() => { setSettingsOpen(false); setLiveOpen(true); }} onClose={() => setSettingsOpen(false)} />

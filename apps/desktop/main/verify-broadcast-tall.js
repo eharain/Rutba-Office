@@ -15,6 +15,8 @@ import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { withScreenStandIn } from './verify-recorder.js';
 import { startIngest } from './verify-broadcast-live.js';
+import { addItem, emptyStack } from '@rutba/studio/stack';
+import { seedSetup, restoreSetup } from './verify-studio-seed.js';
 
 /** The picture size in an FLV AVC sequence header's first SPS. */
 export function spsSize(body) {
@@ -93,25 +95,20 @@ async function tallChecks(h, { dir }) {
     await open('word', docFile);
     const win = await open('broadcast');
     js = (code) => win.webContents.executeJavaScript(code);
-    kept = await js(`Promise.all([window.rutbaOffice.store.get({ key: 'broadcast.studio', fallback: null }), window.rutbaOffice.store.get({ key: 'broadcast.stack', fallback: null })])`);
     for (const d of await js(`window.rutbaOffice.live.destinations()`)) await js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`);
     const url = `rtmp://127.0.0.1:${ingest.port}/live2`;
     const save = (name, key, shape, platform = 'custom') => js(`window.rutbaOffice.live.saveDestination(${JSON.stringify({ platform, name, url, key, shape })})`);
     await save('Wide stream', 'wide-key-1A', 'wide');
     await save('Tall stream', 'tall-key-2B', 'tall', 'tiktok');
-    const stack = { version: 2, items: [], sounds: [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: true, muted: false, gain: 1 }], scenes: [], video: 'on', sound: 'on' };
-    await js(`Promise.all([
-      window.rutbaOffice.store.set({ key: 'broadcast.studio', value: ${JSON.stringify({ size: 720, fps: 30, countdown: 0, folder, liveCopy: false, minimise: false, shot: 'program', shotTimer: 0 })} }),
-      window.rutbaOffice.store.set({ key: 'broadcast.stack', value: ${JSON.stringify(stack)} }),
-    ]).then(() => 1)`);
+    await until(() => js(`window.rutbaOffice.capture.sources().then((l) => l.some((x) => x.name.includes('tall-fixture')))`), 'the fixture window', 10000).catch(() => {});
+    const source = (await js(`window.rutbaOffice.capture.sources()`)).find((x) => x.name.includes('tall-fixture'));
+    let stack = { ...emptyStack(), sounds: [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: true, muted: false, gain: 1 }] };
+    stack = addItem(stack, { kind: 'window', ref: source.id, name: source.name, on: false }).stack;
+    stack = addItem(stack, { kind: 'camera', ref: '', name: '', on: false, shape: 'circle' }).stack;
+    kept = await seedSetup(js, { app: 'broadcast', stack, studio: { size: 720, fps: 30, countdown: 0, folder, liveCopy: false, minimise: false, shot: 'program', shotTimer: 0 } });
     await win.webContents.reload();
-    await until(() => js(`Boolean(document.querySelector('.st-canvas')) && Boolean(document.querySelector('.st-list'))`), 'the Live Broadcast window', 10000);
-    const fixture = `[...document.querySelectorAll('.st-list .st-spare[data-kind="window"]')].find((n) => (n.dataset.tip || '').includes('tall-fixture'))`;
-    await until(() => js(`Boolean(${fixture})`), 'the fixture window', 10000).catch(() => {});
-    await js(`${fixture}?.querySelector('.st-eye')?.click(), 1`);
-    await until(() => js(`Boolean(document.querySelector('.st-list .st-spare[data-kind="camera"]'))`), 'the camera in the list', 8000).catch(() => {});
-    await js(`document.querySelector('.st-list .st-spare[data-kind="camera"] .st-eye')?.click(), 1`);
-    await until(() => js(`document.querySelectorAll('.st-list .st-card[data-on="1"]').length === 2`), 'both on the share', 6000).catch(() => {});
+    await until(() => js(`Boolean(document.querySelector('.st-canvas')) && Boolean(document.querySelector('.st-livebar'))`), 'the Live Broadcast window', 10000);
+    await until(() => js(`Boolean(document.querySelector('.st-scene[data-scene="screen-camera"]'))`), 'the scenes', 8000).catch(() => {});
     await js(`document.querySelector('.st-scene[data-scene="screen-camera"]')?.click(), 1`);
     await until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'window camera'`), 'the program', 25000).catch(() => {});
 
@@ -223,7 +220,7 @@ async function tallChecks(h, { dir }) {
     if (js) {
       await js(`window.rutbaOffice.live.stop()`).catch(() => {});
       for (const d of (await js(`window.rutbaOffice.live.destinations()`).catch(() => [])) || []) await js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`).catch(() => {});
-      if (kept) await js(`Promise.all([window.rutbaOffice.store.set({ key: 'broadcast.studio', value: ${JSON.stringify(kept[0] ?? null)} }), window.rutbaOffice.store.set({ key: 'broadcast.stack', value: ${JSON.stringify(kept[1] ?? null)} })]).then(() => 1)`).catch(() => {});
+      if (kept) await restoreSetup(js, kept).catch(() => {});
     }
     ingest?.cut();
     ingest?.server.close();

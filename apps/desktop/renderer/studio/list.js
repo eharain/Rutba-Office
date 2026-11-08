@@ -9,11 +9,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Icon, Button, Menu, t } from '@rutba/office-ui';
 import { sourceKey } from './media.js';
 
-export const KIND_ICON = { screen: 'screen', window: 'window', camera: 'camera', title: 'textbox', picture: 'picture', mic: 'mic', system: 'speaker' };
+export const KIND_ICON = { screen: 'screen', window: 'window', camera: 'camera', title: 'textbox', picture: 'picture', web: 'globe', mic: 'mic', system: 'speaker' };
 
 /** A kind's name, for what reads it out and for the source bar. */
 export const kindName = (kind) => ({
-  screen: t('Screen'), window: t('Window'), camera: t('Camera'), title: t('Title'), picture: t('Picture'), mic: t('Microphone'), system: t('Computer sound'),
+  screen: t('Screen'), window: t('Window'), camera: t('Camera'), title: t('Title'), picture: t('Picture'), web: t('Web page'), mic: t('Microphone'), system: t('Computer sound'),
 }[kind] || kind);
 
 /** An item's name as shown: its own, or its kind's. */

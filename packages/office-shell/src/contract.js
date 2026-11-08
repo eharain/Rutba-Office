@@ -540,6 +540,11 @@ export const METHODS = {
     'pointer',      // ({ on, id, fps, paused }) -> on: { tracking } | off: { samples, clicks }   the pointer over the source being recorded, a sample a frame, as fractions of it
     'remoteListen', // ({ on }) -> void   the Recorder window takes the AI tools' requests (capture:command 'remote'), or no longer does
     'remoteReply',  // ({ reply, result, error }) -> { delivered }   its answer to one of them
+    'webOpen',      // ({ id, url, width, height, sound, loop }) -> state   a web page opened out of sight, https only (or, the same page, asked to send its picture again)
+    'webClose',     // ({ id }) -> { closed }
+    'webFlip',      // ({ id, verb: 'next' | 'previous' | 'first' | 'last' | 'go', index? }) -> { sent, via }
+    'webSound',     // ({ id, on }) -> { on }   the page's own sound, off until turned on
+    'webPages',     // () -> [state]
   ],
 };
 
@@ -577,6 +582,8 @@ export const EVENTS = [
   'ai:pending',       // [{ id, kind, thing, fields, body, draft }]   what the AI tools asked to do, waiting for the person's press
   'update:state',     // { state, version, available, percent, automatic, snoozed, snoozedVersion, arrived }
   'capture:command',  // { command: 'stop' | 'pause' }   a recording's global key or tray icon was used
+  'web:frame',        // { id, x, y, w, h, width, height, bytes }   the part of a web page source that changed
+  'web:state',        // { id, status, reported, index, count, title, loop, width, height, sound }   what a web page source is showing
   'picture:returned', // { token, bytes, contentType, width, height }   Edit in Image saved the picture back
   'packs:changed',    // { apps, restart }   Add or remove apps changed what the next start loads
 ];

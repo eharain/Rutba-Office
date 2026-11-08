@@ -8,6 +8,7 @@ import { Frame } from './parts.js';
 import { SceneStrip, PickRow } from './scene-strip.js';
 import { BottomBar } from './bottom-bar.js';
 import { clock, PictureStrip, PictureButton } from './shared.js';
+import { FlipStrip } from './flip-strip.js';
 
 /** Length as a person says it: 12 min 34 s. */
 const spoken = (seconds) => {
@@ -55,6 +56,7 @@ export function RecordPanel({ s }) {
             {s.overlayShared}
           </Frame>
         </div>
+        <div className="st-flip-slot"><FlipStrip stack={s.airStack} web={s.media.web} /></div>
         <div className="st-under-frame">
           {s.saved && phase === 'setup' ? <SavedCard s={s} /> : (
             <>
