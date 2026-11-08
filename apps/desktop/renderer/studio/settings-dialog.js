@@ -19,7 +19,7 @@ export function StudioSettings({ settings, stack, busy, live = false, title = nu
     <Dialog title={title || t('Recorder settings')} className="st-settings-dialog" width={560} onClose={onClose} actions={<Button primary label={t('Done')} className="st-settings-done" onClick={onClose} />}>
       <div className="st-settings">
         <Field label={t('Size')}>
-          <Select value={String(settings.size)} disabled={busy} className="st-size" onChange={(e) => change({ size: Number(e.target.value) })}>
+          <Select value={String(settings.size)} disabled={busy} className="rw-select st-size" onChange={(e) => change({ size: Number(e.target.value) })}>
             <option value="1080">1080p (1920 × 1080)</option>
             <option value="720">720p (1280 × 720)</option>
           </Select>
@@ -49,13 +49,13 @@ export function StudioSettings({ settings, stack, busy, live = false, title = nu
         </div>
         <div className="wide"><Toggle on={settings.minimise} label={t('Minimise this window while recording')} disabled={busy} onChange={(v) => change({ minimise: v })} /></div>
         <Field label={t('Take Picture of')}>
-          <Select value={settings.shot === 'program' ? 'program' : 'selected'} className="st-shot-of" onChange={(e) => change({ shot: e.target.value })}>
+          <Select value={settings.shot === 'program' ? 'program' : 'selected'} className="rw-select st-shot-of" onChange={(e) => change({ shot: e.target.value })}>
             <option value="program">{t('What is shown')}</option>
             <option value="selected">{t('The selected source')}</option>
           </Select>
         </Field>
         <Field label={t('Picture timer')}>
-          <Select value={String(settings.shotTimer)} className="st-shot-timer" onChange={(e) => change({ shotTimer: Number(e.target.value) })}>
+          <Select value={String(settings.shotTimer)} className="rw-select st-shot-timer" onChange={(e) => change({ shotTimer: Number(e.target.value) })}>
             <option value="0">{t('At once')}</option>
             {[3, 5, 10].map((n) => <option key={n} value={String(n)}>{t('After {seconds} s', { seconds: n })}</option>)}
           </Select>
@@ -72,7 +72,7 @@ export function StudioSettings({ settings, stack, busy, live = false, title = nu
         {!stack.placeholder ? (
           <div className="wide">
             <Field label={t('The card says')}>
-              <Input className="st-placeholder-text" value={stack.placeholderText} placeholder={t('Back soon')} onChange={(e) => changeStack((s) => ({ ...s, placeholderText: e.target.value }))} />
+              <Input className="rw-input st-placeholder-text" value={stack.placeholderText} placeholder={t('Back soon')} onChange={(e) => changeStack((s) => ({ ...s, placeholderText: e.target.value }))} />
             </Field>
           </div>
         ) : null}

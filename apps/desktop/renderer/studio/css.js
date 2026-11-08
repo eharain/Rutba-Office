@@ -77,7 +77,7 @@ export const STUDIO_CSS = `
 .st-scene { flex: none; width: 172px; display: flex; flex-direction: column; gap: 0; padding: 0; border-radius: var(--r-2); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer; overflow: hidden; text-align: start; }
 .st-scenes.small .st-scene { width: 128px; }
 .st-scene:hover { border-color: var(--accent-line); }
-.st-scene:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.st-scene:focus-visible { outline: 2px solid var(--ink-3); outline-offset: 2px; }
 .st-scene.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .st-scene.next { border-color: #2bb673; box-shadow: 0 0 0 1px #2bb673; }
 .st-scene.lost { border-color: #f5a524; }
@@ -157,6 +157,61 @@ export const STUDIO_CSS = `
 .st-pane-frame { flex: 1; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; container-type: size; }
 .st-share:not(.duo) .st-pane.on-air { flex: 1; height: 100%; }
 .st-share:not(.duo) .st-pane-label { display: none; }
+
+/* Set up's three columns. */
+.st-setup-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 268px minmax(0, 1fr) 272px; }
+.st-setup-grid > .st-stage { min-height: 0; }
+.st-col { min-height: 0; display: flex; flex-direction: column; background: var(--chrome, var(--surface)); }
+.st-sources { border-inline-end: 1px solid var(--line-soft); }
+.st-props { border-inline-start: 1px solid var(--line-soft); }
+.st-col-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; padding: 6px 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+.st-col-name { display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; letter-spacing: 0; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.st-col-body { flex: 1; min-height: 0; overflow: auto; padding: 2px 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+.st-col-note { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.45; }
+.st-col-section { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line-soft); }
+.st-col-section:last-child { border-bottom: 0; }
+.st-col-section h3 { margin: 0; display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 650; color: var(--ink); }
+.st-col-section kbd { font: inherit; font-size: 11px; color: var(--ink-3); background: var(--sunken); border-radius: 4px; padding: 0 5px; }
+.st-col-row { display: flex; align-items: center; gap: 8px; }
+.st-col-row > span { flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-col-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.st-sources .st-list { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 12px; gap: 3px; }
+.st-src { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 5px 6px 5px 8px; border-color: transparent; background: transparent; }
+.st-src:hover { background: var(--hover); border-color: transparent; }
+.st-src.sel { background: var(--wash-strong); border-color: var(--accent-line); box-shadow: none; }
+.st-src.miss { background: rgba(245,165,36,0.12); border-color: rgba(245,165,36,0.55); }
+.st-src.off .st-src-pic { opacity: 0.5; }
+.st-src-pic { flex: none; width: 44px; height: 26px; display: grid; place-items: center; border-radius: 4px; overflow: hidden; background: #2a2e36; color: rgba(255,255,255,0.7); }
+.st-src-pic video, .st-src-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.st-src-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.st-src-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.st-src-text small { font-size: 11px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-src-text small.st-src-err { color: var(--bad, #d93a40); }
+.st-src-miss { font-size: 11px; font-weight: 700; color: #a56a00; }
+.st-src-choose { flex: none; align-self: flex-start; margin-top: 3px; height: 24px; padding: 0 8px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.st-src-choose:hover { border-color: var(--accent-line); }
+.st-src .st-pv-btn { width: 24px; height: 24px; background: transparent; color: var(--ink-3); }
+.st-src .st-pv-btn:hover { background: var(--sunken); color: var(--ink); }
+.st-src .st-pv-btn.on { background: transparent; color: var(--accent-text); }
+.st-src .st-pv-btn.stop { background: transparent; color: var(--ink-3); }
+.st-src .st-run, .st-src .st-more { opacity: 0; }
+.st-src:hover .st-run, .st-src:hover .st-more, .st-src:focus-within .st-run, .st-src:focus-within .st-more, .st-src.sel .st-run, .st-src.sel .st-more { opacity: 1; }
+.st-frame-head { flex: none; display: flex; align-items: baseline; gap: 10px; min-height: 22px; font-size: 13px; }
+.st-frame-size, .st-frame-hint { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.st-places { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.st-place { position: relative; height: 40px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); cursor: pointer; overflow: hidden; }
+.st-place:hover { border-color: var(--accent); }
+.st-place i { position: absolute; background: var(--ink-3); border-radius: 2px; }
+.st-fourfields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.st-fourfields input { width: 100%; }
+.st-props .st-bar { display: flex; flex-direction: column; align-items: stretch; gap: 12px; min-height: 0; }
+.st-props .st-bar .rw-input { width: 100%; }
+.st-props .st-level { width: 100%; }
+.st-shapes { width: 100%; }
+.st-shapes button { flex: 1; padding: 0 4px; }
+.st-auto-seg { width: 100%; }
+.st-auto-seg button { flex: 1; padding: 0 4px; font-size: 11.5px; }
+.st-add .rw-btn { height: 28px; }
 
 /* Set up: what stays on air, and the bands while running. */
 .st-band { flex: none; padding: 6px 16px; font-size: 12.5px; font-weight: 600; color: #fff; }

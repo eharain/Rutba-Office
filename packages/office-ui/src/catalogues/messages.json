@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8557,
+  "count": 8578,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -599,6 +599,18 @@
       ]
     },
     {
+      "message": "1 to 9 switch while live. As many as you like.",
+      "where": [
+        "apps/desktop/renderer/studio/setup-panel.js"
+      ]
+    },
+    {
+      "message": "1 to 9 switch while recording. As many as you like.",
+      "where": [
+        "apps/desktop/renderer/studio/setup-panel.js"
+      ]
+    },
+    {
       "message": "100% — the message at its own size",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -1191,7 +1203,7 @@
     {
       "message": "A line under it",
       "where": [
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -1889,6 +1901,12 @@
       ]
     },
     {
+      "message": "A window, not chosen yet",
+      "where": [
+        "apps/desktop/renderer/studio/sources-column.js"
+      ]
+    },
+    {
       "message": "A word in the subject",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
@@ -2399,6 +2417,7 @@
         "apps/desktop/renderer/packs-dialog.js",
         "apps/desktop/renderer/redact.js",
         "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/sources-column.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -4241,12 +4260,6 @@
       ]
     },
     {
-      "message": "Another copy, to clip or shape apart",
-      "where": [
-        "apps/desktop/renderer/studio/bar.js"
-      ]
-    },
-    {
       "message": "Another database",
       "where": [
         "apps/desktop/renderer/apps/base/sources.js"
@@ -5017,7 +5030,8 @@
     {
       "message": "Auto",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -5314,6 +5328,7 @@
       "message": "Back soon",
       "where": [
         "apps/desktop/renderer/studio/program.js",
+        "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/settings-dialog.js",
         "apps/desktop/renderer/studio/window.js"
       ]
@@ -6028,7 +6043,7 @@
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -6037,7 +6052,7 @@
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -6652,6 +6667,7 @@
         "apps/desktop/renderer/shared-words.js",
         "apps/desktop/renderer/studio/bottom-bar.js",
         "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -7070,7 +7086,7 @@
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -7296,7 +7312,7 @@
         "apps/desktop/renderer/apps/sheets/picture-data.js",
         "apps/desktop/renderer/apps/sheets/receipt-row.js",
         "apps/desktop/renderer/apps/video/intro/brand.js",
-        "apps/desktop/renderer/studio/bar.js",
+        "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -7930,6 +7946,12 @@
       ]
     },
     {
+      "message": "Choose what to show",
+      "where": [
+        "apps/desktop/renderer/studio/sources-column.js"
+      ]
+    },
+    {
       "message": "Choose which account to send from.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -7957,7 +7979,8 @@
       "message": "Choose…",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/video/intro/brand.js"
+        "apps/desktop/renderer/apps/video/intro/brand.js",
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -7969,7 +7992,7 @@
         "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shared-words.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -8439,14 +8462,7 @@
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
-        "apps/desktop/renderer/studio/bar.js",
         "apps/desktop/renderer/studio/window.js"
-      ]
-    },
-    {
-      "message": "Clip: drag on the share over the part to show",
-      "where": [
-        "apps/desktop/renderer/studio/bar.js"
       ]
     },
     {
@@ -12618,6 +12634,7 @@
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/studio/setups-menu.js",
+        "apps/desktop/renderer/studio/sources-column.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -12990,6 +13007,18 @@
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/slides/comments.js"
+      ]
+    },
+    {
+      "message": "Edit crop",
+      "where": [
+        "apps/desktop/renderer/studio/properties.js"
+      ]
+    },
+    {
+      "message": "Edit crop: drag on the frame over the part to show",
+      "where": [
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -14791,7 +14820,7 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/index.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -15648,7 +15677,8 @@
     {
       "message": "Follow the speaker",
       "where": [
-        "apps/desktop/renderer/studio/live-panel.js"
+        "apps/desktop/renderer/studio/live-panel.js",
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -17529,6 +17559,12 @@
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/word/envelopes.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Height %",
+      "where": [
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -20048,6 +20084,12 @@
       ]
     },
     {
+      "message": "It is on air",
+      "where": [
+        "apps/desktop/renderer/studio/sources-column.js"
+      ]
+    },
+    {
       "message": "It is shown as plain text, with its links and pictures left out: an encrypted message that is not signed by someone trusted could have been changed on the way to send its words elsewhere.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
@@ -20399,6 +20441,12 @@
       "message": "Keep going",
       "where": [
         "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
+      "message": "Keep its shape",
+      "where": [
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -21222,6 +21270,12 @@
       ]
     },
     {
+      "message": "Left %",
+      "where": [
+        "apps/desktop/renderer/studio/properties.js"
+      ]
+    },
+    {
       "message": "Left Anti (rows only in the first)",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -21298,7 +21352,7 @@
     {
       "message": "Left side",
       "where": [
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -21450,9 +21504,9 @@
     {
       "message": "Level",
       "where": [
-        "apps/desktop/renderer/studio/bar.js",
         "apps/desktop/renderer/studio/list.js",
-        "apps/desktop/renderer/studio/parts.js"
+        "apps/desktop/renderer/studio/parts.js",
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -23740,7 +23794,7 @@
       "message": "Mirror",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -23878,7 +23932,8 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -24377,8 +24432,15 @@
       ]
     },
     {
+      "message": "Music: a quiet chord, made here",
+      "where": [
+        "apps/desktop/renderer/studio/properties.js"
+      ]
+    },
+    {
       "message": "Music…",
       "where": [
+        "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -24389,8 +24451,9 @@
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/player.js",
-        "apps/desktop/renderer/studio/bar.js",
-        "apps/desktop/renderer/studio/list.js"
+        "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/properties.js",
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -24487,6 +24550,7 @@
         "apps/desktop/renderer/dav-accounts.js",
         "apps/desktop/renderer/design.js",
         "apps/desktop/renderer/studio/setups-menu.js",
+        "apps/desktop/renderer/studio/sources-column.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -26419,6 +26483,18 @@
       ]
     },
     {
+      "message": "None to add",
+      "where": [
+        "apps/desktop/renderer/studio/window.js"
+      ]
+    },
+    {
+      "message": "None to choose from",
+      "where": [
+        "apps/desktop/renderer/studio/sources-column.js"
+      ]
+    },
+    {
       "message": "None yet. A certificate is kept when someone sends you signed mail, so you can encrypt to them.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
@@ -26584,6 +26660,13 @@
       ]
     },
     {
+      "message": "Not found",
+      "where": [
+        "apps/desktop/renderer/studio/properties.js",
+        "apps/desktop/renderer/studio/sources-column.js"
+      ]
+    },
+    {
       "message": "Not found here. Kept in its place until you choose one.",
       "where": [
         "apps/desktop/renderer/studio/setups-menu.js"
@@ -26664,7 +26747,8 @@
     {
       "message": "Not shown",
       "where": [
-        "apps/desktop/renderer/studio/list.js"
+        "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -27259,7 +27343,8 @@
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/studio/bottom-bar.js",
         "apps/desktop/renderer/studio/live-bar.js",
-        "apps/desktop/renderer/studio/live-panel.js"
+        "apps/desktop/renderer/studio/live-panel.js",
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -29590,6 +29675,12 @@
       ]
     },
     {
+      "message": "Picture from this source: {w} × {h}",
+      "where": [
+        "apps/desktop/renderer/studio/properties.js"
+      ]
+    },
+    {
       "message": "Picture from {name}",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -29734,6 +29825,7 @@
       "where": [
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word.js",
+        "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -29903,7 +29995,7 @@
     {
       "message": "Place",
       "where": [
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -30961,7 +31053,8 @@
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/protect.js",
-        "apps/desktop/renderer/redact.js"
+        "apps/desktop/renderer/redact.js",
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -32237,7 +32330,7 @@
         "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/recording/panel.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -32748,7 +32841,8 @@
         "apps/desktop/renderer/apps/word/forms.js",
         "apps/desktop/renderer/apps/word/ruler.js",
         "apps/desktop/renderer/dav-accounts.js",
-        "apps/desktop/renderer/packs-dialog.js"
+        "apps/desktop/renderer/packs-dialog.js",
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -33154,6 +33248,7 @@
         "apps/desktop/renderer/dav-accounts.js",
         "apps/desktop/renderer/profiles.js",
         "apps/desktop/renderer/studio/setups-menu.js",
+        "apps/desktop/renderer/studio/sources-column.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -33242,6 +33337,7 @@
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/studio/setups-menu.js",
+        "apps/desktop/renderer/studio/sources-column.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -34076,7 +34172,7 @@
     {
       "message": "Right side",
       "where": [
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -34227,7 +34323,8 @@
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/stage.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -34412,7 +34509,7 @@
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/recording/panel.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -35652,7 +35749,8 @@
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/studio/live-panel.js",
-        "apps/desktop/renderer/studio/scene-strip.js"
+        "apps/desktop/renderer/studio/scene-strip.js",
+        "apps/desktop/renderer/studio/setup-panel.js"
       ]
     },
     {
@@ -36185,9 +36283,9 @@
       ]
     },
     {
-      "message": "Select a source in the list or on the share to change it.",
+      "message": "Select a source in the list or on the frame to change it.",
       "where": [
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -37200,7 +37298,7 @@
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/timeline.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -37630,7 +37728,7 @@
       ]
     },
     {
-      "message": "Show a screen, a window or a camera from the list on the right.",
+      "message": "Show a screen, a window or a camera from the list on the left.",
       "where": [
         "apps/desktop/renderer/studio/window.js"
       ]
@@ -37692,6 +37790,12 @@
       "message": "Show more: server address",
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
+      "message": "Show on the frame",
+      "where": [
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -38804,6 +38908,12 @@
       ]
     },
     {
+      "message": "Snaps to edges, centre and other sources. Alt drags freely.",
+      "where": [
+        "apps/desktop/renderer/studio/setup-panel.js"
+      ]
+    },
+    {
       "message": "Social, square",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
@@ -39080,6 +39190,7 @@
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/sources-column.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -39105,6 +39216,12 @@
       "message": "Sound level {db} dB",
       "where": [
         "apps/desktop/renderer/apps/video/meter.js"
+      ]
+    },
+    {
+      "message": "Sound levels and mute change what the audience hears straight away, as on a mixing desk. Pictures and places wait for Take.",
+      "where": [
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -39163,7 +39280,7 @@
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/studio/list.js",
-        "apps/desktop/renderer/studio/window.js"
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -39587,8 +39704,9 @@
       "message": "Start",
       "where": [
         "apps/desktop/renderer/apps/slides/presenter.js",
-        "apps/desktop/renderer/studio/bar.js",
-        "apps/desktop/renderer/studio/list.js"
+        "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/properties.js",
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -39908,9 +40026,10 @@
         "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shared-words.js",
-        "apps/desktop/renderer/studio/bar.js",
         "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/record-panel.js",
+        "apps/desktop/renderer/studio/sources-column.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -39965,7 +40084,8 @@
     {
       "message": "Stopped",
       "where": [
-        "apps/desktop/renderer/studio/list.js"
+        "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -40831,15 +40951,15 @@
       ]
     },
     {
-      "message": "Take off the share",
+      "message": "Take off the frame",
       "where": [
-        "apps/desktop/renderer/studio/list.js"
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
-      "message": "Take out of the list",
+      "message": "Take off the share",
       "where": [
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/list.js"
       ]
     },
     {
@@ -41977,6 +42097,7 @@
     {
       "message": "The card says",
       "where": [
+        "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -45759,8 +45880,8 @@
         "apps/desktop/renderer/apps/word/mailings.js",
         "apps/desktop/renderer/apps/word/references.js",
         "apps/desktop/renderer/shared-words.js",
-        "apps/desktop/renderer/studio/bar.js",
         "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -45964,6 +46085,12 @@
       ]
     },
     {
+      "message": "Top %",
+      "where": [
+        "apps/desktop/renderer/studio/properties.js"
+      ]
+    },
+    {
       "message": "Top Border",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -46024,7 +46151,13 @@
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
+      ]
+    },
+    {
+      "message": "Top of the list is in front. Drag to change the order.",
+      "where": [
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -46032,7 +46165,7 @@
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/video/inspector.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -47049,8 +47182,9 @@
       "where": [
         "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/apps/video/player.js",
-        "apps/desktop/renderer/studio/bar.js",
-        "apps/desktop/renderer/studio/list.js"
+        "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/properties.js",
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -47580,6 +47714,7 @@
     {
       "message": "Use the chord",
       "where": [
+        "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -47599,6 +47734,7 @@
     {
       "message": "Use words",
       "where": [
+        "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -48073,6 +48209,12 @@
       "message": "Warnings",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Was {name}",
+      "where": [
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {
@@ -48628,7 +48770,7 @@
       "message": "Whole picture",
       "where": [
         "apps/desktop/renderer/recording/panel.js",
-        "apps/desktop/renderer/studio/bar.js"
+        "apps/desktop/renderer/studio/properties.js"
       ]
     },
     {
@@ -48720,6 +48862,12 @@
       ]
     },
     {
+      "message": "Width %",
+      "where": [
+        "apps/desktop/renderer/studio/properties.js"
+      ]
+    },
+    {
       "message": "Width (%)",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -48777,6 +48925,12 @@
         "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/shell.js",
         "apps/desktop/renderer/studio/list.js"
+      ]
+    },
+    {
+      "message": "Window closed",
+      "where": [
+        "apps/desktop/renderer/studio/media.js"
       ]
     },
     {
@@ -49427,7 +49581,7 @@
     {
       "message": "Your name, or the title",
       "where": [
-        "apps/desktop/renderer/studio/bar.js",
+        "apps/desktop/renderer/studio/properties.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -50694,7 +50848,8 @@
     {
       "message": "not shown",
       "where": [
-        "apps/desktop/renderer/studio/list.js"
+        "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/sources-column.js"
       ]
     },
     {

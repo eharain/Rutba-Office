@@ -18,12 +18,12 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Panel, Content, Icon, useToast, basename, t } from '@rutba/office-ui';
+import { Content, Icon, useToast, basename, t } from '@rutba/office-ui';
 import { normaliseStudio } from '@rutba/studio/compositor';
 import {
   normaliseStack, emptyStack, addItem, removeItem, duplicateItem, moveItem, showItem, placeItem, shapeItem, clipItem,
   updateItem, updateSound, frameToSource, itemAt, saveScene, removeScene, renameScene, duplicateScene, moveScene, updateSceneFromFrame,
-  applyScene, builtInScenes, recordKind, clampBox, newId, followStep, nextInRotation, followFrame, backSoonScene, soundOnlyScene,
+  applyScene, builtInScenes, recordKind, clampBox, newId, followStep, nextInRotation, followFrame, backSoonScene, soundOnlyScene, snapMove, snapPoint,
   FADE_MS, BACK_SOON,
 } from '@rutba/studio/stack';
 import {
@@ -35,7 +35,7 @@ import { AppFrame, useAppMenu } from '../shell.js';
 import { RECORDER_CSS } from '../recording/css.js';
 import { Program } from './program.js';
 import { StudioMedia, sourceKey } from './media.js';
-import { SourceList, itemName } from './list.js';
+import { itemName } from './list.js';
 import { StudioSettings } from './settings-dialog.js';
 import { STUDIO_CSS } from './css.js';
 import { createSetupStore, openSetupFile, saveSetupFile, SETUP_FILTERS } from './setups-store.js';
@@ -437,6 +437,9 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   };
 
   const act = {
+    copyOf: (id) => { let added; changeFrame((s) => { const r = duplicateItem(s, id); added = r.id; return r.stack; }); setSelected(added); },
+    removeItem: (id) => { changeFrame((s) => removeItem(s, id)); setSelected((sel) => (sel === id ? null : sel)); },
+    rename: (id, label) => changeStack((s) => updateItem(s, id, { label })),
     show: (id, on) => changeFrame((s) => {
       let next = showItem(s, id, on);
       if (on) next = updateItem(next, id, { live: true });
@@ -465,6 +468,13 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     sound: (id, patch) => changeStack((s) => updateSound(s, id, patch), true, { record: false }),
     addSound: (sp) => changeStack((s) => ({ ...s, sounds: [...s.sounds, { id: newId('mic', s.sounds.map((x) => x.id)), kind: 'mic', ref: sp.ref, name: '', live: true, muted: false, gain: 1 }] })),
     addItems: () => [
+      ...[['screen', t('Screen')], ['window', t('A window')]].map(([k, label]) => ({
+        label, icon: k,
+        items: spare.filter((x) => x.kind === k).length ? spare.filter((x) => x.kind === k).map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('None to add'), disabled: true }],
+      })),
+      { label: t('Camera'), icon: 'camera', items: spare.filter((x) => x.kind === 'camera').length ? spare.filter((x) => x.kind === 'camera').map((x) => ({ label: x.name, run: () => act.addSpare(x, { select: true }) })) : [{ label: t('None to add'), disabled: true }] },
+      ...(spareSounds.length ? [{ label: t('Microphone'), icon: 'mic', items: spareSounds.map((x) => ({ label: x.name, run: () => act.addSound(x) })) }] : []),
+      '-',
       { label: t('Title'), icon: 'textbox', run: () => { let id; changeFrame((s) => { const r = addItem(s, { kind: 'title', text: t('Your name, or the title') }); id = r.id; return r.stack; }); setSelected(id); } },
       { label: t('Picture or Logo…'), icon: 'picture', run: () => choosePicture(null) },
       ...(selItem && ['screen', 'window', 'camera'].includes(selItem.kind) ? [{ label: t('Another copy of {name}', { name: itemName(selItem) }), icon: 'duplicate', run: () => barAct.copy() }] : []),
@@ -472,6 +482,29 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       { label: t('Refresh the list'), icon: 'refresh', run: loadSources },
     ],
   };
+
+  /** A source chosen for what could not be found, or chosen again. */
+  const chooseSource = (it, x) => {
+    const patch = { ref: x.id, name: x.name, was: '', size: x.display?.width ? { w: x.display.width, h: x.display.height } : null };
+    const apply = () => {
+      changeStack((s) => updateItem(s, it.id, patch));
+      setAir((a) => (a && !liveRef.current ? normaliseStack(updateItem(a, it.id, patch)) : a));
+      setMissing((list) => list.filter((m) => m.id !== it.id));
+    };
+    if (it.kind === 'camera' && livePhase !== 'off' && airStack.items.some((o) => o.id === it.id && o.on)) setCameraAsk({ ...x, apply });
+    else apply();
+  };
+  const withItem = (st, id, patch) => updateItem(st, id, patch);
+  /** A place typed in: a new width or height carries the other with it while the source keeps its shape. */
+  const withBox = (st, id, patch) => updateItem(st, id, (it) => {
+    const next = { ...it.box, ...patch };
+    if (it.keep && it.box.w > 0 && it.box.h > 0) {
+      const ratio = it.box.w / it.box.h;
+      if (patch.w != null && patch.h == null) next.h = patch.w / ratio;
+      if (patch.h != null && patch.w == null) next.w = patch.h * ratio;
+    }
+    return { ...it, box: clampBox(next) };
+  });
 
   const camera = named.items.find((it) => it.kind === 'camera') || null;
   const setCameraTo = (c) => {
@@ -501,10 +534,6 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const frameAt = (e) => {
     const r = editFrame().getBoundingClientRect();
     return { fx: (e.clientX - r.left) / r.width, fy: (e.clientY - r.top) / r.height };
-  };
-  const snap = (v, size) => {
-    for (const edge of [0, 1 - size, 0.5 - size / 2]) if (Math.abs(v - edge) < 0.012) return edge;
-    return v;
   };
   const onFramePointer = (e) => {
     if (e.button !== 0 || !editFrame()) return;
@@ -542,29 +571,38 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     setSelected(hit.id);
     const start = hit.box;
     const aspect = start.w / start.h;
+    const others = s.items.filter((it) => it.on && it.id !== hit.id).map((it) => it.box);
     const move = (ev) => {
       const q = frameAt(ev);
       const dx = q.fx - p.fx;
       const dy = q.fy - p.fy;
       let box;
+      // Alt lets go of the snapping; the guides show what it is pulled to.
+      const free = ev.altKey;
       if (!handle) {
-        box = { ...start, x: snap(start.x + dx, start.w), y: snap(start.y + dy, start.h) };
+        const moved = { ...start, x: start.x + dx, y: start.y + dy };
+        const snapped = free ? { box: moved, guides: [] } : snapMove(moved, others);
+        box = snapped.box;
+        setGuides(snapped.guides);
       } else {
-        // The corner opposite the one held stays where it is; the shape is kept unless Shift is held.
+        // The corner opposite the one held stays where it is; Keep its shape holds the proportions, and Shift goes the other way for once.
         const left = handle.includes('w');
         const top = handle.includes('n');
         const ax = left ? start.x + start.w : start.x;
         const ay = top ? start.y + start.h : start.y;
-        let w = Math.max(0.04, left ? ax - q.fx : q.fx - ax);
-        let h = Math.max(0.04, top ? ay - q.fy : q.fy - ay);
-        if (!ev.shiftKey || hit.shape === 'circle') { if (w / h > aspect) h = w / aspect; else w = h * aspect; }
+        const at = free ? { x: q.fx, y: q.fy, guides: [] } : snapPoint(q.fx, q.fy, others);
+        let w = Math.max(0.04, left ? ax - at.x : at.x - ax);
+        let h = Math.max(0.04, top ? ay - at.y : at.y - ay);
+        if ((hit.keep !== false) !== ev.shiftKey || hit.shape === 'circle') { if (w / h > aspect) h = w / aspect; else w = h * aspect; }
         box = { x: left ? ax - w : ax, y: top ? ay - h : ay, w, h };
+        setGuides(at.guides);
       }
       changeFrame((st) => updateItem(st, hit.id, { box: clampBox(box) }), false);
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      setGuides([]);
       changeFrame((st) => st);
     };
     window.addEventListener('pointermove', move);
@@ -573,7 +611,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const onFrameKey = (e) => {
     if (!selItem || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
     e.preventDefault();
-    const step = e.shiftKey ? 0.05 : 0.005;
+    const step = e.shiftKey ? 0.02 : 0.002;
     const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
     const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
     changeFrame((s) => updateItem(s, selItem.id, (it) => ({ ...it, box: clampBox({ ...it.box, x: it.box.x + dx, y: it.box.y + dy }) })));
@@ -1295,7 +1333,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         <div className="rec-region st-drawn" style={{ left: `${Math.min(drawing.a.fx, drawing.b.fx) * 100}%`, top: `${Math.min(drawing.a.fy, drawing.b.fy) * 100}%`, width: `${Math.abs(drawing.b.fx - drawing.a.fx) * 100}%`, height: `${Math.abs(drawing.b.fy - drawing.a.fy) * 100}%` }}><span>{t('Clip')}</span></div>
       ) : null}
       {clipping && selBox && !drawing ? <div className="rec-hint">{t('Drag over the part of {name} to show.', { name: itemName(selItem) })}</div> : null}
-      {stack.video === 'on' && !anyShown && loaded ? <div className="st-empty">{sources == null ? t('Looking at what is open…') : t('Show a screen, a window or a camera from the list on the right.')}</div> : null}
+      {stack.video === 'on' && !anyShown && loaded ? <div className="st-empty">{sources == null ? t('Looking at what is open…') : t('Show a screen, a window or a camera from the list on the left.')}</div> : null}
     </>
   );
 
@@ -1309,7 +1347,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     change, changeStack, changeFrame, act, barAct, take, togglePreview, setAuto, startFollow, startRotate,
     pickScene, sceneLost, unsetScene, openSetupAt, sceneMenu, setSceneMenu, sceneMenuItems, moveSceneBy, saveAsScene,
     pickRow, setPickRow, choosePick, useMic, useCamera, toggleCamera,
-    selected, setSelected, selItem, selSound, clipping, overlay, editFrameRef, onFramePointer, onFrameKey, setGuides,
+    selected, setSelected, selItem, selSound, thumbs, chooseSource, withItem, withBox, onAirIds: live ? airStack.items.filter((it) => it.on).map((it) => it.id) : [], clipping, overlay, editFrameRef, onFramePointer, onFrameKey, setGuides,
     fileOpening, setFileOpening, addOpenedFile, chooseFolder, choosePlaceholder, chooseMusic,
   };
 
@@ -1326,7 +1364,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       ) : null}
       <OpenSetupDialog s={s} />
       {closeAsk ? <ConfirmDialog title={t('End broadcast?')} body={t('You are live. Closing this window ends the broadcast.')} okLabel={t('End broadcast and close')} onOk={async () => { closing.current = true; await endLive(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
-      {cameraAsk ? <ConfirmDialog tone="plain" title={t('Change the camera on air?')} body={t('The picture on air changes to {name} at once.', { name: cameraAsk.name })} okLabel={t('Change')} onOk={() => setCameraTo(cameraAsk)} onClose={() => setCameraAsk(null)} /> : null}
+      {cameraAsk ? <ConfirmDialog tone="plain" title={t('Change the camera on air?')} body={t('The picture on air changes to {name} at once.', { name: cameraAsk.name })} okLabel={t('Change')} onOk={() => (cameraAsk.apply ? cameraAsk.apply() : setCameraTo(cameraAsk))} onClose={() => setCameraAsk(null)} /> : null}
       {sceneAsk?.what === 'rename' ? <NameDialog title={t('Rename')} label={t('Name')} value={sceneAsk.sc.name} okLabel={t('Rename')} onOk={(name) => { changeStack((st) => renameScene(st, sceneAsk.sc.key, name)); setSceneAsk(null); }} onClose={() => setSceneAsk(null)} /> : null}
       {sceneAsk?.what === 'delete' ? <ConfirmDialog title={t('Delete {name}?', { name: sceneAsk.sc.name })} body={t('The scene goes from this setup. Undo brings it back.')} okLabel={t('Delete')} onOk={() => changeStack((st) => removeScene(st, sceneAsk.sc.key))} onClose={() => setSceneAsk(null)} /> : null}
 
@@ -1334,11 +1372,6 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         {!loaded ? null : panel === 'setup' ? <SetupPanel s={s} /> : isLive ? <LivePanel s={s} /> : <RecordPanel s={s} />}
       </Content>
 
-      {panel === 'setup' ? (
-        <Panel name={`${kind}-sources`} width={280} right resizable title={t('Sources')}>
-          <SourceList stack={named} spare={spare} spareSounds={spareSounds} media={media} selected={selected} onSelect={setSelected} act={act} thumbs={thumbs} />
-        </Panel>
-      ) : null}
     </AppFrame>
   );
 }

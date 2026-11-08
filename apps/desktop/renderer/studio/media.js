@@ -165,7 +165,11 @@ export class StudioMedia {
     const track = stream.getVideoTracks()[0];
     track?.addEventListener('ended', () => {
       if (this.captures.get(key) !== cap) return;
-      cap.error = t('{name} closed or stopped sharing.', { name: item.name || t('The screen') });
+      // The window went away: its last picture stands in, and the capture is not tried again until it is found.
+      const still = grab(cap.video);
+      if (still) this.stills.set(key, still);
+      cap.ended = true;
+      cap.error = item.kind === 'window' ? t('Window closed') : t('{name} closed or stopped sharing.', { name: item.name || t('The screen') });
       this.changed();
     });
     cap.video.addEventListener('loadeddata', () => this.changed(), { once: true });
@@ -184,6 +188,7 @@ export class StudioMedia {
   /** A source that is live but has given no frame for three seconds, opened again. */
   revive(stack, opts) {
     for (const [key, cap] of this.captures) {
+      if (cap.ended) continue;
       if (cap.video && !cap.video.videoWidth && cap.since && performance.now() - cap.since > 3000 && !cap.retried) {
         cap.retried = true;
         const it = stack.items.find((x) => sourceKey(x) === key);

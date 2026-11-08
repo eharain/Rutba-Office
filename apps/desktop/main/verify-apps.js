@@ -30,6 +30,7 @@ import { verifyRecorder, verifyRecorderScreen } from './verify-recorder.js';
 import { verifyRecorderVoice } from './verify-recorder-voice.js';
 import { verifyVideoPlayer } from './verify-video-player.js';
 import { verifyRecorderApp } from './verify-recorder-app.js';
+import { verifyStudioSetups } from './verify-studio-setups.js';
 import { verifyRecorderTools } from './verify-recorder-tools.js';
 import { verifyAppMenu } from './verify-app-menu.js';
 import { verifyAppsChoice } from './verify-apps-choice.js';
@@ -4991,7 +4992,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,home-sets,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,recorder-tools,app-menu,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,keystore,ai-tools,ai-reach,profiles,exif-location,pictures-ratings,windows-codec,metafile-drawn,pictures-tiff,image-formats,pictures-formats,image-open,pictures-drawn: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,home-sets,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,recorder-tools,app-menu,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,keystore,ai-tools,ai-reach,profiles,exif-location,pictures-ratings,windows-codec,metafile-drawn,pictures-tiff,image-formats,pictures-formats,image-open,pictures-drawn,studio-setups: those blocks alone, for working on them.
   // video-fit: Video's Compact and Small presets and Fit under a size, each file read back.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
@@ -5170,6 +5171,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('recorder-voice')) await verifyRecorderVoice({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('video-player')) await verifyVideoPlayer({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder-app')) await verifyRecorderApp({ open, check, until, wait, errorsIn }, { dir });
+    if (only.includes('studio-setups')) await verifyStudioSetups({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('app-menu')) await verifyAppMenu({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('recorder-tools')) await verifyRecorderTools({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('apps-choice')) await verifyAppsChoice({ open, check, until, wait, errorsIn });
@@ -5443,6 +5445,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('recorder', () => verifyRecorderVoice({ open, check, until, wait, errorsIn }, { dir }));
   await part('video', () => verifyVideoPlayer({ open, check, until, wait, errorsIn }, { dir }));
   await part('recorder', () => verifyRecorderApp({ open, check, until, wait, errorsIn }, { dir }));
+  await part('recorder', () => verifyStudioSetups({ open, check, until, wait, errorsIn }, { dir }));
   await part('recorder', () => verifyRecorderTools({ open, check, until, wait, errorsIn }, { dir }), { machine: true });
   await part('shell', () => verifyAppsChoice({ open, check, until, wait, errorsIn }));
   await part('shell', () => verifyHomeSets({ open, check, until, wait, errorsIn, capture: shotTo }));

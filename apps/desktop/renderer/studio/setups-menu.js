@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Button, Dialog, Icon, Menu, t } from '@rutba/office-ui';
 import { menuOrder } from '@rutba/studio/setup';
 import { NameDialog, ConfirmDialog } from './parts.js';
+import { kindName } from './list.js';
 
 const appWord = (app) => (app === 'broadcast' ? t('Live Broadcast') : t('Recorder'));
 
@@ -59,9 +60,9 @@ export function OpenSetupDialog({ s }) {
       <h1 className="st-open-title">{setup.name}</h1>
       <p className="st-open-sub">{missing.length ? t('Most of it was found here; check the ones below.') : t('Everything it needs was found here.')}</p>
       <div className="st-open-rows">
-        {found.map((rec) => <div className="st-open-row" key={`f-${rec.id}`}><span className="st-open-ok"><Icon name="check" size={13} /></span><span className="st-open-name">{rec.name || rec.kind}</span><span className="st-open-how">{seen(rec)}</span></div>)}
+        {found.map((rec) => <div className="st-open-row" key={`f-${rec.id}`}><span className="st-open-ok"><Icon name="check" size={13} /></span><span className="st-open-name">{rec.name || kindName(rec.kind)}</span><span className="st-open-how">{seen(rec)}</span></div>)}
         {mediaCount ? <div className="st-open-row"><span className="st-open-ok"><Icon name="check" size={13} /></span><span className="st-open-name">{t('Pictures and music')}</span><span className="st-open-how">{t('{n} files, all in the setup file', { n: mediaCount })}</span></div> : null}
-        {missing.map((rec) => <div className="st-open-row lost" key={`m-${rec.id}`}><span className="st-open-no"><Icon name="info" size={13} /></span><span className="st-open-name">{rec.name || rec.kind}<small>{t('Not found here. Kept in its place until you choose one.')}</small></span></div>)}
+        {missing.map((rec) => <div className="st-open-row lost" key={`m-${rec.id}`}><span className="st-open-no"><Icon name="info" size={13} /></span><span className="st-open-name">{rec.name || kindName(rec.kind)}<small>{t('Not found here. Kept in its place until you choose one.')}</small></span></div>)}
         {(streams || []).map((d) => <div className="st-open-row lost" key={`k-${d.id}`}><span className="st-open-no"><Icon name="lock" size={13} /></span><span className="st-open-name">{d.name}<small>{t('Key needed. Stream keys never travel in a setup file.')}</small></span>{s.isLive ? <Button label={t('Add key…')} onClick={() => s.setLiveOpen(true)} /> : null}</div>)}
       </div>
     </Dialog>

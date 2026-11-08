@@ -106,7 +106,7 @@ async function appChecks(h, { dir }) {
       window.dispatchEvent(new PointerEvent('pointerup', at(${x1}, ${y1})));
       return 'drawn';
     })()`);
-    const select = (kind) => js(`document.querySelector('.st-list .st-card[data-kind="${kind}"]:not(.st-spare)')?.click(), 1`);
+    const select = (kind) => js(`document.querySelector('.st-list .st-card[data-kind="${kind}"]')?.click(), 1`);
     const clipOf = async (kind) => {
       await select(kind);
       await until(() => js(`document.querySelector('.st-bar')?.dataset.kind === '${kind}'`), `the ${kind}'s bar`, 4000).catch(() => {});
@@ -119,7 +119,7 @@ async function appChecks(h, { dir }) {
     };
     const winCrop = await clipOf('window');
     const camCrop = await clipOf('camera');
-    const winBar = await js(`(() => { const b = document.querySelector('.st-bar'); return ['.st-bar-run', '.st-clip', '.st-place', '.st-mirror', '.st-shape-circle'].every((s) => b.querySelector(s)); })()`);
+    const winBar = await js(`(() => { const b = document.querySelector('.st-bar'); return ['.st-clip', '.st-place', '.st-mirror-btn', '.st-shapes [data-value="circle"]'].every((s) => b.querySelector(s)); })()`);
     const near = (c) => c && Math.abs(c.x - 0.2) < 0.06 && Math.abs(c.y - 0.2) < 0.06 && Math.abs(c.w - 0.5) < 0.08 && Math.abs(c.h - 0.6) < 0.08;
     // The camera is a mirrored circle in that scene, filled by the middle of its picture: the part
     // dragged over is as tall as on the window, narrower, and to the right of its middle, as drawn.
@@ -133,10 +133,10 @@ async function appChecks(h, { dir }) {
     // Shape and mirror the camera, and reorder: the window brought over it from the list.
     await select('camera');
     const wasMirrored = Boolean((await itemOf('camera'))?.mirror);
-    await js(`document.querySelector('.st-bar .st-shape-rounded')?.click(), 1`);
+    await js(`document.querySelector('.st-bar .st-shapes [data-value="rounded"]')?.click(), 1`);
     await until(async () => (await itemOf('camera'))?.shape === 'rounded', 'rounded', 3000).catch(() => {});
-    await js(`document.querySelector('.st-bar .st-shape-circle')?.click(), 1`);
-    await js(`document.querySelector('.st-bar .st-mirror')?.click(), 1`);
+    await js(`document.querySelector('.st-bar .st-shapes [data-value="circle"]')?.click(), 1`);
+    await js(`document.querySelector('.st-bar .st-mirror-btn')?.click(), 1`);
     const shaped = await ok(until(async () => { const c = await itemOf('camera'); return c?.shape === 'circle' && c.mirror === !wasMirrored; }, 'a circle, mirrored the other way', 4000));
     await js(`(() => { const n = document.querySelector('.st-list .st-card[data-kind="window"][data-on="1"]'); n.focus(); n.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true })); return 1; })()`);
     const reordered = await ok(until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'camera window'`), 'the window on top', 4000));
@@ -235,6 +235,8 @@ async function appChecks(h, { dir }) {
     await wait(1000);
     await js(`document.querySelector('.st-scene[data-scene="camera"]')?.click(), 1`);
     const switched = await ok(until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'camera'`), 'the camera scene while recording', 4000));
+    const capture = async (name) => { if (!process.env.RUTBA_VERIFY_CAPTURE) return; win.webContents.invalidate(); await wait(700); fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG()); };
+    await capture('record-recording.png');
     await js(`document.querySelector('.st-shoot')?.click(), 1`);
     const pictureWhile = await ok(until(() => pictures().length >= 5, 'a picture while recording', 8000));
     await wait(600);
@@ -252,6 +254,7 @@ async function appChecks(h, { dir }) {
     await js(`document.querySelector('.st-record')?.click(), 1`);
     const recordedFor = (Date.now() - recordedFrom) / 1000 - pausedFor;
     const saved = await ok(until(() => js(`Boolean(document.querySelector('.st-saved'))`), 'the saved bar', 30000));
+    await capture('record-saved.png');
     const made = files();
     const probe = made.length === 1 ? probeMedia(new Uint8Array(fs.readFileSync(path.join(folder, made[0].name))), { complete: true }) : null;
     const offAgain = await js(`!document.querySelector('.st-record')?.classList.contains('on')`);
@@ -261,7 +264,7 @@ async function appChecks(h, { dir }) {
 
     // Edit in Video: the recording on Video's timeline.
     const before = BrowserWindow.getAllWindows();
-    await js(`document.querySelector('.st-edit')?.click(), 1`);
+    await js(`document.querySelector('.st-saved .st-edit')?.click(), 1`);
     const opened = () => BrowserWindow.getAllWindows().find((w) => !before.includes(w) && !w.isDestroyed()) || null;
     await until(opened, 'a Video window', 8000).catch(() => {});
     const video = opened();
@@ -275,6 +278,7 @@ async function appChecks(h, { dir }) {
     // The Sound only scene: Record says it records sound, and keeps sound alone.
     await js(`document.querySelector('.st-again')?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.st-scene[data-scene="sound-only"]'))`), 'the scenes again', 4000).catch(() => {});
+    await capture('record-panel.png');
     await js(`document.querySelector('.st-scene[data-scene="sound-only"]')?.click(), 1`);
     const saysSound = await ok(until(() => js(`/sound/i.test(document.querySelector('.st-record')?.textContent || '')`), 'Record sound', 4000));
     await js(`document.querySelector('.st-record')?.click(), 1`);

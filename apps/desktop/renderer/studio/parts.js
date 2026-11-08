@@ -108,7 +108,7 @@ export function NameDialog({ title, label, value = '', okLabel, onOk, onClose })
       <Button label={t('Cancel')} onClick={onClose} />
       <Button primary label={okLabel} className="st-name-ok" disabled={!text.trim()} onClick={ok} />
     </>}>
-      <Field label={label}><Input className="st-name-input" autoFocus value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); ok(); } }} /></Field>
+      <Field label={label}><Input className="rw-input st-name-input" autoFocus value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); ok(); } }} /></Field>
     </Dialog>
   );
 }
