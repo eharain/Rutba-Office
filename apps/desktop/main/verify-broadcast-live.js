@@ -26,7 +26,9 @@ import crypto from 'node:crypto';
 import { buildDocx } from '@rutba/ooxml/build';
 import { probeMedia } from '@rutba/media/probe';
 import { ChunkReader, chunkMessage, encodeAmf0, decodeAmf0 } from '@rutba/stream';
+import { addItem, emptyStack } from '@rutba/studio/stack';
 import { withScreenStandIn } from './verify-recorder.js';
+import { seedSetup, restoreSetup, PANEL, IN_PANEL } from './verify-studio-seed.js';
 
 /** A local ingest: answers a publisher as YouTube's does, and keeps what each connection sent. */
 export function startIngest() {
@@ -102,22 +104,17 @@ async function liveChecks(h, { dir }) {
     await open('word', docFile);
     const win = await open('broadcast');
     js = (code) => win.webContents.executeJavaScript(code);
-    kept = await js(`Promise.all([window.rutbaOffice.store.get({ key: 'broadcast.studio', fallback: null }), window.rutbaOffice.store.get({ key: 'broadcast.stack', fallback: null })])`);
     for (const d of await js(`window.rutbaOffice.live.destinations()`)) await js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`);
-    const stack = { version: 2, items: [], sounds: [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', name: '', live: false, muted: false, gain: 1 }], scenes: [], video: 'on', sound: 'on' };
-    await js(`Promise.all([
-      window.rutbaOffice.store.set({ key: 'broadcast.studio', value: ${JSON.stringify({ size: 720, fps: 30, countdown: 0, folder, liveCopy: true, minimise: false, shot: 'program', shotTimer: 0 })} }),
-      window.rutbaOffice.store.set({ key: 'broadcast.stack', value: ${JSON.stringify(stack)} }),
-    ]).then(() => 1)`);
+    await until(() => js(`window.rutbaOffice.capture.sources().then((l) => l.some((x) => x.name.includes('live-fixture')))`), 'the fixture window to be there', 10000).catch(() => {});
+    const source = (await js(`window.rutbaOffice.capture.sources()`)).find((x) => x.name.includes('live-fixture'));
+    let stack = { ...emptyStack(), sounds: [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', name: '', live: false, muted: false, gain: 1 }] };
+    stack = addItem(stack, { kind: 'window', ref: source.id, name: source.name, on: false }).stack;
+    stack = addItem(stack, { kind: 'camera', ref: '', name: '', on: false, shape: 'circle' }).stack;
+    kept = await seedSetup(js, { app: 'broadcast', stack, studio: { size: 720, fps: 30, countdown: 0, folder, liveCopy: true, minimise: false, shot: 'program', shotTimer: 0 } });
     await win.webContents.reload();
-    await until(() => js(`Boolean(document.querySelector('.st-canvas')) && Boolean(document.querySelector('.st-list'))`), 'the Live Broadcast window', 10000);
-    // The fixture window and the camera put on the share from the list, as the Screen and camera scene.
-    const fixture = `[...document.querySelectorAll('.st-list .st-spare[data-kind="window"]')].find((n) => (n.dataset.tip || '').includes('live-fixture'))`;
-    await until(() => js(`Boolean(${fixture})`), 'the fixture window', 10000).catch(() => {});
-    await js(`${fixture}?.querySelector('.st-eye')?.click(), 1`);
-    await until(() => js(`Boolean(document.querySelector('.st-list .st-spare[data-kind="camera"]'))`), 'the camera in the list', 8000).catch(() => {});
-    await js(`document.querySelector('.st-list .st-spare[data-kind="camera"] .st-eye')?.click(), 1`);
-    await until(() => js(`document.querySelectorAll('.st-list .st-card[data-on="1"]').length === 2`), 'both on the share', 6000).catch(() => {});
+    await until(() => js(`Boolean(document.querySelector('.st-canvas')) && Boolean(document.querySelector('.st-livebar'))`), 'the Live Broadcast window', 10000);
+    // The Screen and camera scene up: the fixture window and the camera.
+    await until(() => js(`Boolean(document.querySelector('.st-scene[data-scene="screen-camera"]'))`), 'the scenes', 8000).catch(() => {});
     await js(`document.querySelector('.st-scene[data-scene="screen-camera"]')?.click(), 1`);
     await until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'window camera'`), 'the program', 25000).catch(() => {});
 
@@ -239,10 +236,10 @@ async function liveChecks(h, { dir }) {
     // A slow line: the server stops reading, the queue fills, and the picture's bitrate comes down
     // (owner, 2026-10-20: "lower the quality to keep it upto speed"); the sound is not touched.
     for (const sock of ingest.seen.sockets) sock.pause();
-    const lowered = await ok(until(() => js(`/lowered to keep up/.test(document.querySelector('.st-status')?.textContent || '')`), 'the bitrate lowered', 30000));
-    const rateText = await js(`document.querySelector('.st-status')?.textContent || ''`);
+    const lowered = await ok(until(() => js(`/lowered to keep up/.test(document.querySelector('.st-live-rate')?.textContent || '')`), 'the bitrate lowered', 30000));
+    const rateText = await js(`document.querySelector('.st-live-rate')?.textContent || ''`);
     for (const sock of ingest.seen.sockets) sock.resume();
-    check('broadcast live: when the line cannot keep up, the picture\'s bitrate comes down and the status bar says so',
+    check('broadcast live: when the line cannot keep up, the picture\'s bitrate comes down and the bar says so',
       lowered && /\d+ kb\/s/.test(rateText), rateText.slice(0, 160));
     await wait(1500);
 
@@ -294,6 +291,24 @@ async function liveChecks(h, { dir }) {
       onAgain && cA2.key === 'check-key-7Q4z' && cA2.video[0]?.kind === 'config' && cA2.video[aFirst]?.kind === 'key',
       JSON.stringify({ onAgain, first: cA2.video.slice(0, 3).map((v) => v.kind) }));
 
+    // Set up while live changes only Next: the picture on air stays as it is, and back on Live what changed waits for Take.
+    const layersAir = await js(`document.querySelector('.st-air-canvas')?.dataset.layers`);
+    await js(PANEL('setup'));
+    await until(() => js(IN_PANEL('setup')), 'Set up while live', 4000).catch(() => {});
+    const band = await js(`Boolean(document.querySelector('.st-band.live')) && Boolean(document.querySelector('.st-mirror'))`);
+    await js(`document.querySelector('.st-scene[data-scene="camera"]')?.click(), 1`);
+    const nextChanged = await ok(until(() => js(`document.querySelector('.st-preview-canvas')?.dataset.layers === 'camera'`), 'Next changed', 8000));
+    if (process.env.RUTBA_VERIFY_CAPTURE) { win.webContents.invalidate(); await wait(700); fs.mkdirSync(process.env.RUTBA_VERIFY_CAPTURE, { recursive: true }); fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'live-setup-while-live.png'), (await win.webContents.capturePage()).toPNG()); }
+    await js(PANEL('main'));
+    await until(() => js(IN_PANEL('live')), 'back on Live', 4000).catch(() => {});
+    const airHeld = await js(`document.querySelector('.st-air-canvas')?.dataset.layers`);
+    const waits = await js(`Boolean(document.querySelector('.st-next-pane')) && Boolean(document.querySelector('.st-take-btn'))`);
+    if (process.env.RUTBA_VERIFY_CAPTURE) { win.webContents.invalidate(); await wait(700); fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'live-on-air.png'), (await win.webContents.capturePage()).toPNG()); }
+    await js(`document.querySelector('.st-take-btn')?.click(), 1`);
+    const taken = await ok(until(() => js(`document.querySelector('.st-air-canvas')?.dataset.layers === 'camera'`), 'Take', 4000));
+    check('broadcast live: Set up while live changes only Next and says so, the picture on air stays, and back on Live the change waits for Take',
+      band && nextChanged && airHeld === layersAir && waits && taken, JSON.stringify({ band, nextChanged, layersAir, airHeld, waits, taken }));
+
     // End broadcast asks first, unpublishes, and keeps the copy.
     await click('.lv-end');
     const askedEnd = await seen('.lv-ask', 'the question');
@@ -315,7 +330,7 @@ async function liveChecks(h, { dir }) {
     if (js) {
       await js(`window.rutbaOffice.live.stop()`).catch(() => {});
       for (const d of (await js(`window.rutbaOffice.live.destinations()`).catch(() => [])) || []) await js(`window.rutbaOffice.live.removeDestination({ id: ${JSON.stringify(d.id)} })`).catch(() => {});
-      if (kept) await js(`Promise.all([window.rutbaOffice.store.set({ key: 'broadcast.studio', value: ${JSON.stringify(kept[0] ?? null)} }), window.rutbaOffice.store.set({ key: 'broadcast.stack', value: ${JSON.stringify(kept[1] ?? null)} })]).then(() => 1)`).catch(() => {});
+      if (kept) await restoreSetup(js, kept).catch(() => {});
     }
     ingest?.cut();
     ingest?.server.close();

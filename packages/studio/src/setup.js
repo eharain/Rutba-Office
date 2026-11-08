@@ -259,12 +259,15 @@ function matchDevice(ref, name, list, used) {
  * brought up to date; `found` and `missing` each a list of
  * { id, scope: 'item'|'sound', kind, name, how, was }. What is not found is
  * kept where it was, never dropped: it is shown as Not found with Choose….
+ * With `devices` null (they cannot be named yet), cameras and microphones
+ * are left as they are, and said neither found nor missing.
  */
 export function rematch(setup, sources, devices) {
     const screens = (sources || []).filter((s) => s.kind === 'screen');
     const windows = (sources || []).filter((s) => s.kind === 'window');
     const cameras = devices?.cameras || [];
     const mics = devices?.mics || [];
+    const trustDevices = devices != null;
     const usedWindows = new Set();
     const usedCameras = new Set();
     const usedMics = new Set();
@@ -277,6 +280,7 @@ export function rematch(setup, sources, devices) {
         // A window yet to be chosen, in a new setup, is not a window lost.
         if (it.kind === 'window' && !it.ref && !it.name) return it;
         if (it.kind === 'screen' && !it.ref && !it.name && !screens.length) return it;
+        if (it.kind === 'camera' && !trustDevices) return it;
         let m;
         if (it.kind === 'screen') m = matchScreen(it, screens);
         else if (it.kind === 'window') m = matchWindow(it, windows, usedWindows);
@@ -305,7 +309,7 @@ export function rematch(setup, sources, devices) {
     });
 
     const sounds = setup.stack.sounds.map((s) => {
-        if (s.kind !== 'mic') return s;
+        if (s.kind !== 'mic' || !trustDevices) return s;
         const m = matchDevice(s.ref, s.name, mics, usedMics);
         const rec = { id: s.id, scope: 'sound', kind: s.kind, name: s.name, how: m.how, was: '' };
         if (m.how === 'missing') { note(rec, false); return s; }

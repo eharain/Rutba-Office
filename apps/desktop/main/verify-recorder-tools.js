@@ -14,6 +14,7 @@ import { spawn } from 'node:child_process';
 import { app, BrowserWindow } from 'electron';
 import { buildDocx } from '@rutba/ooxml/build';
 import { probeMedia } from '@rutba/media/probe';
+import { seedSetup, readSetup } from './verify-studio-seed.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
@@ -38,15 +39,16 @@ export async function verifyRecorderTools(h, { dir }) {
     // read by a Recorder the tools open: one an earlier check left open holds the settings it read then.
     for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed() && /app=recorder\b/.test(w.webContents.getURL())) w.destroy();
     await wait(300);
-    const own = await js(`window.rutbaOffice.store.get({ key: 'recorder.studio', fallback: null })`);
-    const mine = { ...(own || {}), size: 720, fps: 24, countdown: 5, folder: path.join(dir, 'my recordings') };
+    const mine = { size: 720, fps: 24, countdown: 5, folder: path.join(dir, 'my recordings') };
     // The person's share: their camera alone, as a circle, with their title over it, and no sound from the computer.
     const myStack = { version: 2, video: 'on', sound: 'on', scenes: [],
       items: [{ id: 'title-1', kind: 'title', text: 'My own title', on: true, live: true, box: { x: 0.04, y: 0.78, w: 0.5, h: 0.14 } }, { id: 'camera-1', kind: 'camera', ref: '', on: true, live: true, shape: 'circle', box: { x: 0.3, y: 0.1, w: 0.4, h: 0.71 } }],
       sounds: [{ id: 'mic-1', kind: 'mic', ref: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', live: false, muted: false, gain: 1 }] };
-    await js(`Promise.all([window.rutbaOffice.store.set({ key: 'recorder.studio', value: ${JSON.stringify(mine)} }), window.rutbaOffice.store.set({ key: 'recorder.stack', value: ${JSON.stringify(myStack)} })]).then(() => 1)`);
-    const settingsWere = await js(`window.rutbaOffice.store.get({ key: 'recorder.studio', fallback: null })`);
-    const stackWas = await js(`window.rutbaOffice.store.get({ key: 'recorder.stack', fallback: null })`);
+    await seedSetup(js, { app: 'recorder', stack: myStack, studio: mine });
+    const whatIsKept = async () => { const [doc, global] = await Promise.all([readSetup(js), js(`window.rutbaOffice.store.get({ key: 'studio.global', fallback: null })`)]); return { doc, settings: { ...doc?.settings, ...global } }; };
+    const was = await whatIsKept();
+    const settingsWere = was.settings;
+    const stackWas = was.doc?.stack;
     const listedOff = await js(`window.rutbaOffice.ai.things().then((r) => r.things.find((x) => x.kind === 'recorder') || null)`);
 
     // An AI app, as AI Tools says to start one.
@@ -95,9 +97,11 @@ export async function verifyRecorderTools(h, { dir }) {
     const there = file && fs.existsSync(file) && path.dirname(file).toLowerCase() === folder.toLowerCase();
     const probe = there ? probeMedia(new Uint8Array(fs.readFileSync(file)), { complete: true }) : null;
     const after = textOf(await tool('recorder_state'));
-    const settingsNow = await js(`window.rutbaOffice.store.get({ key: 'recorder.studio', fallback: null })`);
     await wait(500);
-    const stackNow = await js(`window.rutbaOffice.store.get({ key: 'recorder.stack', fallback: null })`);
+    const now = await whatIsKept();
+    const settingsNow = now.settings;
+    const stackNow = now.doc?.stack;
+    const savedAside = (await js(`window.rutbaOffice.store.get({ key: 'studio.setups', fallback: null })`))?.setups?.some((x) => x.tools);
     check('recorder tools: set to record, an AI app lists the windows, records one for five seconds into its folder and stops; the file it is told of plays, as long as it was told',
       Boolean(source) && started && !started.result?.isError && /^phase\trecording/.test(during) && there && probe?.hasVideo && probe.duration >= 4 && probe.duration <= 8
         && Math.abs(Number(said[2]) - probe.duration) <= 1.5 && Number(said[3]) === fs.statSync(file).size && /^phase\tsetup/.test(after),
@@ -106,7 +110,7 @@ export async function verifyRecorderTools(h, { dir }) {
     const pick = (o) => JSON.stringify(Object.fromEntries(keys.map((k) => [k, o?.[k]])));
     const shareOf = (st) => JSON.stringify((st?.items || []).map((it) => [it.id, it.kind, it.on, it.shape, it.text || '']));
     check('recorder tools: the Recorder\'s own settings and share are as the person left them once the tools\' recording ends',
-      pick(settingsNow) === pick(settingsWere) && settingsWere?.countdown === 5 && shareOf(stackNow) === shareOf(stackWas) && (stackWas?.items || []).length === 2,
+      pick(settingsNow) === pick(settingsWere) && settingsWere?.countdown === 5 && shareOf(stackNow) === shareOf(stackWas) && (stackWas?.items || []).length === 2 && !savedAside,
       JSON.stringify({ settingsWere, settingsNow, stackWas: shareOf(stackWas), stackNow: shareOf(stackNow) }).slice(0, 900));
 
     // The log: the tools and the Recorder at the step they used.

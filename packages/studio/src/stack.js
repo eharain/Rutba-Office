@@ -113,8 +113,10 @@ function base(kind) {
         kind,
         ref: '',
         name: '',
+        label: '',
         on: false,
         live: true,
+        keep: true,
         box: kind === 'title' ? { ...TITLE_BOX } : { x: 0, y: 0, w: 1, h: 1 },
         crop: null,
         shape: 'rect',
@@ -134,8 +136,12 @@ export function normaliseItem(raw) {
         id: str(raw.id, '', 60),
         ref: str(raw.ref, '', 400),
         name: str(raw.name, '', 200),
+        // The person's own name for it; `name` is what the source calls itself, which finds it again (A4.1).
+        label: str(raw.label, '', 200),
         on: Boolean(raw.on),
         live: raw.live === undefined ? true : Boolean(raw.live),
+        // Keep its shape: sizing keeps its proportions unless this is off.
+        keep: raw.keep === undefined ? true : Boolean(raw.keep),
         box: clampBox(raw.box || b.box),
         crop: clampCrop(raw.crop),
         shape: pick(raw.shape, SHAPES, b.shape),
@@ -182,7 +188,7 @@ export function newId(kind, taken = []) {
 
 /** An empty studio. */
 export function emptyStack() {
-    return { version: 3, items: [], sounds: [], scenes: [], video: 'on', sound: 'on', placeholder: '', placeholderText: '', music: '', follow: {}, rotate: { every: 8, keys: [] }, auto: 'off', transition: 'fade', previewFirst: false, cameraOff: false, tall: {} };
+    return { version: 3, items: [], sounds: [], scenes: [], video: 'on', sound: 'on', placeholder: '', placeholderText: '', music: '', follow: {}, rotate: { every: 8, keys: [] }, auto: 'off', transition: 'fade', previewFirst: false, cameraOff: false, tall: {}, scene: '' };
 }
 
 /** A stored stack, or anything, as a stack the studio can use. */
@@ -211,6 +217,8 @@ export function normaliseStack(raw) {
         items,
         sounds,
         scenes,
+        // The scene on the frame, when one is.
+        scene: str(r.scene, '', 80),
         video: pick(r.video, VIDEO_MODES, 'on'),
         sound: pick(r.sound, SOUND_MODES, 'on'),
         placeholder: str(r.placeholder, '', 2000),
@@ -510,7 +518,8 @@ export function sceneOf(stack, name) {
 /** A scene kept: what the frame shows, under a name, last among the scenes. */
 export function saveScene(stack, name) {
     if (stack.scenes.length >= MAX_SCENES) return stack;
-    return { ...stack, scenes: [...stack.scenes, { ...sceneOf(stack, name), key: newSceneKey(stack.scenes.map((sc) => sc.key)) }] };
+    const key = newSceneKey(stack.scenes.map((sc) => sc.key));
+    return { ...stack, scenes: [...stack.scenes, { ...sceneOf(stack, name), key }], scene: key };
 }
 
 /** A scene by its key (or its place, from before scenes had keys) taken out. */
@@ -553,8 +562,8 @@ export function updateSceneFromFrame(stack, key) {
  */
 export function applyScene(stack, scene) {
     if (!scene) return stack;
-    if (scene.key === BACK_SOON) return { ...stack, video: 'placeholder', sound: 'music' };
-    if (scene.key === SOUND_ONLY) return { ...stack, video: 'off', sound: 'on' };
+    if (scene.key === BACK_SOON) return { ...stack, video: 'placeholder', sound: 'music', scene: scene.key };
+    if (scene.key === SOUND_ONLY) return { ...stack, video: 'off', sound: 'on', scene: scene.key };
     const byId = new Map(stack.items.map((it) => [it.id, it]));
     const shown = [];
     for (const l of scene.layers) {
@@ -565,7 +574,49 @@ export function applyScene(stack, scene) {
     }
     const hidden = stack.items.filter((it) => byId.has(it.id)).map((it) => ({ ...it, on: false }));
     // Any scene but Back soon or Sound only brings the picture and the sounds back.
-    return { ...stack, items: [...shown, ...hidden], video: 'on', sound: 'on' };
+    return { ...stack, items: [...shown, ...hidden], video: 'on', sound: 'on', scene: scene.key || stack.scene };
+}
+
+/** What the frame shows written into the scene on it, so a change in Set up is a change to the scene being made. */
+export function followFrame(stack) {
+    if (!stack.scene || !stack.scenes.some((sc) => sc.key === stack.scene)) return stack;
+    return updateSceneFromFrame(stack, stack.scene);
+}
+
+/**
+ * A box being dragged, pulled to the frame's edges and centre lines and the
+ * other sources' edges and centres when it is close to them. Answers the box
+ * and the guides to draw: [{ axis: 'x'|'y', at }].
+ */
+export function snapMove(box, others = [], { threshold = 0.012 } = {}) {
+    const xs = [0, 0.5, 1];
+    const ys = [0, 0.5, 1];
+    for (const o of others) { xs.push(o.x, o.x + o.w / 2, o.x + o.w); ys.push(o.y, o.y + o.h / 2, o.y + o.h); }
+    const best = (edges, lines) => {
+        let hit = null;
+        for (const e of edges) for (const l of lines) { const d = l - e; if (Math.abs(d) <= threshold && (!hit || Math.abs(d) < Math.abs(hit.d))) hit = { d, at: l }; }
+        return hit;
+    };
+    const hx = best([box.x, box.x + box.w / 2, box.x + box.w], xs);
+    const hy = best([box.y, box.y + box.h / 2, box.y + box.h], ys);
+    const guides = [];
+    if (hx) guides.push({ axis: 'x', at: hx.at });
+    if (hy) guides.push({ axis: 'y', at: hy.at });
+    return { box: clampBox({ ...box, x: box.x + (hx?.d || 0), y: box.y + (hy?.d || 0) }), guides };
+}
+
+/** A corner being dragged, pulled to the same lines. Answers { x, y, guides }. */
+export function snapPoint(x, y, others = [], { threshold = 0.012 } = {}) {
+    const xs = [0, 0.5, 1];
+    const ys = [0, 0.5, 1];
+    for (const o of others) { xs.push(o.x, o.x + o.w / 2, o.x + o.w); ys.push(o.y, o.y + o.h / 2, o.y + o.h); }
+    const near = (v, lines) => lines.reduce((b, l) => (Math.abs(l - v) <= threshold && (b == null || Math.abs(l - v) < Math.abs(b - v)) ? l : b), null);
+    const sx = near(x, xs);
+    const sy = near(y, ys);
+    const guides = [];
+    if (sx != null) guides.push({ axis: 'x', at: sx });
+    if (sy != null) guides.push({ axis: 'y', at: sy });
+    return { x: sx ?? x, y: sy ?? y, guides };
 }
 
 /** The Back soon scene, the last on Live: the placeholder's picture or card, and its music. */

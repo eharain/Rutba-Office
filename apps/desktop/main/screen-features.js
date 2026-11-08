@@ -20,6 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { seedSetupStore, PANEL, IN_PANEL } from './verify-studio-seed.js';
 
 /** The Talk picture's stand-in introducer, kept until its picture is taken. */
 let talkStandIn = null;
@@ -141,13 +142,21 @@ async function recordWindowIn(h, scene = 'screen-camera') {
   await new Promise((resolve) => doc.webContents.once('did-finish-load', resolve));
   await h.untilHere(() => doc.webContents.executeJavaScript(`Boolean(document.querySelector('.wd-block'))`), 'the document to record', 12000);
   await h.wait(1200);
+  // The list was read when the window opened, before the document was: read again, from Add in Set up.
+  await h.until(`Boolean(document.querySelector('.st-panels'))`, 'the panels', 8000);
+  await h.js(PANEL('setup'));
+  await h.until(IN_PANEL('setup'), 'Set up', 4000);
   await h.until(`Boolean(document.querySelector('.st-list .st-add'))`, 'the list', 8000);
-  // The list was read when the window opened, before the document was: read again, from Add.
   await h.click('.st-list .st-add', 'Add');
   await h.button('Refresh the list', '[role="menuitem"]');
-  const listed = `[...document.querySelectorAll('.st-list .st-spare[data-kind="window"]')].find((n) => /quarterly-review/.test(n.dataset.tip || ''))`;
-  await h.until(`Boolean(${listed})`, 'the document in the list', 10000);
-  await h.js(`${listed}.querySelector('.st-eye').click(), 1`);
+  await h.wait(800);
+  await h.js(PANEL('main'));
+  await h.until(`Boolean(document.querySelector('.st-dock'))`, 'the panel', 4000);
+  // The Screen scene, which is a window yet to be chosen: the row of windows, and the document picked from it.
+  await h.js(`document.querySelector('.st-scene[data-scene="screen"]')?.click(), 1`);
+  const listed = `[...document.querySelectorAll('.st-pick-item')].find((n) => /quarterly-review/.test(n.dataset.tip || ''))`;
+  await h.until(`Boolean(${listed})`, 'the document in the row', 10000);
+  await h.js(`${listed}.click(), 1`);
   await h.until(`(document.querySelector('.st-canvas')?.dataset.layers || '').includes('window')`, 'the window in the program', 20000);
   await h.js(`document.querySelector('.st-scene[data-scene="${scene}"]')?.click(), 1`);
   await h.until(`/window camera/.test(document.querySelector('.st-canvas')?.dataset.layers || '')`, 'the scene', 20000);
@@ -161,6 +170,7 @@ const recorderStack = (title) => ({
   scenes: [],
   items: [
     ...(title ? [{ id: 'title-1', kind: 'title', text: 'Imogen Hartley', subtitle: 'Northbank Logistics, quarterly review', on: true, live: true }] : []),
+    { id: 'window-1', kind: 'window', ref: '', on: false, live: true },
     { id: 'camera-1', kind: 'camera', ref: '', on: true, live: true, shape: 'circle', mirror: true },
   ],
   sounds: [{ id: 'mic-1', kind: 'mic', ref: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', live: false, muted: false, gain: 1 }],
@@ -880,8 +890,7 @@ export const FEATURES = [
     app: 'recorder',
     asApp: 'recorder',
     async before({ stores, samples }) {
-      stores.settings.set('recorder.studio', { size: 1080, fps: 30, countdown: 3, folder: samples, minimise: true });
-      stores.settings.set('recorder.stack', recorderStack(true));
+      seedSetupStore(stores, { app: 'recorder', stack: recorderStack(true), studio: { size: 1080, fps: 30, countdown: 3, folder: samples, minimise: true } });
     },
     async setup(h) {
       await recordWindowIn(h);
@@ -898,8 +907,7 @@ export const FEATURES = [
     app: 'broadcast',
     asApp: 'broadcast',
     async before({ stores, samples }) {
-      stores.settings.set('broadcast.studio', { size: 1080, fps: 30, countdown: 3, folder: samples, minimise: true });
-      stores.settings.set('broadcast.stack', broadcastStack());
+      seedSetupStore(stores, { app: 'broadcast', stack: broadcastStack(), studio: { size: 1080, fps: 30, countdown: 3, folder: samples, minimise: true } });
     },
     async setup(h) {
       await recordWindowIn(h, 'split');
@@ -915,8 +923,7 @@ export const FEATURES = [
     name: 'broadcast-go-live',
     app: 'broadcast',
     async before({ stores, samples }) {
-      stores.settings.set('broadcast.studio', { size: 1080, fps: 30, countdown: 3, folder: samples, minimise: true, liveCopy: true });
-      stores.settings.set('broadcast.stack', recorderStack(false));
+      seedSetupStore(stores, { app: 'broadcast', stack: recorderStack(false), studio: { size: 1080, fps: 30, countdown: 3, folder: samples, minimise: true, liveCopy: true } });
     },
     async setup(h) {
       await recordWindowIn(h, 'split');

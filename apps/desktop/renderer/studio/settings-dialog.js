@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { Dialog, Field, Select, Input, Button, basename, t } from '@rutba/office-ui';
-import { Toggle } from '../recording/panel.js';
+import { Toggle } from './toggle.js';
 
 /**
  * @param {object} p

@@ -229,6 +229,31 @@ test('a camera or microphone: the same id, else the same name, else not found; t
   assert.equal(r.missing[0].scope, 'sound');
 });
 
+test('devices not yet named are left alone: neither found nor lost', () => {
+  const s = { ...setupWith(), stack: normaliseStack({ items: [{ id: 'c', kind: 'camera', ref: 'x', name: 'Y', on: true }], sounds: [{ id: 'm', kind: 'mic', ref: 'z', name: 'Q', live: true }] }) };
+  const r = rematch(s, [], null);
+  assert.equal(r.found.length + r.missing.length, 0);
+  assert.equal(r.setup.stack.items[0].ref, 'x');
+});
+
+test('the scene on the frame takes what the frame shows, and a box snaps to the lines near it', async () => {
+  const { followFrame, snapMove, snapPoint, updateItem: upd } = await import('../packages/studio/src/stack.js');
+  let st = setupWith().stack;
+  assert.equal(st.scene, 'screen-camera');
+  st = followFrame(upd(st, 'camera-1', { box: { x: 0.1, y: 0.1, w: 0.2, h: 0.2 } }));
+  assert.equal(st.scenes.find((sc) => sc.key === 'screen-camera').layers.find((l) => l.id === 'camera-1').box.x, 0.1);
+  assert.equal(followFrame({ ...st, scene: '' }).scenes.length, 4);
+  const near = snapMove({ x: 0.005, y: 0.4, w: 0.2, h: 0.2 }, []);
+  assert.equal(near.box.x, 0, 'pulled to the left edge');
+  assert.deepEqual(near.guides.map((g) => g.axis), ['x', 'y'], 'and centred, top to bottom');
+  const free = snapMove({ x: 0.3, y: 0.31, w: 0.1, h: 0.1 }, []);
+  assert.equal(free.guides.length, 0);
+  const toOther = snapMove({ x: 0.495, y: 0.2, w: 0.1, h: 0.1 }, [{ x: 0.6, y: 0.7, w: 0.1, h: 0.1 }]);
+  assert.equal(toOther.guides[0].axis, 'x');
+  assert.equal(toOther.box.x, 0.5, 'the nearer line wins');
+  assert.deepEqual(snapPoint(0.995, 0.5, []).guides.length, 2);
+});
+
 test('a scene knows which of its sources are not found', () => {
   const st = setupWith().stack;
   const sc = st.scenes.find((x) => x.key === 'screen-camera');

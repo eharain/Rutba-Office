@@ -26,7 +26,9 @@ import { BrowserWindow } from 'electron';
 import { shortcuts } from '@rutba/office-shell/electron/shortcuts';
 import { buildDocx } from '@rutba/ooxml/build';
 import { probeMedia } from '@rutba/media/probe';
+import { addItem, emptyStack } from '@rutba/studio/stack';
 import { withScreenStandIn } from './verify-recorder.js';
+import { seedSetup, restoreSetup, readSetup, PANEL, IN_PANEL } from './verify-studio-seed.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn
@@ -36,14 +38,12 @@ export function verifyRecorderApp(h, args) {
   return withScreenStandIn(() => appChecks(h, args));
 }
 
-const START_STACK = {
-  version: 2,
-  items: [],
-  sounds: [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', name: '', live: false, muted: false, gain: 1 }],
-  scenes: [],
-  video: 'on',
-  sound: 'on',
-};
+/** The setup the check starts from: the fixture window and the camera, not shown yet, and the scenes they make. */
+function startStack(source) {
+  let s = { ...emptyStack(), sounds: [{ id: 'mic-1', kind: 'mic', ref: '', name: '', live: true, muted: false, gain: 1 }, { id: 'system-1', kind: 'system', ref: '', name: '', live: false, muted: false, gain: 1 }] };
+  s = addItem(s, { kind: 'window', ref: source.id, name: source.name, on: false }).stack;
+  return addItem(s, { kind: 'camera', ref: '', name: '', on: false, shape: 'circle' }).stack;
+}
 
 async function appChecks(h, { dir }) {
   const { open, check, until, wait, errorsIn } = h;
@@ -64,37 +64,36 @@ async function appChecks(h, { dir }) {
     await open('word', docFile);
     const win = await open('recorder');
     js = (code) => win.webContents.executeJavaScript(code);
-    kept = await js(`Promise.all([window.rutbaOffice.store.get({ key: 'recorder.studio', fallback: null }), window.rutbaOffice.store.get({ key: 'recorder.stack', fallback: null })])`);
-    await js(`Promise.all([
-      window.rutbaOffice.store.set({ key: 'recorder.studio', value: ${JSON.stringify({ size: 720, fps: 30, countdown: 0, folder, minimise: false, shot: 'program', shotTimer: 0 })} }),
-      window.rutbaOffice.store.set({ key: 'recorder.stack', value: ${JSON.stringify(START_STACK)} }),
-    ]).then(() => 1)`);
+    await until(() => js(`window.rutbaOffice.capture.sources().then((l) => l.some((x) => x.name.includes('studio-fixture')))`), 'the fixture window to be there', 10000).catch(() => {});
+    const source = (await js(`window.rutbaOffice.capture.sources()`)).find((x) => x.name.includes('studio-fixture'));
+    kept = await seedSetup(js, { app: 'recorder', stack: startStack(source), studio: { size: 720, fps: 30, countdown: 0, folder, minimise: false, shot: 'program', shotTimer: 0 } });
     await win.webContents.reload();
-    await until(() => js(`Boolean(document.querySelector('.st-canvas')) && Boolean(document.querySelector('.st-list'))`), 'the Recorder window', 10000);
-    const stack = () => js(`window.rutbaOffice.store.get({ key: 'recorder.stack', fallback: null })`);
+    await until(() => js(`Boolean(document.querySelector('.st-panel[data-panel="record"]'))`), 'the Recorder window', 10000);
+    const stack = async () => (await readSetup(js))?.stack;
+    const go = async (p) => { await js(PANEL(p)); await until(() => js(IN_PANEL(p)), `the ${p} panel`, 4000).catch(() => {}); };
     const itemOf = async (kind) => ((await stack())?.items || []).find((it) => it.kind === kind) || null;
     const canvas = () => js(`(() => { const c = document.querySelector('.st-canvas'); return { layers: c.dataset.layers, ids: c.dataset.ids, video: c.dataset.video, frames: Number(c.dataset.frames), size: [c.width, c.height] }; })()`);
 
-    // The first line, in its order: Picture and Record, then the Video and Sound switches, then the gear. Go Live is Live Broadcast's.
-    const line = await js(`[...document.querySelectorAll('.st-top .st-shoot, .st-top .st-golive, .st-top .st-record, .st-top .st-video, .st-top .st-sound, .st-top .st-gear')].map((n) => n.classList.contains('st-shoot') ? 'picture' : n.classList.contains('st-golive') ? 'live' : n.classList.contains('st-record') ? 'record' : n.classList.contains('st-video') ? 'video' : n.classList.contains('st-sound') ? 'sound' : 'gear').join(' ')`);
-    const recordSays = await js(`document.querySelector('.st-record')?.textContent || ''`);
-    const empty = await js(`Boolean(document.querySelector('.st-empty'))`);
-    check('recorder app: the first line holds Picture and Record side by side, then the Video and Sound switches and the settings, with no Go Live and no switching, and Record says it records video',
-      line === 'picture record video sound gear' && !(await js(`Boolean(document.querySelector('.st-switching'))`)) && /video/i.test(recordSays) && empty, JSON.stringify({ line, recordSays, empty }));
+    // Two panels, the Record panel holding the few controls a recording needs.
+    const line = await js(`[...document.querySelectorAll('.st-panels [data-panel]')].map((n) => n.textContent).join(' | ')`);
+    const recordSays = await js(`document.querySelector('.st-dock .st-record')?.textContent || ''`);
+    const noLive = await js(`!document.querySelector('.st-golive') && !document.querySelector('.st-auto') && Boolean(document.querySelector('.st-dock .st-shoot')) && Boolean(document.querySelector('.st-top .st-setup-btn'))`);
+    check('recorder app: two panels, Set up and Record, with the setup at the top and Picture and Record on the bar at the foot, no Go Live and no switching',
+      line === 'Set up | Record' && /Record/.test(recordSays) && noLive, JSON.stringify({ line, recordSays, noLive }));
 
-    // The fixture window and the camera, from the list's Not shown, put on the share with their eyes.
-    const fixture = `[...document.querySelectorAll('.st-list .st-spare[data-kind="window"]')].find((n) => (n.dataset.tip || '').includes('studio-fixture'))`;
-    const listed = await ok(until(() => js(`Boolean(${fixture})`), 'the fixture window in the list', 10000));
-    await js(`${fixture}?.querySelector('.st-eye')?.click(), 1`);
+    // The fixture window and the camera, listed in Set up, put on the frame with their eyes.
+    await go('setup');
+    const listed = await ok(until(() => js(`Boolean(document.querySelector('.st-list .st-card[data-kind="window"][data-on="0"]'))`), 'the fixture window in the list', 10000));
+    await js(`document.querySelector('.st-list .st-card[data-kind="window"] .st-eye')?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.st-list .st-card[data-kind="window"][data-on="1"]'))`), 'the window on the share', 6000).catch(() => {});
-    const camSpare = await ok(until(() => js(`Boolean(document.querySelector('.st-list .st-spare[data-kind="camera"]'))`), 'the camera in the list', 8000));
-    await js(`document.querySelector('.st-list .st-spare[data-kind="camera"] .st-eye')?.click(), 1`);
+    const camSpare = await ok(until(() => js(`Boolean(document.querySelector('.st-list .st-card[data-kind="camera"]'))`), 'the camera in the list', 8000));
+    await js(`document.querySelector('.st-list .st-card[data-kind="camera"] .st-eye')?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.st-list .st-card[data-kind="camera"][data-on="1"]'))`), 'the camera on the share', 6000).catch(() => {});
     await js(`document.querySelector('.st-scene[data-scene="screen-camera"]')?.click(), 1`);
     const live = await ok(until(() => js(`(() => { const c = document.querySelector('.st-canvas'); return c && c.dataset.layers === 'window camera' && Number(c.dataset.frames) > 10; })()`), 'the window and the camera in the program', 25000));
     const look = await js(`(() => { const c = document.querySelector('.st-canvas'); const g = c.getContext('2d'); const mid = g.getImageData(c.width / 2, c.height / 2, 1, 1).data; return { layers: c.dataset.layers, size: [c.width, c.height], scenes: document.querySelectorAll('.st-scene[data-scene]').length, mid: mid[0] + mid[1] + mid[2], shown: document.querySelectorAll('.st-list .st-card[data-on="1"]').length }; })()`);
-    check('recorder app: the window and the camera shown from the list are drawn live as one picture, 1280 by 720 as set, with the four scenes they make',
-      listed && camSpare && live && look.size[0] === 1280 && look.size[1] === 720 && look.scenes === 4 && look.mid > 60 && look.shown === 2,
+    check('recorder app: the window and the camera shown from the list are drawn live as one picture, 1280 by 720 as set, with the four scenes they make and Sound only',
+      listed && camSpare && live && look.size[0] === 1280 && look.size[1] === 720 && look.scenes === 5 && look.mid > 60 && look.shown === 2,
       JSON.stringify({ listed, camSpare, live, ...look }));
 
     // Clip, the same for the window and the camera: Clip on the bar, then a drag over the source's box.
@@ -155,10 +154,7 @@ async function appChecks(h, { dir }) {
     const restarted = await ok(until(() => js(`document.querySelector('.st-list .st-card[data-kind="camera"]')?.dataset.state === 'live'`), 'the camera live again', 15000));
     check('recorder app: Stop on the camera\'s card stops it and its last picture stays on the share; Start brings it back', stopped && stillDrawn && restarted, JSON.stringify({ stopped, stillDrawn, restarted }));
 
-    // Video on Placeholder draws the card alone; a title from Add is drawn over the sources.
-    await js(`document.querySelector('.st-video button[data-value="placeholder"]')?.click(), 1`);
-    const card = await ok(until(() => js(`(() => { const c = document.querySelector('.st-canvas'); return c.dataset.video === 'placeholder' && c.dataset.layers === ''; })()`), 'the placeholder', 4000));
-    await js(`document.querySelector('.st-video button[data-value="on"]')?.click(), 1`);
+    // A title from Add is drawn over the sources.
     await js(`document.querySelector('.st-add')?.click(), 1`);
     await until(() => js(`[...document.querySelectorAll('[role="menuitem"]')].some((n) => /Title/.test(n.textContent))`), 'the Add menu', 3000).catch(() => {});
     await js(`[...document.querySelectorAll('[role="menuitem"]')].find((n) => /Title/.test(n.textContent))?.click(), 1`);
@@ -171,7 +167,7 @@ async function appChecks(h, { dir }) {
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'recorder-app.png'), (await win.webContents.capturePage()).toPNG());
     }
     const titleSeen = { layers: (await canvas()).layers, title: (await itemOf('title'))?.text ?? null };
-    check('recorder app: Video on Placeholder draws the card alone, and a title added from the list is drawn over the sources', card && titled, JSON.stringify({ card, titled, ...titleSeen }));
+    check('recorder app: a title added from the list is drawn over the sources', titled, JSON.stringify({ titled, ...titleSeen }));
 
     // Take Picture (owner, 2026-10-20: "there should be a way to capture pictures on camera and from screens etc."):
     // the program as shown, the selected source at its own size, and one after a timer, each one PNG in the folder.
@@ -193,9 +189,12 @@ async function appChecks(h, { dir }) {
       const name = pictures()[n - 1] || '';
       return { name, size: name ? pngSize(name) : null };
     };
+    await go('main');
     const asShown = await shoot(1);
     await settings(() => pick('st-shot-of', 'selected'));
+    await go('setup');
     await select('camera');
+    await go('main');
     const ofSelected = await shoot(2);
     await settings(() => pick('st-shot-timer', '3'));
     await js(`document.querySelector('.st-shoot')?.click(), 1`);
@@ -221,7 +220,7 @@ async function appChecks(h, { dir }) {
     shortcuts().press?.('CommandOrControl+Shift+F8');
     const byKey = await ok(until(() => pictures().length >= 4, 'the picture by the key', 20000));
     win.restore();
-    const keyTip = await js(`document.querySelector('.st-shoot')?.title || ''`);
+    const keyTip = await js(`document.querySelector('.st-shoot')?.dataset.tip || ''`);
     check('recorder app: Take Picture\'s key takes a picture with the window minimised, and the button names the key',
       keyHeld && byKey && /Ctrl\+Shift\+F8|Cmd\+Shift\+F8/.test(keyTip), JSON.stringify({ keyHeld, byKey, pictures: pictures().length, keyTip }));
     await wait(300);
@@ -235,13 +234,13 @@ async function appChecks(h, { dir }) {
     const grew = await ok(until(() => files().some((f) => f.size > 5000), 'the recording on disk', 8000));
     await wait(1000);
     await js(`document.querySelector('.st-scene[data-scene="camera"]')?.click(), 1`);
-    const switched = await ok(until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'camera title'`), 'the camera scene while recording', 4000));
+    const switched = await ok(until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'camera'`), 'the camera scene while recording', 4000));
     await js(`document.querySelector('.st-shoot')?.click(), 1`);
     const pictureWhile = await ok(until(() => pictures().length >= 5, 'a picture while recording', 8000));
     await wait(600);
     const pausedFrom = Date.now();
     await js(`document.querySelector('.st-pause')?.click(), 1`);
-    const paused = await ok(until(() => js(`/Paused/.test(document.querySelector('.st-badge')?.textContent || '') && /Paused/.test(document.querySelector('.st-record')?.textContent || '')`), 'paused', 8000));
+    const paused = await ok(until(() => js(`/Paused/.test(document.querySelector('.st-badge')?.textContent || '') && document.querySelector('.st-record')?.classList.contains('held')`), 'paused', 8000));
     await wait(2500);
     await js(`document.querySelector('.st-pause')?.click(), 1`);
     const pausedFor = (Date.now() - pausedFrom) / 1000;
@@ -273,8 +272,10 @@ async function appChecks(h, { dir }) {
     }
     check('recorder app: Edit in Video opens the recording on Video\'s timeline', edited, video ? 'a Video window opened' : 'no window');
 
-    // Video off: Record says it records sound, and keeps sound alone.
-    await js(`document.querySelector('.st-video button[data-value="off"]')?.click(), 1`);
+    // The Sound only scene: Record says it records sound, and keeps sound alone.
+    await js(`document.querySelector('.st-again')?.click(), 1`);
+    await until(() => js(`Boolean(document.querySelector('.st-scene[data-scene="sound-only"]'))`), 'the scenes again', 4000).catch(() => {});
+    await js(`document.querySelector('.st-scene[data-scene="sound-only"]')?.click(), 1`);
     const saysSound = await ok(until(() => js(`/sound/i.test(document.querySelector('.st-record')?.textContent || '')`), 'Record sound', 4000));
     await js(`document.querySelector('.st-record')?.click(), 1`);
     const soundOn = await ok(until(() => js(`document.querySelector('.st-record')?.classList.contains('on')`), 'recording sound', 15000));
@@ -284,8 +285,7 @@ async function appChecks(h, { dir }) {
     await wait(500);
     const sound = files(/^Sound .*\.weba$/);
     const soundProbe = sound.length === 1 ? probeMedia(new Uint8Array(fs.readFileSync(path.join(folder, sound[0].name))), { complete: true }) : null;
-    await js(`document.querySelector('.st-video button[data-value="on"]')?.click(), 1`);
-    check('recorder app: with Video off, Record says it records sound and keeps sound alone, no picture',
+    check('recorder app: with Sound only, Record says it records sound and keeps sound alone, no picture',
       saysSound && soundOn && sound.length === 1 && soundProbe?.hasAudio && !soundProbe?.hasVideo && soundProbe.duration > 1.5,
       JSON.stringify({ saysSound, soundOn, sound, probe: soundProbe ? { video: soundProbe.hasVideo, audio: soundProbe.hasAudio, duration: soundProbe.duration } : null }));
 
@@ -294,6 +294,6 @@ async function appChecks(h, { dir }) {
   } catch (err) {
     check('recorder app: the check ran to the end', false, err?.message || String(err));
   } finally {
-    if (js && kept) await js(`Promise.all([window.rutbaOffice.store.set({ key: 'recorder.studio', value: ${JSON.stringify(kept[0] ?? null)} }), window.rutbaOffice.store.set({ key: 'recorder.stack', value: ${JSON.stringify(kept[1] ?? null)} })]).then(() => 1)`).catch(() => {});
+    if (js && kept) await restoreSetup(js, kept).catch(() => {});
   }
 }

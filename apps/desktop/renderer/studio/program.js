@@ -223,7 +223,7 @@ export class Program {
     } else {
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, W, H);
-      for (const it of drawOrder(stack)) if (this.drawItem(it, W, H)) drawn.push(it);
+      for (const it of drawOrder(stack)) if (!(stack.cameraOff && it.kind === 'camera') && this.drawItem(it, W, H)) drawn.push(it);
     }
     if (this.fade) {
       const left = 1 - (performance.now() - this.fade.from) / this.fade.ms;

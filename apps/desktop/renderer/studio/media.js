@@ -451,11 +451,13 @@ export class StudioMedia {
     try {
       const all = await navigator.mediaDevices.enumerateDevices();
       return {
+        // Before the first permission the devices have no names, and nothing can be said to be missing.
+        labelled: all.every((d) => Boolean(d.label)),
         cameras: all.filter((d) => d.kind === 'videoinput').map((d, i) => ({ id: d.deviceId, name: d.label || t('Camera {n}', { n: i + 1 }) })),
         mics: all.filter((d) => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications').map((d, i) => ({ id: d.deviceId, name: d.label || t('Microphone {n}', { n: i + 1 }) })),
       };
     } catch {
-      return { cameras: [], mics: [] };
+      return { cameras: [], mics: [], labelled: false };
     }
   }
 
