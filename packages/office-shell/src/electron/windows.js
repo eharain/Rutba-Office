@@ -37,9 +37,11 @@ const GEOMETRY = {
   contacts: { width: 1180, height: 760, minWidth: 820, minHeight: 520 },
 };
 
-export function createWindowManager({ stores, preloadPath, iconPath, appIcons = {}, appNames = {}, appUserModelId = null, relaunchArgs = () => [], resolveApp = null, onWindowEvent, confirmClose }) {
+export function createWindowManager({ stores, preloadPath, iconPath, appIcons = {}, appNames = {}, appUserModelId = null, relaunchArgs = () => [], resolveApp = null, onWindowEvent, confirmClose, onOpenApps = null }) {
   /** @type {Map<number, { app: string, file: string|null, dirty: boolean, name: string, closing: boolean }>} */
   const meta = new Map();
+  // The apps with a window open, told as they change (the other profiles' menus say which are open).
+  const tellOpenApps = () => onOpenApps?.([...new Set([...meta.values()].filter((m) => !m.presenter).map((m) => m.app))]);
   let focusTick = 0;
   const tiles = new Map();
 
@@ -172,6 +174,7 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
 
     // A presenter window is marked, so a show going full screen can keep off its screen.
     meta.set(win.id, { app: appKey, file, dirty: false, name: '', closing: false, presenter: query?.presenter != null, usedAt: 0 });
+    tellOpenApps();
     // When it was last in front, so Side by Side can pair a window with the one used before it.
     win.on('focus', () => { const m = meta.get(win.id); if (m) m.usedAt = ++focusTick; });
     // A window a check run keeps off the desktop is never maximised: Windows
@@ -273,6 +276,7 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     const winId = win.id;
     win.on('closed', () => {
       meta.delete(winId);
+      tellOpenApps();
       releaseBlobsOf(winId);
     });
 

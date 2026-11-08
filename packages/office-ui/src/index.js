@@ -1444,8 +1444,10 @@ export function Menu({ x, y, rtl = false, items, onClose, keyboard = false, nest
             }}
           >
             {/* A gallery's sample, where an item shows what it makes (a WordArt style), in place of an icon. */}
-            {item.preview ? <span className="rw-menu-preview">{item.preview}</span> : item.icon ? <Icon name={item.icon} /> : <span style={{ width: 15 }} />}
+            {item.preview ? <span className="rw-menu-preview">{item.preview}</span> : item.mark ? <span className="rw-menu-mark">{item.mark}</span> : item.icon ? <Icon name={item.icon} /> : <span style={{ width: 15 }} />}
             <span className="rw-menu-label">{item.label}</span>
+            {/* What the item will do, said at its end. */}
+            {item.hint ? <span className="rw-menu-hint">{item.hint}</span> : null}
             {item.key ? <span className="key" aria-hidden="true">{item.key}</span> : null}
           </button>
         )

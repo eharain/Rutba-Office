@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process';
 import { app, shell as electronShell } from 'electron';
 import {
   readProfiles, profileFolder, makeProfile, renameProfile, setProfileColour, setOpenFirst, rekeyProfile,
-  removeProfile, removalRefused, isRunning, folderSize, makeLock, unlock, markUsed, PROFILES_FILE, DEFAULT_ID, COLOURS,
+  removeProfile, removalRefused, isRunning, folderSize, makeLock, unlock, markUsed, readOpenApps, PROFILES_FILE, DEFAULT_ID, COLOURS,
 } from '../profiles.js';
 
 /**
@@ -24,8 +24,9 @@ import {
  * @param {object} o.profile  the profile this run is (profile-choice.js), kept current here
  * @param {object} o.stores   this profile's stores, whose vault seals its files
  * @param {(event: string, payload: any) => void} o.broadcast
+ * @param {string[]} [o.knownApps]  the app keys a profile may be asked to open
  */
-export function createProfilesService({ profile, stores, broadcast }) {
+export function createProfilesService({ profile, stores, broadcast, knownApps = [] }) {
   const base = profile.base;
 
   /** This run's own entry, read again after every change (another window, or another profile's, may have made it). */
@@ -48,16 +49,22 @@ export function createProfilesService({ profile, stores, broadcast }) {
       current: profile.id,
       openFirst: l.openFirst,
       colours: COLOURS,
-      profiles: l.profiles.map((p) => ({
-        id: p.id,
-        name: p.name,
-        colour: p.colour,
-        protected: Boolean(p.lock),
-        openFirst: p.id === l.openFirst,
-        current: p.id === profile.id,
-        running: p.id === profile.id || isRunning(profileFolder(base, p)),
-        isDefault: p.id === DEFAULT_ID,
-      })),
+      profiles: l.profiles.map((p) => {
+        const other = p.id !== profile.id;
+        const running = !other || isRunning(profileFolder(base, p));
+        return {
+          id: p.id,
+          name: p.name,
+          colour: p.colour,
+          protected: Boolean(p.lock),
+          openFirst: p.id === l.openFirst,
+          current: !other,
+          running,
+          isDefault: p.id === DEFAULT_ID,
+          // The apps it has windows of: only a running profile's note means anything.
+          openApps: other && running ? readOpenApps(profileFolder(base, p)) : [],
+        };
+      }),
     };
   };
 
@@ -93,13 +100,14 @@ export function createProfilesService({ profile, stores, broadcast }) {
     }
   });
 
-  /** This program again, for another profile (and a file to open in it). */
-  const launch = (id, file = null) => {
+  /** This program again, for another profile (and a file to open in it, or an app to go to). */
+  const launch = (id, file = null, appKey = null) => {
     const args = [];
     if (!app.isPackaged) args.push(app.getAppPath());
     if (profile.baseNamed) args.push(`--user-data-dir=${base}`);
     args.push(`--profile=${id}`);
     if (file) args.push(file);
+    else if (appKey) args.push(`--app=${appKey}`, '--bring-forward');
     // A check run starts its profiles as check runs too (verify-profiles.js).
     const env = globalThis.__rutbaCheckProfileEnv?.(id) || { ...process.env };
     delete env.ELECTRON_RUN_AS_NODE;
@@ -127,13 +135,19 @@ export function createProfilesService({ profile, stores, broadcast }) {
     current,
     list,
 
-    /** ({ id, file }) -> { started | here }: that profile's Rutba Office, started or brought to the front. */
-    open: ({ id, file = null } = {}) => {
+    /**
+     * ({ id, file, app }) -> { started | here }: that profile's Rutba Office,
+     * started or brought to the front. With `app` (`home` for its Home) it
+     * goes to that app, a window of it already there brought forward (main.js).
+     */
+    open: ({ id, file = null, app: appKey = null } = {}) => {
       const l = readProfiles(base);
       const p = l.profiles.find((x) => x.id === id);
       if (!p) throw new Error('That profile is no longer there.');
       if (p.id === profile.id && !file) return { here: true };
-      return { started: Boolean(launch(p.id, file)), running: isRunning(profileFolder(base, p)) };
+      // It goes on a command line, so only a key the registry has.
+      if (appKey && !knownApps.includes(appKey)) throw new Error('That is not one of the apps.');
+      return { started: Boolean(launch(p.id, file, appKey)), running: isRunning(profileFolder(base, p)) };
     },
 
     /** ({ name, colour }) -> list, with the new profile's id as `made`. */

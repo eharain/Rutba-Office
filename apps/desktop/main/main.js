@@ -35,7 +35,7 @@ lendPictureDrawer(drawablePicture);
 setPictureDecoder((bytes, name) => ({ type: 'image/png', bytes: decodePicture(bytes, name, { png: true }).png }));
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { buildExtras } from './build-extras.js';
-import { fileAssociations, APPS, APPS_CHOICE_KEY, OFF_UNTIL_CHOSEN, APP_ORDER, APP_GROUPS, APP_EXTENSIONS, OLD_EXTENSIONS } from '@rutba/office-formats/registry';
+import { fileAssociations, APPS, APPS_CHOICE_KEY, OFF_UNTIL_CHOSEN, APP_ORDER, APP_GROUPS, APP_EXTENSIONS, OLD_EXTENSIONS, chosenApps } from '@rutba/office-formats/registry';
 import { createDocumentHost } from './doc-host.js';
 import { createPrintService } from './print.js';
 import { createMathMeasurer } from './math-raster.js';
@@ -202,6 +202,8 @@ createShell({
   appNames: Object.fromEntries(Object.entries(APPS).map(([key, a]) => [key, a.name])),
   appShortNames: Object.fromEntries(Object.entries(APPS).map(([key, a]) => [key, a.short])),
   appGroups: APP_GROUPS,
+  // The choice is kept per profile: an app another profile's menu asks for can be off in this one.
+  appIsOff: ({ app: key, stores }) => Boolean(APPS[key]) && !chosenApps(stores.settings.get(APPS_CHOICE_KEY, null)).includes(key),
 
   /**
    * Which window a double-clicked file opens. The extension decides, because
@@ -369,7 +371,9 @@ createShell({
       // And every app and add-on, as a person who chose them all: the checks
       // and the captures reach every app from the launcher. Choose apps' own
       // check takes this away to see a first start.
-      stores.settings.set(APPS_CHOICE_KEY, { off: [], on: OFF_UNTIL_CHOSEN.slice(), addons: ['ai'] });
+      // A profile started by the checks can be told to keep some off.
+      const keptOff = PROFILE_PEER ? JSON.parse(process.env.RUTBA_PROFILE_PEER_PLAN || '{}').appsOff || [] : [];
+      stores.settings.set(APPS_CHOICE_KEY, { off: [], on: OFF_UNTIL_CHOSEN.filter((k) => !keptOff.includes(k)), addons: ['ai'] });
     }
 
     // The packs installed, written where the next installer reads them, so it

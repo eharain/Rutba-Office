@@ -43,6 +43,27 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 export const PROFILES_FILE = 'profiles.json';
+/** A running profile's note of the apps it has windows of, beside its other files: app keys and nothing else. */
+export const OPEN_APPS_FILE = 'open-apps.json';
+
+/** Noted as this run's windows open and close, for the other profiles' menus to read. */
+export function writeOpenApps(folder, apps) {
+  try {
+    fs.writeFileSync(path.join(folder, OPEN_APPS_FILE), JSON.stringify(apps));
+  } catch {
+    // A menu row that does not say "open" is all that is lost.
+  }
+}
+
+/** The apps a running profile has windows of; none when the note cannot be read. Only ever asked of a profile that is running: the note outlives a run. */
+export function readOpenApps(folder) {
+  try {
+    const apps = JSON.parse(fs.readFileSync(path.join(folder, OPEN_APPS_FILE), 'utf8'));
+    return Array.isArray(apps) ? apps.filter((a) => typeof a === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 export const PROFILES_DIR = 'Profiles';
 export const DEFAULT_ID = 'default';
 /** The colours offered for a profile, the first the Default's. */

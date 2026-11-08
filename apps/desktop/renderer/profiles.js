@@ -9,6 +9,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Dialog, Button, Icon, Input, Field, useMenu, useToast, formatBytes, t } from '@rutba/office-ui';
+import { APPS } from '@rutba/office-formats/registry';
 
 /** A profile's name as shown: the first one's own name in the window's language while it keeps it. */
 export const profileName = (p) => (p?.isDefault && p.name === 'Default' ? t('Default') : p?.name || '');
@@ -44,19 +45,34 @@ export function ProfileMark({ profile, size = 18 }) {
 /** Manage Profiles, from the menu: opened in whichever window asked (AppFrame listens). */
 export const openManageProfiles = (mode = null) => window.dispatchEvent(new CustomEvent('rutba-profiles', { detail: { mode } }));
 
-/** The profile menu's items: each profile to open or switch to, then New Profile and Manage Profiles. */
-export function profileMenuItems(shell, list, toast) {
+/**
+ * The profile menu's items. Each profile goes to the same app in it (D-2026-11-06-01:
+ * "switching profile on a window of an app should open the same app window of
+ * other profile"), its row saying what that will do; `All apps in` each other
+ * profile goes to its Home; then New Profile and Manage Profiles. In Home, the
+ * app is Home, so a profile opens Home and there are no further items.
+ */
+export function profileMenuItems(shell, list, toast, appKey = 'home') {
   const items = [{ heading: true, label: t('Profiles') }];
+  const inApp = Boolean(APPS[appKey]);
+  const go = (p, app) => () => { shell.profiles.open({ id: p.id, app }).catch((err) => toast?.(err.message, { tone: 'bad' })); };
+  const target = inApp ? appKey : 'home';
+  const appName = inApp ? APPS[appKey].short : t('Home');
+  const others = (list?.profiles || []).filter((p) => !p.current);
   for (const p of list?.profiles || []) {
+    const open = (p.openApps || []).includes(target);
     items.push({
-      label: p.current ? t('{name} (this window)', { name: profileName(p) }) : p.running ? t('{name} (open)', { name: profileName(p) }) : profileName(p),
-      icon: p.current ? 'check' : p.protected ? 'lock' : 'contacts',
-      title: p.current ? undefined : p.running ? t('Switch to {name}', { name: profileName(p) }) : t('Open {name} beside this profile', { name: profileName(p) }),
-      run: () => {
-        if (p.current) return;
-        shell.profiles.open({ id: p.id }).catch((err) => toast?.(err.message, { tone: 'bad' }));
-      },
+      label: profileName(p),
+      icon: p.current ? 'check' : p.protected ? 'lock' : undefined,
+      mark: p.current || p.protected ? undefined : <ProfileMark profile={p} size={18} />,
+      hint: p.current ? t('This window') : open ? t('{app}, open', { app: appName }) : appName,
+      title: p.current ? undefined : open ? t('Go to {app} in {name}', { app: appName, name: profileName(p) }) : t('Open {app} in {name}, beside this window', { app: appName, name: profileName(p) }),
+      run: p.current ? () => {} : go(p, target),
     });
+  }
+  if (inApp && others.length) {
+    items.push('-');
+    for (const p of others) items.push({ label: t('All apps in {name}', { name: profileName(p) }), icon: 'grid', run: go(p, 'home') });
   }
   items.push('-');
   items.push({ label: t('New Profile…'), icon: 'plus', run: () => openManageProfiles('new') });
@@ -69,15 +85,19 @@ export function profileMenuItems(shell, list, toast) {
  * there are two profiles or more; in the launcher always, as its way into
  * the profiles.
  */
-export function ProfileBadge({ shell, always = false }) {
+export function ProfileBadge({ shell, appKey = 'home', always = false }) {
   const { me, list } = useProfiles(shell);
   const menu = useMenu();
   const toast = useToast();
   if (!me || (!always && me.count < 2)) return null;
   const tip = me.count > 1 ? t('Profile: {name}. Click to open another profile or manage them.', { name: profileName(me) }) : t('Profiles: open Rutba Office as another person, or for other work, side by side.');
-  const open = (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    menu.open({ preventDefault() {}, stopPropagation() {}, currentTarget: e.currentTarget, type: 'click', detail: e.detail, clientX: r.left, clientY: r.bottom + 4 }, profileMenuItems(shell, list, toast));
+  const open = async (e) => {
+    const button = e.currentTarget;
+    const detail = e.detail;
+    const r = button.getBoundingClientRect();
+    // As things are now: which profiles are running, and which of their apps are open.
+    const fresh = await Promise.resolve(shell.profiles.list()).catch(() => list);
+    menu.open({ preventDefault() {}, stopPropagation() {}, currentTarget: button, type: 'click', detail, clientX: r.left, clientY: r.bottom + 4 }, profileMenuItems(shell, fresh, toast, appKey));
   };
   // Its spoken name holds the name it shows (WCAG 2.5.3, label in name); the two-profile tip already does.
   return (

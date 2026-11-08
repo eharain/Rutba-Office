@@ -87,7 +87,7 @@ export async function verifyProfiles(h) {
     await click('.pf-badge');
     const menu = await until(() => js(`(() => { const m = document.querySelector('.rw-menu'); return m ? [...m.querySelectorAll('button, .rw-menu-head')].map((b) => b.textContent.trim()) : null; })()`), 'the profile menu', 4000).catch(() => null);
     check('profiles: the badge opens the profile menu: the profiles, New Profile and Manage Profiles',
-      Boolean(menu) && menu.includes('Profiles') && menu.some((m) => /^Default \(this window\)$/.test(m)) && menu.includes('New Profile…') && menu.includes('Manage Profiles…'), JSON.stringify(menu));
+      Boolean(menu) && menu.includes('Profiles') && menu.some((m) => /^DefaultThis window$/.test(m)) && menu.includes('New Profile…') && menu.includes('Manage Profiles…'), JSON.stringify(menu));
 
     // Manage Profiles: a second profile, named and coloured.
     await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Manage Profiles…')?.click(), 1`);
@@ -139,12 +139,24 @@ export async function verifyProfiles(h) {
     // Closed, the second profile can go, and its folder with it.
     fs.writeFileSync(`${report}.quit`, '');
     const closed = await until(async () => { const l = await profiles(); return l.profiles.find((p) => p.id === work.id)?.running === false ? true : null; }, 'the second profile closed', 30000).catch(() => false);
+    // Its lock goes before the process does, and a process still ending keeps writing to its folder.
+    const peerPid = event(report, 'start')?.pid;
+    const peerAlive = () => {
+      try {
+        return Boolean(peerPid) && process.kill(peerPid, 0);
+      } catch {
+        return false;
+      }
+    };
+    await until(() => (peerAlive() ? null : true), 'the second profile\'s process ended', 30000).catch(() => {});
     await click(`.pf-row[data-profile="${work.id}"] .pf-remove-btn`);
     const asked = await until(() => js(`document.querySelector('.pf-remove-dialog')?.textContent || null`), 'the question before removing', 5000).catch(() => '');
     await click('.pf-remove-go');
+    const removeStarted = Date.now();
     const removed = await until(async () => ((await js(`document.querySelectorAll('.pf-dialog .pf-row').length`)) === 1 && !fs.existsSync(workFolder) ? true : null), 'the profile removed', 8000).catch(() => false);
+    const removal = { ms: Date.now() - removeStarted, rows: await js(`document.querySelectorAll('.pf-dialog .pf-row').length`), peerAlive: peerAlive(), left: fs.existsSync(workFolder) ? fs.readdirSync(workFolder).slice(0, 12) : null };
     check('profiles: once closed, a profile is removed after the question, which says what goes, and its folder goes with it',
-      closed && /Recycle Bin/.test(asked) && /stay where they are/.test(asked) && removed && readProfiles(base).profiles.length === 1, JSON.stringify({ closed, asked: asked.slice(0, 120), removed }));
+      closed && /Recycle Bin/.test(asked) && /stay where they are/.test(asked) && removed && readProfiles(base).profiles.length === 1, JSON.stringify({ closed, asked: asked.slice(0, 120), removed, ...removal }));
     const untitled = await until(() => (!/ · /.test(win.getTitle()) ? win.getTitle() : null), 'the title without a profile', 5000).catch(() => win.getTitle());
     check('profiles: with one profile again, the window title names none', !/ · /.test(untitled), untitled);
 

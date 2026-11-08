@@ -13,6 +13,9 @@
 //   captureLock where to write a picture of its password window
 //   captureHome where to write a picture of its launcher
 //   quitAfter   leave once all of it is done
+//   watch       say which windows it has as they change (event 'windows'), and each one brought forward (event 'focused'); no launcher is waited for
+//   passwordWait the password is typed only once a file `<report>.go` appears
+//   captureOff  where to write a picture of its launcher once it says an app is off
 //
 // It leaves at once when a file `<report>.quit` appears, and after two
 // minutes whatever happens, so no check leaves it behind.
@@ -36,7 +39,49 @@ export function startPeer({ report, profile }) {
       /* the checks see nothing, and say so */
     }
   };
-  app.on('second-instance', (_e, argv) => log({ event: 'second-instance', profile: argv.find((a) => String(a).startsWith('--profile')) || null }));
+  app.on('second-instance', (_e, argv) => log({ event: 'second-instance', profile: argv.find((a) => String(a).startsWith('--profile')) || null, app: argv.find((a) => String(a).startsWith('--app=')) || null, locked: BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.webContents.getURL().startsWith('data:text/html')) }));
+  const appOf = (w) => {
+    try {
+      return new URL(w.webContents.getURL()).searchParams.get('app');
+    } catch {
+      return null;
+    }
+  };
+  if (plan.watch) {
+    // Brought forward, by what asked for it: a background program's window does not always get the focus it asks for.
+    const focus = BrowserWindow.prototype.focus;
+    BrowserWindow.prototype.focus = function focusAndSay(...args) {
+      log({ event: 'focused', app: appOf(this) });
+      return focus.apply(this, args);
+    };
+    let said = '';
+    let pictured = false;
+    const look = async () => {
+      const windows = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && /^rutba:/.test(w.webContents.getURL()));
+      let notice = null;
+      for (const w of windows.filter((x) => appOf(x) === 'home')) {
+        notice = await w.webContents.executeJavaScript(`document.querySelector('.home-app-off strong')?.textContent || null`).catch(() => null);
+        if (notice && plan.captureOff && !pictured) {
+          pictured = true;
+          await wait(500);
+          w.webContents.invalidate();
+          await wait(400);
+          try {
+            fs.writeFileSync(plan.captureOff, (await w.webContents.capturePage()).toPNG());
+          } catch {
+            /* a picture is a nicety */
+          }
+        }
+      }
+      const now = JSON.stringify({ windows: windows.map((w) => ({ app: appOf(w), url: w.webContents.getURL().replace(/^[^?]*/, '') })), notice });
+      if (now !== said) {
+        said = now;
+        log({ event: 'windows', ...JSON.parse(now) });
+      }
+    };
+    const watching = setInterval(() => { look().catch(() => {}); }, 200);
+    watching.unref?.();
+  }
   const leave = (why) => {
     log({ event: 'leaving', why });
     app.quit();
@@ -76,6 +121,7 @@ export function startPeer({ report, profile }) {
           /* a picture is a nicety */
         }
       }
+      for (let i = 0; plan.passwordWait && !fs.existsSync(`${report}.go`) && i < 600; i++) await wait(100);
       for (const [i, password] of passwords.entries()) {
         await js(`(() => { const pw = document.getElementById('pw'); pw.value = ${JSON.stringify(password)}; document.getElementById('err').textContent = ''; document.getElementById('f').requestSubmit(); return 1; })()`).catch(() => {});
         let outcome = null;
@@ -99,6 +145,7 @@ export function startPeer({ report, profile }) {
     ready({ stores, services }) {
       // Said here, by the copy that holds the profile's lock: a second launch of the profile never gets this far.
       log({ event: 'start', id: profile.id, folder: profile.folder, userData: app.getPath('userData'), protected: Boolean(profile.lock) });
+      if (plan.watch) return;
       (async () => {
         let home = null;
         for (let i = 0; i < 300; i++) {

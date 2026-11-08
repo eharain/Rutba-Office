@@ -13,7 +13,7 @@ import { app, BrowserWindow, Menu, dialog, nativeTheme, shell as electronShell }
 import path from 'node:path';
 import fs from 'node:fs';
 import { createStores } from './store.js';
-import { createVault, profileArg, needsPassword, finishRekey } from '../profiles.js';
+import { createVault, profileArg, needsPassword, finishRekey, writeOpenApps } from '../profiles.js';
 import { askProfilePassword } from './profile-lock.js';
 import { createProfilesService } from './profiles-service.js';
 import { LINK_SCHEME, parseLink } from '../links.js';
@@ -167,6 +167,7 @@ function buildMenu({ send, appName, appShortNames = {}, appGroups = null, instal
  *   the app a window is made for, when the one asked for is not installed
  * @param {() => Record<string, string>} [o.packRoots] each loaded pack's archive, by its id, for the
  *   window code a pack carries (rutba://app/packs/<id>/...)
+ * @param {(o: { app: string, stores: object }) => boolean} [o.appIsOff] whether this profile has turned this app off
  */
 export function createShell({
   rendererDir,
@@ -184,6 +185,7 @@ export function createShell({
   offers = null,
   resolveApp = null,
   packRoots = () => ({}),
+  appIsOff = null,
 }) {
   app.setName(appName);
   const appUserModelId = 'co.techstyle.rutba.office';
@@ -224,6 +226,8 @@ export function createShell({
   const pending = [];
   /** Links handed to us before the app was ready (macOS). */
   const pendingLinks = [];
+  /** Apps asked for by a second launch while this one was still asking for its password. */
+  const pendingApps = [];
 
   const gotLock = app.requestSingleInstanceLock();
   if (!gotLock) {
@@ -257,6 +261,42 @@ export function createShell({
   function argvApp(argv) {
     const flag = argv.find((a) => a.startsWith('--app='));
     return flag ? flag.slice('--app='.length) : null;
+  }
+
+  /**
+   * An app asked for on the command line. `forward` is another profile's
+   * menu asking: a window of the app already open will do. Without it (a
+   * pinned taskbar entry) a new window opens, as that list expects.
+   */
+  function argvAsked(argv) {
+    const key = argvApp(argv);
+    return key ? { app: key, forward: argv.includes('--bring-forward') } : null;
+  }
+
+  function bringToFront(win) {
+    if (win.isMinimized()) win.restore();
+    if (!win.isVisible()) win.show();
+    win.focus();
+  }
+
+  /** Another profile's menu sent the person here: to a window of the app, or a new one; or, the app being off in this profile, to its Home, which says so. */
+  function goToApp(key) {
+    if (key !== 'home' && appIsOff?.({ app: key, stores })) {
+      const home = windows.findByApp('home');
+      if (home) {
+        bringToFront(home);
+        sendEvent(home, 'app:command', { command: 'home.appOff', args: { app: key } });
+      } else windows.open({ app: 'home', query: { off: key } });
+      return;
+    }
+    const open = windows.findByApp(key);
+    if (open) bringToFront(open);
+    else windows.open(key === 'home' ? { app: 'home' } : { app: key, query: { start: '1' } });
+  }
+
+  function openAsked(asked) {
+    if (asked.forward) goToApp(asked.app);
+    else windows.open({ app: asked.app, query: { start: '1' } });
   }
 
   /**
@@ -317,9 +357,10 @@ export function createShell({
   });
 
   app.on('second-instance', (_e, argv) => {
-    // Still asking for the profile's password: the window comes to the front, and the files wait for it.
+    // Still asking for the profile's password: the window comes to the front, and the files and the app wait for it.
     if (!windows) {
       pending.push(...argvFiles(argv));
+      if (argvAsked(argv)) pendingApps.push(argvAsked(argv));
       if (lockWindow && !lockWindow.isDestroyed()) {
         if (lockWindow.isMinimized()) lockWindow.restore();
         lockWindow.show();
@@ -331,7 +372,7 @@ export function createShell({
     const link = argvLink(argv);
     if (files.length) files.forEach(openPath);
     else if (link) openLink(link);
-    else if (argvApp(argv)) windows.open({ app: argvApp(argv), query: { start: '1' } });
+    else if (argvAsked(argv)) openAsked(argvAsked(argv));
     else {
       const win = BrowserWindow.getAllWindows()[0];
       if (win) {
@@ -398,6 +439,7 @@ export function createShell({
 
     windows = createWindowManager({
       stores,
+      onOpenApps: profile ? (apps) => writeOpenApps(app.getPath('userData'), apps) : null,
       preloadPath,
       iconPath,
       appIcons,
@@ -456,7 +498,7 @@ export function createShell({
     // Which profile the windows belong to, and the others (profiles-service.js).
     if (profile) {
       try {
-        base.profiles = createProfilesService({ profile, stores, broadcast });
+        base.profiles = createProfilesService({ profile, stores, broadcast, knownApps: ['home', ...Object.keys(appShortNames)] });
       } catch (err) {
         record('profiles', err);
       }
@@ -535,7 +577,9 @@ export function createShell({
     const startLinks = [...pendingLinks, ...[argvLink(process.argv)].filter(Boolean)];
     if (startFiles.length) startFiles.forEach(openPath);
     else if (startLinks.length) startLinks.forEach(openLink);
-    else windows.open(argvApp(process.argv) ? { app: argvApp(process.argv), query: { start: '1' } } : { app: 'home' });
+    else if (argvAsked(process.argv)) openAsked(argvAsked(process.argv));
+    else if (!pendingApps.length) windows.open({ app: 'home' });
+    pendingApps.forEach(openAsked);
   });
 
   return { app, get windows() { return windows; }, get stores() { return stores; }, openPath, fileUrl, holdBlob };

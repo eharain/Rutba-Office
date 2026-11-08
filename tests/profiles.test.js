@@ -11,6 +11,7 @@ import {
   readProfiles, writeProfiles, defaultList, profileFolder, findProfile, profileArg, chooseProfile, makeProfile,
   renameProfile, setProfileColour, setOpenFirst, markUsed, setProfileLock, removalRefused, removeProfile,
   isRunning, folderSize, makeLock, unlock, seal, unseal, isSealed, createVault, PROFILES_FILE, DEFAULT_ID,
+  writeOpenApps, readOpenApps, OPEN_APPS_FILE,
 } from '../packages/office-shell/src/profiles.js';
 
 const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-profiles-'));
@@ -161,6 +162,26 @@ test('a profile is open while a running copy holds its lock file, and not when t
     assert.equal(folderSize(base), 1000);
   } finally {
     gone(base);
+  }
+});
+
+test('a running profile notes which apps it has open, and only app keys are read back', () => {
+  const dir = scratch();
+  try {
+    assert.deepEqual(readOpenApps(dir), [], 'no note yet is no apps open');
+    writeOpenApps(dir, ['mail', 'word']);
+    assert.deepEqual(readOpenApps(dir), ['mail', 'word']);
+    writeOpenApps(dir, ['word']);
+    assert.deepEqual(readOpenApps(dir), ['word'], 'a later note replaces the earlier one');
+    fs.writeFileSync(path.join(dir, OPEN_APPS_FILE), JSON.stringify(['mail', 7, null, { app: 'word' }]));
+    assert.deepEqual(readOpenApps(dir), ['mail'], 'anything but an app key is left out');
+    fs.writeFileSync(path.join(dir, OPEN_APPS_FILE), '{"mail":true}');
+    assert.deepEqual(readOpenApps(dir), [], 'a note that is not a list is no apps');
+    fs.writeFileSync(path.join(dir, OPEN_APPS_FILE), 'not json');
+    assert.deepEqual(readOpenApps(dir), [], 'a damaged note is no apps');
+    assert.doesNotThrow(() => writeOpenApps(path.join(dir, 'no-such-folder'), ['mail']), 'a note that cannot be written costs a menu row, nothing more');
+  } finally {
+    gone(dir);
   }
 });
 

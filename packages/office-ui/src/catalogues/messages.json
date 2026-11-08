@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8578,
+  "count": 8580,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -3614,6 +3614,12 @@
       "where": [
         "apps/desktop/renderer/apps-choice.js",
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "All apps in {name}",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
       ]
     },
     {
@@ -12811,6 +12817,12 @@
       ]
     },
     {
+      "message": "Each profile keeps its own choice of apps. Turn it on here and it opens from Home.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Each profile keeps its own settings, saved passwords, recent files, mail, calendars, contacts, Talk sign-in and AI Tools settings. Profiles open side by side, each in windows of its own, with its name and colour in the title bar.",
       "where": [
         "apps/desktop/renderer/profiles.js"
@@ -16877,6 +16889,12 @@
       ]
     },
     {
+      "message": "Go to {app} in {name}",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "Goal Seek needs a number to aim for",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -18039,6 +18057,7 @@
         "apps/desktop/renderer/apps/video/library-words.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/profiles.js",
         "packages/office-shell/src/electron/main.js"
       ]
     },
@@ -28110,7 +28129,7 @@
       ]
     },
     {
-      "message": "Open {name} beside this profile",
+      "message": "Open {app} in {name}, beside this window",
       "where": [
         "apps/desktop/renderer/profiles.js"
       ]
@@ -40544,12 +40563,6 @@
       ]
     },
     {
-      "message": "Switch to {name}",
-      "where": [
-        "apps/desktop/renderer/profiles.js"
-      ]
-    },
-    {
       "message": "Swoosh",
       "where": [
         "apps/desktop/renderer/apps/video/library.js"
@@ -51912,6 +51925,18 @@
       ]
     },
     {
+      "message": "{app} is off in {name}",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "{app}, open",
+      "where": [
+        "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
       "message": "{at} / {total} · driven from the presenter window",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -53624,21 +53649,9 @@
       ]
     },
     {
-      "message": "{name} (open)",
-      "where": [
-        "apps/desktop/renderer/profiles.js"
-      ]
-    },
-    {
       "message": "{name} (redacted)",
       "where": [
         "apps/desktop/renderer/redact.js"
-      ]
-    },
-    {
-      "message": "{name} (this window)",
-      "where": [
-        "apps/desktop/renderer/profiles.js"
       ]
     },
     {

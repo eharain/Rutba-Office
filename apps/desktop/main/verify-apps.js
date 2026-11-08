@@ -262,6 +262,7 @@ import { verifyMailLinks } from './verify-mail-links.js';
 import { verifyAiTools } from './verify-ai-tools.js';
 import { verifyAiReach, verifyAiReachApps } from './verify-ai-reach.js';
 import { verifyProfiles } from './verify-profiles.js';
+import { verifyProfileSwitch } from './verify-profile-switch.js';
 import { verifyPacks } from './verify-packs.js';
 import { verifyMailWindow } from './verify-mail-window.js';
 import { verifyMailSync } from './verify-mail-sync.js';
@@ -4992,7 +4993,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,home-sets,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,recorder-tools,app-menu,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,keystore,ai-tools,ai-reach,profiles,exif-location,pictures-ratings,windows-codec,metafile-drawn,pictures-tiff,image-formats,pictures-formats,image-open,pictures-drawn,studio-setups: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,home-sets,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw,zoom,image-edits,video-editor,sidebyside,recorder,image-layers,pwfast,intro-video,image-tools,pdf-app,templates,qrcode,mail-archive,ocr-pdf,ocr-picture,ocr-sheet,ribbon,soon,gallery-fold,video-split,panels,pdf-annot,pdf-forms,pdf-redact,pdf-outline,pdf-export,calendar-month,sheet-dark,pdf-find-mark,pdf-password,dark-pass,video-mp4,recorder-screen,recorder-tools,app-menu,image-selection-save,image-mask-transform,image-text-edit,rotate-frame-deck,rotate-frame-word,rotate-frame-sheet,rotate-frame-image,video-stage,video-tracks,mail-links,mail-sync,keystore,ai-tools,ai-reach,profiles,exif-location,pictures-ratings,windows-codec,metafile-drawn,pictures-tiff,image-formats,pictures-formats,image-open,pictures-drawn,studio-setups,profile-switch: those blocks alone, for working on them.
   // video-fit: Video's Compact and Small presets and Fit under a size, each file read back.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
@@ -5262,6 +5263,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await verifyAiReachApps({ open, check, until, wait, errorsIn });
     }
     if (only.includes('profiles')) await verifyProfiles({ open, check, until, wait, capture: shotTo });
+    if (only.includes('profile-switch')) await verifyProfileSwitch({ open, check, until, wait, errorsIn, capture: shotTo });
     if (only.includes('packs')) await verifyPacks({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('mail-window')) await verifyMailWindow({ open, check, until, wait, errorsIn });
     if (only.includes('mail-sync')) await verifyMailSync({ open, check, until, wait, errorsIn });
@@ -5730,6 +5732,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('shell', () => appNames());
   await part('shell', () => homeRecentEdit());
   await part('shell', () => verifyProfiles({ open, check, until, wait, capture: shotTo }));
+  await part('shell', () => verifyProfileSwitch({ open, check, until, wait, errorsIn, capture: shotTo }));
   await part('sheets', () => sheetFreeze());
   await part('sheets', () => sheetErrors());
   await part('sheets', () => sheetWatch());

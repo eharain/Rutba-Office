@@ -164,6 +164,6 @@ export async function verifyHomeSets({ open, check, until, wait, errorsIn, captu
     check('home sets: the check ran to the end', false, err?.message || String(err));
   } finally {
     await js?.(`window.rutbaOffice.store.set({ key: 'apps.choice', value: ${JSON.stringify(all)} }).then(() => 1)`).catch(() => {});
-    if (home && !home.isDestroyed()) home.destroy();
+    // The window stays: the harness closes a block's windows, and this one may be all that keeps the run alive.
   }
 }

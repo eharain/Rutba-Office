@@ -81,10 +81,13 @@ export default function Home({ app, shell }) {
   const has = (key) => chosen.apps.includes(key);
   // The two sets with what is on in each; a set with nothing on leaves the other the whole width.
   const sets = APP_GROUPS.map((g) => ({ id: g.id, apps: g.apps.filter(has) })).filter((g) => g.apps.length);
+  // An app another profile's menu sent the person to, turned off in this one (?off=, or told to the Home already open).
+  const [offApp, setOffApp] = useState(() => new URLSearchParams(location.search).get('off'));
+  useEffect(() => shell.on('app:command', ({ command, args } = {}) => { if (command === 'home.appOff' && args?.app) setOffApp(args.app); }), [shell]);
   // Add or remove apps (packs-dialog.js; ?packs opens with it).
   const [packing, setPacking] = useState(() => new URLSearchParams(location.search).has('packs'));
   // The other profiles, for a recent file's Open in (profiles.js).
-  const { list: profiles } = useProfiles(shell);
+  const { list: profiles, me } = useProfiles(shell);
   const others = (profiles?.profiles || []).filter((p) => !p.current);
 
   const refresh = useCallback(() => {
@@ -224,6 +227,18 @@ export default function Home({ app, shell }) {
 
         <Announcement shell={shell} />
         <PacksNotice onAdd={() => setPacking(true)} />
+
+        {offApp && APPS[offApp] && me && chosen.loaded && !has(offApp) ? (
+          <div className="home-choose home-app-off" role="status">
+            <Icon name="info" size={20} />
+            <span className="home-choose-text">
+              <strong>{t('{app} is off in {name}', { app: APPS[offApp].short, name: profileName(me) })}</strong>
+              <span>{t('Each profile keeps its own choice of apps. Turn it on here and it opens from Home.')}</span>
+            </span>
+            <Button primary label={t('Choose apps…')} className="home-off-choose" onClick={() => setChoosing(true)} />
+            <Button ghost icon="close" title={t('Close')} onClick={() => setOffApp(null)} />
+          </div>
+        ) : null}
 
         {/* Once, until a choice is made: all the apps are on, and they can be fewer. */}
         {chosen.loaded && !chosen.made ? (

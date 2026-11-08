@@ -498,7 +498,7 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
         titleAfter={titleAfter}
         platform={platform}
         shell={shell}
-        right={<>{right}<AiBadge shell={shell} onOpen={() => setAiTools(true)} /><ProfileBadge shell={shell} always={(app?.key || 'home') === 'home'} /></>}
+        right={<>{right}<AiBadge shell={shell} onOpen={() => setAiTools(true)} /><ProfileBadge shell={shell} appKey={app?.key || 'home'} always={(app?.key || 'home') === 'home'} /></>}
         onMenu={menu?.open}
       />
       <style>{PROFILES_CSS}</style>

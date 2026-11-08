@@ -483,8 +483,8 @@ export const METHODS = {
   // A password is set, changed and taken away from the profile's own windows only.
   profiles: [
     'current',      // () -> { id, name, colour, count, protected, isDefault }
-    'list',         // () -> { current, openFirst, colours, profiles: [{ id, name, colour, protected, openFirst, current, running, isDefault }] }
-    'open',         // ({ id, file }) -> { here } | { started, running }   that profile's Rutba Office, started or brought to the front
+    'list',         // () -> { current, openFirst, colours, profiles: [{ id, name, colour, protected, openFirst, current, running, isDefault, openApps }] }
+    'open',         // ({ id, file, app }) -> { here } | { started, running }   that profile's Rutba Office, started or brought to the front; with `app`, that app in it, a window of it brought forward
     'make',         // ({ name, colour }) -> list + { made }
     'rename',       // ({ id, name }) -> list
     'setColour',    // ({ id, colour }) -> list
