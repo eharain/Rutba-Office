@@ -93,7 +93,7 @@ test('settings part into those of the setup and those of every setup, and come b
   const studio = { size: 720, fps: 24, quality: 'high', folder: 'D:/x', countdown: 5, shot: 'selected', shotTimer: 3, minimise: true, liveCopy: false, isolated: true };
   const own = setupSettings(studio);
   const all = globalSettings(studio);
-  assert.deepEqual(own, { size: 720, fps: 24, quality: 'high', folder: 'D:/x', liveCopy: false, isolated: true });
+  assert.deepEqual(own, { size: 720, fps: 24, quality: 'high', folder: 'D:/x', liveCopy: false, liveCopyShape: 'wide', isolated: true });
   assert.deepEqual(all, { countdown: 5, minimise: true, shot: 'selected', shotTimer: 3 });
   const joined = joinSettings(own, all);
   assert.equal(joined.size, 720);

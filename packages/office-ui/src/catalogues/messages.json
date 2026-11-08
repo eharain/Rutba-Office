@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8593,
+  "count": 8599,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -22564,6 +22564,12 @@
       ]
     },
     {
+      "message": "Made from the wide layout. Drag a picture to change it.",
+      "where": [
+        "apps/desktop/renderer/studio/tall-frame.js"
+      ]
+    },
+    {
       "message": "Made in Video",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -22757,6 +22763,12 @@
       "message": "Make folder",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Make it again from the wide",
+      "where": [
+        "apps/desktop/renderer/studio/tall-frame.js"
       ]
     },
     {
@@ -37436,6 +37448,18 @@
       ]
     },
     {
+      "message": "Shape of the copy",
+      "where": [
+        "apps/desktop/renderer/studio/live-panel.js"
+      ]
+    },
+    {
+      "message": "Shape of the frame",
+      "where": [
+        "apps/desktop/renderer/studio/setup-panel.js"
+      ]
+    },
+    {
       "message": "Shape {id}",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
@@ -41145,7 +41169,9 @@
       "message": "Tall",
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js",
-        "apps/desktop/renderer/studio/live-bar.js"
+        "apps/desktop/renderer/studio/live-bar.js",
+        "apps/desktop/renderer/studio/live-panel.js",
+        "apps/desktop/renderer/studio/setup-panel.js"
       ]
     },
     {
@@ -43805,6 +43831,12 @@
       ]
     },
     {
+      "message": "The tall picture",
+      "where": [
+        "apps/desktop/renderer/studio/tall-frame.js"
+      ]
+    },
+    {
       "message": "The text of \"{column}\" after",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -45583,6 +45615,12 @@
       "message": "This table has vertically merged cells — rows through a merge cannot be restructured yet.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This tall layout is kept for this scene.",
+      "where": [
+        "apps/desktop/renderer/studio/tall-frame.js"
       ]
     },
     {
@@ -48883,7 +48921,9 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/print.js",
-        "apps/desktop/renderer/studio/live-bar.js"
+        "apps/desktop/renderer/studio/live-bar.js",
+        "apps/desktop/renderer/studio/live-panel.js",
+        "apps/desktop/renderer/studio/setup-panel.js"
       ]
     },
     {

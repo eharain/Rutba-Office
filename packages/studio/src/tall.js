@@ -22,6 +22,9 @@ const TALL_RATIO = 9 / 16;
 
 export const tallSize = (size) => TALL_SIZES[size] || TALL_SIZES[1080];
 
+/** The key a tall layout is kept under: the scene's, or one for a frame arranged by hand. */
+export const tallKey = (stack) => stack?.scene || 'free';
+
 const r4 = (n) => Math.round(n * 10000) / 10000;
 
 /** Whether an item is one of the pictures that get a share of the frame, not something laid over them. */

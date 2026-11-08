@@ -102,3 +102,18 @@ test('a web page is a kind of source the stack keeps by its address', () => {
   assert.equal(again.items[0].kind, 'web');
   assert.equal(again.items[0].sound, false, 'sound off until turned on');
 });
+
+test('a tall layout is kept under the scene, or under one key for a frame arranged by hand', async () => {
+  const { tallKey } = await import('../packages/studio/src/tall.js');
+  assert.equal(tallKey({ scene: 'screen-camera' }), 'screen-camera');
+  assert.equal(tallKey({ scene: '' }), 'free');
+});
+
+test('the copy is wide unless Tall was chosen, and is kept with the setup', async () => {
+  const { normaliseStudio } = await import('../packages/studio/src/compositor.js');
+  const { SETUP_KEYS } = await import('../packages/studio/src/setup.js');
+  assert.equal(normaliseStudio({}).liveCopyShape, 'wide');
+  assert.equal(normaliseStudio({ liveCopyShape: 'tall' }).liveCopyShape, 'tall');
+  assert.equal(normaliseStudio({ liveCopyShape: 'square' }).liveCopyShape, 'wide');
+  assert.ok(SETUP_KEYS.includes('liveCopyShape'));
+});

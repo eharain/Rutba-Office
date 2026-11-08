@@ -26,7 +26,7 @@ export const SETUP_MIME = 'application/vnd.rutba.studio-setup+zip';
 export const SETUP_APPS = ['recorder', 'broadcast'];
 
 /** The settings kept with each setup; the rest are the same whichever setup is open (A4, A6). */
-export const SETUP_KEYS = ['size', 'fps', 'quality', 'folder', 'liveCopy', 'isolated'];
+export const SETUP_KEYS = ['size', 'fps', 'quality', 'folder', 'liveCopy', 'liveCopyShape', 'isolated'];
 export const GLOBAL_KEYS = ['countdown', 'minimise', 'shot', 'shotTimer'];
 
 /** Where the store keeps them: the list, one key for each setup, and the settings that are the same in all. */

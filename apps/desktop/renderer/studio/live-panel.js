@@ -84,6 +84,7 @@ export function LivePanel({ s }) {
       </div>
       <BottomBar s={s}>
         <Toggle on={s.settings.liveCopy} label={t('Keep a copy')} disabled={live} className="st-keep-copy" onChange={(v) => s.change({ liveCopy: v })} />
+        {s.settings.liveCopy ? <Seg value={s.settings.liveCopyShape} options={[['wide', t('Wide')], ['tall', t('Tall')]]} label={t('Shape of the copy')} className="st-copy-shape" disabled={live} onChange={(v) => s.change({ liveCopyShape: v })} /> : null}
         <PictureButton s={s} />
       </BottomBar>
       {autoMenu ? <Menu x={autoMenu.x} y={Math.max(40, autoMenu.y)} items={autoItems} onClose={() => setAutoMenu(null)} /> : null}

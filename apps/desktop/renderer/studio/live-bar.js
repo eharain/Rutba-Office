@@ -75,13 +75,12 @@ function Group({ group, label, platforms, onToggleGroup, onToggle, onAddKey }) {
  * @param {(ids: string[]) => void} [p.onChangeOn]
  * @param {(phase: 'off'|'starting'|'live'|'ending', since: number) => void} [p.onPhase]  told as the broadcast opens and ends
  * @param {number} [p.size]  the studio's output size, 720 or 1080: what the tall picture is made at
- * @param {string|null} [p.airKey]  the key of the scene on air, whose tall layout the tall picture shows
  * @param {(() => object|null)} [p.makeTall]  a tall picture's Program, in place of the one made here
  * @param {string} [p.rateText]  said when the picture's bitrate has been lowered
  * @param {number|null} [p.viewers]  how many are watching, when a platform says
  * @param {{ current: object }} [p.control]  filled with { end, setList }: the window ends the broadcast when it closes, and tells the bar of a change made in My streams from the settings
  */
-export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false, blocked = false, on: onProp, onChangeOn, onPhase, size = 1080, airKey = null, makeTall = null, rateText = '', viewers = null, control = null }) {
+export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false, blocked = false, on: onProp, onChangeOn, onPhase, size = 1080, makeTall = null, rateText = '', viewers = null, control = null }) {
   const [streams, setStreams] = useState([]);
   const [platforms, setPlatforms] = useState(null);
   const [onKept, setOnKept] = useState([]);
@@ -95,9 +94,7 @@ export function LiveBar({ shell, toast, program, media, fps, kbps, copy = false,
   const memory = useRef({});
   const loaded = useRef(false);
 
-  const airKeyNow = useRef(airKey);
-  airKeyNow.current = airKey;
-  const tallFor = useCallback(() => (makeTall ? makeTall() : makeTallProgram({ wide: program.current, media, size, airKey: () => airKeyNow.current })), [makeTall, program, media, size]);
+  const tallFor = useCallback(() => (makeTall ? makeTall() : makeTallProgram({ wide: program.current, media, size })), [makeTall, program, media, size]);
   const on = onProp === undefined ? onKept : onProp;
   const open = phase !== 'off';
   const model = useMemo(() => barModel({ streams, on, status: status.destinations, open }), [streams, on, status, open]);

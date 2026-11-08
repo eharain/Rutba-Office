@@ -47,6 +47,7 @@ export class WebSources {
     this.shell = shell;
     this.onChange = onChange;
     this.tall = false;
+    this.tallUsers = 0;
     this.items = [];
     // address#shape -> { canvas, ctx, state }
     this.pages = new Map();
@@ -58,8 +59,10 @@ export class WebSources {
 
   /** Whether the tall picture is being made: a page is then laid out tall as well. */
   setTall(on) {
-    if (this.tall === Boolean(on)) return;
-    this.tall = Boolean(on);
+    this.tallUsers = Math.max(0, this.tallUsers + (on ? 1 : -1));
+    const want = this.tallUsers > 0;
+    if (this.tall === want) return;
+    this.tall = want;
     this.sync(this.items);
   }
 

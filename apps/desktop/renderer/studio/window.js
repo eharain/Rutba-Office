@@ -35,6 +35,9 @@ import { AppFrame, useAppMenu } from '../shell.js';
 import { RECORDER_CSS } from '../recording/css.js';
 import { Program } from './program.js';
 import { WebPageDialog, FLIP_CSS } from './flip-strip.js';
+import { TALL_FRAME_CSS } from './tall-frame.js';
+import { makeTallProgram } from './tall-program.js';
+import { tallSize } from '@rutba/studio/tall';
 import { StudioMedia, sourceKey } from './media.js';
 import { itemName } from './list.js';
 import { StudioSettings } from './settings-dialog.js';
@@ -125,6 +128,11 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const [shotCount, setShotCount] = useState(null);
   const [flash, setFlash] = useState(0);
   const [askWeb, setAskWeb] = useState(false);
+  const [frameShape, setFrameShape] = useState('wide');
+  // The tall picture, one for the tall streams and a tall copy; and what is recording, when that is not the wide picture.
+  const tallPicture = useRef(null);
+  const copyProgram = useRef(null);
+  const recorderNow = () => copyProgram.current || program.current;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sceneMenu, setSceneMenu] = useState(null);
   const [sceneAsk, setSceneAsk] = useState(null); // { what: 'rename' | 'delete', sc }
@@ -899,6 +907,14 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
 
   /* ── recording ─────────────────────────────────────────────────────── */
 
+  const getTall = useCallback(() => {
+    const size = settingsRef.current.size;
+    const was = tallPicture.current;
+    if (was && (was.inUse() || was.canvas.width === tallSize(size).width)) return was;
+    tallPicture.current = makeTallProgram({ wide: program.current, media, size });
+    return tallPicture.current;
+  }, [media]);
+
   const recKind = recordKind(airStack);
   const begin = useCallback(async () => {
     try {
@@ -907,7 +923,12 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       const name = soundOnly ? takeFileName(t('Sound'), new Date(), 'weba') : takeFileName(t('Recording'), new Date(), 'webm');
       const { path } = await shell.capture.take({ dir: settingsRef.current.folder, name });
       takenRef.current = path;
-      await program.current.record({ shell, path, soundOnly });
+      if (liveRecord.current && !soundOnly && settingsRef.current.liveCopyShape === 'tall') {
+        const tall = getTall();
+        tall.attach();
+        copyProgram.current = tall;
+      }
+      await recorderNow().record({ shell, path, soundOnly });
       setPhase('recording');
       setPaused(false);
       warned.current = false;
@@ -942,7 +963,9 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     shell.capture.controls({ on: false }).catch(() => {});
     const thumb = stillOf(canvases.air);
     try {
-      const done = await program.current.stop();
+      const done = await recorderNow().stop();
+      copyProgram.current?.detach();
+      copyProgram.current = null;
       setSaved({ ...done, thumb });
       toast(t('Saved {name}', { name: basename(done.path) }), { tone: 'good', ms: 5000 });
     } catch (err) {
@@ -981,7 +1004,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
 
   useEffect(() => {
     if (phase !== 'recording') return undefined;
-    const tick = setInterval(() => setElapsed(program.current?.elapsed || 0), 250);
+    const tick = setInterval(() => setElapsed(recorderNow()?.elapsed || 0), 250);
     const watch = setInterval(async () => {
       const state = await checkDisk();
       if (!state || phaseRef.current !== 'recording') return;
@@ -1346,7 +1369,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
     holding, air, airStack, onAirKey: airStack.scene, nextKey: stack.scene, anyShown,
     phase, recording, paused, elapsed, count, busy, canRecord, recordLabel, stopTip, record, stop, togglePause,
     saved, setSaved, picture, takePicture, copyPicture, pictureKey, shotCount, overlayShared,
-    live, livePhase, liveFor, liveBarHost, setLiveOpen,
+    live, livePhase, liveFor, liveBarHost, setLiveOpen, frameShape, setFrameShape,
     change, changeStack, changeFrame, act, barAct, take, togglePreview, setAuto, startFollow, startRotate,
     pickScene, sceneLost, unsetScene, openSetupAt, sceneMenu, setSceneMenu, sceneMenuItems, moveSceneBy, saveAsScene,
     pickRow, setPickRow, choosePick, useMic, useCamera, toggleCamera,
@@ -1359,9 +1382,10 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       <style>{RECORDER_CSS}</style>
       <style>{STUDIO_CSS}</style>
       {isLive ? <style>{liveKit.LIVE_CSS}</style> : null}
-      {isLive && loaded ? createPortal(<liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} size={settings.size} airKey={airStack.scene} copy={live && settings.liveCopy} blocked={phase === 'countdown' || phase === 'starting'} on={setup ? setup.liveOn : undefined} onChangeOn={changeLiveOn} onPhase={barPhase} rateText={liveRateText} viewers={viewers} control={liveControl} />, liveBarHost) : null}
+      {isLive && loaded ? createPortal(<liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} size={settings.size} makeTall={getTall} copy={live && settings.liveCopy} blocked={phase === 'countdown' || phase === 'starting'} on={setup ? setup.liveOn : undefined} onChangeOn={changeLiveOn} onPhase={barPhase} rateText={liveRateText} viewers={viewers} control={liveControl} />, liveBarHost) : null}
       {isLive && liveOpen ? <liveKit.LiveDialog shell={shell} toast={toast} onChanged={(list) => liveControl.current?.setList(list)} onClose={() => setLiveOpen(false)} /> : null}
       <style>{FLIP_CSS}</style>
+      <style>{TALL_FRAME_CSS}</style>
       {askWeb ? <WebPageDialog allowLoopback={Boolean(window.__rutbaLocalPages)} onClose={() => setAskWeb(false)} onAdd={({ url, name }) => { setAskWeb(false); changeStack((s) => addItem(s, { kind: 'web', ref: url, name, sound: false }).stack); }} /> : null}
       {settingsOpen ? (
         <StudioSettings settings={settings} setupName={setup.name} busy={busy} live={isLive} pictureKey={pictureKey} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />

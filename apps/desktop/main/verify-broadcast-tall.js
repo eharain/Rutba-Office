@@ -16,7 +16,8 @@ import { buildDocx } from '@rutba/ooxml/build';
 import { withScreenStandIn } from './verify-recorder.js';
 import { startIngest } from './verify-broadcast-live.js';
 import { addItem, emptyStack } from '@rutba/studio/stack';
-import { seedSetup, restoreSetup } from './verify-studio-seed.js';
+import { seedSetup, restoreSetup, readSetup, PANEL, IN_PANEL } from './verify-studio-seed.js';
+import { probeMedia } from '@rutba/media/probe';
 
 /** The picture size in an FLV AVC sequence header's first SPS. */
 export function spsSize(body) {
@@ -113,6 +114,28 @@ async function tallChecks(h, { dir }) {
     await until(() => js(`document.querySelector('.st-canvas')?.dataset.layers === 'window camera'`), 'the program', 25000).catch(() => {});
 
     const click = (sel) => js(`(() => { const n = document.querySelector(${JSON.stringify(sel)}); if (!n) return 'no ' + ${JSON.stringify(sel)}; n.click(); return 1; })()`);
+
+    // Set up on Tall: the scene's tall layout, made from the wide, and a picture dragged is kept for the scene.
+    await js(PANEL('setup'));
+    await until(() => js(IN_PANEL('setup')), 'Set up', 4000);
+    await click('.st-frame-shape [data-value="tall"]');
+    const tallShown = await ok(until(() => js(`(() => { const c = document.querySelector('.st-tall-frame canvas'); return Boolean(c) && Number(c.dataset.frames) > 3 && /window/.test(c.dataset.layers) && /camera/.test(c.dataset.layers); })()`), 'the tall frame', 12000));
+    const frameRatio = await js(`(() => { const r = document.querySelector('.st-tall-frame').getBoundingClientRect(); return Math.round((r.width / r.height) * 1000) / 1000; })()`);
+    const before = await js(`(() => { const b = document.querySelector('.st-tall-box'); return { id: b.dataset.id, top: b.style.top }; })()`);
+    await js(`(() => { const b = document.querySelector('.st-tall-box'); const r = b.getBoundingClientRect(); const at = (x, y) => ({ clientX: x, clientY: y, bubbles: true, pointerId: 1, button: 0 }); b.dispatchEvent(new PointerEvent('pointerdown', at(r.left + 20, r.top + 20))); window.dispatchEvent(new PointerEvent('pointermove', at(r.left + 20, r.top + 80))); window.dispatchEvent(new PointerEvent('pointerup', at(r.left + 20, r.top + 80))); return 1; })()`);
+    await wait(500);
+    const keptTall = await ok(until(async () => { const d = await readSetup(js); return Boolean(d?.stack?.tall?.['screen-camera']?.length); }, 'the tall layout kept', 6000));
+    const noted = await js(`document.querySelector('.st-tall-note')?.textContent || ''`);
+    if (process.env.RUTBA_VERIFY_CAPTURE) { win.webContents.invalidate(); await wait(700); fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'live-setup-tall.png'), (await win.webContents.capturePage()).toPNG()); }
+    check('broadcast tall: Set up has Wide and Tall over the frame; Tall shows the scene in a tall frame made from the wide layout; a picture dragged is kept for the scene',
+      tallShown && Math.abs(frameRatio - 0.5625) < 0.01 && keptTall && /kept for this scene/.test(noted),
+      JSON.stringify({ tallShown, frameRatio, before, keptTall, noted }));
+    await click('.st-tall-reset');
+    await wait(300);
+    await click('.st-frame-shape [data-value="wide"]');
+    await js(PANEL('main'));
+    await until(() => js(IN_PANEL('live')), 'back on Live', 4000);
+
     const listed = await js(`window.rutbaOffice.live.destinations()`);
     const wide = listed.find((d) => d.name === 'Wide stream');
     const tall = listed.find((d) => d.name === 'Tall stream');
@@ -212,6 +235,26 @@ async function tallChecks(h, { dir }) {
     await until(() => js(`Boolean(document.querySelector('.lv-ask'))`), 'the question', 8000);
     await click('.lv-ask .lv-end-now');
     const ended = await ok(until(() => js(`Boolean(document.querySelector('.lv-go')) && !document.querySelector('.lv-end')`), 'ended', 15000));
+
+    // Keep a copy, chosen Tall: the file is the tall picture, whatever goes out.
+    await until(() => js(`Boolean(document.querySelector('.st-keep-copy'))`), 'Keep a copy', 4000);
+    await click('.st-keep-copy');
+    await until(() => js(`Boolean(document.querySelector('.st-copy-shape'))`), 'the shape of the copy', 4000);
+    await click('.st-copy-shape [data-value="tall"]');
+    await wait(200);
+    await click('.lv-go');
+    await until(async () => (await tileState(tall)) === 'live', 'live with a tall copy', 30000);
+    await until(() => js(`document.querySelector('.st-status')?.dataset.phase === 'recording'`), 'the copy recording', 8000);
+    await wait(3000);
+    await click('.lv-end');
+    await until(() => js(`Boolean(document.querySelector('.lv-ask'))`), 'the question', 8000);
+    await click('.lv-ask .lv-end-now');
+    const copySaved = await ok(until(() => js(`/Saved/.test(document.querySelector('.st-status')?.textContent || '')`), 'the copy saved', 15000));
+    const copies = fs.readdirSync(folder).filter((n) => /\.webm$/.test(n));
+    const probe = copies.length === 1 ? probeMedia(new Uint8Array(fs.readFileSync(path.join(folder, copies[0]))), { complete: true }) : null;
+    check('broadcast tall: Keep a copy set to Tall records the tall picture, sized as the tall stream is',
+      copySaved && copies.length === 1 && probe?.hasVideo && probe.width === 720 && probe.height === 1280,
+      JSON.stringify({ copySaved, copies, probe: probe ? { v: probe.hasVideo, w: probe.width, h: probe.height, d: probe.duration } : null }));
     const complaints = await errorsIn(win);
     check('broadcast tall: End broadcast ends both, and none of that reported an error', ended && complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

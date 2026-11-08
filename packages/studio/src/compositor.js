@@ -45,6 +45,7 @@ export const STUDIO_DEFAULTS = Object.freeze({
     minimise: false,
     // Go Live: a copy recorded on this computer while it streams.
     liveCopy: true,
+    liveCopyShape: 'wide',
     // Each source also kept as a file of its own, to edit as layers in Video (A7).
     isolated: false,
     // Take Picture: of the program as shown, the screen or the camera; after a few seconds or at once.
@@ -84,6 +85,7 @@ export function normaliseStudio(raw) {
         folder: text(r.folder, '', 2000),
         minimise: bool('minimise'),
         liveCopy: bool('liveCopy'),
+        liveCopyShape: pick(r.liveCopyShape, ['wide', 'tall'], d.liveCopyShape),
         isolated: bool('isolated'),
         shot: pick(r.shot, ['program', 'screen', 'camera', 'selected'], d.shot),
         shotTimer: pick(Number(r.shotTimer), [0, 3, 5, 10], d.shotTimer),

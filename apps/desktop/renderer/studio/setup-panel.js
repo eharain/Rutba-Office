@@ -5,7 +5,8 @@
 
 import React from 'react';
 import { t } from '@rutba/office-ui';
-import { Frame, Mirror } from './parts.js';
+import { Frame, Mirror, Seg } from './parts.js';
+import { TallFrame } from './tall-frame.js';
 import { SceneStrip } from './scene-strip.js';
 import { SourcesColumn } from './sources-column.js';
 import { PropertiesColumn } from './properties.js';
@@ -22,16 +23,19 @@ export function SetupPanel({ s }) {
         <div className="st-stage">
           <div className="st-frame-head">
             <b>{scene ? scene.name : t('The frame')}</b>
-            <span className="st-frame-size">{s.settings.size === 720 ? '1280 × 720' : '1920 × 1080'}</span>
+            <span className="st-frame-size">{s.isLive && s.frameShape === 'tall' ? (s.settings.size === 720 ? '720 × 1280' : '1080 × 1920') : (s.settings.size === 720 ? '1280 × 720' : '1920 × 1080')}</span>
+            {s.isLive ? <Seg value={s.frameShape} options={[['wide', t('Wide')], ['tall', t('Tall')]]} label={t('Shape of the frame')} className="st-frame-shape" onChange={s.setFrameShape} /> : null}
             <span className="st-dock-gap" />
             <span className="st-frame-hint">{t('Snaps to edges, centre and other sources. Alt drags freely.')}</span>
           </div>
           <div className="st-share">
+            {s.isLive && s.frameShape === 'tall' ? <TallFrame s={s} /> : (
             <Frame canvas={s.holding ? s.canvases.next : s.canvases.air} frameRef={s.editFrameRef} className="st-air st-editing" label={t('The frame')} tabIndex={0} onPointerDown={s.onFramePointer} onKeyDown={s.onFrameKey}>
               {s.overlay}
               {s.overlayShared}
               {s.live ? <div className="st-mirror"><span>{t('On air now')}</span><Mirror program={s.program} label={t('On air now')} /></div> : null}
             </Frame>
+            )}
           </div>
           <div className="st-under-frame">
             <div className="st-scenes-head"><span className="st-scenes-label">{t('Scenes')}</span><span className="st-scenes-hint">{s.isLive ? t('1 to 9 switch while live. As many as you like.') : t('1 to 9 switch while recording. As many as you like.')}</span></div>

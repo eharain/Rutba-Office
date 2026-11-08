@@ -5,7 +5,7 @@
 // The canvas is kept in the page, unseen, so a check can read what was drawn.
 
 import { Program } from './program.js';
-import { tallSize, tallStackOf } from '@rutba/studio/tall';
+import { tallKey, tallSize, tallStackOf } from '@rutba/studio/tall';
 
 /** How often the layout is made again, for a source whose shape has just become known. */
 const REFIT_MS = 1000;
@@ -15,10 +15,9 @@ const REFIT_MS = 1000;
  * @param {object} o.wide  the wide On air Program
  * @param {object} o.media  StudioMedia
  * @param {number} o.size  720 or 1080
- * @param {() => (string|null)} o.airKey  the scene on air, whose tall layout is shown
  * @returns {object} a Program with attach() and detach()
  */
-export function makeTallProgram({ wide, media, size, airKey }) {
+export function makeTallProgram({ wide, media, size }) {
   const canvas = document.createElement('canvas');
   const { width, height } = tallSize(size);
   canvas.width = width;
@@ -32,13 +31,19 @@ export function makeTallProgram({ wide, media, size, airKey }) {
     return s ? s.w / s.h : 16 / 9;
   };
   const follow = (stack, o) => {
-    if (stack) tall.setStack(tallStackOf(stack, airKey(), { aspectOf }), o);
+    if (stack) tall.setStack(tallStackOf(stack, tallKey(stack), { aspectOf }), o);
   };
 
   let off = null;
   let last = 0;
+  // Asked for by the tall streams and by a tall copy, each on its own.
+  let users = 0;
+  tall.inUse = () => users > 0;
   tall.attach = () => {
+    users += 1;
     if (off) return;
+    tall.settings = wide.settings;
+    tall.fps = wide.fps;
     document.body.appendChild(canvas);
     wide.onStack = follow;
     follow(wide.stack);
@@ -53,7 +58,9 @@ export function makeTallProgram({ wide, media, size, airKey }) {
     });
   };
   tall.detach = () => {
-    off?.();
+    users = Math.max(0, users - 1);
+    if (users || !off) return;
+    off();
     off = null;
     wide.onStack = null;
     media.web?.setTall(false);
