@@ -287,7 +287,11 @@ test('large files are kept as pieces, change only what changed, and a missing or
   assert.equal((await locker.versions(id, 'film.mp4')).length, 2);
 
   // A missing piece is said plainly; a damaged one too.
-  const victim = path.join(dir, 'p', piecesAtEnd[0]);
+  // The piece must be one the newest version reads, so it is one that version added:
+  // the first by name could belong only to the version before, and be rightly unneeded.
+  const onlyNewest = piecesAtEnd.find((n) => !piecesAfter.includes(n));
+  assert.ok(onlyNewest, 'the last edit added a piece');
+  const victim = path.join(dir, 'p', onlyNewest);
   fs.renameSync(victim, `${victim}.moved`);
   await assert.rejects(() => locker.exportCopy(id, 'film.mp4', path.join(tmp(), 'gone.mp4')), (err) => err.code === 'truncated');
   fs.renameSync(`${victim}.moved`, victim);
