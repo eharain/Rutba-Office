@@ -4,3 +4,4 @@ export { videoBody, audioBody, metadataBody, isKeyBody, AUDIO, VIDEO, DATA } fro
 export { RtmpPublisher, ChunkReader, chunkMessage } from './rtmp.js';
 export { PLATFORMS, LIVE_BITRATES, liveBitrate, parseRtmpUrl, maskKey } from './endpoints.js';
 export { BitrateGovernor } from './adapt.js';
+export { Broadcast, STREAM_SHAPES } from './broadcast.js';

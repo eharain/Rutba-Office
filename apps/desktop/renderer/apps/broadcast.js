@@ -8,8 +8,9 @@ import { liveBitrate } from '@rutba/stream/endpoints';
 import { StudioWindow } from '../studio/window.js';
 import { LiveEncoder, AUDIO_KBPS } from './broadcast/live.js';
 import { LiveDialog, LIVE_CSS } from './broadcast/live-dialog.js';
+import { LiveBar, LIVE_BAR_CSS } from '../studio/live-bar.js';
 
-const LIVE = { LiveEncoder, AUDIO_KBPS, LiveDialog, LIVE_CSS, liveBitrate };
+const LIVE = { LiveEncoder, AUDIO_KBPS, LiveDialog, LIVE_CSS: LIVE_CSS + LIVE_BAR_CSS, LiveBar, liveBitrate };
 
 export default function Broadcast(props) {
   return <StudioWindow {...props} kind="broadcast" live={LIVE} />;

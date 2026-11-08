@@ -757,6 +757,14 @@ export function StudioWindow({ app, shell, kind = 'recorder', live: liveKit = nu
     }
   }, [isLive, liveKit, livePhase, settings.fps, settings.liveCopy, kbps, shell, media, toast, begin]);
 
+  // The bar on top of the Live panel runs the broadcast; here a copy is kept as it goes.
+  const barPhase = useCallback((p, since) => {
+    setLivePhase(p);
+    if (since) setLiveSince(since);
+    if (p === 'live' && settingsRef.current.liveCopy && phaseRef.current === 'setup') { liveRecord.current = true; setPhase('starting'); begin(); }
+    if (p === 'off' && liveRecord.current) { liveRecord.current = false; stopRef.current?.(); }
+  }, [begin]);
+
   const endLive = useCallback(async () => {
     if (livePhase !== 'live' && livePhase !== 'starting') return;
     setLivePhase('ending');
@@ -1008,6 +1016,7 @@ export function StudioWindow({ app, shell, kind = 'recorder', live: liveKit = nu
 
       <Content>
         <div className="st-stage">
+          {isLive ? <liveKit.LiveBar shell={shell} toast={toast} program={program} media={media} fps={settings.fps} kbps={kbps} copy={live && settings.liveCopy} blocked={phase === 'countdown' || phase === 'starting'} onPhase={barPhase} /> : null}
           <SourceBar item={selItem} sound={selSound} clipping={clipping} act={barAct} />
           <div className={`st-share${preview ? ' duo' : ''}`}>
             <div className="st-pane on-air">

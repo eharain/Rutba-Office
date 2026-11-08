@@ -469,11 +469,14 @@ export const METHODS = {
   live: [
     'destinations',     // () -> [{ id, platform, name, url, on, hasKey, keyHint }]
     'platforms',        // () -> { youtube: { name, url, keyHelp }, ... }
-    'saveDestination',  // ({ id?, platform, name?, url?, on?, key? }) -> destinations   a key given replaces the one kept
+    'saveDestination',  // ({ id?, platform, name?, url?, on?, shape?, key? }) -> destinations   a key given replaces the one kept; a new stream is off
     'removeDestination',// ({ id }) -> destinations
-    'start',            // ({ video: { width, height, fps, kbps }, audio: { kbps, sampleRate, channels } }) -> { started: [id], skipped: [{ id, name, reason }] }
-    'send',             // ({ kind: 'video' | 'audio', timestamp, data, key, config }) -> { live }   one encoded piece, to every live destination
-    'status',           // () -> { live, destinations: [{ id, name, state, detail, bytes, dropped, since, reconnects }] }
+    'setOn',            // ({ ids }) -> destinations   which streams are on
+    'start',            // ({ ids?, video: { width, height, fps, kbps }, tall?, audio: { kbps, sampleRate, channels } }) -> { started: [id], skipped: [{ id, name, reason }] }   a broadcast opened, staying open with nothing going
+    'startOne',         // ({ id }) -> status   one stream joins the open broadcast
+    'stopOne',          // ({ id }) -> status   one stream leaves it
+    'send',             // ({ kind: 'video' | 'audio', shape?, timestamp, data, key, config }) -> { live }   one encoded piece, to every live stream of that shape
+    'status',           // () -> { live, destinations: [{ id, name, shape, state, detail, refused, bytes, dropped, since, reconnects }], kbps, target, rates }
     'stop',             // () -> status
   ],
   // Profiles (D-2026-10-26-02): which profile a window belongs to, the others, and managing them.

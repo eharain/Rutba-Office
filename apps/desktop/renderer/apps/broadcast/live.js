@@ -3,6 +3,10 @@
 // one) and sent to the main process a piece at a time, where every
 // destination is given the same bytes (main/live.js).
 //
+// One LiveEncoder makes one picture: the wide one, or the tall one when a tall
+// stream is on (live-session.js runs one per shape in use). One LiveSound makes
+// the sound both share.
+//
 // The picture is encoded at a constant bitrate with a key frame every two
 // seconds, as YouTube, Facebook and Twitch ask. A frame that comes while the
 // encoder is still busy is dropped and counted rather than queued, so the
@@ -51,26 +55,29 @@ export async function chooseLiveAudio({ sampleRate = 48000, channels = 2 } = {})
 }
 
 export class LiveEncoder {
-  /** @param {{ shell, program, rig }} o */
-  constructor({ shell, program, rig }) {
+  /**
+   * @param {{ shell, program, rig?, shape?, t0? }} o
+   * `shape` is which picture this is; `t0` the broadcast's clock, shared by
+   * every encoder. With `rig`, it also makes the sound (one encoder, one sound).
+   */
+  constructor({ shell, program, rig = null, shape = 'wide', t0 = null }) {
     this.shell = shell;
     this.program = program;
     this.rig = rig;
+    this.shape = shape;
     this.video = null;
-    this.audio = null;
     this.reader = null;
     this.off = null;
-    this.t0 = 0;
+    this.t0 = t0;
     this.lastKey = -Infinity;
-    this.stats = { frames: 0, dropped: 0, bytes: 0, audioFrames: 0, hardware: false };
+    this.stats = { frames: 0, dropped: 0, bytes: 0, hardware: false };
     this.running = false;
     this.sentVideoConfig = false;
-    this.sentAudioConfig = false;
   }
 
   send(piece) {
     this.stats.bytes += piece.data.byteLength;
-    this.shell.live.send(piece).catch(() => {});
+    this.shell.live.send({ ...piece, shape: this.shape }).catch(() => {});
   }
 
   /** Check what this computer can encode, before anything connects: { video, audio } or a thrown sentence. */
@@ -86,7 +93,7 @@ export class LiveEncoder {
   async start({ video }) {
     const canvas = this.program.canvas;
     this.running = true;
-    this.t0 = performance.now();
+    if (this.t0 == null) this.t0 = performance.now();
     this.stats.hardware = video.hardware;
 
     this.video = new VideoEncoder({
@@ -121,7 +128,15 @@ export class LiveEncoder {
       }
     });
 
-    this.startSound();
+    if (this.rig) {
+      this.sound = new LiveSound({ shell: this.shell, rig: this.rig, t0: this.t0 });
+      this.sound.start();
+    }
+  }
+
+  /** A stream has just joined and shows nothing until a key frame: the next frame is one. */
+  askKey() {
+    this.lastKey = -Infinity;
   }
 
   /**
@@ -142,8 +157,40 @@ export class LiveEncoder {
     }
   }
 
-  /** The program's sound, read off its track and encoded as AAC on its own clock, lined up with the picture's. */
-  async startSound() {
+  /** Stop: the frames no longer taken, what is in the encoder let go. */
+  async stop() {
+    this.running = false;
+    this.off?.();
+    await this.sound?.stop();
+    const enc = this.video;
+    if (!enc || enc.state === 'closed') return;
+    try { await enc.flush(); } catch { /* closing */ }
+    try { enc.close(); } catch { /* closed */ }
+  }
+}
+
+/** The program's sound, AAC, on the broadcast's clock: one, whichever pictures are going. */
+export class LiveSound {
+  /** @param {{ shell, rig, t0: number }} o */
+  constructor({ shell, rig, t0 }) {
+    this.shell = shell;
+    this.rig = rig;
+    this.t0 = t0;
+    this.audio = null;
+    this.reader = null;
+    this.running = false;
+    this.sentAudioConfig = false;
+    this.stats = { audioFrames: 0, bytes: 0 };
+  }
+
+  send(piece) {
+    this.stats.bytes += piece.data.byteLength;
+    this.shell.live.send(piece).catch(() => {});
+  }
+
+  /** Read the program's track and encode it, until stopped. */
+  async start() {
+    this.running = true;
     const track = this.rig.mix(['mic', 'system']) || this.rig.silence();
     if (!track || typeof MediaStreamTrackProcessor === 'undefined') return;
     this.soundTrack = track;
@@ -185,17 +232,14 @@ export class LiveEncoder {
     }
   }
 
-  /** Stop: the frames no longer taken, what is in the encoders let go. */
   async stop() {
     this.running = false;
-    this.off?.();
     try { await this.reader?.cancel(); } catch { /* done */ }
     try { this.soundTrack?.stop(); } catch { /* ended */ }
-    for (const enc of [this.video, this.audio]) {
-      if (!enc || enc.state === 'closed') continue;
-      try { await enc.flush(); } catch { /* closing */ }
-      try { enc.close(); } catch { /* closed */ }
-    }
+    const enc = this.audio;
+    if (!enc || enc.state === 'closed') return;
+    try { await enc.flush(); } catch { /* closing */ }
+    try { enc.close(); } catch { /* closed */ }
   }
 }
 

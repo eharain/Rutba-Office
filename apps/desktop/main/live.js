@@ -1,30 +1,28 @@
 // Going live from the Recorder (owner, 2026-10-19: "stream videos live on
 // youtube and facebook etc").
 //
-// The destinations a person streams to are kept here: each one's platform, a
-// name, its server address and whether it is on, in the settings; its stream
-// key in the secrets, encrypted by the operating system's keystore, and never
-// handed back to a window (the window sees only its last four characters).
+// The streams a person has set up are kept here: each one's platform, a name,
+// its server address, its shape and whether it is on, in the settings; its
+// stream key in the secrets, encrypted by the operating system's keystore, and
+// never handed back to a window (the window sees only its last four
+// characters).
 //
-// Going live opens one RTMP publisher per destination that is on and has a
-// key (@rutba/stream). The window encodes the program once, H.264 and AAC,
-// and sends each piece here; the same bytes go to every destination. The
-// metadata and the two configurations are kept, so a destination that joins
-// late, or comes back after the line dropped, is given them first and then
-// waits for the next key frame. A destination that drops is tried again,
-// after 2, 4, 8, 15 and then 30 seconds, until Stop.
+// A broadcast (@rutba/stream/broadcast) is open from Go live until End
+// broadcast, and streams join and leave it while it runs. The window encodes
+// the program, one picture per shape in use and one sound, H.264 and AAC, and
+// sends each piece here; the same bytes go to every stream of that shape.
 //
-// Nothing connects until the person presses Go Live, and only to the servers
+// Nothing connects until the person presses Go live, and only to the servers
 // they set up. Nothing here listens.
 
 import crypto from 'node:crypto';
-import { RtmpPublisher, videoBody, audioBody, metadataBody, parseRtmpUrl, maskKey, PLATFORMS } from '@rutba/stream';
-import { BitrateGovernor } from '@rutba/stream/adapt';
+import { RtmpPublisher, parseRtmpUrl, maskKey, PLATFORMS } from '@rutba/stream';
+import { Broadcast } from '@rutba/stream/broadcast';
 import { sendEvent } from '@rutba/office-shell/electron/main';
 
 const LIST_KEY = 'live.destinations';
 const keyName = (id) => `live.key.${id}`;
-const BACKOFF = [2, 4, 8, 15, 30];
+const shapeName = (s) => (s === 'tall' ? 'tall' : 'wide');
 
 /**
  * @param {{ stores, makePublisher?: (o) => RtmpPublisher }} o `makePublisher`
@@ -38,99 +36,48 @@ export function createLiveService({ stores, makePublisher = (o) => new RtmpPubli
 
   const shown = (d) => {
     const key = secrets.get(keyName(d.id));
-    return { id: d.id, platform: d.platform, name: d.name, url: d.url, on: Boolean(d.on), hasKey: Boolean(key), keyHint: maskKey(key) };
+    return { id: d.id, platform: d.platform, name: d.name, url: d.url, on: Boolean(d.on), shape: shapeName(d.shape), hasKey: Boolean(key), keyHint: maskKey(key) };
   };
 
-  // The live session: one entry per destination, and what every late joiner needs first.
-  let session = null;
+  // The open broadcast, and the window it answers.
+  let broadcast = null;
+  let window = null;
 
-  const statusOf = () => (session ? [...session.dest.values()].map((s) => ({
-    id: s.id,
-    name: s.name,
-    state: s.state,
-    detail: s.detail,
-    bytes: s.pub ? s.pub.sent : s.bytes,
-    dropped: s.pub ? s.pub.dropped : s.dropped,
-    since: s.since,
-    reconnects: s.reconnects,
-  })) : []);
+  const empty = () => ({ live: false, destinations: [], kbps: 0, target: 0, rates: {} });
+  const statusNow = () => (broadcast ? broadcast.status() : empty());
 
-  const tell = () => {
-    if (session?.win) sendEvent(session.win, 'live:status', { live: Boolean(session.running), destinations: statusOf(), kbps: session.kbps, target: session.governor?.target || session.kbps });
+  const join = (d, key) => {
+    broadcast.add({ id: d.id, name: d.name, url: d.url, key, shape: shapeName(d.shape), maxKbps: PLATFORMS[d.platform]?.maxKbps || 0 });
   };
-
-  /** Bring one destination's publisher up, and give it what it needs before frames. */
-  async function connect(s) {
-    if (!session?.running || s.stopped) return;
-    s.state = s.reconnects ? 'reconnecting' : 'connecting';
-    s.detail = '';
-    tell();
-    let pub;
-    try {
-      pub = makePublisher({ url: s.url, key: s.key });
-    } catch (err) {
-      s.state = 'error';
-      s.detail = err.message;
-      tell();
-      return;
-    }
-    s.pub = pub;
-    s.seenDropped = 0;
-    pub.on('error', (err) => { s.detail = err.message; });
-    pub.on('close', () => {
-      if (s.pub !== pub) return;
-      s.bytes += pub.sent;
-      s.dropped += pub.dropped;
-      s.pub = null;
-      if (!session?.running || s.stopped) return;
-      // Dropped while live: try again, waiting longer each time.
-      const wait = BACKOFF[Math.min(s.reconnects, BACKOFF.length - 1)];
-      s.reconnects += 1;
-      s.state = 'reconnecting';
-      s.detail = s.detail || 'The connection dropped.';
-      tell();
-      s.retry = setTimeout(() => connect(s), wait * 1000);
-    });
-    try {
-      await pub.start();
-      if (!session?.running || s.stopped) { pub.close(); return; }
-      s.state = 'live';
-      s.detail = '';
-      s.since = s.since || Date.now();
-      if (session.meta) pub.sendMetadata(session.meta);
-      if (session.videoConfig) pub.sendVideo(session.videoConfig, session.last, { config: true });
-      if (session.audioConfig) pub.sendAudio(session.audioConfig, session.last);
-      tell();
-    } catch (err) {
-      // A refused key is said once and not tried again; anything else is tried again by the close above.
-      s.detail = err.message;
-      if (/refused/.test(err.message)) {
-        s.stopped = true;
-        clearTimeout(s.retry);
-        s.state = 'error';
-        tell();
-      }
-    }
-  }
 
   return {
-    /** () -> [{ id, platform, name, url, on, hasKey, keyHint }] */
+    /** () -> [{ id, platform, name, url, on, shape, hasKey, keyHint }] */
     destinations: () => read().map(shown),
 
     /** The platforms offered, with their usual server and where their key is found. */
     platforms: () => PLATFORMS,
 
     /**
-     * ({ id?, platform, name?, url?, on?, key? }) -> destinations. A key given
-     * replaces the one kept; no key leaves it as it is.
+     * ({ id?, platform, name?, url?, on?, shape?, key? }) -> destinations. A
+     * key given replaces the one kept; no key leaves it as it is. Left out, a
+     * field keeps what it was, and a new stream is off until it is turned on.
      */
-    saveDestination: ({ id, platform = 'custom', name, url, on = true, key } = {}) => {
-      const p = PLATFORMS[platform] ? platform : 'custom';
-      const address = String(url || PLATFORMS[p].url || '').trim();
-      if (!parseRtmpUrl(address)) throw new Error('That server address is not an RTMP address: it starts rtmp:// or rtmps://, then the server and the app.');
+    saveDestination: ({ id, platform, name, url, on, shape, key } = {}) => {
       const list = read();
       const at = id ? list.findIndex((d) => d.id === id) : -1;
-      const entry = { id: at >= 0 ? id : crypto.randomUUID(), platform: p, name: String(name || PLATFORMS[p].name).slice(0, 80), url: address, on: Boolean(on) };
+      const was = at >= 0 ? list[at] : null;
+      const asked = platform ?? was?.platform;
+      const p = PLATFORMS[asked] ? asked : 'custom';
+      const address = String(url ?? was?.url ?? PLATFORMS[p].url ?? '').trim();
+      if (!parseRtmpUrl(address)) throw new Error('That server address is not an RTMP address: it starts rtmp:// or rtmps://, then the server and the app.');
+      const entry = {
+        id: at >= 0 ? id : crypto.randomUUID(),
+        platform: p,
+        name: String(name || was?.name || PLATFORMS[p].name).slice(0, 80),
+        url: address,
+        on: on === undefined ? Boolean(was?.on) : Boolean(on),
+        shape: shapeName(shape ?? was?.shape ?? (PLATFORMS[p].tall ? 'tall' : 'wide')),
+      };
       if (key != null && String(key).trim()) {
         if (!secrets.available()) throw new Error('This computer has no keystore to keep a stream key safely, so it is not kept.');
         secrets.set(keyName(entry.id), String(key).trim());
@@ -141,95 +88,71 @@ export function createLiveService({ stores, makePublisher = (o) => new RtmpPubli
       return read().map(shown);
     },
 
-    /** ({ id }) -> destinations: the destination and its key both gone. */
+    /** ({ id }) -> destinations: the stream and its key both gone, and off the broadcast if it was on it. */
     removeDestination: ({ id } = {}) => {
+      broadcast?.remove(id);
       write(read().filter((d) => d.id !== id));
       secrets.delete(keyName(id));
       return read().map(shown);
     },
 
+    /** ({ ids }) -> destinations: which streams are on, until the setup keeps that (plan A12). */
+    setOn: ({ ids = [] } = {}) => {
+      const wanted = new Set(ids);
+      write(read().map((d) => ({ ...d, on: wanted.has(d.id) })));
+      return read().map(shown);
+    },
+
     /**
-     * ({ video: { width, height, fps, kbps }, audio: { kbps, sampleRate, channels } }, win)
-     * -> { started: [id], skipped: [{ id, name, reason }] }: every destination
-     * that is on and has a key, connecting.
+     * ({ ids?, video: { width, height, fps, kbps }, tall?: same, audio: { kbps, sampleRate, channels } }, win)
+     * -> { started: [id], skipped: [{ id, name, reason }] }: a broadcast opened,
+     * each chosen stream that has a key connecting. Without `ids`, the streams
+     * that are on. It stays open with none going: nothing here refuses that.
      */
-    start: async ({ video = {}, audio = {} } = {}, win) => {
-      if (session?.running) throw new Error('Already live.');
-      const chosen = read().filter((d) => d.on);
+    start: async ({ ids, video = {}, tall = null, audio = {} } = {}, win) => {
+      if (broadcast?.running) throw new Error('Already live.');
+      const all = read();
+      const wanted = new Set(ids || []);
+      const chosen = ids ? all.filter((d) => wanted.has(d.id)) : all.filter((d) => d.on);
+      window = win;
+      broadcast = new Broadcast({ video, tall, audio, makePublisher, onChange: (status) => { if (window) sendEvent(window, 'live:status', status); } });
+      const started = [];
       const skipped = [];
-      const dest = new Map();
       for (const d of chosen) {
         const key = secrets.get(keyName(d.id));
         if (!key) { skipped.push({ id: d.id, name: d.name, reason: 'no stream key' }); continue; }
-        dest.set(d.id, { id: d.id, name: d.name, url: d.url, key, state: 'waiting', detail: '', pub: null, bytes: 0, dropped: 0, since: 0, reconnects: 0, stopped: false, retry: null });
+        join(d, key);
+        started.push(d.id);
       }
-      if (!dest.size) throw new Error(chosen.length ? 'No destination that is on has a stream key yet.' : 'Turn on a destination to go live to.');
-      session = {
-        running: true,
-        win,
-        dest,
-        meta: metadataBody({ width: video.width, height: video.height, fps: video.fps, videoKbps: video.kbps, audioKbps: audio.kbps, sampleRate: audio.sampleRate || 48000, channels: audio.channels || 2 }),
-        videoConfig: null,
-        audioConfig: null,
-        last: 0,
-        // The picture's bitrate follows the slowest destination's line (@rutba/stream/adapt).
-        governor: new BitrateGovernor({ target: Number(video.kbps) || 4500 }),
-        kbps: Number(video.kbps) || 4500,
-        ticker: null,
-      };
-      session.ticker = setInterval(() => {
-        if (!session?.running) return;
-        const looks = [...session.dest.values()].filter((s) => s.pub?.state === 'live').map((s) => {
-          const dropped = Math.max(0, s.pub.dropped - (s.seenDropped || 0));
-          s.seenDropped = s.pub.dropped;
-          return { dropped, queued: (s.pub.socket?.writableLength || 0) / (s.pub.maxQueueBytes || 1) };
-        });
-        if (looks.length) session.kbps = session.governor.tick(looks);
-        tell();
-      }, 2000);
-      for (const s of dest.values()) connect(s);
-      tell();
-      return { started: [...dest.keys()], skipped };
+      return { started, skipped };
+    },
+
+    /** ({ id }) -> status: one stream joins the open broadcast. It may be the first of its shape. */
+    startOne: ({ id } = {}) => {
+      if (!broadcast?.running) throw new Error('There is no broadcast open.');
+      const d = read().find((x) => x.id === id);
+      const key = secrets.get(keyName(id));
+      if (!d || !key) throw new Error('That stream has no key yet.');
+      join(d, key);
+      return broadcast.status();
+    },
+
+    /** ({ id }) -> status: one stream leaves; the broadcast and the others carry on. */
+    stopOne: ({ id } = {}) => {
+      broadcast?.remove(id);
+      return statusNow();
     },
 
     /**
-     * One piece of the program: ({ kind: 'video' | 'audio', timestamp (ms),
-     * data, key, config }). A configuration is kept for those who join later.
+     * One piece of the program: ({ kind: 'video' | 'audio', shape?, timestamp
+     * (ms), data, key, config }). A configuration is kept for those who join later.
      */
-    send: ({ kind, timestamp = 0, data, key = false, config = false } = {}) => {
-      if (!session?.running || !data) return { live: 0 };
-      const bytes = Buffer.from(data.buffer ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : data);
-      session.last = Math.max(session.last, Math.round(timestamp));
-      let live = 0;
-      if (kind === 'video') {
-        const body = videoBody({ data: bytes, key, config });
-        if (config) session.videoConfig = body;
-        for (const s of session.dest.values()) if (s.pub?.state === 'live' && s.pub.sendVideo(body, timestamp, { config })) live += 1;
-      } else if (kind === 'audio') {
-        const body = audioBody({ data: bytes, config });
-        if (config) session.audioConfig = body;
-        for (const s of session.dest.values()) if (s.pub?.state === 'live' && s.pub.sendAudio(body, timestamp)) live += 1;
-      }
-      return { live };
-    },
+    send: (piece) => (broadcast?.running ? broadcast.send(piece) : { live: 0 }),
 
-    /** () -> { live, destinations: [{ id, name, state, detail, bytes, dropped, since, reconnects }] } */
-    status: () => ({ live: Boolean(session?.running), destinations: statusOf(), kbps: session?.kbps || 0, target: session?.governor?.target || 0 }),
+    /** () -> { live, destinations: [{ id, name, shape, state, detail, refused, bytes, dropped, since, reconnects }], kbps, target, rates } */
+    status: () => statusNow(),
 
-    /** () -> status: every destination closed, nothing tried again. */
-    stop: () => {
-      if (!session) return { live: false, destinations: [] };
-      session.running = false;
-      clearInterval(session.ticker);
-      for (const s of session.dest.values()) {
-        s.stopped = true;
-        clearTimeout(s.retry);
-        s.pub?.close('stopped');
-        s.state = 'ended';
-      }
-      const out = { live: false, destinations: statusOf() };
-      tell();
-      return out;
-    },
+    /** () -> status: every stream closed, nothing tried again. */
+    stop: () => (broadcast ? broadcast.close() : empty()),
   };
 }

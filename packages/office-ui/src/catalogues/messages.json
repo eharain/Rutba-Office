@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8421,
+  "count": 8461,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2683,6 +2683,12 @@
       ]
     },
     {
+      "message": "Add a stream",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
       "message": "Add a table",
       "where": [
         "apps/desktop/renderer/apps/base/queries.js"
@@ -2784,6 +2790,13 @@
       "message": "Add it with Add or remove apps, and it opens what it opens from the next start.",
       "where": [
         "apps/desktop/renderer/packs-dialog.js"
+      ]
+    },
+    {
+      "message": "Add key",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js",
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -6639,6 +6652,7 @@
         "apps/desktop/renderer/apps/base/people.js",
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/base/sources.js",
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
@@ -7151,6 +7165,12 @@
       "message": "Change to",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Change {name}",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -8376,7 +8396,6 @@
       "where": [
         "apps/desktop/renderer/ai-tools-dialog.js",
         "apps/desktop/renderer/apps/base/links.js",
-        "apps/desktop/renderer/apps/broadcast/live-dialog.js",
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/image/words.js",
@@ -9178,6 +9197,7 @@
       "message": "Connecting…",
       "where": [
         "apps/desktop/renderer/apps/talk.js",
+        "apps/desktop/renderer/studio/live-bar.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -13324,6 +13344,18 @@
       ]
     },
     {
+      "message": "End broadcast",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
+      "message": "End broadcast…",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
       "message": "End card",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
@@ -13336,6 +13368,12 @@
       ]
     },
     {
+      "message": "End the broadcast?",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
       "message": "End time",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -13345,6 +13383,12 @@
       "message": "Ended",
       "where": [
         "apps/desktop/renderer/studio/window.js"
+      ]
+    },
+    {
+      "message": "Ending…",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -13808,6 +13852,12 @@
       "message": "Every slide's words, as an outline",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Every stream stops, whatever the icons say.",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -15641,6 +15691,12 @@
       ]
     },
     {
+      "message": "For wide and tall on one platform, add it twice, with a key for each.",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
       "message": "For {address}",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -16538,12 +16594,6 @@
       ]
     },
     {
-      "message": "Go Live: where to stream",
-      "where": [
-        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
-      ]
-    },
-    {
       "message": "Go To",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -16554,6 +16604,12 @@
       "message": "Go To…",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Go live",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -16626,6 +16682,12 @@
       "message": "Goal seek",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Goes to {count} · about {mbps} Mb/s upload",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -18364,7 +18426,7 @@
       ]
     },
     {
-      "message": "In Facebook Live Producer: choose Streaming software, then copy the stream key.",
+      "message": "In LinkedIn Live Studio, open Manage streams, choose Prepare to go live, then Get URL, and copy both. Only members who meet LinkedIn's access criteria can go live.",
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
@@ -18394,7 +18456,13 @@
       ]
     },
     {
-      "message": "In YouTube Studio: Create, Go live, then Stream. Copy the stream key.",
+      "message": "In X Live Studio, create a source, then copy its address and stream key.",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
+      "message": "In YouTube Studio, choose Create, Go live, then Stream, and copy the stream key. The first time, YouTube can take up to 24 hours to allow it.",
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
@@ -18456,7 +18524,13 @@
       ]
     },
     {
-      "message": "In the Twitch Creator Dashboard: Settings, then Stream. Copy the primary stream key.",
+      "message": "In the Kick creator dashboard, open Channel, then Stream URL and Key, and copy both.",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
+      "message": "In the Twitch Creator Dashboard, open Settings, then Stream, and copy the stream key.",
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
@@ -20136,6 +20210,12 @@
       ]
     },
     {
+      "message": "Keep going",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
       "message": "Keep original formatting",
       "where": [
         "apps/desktop/renderer/apps/word/references-toa.js"
@@ -20256,6 +20336,12 @@
       ]
     },
     {
+      "message": "Kept encrypted on this computer, and sent only to {platform}.",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
       "message": "Kept for you, and used by every introduction you make.",
       "where": [
         "apps/desktop/renderer/apps/video/intro/brand.js"
@@ -20312,12 +20398,6 @@
       ]
     },
     {
-      "message": "Key kept {hint}",
-      "where": [
-        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
-      ]
-    },
-    {
       "message": "Key or token for {table}",
       "where": [
         "apps/desktop/renderer/apps/base/sources.js"
@@ -20366,6 +20446,7 @@
     {
       "message": "LIVE",
       "where": [
+        "apps/desktop/renderer/studio/live-bar.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -21779,6 +21860,7 @@
       "message": "Live",
       "where": [
         "apps/desktop/renderer/apps/base/links.js",
+        "apps/desktop/renderer/studio/live-bar.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -23687,6 +23769,12 @@
       ]
     },
     {
+      "message": "More for {name}",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
       "message": "More junk is caught, and now and then a good message with it — look in Junk once in a while.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -24135,6 +24223,19 @@
       ]
     },
     {
+      "message": "My streams",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js",
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
+      "message": "My {platform}",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
       "message": "NEW",
       "where": [
         "apps/desktop/renderer/apps/video/starters.js"
@@ -24159,6 +24260,12 @@
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/dav-accounts.js",
         "apps/desktop/renderer/design.js"
+      ]
+    },
+    {
+      "message": "Name (optional)",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -24320,6 +24427,12 @@
       "message": "Needs Rutba Office {version} or newer. Check for updates.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
+      ]
+    },
+    {
+      "message": "Needs a key",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -25366,12 +25479,6 @@
       ]
     },
     {
-      "message": "No destination yet. Add the platform you stream to.",
-      "where": [
-        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
-      ]
-    },
-    {
       "message": "No duplicate rows in the selection",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -25865,12 +25972,6 @@
       ]
     },
     {
-      "message": "No stream key yet",
-      "where": [
-        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
-      ]
-    },
-    {
       "message": "No suggestions — type the word as it should be.",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -26331,6 +26432,7 @@
     {
       "message": "Not streamed to {names}: no stream key.",
       "where": [
+        "apps/desktop/renderer/studio/live-bar.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -26535,6 +26637,12 @@
       ]
     },
     {
+      "message": "Nothing is going out",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
       "message": "Nothing is marked for redaction yet. Mark words, an area or the matches of a search first.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -26622,6 +26730,12 @@
       "message": "Nothing on this slide yet.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Nothing set up yet. Add the first place you stream to.",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -26788,6 +26902,12 @@
       ]
     },
     {
+      "message": "OFFLINE",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
       "message": "OK",
       "where": [
         "apps/desktop/renderer/apps/image/canvas-size.js",
@@ -26893,7 +27013,8 @@
       "where": [
         "apps/desktop/renderer/ai-tools.js",
         "apps/desktop/renderer/apps/mail.js",
-        "apps/desktop/renderer/apps/mail/rules.js"
+        "apps/desktop/renderer/apps/mail/rules.js",
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -26966,7 +27087,8 @@
     {
       "message": "On",
       "where": [
-        "apps/desktop/renderer/apps/mail/rules.js"
+        "apps/desktop/renderer/apps/mail/rules.js",
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -26985,6 +27107,12 @@
       "message": "On Click of {name}",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "On Facebook, choose Go live, then Streaming software, and copy the stream key.",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -27039,6 +27167,12 @@
       "message": "On for this session",
       "where": [
         "apps/desktop/renderer/ai-tools.js"
+      ]
+    },
+    {
+      "message": "On instagram.com, choose Add post, then Live, and copy the address and the stream key. Instagram gives a new key each time, so add it again before you go live.",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -27376,9 +27510,27 @@
       ]
     },
     {
+      "message": "Open Facebook Live",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
+      "message": "Open Instagram",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
       "message": "Open Link",
       "where": [
         "apps/desktop/renderer/apps/mail/safety.js"
+      ]
+    },
+    {
+      "message": "Open Live Studio",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -27386,6 +27538,12 @@
       "where": [
         "apps/desktop/renderer/shell.js",
         "packages/office-shell/src/electron/main.js"
+      ]
+    },
+    {
+      "message": "Open YouTube Studio",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -27562,6 +27720,18 @@
       "message": "Open the Copy",
       "where": [
         "apps/desktop/renderer/redact.js"
+      ]
+    },
+    {
+      "message": "Open the Creator Dashboard",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
+      "message": "Open the Kick dashboard",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -28632,6 +28802,7 @@
     {
       "message": "Paste",
       "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -31336,6 +31507,7 @@
       "message": "Ready",
       "where": [
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
+        "apps/desktop/renderer/studio/live-bar.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -31556,7 +31728,6 @@
     {
       "message": "Record a copy on this computer while live",
       "where": [
-        "apps/desktop/renderer/apps/broadcast/live-dialog.js",
         "apps/desktop/renderer/studio/settings-dialog.js"
       ]
     },
@@ -32277,6 +32448,7 @@
       "message": "Remove",
       "where": [
         "apps/desktop/renderer/ai-tools-dialog.js",
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
@@ -32547,12 +32719,6 @@
       "message": "Remove this category",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
-      ]
-    },
-    {
-      "message": "Remove this destination",
-      "where": [
-        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -33407,6 +33573,12 @@
       "message": "Retake Scene",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Retrying",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -36389,9 +36561,14 @@
     {
       "message": "Server",
       "where": [
-        "apps/desktop/renderer/apps/broadcast/live-dialog.js",
         "apps/desktop/renderer/apps/talk.js",
         "apps/desktop/renderer/dav-accounts.js"
+      ]
+    },
+    {
+      "message": "Server address",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -36521,6 +36698,12 @@
       ]
     },
     {
+      "message": "Set up once here. The icons on the Live panel choose which ones go out.",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
       "message": "Set up this account here — {protocol} {host}",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -36646,6 +36829,7 @@
     {
       "message": "Shape",
       "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js",
         "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
@@ -37140,6 +37324,12 @@
       "message": "Show labels",
       "where": [
         "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Show more: server address",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -39184,6 +39374,7 @@
       "where": [
         "apps/desktop/renderer/recording/panel.js",
         "apps/desktop/renderer/studio/list.js",
+        "apps/desktop/renderer/studio/live-bar.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -39469,12 +39660,6 @@
     },
     {
       "message": "Stream key",
-      "where": [
-        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
-      ]
-    },
-    {
-      "message": "Streaming to {count} at {kbps} kbit/s needs an upload of about {mbps} Mbit/s.",
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
@@ -40379,6 +40564,25 @@
       "message": "Talking head",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "Tall",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js",
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
+      "message": "Tall streams",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
+      "message": "Tall {mbps} Mb/s",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -42497,12 +42701,6 @@
       ]
     },
     {
-      "message": "The program is streamed to every destination that is on, at once. Stream keys are kept encrypted on this computer and are sent only to the server they belong to.",
-      "where": [
-        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
-      ]
-    },
-    {
       "message": "The program that made this database keeps its records in its own way. A record you add, change or delete here goes straight into its file, where that program may not expect it. Close that program first, and keep a copy of the file if you are not sure.",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -42720,6 +42918,18 @@
       ]
     },
     {
+      "message": "The server address and the stream key come from Rumble. Copy both here.",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
+      "message": "The server address and the stream key come from TikTok. Copy both here.",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
       "message": "The server address and the stream key your streaming service gives you.",
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js"
@@ -42932,6 +43142,7 @@
     {
       "message": "The stream has ended.",
       "where": [
+        "apps/desktop/renderer/studio/live-bar.js",
         "apps/desktop/renderer/studio/window.js"
       ]
     },
@@ -45876,9 +46087,9 @@
       ]
     },
     {
-      "message": "Turn on a destination with a stream key to go live.",
+      "message": "Turn on a stream to go live",
       "where": [
-        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -47727,6 +47938,12 @@
       ]
     },
     {
+      "message": "Where it goes",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
       "message": "Where it is",
       "where": [
         "apps/desktop/renderer/apps/base/sources.js"
@@ -47766,6 +47983,12 @@
       "message": "Where this goes",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Where to",
+      "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js"
       ]
     },
     {
@@ -47920,9 +48143,11 @@
     {
       "message": "Wide",
       "where": [
+        "apps/desktop/renderer/apps/broadcast/live-dialog.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
-        "apps/desktop/renderer/print.js"
+        "apps/desktop/renderer/print.js",
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -47932,9 +48157,21 @@
       ]
     },
     {
+      "message": "Wide streams",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
       "message": "Wide upward diagonal",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Wide {mbps} Mb/s",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -49290,6 +49527,12 @@
       ]
     },
     {
+      "message": "could not connect. The key may be out of date, or the server down.",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
+      ]
+    },
+    {
       "message": "count",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -49715,6 +49958,12 @@
       "message": "keep",
       "where": [
         "apps/desktop/renderer/apps/mail/reader.js"
+      ]
+    },
+    {
+      "message": "keeping a copy",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {
@@ -53069,6 +53318,12 @@
       "message": "{name} — {width} × {height}, primary",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "{name}, needs a key",
+      "where": [
+        "apps/desktop/renderer/studio/live-bar.js"
       ]
     },
     {

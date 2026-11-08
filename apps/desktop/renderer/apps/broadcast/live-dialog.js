@@ -1,171 +1,280 @@
-// Go Live's destinations: where the program is streamed to.
+// My streams, and adding one (owner, 6 Nov: "the live stream key entry screen is
+// very scary and long it should list the the configured streams and allow
+// adding additional").
 //
-// Each destination is a platform (YouTube, Facebook, Twitch, or any RTMP
-// server), the server address (filled in for the platforms, and changeable),
-// and the stream key the platform gives, pasted here once. The key goes to
-// the main process and is kept encrypted by the operating system's keystore;
-// this window only ever sees its last four characters again. A destination
-// can be turned off without being forgotten.
+// A list with nothing to fill in: each stream's logo, name, platform and shape,
+// and a menu with Change and Remove. Add a stream is its own short screen. The
+// key goes to the main process and is kept encrypted by the operating system's
+// keystore; this window only ever sees its last four characters again.
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { Dialog, Button, Input, Icon, t } from '@rutba/office-ui';
-import { Toggle } from '../../recording/panel.js';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Dialog, Button, Input, Icon, Menu, t } from '@rutba/office-ui';
 
 /** The shape a server address takes, shown in its empty field: not words to translate. */
 const SERVER_SHAPE = 'rtmps://…';
 
-const PLATFORM_NAMES = () => ({ youtube: 'YouTube', facebook: 'Facebook', twitch: 'Twitch', custom: t('RTMP server') });
-const KEY_HELP = () => ({
-  youtube: t('In YouTube Studio: Create, Go live, then Stream. Copy the stream key.'),
-  facebook: t('In Facebook Live Producer: choose Streaming software, then copy the stream key.'),
-  twitch: t('In the Twitch Creator Dashboard: Settings, then Stream. Copy the primary stream key.'),
-  custom: t('The server address and the stream key your streaming service gives you.'),
-});
+/** The platforms, in the order they are offered. */
+const PLATFORM_ORDER = ['youtube', 'facebook', 'twitch', 'tiktok', 'instagram', 'linkedin', 'x', 'kick', 'rumble', 'custom'];
 
-/** One destination, as a row that opens to change it. */
-function Destination({ d, platforms, onSave, onRemove, busy }) {
-  const [open, setOpen] = useState(!d.hasKey);
-  const [url, setUrl] = useState(d.url);
-  const [name, setName] = useState(d.name);
+/** A platform's name as shown: the service's own, or words for the one that is not a service. */
+export const platformName = (id, platforms) => (id === 'custom' ? t('RTMP server') : platforms?.[id]?.name || id);
+
+/**
+ * Where a platform's key is found, in its own words: one line, and a link to
+ * the page when the platform's help names one. Written from each platform's
+ * help page; TikTok's and Rumble's could not be read, so they say only that
+ * the address and key come from the platform.
+ */
+const keyHelp = (platform) => ({
+  youtube: { line: t('In YouTube Studio, choose Create, Go live, then Stream, and copy the stream key. The first time, YouTube can take up to 24 hours to allow it.'), link: t('Open YouTube Studio'), url: 'https://studio.youtube.com/' },
+  facebook: { line: t('On Facebook, choose Go live, then Streaming software, and copy the stream key.'), link: t('Open Facebook Live'), url: 'https://www.facebook.com/live/create' },
+  twitch: { line: t('In the Twitch Creator Dashboard, open Settings, then Stream, and copy the stream key.'), link: t('Open the Creator Dashboard'), url: 'https://dashboard.twitch.tv/settings/stream' },
+  tiktok: { line: t('The server address and the stream key come from TikTok. Copy both here.') },
+  instagram: { line: t('On instagram.com, choose Add post, then Live, and copy the address and the stream key. Instagram gives a new key each time, so add it again before you go live.'), link: t('Open Instagram'), url: 'https://www.instagram.com/' },
+  linkedin: { line: t('In LinkedIn Live Studio, open Manage streams, choose Prepare to go live, then Get URL, and copy both. Only members who meet LinkedIn\'s access criteria can go live.'), link: t('Open Live Studio'), url: 'https://www.linkedin.com/video/golive/manage/' },
+  x: { line: t('In X Live Studio, create a source, then copy its address and stream key.'), link: t('Open Live Studio'), url: 'https://studio.x.com/live' },
+  kick: { line: t('In the Kick creator dashboard, open Channel, then Stream URL and Key, and copy both.'), link: t('Open the Kick dashboard'), url: 'https://dashboard.kick.com/stream' },
+  rumble: { line: t('The server address and the stream key come from Rumble. Copy both here.') },
+  custom: { line: t('The server address and the stream key your streaming service gives you.') },
+}[platform] || { line: '' });
+
+export function Logo({ platform, platforms, size = 30, muted = false }) {
+  const p = platforms?.[platform];
+  return <span className="lv-logo" aria-hidden="true" style={{ width: size, height: size, background: muted ? undefined : p?.colour, fontSize: Math.round(size * 0.4) }}>{p?.mark || '?'}</span>;
+}
+
+/** Add a stream, or Change one: choose the platform, one line on where the key is, the key, and the rest out of the way. */
+function StreamForm({ shell, toast, platforms, editing, focusKey, onDone, onCancel, onSaved }) {
+  const fresh = !editing;
+  const [platform, setPlatform] = useState(editing?.platform || 'youtube');
+  const known = platforms?.[platform];
+  const fixed = Boolean(known?.url);
+  const [name, setName] = useState(editing?.name || '');
   const [key, setKey] = useState('');
-  const names = PLATFORM_NAMES();
-  const save = async () => {
-    const ok = await onSave({ id: d.id, platform: d.platform, name, url, on: d.on, key: key || undefined });
-    if (ok) { setKey(''); setOpen(false); }
+  const [shape, setShape] = useState(editing?.shape || (known?.tall ? 'tall' : 'wide'));
+  const [url, setUrl] = useState(editing?.url && editing.url !== known?.url ? editing.url : '');
+  const [more, setMore] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const keyLine = useRef(null);
+  const label = platformName(platform, platforms);
+
+  useEffect(() => { if (focusKey) keyLine.current?.querySelector('input')?.focus(); }, [focusKey]);
+
+  const pick = (p) => {
+    setPlatform(p);
+    if (fresh) setShape(platforms?.[p]?.tall ? 'tall' : 'wide');
+    setUrl('');
+    setMore(false);
   };
+
+  const paste = async () => {
+    const text = await shell.clipboard.readText().catch(() => '');
+    if (text) setKey(text.trim());
+  };
+
+  const help = keyHelp(platform);
+  const needsAddress = !fixed && !editing?.url && !url.trim();
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const list = await shell.live.saveDestination({
+        id: editing?.id,
+        platform,
+        name: name.trim() || undefined,
+        url: url.trim() || (fixed ? known.url : undefined),
+        shape,
+        key: key.trim() || undefined,
+      });
+      onSaved?.(editing?.id || null, list);
+      onDone();
+    } catch (err) {
+      toast(err.message, { tone: 'bad', ms: 7000 });
+      setBusy(false);
+    }
+  };
+
   return (
-    <li className={`lv-dest${d.on ? ' on' : ''}`} data-platform={d.platform} data-id={d.id}>
-      <div className="lv-row">
-        <Toggle on={d.on} label={d.name || names[d.platform]} disabled={busy} onChange={(v) => onSave({ id: d.id, platform: d.platform, name: d.name, url: d.url, on: v })} className="lv-on" />
-        <span className={`lv-key${d.hasKey ? ' kept' : ''}`}>{d.hasKey ? t('Key kept {hint}', { hint: d.keyHint }) : t('No stream key yet')}</span>
-        <Button ghost icon={open ? 'chevronUp' : 'settings'} title={open ? t('Close') : t('Change')} onClick={() => setOpen((x) => !x)} />
-        <Button ghost icon="trash" title={t('Remove this destination')} disabled={busy} onClick={() => onRemove(d.id)} className="lv-remove" />
-      </div>
-      {open ? (
-        <div className="lv-edit">
-          <p className="lv-help">{KEY_HELP()[d.platform] || ''}</p>
-          <label className="lv-field">
-            <span>{t('Name')}</span>
-            <Input value={name} onChange={(e) => setName(e.target.value)} aria-label={t('Name')} />
-          </label>
-          <label className="lv-field">
-            <span>{t('Server')}</span>
-            <Input className="lv-url" value={url} placeholder={SERVER_SHAPE} onChange={(e) => setUrl(e.target.value)} aria-label={t('Server')} />
-          </label>
-          <label className="lv-field">
-            <span>{d.hasKey ? t('New stream key') : t('Stream key')}</span>
-            <Input className="lv-keyfield" type="password" autoComplete="off" value={key} placeholder={d.hasKey ? t('Leave empty to keep the one kept') : ''} onChange={(e) => setKey(e.target.value)} aria-label={t('Stream key')} />
-          </label>
-          <div className="lv-actions">
-            <Button primary label={t('Save')} className="lv-save" disabled={busy || !url.trim() || (!d.hasKey && !key.trim())} onClick={save} />
-          </div>
+    <Dialog
+      title={fresh ? t('Add a stream') : t('Change {name}', { name: editing.name })}
+      className="lv-dialog lv-form"
+      onClose={onCancel}
+      actions={(
+        <>
+          <Button label={t('Cancel')} className="lv-cancel" onClick={onCancel} />
+          <Button primary label={fresh ? t('Add') : t('Save')} className="lv-save" disabled={busy || needsAddress} onClick={save} />
+        </>
+      )}
+    >
+      {fresh ? (
+        <div className="lv-grid" role="radiogroup" aria-label={t('Where to')}>
+          {PLATFORM_ORDER.map((p) => (
+            <button key={p} type="button" role="radio" aria-checked={p === platform} className={`lv-pt${p === platform ? ' on' : ''}`} data-platform={p} onClick={() => pick(p)}>
+              <Logo platform={p} platforms={platforms} size={24} />{platformName(p, platforms)}
+            </button>
+          ))}
         </div>
       ) : null}
-    </li>
+      <p className="lv-help">
+        {help.line}
+        {help.url ? <>{' '}<a href={help.url} onClick={(e) => { e.preventDefault(); shell.shell.openExternal({ url: help.url }).catch(() => {}); }}>{help.link}</a></> : null}
+      </p>
+      {!fixed ? (
+        <label className="lv-field">
+          <span>{t('Server address')}</span>
+          <Input className="lv-url" value={url || (editing?.url || '')} placeholder={SERVER_SHAPE} onChange={(e) => setUrl(e.target.value)} aria-label={t('Server address')} />
+        </label>
+      ) : null}
+      <label className="lv-field">
+        <span>{editing?.hasKey ? t('New stream key') : t('Stream key')}</span>
+        <span className="lv-keyline" ref={keyLine}>
+          <Input className="lv-keyfield" type="password" autoComplete="off" value={key} placeholder={editing?.hasKey ? t('Leave empty to keep the one kept') : ''} onChange={(e) => setKey(e.target.value)} aria-label={t('Stream key')} />
+          <Button label={t('Paste')} className="lv-paste" onClick={paste} />
+        </span>
+      </label>
+      {fresh ? (
+        <label className="lv-field">
+          <span>{t('Name (optional)')}</span>
+          <Input className="lv-name" value={name} placeholder={t('My {platform}', { platform: label })} onChange={(e) => setName(e.target.value)} aria-label={t('Name (optional)')} />
+        </label>
+      ) : (
+        <label className="lv-field">
+          <span>{t('Name')}</span>
+          <Input className="lv-name" value={name} onChange={(e) => setName(e.target.value)} aria-label={t('Name')} />
+        </label>
+      )}
+      <div className="lv-field">
+        <span>{t('Shape')}</span>
+        <span className="lv-seg" role="radiogroup" aria-label={t('Shape')}>
+          <button type="button" role="radio" aria-checked={shape === 'wide'} className={shape === 'wide' ? 'on' : ''} data-shape="wide" onClick={() => setShape('wide')}>{t('Wide')}</button>
+          <button type="button" role="radio" aria-checked={shape === 'tall'} className={shape === 'tall' ? 'on' : ''} data-shape="tall" onClick={() => setShape('tall')}>{t('Tall')}</button>
+        </span>
+        <small className="lv-small">{t('For wide and tall on one platform, add it twice, with a key for each.')}</small>
+      </div>
+      {fixed ? (
+        more ? (
+          <label className="lv-field">
+            <span>{t('Server address')}</span>
+            <Input className="lv-url" value={url} placeholder={known?.url || SERVER_SHAPE} onChange={(e) => setUrl(e.target.value)} aria-label={t('Server address')} />
+          </label>
+        ) : <button type="button" className="lv-more" onClick={() => setMore(true)}>{t('Show more: server address')}</button>
+      ) : null}
+      <small className="lv-small">{t('Kept encrypted on this computer, and sent only to {platform}.', { platform: label })}</small>
+    </Dialog>
   );
 }
 
 /**
- * @param {{ shell, toast, onClose, recordCopy, onRecordCopy, kbps, busy }} props
+ * My streams: the list, and the screens it opens. Props are those Go Live's old
+ * box had, so the studio window opens it as it did.
+ * @param {{ shell, toast, onClose, onChanged?: (list) => void, onKeyChanged?: (id) => void, start?: { add: boolean, id?: string } }} props
  */
-export function LiveDialog({ shell, toast, onClose, recordCopy, onRecordCopy, kbps, busy = false }) {
+export function LiveDialog({ shell, toast, onClose, onChanged, onKeyChanged, start = null }) {
   const [list, setList] = useState(null);
   const [platforms, setPlatforms] = useState(null);
-  const names = PLATFORM_NAMES();
+  const [screen, setScreen] = useState(start?.add ? { add: true } : null);
+  const [menu, setMenu] = useState(null);
+  const started = useRef(false);
+
+  const reload = useCallback(async () => {
+    const found = await shell.live.destinations().catch(() => []);
+    setList(found);
+    onChanged?.(found);
+    return found;
+  }, [shell, onChanged]);
 
   useEffect(() => {
-    // A row added while the list was loading is kept when it arrives.
-    const merge = (found) => setList((l) => [...found, ...((l || []).filter((d) => d.draft))]);
-    shell.live.destinations().then(merge).catch(() => merge([]));
+    reload().then((found) => {
+      if (start?.id && !started.current) {
+        started.current = true;
+        const d = found.find((x) => x.id === start.id);
+        if (d) setScreen({ editing: d, focusKey: true });
+      }
+    });
     shell.live.platforms().then(setPlatforms).catch(() => setPlatforms(null));
-  }, [shell]);
+  }, [shell, reload, start]);
 
-  const save = useCallback(async (d) => {
-    try {
-      setList(await shell.live.saveDestination(d));
-      return true;
-    } catch (err) {
-      toast(err.message, { tone: 'bad', ms: 7000 });
-      return false;
-    }
-  }, [shell, toast]);
-  const remove = useCallback(async (id) => {
-    setList(await shell.live.removeDestination({ id }).catch(() => list));
-  }, [shell, list]);
-  const add = useCallback(async (platform) => {
-    const url = platforms?.[platform]?.url || '';
-    if (platform === 'custom') {
-      // A custom server has no address to fill in: it is added with a placeholder that is not saved until it is right.
-      setList((l) => [...(l || []), { id: '', platform, name: names.custom, url: '', on: true, hasKey: false, keyHint: '', draft: true }]);
-      return;
-    }
-    await save({ platform, name: names[platform], url, on: true });
-  }, [platforms, save, names]);
+  const remove = async (id) => {
+    const next = await shell.live.removeDestination({ id }).catch(() => list);
+    setList(next);
+    onChanged?.(next);
+  };
 
-  const on = (list || []).filter((d) => d.on && d.hasKey).length;
-  const upload = on ? ((kbps + 128) * on * 1.15) / 1000 : 0;
+  if (screen) {
+    return (
+      <StreamForm shell={shell} toast={toast} platforms={platforms} editing={screen.editing || null} focusKey={screen.focusKey}
+        onSaved={(id, next) => { setList(next); onChanged?.(next); if (id) onKeyChanged?.(id); }}
+        onDone={() => setScreen(null)} onCancel={() => setScreen(null)} />
+    );
+  }
 
   return (
-    <Dialog
-      title={t('Go Live: where to stream')}
-      className="lv-dialog"
-      onClose={onClose}
-      actions={<Button primary label={t('Done')} onClick={onClose} className="lv-done" />}
-    >
-      <p className="lv-lead">{t('The program is streamed to every destination that is on, at once. Stream keys are kept encrypted on this computer and are sent only to the server they belong to.')}</p>
+    <Dialog title={t('My streams')} className="lv-dialog lv-mine" onClose={onClose} actions={<Button primary label={t('Done')} onClick={onClose} className="lv-done" />}>
+      <p className="lv-lead">{t('Set up once here. The icons on the Live panel choose which ones go out.')}</p>
       {list == null ? null : list.length ? (
         <ul className="lv-list">
-          {list.map((d) => (d.draft ? (
-            <Destination key="draft" d={d} platforms={platforms} busy={busy} onSave={async (x) => { const ok = await save({ ...x, id: undefined }); return ok; }} onRemove={() => setList((l) => l.filter((y) => !y.draft))} />
-          ) : (
-            <Destination key={d.id} d={d} platforms={platforms} busy={busy} onSave={save} onRemove={remove} />
-          )))}
+          {list.map((d) => (
+            <li key={d.id} className="lv-dest" data-id={d.id} data-platform={d.platform} data-shape={d.shape}>
+              <Logo platform={d.platform} platforms={platforms} />
+              <span className="lv-who">
+                <b>{d.name}</b>
+                <small className={d.hasKey ? '' : 'wn'}>{d.hasKey
+                  ? `${platformName(d.platform, platforms)} · ${d.shape === 'tall' ? t('Tall') : t('Wide')}`
+                  : `${d.shape === 'tall' ? t('Tall') : t('Wide')} · ${t('Needs a key')}`}</small>
+              </span>
+              {d.hasKey ? null : <Button label={t('Add key')} className="lv-addkey" onClick={() => setScreen({ editing: d, focusKey: true })} />}
+              <button type="button" className="lv-more-btn" aria-label={t('More for {name}', { name: d.name })} title={t('More for {name}', { name: d.name })}
+                onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom + 2, d }); }}>
+                <Icon name="more" size={16} />
+              </button>
+            </li>
+          ))}
         </ul>
-      ) : <p className="lv-none">{t('No destination yet. Add the platform you stream to.')}</p>}
+      ) : <p className="lv-none">{t('Nothing set up yet. Add the first place you stream to.')}</p>}
       <div className="lv-add">
-        <span>{t('Add')}</span>
-        {['youtube', 'facebook', 'twitch', 'custom'].map((p) => (
-          <Button key={p} icon={p === 'custom' ? 'globe' : 'plus'} label={names[p]} className={`lv-add-${p}`} disabled={busy} onClick={() => add(p)} />
-        ))}
+        <Button icon="plus" label={t('Add a stream')} className="lv-add-stream" onClick={() => setScreen({ add: true })} />
       </div>
-      <div className="lv-foot">
-        <Toggle on={recordCopy} icon="record" label={t('Record a copy on this computer while live')} disabled={busy} onChange={onRecordCopy} className="lv-copy" />
-        <p className="lv-need">
-          <Icon name="info" size={14} />
-          {on
-            ? t('Streaming to {count} at {kbps} kbit/s needs an upload of about {mbps} Mbit/s.', { count: on, kbps, mbps: upload.toFixed(1) })
-            : t('Turn on a destination with a stream key to go live.')}
-        </p>
-      </div>
+      {menu ? (
+        <Menu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={[
+          { label: t('Change'), icon: 'settings', run: () => setScreen({ editing: menu.d }) },
+          { label: t('Remove'), icon: 'trash', run: () => remove(menu.d.id) },
+        ]} />
+      ) : null}
     </Dialog>
   );
 }
 
 export const LIVE_CSS = `
-.lv-dialog { width: min(640px, 92vw); }
-.lv-lead { margin: 0 0 12px; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
-.lv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.lv-dest { border: 1px solid var(--line-soft); border-radius: var(--r-2); padding: 6px 8px; background: var(--surface); }
-.lv-dest.on { border-color: color-mix(in srgb, var(--accent) 45%, var(--line-soft)); }
-.lv-row { display: flex; align-items: center; gap: 8px; }
-.lv-row .rec-toggle { flex: 1; min-width: 0; }
-.lv-key { font-size: 12px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.lv-key.kept { color: var(--good, #2bb673); }
-.lv-edit { display: grid; gap: 8px; padding: 8px 4px 4px 34px; }
-.lv-help { margin: 0; font-size: 12px; color: var(--ink-3); line-height: 1.45; }
-.lv-field { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
-.lv-actions { display: flex; justify-content: flex-end; }
-.lv-none { color: var(--ink-3); font-size: 13px; }
-.lv-add { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
-.lv-add > span { font-size: 12px; color: var(--ink-3); margin-inline-end: 4px; }
-.lv-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); display: grid; gap: 8px; }
-.lv-need { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--ink-3); }
+.lv-dialog { width: min(452px, 92vw); }
+.lv-lead { margin: 0 0 10px; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
+.lv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.lv-dest { display: flex; align-items: center; gap: 11px; min-height: 52px; padding: 6px 8px 6px 10px; border: 1px solid var(--line-soft); border-radius: 9px; background: var(--surface); }
+.lv-logo { flex: none; display: grid; place-items: center; border-radius: 8px; background: var(--n-50, #5e6571); color: #fff; font-weight: 700; }
+.lv-who { flex: 1; min-width: 0; display: grid; }
+.lv-who b { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-who small { font-size: 12px; color: var(--ink-2); }
+.lv-who small.wn { color: #8a4b05; font-weight: 600; }
+.lv-more-btn { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); cursor: pointer; }
+.lv-more-btn:hover { background: var(--hover, rgba(0,0,0,.06)); }
+.lv-none { color: var(--ink-3); font-size: 13px; margin: 0; }
+.lv-add { display: flex; justify-content: flex-start; margin-top: 10px; }
+.lv-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.lv-pt { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 9px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.lv-pt:hover { border-color: var(--line); }
+.lv-pt.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); font-weight: 600; }
+.lv-help { margin: 12px 0 10px; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.lv-help a { color: var(--accent); }
+.lv-url, .lv-keyfield, .lv-name { height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px; box-sizing: border-box; width: 100%; font: inherit; background: var(--surface); color: var(--ink); }
+.lv-keyfield { flex: 1; min-width: 0; width: auto; }
+.lv-paste, .lv-addkey, .lv-add-stream { border: 1px solid var(--line) !important; }
+.lv-form .lv-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; font-size: 12.5px; color: var(--ink-2); }
+.lv-keyline { display: flex; gap: 6px; }
+.lv-keyline .rw-input { flex: 1; min-width: 0; }
+.lv-seg { display: inline-flex; align-self: flex-start; padding: 2px; gap: 2px; background: var(--n-10, #eceef1); border: 1px solid var(--line-soft); border-radius: 8px; }
+.lv-seg button { height: 28px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); font: inherit; font-size: 13px; cursor: pointer; }
+.lv-seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(15,20,30,.08); }
+.lv-small { font-size: 12px; color: var(--ink-3); }
+.lv-more { align-self: flex-start; display: block; border: 0; padding: 0; height: 26px; background: transparent; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; margin-bottom: 4px; }
 .st-live-badge { position: absolute; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 6px; background: #e5484d; color: #fff; font-size: 11.5px; font-weight: 800; letter-spacing: 0.06em; padding: 4px 10px; border-radius: 6px; }
 .st-live-badge i { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: rec-blink 1.2s infinite; }
-.st-dests { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
-.st-dest { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line-soft); background: var(--surface); font-size: 12px; color: var(--ink-2); }
-.st-dest i { width: 7px; height: 7px; border-radius: 50%; background: var(--n-40, #a7abb3); }
-.st-dest[data-state="live"] i { background: #e5484d; }
-.st-dest[data-state="connecting"] i, .st-dest[data-state="reconnecting"] i { background: #f5a524; }
-.st-dest[data-state="error"] { color: var(--bad, #c0392b); }
 `;
