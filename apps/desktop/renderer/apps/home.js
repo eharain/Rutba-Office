@@ -19,6 +19,8 @@ import { useProfiles, profileName } from '../profiles.js';
 /** The app a recovered copy opens in: a document's by its kind, a window's own (Video's or Image's project) by its name. */
 const appOfRecovered = (r) => (r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : r.kind === 'video' ? 'video' : r.kind === 'image' ? 'image' : r.kind === 'pdf' ? 'pdf' : 'word');
 
+// A launcher card a build carries only when it was made with its switch.
+const ExtraTile = process.env.RUTBA_LOCKER === '1' ? React.lazy(() => import('./locker-tile.js')) : null;
 /** One of Start something's chips: an app's mark and what it starts. */
 function StartChip({ app, icon, label, tip, className = '', onClick, template }) {
   return (
@@ -326,6 +328,7 @@ export default function Home({ app, shell }) {
                           : key === 'pdf' ? () => shell.win.create({ app: 'pdf', query: { combine: 1 } }) : null}
                       />
                     ))}
+                    {process.env.RUTBA_LOCKER === '1' && set.id === 'office' ? <React.Suspense fallback={null}><ExtraTile Card={AppCard} onOpen={() => openApp('locker')} /></React.Suspense> : null}
                   </div>
                   {starts.length ? (
                     <div className="home-set-starts">
