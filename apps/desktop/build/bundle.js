@@ -17,13 +17,15 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
-const out = path.join(app, 'build', 'out');
+const out = process.env.RUTBA_BUNDLE_OUT ? path.resolve(process.env.RUTBA_BUNDLE_OUT) : path.join(app, 'build', 'out');
 // What went into each output file, for the app packs: a chunk only one app's
 // code is in goes into that app's pack (make-app-packs.js, check-packs.mjs).
 // Beside the output, never in it: nothing ships it.
-export const RENDERER_META = path.join(app, 'build', 'meta', 'renderer.json');
+export const RENDERER_META = process.env.RUTBA_BUNDLE_OUT ? path.join(out, '..', 'renderer-meta.json') : path.join(app, 'build', 'meta', 'renderer.json');
 const watch = process.argv.includes('--watch');
 const dev = watch || process.argv.includes('--dev');
+// A switch for code that ships only in a build made with it (main/build-extras.js): off unless named.
+const locker = process.env.RUTBA_LOCKER === '1';
 
 fs.mkdirSync(out, { recursive: true });
 
@@ -54,7 +56,7 @@ const shared = {
   jsx: 'automatic',
   logLevel: 'info',
   legalComments: 'none',
-  define: { 'process.env.NODE_ENV': dev ? '"development"' : '"production"' },
+  define: { 'process.env.NODE_ENV': dev ? '"development"' : '"production"', 'process.env.RUTBA_LOCKER': JSON.stringify(locker ? '1' : '0') },
 };
 
 const rendererOptions = {
@@ -103,7 +105,7 @@ const imageWorkerOptions = {
 const preloadOptions = {
   ...shared,
   entryPoints: [path.resolve(app, '../../packages/office-shell/src/electron/preload.js')],
-  outfile: path.join(app, 'build', 'out', 'preload.cjs'),
+  outfile: path.join(out, 'preload.cjs'),
   format: 'cjs',
   platform: 'node',
   external: ['electron'],
@@ -155,6 +157,7 @@ async function run() {
   // The last build's chunks go: their names change with their contents.
   fs.rmSync(path.join(out, 'chunks'), { recursive: true, force: true });
   fs.writeFileSync(path.join(out, 'index.html'), html);
+  fs.writeFileSync(path.join(out, 'extras.json'), JSON.stringify({ extras: locker ? ['locker'] : [] }));
   whatsNew();
   pdfjs();
 

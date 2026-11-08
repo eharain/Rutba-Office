@@ -36,6 +36,8 @@ const allPacks = process.env.RUTBA_ALL_PACKS === '1';
 
 module.exports = async () => {
   const { fileAssociations } = await import('@rutba/office-formats/registry');
+  // Code a build carries only when it was made with its switch (main/build-extras.js).
+  const extras = process.env.RUTBA_LOCKER === '1' ? [] : ['!main/extras/**'];
   const year = new Date().getFullYear();
   const associations = fileAssociations().map(({ app: owner, ...a }) => ({
     ...a,
@@ -65,6 +67,7 @@ module.exports = async () => {
       // The window checks and the screens build run from the source, never from an installed copy.
       '!main/verify-*.js',
       '!main/screen-*.js',
+      ...extras,
       '!**/*.map',
       '!**/test/**',
       '!**/tests/**',

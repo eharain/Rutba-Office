@@ -33,10 +33,14 @@ const APP_LOADERS = {
   mail: () => import('./apps/mail.js'),
   calendar: () => import('./apps/calendar.js'),
   contacts: () => import('./apps/contacts.js'),
+  ...(process.env.RUTBA_LOCKER === '1' ? { locker: () => import('./apps/locker.js') } : {}),
 };
 
+// An app that is not in the registry, carried only by a build made with its switch.
+const EXTRA_APPS = process.env.RUTBA_LOCKER === '1' ? { locker: { key: 'locker', name: 'Locker', short: 'Locker', icon: 'lock', accent: '#2f4a6b' } } : {};
+
 function Root({ start, App, appKey: key }) {
-  const app = key === 'home' ? { key: 'home', name: 'Rutba Office', short: 'Rutba Office', icon: 'home' } : APPS[key];
+  const app = key === 'home' ? { key: 'home', name: 'Rutba Office', short: 'Rutba Office', icon: 'home' } : (APPS[key] || EXTRA_APPS[key]);
 
   return (
     <ThemeProvider

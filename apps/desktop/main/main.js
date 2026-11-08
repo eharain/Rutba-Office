@@ -34,6 +34,7 @@ if (CHECK_RUN && process.env.RUTBA_VERIFY_LANE !== 'machine') {
 lendPictureDrawer(drawablePicture);
 setPictureDecoder((bytes, name) => ({ type: 'image/png', bytes: decodePicture(bytes, name, { png: true }).png }));
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
+import { buildExtras } from './build-extras.js';
 import { fileAssociations, APPS, APPS_CHOICE_KEY, OFF_UNTIL_CHOSEN, APP_ORDER, APP_EXTENSIONS, OLD_EXTENSIONS } from '@rutba/office-formats/registry';
 import { createDocumentHost } from './doc-host.js';
 import { createPrintService } from './print.js';
@@ -89,6 +90,7 @@ function packKeys() {
 // The taskbar reads an app's tile itself, so in a packaged copy the tiles live unpacked beside the archive.
 const builtInTiles = path.join(app, 'resources', 'apps').replace(`${path.sep}app.asar${path.sep}`, () => `${path.sep}app.asar.unpacked${path.sep}`);
 let packs = null;
+let extras = [];
 /** The packs this run loads, found once, before the first window. */
 const packsNow = () => (packs ||= planPacks({ dir: packsDir(), keys: packKeys(), version: electron.getVersion(), tilesDir: builtInTiles }));
 // Each app's taskbar tile, from its pack: filled in once the packs are found.
@@ -209,7 +211,16 @@ createShell({
   appForFile: (file) => appFor(kindFromExtension(file)) || 'home',
   resolveApp,
   // What this run offers its windows: the core's channels and the loaded packs' (app-packs.js).
-  offers: () => packsNow().offer(),
+  offers: () => {
+    const offer = packsNow().offer();
+    for (const x of extras) {
+      const d = x.describe();
+      Object.assign(offer.methods, d.methods);
+      offer.events.push(...d.events);
+      offer.packs.push(d.pack);
+    }
+    return offer;
+  },
   // A pack that carries its own window code is served from its archive.
   packRoots: () => Object.fromEntries(packsNow().packs.filter((p) => p.archive).map((p) => [p.id, p.archive])),
 
@@ -319,6 +330,9 @@ createShell({
     services.dav = createDavService({ stores, calendar: view.service('calendar'), contacts: view.service('contacts'), broadcast });
     // Add or remove apps (packs-service.js).
     services.packs = createPacksService({ plan, stores, broadcast, version: electron.getVersion(), keys: packKeys(), dir: plan.source === 'files' && !everyPack() ? plan.dir : null, sizes: readPackSizes(PACK_KEYS_FILE), app: electron });
+    // Code this build carries only when it was made with its switch (build-extras.js).
+    extras = await buildExtras();
+    for (const x of extras) Object.assign(services, await x.register({ stores, broadcast, doc, electron, windows: () => BrowserWindow.getAllWindows() }));
     return services;
   },
 
