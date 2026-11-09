@@ -195,6 +195,13 @@ export function createLocker({ dir, cost, hooks = null }) {
     });
   }
 
+  /** A file with a copy open cannot be renamed or deleted under whoever has it. */
+  function refuseIfOpen(id, rel) {
+    for (const e of openFiles.values()) {
+      if (e.folderId === id && e.rel.toLowerCase() === rel.toLowerCase()) throw new LockerError('open', 'This file is open. Close it first.');
+    }
+  }
+
   /** The copies of a file or folder that is leaving the locker: changes saved, copies removed. One a program holds is cleared at the next unlock. */
   async function closeCopies(which) {
     for (const [key, e] of [...openFiles.entries()]) {
@@ -601,6 +608,14 @@ export function createLocker({ dir, cost, hooks = null }) {
     unlockForGood: async (id, rel) => {
       await closeCopies((e) => e.folderId === id && e.rel === rel);
       return withFolder(id, (f) => f.unlockForGood(rel));
+    },
+    renameFile: async (id, rel, name, state) => {
+      refuseIfOpen(id, rel);
+      return withFolder(id, (f) => f.rename(rel, name, state));
+    },
+    deleteFile: async (id, rel, state) => {
+      refuseIfOpen(id, rel);
+      return withFolder(id, (f) => f.removeFile(rel, state));
     },
     versions: (id, rel) => withFolder(id, (f) => f.versions(rel)),
     restore: (id, rel, version) => withFolder(id, (f) => f.restore(rel, version)),

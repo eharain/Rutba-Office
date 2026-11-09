@@ -32,6 +32,8 @@ const METHODS = {
     'importShared', // ({ file, id, password }) -> { rel }
     'importFile',  // ({ id, source, rel? }) -> { size }
     'unlockForGood', // ({ id, rel }) -> { dest }
+    'renameFile',  // ({ id, rel, name, state? }) -> { rel }
+    'deleteFile',  // ({ id, rel, state? }) -> { removed }
     'lockOne',     // ({ id, rel }) -> { target, size }
     'setWhenLocked', // ({ keepCopies?, relock? }) -> state
     'versions',    // ({ id, rel }) -> [{ version, current, label }]
@@ -149,7 +151,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
     later(`open:${dest}`, () => locker.saveOpen(dest).then((r) => {
       if (r.changed) broadcast('locker:changed', { saved: true });
     }).catch((err) => {
-      if (err?.code === 'ENOENT') return;
+      // The file went, or the copy was cleared before this late notice arrived.
+      if (err?.code === 'ENOENT' || !locker.isOpenCopy(dest)) return;
       if ((err?.code === 'EBUSY' || err?.code === 'EPERM' || err?.code === 'EACCES') && tries < 20) noteOpen(full, tries + 1);
       else broadcast('locker:changed', { problem: err?.message || String(err) });
     }));
@@ -400,6 +403,18 @@ export async function register({ stores, broadcast, electron, windows = () => []
     unlockForGood: async ({ id, rel }) => {
       touch();
       const out = await locker.unlockForGood(id, rel);
+      await publish();
+      return out;
+    },
+    renameFile: async ({ id, rel, name, state }) => {
+      touch();
+      const out = await locker.renameFile(id, rel, name, state);
+      await publish();
+      return out;
+    },
+    deleteFile: async ({ id, rel, state }) => {
+      touch();
+      const out = await locker.deleteFile(id, rel, state);
       await publish();
       return out;
     },

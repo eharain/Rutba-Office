@@ -777,3 +777,100 @@ test('the working folder is hidden, out of search, and closed to everyone else',
   assert.ok(acl.includes(process.env.USERNAME));
   assert.ok(!/BUILTIN|Everyone|Authenticated Users|\(I\)/.test(acl), acl);
 });
+
+test('rename: a locked file takes the new name on the disk and inside, with its contents and earlier versions', async () => {
+  const { locker, folder, id } = await make({ hidden: false });
+  fs.writeFileSync(path.join(folder, 'r.pdf'), random(300));
+  await locker.lockWaiting(id);
+  const { path: copy } = await locker.openPlain(id, 'r.pdf');
+  const latest = random(301);
+  fs.writeFileSync(copy, latest);
+  await locker.saveOpen(copy);
+  await assert.rejects(() => locker.renameFile(id, 'r.pdf', 's.pdf'), (e) => e.code === 'open');
+  await assert.rejects(() => locker.deleteFile(id, 'r.pdf'), (e) => e.code === 'open');
+  await locker.lock();
+  await locker.unlock({ password: 'pw' });
+  const versions = (await locker.versions(id, 'r.pdf')).length;
+  assert.equal(versions, 2);
+  assert.equal((await locker.renameFile(id, 'r.pdf', 's.pdf')).rel, 's.pdf');
+  assert.ok(fs.existsSync(path.join(folder, 's.pdf.rlock')));
+  assert.ok(!fs.existsSync(path.join(folder, 'r.pdf.rlock')));
+  assert.ok((await lockedBytes(locker, id, 's.pdf')).equals(latest));
+  assert.equal((await locker.versions(id, 's.pdf')).length, versions, 'no extra version, none lost');
+  await locker.lock();
+  await locker.unlock({ password: 'pw' });
+  assert.ok((await lockedBytes(locker, id, 's.pdf')).equals(latest), 'still reads after locking again');
+});
+
+test('rename: a hidden name stays hidden on the disk, and only the case of a name can change', async () => {
+  const { locker, folder, id } = await make({ hidden: true });
+  fs.writeFileSync(path.join(folder, 'secret.pdf'), random(310));
+  await locker.lockWaiting(id);
+  const disk = () => fs.readdirSync(folder).filter((n) => n.endsWith('.rlock')).sort();
+  const before = disk();
+  await locker.renameFile(id, 'secret.pdf', 'other.pdf');
+  assert.deepEqual(disk(), before, 'the same random name on the disk');
+  assert.ok((await locker.scan(id)).some((e) => e.rel === 'other.pdf' && e.state === 'locked'));
+  assert.equal((await locker.renameFile(id, 'other.pdf', 'OTHER.pdf')).rel, 'OTHER.pdf');
+  assert.ok((await locker.scan(id)).some((e) => e.rel === 'OTHER.pdf'));
+});
+
+test('rename: a name that cannot be used or is taken is refused, and the file is left as it was', async () => {
+  const { locker, folder, id } = await make({ hidden: false });
+  const body = random(320);
+  fs.writeFileSync(path.join(folder, 'a.pdf'), body);
+  fs.writeFileSync(path.join(folder, 'b.pdf'), random(321));
+  await locker.lockWaiting(id);
+  for (const bad of ['', '  ', '..', 'x/y.pdf', 'x\\y.pdf', 'what?.pdf', 'CON', 'con.txt', 'end.', 'z.rlock', '.rutbalocker']) {
+    await assert.rejects(() => locker.renameFile(id, 'a.pdf', bad), (e) => e.code === 'name', JSON.stringify(bad));
+  }
+  await assert.rejects(() => locker.renameFile(id, 'a.pdf', 'B.pdf'), (e) => e.code === 'exists');
+  assert.ok((await lockedBytes(locker, id, 'a.pdf')).equals(body));
+});
+
+test('rename: a file not locked yet is renamed where it is', async () => {
+  const { locker, folder, id } = await make({ hidden: false });
+  await locker.lockWaiting(id);
+  fs.writeFileSync(path.join(folder, 'new.txt'), 'plain');
+  await locker.renameFile(id, 'new.txt', 'newer.txt', 'waiting');
+  assert.equal(fs.readFileSync(path.join(folder, 'newer.txt'), 'utf8'), 'plain');
+  assert.ok(!fs.existsSync(path.join(folder, 'new.txt')));
+});
+
+test('delete: a locked file and its earlier versions go; a plain file beside another row is told apart by its state', async () => {
+  const { locker, folder, id } = await make({ hidden: false });
+  fs.writeFileSync(path.join(folder, 'd.pdf'), random(330));
+  await locker.lockWaiting(id);
+  const { path: copy } = await locker.openPlain(id, 'd.pdf');
+  fs.writeFileSync(copy, random(331));
+  await locker.saveOpen(copy);
+  await locker.lock();
+  await locker.unlock({ password: 'pw' });
+  const { fileId } = (await locker.scan(id)).find((e) => e.rel === 'd.pdf');
+  assert.ok(fs.existsSync(path.join(folder, '.rlocker-old', fileId)));
+  fs.writeFileSync(path.join(folder, 'd.pdf'), 'a plain one beside it');
+  await locker.deleteFile(id, 'd.pdf', 'waiting');
+  assert.ok(!fs.existsSync(path.join(folder, 'd.pdf')));
+  assert.ok(fs.existsSync(path.join(folder, 'd.pdf.rlock')), 'the locked one stays');
+  await locker.deleteFile(id, 'd.pdf', 'locked');
+  assert.ok(!fs.existsSync(path.join(folder, 'd.pdf.rlock')));
+  assert.ok(!fs.existsSync(path.join(folder, '.rlocker-old', fileId)));
+  assert.ok(!(await locker.scan(id)).some((e) => e.rel === 'd.pdf'));
+  await assert.rejects(() => locker.deleteFile(id, 'd.pdf'), (e) => e.code === 'state');
+});
+
+test('rename: a large file kept in pieces takes the new name and keeps its contents', { timeout: 120000 }, async () => {
+  const { locker, folder, id } = await make({ hidden: false });
+  const body = random(LARGE + 3 * 1024 * 1024);
+  fs.writeFileSync(path.join(folder, 'big.pdf'), body);
+  await locker.lockWaiting(id);
+  assert.ok(fs.existsSync(path.join(folder, 'big.pdf.rlock.d')));
+  assert.equal((await locker.renameFile(id, 'big.pdf', 'bigger.pdf')).rel, 'bigger.pdf');
+  assert.ok(fs.existsSync(path.join(folder, 'bigger.pdf.rlock.d')));
+  assert.ok(!fs.existsSync(path.join(folder, 'big.pdf.rlock.d')));
+  assert.ok((await lockedBytes(locker, id, 'bigger.pdf')).equals(body));
+  assert.ok((await locker.scan(id)).some((e) => e.rel === 'bigger.pdf' && e.state === 'locked' && e.pieces));
+  await locker.lock();
+  await locker.unlock({ password: 'pw' });
+  assert.ok((await lockedBytes(locker, id, 'bigger.pdf')).equals(body), 'still reads after locking again');
+});

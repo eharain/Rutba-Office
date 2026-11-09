@@ -409,6 +409,35 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     const heldCleared = await until(() => !fs.existsSync(heldPath), 'its copy cleared after closing', 15000).then(() => true, () => false);
     check('locker: closing that document clears the copy', heldCleared);
 
+    // Renaming and deleting from the Locker's own list.
+    const renameMe = path.join(root, 'Rename me.txt');
+    const deleteMe = path.join(root, 'Delete me.txt');
+    fs.writeFileSync(renameMe, 'keep these words');
+    fs.writeFileSync(deleteMe, 'and lose these');
+    await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.lockWaiting({ id: s.folders[0].id }); return 1; })()`);
+    await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Rename me.txt'))}) && document.querySelector(${JSON.stringify(LOCKED_ROW('Delete me.txt'))}))`), 'the two files locked', 15000);
+    await clickSel(LOCKED_ROW('Rename me.txt'));
+    await until(() => js(`Boolean(document.querySelector('.lk-rename'))`), 'Rename offered', 4000);
+    await clickSel('.lk-rename');
+    await until(() => js(`Boolean(document.querySelector('.lk-dialog-body'))`), 'the rename dialog', 5000);
+    await setField('New name', 'Renamed.txt');
+    await clickText('Rename');
+    const renamed = await until(() => fs.existsSync(path.join(root, 'Renamed.txt.rlock')) && !fs.existsSync(`${renameMe}.rlock`), 'the file renamed on the disk', 10000).then(() => true, () => false);
+    const renamedRow = await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Renamed.txt'))}))`), 'the renamed row', 8000).then(() => true, () => false);
+    const renamedOut = path.join(out, 'renamed.txt');
+    await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.exportCopy({ id: s.folders[0].id, rel: 'Renamed.txt', dest: ${JSON.stringify(renamedOut)}, overwrite: true }); return 1; })()`);
+    check('locker: Rename gives a locked file a new name, on the disk and in the list, with the same contents', renamed && renamedRow && fs.readFileSync(renamedOut, 'utf8') === 'keep these words');
+    await clickSel(LOCKED_ROW('Delete me.txt'));
+    await until(() => js(`Boolean(document.querySelector('.lk-delete'))`), 'Delete offered', 4000);
+    await capture(win, 'locker-file-actions.png');
+    plan('message', { response: 0, checked: false });
+    await clickSel('.lk-delete');
+    const deleted = await until(() => !fs.existsSync(`${deleteMe}.rlock`), 'the file deleted', 10000).then(() => true, () => false);
+    const deletedRow = await until(() => js(`!document.querySelector('tr[data-rel="Delete me.txt"]')`), 'its row gone', 8000).then(() => true, () => false);
+    check('locker: Delete removes a locked file for good, and its row', deleted && deletedRow);
+    await capture(win, 'locker-renamed-deleted.png');
+    check('locker: closing a document raises no false alarm about its copy', !(await js(`document.body.textContent.includes('not opened from the locker')`)));
+
     const home = await open('home');
     const tile = await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="locker"]'))`), 'the launcher card', 10000).then(() => true, () => false);
     check('locker: a build made with the switch shows the card on the launcher', tile);

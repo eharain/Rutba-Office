@@ -520,6 +520,29 @@ function Share({ shell, folder, entry, onClose, toast }) {
   );
 }
 
+/** A new name for one file, in the same place. */
+function RenameFile({ shell, folder, entry, onClose, onDone }) {
+  const [name, setName] = useState(entry.name);
+  const [error, setError] = useState(null);
+  const ready = Boolean(name.trim()) && name.trim() !== entry.name;
+  const go = async () => {
+    try {
+      await shell.locker.renameFile({ id: folder.id, rel: entry.rel, name, state: entry.state });
+      onDone();
+    } catch (err) {
+      setError(said(err));
+    }
+  };
+  return (
+    <Dialog title={t('Rename {name}', { name: entry.name })} width={440} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary className="lk-rename-go" label={t('Rename')} disabled={!ready} onClick={go} /></>}>
+      <div className="lk-dialog-body">
+        <Field label={t('New name')}><Input value={name} autoFocus onChange={(e) => setName(e.target.value)} aria-label={t('New name')} onKeyDown={(e) => { if (e.key === 'Enter' && ready) go(); }} /></Field>
+        {error ? <div className="lk-error" role="alert">{error}</div> : null}
+      </div>
+    </Dialog>
+  );
+}
+
 /** A file someone sent: its own password, then a plain copy, or into one of this person's locked folders. Needs no locker for the plain copy. */
 function OpenSent({ shell, state, file, into, onClose, toast }) {
   const [password, setPassword] = useState('');
@@ -814,6 +837,14 @@ export default function Locker({ app, shell }) {
     }
   });
 
+  const deleteFile = (e) => act(async () => {
+    const { response } = await shell.dialog.message({ type: 'warning', message: t('Delete {name}?', { name: e.name }), detail: t('It is removed for good, with the earlier versions the Locker kept of it. This cannot be undone.'), buttons: [t('Delete'), t('Cancel')], defaultId: 1, cancelId: 1 });
+    if (response === 0) {
+      await shell.locker.deleteFile({ id: current, rel: e.rel, state: e.state });
+      setSelected(null);
+    }
+  });
+
   /** One file or a subfolder's: each tried, so one a program holds does not stop the rest. */
   const lockFiles = (list) => act(async () => {
     let problem = null;
@@ -961,6 +992,8 @@ export default function Locker({ app, shell }) {
                                         <Spacer />
                                         {e.state === 'locked' ? <Button className="lk-export" label={t('Save an unlocked copy…')} onClick={() => exportCopy(e)} /> : null}
                                         {e.state === 'locked' ? <Button className="lk-share" label={t('Send to someone…')} onClick={() => setDialog({ kind: 'share', entry: e })} /> : null}
+                                        {e.state === 'locked' || e.state === 'waiting' || e.state === 'excluded' ? <Button className="lk-rename" label={t('Rename…')} onClick={() => setDialog({ kind: 'rename', entry: e })} /> : null}
+                                        {e.state !== 'conflict' ? <Button className="lk-delete" label={t('Delete…')} onClick={() => deleteFile(e)} /> : null}
                                       </div>
                                     </td>
                                   </tr>
@@ -996,6 +1029,7 @@ export default function Locker({ app, shell }) {
       {dialog?.kind === 'add' ? <AddFolder shell={shell} root={dialog.root} onClose={() => setDialog(null)} onAdded={(id) => { setDialog(null); setCurrent(id); refresh(); }} /> : null}
       {dialog?.kind === 'folder' && folder ? <FolderSettings shell={shell} folder={folder} onClose={() => { setDialog(null); refresh(); }} /> : null}
       {dialog?.kind === 'rules' && folder ? <Rules shell={shell} folder={folder} onClose={() => { setDialog(null); reload(); refresh(); }} /> : null}
+      {dialog?.kind === 'rename' && folder ? <RenameFile shell={shell} folder={folder} entry={dialog.entry} onClose={() => setDialog(null)} onDone={() => { setDialog(null); setSelected(null); reload(); }} /> : null}
       {dialog?.kind === 'share' && folder ? <Share shell={shell} folder={folder} entry={dialog.entry} toast={toast} onClose={() => setDialog(null)} /> : null}
       {dialog?.kind === 'sent' ? <OpenSent shell={shell} state={state} file={dialog.file} into={current} toast={toast} onClose={() => { setDialog(null); refresh(); }} /> : null}
       {dialog?.kind === 'compare' && folder ? <Compare shell={shell} folder={folder} list={entries} onClose={() => setDialog(null)} /> : null}

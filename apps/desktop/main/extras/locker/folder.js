@@ -48,6 +48,18 @@ export async function wipeFile(file) {
   await fsp.rm(file, { force: true }).catch(() => {});
 }
 
+const BAD_NAME = /[<>:"/\\|?*\x00-\x1f]|[. ]$/;
+const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+
+/** A name a person typed, if it can be a file's name here. */
+function checkedName(typed) {
+  const name = String(typed ?? '').trim();
+  if (!name || BAD_NAME.test(name) || RESERVED_NAME.test(name) || name.endsWith(LOCK_EXT) || isLockerOwn(name) || isWorkingFile(name)) {
+    throw new LockerError('name', 'That name cannot be used for a file.');
+  }
+  return name;
+}
+
 /**
  * @param {object} o
  * @param {string} o.root       the folder's path
@@ -489,6 +501,74 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     return { dest, size: done.size };
   }
 
+  /** A row of the list, by what the window showed: a plain file can sit beside a locked one of the same name. */
+  async function rowFor(rel, state) {
+    const list = await scan();
+    return list.find((x) => x.rel.toLowerCase() === rel.toLowerCase() && (!state || x.state === state)) || null;
+  }
+
+  /**
+   * A file given a new name in the same place. A locked one is sealed again
+   * under its own id, so it keeps its earlier versions, and its name on the
+   * disk follows if the folder shows names.
+   */
+  async function rename(rel, newName, state) {
+    const e = await rowFor(rel, state);
+    if (!e) throw new LockerError('state', 'That file is not in this folder.');
+    if (e.state === 'conflict') throw new LockerError('conflict', 'This file has two versions. Compare them first.');
+    if (e.state === 'damaged') throw new LockerError('state', 'That file cannot be read, so it cannot be renamed.');
+    const name = checkedName(newName);
+    if (name === e.name) return { rel: e.rel };
+    const dir = path.posix.dirname(e.rel);
+    const newRel = dir === '.' ? name : `${dir}/${name}`;
+    const sameFile = newRel.toLowerCase() === e.rel.toLowerCase();
+    const onDisk = (p) => fsp.access(p).then(() => true, () => false);
+    if (!sameFile && ((await entryFor(newRel)) || await onDisk(abs(newRel)))) throw new LockerError('exists', 'A file of that name is already here.');
+    if (e.state !== 'locked') {
+      await fsp.rename(e.path, abs(newRel));
+      return { rel: newRel };
+    }
+    const diskName = path.basename(e.path);
+    const named = diskName === `${e.name}${LOCK_EXT}` || diskName === `${e.name}${LOCK_EXT}.d`;
+    const newPath = named ? path.join(path.dirname(e.path), `${name}${LOCK_EXT}${e.pieces ? '.d' : ''}`) : e.path;
+    if (!sameFile && newPath !== e.path && await onDisk(newPath)) throw new LockerError('exists', 'A file of that name is already here.');
+    const tmp = await toStage(e);
+    try {
+      if ((await fileHash(tmp)).sha256 !== e.sha256) throw new LockerError('failed', 'The locked file could not be read back, so it was not renamed.');
+      if (e.modified) await fsp.utimes(tmp, new Date(e.modified), new Date(e.modified));
+      const meta = { name, by: 'rename' };
+      if (e.pieces) {
+        await sealPieces({ source: tmp, dir: e.path, folderKey: key, folderId, stageDir, meta, keep: opt().keepVersions, hooks });
+      } else {
+        const fh = await fsp.open(e.path, 'r');
+        const headerBuf = Buffer.alloc(HEADER_SIZE);
+        try {
+          await fh.read(headerBuf, 0, HEADER_SIZE, 0);
+        } finally {
+          await fh.close();
+        }
+        await sealFile({ source: tmp, target: e.path, rootKey: key, headerBuf, meta, stageDir, previous: e.path, hooks });
+      }
+      if (newPath !== e.path) await fsp.rename(e.path, newPath);
+      if (!(await readBackMatches(newPath, e.sha256, e.size))) throw new LockerError('failed', 'The renamed file did not read back as the original.');
+      return { rel: newRel };
+    } finally {
+      await wipeFile(tmp);
+    }
+  }
+
+  /** A file gone for good, with the earlier versions kept of it. */
+  async function removeFile(rel, state) {
+    const e = await rowFor(rel, state);
+    if (!e) throw new LockerError('state', 'That file is not in this folder.');
+    if (e.state === 'conflict') throw new LockerError('conflict', 'This file has two versions. Compare them first.');
+    if (e.state === 'waiting' || e.state === 'excluded') await wipeFile(e.path);
+    else await fsp.rm(e.path, { recursive: true, force: true });
+    if (await fsp.access(e.path).then(() => true, () => false)) throw new LockerError('busy', 'That file is in use, so it could not be deleted.');
+    if (e.fileId) await fsp.rm(path.join(root, OLD_DIR, e.fileId), { recursive: true, force: true }).catch(() => {});
+    return { removed: e.rel };
+  }
+
   /** The kept earlier versions of a file, newest first: a label, and the order to ask for one by. */
   async function versions(rel) {
     const e = await entryFor(rel);
@@ -542,7 +622,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     await fsp.rename(tmp, path.join(root, '.rutbalocker'));
   }
 
-  return { root, scan, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, adopt, versions, restore, readRules, writeRules, entryFor, opener };
+  return { root, scan, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, rename, removeFile, adopt, versions, restore, readRules, writeRules, entryFor, opener };
 }
 
 /** A shared file's key: from its password, by the scrypt settings its header carries. */
