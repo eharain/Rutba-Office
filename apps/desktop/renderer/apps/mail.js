@@ -1619,7 +1619,8 @@ export default function Mail({ app, shell }) {
       onChange={updateCompose}
       onClose={() => {
         setCompose(null);
-        if (!alone) setSelected(null);
+        // A draft's own place goes with it. A reply or new message let go goes back to what was being read.
+        if (compose.replaces && !alone) setSelected(null);
       }}
       onShut={async () => {
         if ((await leaveForm()) && !alone) setSelected(null);

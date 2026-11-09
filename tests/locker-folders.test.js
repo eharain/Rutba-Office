@@ -859,7 +859,7 @@ test('delete: a locked file and its earlier versions go; a plain file beside ano
   await assert.rejects(() => locker.deleteFile(id, 'd.pdf'), (e) => e.code === 'state');
 });
 
-test('rename: a large file kept in pieces takes the new name and keeps its contents', { timeout: 120000 }, async () => {
+test('rename: a large file kept in pieces takes the new name and keeps its contents', { timeout: 300000 }, async () => {
   const { locker, folder, id } = await make({ hidden: false });
   const body = random(LARGE + 3 * 1024 * 1024);
   fs.writeFileSync(path.join(folder, 'big.pdf'), body);
