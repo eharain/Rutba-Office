@@ -702,7 +702,7 @@ export function createLocker({ dir, cost, hooks = null }) {
     },
 
     /** The most recent locked copy's header-only fact: no secret. */
-    headerOf: (p) => readHeader(p).then((h) => ({ mode: h.mode === MODE_FOLDER ? 'folder' : 'shared', fileId: h.fileId.toString('hex') })),
+    headerOf: (p) => readHeader(p).then((h) => ({ format: h.version, mode: h.mode === MODE_FOLDER ? 'folder' : 'shared', fileId: h.fileId.toString('hex') })),
 
     /** The state file's path, for a test. */
     get stateFile() { return stateFile; },

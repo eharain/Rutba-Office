@@ -1,0 +1,26 @@
+{
+  "v": 1,
+  "id": "f6fbed0a1ea1c45dac8f16c592146f52",
+  "unlockers": [
+    {
+      "kind": "password",
+      "kdf": {
+        "alg": "scrypt",
+        "N": 1024,
+        "r": 8,
+        "p": 1,
+        "salt": "9f73f05b492f705adfd4f9e07c4c99aeb3573a71f7a071bdc4d56430b9dd011b"
+      },
+      "iv": "27a047b2a13e35e90f91965a",
+      "tag": "7890caa927127996ef2beb450c2e6a29",
+      "data": "ce71ce8591f25b34258bca785ab3be4c97027c9903bc25e58e689034cd288158"
+    },
+    {
+      "kind": "recovery",
+      "salt": "5f9b1c4bea36f752882da2c7f63ffd3d65ac7f56d60c5c4ebacf51470df5022c",
+      "iv": "844a594894907dce52f49108",
+      "tag": "adc9645bd58db933942ad58a422613b9",
+      "data": "41f039d07a0ab1918d0aa402f3377c9c95ee5a7a36ba8bce3972c64ecd986037"
+    }
+  ]
+}

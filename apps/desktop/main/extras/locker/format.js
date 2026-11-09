@@ -35,6 +35,12 @@
 // algorithms are node:crypto's own: AES-256-GCM, HKDF-SHA256, scrypt, SHA-256.
 // Nothing here makes up a primitive of its own.
 //
+// Every format has its version written in it (FORMAT.md lists them all). A
+// released format never changes: a change is a new number, and the code that
+// reads the old number stays, so a file locked today opens in every later
+// Rutba Office. A number this copy does not know is refused as 'newer', which
+// is never treated as damage and never written over.
+//
 // This module only ever reads and writes the files it is pointed at. It does
 // not decide where they go: place.js is the only code that swaps a file in.
 
@@ -50,7 +56,25 @@ export class LockerError extends Error {
   }
 }
 
+/** The format this Rutba Office writes, and the only one so far. */
+export const FORMAT_VERSION = 1;
 export const MAGIC = Buffer.from('RLOCKV1\n', 'latin1');
+const NEWER = 'This was locked by a newer Rutba Office. Update Rutba Office to open it.';
+
+/** The version in the first eight bytes of a binary format ("RLOCKV1\n", "RPIECEV1"), or null when they are not that format's. */
+export function versionIn(buf, stem) {
+  if (buf.length < 8 || buf.subarray(0, stem.length).toString('latin1') !== stem) return null;
+  const digits = buf.subarray(stem.length, 8).toString('latin1').replace(/\n$/, '');
+  return /^[1-9][0-9]*$/.test(digits) ? Number(digits) : null;
+}
+
+/** A version number read from a key file, a list or a file's details: this one is read, a higher one is 'newer'. */
+export function checkVersion(v) {
+  if (Number.isInteger(v) && v > FORMAT_VERSION) throw new LockerError('newer', NEWER);
+  if (v !== FORMAT_VERSION) throw new LockerError('format', 'This file does not say which version of the Locker made it.');
+}
+
+export const newerError = () => new LockerError('newer', NEWER);
 export const HEADER_SIZE = 128;
 export const CHUNK = 65536;
 export const META_PLAIN = 4096;
@@ -86,12 +110,15 @@ export function newHeader({ mode = MODE_FOLDER, folderId = Buffer.alloc(16), scr
 
 /** A header read back, checked, and split into its fields. */
 export function parseHeader(buf) {
-  if (buf.length < HEADER_SIZE || !buf.subarray(0, 8).equals(MAGIC)) throw new LockerError('format', 'This is not a locked file.');
+  const version = buf.length < HEADER_SIZE ? null : versionIn(buf, 'RLOCKV');
+  if (version === null) throw new LockerError('format', 'This is not a locked file.');
+  if (version !== FORMAT_VERSION) throw newerError();
   const chunk = buf.readUInt32BE(8);
-  if (chunk !== CHUNK) throw new LockerError('format', 'This locked file was made by a newer Rutba Office.');
+  if (chunk !== CHUNK) throw newerError();
   const mode = buf.readUInt8(12);
-  if (mode !== MODE_FOLDER && mode !== MODE_SHARED) throw new LockerError('format', 'This locked file was made by a newer Rutba Office.');
+  if (mode !== MODE_FOLDER && mode !== MODE_SHARED) throw newerError();
   return {
+    version,
     raw: Buffer.from(buf.subarray(0, HEADER_SIZE)),
     mode,
     fileId: Buffer.from(buf.subarray(16, 32)),
@@ -159,13 +186,16 @@ function packMeta(meta) {
 }
 
 function unpackMeta(buf) {
+  let meta;
   try {
     let end = buf.indexOf(0);
     if (end < 0) end = buf.length;
-    return JSON.parse(buf.subarray(0, end).toString('utf8'));
+    meta = JSON.parse(buf.subarray(0, end).toString('utf8'));
   } catch {
     throw new LockerError('tampered', 'This locked file\'s details could not be read.');
   }
+  checkVersion(meta.v);
+  return meta;
 }
 
 async function readFull(fh, buf, offset, length, position) {

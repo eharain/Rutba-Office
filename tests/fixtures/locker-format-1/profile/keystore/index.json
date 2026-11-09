@@ -1,0 +1,17 @@
+{
+  "stores": {
+    "locker": {
+      "version": "3.0",
+      "created": "2026-11-09T15:12:22.310Z",
+      "totalKeys": 4,
+      "keys": [
+        "__marker",
+        "folder-wrap",
+        "recovery-wrap",
+        "folder:f6fbed0a1ea1c45dac8f16c592146f52"
+      ],
+      "sourceFile": ".seed-42e5334514759735.json"
+    }
+  },
+  "updated": "2026-11-09T15:12:22.982Z"
+}

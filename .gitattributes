@@ -6,3 +6,5 @@ packages/ocr/vendor/** -text
 tests/corpus-public/** -text
 # The Data Files sample databases are kept byte for byte.
 docs/data-files-format/samples/*.rbase -text
+# The Locker format samples are kept byte for byte: they are never regenerated.
+tests/fixtures/locker-format-1/** -text

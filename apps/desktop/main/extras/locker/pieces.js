@@ -17,7 +17,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { newHeader, openLocked, LockerError, CHUNK } from './format.js';
+import { newHeader, openLocked, LockerError, CHUNK, FORMAT_VERSION, versionIn, checkVersion, newerError } from './format.js';
 import { sealFile, placeStaged } from './place.js';
 import { gearTable, cutPoint, MAX } from './fastcdc.js';
 import { writeJsonAtomic } from './keys.js';
@@ -47,7 +47,9 @@ function sealPiece(folderKey, item, name, plain) {
 }
 
 function openPiece(folderKey, item, name, sealed) {
-  if (sealed.length < MAGIC.length + 28 || !sealed.subarray(0, 8).equals(MAGIC)) throw new LockerError('tampered', 'A piece of this file is damaged.');
+  const version = sealed.length < MAGIC.length + 28 ? null : versionIn(sealed, 'RPIECEV');
+  if (version === null) throw new LockerError('tampered', 'A piece of this file is damaged.');
+  if (version !== FORMAT_VERSION) throw newerError();
   const key = pieceKey(folderKey, item, name);
   try {
     const d = crypto.createDecipheriv('aes-256-gcm', key, sealed.subarray(8, 20));
@@ -70,7 +72,9 @@ const parseListName = (n) => {
 
 /** The file's identity, written once: its id and salt. */
 export async function readItem(dir) {
-  return JSON.parse(await fsp.readFile(path.join(dir, 'item.json'), 'utf8'));
+  const item = JSON.parse(await fsp.readFile(path.join(dir, 'item.json'), 'utf8'));
+  checkVersion(item.v);
+  return item;
 }
 
 async function ensureItem(dir, header) {
@@ -99,7 +103,9 @@ async function readList(dir, entry, folderKey) {
   } finally {
     await o.close();
   }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  const list = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  checkVersion(list.v);
+  return list;
 }
 
 /**

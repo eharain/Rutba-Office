@@ -1,0 +1,26 @@
+{
+  "v": 1,
+  "made": "2026-11-09T15:12:22.260Z",
+  "unlockers": [
+    {
+      "kind": "password",
+      "kdf": {
+        "alg": "scrypt",
+        "N": 1024,
+        "r": 8,
+        "p": 1,
+        "salt": "9f73f05b492f705adfd4f9e07c4c99aeb3573a71f7a071bdc4d56430b9dd011b"
+      },
+      "iv": "c8097d00cec4bc5e99095656",
+      "tag": "9e2bfc47f551667adc02b36d85652862",
+      "data": "d4d743352eb175569152922a397832e6939198a6e0893b1e96440bfb4ffd4d70"
+    },
+    {
+      "kind": "recovery",
+      "salt": "5f9b1c4bea36f752882da2c7f63ffd3d65ac7f56d60c5c4ebacf51470df5022c",
+      "iv": "55ce046cbeb58f3e075353d4",
+      "tag": "65c402c3359846c918184cde176f47db",
+      "data": "7fddf79675ca98aa2ab88e082b7bb5e5752629526e8507fb3e30e7ab41c094c4"
+    }
+  ]
+}

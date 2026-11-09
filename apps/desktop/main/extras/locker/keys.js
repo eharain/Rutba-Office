@@ -28,7 +28,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import keystoreLib from '@rutba/office-shell/keystore-lib';
-import { LockerError } from './format.js';
+import { LockerError, checkVersion } from './format.js';
 
 const { SecureKeystore, ErrorCodes } = keystoreLib;
 const scryptAsync = promisify(crypto.scrypt);
@@ -186,6 +186,12 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
   const folderKeys = new Map();
 
   const ring = () => readJson(ringFile);
+  /** The keyring, for anything that opens or rewrites it: one from a newer Rutba Office is refused and left as it is. */
+  const ringToUse = async () => {
+    const rec = await ring();
+    if (rec) checkVersion(rec.v);
+    return rec;
+  };
   const wipe = (b) => { if (Buffer.isBuffer(b)) b.fill(0); };
 
   function attachStore(key) {
@@ -292,7 +298,7 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
      * @param {{ password?: string, recovery?: string, secret?: Buffer }} how
      */
     async unlock({ password = null, recovery = null, secret = null } = {}) {
-      const rec = await ring();
+      const rec = await ringToUse();
       if (!rec) throw new LockerError('none', 'This profile has no locker yet.');
       if (password !== null && password !== undefined) {
         const u = rec.unlockers.find((x) => x.kind === 'password');
@@ -341,7 +347,7 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
 
     /** A new password. The old one must be right; on any failure the keyring is exactly as it was. */
     async changePassword(current, next) {
-      const rec = await ring();
+      const rec = await ringToUse();
       const u = rec.unlockers.find((x) => x.kind === 'password');
       const pk = await passwordKey(current, u.kdf);
       const r = unwrap(pk, u, 'password');
@@ -360,7 +366,7 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
 
     /** A new recovery key, replacing the last one. The password must be right. */
     async replaceRecovery(current) {
-      const rec = await ring();
+      const rec = await ringToUse();
       const u = rec.unlockers.find((x) => x.kind === 'password');
       const pk = await passwordKey(current, u.kdf);
       const r = unwrap(pk, u, 'password');
@@ -383,7 +389,7 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
     /** Windows Hello made a way of opening this locker. The locker must be open; the secret comes from the system's helper. */
     async enableHello(secret, id = null) {
       if (!root) throw new LockerError('locked', 'Unlock the locker first.');
-      const rec = await ring();
+      const rec = await ringToUse();
       const salt = crypto.randomBytes(32).toString('hex');
       const entry = { kind: 'hello', id, salt, ...wrap(secretKey(secret, salt, 'hello'), root, 'hello') };
       await writeJsonAtomic(ringFile, { ...rec, unlockers: [...rec.unlockers.filter((x) => x.kind !== 'hello'), entry] });
@@ -391,7 +397,7 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
 
     /** Windows Hello no longer opens this locker. */
     async disableHello() {
-      const rec = await ring();
+      const rec = await ringToUse();
       await writeJsonAtomic(ringFile, { ...rec, unlockers: rec.unlockers.filter((x) => x.kind !== 'hello') });
     },
 
@@ -429,6 +435,7 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
 
     /** The folder key inside a key file, with the password or recovery key, or with what is cached while unlocked; null when none of them opens it. */
     async openFolderKeys(file, { password = null, recovery = null } = {}) {
+      checkVersion(file?.v);
       const id = file.id;
       if (password !== null) {
         const u = file.unlockers?.find((x) => x.kind === 'password');

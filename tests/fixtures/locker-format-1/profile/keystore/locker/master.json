@@ -1,0 +1,32 @@
+{
+  "version": "3.0",
+  "created": "2026-11-09T15:12:22.310Z",
+  "salt": "b657c229713a9ab01f7cab61834334b5734c3302f13893a66cdaec8dd5d9d0db",
+  "iterations": 10000,
+  "master": {
+    "iv": "7240e0268bc0ccdc300dea12",
+    "authTag": "c651e7adc3cff1c430add384008e75d1",
+    "data": "26a6e96e67561a3707d184c1c80125778b085e9b38101430a40010ebb0c62db24014ab87e9771a7fa58fbb220430f9ca75fb676a2b654a96f17c1a4a197a9b78"
+  },
+  "entries": [
+    {
+      "key": "__marker",
+      "file": "__marker-bfec7298.enc"
+    },
+    {
+      "key": "folder-wrap",
+      "file": "folder-wrap-56a2a381.enc"
+    },
+    {
+      "key": "recovery-wrap",
+      "file": "recovery-wrap-2d194ee1.enc"
+    },
+    {
+      "key": "folder:f6fbed0a1ea1c45dac8f16c592146f52",
+      "file": "folder_f6fbed0a1ea1c45dac8f16c592146f52-72d382bc.enc"
+    }
+  ],
+  "sourceFile": ".seed-42e5334514759735.json",
+  "totalKeys": 4,
+  "updated": "2026-11-09T15:12:22.981Z"
+}

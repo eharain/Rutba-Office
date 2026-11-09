@@ -135,7 +135,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
         entries.push(entry);
         note(entry.fileId, entry);
       } catch (err) {
-        entries.push({ rel, name: path.basename(p), state: 'damaged', why: null, message: err?.message || String(err), path: p, lockedRel: rel });
+        entries.push({ rel, name: path.basename(p), state: 'damaged', newer: err?.code === 'newer' || undefined, why: null, message: err?.message || String(err), path: p, lockedRel: rel });
       }
     }
     for (const { path: p, rel } of pieceDirs) {
@@ -151,7 +151,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
         entries.push(entry);
         note(entry.fileId, entry);
       } catch (err) {
-        entries.push({ rel, name: path.basename(p), state: 'damaged', why: null, message: err?.message || String(err), path: p, lockedRel: rel });
+        entries.push({ rel, name: path.basename(p), state: 'damaged', newer: err?.code === 'newer' || undefined, why: null, message: err?.message || String(err), path: p, lockedRel: rel });
       }
     }
     // Two locked copies with one file's id: the cloud made a conflict copy. Shown side by side, never merged.

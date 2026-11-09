@@ -104,7 +104,7 @@ const stateDetail = (e) => ({
   waiting: t('Not locked'),
   excluded: t('Stays plain'),
   conflict: t('{n} versions to choose between', { n: e.versions || 2 }),
-  damaged: t('Damaged'),
+  damaged: e.newer ? t('Needs a newer Rutba Office') : t('Damaged'),
 }[e.state]);
 
 // What the engine said, without the wrapping a message picks up on its way across.

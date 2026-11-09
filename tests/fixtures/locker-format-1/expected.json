@@ -1,0 +1,12 @@
+{
+  "id": "f6fbed0a1ea1c45dac8f16c592146f52",
+  "password": "format one sample password",
+  "recovery": "RT2C-UG2Q-66JD-JW93-9QFZ-TCCH-NXX2-CLFX-HND2-3QXT-QZTV-NKXP-ET2S",
+  "sentPassword": "format one sent password",
+  "note": "Rutba Office Locker, format 1. If this text comes back, version 1 files still open.\n",
+  "big": {
+    "size": 128000,
+    "sha256": "e1211101bb181c71dde61450f6b013951722d36046c38c1a07eb33475e8cb411",
+    "pieces": 1
+  }
+}
