@@ -30,6 +30,8 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
   fs.writeFileSync(pdfFile, pdfBytes);
   const words = path.join(root, 'Report.docx');
   fs.copyFileSync(files.docx, words);
+  fs.mkdirSync(path.join(root, 'Contracts', '2026'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'Contracts', '2026', 'Terms.txt'), 'the terms');
   fs.writeFileSync(path.join(root, '~$Report.docx'), 'lock file');
 
   let win = null;
@@ -94,8 +96,24 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => js(`Boolean(document.querySelector('.lk-detail'))`), 'the line about the file', 4000);
     const tmpFileRow = await js(`document.querySelector('tr[data-rel="~$Report.docx"]')?.textContent + ' ' + document.querySelector('.lk-detail').textContent`);
     check('locker: Office\'s own temporary file stays plain, and says why', /Not locked/.test(tmpFileRow || '') && /temporary/.test(tmpFileRow || ''), tmpFileRow);
-    check('locker: the list says Locked or Not locked, and the rules stay out of the way', await js(`!document.querySelector('.lk-rules') && !document.querySelector('.lk-folder-settings') && document.querySelectorAll('thead th').length === 3`));
+    check('locker: the list says Locked or Not locked, and the rules stay out of the way', await js(`!document.querySelector('.lk-rules') && !document.querySelector('.lk-folder-settings') && document.querySelectorAll('thead th').length === 4`));
     await capture(win, 'locker-main.png');
+
+    // A subfolder has its own highlighted heading, and every file its own buttons without being selected first.
+    const headed = await js(`(() => { const h = document.querySelector('tr.lk-dir[data-dir="Contracts/2026"]'); const r = document.querySelector('tr[data-rel="Contracts/2026/Terms.txt"]'); return Boolean(h) && h.textContent.includes('Contracts / 2026') && Boolean(r.querySelector('.lk-unlock')) && Boolean(r.querySelector('.lk-open')) && r.querySelector('td').textContent === 'Terms.txt'; })()`);
+    check('locker: a subfolder has its own heading and each file its own buttons', headed);
+
+    // Searching narrows the list, by any part of a file's path.
+    const visibleRows = () => js(`[...document.querySelectorAll('tbody tr[data-rel]')].map((r) => r.dataset.rel).join('|')`);
+    await setField('Search files', 'contracts terms');
+    const narrowed = await until(async () => (await visibleRows()) === 'Contracts/2026/Terms.txt', 'the search to narrow the list', 4000).then(() => true, () => false);
+    check('locker: searching shows only the files that match, under their subfolder', narrowed && await js(`Boolean(document.querySelector('tr.lk-dir[data-dir="Contracts/2026"]'))`), await visibleRows());
+    await capture(win, 'locker-search.png');
+    await setField('Search files', 'nothing is called this');
+    const none = await until(() => js(`document.querySelector('.lk-table-wrap').textContent.includes('No files match')`), 'the no-match message', 4000).then(() => true, () => false);
+    check('locker: a search that finds nothing says so', none);
+    await setField('Search files', '');
+    await until(() => js(`document.querySelectorAll('tbody tr[data-rel]').length > 1`), 'the whole list back', 4000);
 
     // A file arriving is listed as not locked, and stays so until the person locks it.
     fs.writeFileSync(path.join(root, 'Dropped in.txt'), 'dropped in by the person');
@@ -118,9 +136,9 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
 
     // Open into Documents: a temporary copy beside the file, and its Save reaches the locked file.
     await clickSel(LOCKED_ROW('Report.docx'));
-    await until(() => js(`!document.querySelector('.lk-open').disabled`), 'Open enabled', 4000);
+    await until(() => js(`Boolean(document.querySelector('tr.sel .lk-open'))`), 'Open offered', 4000);
     const before = fs.readFileSync(`${words}.rlock`);
-    await clickSel('.lk-open');
+    await clickSel('tr.sel .lk-open');
     // What until() waited for is not what it returns, so the window is kept here.
     let opened = null;
     await until(() => {
@@ -216,7 +234,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await clickSel('.lk-settings');
     await until(() => js(`Boolean(document.querySelector('.lk-advanced input'))`), 'the settings dialog', 5000);
     await clickSel('.lk-advanced input');
-    const advancedOn = await until(() => js(`Boolean(document.querySelector('.lk-rules')) && Boolean(document.querySelector('.lk-folder-settings')) && document.querySelectorAll('thead th').length === 5`), 'the advanced options', 6000).then(() => true, () => false);
+    const advancedOn = await until(() => js(`Boolean(document.querySelector('.lk-rules')) && Boolean(document.querySelector('.lk-folder-settings')) && document.querySelectorAll('thead th').length === 6`), 'the advanced options', 6000).then(() => true, () => false);
     check('locker: Show advanced options brings the rules, the folder settings and the extra columns', advancedOn);
     const asked2 = await js(`document.querySelector('.lk-dialog-body').textContent`);
     check('locker: the settings ask what happens to temporary copies and unlocked files when it locks, each with a suggestion', /Remove them \(suggested\)/.test(asked2) && /Leave them unlocked \(suggested\)/.test(asked2), asked2.slice(0, 200));
@@ -226,7 +244,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await look('.lk-folder-settings', 'locker-folder-settings.png');
     await look('.lk-settings', 'locker-settings.png');
     await clickSel(LOCKED_ROW('Lease, signed.pdf'));
-    await until(() => js(`!document.querySelector('.lk-share').disabled`), 'Share enabled', 4000);
+    await until(() => js(`Boolean(document.querySelector('.lk-share'))`), 'Share offered', 4000);
     await clickSel('.lk-share');
     await until(() => js(`Boolean(document.querySelector('.lk-dialog-body'))`), 'the share dialog', 5000);
     await setField('A password for this one file', 'one file only');
@@ -241,9 +259,9 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
 
     // Unlock for good.
     await clickSel(LOCKED_ROW('Lease, signed.pdf'));
-    await until(() => js(`!document.querySelector('.lk-unlock').disabled`), 'Unlock enabled', 4000);
+    await until(() => js(`Boolean(document.querySelector('tr.sel .lk-unlock'))`), 'Unlock offered', 4000);
     plan('message', { response: 0, checked: false });
-    await clickSel('.lk-unlock');
+    await clickSel('tr.sel .lk-unlock');
     const backOnDisk = await until(() => fs.existsSync(pdfFile) && !fs.existsSync(`${pdfFile}.rlock`), 'the plain file back', 8000).then(() => true, () => false);
     check('locker: Unlock for good puts the plain file back and removes the locked one', backOnDisk && fs.readFileSync(pdfFile).equals(pdfBytes));
     await wait(2500);
@@ -251,11 +269,17 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
 
     // And back again, with the one button.
     await until(() => js(`Boolean(document.querySelector('tr[data-rel="Lease, signed.pdf"][data-state=waiting]'))`), 'the file listed as not locked', 8000);
-    await clickSel('tr[data-rel="Lease, signed.pdf"][data-state=waiting]');
-    await until(() => js(`Boolean(document.querySelector('.lk-lockfile')) && !document.querySelector('.lk-unlock')`), 'the Lock this file button', 4000);
-    await clickSel('.lk-lockfile');
+    await clickSel('tr[data-rel="Lease, signed.pdf"][data-state=waiting] .lk-lockfile');
     const putBack = await until(() => !fs.existsSync(pdfFile) && fs.existsSync(`${pdfFile}.rlock`), 'the file locked again', 8000).then(() => true, () => false);
-    check('locker: Lock this file locks an unlocked file again, where it is', putBack);
+    check('locker: the Lock button on a file\'s own row locks it again, where it is', putBack);
+
+    // A subfolder's own button locks only what is in it.
+    const more = path.join(root, 'Contracts', '2026', 'More.txt');
+    fs.writeFileSync(more, 'more terms');
+    await until(() => js(`Boolean(document.querySelector('tr.lk-dir[data-dir="Contracts/2026"] .lk-lockdir'))`), 'the subfolder button', 20000);
+    await clickSel('tr.lk-dir[data-dir="Contracts/2026"] .lk-lockdir');
+    const dirLocked = await until(() => !fs.existsSync(more) && fs.existsSync(`${more}.rlock`), 'the subfolder file locked', 8000).then(() => true, () => false);
+    check('locker: a subfolder\'s Lock button locks the files not locked in it', dirLocked);
 
     const home = await open('home');
     const tile = await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="locker"]'))`), 'the launcher card', 10000).then(() => true, () => false);

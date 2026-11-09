@@ -37,6 +37,17 @@ const CSS = `
 .lk-table tbody tr { cursor: default; }
 .lk-table tbody tr:hover td { background: var(--hover); }
 .lk-table tr.sel:hover td { background: var(--selected); }
+.lk-table tr.lk-dir td, .lk-table tr.lk-dir:hover td { padding: 6px 10px; max-width: none; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border-top: 1px solid var(--accent-line); border-bottom: 1px solid var(--accent-line); }
+.lk-dir-in { display: flex; align-items: center; gap: 8px; color: var(--accent); }
+.lk-dir-in b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.lk-table td.lk-indent { padding-inline-start: 34px; }
+.lk-table td.lk-row-acts { max-width: none; width: 1%; overflow: visible; padding: 4px 10px; }
+.lk-row-acts > div { display: flex; justify-content: flex-end; gap: 6px; }
+.lk-table tr.lk-more td, .lk-table tr.lk-more:hover td { max-width: 0; white-space: normal; background: var(--selected); padding: 6px 10px 8px; }
+.lk-more-in { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lk-more-in .lk-detail { min-width: 0; overflow-wrap: anywhere; }
+.lk-search { display: flex; align-items: center; gap: 10px; }
+.lk-search > :first-child { flex: 1; min-width: 0; }
 .lk-state { display: inline-flex; align-items: center; height: 21px; padding: 0 8px; border-radius: 11px; font-size: 11.5px; font-weight: 600; }
 .lk-state.locked { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
 .lk-state.waiting { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
@@ -98,6 +109,28 @@ const stateDetail = (e) => ({
 
 // What the engine said, without the wrapping a message picks up on its way across.
 const said = (err) => String(err?.message || err).replace(/^(?:Error invoking remote method '[^']*':\s*)?(?:\w*Error:\s*)*/, '');
+
+/** The files by the directory they are in: the folder's own first, then each subfolder in order. */
+function byDirectory(entries) {
+  const groups = new Map();
+  for (const e of entries) {
+    const cut = e.rel.lastIndexOf('/');
+    const dir = cut < 0 ? '' : e.rel.slice(0, cut);
+    if (!groups.has(dir)) groups.set(dir, []);
+    groups.get(dir).push(e);
+  }
+  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
+/** Every word typed must appear somewhere in the file's path, in any case. */
+function matching(entries, query) {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return entries;
+  return entries.filter((e) => {
+    const rel = e.rel.toLowerCase();
+    return words.every((w) => rel.includes(w));
+  });
+}
 
 const whyText = (e) => e.message || e.why || (e.state === 'locked' ? t('Locked by the folder\'s rules') : '');
 
@@ -576,6 +609,7 @@ export default function Locker({ app, shell }) {
   const [current, setCurrent] = useState(null);
   const [entries, setEntries] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState(null);
   const [tick, setTick] = useState(0);
   // Setting up stays on screen until the person has seen the recovery key: making
@@ -628,6 +662,7 @@ export default function Locker({ app, shell }) {
 
   const folder = useMemo(() => state?.folders?.find((f) => f.id === current) || null, [state, current]);
   const selEntry = entries.find((e) => e.rel === selected) || null;
+  const shown = matching(entries, query);
 
   const addFolder = async () => {
     const paths = await shell.dialog.open({ title: t('Choose a folder to lock'), directory: true });
@@ -681,9 +716,18 @@ export default function Locker({ app, shell }) {
     }
   });
 
-  const lockFile = (e) => act(async () => {
-    await shell.locker.lockOne({ id: current, rel: e.rel });
+  /** One file or a subfolder's: each tried, so one a program holds does not stop the rest. */
+  const lockFiles = (list) => act(async () => {
+    let problem = null;
+    for (const e of list) {
+      try {
+        await shell.locker.lockOne({ id: current, rel: e.rel });
+      } catch (err) {
+        problem = err;
+      }
+    }
     setSelected(null);
+    if (problem) throw problem;
   });
 
   const removeFolder = () => act(async () => {
@@ -747,7 +791,14 @@ export default function Locker({ app, shell }) {
                   <Spacer />
                   {waiting ? <Button className="lk-lockall" label={t('Lock {n} now', { n: waiting })} onClick={() => act(() => shell.locker.lockWaiting({ id: current }))} /> : null}
                   <Button className="lk-show" label={t('Show in Explorer')} onClick={() => shell.shell.openPath({ path: folder.root })} />
+                  {state.advanced ? <Button className="lk-rules" label={t('Edit rules')} onClick={() => setDialog({ kind: 'rules' })} /> : null}
                   {state.advanced ? <Button className="lk-folder-settings" label={t('Folder settings')} onClick={() => setDialog({ kind: 'folder' })} /> : null}
+                  <Button className="lk-remove" label={t('Stop locking this folder…')} onClick={removeFolder} />
+                </div>
+                <div className="lk-search">
+                  <Input value={query} placeholder={t('Search files in this folder')} aria-label={t('Search files')} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} />
+                  {query.trim() ? <span className="lk-card-sub lk-search-count">{t('{n} of {total} files', { n: shown.length, total: entries.length })}</span> : null}
+                  {query ? <Button className="lk-search-clear" label={t('Clear')} onClick={() => setQuery('')} /> : null}
                 </div>
                 {conflicts.length ? (
                   <div className="lk-alert" role="alert">
@@ -757,36 +808,68 @@ export default function Locker({ app, shell }) {
                 ) : null}
                 <div className="lk-table-wrap">
                   <table className="lk-table">
-                    <thead><tr><th>{t('Name')}</th><th>{t('State')}</th><th>{t('Changed')}</th>{state.advanced ? <><th>{t('Size')}</th><th>{t('Why')}</th></> : null}</tr></thead>
+                    <thead><tr><th>{t('Name')}</th><th>{t('State')}</th><th>{t('Changed')}</th>{state.advanced ? <><th>{t('Size')}</th><th>{t('Why')}</th></> : null}<th aria-label={t('Actions')} /></tr></thead>
                     <tbody>
-                      {entries.map((e) => (
-                        <tr key={e.rel} data-rel={e.rel} data-state={e.state} className={e.rel === selected ? 'sel' : ''} onClick={() => setSelected(e.rel)} onDoubleClick={() => { if (e.state === 'locked') openEntry(e); }}>
-                          <td title={e.rel}>{e.rel}</td>
-                          <td><span className={`lk-state ${e.state}`}>{stateName(e)}</span></td>
-                          <td>{e.modified ? formatWhen(e.modified) : ''}</td>
-                          {state.advanced ? (
-                            <>
-                              <td>{e.size !== undefined ? formatBytes(e.size) : ''}</td>
-                              <td className="lk-why" title={whyText(e)}>{whyText(e)}</td>
-                            </>
-                          ) : null}
-                        </tr>
-                      ))}
+                      {byDirectory(shown).map(([dir, files]) => {
+                        const cols = state.advanced ? 6 : 4;
+                        const notLocked = files.filter((e) => e.state === 'waiting');
+                        const lockedHere = files.filter((e) => e.state === 'locked').length;
+                        return (
+                          <React.Fragment key={dir || '.'}>
+                            {dir ? (
+                              <tr className="lk-dir" data-dir={dir}>
+                                <td colSpan={cols}>
+                                  <div className="lk-dir-in">
+                                    <Icon name="folder" size={16} />
+                                    <b title={dir}>{dir.split('/').join(' / ')}</b>
+                                    <span className="lk-card-sub">{t('{n} locked', { n: lockedHere })}{notLocked.length ? ` · ${t('{n} not locked', { n: notLocked.length })}` : ''}</span>
+                                    <Spacer />
+                                    {notLocked.length ? <Button className="lk-lockdir" label={t('Lock {n} here', { n: notLocked.length })} onClick={() => lockFiles(notLocked)} /> : null}
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : null}
+                            {files.map((e) => (
+                              <React.Fragment key={e.rel}>
+                                <tr data-rel={e.rel} data-state={e.state} className={e.rel === selected ? 'sel' : ''} onClick={() => setSelected(e.rel)} onDoubleClick={() => { if (e.state === 'locked') openEntry(e); }}>
+                                  <td title={e.rel} className={dir ? 'lk-indent' : ''}>{e.name}</td>
+                                  <td><span className={`lk-state ${e.state}`}>{stateName(e)}</span></td>
+                                  <td>{e.modified ? formatWhen(e.modified) : ''}</td>
+                                  {state.advanced ? (
+                                    <>
+                                      <td>{e.size !== undefined ? formatBytes(e.size) : ''}</td>
+                                      <td className="lk-why" title={whyText(e)}>{whyText(e)}</td>
+                                    </>
+                                  ) : null}
+                                  <td className="lk-row-acts" onClick={(ev) => ev.stopPropagation()} onDoubleClick={(ev) => ev.stopPropagation()}>
+                                    <div>
+                                      {e.state === 'locked' ? <Button primary className="lk-open" label={t('Open')} onClick={() => openEntry(e)} /> : null}
+                                      {e.state === 'locked' ? <Button className="lk-unlock" label={t('Unlock…')} onClick={() => unlockForGood(e)} /> : null}
+                                      {e.state === 'waiting' ? <Button primary className="lk-lockfile" label={t('Lock')} onClick={() => lockFiles([e])} /> : null}
+                                    </div>
+                                  </td>
+                                </tr>
+                                {e.rel === selected ? (
+                                  <tr className="lk-more">
+                                    <td colSpan={cols}>
+                                      <div className="lk-more-in">
+                                        <span className="lk-detail lk-card-sub">{e.rel} · {stateDetail(e)}{e.size !== undefined ? ` · ${formatBytes(e.size)}` : ''}{whyText(e) ? ` · ${whyText(e)}` : ''}</span>
+                                        <Spacer />
+                                        {e.state === 'locked' ? <Button className="lk-export" label={t('Save an unlocked copy…')} onClick={() => exportCopy(e)} /> : null}
+                                        {e.state === 'locked' ? <Button className="lk-share" label={t('Send to someone…')} onClick={() => setDialog({ kind: 'share', entry: e })} /> : null}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ) : null}
+                              </React.Fragment>
+                            ))}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                   {!entries.length ? <Empty title={t('Nothing in this folder yet')} /> : null}
-                </div>
-                {selEntry ? <div className="lk-detail lk-card-sub">{selEntry.rel} · {stateDetail(selEntry)}{selEntry.size !== undefined ? ` · ${formatBytes(selEntry.size)}` : ''}{whyText(selEntry) ? ` · ${whyText(selEntry)}` : ''}</div> : null}
-                <div className="lk-actions">
-                  <Button primary className="lk-open" label={t('Open')} disabled={selEntry?.state !== 'locked'} onClick={() => openEntry(selEntry)} />
-                  <Button className="lk-export" label={t('Save an unlocked copy…')} disabled={selEntry?.state !== 'locked'} onClick={() => exportCopy(selEntry)} />
-                  <Button className="lk-share" label={t('Send to someone…')} disabled={selEntry?.state !== 'locked'} onClick={() => setDialog({ kind: 'share', entry: selEntry })} />
-                  {selEntry?.state === 'waiting'
-                    ? <Button className="lk-lockfile" label={t('Lock this file')} onClick={() => lockFile(selEntry)} />
-                    : <Button className="lk-unlock" label={t('Unlock this file…')} disabled={selEntry?.state !== 'locked'} onClick={() => unlockForGood(selEntry)} />}
-                  <Spacer />
-                  {state.advanced ? <Button className="lk-rules" label={t('Edit rules')} onClick={() => setDialog({ kind: 'rules' })} /> : null}
-                  <Button className="lk-remove" label={t('Stop locking this folder…')} onClick={removeFolder} />
+                  {entries.length && !shown.length ? <Empty title={t('No files match that search')} /> : null}
                 </div>
               </>
             ) : (
