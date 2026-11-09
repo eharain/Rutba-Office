@@ -242,6 +242,14 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await wait(2500);
     check('locker: a file unlocked for good stays plain; the watcher does not lock it again', fs.existsSync(pdfFile) && !fs.existsSync(`${pdfFile}.rlock`));
 
+    // And back again, with the one button.
+    await until(() => js(`Boolean(document.querySelector('tr[data-rel="Lease, signed.pdf"][data-state=excluded]'))`), 'the file listed as not locked', 8000);
+    await clickSel('tr[data-rel="Lease, signed.pdf"][data-state=excluded]');
+    await until(() => js(`Boolean(document.querySelector('.lk-putback')) && !document.querySelector('.lk-unlock')`), 'the Put back button', 4000);
+    await clickSel('.lk-putback');
+    const putBack = await until(() => !fs.existsSync(pdfFile) && fs.existsSync(`${pdfFile}.rlock`), 'the file locked again', 8000).then(() => true, () => false);
+    check('locker: Put back in the Locker locks a file taken out, where it is', putBack);
+
     const home = await open('home');
     const tile = await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="locker"]'))`), 'the launcher card', 10000).then(() => true, () => false);
     check('locker: a build made with the switch shows the card on the launcher', tile);

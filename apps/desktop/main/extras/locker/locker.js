@@ -395,6 +395,16 @@ export function createLocker({ dir, cost, hooks = null }) {
         return out;
       });
     },
+    /** A file taken out put back: locked where it is, and treated by the folder like any other file again. */
+    async putBack(id, rel) {
+      const s = await state();
+      const rec = s.folders.find((x) => x.id === id);
+      const same = (r) => r.toLowerCase() === String(rel).toLowerCase();
+      if (!rec?.released?.some(same)) throw new LockerError('state', 'That file was not taken out of the Locker.');
+      rec.released = rec.released.filter((r) => !same(r));
+      await saveState(s);
+      return withFolder(id, (f) => f.lockOne(rel));
+    },
     versions: (id, rel) => withFolder(id, (f) => f.versions(rel)),
     restore: (id, rel, version) => withFolder(id, (f) => f.restore(rel, version)),
     readRules: (id) => withFolder(id, (f) => f.readRules()),

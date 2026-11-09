@@ -667,6 +667,11 @@ export default function Locker({ app, shell }) {
     }
   });
 
+  const putBack = (e) => act(async () => {
+    await shell.locker.putBack({ id: current, rel: e.rel });
+    setSelected(null);
+  });
+
   const removeFolder = () => act(async () => {
     const { response } = await shell.dialog.message({ type: 'warning', message: t('Stop locking {name}?', { name: folder.name }), detail: t('Every file in it is unlocked first, and the earlier versions it kept are removed. The folder itself stays where it is.'), buttons: [t('Stop locking'), t('Cancel')], defaultId: 1, cancelId: 1 });
     if (response === 0) {
@@ -762,7 +767,9 @@ export default function Locker({ app, shell }) {
                   <Button primary className="lk-open" label={t('Open')} disabled={selEntry?.state !== 'locked'} onClick={() => openEntry(selEntry)} />
                   <Button className="lk-export" label={t('Save an unlocked copy…')} disabled={selEntry?.state !== 'locked'} onClick={() => exportCopy(selEntry)} />
                   <Button className="lk-share" label={t('Send to someone…')} disabled={selEntry?.state !== 'locked'} onClick={() => setDialog({ kind: 'share', entry: selEntry })} />
-                  <Button className="lk-unlock" label={t('Take out of the Locker…')} disabled={selEntry?.state !== 'locked'} onClick={() => unlockForGood(selEntry)} />
+                  {selEntry?.kind === 'released'
+                    ? <Button className="lk-putback" label={t('Put back in the Locker')} onClick={() => putBack(selEntry)} />
+                    : <Button className="lk-unlock" label={t('Take out of the Locker…')} disabled={selEntry?.state !== 'locked'} onClick={() => unlockForGood(selEntry)} />}
                   <Spacer />
                   {state.advanced ? <Button className="lk-rules" label={t('Edit rules')} onClick={() => setDialog({ kind: 'rules' })} /> : null}
                   <Button className="lk-remove" label={t('Stop locking this folder…')} onClick={removeFolder} />

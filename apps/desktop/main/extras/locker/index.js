@@ -30,6 +30,7 @@ const METHODS = {
     'openShared',  // ({ file, dest, password }) -> { size }
     'importFile',  // ({ id, source, rel? }) -> { size }
     'unlockForGood', // ({ id, rel }) -> { dest }
+    'putBack',     // ({ id, rel }) -> { target, size }
     'versions',    // ({ id, rel }) -> [{ version, current, label }]
     'restore',     // ({ id, rel, version }) -> { size }
     'readRules',   // ({ id }) -> text
@@ -334,6 +335,12 @@ export async function register({ stores, broadcast, electron, windows = () => []
     unlockForGood: async ({ id, rel }) => {
       touch();
       const out = await locker.unlockForGood(id, rel);
+      await publish();
+      return out;
+    },
+    putBack: async ({ id, rel }) => {
+      touch();
+      const out = await locker.putBack(id, rel);
       await publish();
       return out;
     },
