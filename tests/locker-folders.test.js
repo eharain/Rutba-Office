@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawn, execFileSync } from 'node:child_process';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
 import { FOLDER_KEYS } from '../apps/desktop/main/extras/locker/keys.js';
 import { LARGE } from '../apps/desktop/main/extras/locker/folder.js';
@@ -335,7 +336,8 @@ test('locking the locker wipes the temporary plain copies an app opened', async 
   await locker.lockWaiting(id);
   const { path: copy } = await locker.openPlain(id, 'a.pdf');
   assert.ok(fs.readFileSync(copy).equals(bytes));
-  assert.ok(copy.startsWith(profile), 'the plain copy is in the profile, not the folder');
+  assert.ok(copy.startsWith(path.join(folder, '.rutba-open')), 'the plain copy is in the hidden folder beside the file');
+  assert.ok(!copy.startsWith(profile));
   const edited = random(120);
   fs.writeFileSync(copy, edited);
   const saved = await locker.saveOpen(copy);
@@ -345,5 +347,165 @@ test('locking the locker wipes the temporary plain copies an app opened', async 
   assert.ok(fs.readFileSync(back).equals(edited));
   await locker.lock();
   assert.ok(!fs.existsSync(copy), 'wiped on lock');
+  assert.ok(!fs.existsSync(path.join(folder, '.rutba-open')), 'the hidden folder goes with it');
   await assert.rejects(() => locker.scan(id), (e) => e.code === 'locked', 'a locked locker reads nothing');
+});
+
+const OPENED = async (choices = {}, hooks = null, rel = 'a.pdf') => {
+  const m = await make(choices, hooks);
+  const bytes = random(200);
+  write(m.folder, rel, bytes);
+  await m.locker.lockWaiting(m.id);
+  const { path: copy } = await m.locker.openPlain(m.id, rel);
+  return { ...m, bytes, copy };
+};
+
+const lockedBytes = async (locker, id, rel) => {
+  const out = path.join(tmp(), 'out.bin');
+  await locker.exportCopy(id, rel, out);
+  return fs.readFileSync(out);
+};
+
+test('an open copy sits beside its own file, in a subfolder too, and is neither listed nor locked', async () => {
+  const { locker, folder, id, copy } = await OPENED({ hidden: true }, null, 'deep/er/a.pdf');
+  assert.ok(copy.startsWith(path.join(folder, 'deep', 'er', '.rutba-open')));
+  assert.equal(path.basename(copy), 'a.pdf', 'the real name, so a program shows it');
+  assert.ok(!(await locker.scan(id)).some((e) => e.rel.includes('rutba-open')));
+  const { locked } = await locker.lockWaiting(id);
+  assert.deepEqual(locked, []);
+  assert.ok(fs.existsSync(copy));
+});
+
+test('a person may keep open copies out of the folder altogether', async () => {
+  const { folder, copy, profile } = await OPENED({ openIn: 'profile' });
+  assert.ok(copy.startsWith(profile));
+  assert.ok(!fs.existsSync(path.join(folder, '.rutba-open')));
+});
+
+test('a program that saves by renaming a new file over the old is written back', async () => {
+  const { locker, id, copy } = await OPENED();
+  const edited = random(300);
+  const incoming = path.join(path.dirname(copy), 'A1B2.tmp');
+  fs.writeFileSync(incoming, edited);
+  assert.equal(locker.openCopyFor(incoming), copy, 'anything in the working folder leads to its copy');
+  fs.renameSync(incoming, copy);
+  assert.ok((await locker.saveOpen(copy)).changed);
+  assert.ok((await lockedBytes(locker, id, 'a.pdf')).equals(edited));
+  assert.equal(locker.openCopyFor(path.join(tmp(), 'elsewhere.txt')), null);
+});
+
+test('when the program lets go the copy is written back and removed; one never seen in use waits for the lock', async () => {
+  let held = false;
+  const { locker, folder, id, copy } = await OPENED({}, { isHeld: async () => held });
+  assert.deepEqual(await locker.reapClosed(), [], 'not seen in use yet');
+  assert.ok(fs.existsSync(copy));
+  held = true;
+  assert.deepEqual(await locker.reapClosed(), []);
+  const edited = random(250);
+  fs.writeFileSync(copy, edited);
+  held = false;
+  assert.deepEqual(await locker.reapClosed(), ['a.pdf']);
+  assert.ok(!fs.existsSync(copy));
+  assert.ok(!fs.existsSync(path.join(folder, '.rutba-open')));
+  assert.ok((await lockedBytes(locker, id, 'a.pdf')).equals(edited));
+  assert.equal(locker.hasOpenCopies(), false);
+});
+
+test('an Office window showing the file counts as in use', async () => {
+  const { locker, copy } = await OPENED({}, { isHeld: async () => false });
+  let shown = true;
+  await locker.reapClosed({ shown: (f) => shown && f === copy });
+  assert.ok(fs.existsSync(copy));
+  shown = false;
+  assert.deepEqual(await locker.reapClosed({ shown: () => shown }), ['a.pdf']);
+  assert.ok(!fs.existsSync(copy));
+});
+
+test('locking writes back a change the watcher had not reached yet', async () => {
+  const { locker, id, copy } = await OPENED();
+  const edited = random(260);
+  fs.writeFileSync(copy, edited);
+  assert.deepEqual((await locker.lock()).left, []);
+  assert.ok(!fs.existsSync(copy));
+  await locker.unlock({ password: 'pw' });
+  assert.ok((await lockedBytes(locker, id, 'a.pdf')).equals(edited));
+});
+
+test('after a crash the next unlock writes the change back, clears the copy and clears strays', async () => {
+  const { locker, folder, id, copy, profile } = await OPENED();
+  const edited = random(270);
+  fs.writeFileSync(copy, edited);
+  const stray = path.join(folder, '.rutba-open', 'feedfacefeedface');
+  fs.mkdirSync(stray);
+  fs.writeFileSync(path.join(stray, 'left.pdf'), 'left by something else');
+  // A new run of the app: nothing in memory, the keys gone.
+  const again = createLocker({ dir: profile, cost: CHEAP });
+  await again.unlock({ password: 'pw' });
+  assert.ok(!fs.existsSync(copy));
+  assert.ok(!fs.existsSync(path.join(folder, '.rutba-open')), 'strays go too');
+  assert.ok((await lockedBytes(again, id, 'a.pdf')).equals(edited));
+  assert.equal((await again.versions(id, 'a.pdf')).length, 2, 'as a new version, the old one kept');
+});
+
+test('a file leaving the locker takes its open copy with it', async () => {
+  const { locker, folder, id, copy } = await OPENED();
+  const edited = random(280);
+  fs.writeFileSync(copy, edited);
+  await locker.unlockForGood(id, 'a.pdf');
+  assert.ok(!fs.existsSync(copy));
+  assert.ok(fs.readFileSync(path.join(folder, 'a.pdf')).equals(edited), 'the change is in the file that came out');
+});
+
+test('a folder leaving the locker leaves no working folder behind', async () => {
+  const { locker, folder, id, copy } = await OPENED();
+  assert.ok((await locker.removeFolder(id)).removed);
+  assert.ok(!fs.existsSync(copy));
+  assert.ok(!fs.existsSync(path.join(folder, '.rutba-open')));
+});
+
+// A real program holding the file, the way Word and Acrobat do.
+const holder = (file) => new Promise((resolve, reject) => {
+  const script = `$f=[IO.File]::Open($env:RL_FILE,'Open','ReadWrite','None');[Console]::Out.WriteLine('held');$l=[Console]::In.ReadLine();if($l -eq 'write'){$b=[Text.Encoding]::UTF8.GetBytes('changed after the lock');$f.SetLength(0);$f.Write($b,0,$b.Length)};$f.Close()`;
+  const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { env: { ...process.env, RL_FILE: file }, stdio: ['pipe', 'pipe', 'inherit'] });
+  p.stdout.once('data', () => resolve({
+    release: (line = 'close') => new Promise((done) => { p.once('exit', done); p.stdin.write(`${line}\n`); }),
+  }));
+  p.once('error', reject);
+});
+
+const windowsOnly = { skip: process.platform !== 'win32' };
+
+test('a real program holding the copy: seen in use, reported at lock, cleared when it lets go', windowsOnly, async () => {
+  const { locker, folder, copy } = await OPENED();
+  const h = await holder(copy);
+  await locker.reapClosed();
+  assert.ok(fs.existsSync(copy));
+  const { left } = await locker.lock();
+  assert.deepEqual(left, ['a.pdf']);
+  assert.ok(fs.existsSync(copy), 'it could not be removed, and the person is told');
+  await h.release();
+  await locker.reapClosed();
+  assert.ok(!fs.existsSync(copy), 'unchanged, so cleared without the keys');
+  assert.ok(!fs.existsSync(path.join(folder, '.rutba-open')));
+});
+
+test('a change saved after the locker locked is kept and becomes the next version at unlock', windowsOnly, async () => {
+  const { locker, id, copy } = await OPENED();
+  const h = await holder(copy);
+  await locker.lock();
+  await h.release('write');
+  await locker.reapClosed();
+  assert.ok(fs.existsSync(copy), 'work that is not in the locked file is not thrown away');
+  await locker.unlock({ password: 'pw' });
+  assert.ok(!fs.existsSync(copy));
+  assert.equal((await lockedBytes(locker, id, 'a.pdf')).toString(), 'changed after the lock');
+});
+
+test('the working folder is hidden, out of search, and closed to everyone else', windowsOnly, async () => {
+  const { folder } = await OPENED();
+  const top = path.join(folder, '.rutba-open');
+  assert.match(execFileSync('attrib', [top]).toString().slice(0, 21), /H.*I/);
+  const acl = execFileSync('icacls', [top]).toString();
+  assert.ok(acl.includes(process.env.USERNAME));
+  assert.ok(!/BUILTIN|Everyone|Authenticated Users|\(I\)/.test(acl), acl);
 });

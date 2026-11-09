@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createLocker } from './locker.js';
 import { helloProvider, fakeHello } from './hello.js';
 import { LockerError } from './format.js';
+import { OPEN_DIR } from './rules.js';
 
 const METHODS = {
   locker: [
@@ -50,7 +51,8 @@ async function appForFile(file) {
   return appFor(kindFromExtension(file)) || null;
 }
 
-export async function register({ stores, broadcast, electron }) {
+export async function register({ stores, broadcast, electron, windows = () => [] }) {
+  const { powerMonitor } = await import('electron');
   const dir = path.join(stores.dir, 'locker');
   const locker = createLocker({ dir });
   const useFake = !electron.isPackaged && process.env.RUTBA_LOCKER_FAKE_HELLO === '1';
@@ -86,7 +88,7 @@ export async function register({ stores, broadcast, electron }) {
         } catch {
           // The folder's drive is away: it shows as such.
         }
-        folders.push({ id: f.id, name: path.basename(f.root), root: f.root, choices: { hidden: f.hidden, afterLock: f.afterLock, keepDir: f.keepDir, keepVersions: f.keepVersions, docs: f.docs }, summary });
+        folders.push({ id: f.id, name: path.basename(f.root), root: f.root, choices: { hidden: f.hidden, afterLock: f.afterLock, keepDir: f.keepDir, keepVersions: f.keepVersions, docs: f.docs, openIn: f.openIn || 'beside' }, summary });
       }
     }
     return {
@@ -126,13 +128,29 @@ export async function register({ stores, broadcast, electron }) {
     debounced.set(key, setTimeout(fn, 1500));
   };
 
+  /** Something moved in a working folder: the copy written back once the program has finished. A file still being written is tried again. */
+  function noteOpen(full, tries = 0) {
+    const dest = locker.openCopyFor(full);
+    if (!dest) return;
+    later(`open:${dest}`, () => locker.saveOpen(dest).then((r) => {
+      if (r.changed) broadcast('locker:changed', { saved: true });
+    }).catch((err) => {
+      if (err?.code === 'ENOENT') return;
+      if ((err?.code === 'EBUSY' || err?.code === 'EPERM' || err?.code === 'EACCES') && tries < 20) noteOpen(full, tries + 1);
+      else broadcast('locker:changed', { problem: err?.message || String(err) });
+    }));
+  }
+
   function startWatching() {
     stopWatching();
     if (!locker.isOpen()) return;
     locker.folders().then((list) => {
       for (const f of list) {
         try {
-          const w = fs.watch(f.root, { recursive: true }, () => later(f.id, () => sweep(f.id)));
+          const w = fs.watch(f.root, { recursive: true }, (_e, name) => {
+            if (name && name.split(/[\\/]/).includes(OPEN_DIR)) noteOpen(path.join(f.root, name));
+            else later(f.id, () => sweep(f.id));
+          });
           w.on('error', () => {});
           watchers.set(f.id, w);
         } catch {
@@ -143,10 +161,7 @@ export async function register({ stores, broadcast, electron }) {
     try {
       fs.mkdirSync(path.join(dir, 'open'), { recursive: true });
       openWatcher = fs.watch(path.join(dir, 'open'), { recursive: true }, (_e, name) => {
-        if (!name) return;
-        const full = path.join(dir, 'open', name);
-        if (!locker.isOpenCopy(full)) return;
-        later(`open:${full}`, () => locker.saveOpen(full).then((r) => { if (r.changed) broadcast('locker:changed', { saved: true }); }).catch((err) => broadcast('locker:changed', { problem: err?.message || String(err) })));
+        if (name) noteOpen(path.join(dir, 'open', name));
       });
       openWatcher.on('error', () => {});
     } catch {
@@ -172,16 +187,45 @@ export async function register({ stores, broadcast, electron }) {
   }
 
   async function doLock(reason) {
-    await locker.lock();
+    const { left } = await locker.lock();
     stopLockTimer();
     stopWatching();
     await publish();
-    broadcast('locker:changed', { locked: reason });
+    broadcast('locker:changed', { locked: reason, left });
   }
 
   // Locks with the computer: on sleep and when Windows locks.
-  electron.powerMonitor?.on?.('suspend', () => { doLock('sleep').catch(() => {}); });
-  electron.powerMonitor?.on?.('lock-screen', () => { doLock('screen').catch(() => {}); });
+  powerMonitor.on('suspend', () => { doLock('sleep').catch(() => {}); });
+  powerMonitor.on('lock-screen', () => { doLock('screen').catch(() => {}); });
+
+  // Copies whose program has closed are cleared as soon as it has. While the
+  // locker is locked this also clears what a program was still holding.
+  const shownInWindow = (file) => windows().some((w) => {
+    try {
+      return !w.isDestroyed() && decodeURIComponent(w.webContents.getURL()).includes(file);
+    } catch {
+      return false;
+    }
+  });
+  let reaping = false;
+  const reaper = setInterval(() => {
+    if (reaping || !locker.hasOpenCopies()) return;
+    reaping = true;
+    locker.reapClosed({ shown: shownInWindow })
+      .then((closed) => { if (closed.length) broadcast('locker:changed', { closed }); })
+      .catch(() => {})
+      .finally(() => { reaping = false; });
+  }, 3000);
+  reaper.unref?.();
+
+  // Quitting is a lock too: changes written back and copies removed before Office goes.
+  let quitting = false;
+  electron.on?.('before-quit', (e) => {
+    if (quitting || !locker.hasOpenCopies()) return;
+    quitting = true;
+    e.preventDefault();
+    Promise.race([doLock('quit'), new Promise((r) => { setTimeout(r, 8000); })]).catch(() => {}).finally(() => electron.quit());
+  });
 
   const touch = () => { if (locker.isOpen()) startLockTimer(); };
 

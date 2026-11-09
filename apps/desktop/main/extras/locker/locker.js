@@ -7,10 +7,12 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { createKeys, writeJsonAtomic, FOLDER_KEYS, passwordKey, newKdf } from './keys.js';
 import { createFolder, wipeFile, MODE_SHARED, newHeader, sharedKey } from './folder.js';
-import { LockerError, openLocked, readHeader, MODE_FOLDER } from './format.js';
+import { LockerError, openLocked, readHeader, fileHash, MODE_FOLDER } from './format.js';
 import { sealFile, writePlainFrom, sweepWorking } from './place.js';
+import { OPEN_DIR } from './rules.js';
+import { makeWorkingDir, isHeld as programHolds, wipeWorking, findWorkingDirs } from './working.js';
 
-export const DEFAULT_CHOICES = { hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3, docs: 'rutba' };
+export const DEFAULT_CHOICES = { hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3, docs: 'rutba', openIn: 'beside' };
 
 /** What a person may set for a folder, and nothing else. */
 function cleanChoices(c = {}) {
@@ -20,6 +22,7 @@ function cleanChoices(c = {}) {
   if (typeof c.keepDir === 'string' || c.keepDir === null) out.keepDir = c.keepDir;
   if (Number.isInteger(c.keepVersions) && c.keepVersions >= 1 && c.keepVersions <= 3) out.keepVersions = c.keepVersions;
   if (c.docs === 'rutba' || c.docs === 'own') out.docs = c.docs;
+  if (c.openIn === 'beside' || c.openIn === 'profile') out.openIn = c.openIn;
   return out;
 }
 
@@ -35,7 +38,12 @@ export function createLocker({ dir, cost, hooks = null }) {
   const stageDir = path.join(dir, 'stage');
   const openDir = path.join(dir, 'open');
   const queues = new Map();
-  const openFiles = new Map(); // working path -> { folderId, rel, sha256 }
+  const openFilesRecord = path.join(dir, 'open.json');
+  const openFiles = new Map(); // working path -> { path, sub, folderId, rel, sha256, seen }
+  const isHeld = hooks?.isHeld || programHolds;
+
+  /** Kept on disk before a plain copy exists, so a crash can always be cleaned up after. */
+  const recordOpenFiles = () => writeJsonAtomic(openFilesRecord, [...openFiles.values()]);
 
   async function state() {
     try {
@@ -80,6 +88,39 @@ export function createLocker({ dir, cost, hooks = null }) {
 
   const withFolder = (id, fn) => queued(id, async () => fn(await folderEngine(await folderRecord(id))));
 
+  async function changedSince(e) {
+    try {
+      return (await fileHash(e.path)).sha256 !== e.sha256;
+    } catch (err) {
+      // Gone is not changed; a file that cannot be read may well be.
+      return err.code !== 'ENOENT';
+    }
+  }
+
+  /** A copy's changes written back and the copy removed. A copy that could not be written back stays, to be tried again. */
+  async function finishOpen(e) {
+    if (await fsp.stat(e.path).then(() => true, () => false)) {
+      try {
+        await api.saveOpen(e.path);
+      } catch {
+        return false;
+      }
+    }
+    if (!(await wipeWorking(e.sub))) return false;
+    openFiles.delete(path.resolve(e.path));
+    await recordOpenFiles().catch(() => {});
+    return true;
+  }
+
+  /** The copies of a file or folder that is leaving the locker: changes saved, copies removed. One a program holds is cleared at the next unlock. */
+  async function closeCopies(which) {
+    for (const [key, e] of [...openFiles.entries()]) {
+      if (!which(e)) continue;
+      if (e.sha256) await finishOpen(e);
+      if (openFiles.delete(key)) await recordOpenFiles().catch(() => {});
+    }
+  }
+
   const api = {
     exists: keys.exists,
     isOpen: keys.isOpen,
@@ -96,30 +137,111 @@ export function createLocker({ dir, cost, hooks = null }) {
     async unlock(how) {
       await keys.unlock(how);
       await sweepWorking(stageDir).catch(() => {});
+      await api.recoverOpenFiles().catch(() => {});
       await api.healFolderKeys().catch(() => {});
     },
 
-    /** Locked: keys forgotten, every temporary plain copy wiped. */
+    /**
+     * Locked: changes in the plain copies written back while the keys are still
+     * here, then the keys forgotten and the copies wiped. Answers the files
+     * that could not be removed: a program still has them, or they hold changes
+     * that could not be written back.
+     */
     async lock() {
+      if (keys.isOpen()) {
+        for (const e of [...openFiles.values()]) {
+          if (e.sha256) await api.saveOpen(e.path).catch(() => {});
+        }
+      }
       keys.lock();
-      await api.wipeOpenFiles();
+      return api.wipeOpenFiles();
     },
 
-    /** Temporary unlocked copies, gone. */
+    /** Temporary unlocked copies, gone, except any holding work that is not in the locked file yet. */
     async wipeOpenFiles() {
-      openFiles.clear();
-      let names = [];
-      try {
-        names = await fsp.readdir(openDir);
-      } catch {
-        return;
+      const left = [];
+      for (const [key, e] of [...openFiles.entries()]) {
+        if (e.sha256 && await changedSince(e)) {
+          left.push(e.rel);
+          continue;
+        }
+        if (await wipeWorking(e.sub)) openFiles.delete(key);
+        else left.push(e.rel);
       }
-      for (const sub of names) {
+      await recordOpenFiles().catch(() => {});
+      const known = new Set([...openFiles.values()].map((e) => path.resolve(e.sub)));
+      for (const sub of await fsp.readdir(openDir).catch(() => [])) {
         const d = path.join(openDir, sub);
-        const files = await fsp.readdir(d).catch(() => []);
-        for (const f of files) await wipeFile(path.join(d, f));
-        await fsp.rm(d, { recursive: true, force: true }).catch(() => {});
+        if (!known.has(path.resolve(d))) await wipeWorking(d);
       }
+      return { left };
+    },
+
+    /**
+     * After a crash, or a lock that could not finish: changes found in a plain
+     * copy become the file's next version, and the copy is removed. Whatever
+     * else is in a working folder is not a person's file.
+     */
+    async recoverOpenFiles() {
+      let saved = [];
+      try {
+        saved = JSON.parse(await fsp.readFile(openFilesRecord, 'utf8'));
+      } catch {
+        // Nothing was open.
+      }
+      for (const e of saved) if (!openFiles.has(path.resolve(e.path))) openFiles.set(path.resolve(e.path), e);
+      const list = (await state()).folders;
+      for (const [key, e] of [...openFiles.entries()]) {
+        const inLocker = list.some((f) => f.id === e.folderId);
+        if (!e.sha256 || !inLocker) {
+          if (await wipeWorking(e.sub)) openFiles.delete(key);
+          continue;
+        }
+        if (await isHeld(e.path)) {
+          e.seen = true;
+          continue;
+        }
+        await finishOpen(e);
+      }
+      await recordOpenFiles().catch(() => {});
+      const known = new Set([...openFiles.values()].map((e) => path.resolve(e.sub)));
+      for (const f of list) {
+        for (const d of await findWorkingDirs(f.root)) {
+          if (!known.has(path.resolve(d))) await wipeWorking(d);
+        }
+      }
+    },
+
+    /**
+     * Copies whose program has let go, written back and removed. A copy counts
+     * as closed only once it has been seen in use: a program that reads a file
+     * and lets go at once (Notepad) is still showing it, and its copy waits for
+     * the lock.
+     *
+     * @param {{ shown?: (file: string) => boolean }} o  whether an Office window has the file
+     * @returns {Promise<string[]>} the files closed
+     */
+    async reapClosed({ shown = () => false } = {}) {
+      const closed = [];
+      for (const [key, e] of [...openFiles.entries()]) {
+        if (!e.sha256) continue;
+        const inUse = shown(e.path) || await isHeld(e.path);
+        if (inUse) {
+          e.seen = true;
+          continue;
+        }
+        if (!keys.isOpen()) {
+          // Locked meanwhile: unchanged copies can go, changed ones wait for the keys.
+          if (!(await changedSince(e)) && await wipeWorking(e.sub)) {
+            openFiles.delete(key);
+            closed.push(e.rel);
+          }
+        } else if (e.seen && await finishOpen(e)) {
+          closed.push(e.rel);
+        }
+      }
+      if (closed.length) await recordOpenFiles().catch(() => {});
+      return closed;
     },
 
     async changePassword(current, next) {
@@ -216,6 +338,7 @@ export function createLocker({ dir, cost, hooks = null }) {
      * folder stays in the locker so nothing is left unreachable.
      */
     async removeFolder(id) {
+      await closeCopies((e) => e.folderId === id);
       return withFolder(id, async (folder) => {
         const failed = [];
         for (const e of await folder.scan()) {
@@ -244,14 +367,17 @@ export function createLocker({ dir, cost, hooks = null }) {
     lockOne: (id, rel, opts) => withFolder(id, (f) => f.lockOne(rel, opts)),
     exportCopy: (id, rel, dest, opts) => withFolder(id, (f) => f.exportCopy(rel, dest, opts)),
     /** Back to a plain file for good: it stays plain, even if the rules say to lock it. */
-    unlockForGood: (id, rel) => withFolder(id, async (f) => {
-      const out = await f.unlockForGood(rel);
-      const s = await state();
-      const rec = s.folders.find((x) => x.id === id);
-      rec.released = [...new Set([...(rec.released || []), rel])];
-      await saveState(s);
-      return out;
-    }),
+    unlockForGood: async (id, rel) => {
+      await closeCopies((e) => e.folderId === id && e.rel === rel);
+      return withFolder(id, async (f) => {
+        const out = await f.unlockForGood(rel);
+        const s = await state();
+        const rec = s.folders.find((x) => x.id === id);
+        rec.released = [...new Set([...(rec.released || []), rel])];
+        await saveState(s);
+        return out;
+      });
+    },
     versions: (id, rel) => withFolder(id, (f) => f.versions(rel)),
     restore: (id, rel, version) => withFolder(id, (f) => f.restore(rel, version)),
     readRules: (id) => withFolder(id, (f) => f.readRules()),
@@ -298,21 +424,33 @@ export function createLocker({ dir, cost, hooks = null }) {
     },
 
     /**
-     * A temporary plain copy of a locked file for an app to open, in the
-     * profile's working folder, wiped on lock. Answers the path.
+     * A temporary plain copy of a locked file for a program to open, in a
+     * hidden folder beside the file, or in the profile if the person chose
+     * that for this folder. Answers the path.
      */
     async openPlain(id, rel) {
+      const rec = await folderRecord(id);
       return withFolder(id, async (folder) => {
         const e = await folder.entryFor(rel);
         if (!e || (e.state !== 'locked')) throw new LockerError('state', 'That file is not locked.');
-        const sub = path.join(openDir, crypto.randomBytes(8).toString('hex'));
-        await fsp.mkdir(sub, { recursive: true });
+        const top = rec.openIn === 'profile' ? openDir : path.join(path.dirname(path.join(rec.root, ...e.rel.split('/'))), OPEN_DIR);
+        const sub = await makeWorkingDir(top);
         const dest = path.join(sub, e.name);
+        const key = path.resolve(dest);
+        const entry = { path: dest, sub, folderId: id, rel: e.rel, sha256: null, seen: false };
+        openFiles.set(key, entry);
         const o = await folder.opener(e);
         try {
+          await recordOpenFiles();
           const done = await writePlainFrom(o, dest);
-          openFiles.set(path.resolve(dest), { folderId: id, rel: e.rel, sha256: done.sha256 });
+          entry.sha256 = done.sha256;
+          await recordOpenFiles();
           return { path: dest, size: done.size };
+        } catch (err) {
+          openFiles.delete(key);
+          await wipeWorking(sub);
+          await recordOpenFiles().catch(() => {});
+          throw err;
         } finally {
           await o.close();
         }
@@ -325,17 +463,28 @@ export function createLocker({ dir, cost, hooks = null }) {
       const open = openFiles.get(key);
       if (!open) throw new LockerError('state', 'That file was not opened from the locker.');
       return withFolder(open.folderId, async (folder) => {
-        const { fileHash } = await import('./format.js');
         const h = await fileHash(dest);
         if (h.sha256 === open.sha256) return { changed: false };
         const sealed = await folder.saveFrom(open.rel, dest);
-        openFiles.set(key, { ...open, sha256: sealed.sha256 });
+        open.sha256 = sealed.sha256;
+        await recordOpenFiles();
         return { changed: true, ...sealed };
       });
     },
 
     /** Whether a path is one of the working copies. */
     isOpenCopy: (p) => openFiles.has(path.resolve(p)),
+
+    /** The working copy a path belongs to, the path being anything in its folder: programs save by writing a new file and renaming it over the old. */
+    openCopyFor(p) {
+      const full = path.resolve(p);
+      for (const e of openFiles.values()) {
+        if (isInside(full, path.resolve(e.sub))) return e.path;
+      }
+      return null;
+    },
+
+    hasOpenCopies: () => openFiles.size > 0,
 
     /** What a folder's state amounts to, for its row. */
     async summary(id) {

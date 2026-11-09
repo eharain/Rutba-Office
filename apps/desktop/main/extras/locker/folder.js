@@ -21,7 +21,7 @@ import path from 'node:path';
 import { newHeader, readHeader, openLocked, verifyLocked, fileHash, LockerError, HEADER_SIZE, MODE_FOLDER, MODE_SHARED } from './format.js';
 import { sealFile, writePlain, writePlainFrom, sweepWorking, isWorkingFile } from './place.js';
 import { sealPieces, openPieces, listsIn, readItem } from './pieces.js';
-import { parseRules, decide, isLockerOwn } from './rules.js';
+import { parseRules, decide, isLockerOwn, OPEN_DIR } from './rules.js';
 
 export const OLD_DIR = '.rlocker-old';
 export const LARGE = 50 * 1024 * 1024;
@@ -87,7 +87,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
         const p = path.join(dir, e.name);
         const r = rel ? `${rel}/${e.name}` : e.name;
         if (e.isDirectory()) {
-          if (e.name === OLD_DIR) continue;
+          if (e.name === OLD_DIR || e.name === OPEN_DIR) continue;
           if (e.name.endsWith(PIECES_EXT)) {
             pieceDirs.push({ path: p, rel: r });
             continue;

@@ -20,8 +20,11 @@ const EXCLUDED = [
   { re: /^\.dropbox(\.attr)?$/i, why: 'A sync drive\'s own file' },
 ];
 
+/** The hidden folder beside a file that holds its plain copy while a program has it open. */
+export const OPEN_DIR = '.rutba-open';
+
 /** Names that are the Locker's own and are never looked at as a person's file. */
-export const isLockerOwn = (name) => name === '.rutbalocker' || name === '.rutbalocker-keys' || name === '.rlocker-old' || name.endsWith('.rlock') || name.endsWith('.rlock.d') || /^\.rl-[0-9a-f]{24}\.part$/.test(name);
+export const isLockerOwn = (name) => name === OPEN_DIR || name === '.rutbalocker' || name === '.rutbalocker-keys' || name === '.rlocker-old' || name.endsWith('.rlock') || name.endsWith('.rlock.d') || /^\.rl-[0-9a-f]{24}\.part$/.test(name);
 
 function toRegex(glob) {
   let re = '';

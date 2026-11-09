@@ -284,6 +284,16 @@ function Choices({ c, set, keepDirPick, showWhat }) {
         </div>
       ) : null}
       <Choice
+        legend={t('While a file is open')}
+        name="openin"
+        value={c.openIn || 'beside'}
+        onChange={(openIn) => set({ ...c, openIn })}
+        options={[
+          { value: 'beside', title: t('Beside the file'), hint: t('In a hidden folder next to it, written back as you save and removed when you close it'), suggested: true },
+          { value: 'profile', title: t('In Office\'s own folder'), hint: t('Away from this folder, for a folder a cloud drive uploads') },
+        ]}
+      />
+      <Choice
         legend={t('Versions kept of each file')}
         name="versions"
         value={String(c.keepVersions)}
@@ -300,7 +310,7 @@ function Choices({ c, set, keepDirPick, showWhat }) {
 /** Adding a folder: the choices asked once, with a suggestion on each. */
 function AddFolder({ shell, root, onClose, onAdded }) {
   const toast = useToast();
-  const [c, set] = useState({ what: 'every', types: '.pdf, .docx, .xlsx, .jpg', hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3 });
+  const [c, set] = useState({ what: 'every', types: '.pdf, .docx, .xlsx, .jpg', hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3, openIn: 'beside' });
   const [busy, setBusy] = useState(false);
   const [needPassword, setNeedPassword] = useState(false);
   const [password, setPassword] = useState('');
@@ -315,7 +325,7 @@ function AddFolder({ shell, root, onClose, onAdded }) {
     setBusy(true);
     setError(null);
     try {
-      const out = await shell.locker.addFolder({ root, password: password || null, choices: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions } });
+      const out = await shell.locker.addFolder({ root, password: password || null, choices: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions, openIn: c.openIn } });
       if (c.what === 'types') {
         const lines = c.types.split(',').map((s) => s.trim()).filter(Boolean).map((s) => (s.startsWith('.') ? `*${s}` : s));
         await shell.locker.writeRules({ id: out.id, text: `# What to lock in this folder, in the wording of .gitignore.\n${lines.join('\n')}\n` });
@@ -349,7 +359,7 @@ function AddFolder({ shell, root, onClose, onAdded }) {
         {cloud ? (
           <div className="lk-warn" role="note">
             <Icon name="warn" size={16} />
-            <span>{t('This folder is in {cloud}, which keeps earlier versions of each file. Those earlier plain versions stay there after locking; clear them in {cloud}\'s version history.', { cloud })}</span>
+            <span>{t('This folder is in {cloud}, which keeps earlier versions of each file. Those earlier plain versions stay there after locking; clear them in {cloud}\'s version history. While a file is open beside itself, {cloud} can upload its plain copy too.', { cloud })}</span>
           </div>
         ) : null}
         {needPassword ? (
@@ -373,7 +383,7 @@ function FolderSettings({ shell, folder, onClose }) {
   };
   const save = async () => {
     try {
-      await shell.locker.setChoices({ id: folder.id, patch: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions } });
+      await shell.locker.setChoices({ id: folder.id, patch: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions, openIn: c.openIn } });
       onClose();
     } catch (err) {
       setError(said(err));
@@ -547,9 +557,14 @@ export default function Locker({ app, shell }) {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => shell.on('locker:changed', (e) => {
+    if (e?.left?.length) toast?.(t('Still open in another program, so not cleared yet: {files}. Close it to clear the temporary copy.', { files: e.left.join(', ') }), { tone: 'warn' });
+  }), [shell, toast]);
+
   useEffect(() => {
     if (!state?.open) return;
-    const off = shell.on('locker:changed', () => {
+    const off = shell.on('locker:changed', (e) => {
+      if (e?.problem) toast?.(e.problem, { tone: 'error' });
       if (current) shell.locker.list({ id: current }).then(setEntries).catch(() => {});
       refresh();
     });
