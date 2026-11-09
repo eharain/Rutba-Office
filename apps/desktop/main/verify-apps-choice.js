@@ -22,7 +22,8 @@ export async function verifyAppsChoice(h) {
     await home.webContents.reload();
     await until(() => js(`document.querySelectorAll('.home-card').length > 0`), 'the launcher', 10000);
     const card = await ok(until(() => js(`Boolean(document.querySelector('.home-choose'))`), 'the first-start card', 5000));
-    const tiles = () => js(`[...document.querySelectorAll('.home-card')].map((c) => c.dataset.app)`);
+    // The Locker's tile is part of every build and is not one of the apps a person chooses.
+    const tiles = () => js(`[...document.querySelectorAll('.home-card:not([data-app="locker"])')].map((c) => c.dataset.app)`);
     const all = await tiles();
     check('apps choice: on first start the eight Office apps are on, Image, Video and Recorder are not, and a card offers to choose',
       card && all.length === 8 && all.includes('sheets') && all.includes('pictures') && !all.includes('image') && !all.includes('video') && !all.includes('recorder') && !all.includes('talk'), JSON.stringify({ card, all }));
@@ -67,7 +68,7 @@ export async function verifyAppsChoice(h) {
     await until(() => js(`Boolean(document.querySelector('.apps-chooser'))`), 'Choose apps again', 4000).catch(() => {});
     await js(`document.querySelector('.apps-all')?.click(), 1`);
     await js(`document.querySelector('.apps-done')?.click(), 1`);
-    const back = await ok(until(() => js(`document.querySelectorAll('.home-card').length === ${APP_ORDER.length}`), 'every app back', 4000));
+    const back = await ok(until(() => js(`document.querySelectorAll('.home-card:not([data-app="locker"])').length === ${APP_ORDER.length}`), 'every app back', 4000));
     const addonsKept = await js(`window.rutbaOffice.store.get({ key: 'apps.choice', fallback: null }).then((c) => c && c.addons)`);
     check('apps choice: a new launcher window keeps the choice without asking again, and All apps turns every app on, keeping the add-ons',
       kept.length === OFFICE && !kept.includes('sheets') && kept.includes('recorder') && noCard && back && JSON.stringify(addonsKept) === '["ai"]', JSON.stringify({ kept, noCard, back, addonsKept }));

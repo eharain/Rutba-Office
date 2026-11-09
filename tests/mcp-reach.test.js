@@ -333,6 +333,21 @@ test('with Rutba Office closed, the mail tools say so, and one that needs a pres
   assert.match(textOf(send), /needs the person to see it.*nothing was done and nothing waits/);
 });
 
+test('the channel: tools turned off and on, or Office closed, with an AI app still connected: its next call finds the new key, or that Office has closed', async () => {
+  const dir = scratch();
+  const server = createChannelServer({ folder: dir, handle: async (method) => method });
+  await server.start();
+  const client = createChannelClient({ folder: dir, timeoutMs: 5000 });
+  assert.equal(await client.request('first'), 'first');
+  await server.stop();
+  await assert.rejects(client.request('while off'), (err) => err.notRunning === true);
+  await server.start();
+  assert.equal(await client.request('second'), 'second', 'no restart of the AI app');
+  await server.stop();
+  await assert.rejects(client.request('after closing'), (err) => err.notRunning === true);
+  client.close();
+});
+
 test('the channel: the running copy answers its own profile\'s tools with the key it wrote, and nobody without it', async () => {
   const dir = scratch();
   const server = createChannelServer({ folder: dir, handle: async (method, params) => ({ method, echo: params.n }) });

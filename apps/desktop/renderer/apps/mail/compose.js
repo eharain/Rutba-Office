@@ -93,6 +93,9 @@ function AddressInput({ value, onChange, shell, placeholder, autoFocus }) {
   );
 }
 
+/** What a message says, to tell whether it has changed since it was opened. */
+const sameness = (d) => JSON.stringify([d.to || '', d.cc || '', d.bcc || '', d.subject || '', d.text || '', (d.attachments || []).length, d.accountId || '']);
+
 /**
  * Where the message is written (`place`): 'docked' in the reading pane, in
  * place of the message read there, as Outlook writes a reply; 'full', the
@@ -104,7 +107,7 @@ function AddressInput({ value, onChange, shell, placeholder, autoFocus }) {
  * between docked and full, and the window remembers the choice;
  * `onPopOut(draft)` hands it, as written, to a window of its own.
  */
-export default function Compose({ draft, accounts, accountId, onAccount, onChange, onClose, onSend, onSaveDraft, shell, toast, identities = [], onCertificates, place = 'docked', onPlace = null, onPopOut = null }) {
+export default function Compose({ draft, accounts, accountId, onAccount, onChange, onClose, onSend, onSaveDraft, shell, toast, identities = [], onCertificates, place = 'docked', onPlace = null, onPopOut = null, handle = null, onShut = null }) {
   const full = place !== 'docked';
   const bodyRef = useRef(null);
   const [rich, setRich] = useState(draft.rich !== false);
@@ -179,6 +182,22 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
       accountId,
     };
   }, [draft, rich, accountId]);
+
+  // What was opened, once the editor is seeded (the effect above runs first), and
+  // the window's way to ask for the message as it stands and whether it changed.
+  const opened = useRef(null);
+  useEffect(() => {
+    opened.current = sameness(collect());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!handle) return undefined;
+    handle.current = () => {
+      const now = collect();
+      return { draft: now, changed: sameness(now) !== opened.current };
+    };
+    return () => { handle.current = null; };
+  }, [handle, collect]);
 
   // Plain text and back keep what was typed: the editor's words go into the
   // plain body, and the plain body seeds the editor again.
@@ -401,6 +420,9 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
 
   const popOut = onPopOut ? <Button icon="window" label={t('Pop out')} className="ml-compose-popout" title={t('Write it in a window of its own')} onClick={() => onPopOut(collect())} /> : null;
 
+  // Close: what was changed is kept in Drafts (Discard is the one that lets it go), and the place is left empty.
+  const shut = onShut ? <Button icon="close" title={t('Close')} className="ml-compose-close" onClick={onShut} /> : null;
+
   if (place === 'docked') {
     return (
       <div className="ml-compose ml-compose-docked" role="region" aria-label={title}>
@@ -410,6 +432,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
           {popOut}
           {onPlace ? <Button icon="maximize" label={t('Full view')} className="ml-compose-full" title={t('Write it in the whole window')} onClick={() => switchView('full')} /> : null}
           {buttons}
+          {shut}
         </div>
         <div className="ml-compose-page-body">{form}</div>
       </div>
@@ -424,6 +447,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
         {popOut}
         {onPlace && place === 'full' ? <Button icon="restore" label={t('Smaller')} className="ml-compose-small" title={t('Write it in the reading pane')} onClick={() => switchView('docked')} /> : null}
         {buttons}
+        {shut}
       </div>
       <div className="ml-compose-page-body">{form}</div>
     </div>

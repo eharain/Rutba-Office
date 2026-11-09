@@ -38,6 +38,7 @@ export function createChannelServer({ folder, handle, pid = process.pid }) {
   const file = path.join(folder, CHANNEL_FILE);
   let server = null;
   let key = null;
+  const sockets = new Set();
 
   const same = (given) => {
     const a = Buffer.from(String(given || ''));
@@ -46,6 +47,8 @@ export function createChannelServer({ folder, handle, pid = process.pid }) {
   };
 
   const onConnection = (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
     socket.setEncoding('utf8');
     let buffered = '';
     const reply = (obj) => { if (!socket.destroyed) socket.write(`${JSON.stringify(obj)}\n`); };
@@ -104,6 +107,8 @@ export function createChannelServer({ folder, handle, pid = process.pid }) {
         /* already gone */
       }
       key = null;
+      // An AI app still connected goes too, so its next call finds this run's key, or that Office has closed.
+      for (const c of sockets) c.destroy();
       await new Promise((resolve) => s.close(() => resolve()));
     },
     listening: () => Boolean(server),
@@ -119,6 +124,7 @@ export function createChannelClient({ folder, timeoutMs = 120_000, isAlive = nul
   const file = path.join(folder, CHANNEL_FILE);
   let socket = null;
   let connecting = null;
+  let latest = null;
   let buffered = '';
   let next = 1;
   const waiting = new Map();
@@ -127,6 +133,7 @@ export function createChannelClient({ folder, timeoutMs = 120_000, isAlive = nul
   const drop = (err) => {
     socket = null;
     connecting = null;
+    buffered = '';
     for (const [, w] of waiting) w.reject(err || notRunning());
     waiting.clear();
   };
@@ -148,10 +155,12 @@ export function createChannelClient({ folder, timeoutMs = 120_000, isAlive = nul
     if (!kept?.where || !kept?.key) return Promise.reject(notRunning());
     connecting = new Promise((resolve, reject) => {
       const s = net.connect(kept.where);
+      latest = s;
       s.setEncoding('utf8');
       s.once('connect', () => { socket = s; s.key = kept.key; connecting = null; resolve(s); });
-      s.once('error', () => { drop(); reject(notRunning()); });
-      s.on('close', () => drop());
+      // An old connection's last events come late, and must not end the one made since.
+      s.once('error', () => { if (latest === s) drop(); reject(notRunning()); });
+      s.on('close', () => { if (latest === s) drop(); });
       s.on('data', (chunk) => {
         buffered += chunk;
         let at = buffered.indexOf('\n');

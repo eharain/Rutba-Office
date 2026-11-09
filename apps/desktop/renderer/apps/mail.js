@@ -101,7 +101,18 @@ export default function Mail({ app, shell }) {
   const [plain, setPlain] = useState(false);
   const [progress, setProgress] = useState(null);
   const [dialog, setDialog] = useState(() => (new URLSearchParams(location.search).has('import') ? { kind: 'import' } : null));
-  const [compose, setCompose] = useState(null);
+  const [compose, updateCompose] = useState(null);
+  // Each message opened to write gets a form of its own (composeKey): the body
+  // is seeded once, so a form reused for another draft kept the last one's words
+  // under the new one's recipients. updateCompose is for the message already there.
+  const composeKey = useRef(0);
+  const setCompose = useCallback((next) => {
+    composeKey.current += 1;
+    updateCompose(next);
+  }, []);
+  const composeOpen = useRef(null);
+  const editAsked = useRef(0);
+  const selectedWas = useRef(null);
   // A message is written docked in the reading pane or in the whole window,
   // as last chosen (a choice of the whole window before is kept as one); or,
   // popped out, in a window of its own.
@@ -359,19 +370,30 @@ export default function Mail({ app, shell }) {
   // Opening a message: the body and the report on it come together, because
   // showing the body first and the warning a moment later is exactly backwards.
   useEffect(() => {
+    const selectedNow = selected ? JSON.stringify([selected.accountId, selected.folder, selected.id]) : null;
+    const moved = selectedNow !== selectedWas.current;
+    selectedWas.current = selectedNow;
+    const formWhenAsked = composeKey.current;
     if (!selected) {
       setMessage(null);
       setInsight(null);
+      // A draft's form goes with the draft when the folder is left. A new message being written stays.
+      if (moved && composeOpen.current?.()?.draft.replaces) leaveFormRef.current?.();
       return;
     }
     const { accountId: a, folder: f, id } = selected;
     setRemote(false);
+    let current = true;
     Promise.all([shell.mail.message({ accountId: a, folder: f, id }), shell.mail.insight({ accountId: a, folder: f, id })])
       .then(([m, i]) => {
+        // Another message was clicked while this one was on its way.
+        if (!current) return;
         setMessage(m);
         setInsight(i);
         // A draft is opened to be finished, not read (owner, 2026-10-20).
         if (m && !m.readOnly && isDraftsFolder(a, f)) editDraftRef.current?.({ accountId: a, folder: f, id }, m);
+        // Anything else clicked (Sent, the Inbox) is there to be read, in the place the form was holding.
+        else if (moved && formWhenAsked === composeKey.current) leaveFormRef.current?.();
         if (m?.unread && !m.readOnly) {
           shell.mail.flag({ accountId: a, folder: f, ids: [id], patch: { unread: false } }).then(() => {
             setList((current) => ({
@@ -383,6 +405,7 @@ export default function Mail({ app, shell }) {
         }
       })
       .catch((err) => toast(err.message, { tone: 'bad' }));
+    return () => { current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, smimeTick]);
 
@@ -790,6 +813,7 @@ export default function Mail({ app, shell }) {
         if (draft.replaces?.id) {
           await shell.mail.delete({ ...draft.replaces, ids: [draft.replaces.id] }).catch(() => {});
           refreshList();
+          setSelected(null);
         }
         if (at) toast(t('Scheduled for {when}', { when: new Date(at).toLocaleString() }), { tone: 'good', ms: 6000 });
         return item;
@@ -878,7 +902,44 @@ export default function Mail({ app, shell }) {
    * attachments (written to temporary files, as a forward's are), with the
    * draft it came from, which saving or sending replaces.
    */
+  /**
+   * Leaving what is being written for something else: what was changed is kept
+   * in Drafts, as Save draft keeps it, and so is a new message holding
+   * attachments, which nothing else would bring back. False if it could not be kept.
+   */
+  const keepWriting = useCallback(async (writing) => {
+    if (!writing?.changed && !(writing && !writing.draft.replaces && writing.draft.attachments?.length)) return true;
+    try {
+      await shell.mail.saveDraft({ accountId: writing.draft.accountId || accountId, draft: writing.draft, replaces: writing.draft.replaces || null });
+      toast(t('Saved to Drafts'), { tone: 'good' });
+      refreshList();
+      return true;
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+      return false;
+    }
+  }, [shell, accountId, refreshList, toast]);
+
+  const leaveForm = useCallback(async () => {
+    const writing = composeOpen.current?.();
+    if (!writing) return;
+    const asked = (editAsked.current += 1);
+    if (!(await keepWriting(writing))) return false;
+    if (asked === editAsked.current) setCompose(null);
+    return true;
+  }, [keepWriting, setCompose]);
+  const leaveFormRef = useRef(null);
+  leaveFormRef.current = leaveForm;
+
   const editDraft = useCallback(async (where, m) => {
+    const writing = composeOpen.current?.();
+    const from = writing?.draft.replaces;
+    // Already in the form (the message was read again): what is being typed stays.
+    if (from && from.accountId === where.accountId && from.folder === where.folder && from.id === where.id) return;
+    const asked = (editAsked.current += 1);
+    if (!(await keepWriting(writing))) return;
+    // Another message was clicked while that was being kept.
+    if (asked !== editAsked.current) return;
     const list = (v) => (Array.isArray(v) ? v : v ? [v] : []).map((x) => (typeof x === 'string' ? x : x?.name ? `${x.name} <${x.address}>` : x?.address || '')).filter(Boolean).join(', ');
     const attachments = [];
     for (const [index, a] of (m.attachments || []).entries()) {
@@ -893,6 +954,8 @@ export default function Mail({ app, shell }) {
         /* an attachment that cannot be read is left out, and the rest kept */
       }
     }
+    // Another draft was clicked while this one's attachments were being read.
+    if (asked !== editAsked.current) return;
     const id = String(m.messageId || '').startsWith('draft-') ? String(m.messageId).slice(6) : undefined;
     setCompose({
       id,
@@ -906,7 +969,7 @@ export default function Mail({ app, shell }) {
       accountId: isArchiveId(where.accountId) ? undefined : where.accountId,
       replaces: isArchiveId(where.accountId) ? null : where,
     });
-  }, [shell]);
+  }, [shell, keepWriting, setCompose]);
   const editDraftRef = useRef(null);
   editDraftRef.current = editDraft;
 
@@ -1547,12 +1610,20 @@ export default function Mail({ app, shell }) {
   const placeNow = composeAlone ? 'window' : composePlace === 'docked' && (alone || prefs.layout !== 'off') ? 'docked' : 'full';
   const composeView = compose ? (
     <Compose
+      key={composeKey.current}
+      handle={composeOpen}
       draft={compose}
       accounts={accounts}
       accountId={compose.accountId || (unified ? accounts[0]?.id : accountId)}
-      onAccount={(id) => setCompose((d) => ({ ...d, accountId: id }))}
-      onChange={setCompose}
-      onClose={() => setCompose(null)}
+      onAccount={(id) => updateCompose((d) => ({ ...d, accountId: id }))}
+      onChange={updateCompose}
+      onClose={() => {
+        setCompose(null);
+        if (!alone) setSelected(null);
+      }}
+      onShut={async () => {
+        if ((await leaveForm()) && !alone) setSelected(null);
+      }}
       onSend={doSend}
       place={placeNow}
       onPlace={composeAlone ? null : (next) => { setComposePlace(next); shell.store.set({ key: 'mail.composePlace', value: next }).catch(() => {}); }}
@@ -1561,6 +1632,8 @@ export default function Mail({ app, shell }) {
         await shell.mail.saveDraft({ accountId: draft.accountId || accountId, draft, replaces: draft.replaces || null });
         toast(t('Saved to Drafts'), { tone: 'good' });
         setCompose(null);
+        // Saving a draft replaces it, so the place does not go back to the one it was.
+        if (draft.replaces && !alone) setSelected(null);
         refreshList();
       }}
       shell={shell}
@@ -1592,6 +1665,7 @@ export default function Mail({ app, shell }) {
       safety={safety}
       onSafety={setSafety}
       onBlocked={safetyFirst}
+      onClose={alone ? null : () => setSelected(null)}
       onSource={async () => {
         setSourceView({ loading: true });
         try {

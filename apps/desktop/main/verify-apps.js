@@ -6035,7 +6035,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     const state = await win.webContents.executeJavaScript(`(() => ({
       notices: document.querySelectorAll('.home-notice').length,
       complaints: [...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent),
-      apps: document.querySelectorAll('.home-card').length,
+      apps: document.querySelectorAll('.home-card:not([data-app="locker"])').length,
     }))()`);
 
     // The endpoint may or may not exist yet. Either way the launcher must be

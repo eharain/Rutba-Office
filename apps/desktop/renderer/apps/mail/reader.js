@@ -41,6 +41,7 @@ export default function Reader({
   onSafety = null,
   onSource = null,
   onBlocked = null,
+  onClose = null,
 }) {
   const frameRef = useRef(null);
   const [height, setHeight] = useState(600);
@@ -103,6 +104,7 @@ export default function Reader({
           <Button icon="replyAll" title={t('Reply all')} onClick={onReplyAll} />
           <Button icon="forward" title={t('Forward')} onClick={onForward} />
           {onSource ? <Button icon="eye" title={t('View source: the whole message as it came')} className="ml-source-btn" onClick={onSource} /> : null}
+          {onClose ? <Button icon="close" title={t('Close')} className="ml-reader-close" onClick={onClose} /> : null}
         </div>
 
         {inJunk ? (

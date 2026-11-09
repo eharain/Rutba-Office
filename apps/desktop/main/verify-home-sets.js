@@ -51,7 +51,7 @@ export async function verifyHomeSets({ open, check, until, wait, errorsIn, captu
     js = (code) => home.webContents.executeJavaScript(code);
     await until(() => js(`document.querySelectorAll('.home-set').length === 2`), 'the two sets', 10000);
     await setChoice(all);
-    await until(() => js(`document.querySelectorAll('.home-card').length === ${APP_GROUPS.flatMap((g) => g.apps).length}`), 'every tile', 8000);
+    await until(() => js(`document.querySelectorAll('.home-card:not([data-app="locker"])').length === ${APP_GROUPS.flatMap((g) => g.apps).length}`), 'every tile', 8000);
 
     const wide = await settled(1400);
     const [o, s] = wide.sets;
@@ -70,7 +70,7 @@ export async function verifyHomeSets({ open, check, until, wait, errorsIn, captu
     await shot('home-sets-1000.png');
     await settled(1280);
 
-    const order = await js(`[...document.querySelectorAll('.home-set')].map((s) => [...s.querySelectorAll('.home-card')].map((c) => c.dataset.app))`);
+    const order = await js(`[...document.querySelectorAll('.home-set')].map((s) => [...s.querySelectorAll('.home-card:not([data-app="locker"])')].map((c) => c.dataset.app))`);
     check('home sets: each column has its apps in the registry\'s order', JSON.stringify(order) === JSON.stringify(APP_GROUPS.map((g) => g.apps)), JSON.stringify(order));
     const chips = await js(`[...document.querySelectorAll('.home-set')].map((s) => [...s.querySelectorAll('.home-template')].map((c) => c.textContent.trim()))`);
     check('home sets: each column has its own Start something: documents and templates in Office, record, live, video and picture in Studio',

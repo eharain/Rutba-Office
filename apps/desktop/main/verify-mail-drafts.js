@@ -176,6 +176,90 @@ export async function verifyMailDrafts(h) {
       laidOut(laidDocked) && laidOut(laidFull, { column: true }) && laidOut(laidAlone, { column: true }) && laidOut(laidNarrow ? { ...laidNarrow, overflowY: 0, gap: 0 } : null),
       JSON.stringify({ docked: laidDocked, narrow: laidNarrow, full: laidFull, window: laidAlone }));
 
+    // Clicking from one draft to another: each shows its own words, and neither takes the other's.
+    const flip = (who, mail) => ({ to: `${who} <${mail}>`, subject: `Flip ${who} ${stamp}`, text: `Words written for ${who}.`, html: `<p>Words written for ${who}.</p>` });
+    for (const d of [flip('Alex', 'alex@flip.example'), flip('Abadi', 'abadi@flip.example')]) await js(`window.rutbaOffice.mail.saveDraft({ accountId: ${JSON.stringify(accountId)}, draft: ${JSON.stringify(d)} })`);
+    await win.webContents.reload();
+    await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the account for the two drafts', 8000);
+    const form = () => js(`({ to: ${field('To')}, subject: ${field('Subject')}, body: document.querySelector('.ml-compose .ml-rich')?.textContent ?? null })`);
+    const showing = async (who) => {
+      let seen = null;
+      await until(async () => { const f = await form(); if (f.subject === `Flip ${who} ${stamp}` && f.body) seen = f; return Boolean(seen); }, `the form for ${who}`, 8000).catch(() => {});
+      return seen;
+    };
+    const stored = (who) => js(`window.rutbaOffice.mail.messages({ accountId: ${JSON.stringify(accountId)}, folder: 'Drafts', query: '', limit: 200 }).then(async (r) => { const m = (r.rows || r).find((x) => x.subject === ${JSON.stringify(`Flip ${who} ${stamp}`)}); return m ? window.rutbaOffice.mail.message({ accountId: ${JSON.stringify(accountId)}, folder: 'Drafts', id: m.id }) : null; }).then((m) => m?.text ?? null)`);
+    await until(async () => (await openDrafts()) && (await wait(400), await openRow('Flip Alex')), 'the first of the two drafts', 10000).catch(() => {});
+    const alexForm = await showing('Alex');
+    await openRow('Flip Abadi');
+    const abadiForm = await showing('Abadi');
+    check('mail drafts: clicking another draft shows that draft\'s own words under its own recipient, not the last one\'s',
+      /alex@flip/.test(alexForm?.to || '') && /written for Alex/.test(alexForm?.body || '') && /abadi@flip/.test(abadiForm?.to || '') && /written for Abadi/.test(abadiForm?.body || '') && !/Alex/.test(abadiForm?.body || ''),
+      JSON.stringify({ alexForm, abadiForm }));
+    await js(`(() => { const el = document.querySelector('.ml-compose .ml-rich'); el.focus(); document.execCommand('insertText', false, 'Added for Abadi. '); return 1; })()`);
+    await openRow('Flip Alex');
+    const backToAlex = await showing('Alex');
+    await until(async () => /Added for Abadi/.test((await stored('Abadi')) || ''), 'the change kept in Drafts', 8000).catch(() => {});
+    const flipKept = await stored('Abadi');
+    const alexStored = await stored('Alex');
+    check('mail drafts: a draft changed and clicked away from is kept in Drafts, and the other draft does not take its words',
+      /Added for Abadi/.test(flipKept || '') && /written for Abadi/.test(flipKept || '') && !/Abadi/.test(backToAlex?.body || '') && /written for Alex/.test(alexStored || '') && !/Abadi/.test(alexStored || ''),
+      JSON.stringify({ flipKept, backToAlex, alexStored }));
+
+    // Sent and the other folders are for reading: the form gives way to the message clicked.
+    const sentOne = (n) => ({ accountId, draft: { to: 'amina@work.example', subject: `Flip sent ${n} ${stamp}`, text: `Words already sent, ${n}.` }, holdSeconds: 0 });
+    for (const n of ['one', 'two']) await js(`window.rutbaOffice.mail.queue(${JSON.stringify(sentOne(n))})`);
+    await until(() => js(`window.rutbaOffice.mail.messages({ accountId: ${JSON.stringify(accountId)}, folder: 'Sent', limit: 200 }).then((r) => r.rows.filter((m) => (m.subject || '').startsWith('Flip sent') && m.subject.includes(${JSON.stringify(String(stamp))})).length === 2)`), 'the two sent messages', 15000).catch(() => {});
+    await win.webContents.reload();
+    await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the account for the sent messages', 8000);
+    const openSent = () => js(`(() => { const f = [...document.querySelectorAll('[title="Sent"]')].find((n) => n.textContent.trim().startsWith('Sent')); f?.click(); return Boolean(f); })()`);
+    const reading = (words) => until(() => js(`(() => { const r = document.querySelector('.ml-reader'); return !document.querySelector('.ml-compose') && Boolean(r) && r.textContent.includes(${JSON.stringify(words)}); })()`), `the message reading "${words}"`, 8000).then(() => true).catch(() => false);
+    const typeInForm = (words) => js(`(() => { const el = document.querySelector('.ml-compose .ml-rich'); el.focus(); document.execCommand('insertText', false, ${JSON.stringify(words)}); return 1; })()`);
+    const formGone = () => until(() => js(`!document.querySelector('.ml-compose')`), 'the form to go', 8000).then(() => true).catch(() => false);
+
+    await until(async () => (await openDrafts()) && (await wait(400), await openRow('Flip Alex')), 'the draft before Sent', 10000).catch(() => {});
+    await showing('Alex');
+    await typeInForm('Added before Sent. ');
+    await openSent();
+    const draftWent = await formGone();
+    const keptGoingToSent = await until(async () => { const t = await stored('Alex'); return /Added before Sent/.test(t || '') ? t : null; }, 'the change kept on the way to Sent', 8000).catch(() => null);
+    check('mail drafts: going to Sent takes the open draft away and keeps what was changed in it',
+      draftWent && Boolean(keptGoingToSent), JSON.stringify({ draftWent, keptGoingToSent }));
+    await until(() => openRow('Flip sent one'), 'the first sent message', 8000).catch(() => {});
+    const readsSent = await reading('Flip sent one');
+    await shot(win, 'mail-sent-reads');
+    check('mail drafts: a message clicked in Sent opens to read, with no form to write in', readsSent, `reader: ${await js(`document.querySelector('.ml-reader')?.textContent.slice(0, 120) ?? null`)}`);
+
+    // A form left open over Sent, by Reply: the next message clicked still opens to read, and the reply is kept.
+    await js(`document.querySelector('.ml-reader [title="Reply"], .ml-reader [data-tip="Reply"], [aria-label="Reply"]')?.click(), 1`);
+    await until(() => js(`Boolean(document.querySelector('.ml-compose .ml-rich'))`), 'the reply form', 6000).catch(() => {});
+    await wait(300);
+    await typeInForm('A reply left half written. ');
+    await openRow('Flip sent two');
+    const readsNext = await reading('Flip sent two');
+    const replyKept = await until(() => js(`window.rutbaOffice.mail.messages({ accountId: ${JSON.stringify(accountId)}, folder: 'Drafts', query: '', limit: 200 }).then((r) => (r.rows || r).filter((m) => (m.subject || '').includes('Flip sent one')).length === 1)`), 'the reply in Drafts', 8000).then(() => true).catch(() => false);
+    check('mail drafts: with a reply open, the next message clicked opens to read and the reply is kept in Drafts', readsNext && replyKept, JSON.stringify({ readsNext, replyKept }));
+
+    // The place can be emptied, and the next message opened fills it again.
+    const emptyPlace = () => until(() => js(`!document.querySelector('.ml-compose') && !document.querySelector('.ml-reader')`), 'the place to be empty', 8000).then(() => true).catch(() => false);
+    await js(`document.querySelector('.ml-reader-close')?.click(), 1`);
+    const readerShut = await emptyPlace();
+    check('mail drafts: the read view has a Close that leaves the place empty', readerShut, `buttons: ${await js(`document.querySelectorAll('.ml-reader-close').length`)}`);
+    await until(() => openRow('Flip sent one'), 'the sent message again', 8000).catch(() => {});
+    const readsAgain = await reading('Flip sent one');
+    await js(`document.querySelector('.ml-reader-close')?.click(), 1`);
+    await emptyPlace();
+    await until(async () => (await openDrafts()) && (await wait(400), await openRow('Flip Alex')), 'the draft to close', 10000).catch(() => {});
+    await showing('Alex');
+    await typeInForm('Added before Close. ');
+    await js(`document.querySelector('.ml-compose-close')?.click(), 1`);
+    const formShut = await emptyPlace();
+    const keptOnClose = await until(async () => { const t = await stored('Alex'); return /Added before Close/.test(t || '') ? t : null; }, 'the change kept on Close', 8000).catch(() => null);
+    await until(() => openRow('Flip Alex'), 'the same draft again', 8000).catch(() => {});
+    const opensAgain = await until(async () => { const f = await form(); return /Added before Close/.test(f?.body || '') ? f : null; }, 'the draft in a new form', 8000).catch(() => null);
+    await shot(win, 'mail-form-close');
+    check('mail drafts: Close on the form keeps what was changed and empties the place, and the same draft opens again in a form of its own',
+      formShut && Boolean(keptOnClose) && Boolean(opensAgain) && readsAgain, JSON.stringify({ formShut, keptOnClose: Boolean(keptOnClose), opensAgain, readsAgain }));
+
     const complaints = await errorsIn(win);
     check('mail drafts: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
