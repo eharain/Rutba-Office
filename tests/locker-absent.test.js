@@ -37,7 +37,8 @@ test('an ordinary build has the Locker, and a build made with the switch off has
   const off = bundle({ RUTBA_LOCKER: '0' });
   const offFiles = listAll(off).filter(textual);
   assert.ok(offFiles.length > 10, 'a real build came out');
-  const mentions = offFiles.filter((f) => WORDS.test(fs.readFileSync(f, 'utf8')));
+  // The release notes are shown in What's new whatever the build carries.
+  const mentions = offFiles.filter((f) => path.basename(f) !== 'whatsnew.json' && WORDS.test(fs.readFileSync(f, 'utf8')));
   assert.deepEqual(mentions.map((f) => path.relative(off, f)), [], 'nothing in the build mentions the Locker');
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(off, 'extras.json'), 'utf8')).extras, []);
   fs.rmSync(path.dirname(off), { recursive: true, force: true });
