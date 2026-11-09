@@ -163,6 +163,43 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => js(`document.querySelectorAll('tbody tr').length > 0`), 'the files listed again', 8000);
     check('locker: the right password opens it again and the files are back', true);
 
+    // Windows Hello, with the stand-in for the person's PIN: on, and each way the prompt can end.
+    const helloUnlocked = () => until(() => js(`Boolean(document.querySelector('.lk-add'))`), 'unlocked by Windows Hello', 8000).then(() => true, () => false);
+    await clickSel('.lk-settings');
+    await until(() => js(`Boolean(document.querySelector('.lk-advanced input'))`), 'the settings dialog', 5000);
+    await clickText('Turn on Windows Hello');
+    const helloOn = await until(() => js(`[...document.querySelectorAll('button')].some((x) => x.textContent.trim() === 'Turn off Windows Hello')`), 'Windows Hello on', 6000).then(() => true, () => false);
+    check('locker: Windows Hello can be turned on from the settings', helloOn);
+    await clickText('Cancel');
+    await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the settings to close', 5000);
+    const helloButton = 'Use Windows Hello (PIN, fingerprint or face)';
+    await clickSel('.lk-lock');
+    await until(() => js(`[...document.querySelectorAll('button')].some((x) => x.textContent.trim() === ${JSON.stringify(helloButton)})`), 'the Windows Hello button', 8000);
+    await capture(win, 'locker-unlock-hello.png');
+    globalThis.__rutbaFakeHello = 'UserCanceled';
+    await clickText(helloButton);
+    await until(() => js(`[...document.querySelectorAll('button')].some((x) => x.textContent.trim() === ${JSON.stringify(helloButton)} && !x.disabled)`), 'the prompt to end', 6000);
+    await wait(300);
+    check('locker: cancelling the Windows Hello prompt leaves it locked and shows no fault', !(await js(`document.querySelector('.lk-error')?.textContent || ''`)) && !(await js(`Boolean(document.querySelector('.lk-add'))`)));
+    globalThis.__rutbaFakeHello = 'NotFound';
+    await clickText(helloButton);
+    let goneSaid = '';
+    await until(async () => {
+      goneSaid = await js(`document.querySelector('.lk-error')?.textContent || ''`);
+      return Boolean(goneSaid);
+    }, 'the missing-key message', 6000).catch(() => {});
+    check('locker: a key Windows has lost points the person to the password, in plain words', /Use your password/.test(goneSaid) && !/NotFound/.test(goneSaid), goneSaid);
+    await clickText(helloButton);
+    check('locker: Windows Hello opens it', await helloUnlocked());
+    await until(() => js(`document.querySelectorAll('tbody tr').length > 0`), 'the files listed after Windows Hello', 8000);
+    await clickSel('.lk-settings');
+    await until(() => js(`Boolean(document.querySelector('.lk-advanced input'))`), 'the settings dialog', 5000);
+    await clickText('Turn off Windows Hello');
+    const helloOff = await until(() => js(`[...document.querySelectorAll('button')].some((x) => x.textContent.trim() === 'Turn on Windows Hello')`), 'Windows Hello off', 6000).then(() => true, () => false);
+    check('locker: Windows Hello can be turned off again', helloOff);
+    await clickText('Cancel');
+    await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the settings to close', 5000);
+
     // The other windows a person meets, each looked at; sharing one file for real.
     const look = async (button, name) => {
       await clickSel(button);

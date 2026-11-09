@@ -377,12 +377,15 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
       return { recovery: recovery.text };
     },
 
+    /** The name of this locker's key in Windows, once Windows Hello opens it. */
+    helloId: async () => ((await ring())?.unlockers || []).find((u) => u.kind === 'hello')?.id || null,
+
     /** Windows Hello made a way of opening this locker. The locker must be open; the secret comes from the system's helper. */
-    async enableHello(secret) {
+    async enableHello(secret, id = null) {
       if (!root) throw new LockerError('locked', 'Unlock the locker first.');
       const rec = await ring();
       const salt = crypto.randomBytes(32).toString('hex');
-      const entry = { kind: 'hello', salt, ...wrap(secretKey(secret, salt, 'hello'), root, 'hello') };
+      const entry = { kind: 'hello', id, salt, ...wrap(secretKey(secret, salt, 'hello'), root, 'hello') };
       await writeJsonAtomic(ringFile, { ...rec, unlockers: [...rec.unlockers.filter((x) => x.kind !== 'hello'), entry] });
     },
 

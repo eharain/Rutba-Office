@@ -2,6 +2,7 @@
 // watching the folders and the temporary copies while it is unlocked. This
 // module is loaded only by a build made with RUTBA_LOCKER=1 (build-extras.js).
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createLocker } from './locker.js';
@@ -57,7 +58,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
   const { powerMonitor } = await import('electron');
   const dir = path.join(stores.dir, 'locker');
   const locker = createLocker({ dir });
-  const useFake = !electron.isPackaged && process.env.RUTBA_LOCKER_FAKE_HELLO === '1';
+  // A check run never puts a Windows Hello prompt on the desktop.
+  const useFake = !electron.isPackaged && (process.env.RUTBA_LOCKER_FAKE_HELLO === '1' || process.env.RUTBA_OFFICE_VERIFY_APPS === '1');
   const hello = useFake ? fakeHello() : helloProvider();
 
   let lockTimer = null;
@@ -248,8 +250,21 @@ export async function register({ stores, broadcast, electron, windows = () => []
       return out;
     },
     unlock: async ({ password, recovery, hello: useHello }) => {
-      if (useHello) await locker.unlock({ secret: await hello.secret() });
-      else await locker.unlock({ password, recovery });
+      if (useHello) {
+        let secret;
+        try {
+          secret = await hello.secret(await locker.helloId());
+        } catch (err) {
+          // Pressing Cancel is an answer, not a fault: the window stays as it was.
+          if (err?.code === 'hello-cancelled') return { ...(await stateOut()), cancelled: true };
+          throw err;
+        }
+        try {
+          await locker.unlock({ secret });
+        } finally {
+          secret.fill(0);
+        }
+      } else await locker.unlock({ password, recovery });
       await afterUnlock();
       return stateOut();
     },
@@ -347,11 +362,29 @@ export async function register({ stores, broadcast, electron, windows = () => []
     enableHello: async () => {
       if (!locker.isOpen()) throw new LockerError('locked', 'Unlock the locker first.');
       touch();
-      await locker.enableHello(await hello.enroll());
+      const before = await locker.helloId();
+      const id = crypto.randomBytes(8).toString('hex');
+      let secret;
+      try {
+        secret = await hello.enroll(id);
+      } catch (err) {
+        // Cancelling between making the key and signing with it leaves a key nothing uses.
+        await hello.forget(id);
+        if (err?.code === 'hello-cancelled') return;
+        throw err;
+      }
+      try {
+        await locker.enableHello(secret, id);
+      } finally {
+        secret.fill(0);
+      }
+      if (before) await hello.forget(before);
       await publish();
     },
     disableHello: async () => {
+      const id = await locker.helloId();
       await locker.disableHello();
+      if (id) await hello.forget(id);
       await publish();
     },
     setIdle: async ({ minutes }) => {

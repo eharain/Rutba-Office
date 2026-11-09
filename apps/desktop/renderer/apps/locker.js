@@ -175,7 +175,7 @@ function Unlock({ shell, state, onOpened }) {
     setError(null);
     try {
       const s = await shell.locker.unlock(how);
-      onOpened(s);
+      if (!s.cancelled) onOpened(s);
     } catch (err) {
       setError(said(err));
     } finally {

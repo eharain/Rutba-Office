@@ -251,7 +251,8 @@ export function createLocker({ dir, cost, hooks = null }) {
     },
 
     replaceRecovery: (password) => keys.replaceRecovery(password),
-    enableHello: (secret) => keys.enableHello(secret),
+    helloId: () => keys.helloId(),
+    enableHello: (secret, id) => keys.enableHello(secret, id),
     disableHello: () => keys.disableHello(),
 
     /** Each folder's own key file brought up to date with the password and recovery key: a folder is left alone if its file already opens. */
