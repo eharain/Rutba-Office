@@ -538,6 +538,19 @@ function Settings({ shell, state, onClose, toast }) {
           <span>{t('Show advanced options')}</span>
           <span className="lk-card-sub">{t('Folder rules, folder settings, sizes and reasons')}</span>
         </label>
+        <Field label={t('When the Locker locks, temporary copies of files you opened')}>
+          <Select value={state.keepCopies ? 'keep' : 'remove'} onChange={(e) => shell.locker.setWhenLocked({ keepCopies: e.target.value === 'keep' })} aria-label={t('Temporary copies')}>
+            <option value="remove">{t('Remove them (suggested)')}</option>
+            <option value="keep">{t('Keep them until the next unlock')}</option>
+          </Select>
+        </Field>
+        {state.keepCopies ? <div className="lk-warn" role="note"><Icon name="warn" size={16} /><span>{t('Anyone at this computer can read those copies until you unlock the Locker again.')}</span></div> : null}
+        <Field label={t('When the Locker locks, files you have unlocked')}>
+          <Select value={state.relock ? 'lock' : 'leave'} onChange={(e) => shell.locker.setWhenLocked({ relock: e.target.value === 'lock' })} aria-label={t('Unlocked files')}>
+            <option value="leave">{t('Leave them unlocked (suggested)')}</option>
+            <option value="lock">{t('Lock them again')}</option>
+          </Select>
+        </Field>
         {state.hello ? (
           <div className="lk-actions">
             <Button label={state.helloOn ? t('Turn off Windows Hello') : t('Turn on Windows Hello')} onClick={() => hello(!state.helloOn)} />
@@ -579,6 +592,7 @@ export default function Locker({ app, shell }) {
 
   useEffect(() => shell.on('locker:changed', (e) => {
     if (e?.left?.length) toast?.(t('Still open in another program, so not cleared yet: {files}. Close it to clear the temporary copy.', { files: e.left.join(', ') }), { tone: 'warn' });
+    if (e?.notLocked?.length) toast?.(t('{n} files could not be locked again. They are listed as not locked.', { n: e.notLocked.length }), { tone: 'warn' });
   }), [shell, toast]);
 
   useEffect(() => {

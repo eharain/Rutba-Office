@@ -31,6 +31,7 @@ const METHODS = {
     'importFile',  // ({ id, source, rel? }) -> { size }
     'unlockForGood', // ({ id, rel }) -> { dest }
     'lockOne',     // ({ id, rel }) -> { target, size }
+    'setWhenLocked', // ({ keepCopies?, relock? }) -> state
     'versions',    // ({ id, rel }) -> [{ version, current, label }]
     'restore',     // ({ id, rel, version }) -> { size }
     'readRules',   // ({ id }) -> text
@@ -68,6 +69,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
   const watchers = new Map();
   let openWatcher = null;
   const idleMs = () => Number(stores.settings.get('locker.idleMinutes', 10)) * 60000;
+  const keepCopies = () => stores.settings.get('locker.keepCopies', false) === true;
+  const relock = () => stores.settings.get('locker.relock', false) === true;
 
   const stopLockTimer = () => {
     if (lockTimer) clearTimeout(lockTimer);
@@ -104,6 +107,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
       helloOn: (await locker.ways().catch(() => [])).includes('hello'),
       idleMinutes: idleMs() / 60000,
       advanced: stores.settings.get('locker.advanced', false) === true,
+      keepCopies: keepCopies(),
+      relock: relock(),
       lockAt,
       folders,
     };
@@ -117,8 +122,10 @@ export async function register({ stores, broadcast, electron, windows = () => []
     }
   }
 
-  /** Something changed in a folder: the window's list is brought up to date. A file is locked only when the person asks. */
-  function changed(id) {
+  /** Something changed in a folder: a locked file copied in is made the folder's own, and the window's list brought up to date. A plain file is locked only when the person asks. */
+  async function changed(id) {
+    if (!locker.isOpen()) return;
+    await locker.adoptCopies(id).catch(() => {});
     if (locker.isOpen()) broadcast('locker:changed', { id });
   }
 
@@ -182,14 +189,19 @@ export async function register({ stores, broadcast, electron, windows = () => []
     startLockTimer();
     startWatching();
     await publish();
+    for (const f of await locker.folders()) later(f.id, () => changed(f.id));
   }
 
+  /** How long each kind of lock can spend locking files again: a computer going to sleep gives only moments. */
+  const LOCK_BUDGET = { sleep: 4000, quit: 6000 };
+
   async function doLock(reason) {
-    const { left } = await locker.lock();
+    closedWithDocs = false;
+    const { left, notLocked } = await locker.lock({ keepCopies: keepCopies(), relock: relock(), budgetMs: LOCK_BUDGET[reason] ?? 30000 });
     stopLockTimer();
     stopWatching();
     await publish();
-    broadcast('locker:changed', { locked: reason, left });
+    broadcast('locker:changed', { locked: reason, left, notLocked });
   }
 
   // Locks with the computer: on sleep and when Windows locks.
@@ -205,8 +217,37 @@ export async function register({ stores, broadcast, electron, windows = () => []
       return false;
     }
   });
+
+  // Closing the Locker's window locks it. A document from it still open in an
+  // Office window would lose its file, so the lock waits for that to close.
+  const isLockerWindow = (w) => {
+    try {
+      return !w.isDestroyed() && decodeURIComponent(w.webContents.getURL()).match(/[?&]app=locker(&|$)/) !== null;
+    } catch {
+      return false;
+    }
+  };
+  let closedWithDocs = false;
+  function lockIfClosed() {
+    if (!locker.isOpen() || windows().some(isLockerWindow)) {
+      closedWithDocs = false;
+      return;
+    }
+    if (locker.openCopyPaths().some(shownInWindow)) {
+      closedWithDocs = true;
+      return;
+    }
+    doLock('closed').catch(() => {});
+  }
+  electron.on?.('browser-window-created', (_e, w) => {
+    let mine = false;
+    w.webContents.once('did-finish-load', () => { mine = isLockerWindow(w); });
+    w.once('closed', () => { if (mine) setTimeout(lockIfClosed, 0); });
+  });
+
   let reaping = false;
   const reaper = setInterval(() => {
+    if (closedWithDocs) lockIfClosed();
     if (reaping || !locker.hasOpenCopies()) return;
     reaping = true;
     locker.reapClosed({ shown: shownInWindow })
@@ -219,7 +260,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
   // Quitting is a lock too: changes written back and copies removed before Office goes.
   let quitting = false;
   electron.on?.('before-quit', (e) => {
-    if (quitting || !locker.hasOpenCopies()) return;
+    if (quitting || (!locker.hasOpenCopies() && !(locker.isOpen() && relock()))) return;
     quitting = true;
     e.preventDefault();
     Promise.race([doLock('quit'), new Promise((r) => { setTimeout(r, 8000); })]).catch(() => {}).finally(() => electron.quit());
@@ -278,6 +319,12 @@ export async function register({ stores, broadcast, electron, windows = () => []
       startWatching();
       await publish();
       return out;
+    },
+    setWhenLocked: async ({ keepCopies: keep, relock: again }) => {
+      if (typeof keep === 'boolean') stores.settings.set('locker.keepCopies', keep);
+      if (typeof again === 'boolean') stores.settings.set('locker.relock', again);
+      await publish();
+      return stateOut();
     },
     setAdvanced: async ({ on }) => {
       stores.settings.set('locker.advanced', on === true);

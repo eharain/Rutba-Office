@@ -116,9 +116,11 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     const { files, lockedFiles, pieceDirs, sets } = await walk();
     const entries = [];
     const byId = new Map();
+    // Keyed by directory too: a cloud's conflict copy sits beside the file, and a copy someone made elsewhere is not a conflict.
     const note = (fileId, entry) => {
-      if (!byId.has(fileId)) byId.set(fileId, []);
-      byId.get(fileId).push(entry);
+      const key = `${fileId}|${path.posix.dirname(entry.lockedRel)}`;
+      if (!byId.has(key)) byId.set(key, []);
+      byId.get(key).push(entry);
     };
     for (const { path: p, rel } of lockedFiles) {
       const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
@@ -372,13 +374,17 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     return { plain: plainWent, target: sealed.target, sha256: sealed.sha256, size: sealed.size, reused: sealed.reused, frames: sealed.frames };
   }
 
-  /** Every waiting file, one at a time. Answers what happened to each, and what would not go. */
-  async function lockWaiting(options = {}) {
+  /** Every waiting file, one at a time. Answers what happened to each, and what would not go. A deadline leaves the rest as they are. */
+  async function lockWaiting({ deadline = Infinity, ...options } = {}) {
     await sweepWorking(root).catch(() => {});
     const list = await scan();
     const done = [];
     const failed = [];
     for (const e of list.filter((x) => x.state === 'waiting')) {
+      if (Date.now() > deadline) {
+        failed.push({ rel: e.rel, code: 'time', message: 'There was not time to lock this file.' });
+        continue;
+      }
       try {
         done.push({ rel: e.rel, ...(await lockOne(e.rel, options)) });
       } catch (err) {
@@ -386,6 +392,33 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
       }
     }
     return { locked: done, failed };
+  }
+
+  /**
+   * A locked file copied in from elsewhere made this folder's own: sealed afresh
+   * under this folder's key and a new id, read back, and only then does the
+   * copy it came from go.
+   */
+  async function adopt(rel, source, oldPath) {
+    const st = await fsp.stat(source);
+    const large = st.size > LARGE;
+    const dirOf = path.dirname(abs(rel));
+    const meta = { name: path.basename(rel), by: 'save' };
+    await fsp.mkdir(dirOf, { recursive: true });
+    const temp = large ? `${randomName()}.d` : randomName();
+    let target = path.join(dirOf, temp);
+    const sealed = large ? await sealPieces({ source, dir: target, folderKey: key, folderId, stageDir, meta, keep: opt().keepVersions, hooks })
+      : await sealFile({ source, target, rootKey: key, headerBuf: newHeader({ mode: MODE_FOLDER, folderId }), meta, stageDir, previous: null, hooks });
+    if (!(await readBackMatches(target, sealed.sha256, sealed.size))) throw new LockerError('failed', 'The locked copy did not read back as the original.');
+    const wanted = opt().hidden ? target : path.join(dirOf, `${path.basename(rel)}${LOCK_EXT}${large ? '.d' : ''}`);
+    const same = path.resolve(wanted).toLowerCase() === path.resolve(oldPath).toLowerCase();
+    if (same && large) await fsp.rm(oldPath, { recursive: true, force: true });
+    if (wanted !== target) {
+      await fsp.rename(target, wanted);
+      target = wanted;
+    }
+    if (!same) await fsp.rm(oldPath, { recursive: true, force: true });
+    return { target };
   }
 
   /** A locked file (or one in pieces) opened for reading: `frames()`, `meta`, `close()`. */
@@ -509,7 +542,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     await fsp.rename(tmp, path.join(root, '.rutbalocker'));
   }
 
-  return { root, scan, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, versions, restore, readRules, writeRules, entryFor, opener };
+  return { root, scan, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, adopt, versions, restore, readRules, writeRules, entryFor, opener };
 }
 
 /** A shared file's key: from its password, by the scrypt settings its header carries. */

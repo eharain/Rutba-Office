@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
 
+const js2 = (w, code) => w.webContents.executeJavaScript(code);
 const LOCKED_ROW = (rel) => `tr[data-rel=${JSON.stringify(rel)}][data-state=locked]`;
 
 export async function verifyLocker({ open, check, until, wait, errorsIn, doc, capture: shot = async () => {} }, { dir, files }) {
@@ -217,6 +218,8 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await clickSel('.lk-advanced input');
     const advancedOn = await until(() => js(`Boolean(document.querySelector('.lk-rules')) && Boolean(document.querySelector('.lk-folder-settings')) && document.querySelectorAll('thead th').length === 5`), 'the advanced options', 6000).then(() => true, () => false);
     check('locker: Show advanced options brings the rules, the folder settings and the extra columns', advancedOn);
+    const asked2 = await js(`document.querySelector('.lk-dialog-body').textContent`);
+    check('locker: the settings ask what happens to temporary copies and unlocked files when it locks, each with a suggestion', /Remove them \(suggested\)/.test(asked2) && /Leave them unlocked \(suggested\)/.test(asked2), asked2.slice(0, 200));
     await clickText('Cancel');
     await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the settings to close', 5000);
     await look('.lk-rules', 'locker-rules.png');
@@ -258,10 +261,18 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     const tile = await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="locker"]'))`), 'the launcher card', 10000).then(() => true, () => false);
     check('locker: a build made with the switch shows the card on the launcher', tile);
     await capture(home, 'locker-home-tile.png');
-    home.destroy();
 
     const errors = await errorsIn(win).catch(() => []);
     check('locker: no errors in the window', !errors.length, JSON.stringify(errors).slice(0, 200));
+
+    // Closing the Locker's window locks it. The launcher stays open, or the last window closing would end the run.
+    win.close();
+    await until(() => win.isDestroyed(), 'the Locker window to close', 8000);
+    await wait(800);
+    win = await open('locker');
+    const lockedAgain = await until(() => js2(win, `Boolean(document.querySelector('.lk-card')) && !document.querySelector('.lk-add')`), 'the unlock card after closing', 10000).then(() => true, () => false);
+    check('locker: closing its window locks it', lockedAgain);
+    home.destroy();
   } catch (err) {
     const seen = await win?.webContents.executeJavaScript('document.body.textContent').catch(() => '');
     await capture(win, 'locker-failed.png').catch(() => {});

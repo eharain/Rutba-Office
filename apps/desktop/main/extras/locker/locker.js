@@ -10,6 +10,8 @@ import { createFolder, wipeFile, MODE_SHARED, newHeader, sharedKey } from './fol
 import { LockerError, openLocked, readHeader, fileHash, MODE_FOLDER } from './format.js';
 import { sealFile, writePlainFrom, sweepWorking } from './place.js';
 import { OPEN_DIR } from './rules.js';
+
+const OLD_DIR_NAME = '.rlocker-old';
 import { makeWorkingDir, isHeld as programHolds, wipeWorking, findWorkingDirs } from './working.js';
 
 export const DEFAULT_CHOICES = { hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3, docs: 'rutba', openIn: 'beside' };
@@ -62,6 +64,17 @@ export function createLocker({ dir, cost, hooks = null }) {
     return next;
   }
 
+  /** Whether the person chose, at the last lock, to keep the plain copies until the next unlock. */
+  let keepingCopies = false;
+
+  /** Plain copies that came along in a copied folder are nobody's open file. */
+  async function clearCopiedWorking(root) {
+    const known = new Set([...openFiles.values()].map((e) => path.resolve(e.sub)));
+    for (const d of await findWorkingDirs(root).catch(() => [])) {
+      if (!known.has(path.resolve(d))) await wipeWorking(d);
+    }
+  }
+
   function needOpen() {
     if (!keys.isOpen()) throw new LockerError('locked', 'Unlock the locker first.');
   }
@@ -71,6 +84,62 @@ export function createLocker({ dir, cost, hooks = null }) {
     const f = s.folders.find((x) => x.id === id);
     if (!f) throw new LockerError('state', 'That folder is not in the locker.');
     return f;
+  }
+
+  /** Tried and not opened by any key this locker knows: not tried again until something about them changes. */
+  const strangersTried = new Map();
+
+  /** A name not in use in the folder: Report (copy).pdf, then Report (copy 2).pdf. */
+  function freeRel(list, rel) {
+    const taken = new Set(list.filter((e) => e.state !== 'damaged').map((e) => e.rel.toLowerCase()));
+    if (!taken.has(rel.toLowerCase())) return rel;
+    const ext = path.posix.extname(rel);
+    const stem = rel.slice(0, rel.length - ext.length);
+    for (let n = 1; ; n += 1) {
+      const next = `${stem} (copy${n > 1 ? ` ${n}` : ''})${ext}`;
+      if (!taken.has(next.toLowerCase())) return next;
+    }
+  }
+
+  /** The keys that might open what was copied into a folder: every folder of this locker's, and any key file that came with the copy. */
+  async function keysFor(rec, strangers, own) {
+    const found = keys.knownFolderKeys();
+    const dirs = new Set();
+    for (const e of strangers) {
+      let d = path.posix.dirname(e.lockedRel);
+      while (d && d !== '.') {
+        dirs.add(d);
+        d = path.posix.dirname(d);
+      }
+    }
+    for (const d of dirs) {
+      const file = await keys.readFolderKeysFile(path.join(rec.root, ...d.split('/'), FOLDER_KEYS)).catch(() => null);
+      const key = file ? await keys.openFolderKeys(file).catch(() => null) : null;
+      if (key) found.push(key);
+    }
+    const seen = new Set([own.toString('hex')]);
+    return found.filter((k) => {
+      const hex = k.toString('hex');
+      if (seen.has(hex)) return false;
+      seen.add(hex);
+      return true;
+    });
+  }
+
+  /** What a copied folder brought with it that the host has no use for once its files are the host's own. */
+  async function clearCopiedLeftovers(rec, keep) {
+    const walk = async (dir, rel) => {
+      const names = await fsp.readdir(dir, { withFileTypes: true }).catch(() => []);
+      for (const e of names) {
+        if (!e.isDirectory() || e.name === OPEN_DIR || e.name === OLD_DIR_NAME || e.name.endsWith('.d')) continue;
+        await walk(path.join(dir, e.name), rel ? rel + '/' + e.name : e.name);
+      }
+      if (!rel || keep(rel + '/')) return;
+      if (!names.some((e) => e.name === FOLDER_KEYS)) return;
+      await fsp.rm(path.join(dir, FOLDER_KEYS), { force: true }).catch(() => {});
+      await fsp.rm(path.join(dir, OLD_DIR_NAME), { recursive: true, force: true }).catch(() => {});
+    };
+    await walk(rec.root, '');
   }
 
   async function folderEngine(f) {
@@ -136,6 +205,7 @@ export function createLocker({ dir, cost, hooks = null }) {
     /** Opened, and anything a crash left in the working folder cleared. A wrong password changes nothing. */
     async unlock(how) {
       await keys.unlock(how);
+      keepingCopies = false;
       await sweepWorking(stageDir).catch(() => {});
       await api.recoverOpenFiles().catch(() => {});
       await api.healFolderKeys().catch(() => {});
@@ -146,15 +216,34 @@ export function createLocker({ dir, cost, hooks = null }) {
      * here, then the keys forgotten and the copies wiped. Answers the files
      * that could not be removed: a program still has them, or they hold changes
      * that could not be written back.
+     *
+     * The person's two choices: keepCopies leaves the plain copies until the
+     * next unlock, and relock locks the files they had unlocked, for as long as
+     * budgetMs allows, while the keys are still here.
+     *
+     * @returns {Promise<{ left: string[], notLocked: string[], kept: number }>}
      */
-    async lock() {
+    async lock({ keepCopies = false, relock = false, budgetMs = 30000 } = {}) {
+      const notLocked = [];
       if (keys.isOpen()) {
         for (const e of [...openFiles.values()]) {
           if (e.sha256) await api.saveOpen(e.path).catch(() => {});
         }
+        if (relock) {
+          const deadline = Date.now() + budgetMs;
+          for (const f of (await state()).folders) {
+            const out = await api.lockWaiting(f.id, { deadline }).catch(() => ({ failed: [] }));
+            notLocked.push(...out.failed.map((x) => x.rel));
+          }
+        }
       }
       keys.lock();
-      return api.wipeOpenFiles();
+      if (keepCopies) {
+        keepingCopies = openFiles.size > 0;
+        await recordOpenFiles().catch(() => {});
+        return { left: [], notLocked, kept: openFiles.size };
+      }
+      return { ...(await api.wipeOpenFiles()), notLocked, kept: 0 };
     },
 
     /** Temporary unlocked copies, gone, except any holding work that is not in the locked file yet. */
@@ -231,6 +320,8 @@ export function createLocker({ dir, cost, hooks = null }) {
           continue;
         }
         if (!keys.isOpen()) {
+          // The person chose to keep them until the next unlock.
+          if (keepingCopies) continue;
           // Locked meanwhile: unchanged copies can go, changed ones wait for the keys.
           if (!(await changedSince(e)) && await wipeWorking(e.sub)) {
             openFiles.delete(key);
@@ -301,6 +392,28 @@ export function createLocker({ dir, cost, hooks = null }) {
       const existing = await keys.readFolderKeysFile(keyFile).catch(() => null);
       if (existing) {
         id = existing.id;
+        const twin = s.folders.find((f) => f.id === id);
+        if (twin) {
+          // Its key file names a folder this locker already has. If that folder has gone from where it was, this is the same one moved.
+          const stillThere = await keys.readFolderKeysFile(path.join(twin.root, FOLDER_KEYS)).catch(() => null);
+          if (stillThere?.id !== id) {
+            twin.root = resolved;
+            await saveState(s);
+            await clearCopiedWorking(resolved);
+            return { id, root: resolved, joined: true, moved: true };
+          }
+          // Otherwise it is a copy: a folder of its own, under the same key, so what is done to one is never done to the other.
+          const key = keys.folderKey(id) || await keys.openFolderKeys(existing, { password, recovery }).catch(() => null);
+          if (!key) throw new LockerError('bad-password', 'That password does not open this folder.');
+          id = crypto.randomBytes(16).toString('hex');
+          keys.rememberFolderKey(id, key);
+          await keys.writeFolderKeysFile(keyFile, keys.wrapForFolder(key, id));
+          s.folders.push({ id, root: resolved, ...merged, added: new Date().toISOString() });
+          await saveState(s);
+          await clearCopiedWorking(resolved);
+          await api.adoptCopies(id).catch(() => {});
+          return { id, root: resolved, joined: true, copied: true };
+        }
         let key = keys.folderKey(id);
         if (!key && (password || recovery)) key = await keys.openFolderKeys(existing, { password, recovery });
         if (!key) key = await keys.openFolderKeys(existing);
@@ -316,8 +429,71 @@ export function createLocker({ dir, cost, hooks = null }) {
       }
       s.folders.push({ id, root: resolved, ...merged, added: new Date().toISOString() });
       await saveState(s);
+      await clearCopiedWorking(resolved);
+      await api.adoptCopies(id).catch(() => {});
       return { id, root: resolved, joined };
     },
+
+    /**
+     * Locked files copied into this folder from another locked folder of this
+     * locker, or from elsewhere in the folder itself, made its own: they would
+     * otherwise show as damaged, or share one file's id. Nothing is ever plain
+     * in the folder for this; a file that no known key opens is left as it is.
+     *
+     * @returns {Promise<{ adopted: string[] }>}
+     */
+    adoptCopies: (id) => withFolder(id, async (host) => {
+      const rec = await folderRecord(id);
+      const list = await host.scan();
+      // A folder inside this one that is in the locker in its own right keeps its own files and key.
+      const inner = (await state()).folders
+        .filter((f) => f.id !== id && isInside(path.resolve(f.root), path.resolve(rec.root)))
+        .map((f) => path.relative(rec.root, f.root).split(path.sep).join('/') + '/');
+      const theirs = (rel) => inner.some((p) => rel.startsWith(p));
+      const strangers = list.filter((e) => e.state === 'damaged' && !theirs(e.lockedRel));
+      const firstOf = new Map();
+      const twins = [];
+      for (const e of [...list].filter((x) => x.fileId && x.state === 'locked' && !theirs(x.lockedRel)).sort((a, b) => a.lockedRel.length - b.lockedRel.length || a.lockedRel.localeCompare(b.lockedRel))) {
+        if (firstOf.has(e.fileId)) twins.push(e);
+        else firstOf.set(e.fileId, e);
+      }
+      const adopted = [];
+      const take = async (from, e, taken) => {
+        const stage = await from.toStage(e);
+        try {
+          await fsp.utimes(stage, new Date(e.modified), new Date(e.modified)).catch(() => {});
+          const rel = freeRel(taken, e.rel);
+          await host.adopt(rel, stage, e.path);
+          taken.push({ rel, state: 'locked' });
+          adopted.push(rel);
+        } finally {
+          await fsp.rm(stage, { force: true }).catch(() => {});
+        }
+      };
+      const others = list.filter((e) => e.state !== 'damaged' && !twins.includes(e));
+      for (const e of twins) await take(host, e, others).catch(() => {});
+      if (strangers.length) {
+        const signature = strangers.map((e) => e.path).sort().join('|');
+        if (strangersTried.get(id) !== signature) {
+          const own = keys.folderKey(id);
+          for (const key of await keysFor(rec, strangers, own)) {
+            const other = createFolder({ root: rec.root, key, folderId: Buffer.from(id, 'hex'), stageDir, choices: rec, hooks });
+            const wanted = new Set(strangers.map((e) => e.lockedRel));
+            for (const e of await other.scan()) {
+              if (e.state === 'locked' && wanted.has(e.lockedRel)) await take(other, e, others).catch(() => {});
+            }
+          }
+          const after = (await host.scan()).filter((e) => e.state === 'damaged').map((e) => e.path).sort().join('|');
+          if (after) strangersTried.set(id, after);
+          else strangersTried.delete(id);
+        }
+      }
+      if (adopted.length) {
+        const damaged = (await host.scan()).filter((e) => e.state === 'damaged').map((e) => e.lockedRel);
+        await clearCopiedLeftovers(rec, (dir) => theirs(dir) || damaged.some((r) => r.startsWith(dir)));
+      }
+      return { adopted };
+    }),
 
     /**
      * The ready-made folder, in the person's own home folder and so outside
@@ -495,6 +671,8 @@ export function createLocker({ dir, cost, hooks = null }) {
     },
 
     hasOpenCopies: () => openFiles.size > 0,
+    /** The plain copies open now, for asking whether an Office window has one. */
+    openCopyPaths: () => [...openFiles.values()].filter((e) => e.sha256).map((e) => e.path),
 
     /** What a folder's state amounts to, for its row. */
     async summary(id) {

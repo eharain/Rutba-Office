@@ -398,6 +398,9 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
     /** The folder key for an id, from the profile's store, while unlocked. */
     folderKey: (id) => folderKeys.get(id) || null,
 
+    /** Every folder key held while unlocked, to try on a locked file copied in from another folder. */
+    knownFolderKeys: () => [...folderKeys.values()].map((k) => Buffer.from(k)),
+
     /** A new or found folder key kept in the profile's store. */
     rememberFolderKey(id, key) {
       if (!root) throw new LockerError('locked', 'Unlock the locker first.');
