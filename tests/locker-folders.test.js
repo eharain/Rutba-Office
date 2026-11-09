@@ -388,6 +388,49 @@ test('a locked file no key here opens is left alone, still shown as needing the 
   assert.ok(fs.readFileSync(path.join(folder, 'x.pdf.rlock')).equals(bytes));
 });
 
+test('changing the password with Windows Hello on: Hello and the recovery key still open it, the old password does not, and the folders follow', async () => {
+  const { locker, folder, id, recovery } = await make({ hidden: false });
+  const bytes = random(1500);
+  write(folder, 'a.pdf', bytes);
+  await locker.lockWaiting(id);
+  const secret = crypto.randomBytes(32);
+  await locker.enableHello(secret, '0123456789abcdef');
+
+  // Opened with Hello, then the password changed: the current password is still asked for.
+  await locker.lock();
+  await locker.unlock({ secret });
+  await assert.rejects(() => locker.changePassword('wrong', 'the new one'), (e) => e.code === 'bad-password');
+  await locker.changePassword('pw', 'the new one');
+  await locker.lock();
+
+  await assert.rejects(() => locker.unlock({ password: 'pw' }), (e) => e.code === 'bad-password');
+  await locker.unlock({ secret });
+  assert.ok((await locker.ways()).includes('hello'), 'Hello is still a way in, with nothing to set up again');
+  const out = path.join(tmp('rl-out-'), 'a.pdf');
+  await locker.exportCopy(id, 'a.pdf', out);
+  assert.ok(fs.readFileSync(out).equals(bytes), 'the files open after Hello');
+
+  // A folder added after opening with Hello is sealed for the new password.
+  const later = tmp('rl-later-');
+  const { id: laterId } = await locker.addFolder(later, { hidden: false, afterLock: 'delete' });
+  write(later, 'b.pdf', random(200));
+  await locker.lockWaiting(laterId);
+  await locker.lock();
+  await locker.unlock({ password: 'the new one' });
+  await locker.lock();
+  await locker.unlock({ recovery });
+  await locker.lock();
+
+  // Each folder's own key file now answers to the new password only, on another computer too.
+  for (const dir of [folder, later]) {
+    const away = createLocker({ dir: tmp(), cost: CHEAP });
+    await away.setup('someone else');
+    await assert.rejects(() => away.addFolder(dir, {}, { password: 'pw' }), (e) => e.code === 'bad-password');
+    const { id: there } = await away.addFolder(dir, {}, { password: 'the new one' });
+    assert.equal((await away.scan(there))[0].state, 'locked');
+  }
+});
+
 test('removing a folder unlocks every file first; a file that will not unlock keeps the folder in the locker', async () => {
   const { locker, folder, id } = await make();
   const a = random(100);
