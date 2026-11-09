@@ -43,7 +43,7 @@ const METHODS = {
     'enableHello',  // () -> void
     'disableHello', // () -> void
     'setIdle',      // ({ minutes }) -> state
-    'touch',        // () -> void   the window was used
+    'touch',        // () -> { lockAt }   the window was used
   ],
 };
 const EVENTS = ['locker:state', 'locker:changed'];
@@ -85,7 +85,11 @@ export async function register({ stores, broadcast, electron, windows = () => []
     if (!locker.isOpen()) return;
     const ms = idleMs();
     lockAt = Date.now() + ms;
-    lockTimer = setTimeout(() => { doLock('idle').catch(() => {}); }, ms);
+    lockTimer = setTimeout(() => {
+      // A document from the Locker open in an Office window is the Locker in use, and locking would take its file away.
+      if (locker.openCopyPaths().some(shownInWindow)) startLockTimer();
+      else doLock('idle').catch(() => {});
+    }, ms);
   };
 
   async function stateOut() {
@@ -346,10 +350,8 @@ export async function register({ stores, broadcast, electron, windows = () => []
       await publish();
       return out;
     },
-    list: async ({ id }) => {
-      touch();
-      return locker.scan(id);
-    },
+    // Not a use of the Locker: a folder that changes by itself, a cloud sync for one, refreshes this list.
+    list: ({ id }) => locker.scan(id),
     lockWaiting: async ({ id, ...opts }) => {
       touch();
       const out = await locker.lockWaiting(id, opts);
@@ -462,8 +464,10 @@ export async function register({ stores, broadcast, electron, windows = () => []
       startLockTimer();
       return stateOut();
     },
+    // The person clicked or typed in the Locker's window.
     touch: async () => {
       touch();
+      return { lockAt };
     },
   };
 

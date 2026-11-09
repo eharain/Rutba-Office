@@ -707,6 +707,20 @@ export default function Locker({ app, shell }) {
     return () => clearInterval(id);
   }, []);
 
+  // Clicking or typing here is using the Locker, which puts off the idle lock. Sent at most every few seconds.
+  useEffect(() => {
+    let last = 0;
+    const used = () => {
+      const now = Date.now();
+      if (now - last < 5000) return;
+      last = now;
+      shell.locker.touch().then(({ lockAt }) => setState((s) => (s?.open ? { ...s, lockAt } : s))).catch(() => {});
+    };
+    const kinds = ['pointerdown', 'keydown', 'wheel'];
+    kinds.forEach((k) => window.addEventListener(k, used, true));
+    return () => kinds.forEach((k) => window.removeEventListener(k, used, true));
+  }, [shell, setState]);
+
   useEffect(() => shell.on('locker:changed', (e) => {
     if (e?.left?.length) toast?.(t('Still open in another program, so not cleared yet: {files}. Close it to clear the temporary copy.', { files: e.left.join(', ') }), { tone: 'warn' });
     if (e?.notLocked?.length) toast?.(t('{n} files could not be locked again. They are listed as not locked.', { n: e.notLocked.length }), { tone: 'warn' });

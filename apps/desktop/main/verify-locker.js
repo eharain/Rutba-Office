@@ -332,6 +332,52 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     const dirLocked = await until(() => !fs.existsSync(more) && fs.existsSync(`${more}.rlock`), 'the subfolder file locked', 8000).then(() => true, () => false);
     check('locker: a subfolder\'s Lock button locks the files not locked in it', dirLocked);
 
+    // The idle lock: 4 seconds here, in place of the minutes a person chooses.
+    const stateNow = () => js(`window.rutbaOffice.locker.state()`);
+    const isLockedNow = () => js(`Boolean(document.querySelector('.lk-card')) && !document.querySelector('.lk-add')`);
+    const unlockAgain = async () => {
+      await setField('Locker password', 'correct horse battery');
+      await clickText('Unlock with password');
+      await until(() => js(`Boolean(document.querySelector('.lk-add'))`), 'unlocked after the idle lock', 15000);
+    };
+    await js(`window.rutbaOffice.store.set({ key: 'locker.idleMinutes', value: 0.07 }).then(() => window.rutbaOffice.locker.touch()).then(() => 1)`);
+
+    // A folder that keeps changing by itself is not somebody using the Locker: each change refreshes the list.
+    const noise = path.join(root, 'changing by itself.txt');
+    let n = 0;
+    const noisy = setInterval(() => { try { fs.writeFileSync(noise, String(n += 1)); } catch { /* the folder is being read */ } }, 2000);
+    const idleLocked = await until(isLockedNow, 'the idle lock', 14000).then(() => true, () => false);
+    clearInterval(noisy);
+    check('locker: left alone for its set time it locks by itself, even while a file in the folder keeps changing', idleLocked && n >= 2, `changes ${n}`);
+    await capture(win, 'locker-idle-locked.png');
+    fs.rmSync(noise, { force: true });
+    await unlockAgain();
+
+    // Clicking in the window is using it.
+    const firstDue = (await stateNow()).lockAt;
+    await wait(1200);
+    await js(`window.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })), 1`);
+    const putOff = await until(async () => (await stateNow()).lockAt > firstDue + 800, 'the lock put off', 3000).then(() => true, () => false);
+    check('locker: a click in the window puts off the idle lock', putOff);
+
+    // A document from it open in an Office window is the Locker in use.
+    await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Report.docx'))}))`), 'the document row', 8000);
+    await clickSel(LOCKED_ROW('Report.docx'));
+    await until(() => js(`Boolean(document.querySelector('tr.sel .lk-open'))`), 'Open offered for the idle check', 3000);
+    await clickSel('tr.sel .lk-open');
+    let docWin = null;
+    await until(() => {
+      docWin = BrowserWindow.getAllWindows().find((x) => /locker/.test(decodeURIComponent(x.webContents.getURL())) && /[?&]file=/.test(x.webContents.getURL())) || null;
+      return Boolean(docWin);
+    }, 'the document window for the idle check', 15000);
+    await wait(7000);
+    check('locker: the idle lock waits while a document from it is open in an Office window', !(await isLockedNow()) && (await stateNow()).open === true);
+    docWin.close();
+    const lockedAfterDoc = await until(isLockedNow, 'the idle lock after the document closed', 14000).then(() => true, () => false);
+    check('locker: once that document is closed the idle lock goes ahead', lockedAfterDoc);
+    await js(`window.rutbaOffice.store.set({ key: 'locker.idleMinutes', value: 10 }).then(() => 1)`);
+    await unlockAgain();
+
     const home = await open('home');
     const tile = await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="locker"]'))`), 'the launcher card', 10000).then(() => true, () => false);
     check('locker: a build made with the switch shows the card on the launcher', tile);
