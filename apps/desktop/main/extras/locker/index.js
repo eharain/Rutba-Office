@@ -62,6 +62,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
   const { powerMonitor } = await import('electron');
   const dir = path.join(stores.dir, 'locker');
   const locker = createLocker({ dir });
+  await locker.loadOpenRecord().catch(() => {});
   // A check run never puts a Windows Hello prompt on the desktop.
   const useFake = !electron.isPackaged && (process.env.RUTBA_LOCKER_FAKE_HELLO === '1' || process.env.RUTBA_OFFICE_VERIFY_APPS === '1');
   const hello = useFake ? fakeHello() : helloProvider();
@@ -203,11 +204,11 @@ export async function register({ stores, broadcast, electron, windows = () => []
 
   async function doLock(reason) {
     closedWithDocs = false;
-    const { left, notLocked } = await locker.lock({ keepCopies: keepCopies(), relock: relock(), budgetMs: LOCK_BUDGET[reason] ?? 30000 });
+    const { left, open: stillOpen, notLocked } = await locker.lock({ keepCopies: keepCopies(), relock: relock(), budgetMs: LOCK_BUDGET[reason] ?? 30000, shown: shownInWindow });
     stopLockTimer();
     stopWatching();
     await publish();
-    broadcast('locker:changed', { locked: reason, left, notLocked });
+    broadcast('locker:changed', { locked: reason, left, open: stillOpen, notLocked });
   }
 
   // Locks with the computer: on sleep and when Windows locks.
@@ -300,11 +301,11 @@ export async function register({ stores, broadcast, electron, windows = () => []
           throw err;
         }
         try {
-          await locker.unlock({ secret });
+          await locker.unlock({ secret }, { shown: shownInWindow });
         } finally {
           secret.fill(0);
         }
-      } else await locker.unlock({ password, recovery });
+      } else await locker.unlock({ password, recovery }, { shown: shownInWindow });
       await afterUnlock();
       return stateOut();
     },

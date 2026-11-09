@@ -12,7 +12,7 @@ import { sealFile, writePlainFrom, sweepWorking } from './place.js';
 import { OPEN_DIR } from './rules.js';
 
 const OLD_DIR_NAME = '.rlocker-old';
-import { makeWorkingDir, isHeld as programHolds, wipeWorking, findWorkingDirs } from './working.js';
+import { makeWorkingDir, isHeld as programHolds, wipeWorking, wipeCopy, findWorkingDirs } from './working.js';
 
 export const DEFAULT_CHOICES = { hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3, docs: 'rutba', openIn: 'beside' };
 
@@ -181,6 +181,20 @@ export function createLocker({ dir, cost, hooks = null }) {
     return true;
   }
 
+  /** A copy removed when it locked, written out again for the window still showing it. */
+  async function putBackCopy(e) {
+    await withFolder(e.folderId, async (folder) => {
+      const found = await folder.entryFor(e.rel);
+      if (found?.state !== 'locked') return;
+      const o = await folder.opener(found);
+      try {
+        e.sha256 = (await writePlainFrom(o, e.path)).sha256;
+      } finally {
+        await o.close();
+      }
+    });
+  }
+
   /** The copies of a file or folder that is leaving the locker: changes saved, copies removed. One a program holds is cleared at the next unlock. */
   async function closeCopies(which) {
     for (const [key, e] of [...openFiles.entries()]) {
@@ -203,11 +217,11 @@ export function createLocker({ dir, cost, hooks = null }) {
     },
 
     /** Opened, and anything a crash left in the working folder cleared. A wrong password changes nothing. */
-    async unlock(how) {
+    async unlock(how, { shown } = {}) {
       await keys.unlock(how);
       keepingCopies = false;
       await sweepWorking(stageDir).catch(() => {});
-      await api.recoverOpenFiles().catch(() => {});
+      await api.recoverOpenFiles({ shown }).catch(() => {});
       await api.healFolderKeys().catch(() => {});
     },
 
@@ -221,9 +235,14 @@ export function createLocker({ dir, cost, hooks = null }) {
      * next unlock, and relock locks the files they had unlocked, for as long as
      * budgetMs allows, while the keys are still here.
      *
-     * @returns {Promise<{ left: string[], notLocked: string[], kept: number }>}
+     * A document an Office window is showing loses its file but keeps the folder
+     * the file was in: that window's Save goes there, and what it saves is locked
+     * in at the next unlock.
+     *
+     * @param {{ keepCopies?: boolean, relock?: boolean, budgetMs?: number, shown?: (file: string) => boolean }} [o]
+     * @returns {Promise<{ left: string[], open: string[], notLocked: string[], kept: number }>}
      */
-    async lock({ keepCopies = false, relock = false, budgetMs = 30000 } = {}) {
+    async lock({ keepCopies = false, relock = false, budgetMs = 30000, shown } = {}) {
       const notLocked = [];
       if (keys.isOpen()) {
         for (const e of [...openFiles.values()]) {
@@ -241,15 +260,22 @@ export function createLocker({ dir, cost, hooks = null }) {
       if (keepCopies) {
         keepingCopies = openFiles.size > 0;
         await recordOpenFiles().catch(() => {});
-        return { left: [], notLocked, kept: openFiles.size };
+        return { left: [], open: [], notLocked, kept: openFiles.size };
       }
-      return { ...(await api.wipeOpenFiles()), notLocked, kept: 0 };
+      return { ...(await api.wipeOpenFiles({ shown })), notLocked, kept: 0 };
     },
 
-    /** Temporary unlocked copies, gone, except any holding work that is not in the locked file yet. */
-    async wipeOpenFiles() {
+    /** Temporary unlocked copies, gone, except any holding work that is not in the locked file yet. The folder of one an Office window is showing stays. */
+    async wipeOpenFiles({ shown = () => false } = {}) {
       const left = [];
+      const open = [];
       for (const [key, e] of [...openFiles.entries()]) {
+        if (e.sha256 && shown(e.path)) {
+          e.seen = true;
+          if (await changedSince(e) || !(await wipeCopy(e.path))) left.push(e.rel);
+          else open.push(e.rel);
+          continue;
+        }
         if (e.sha256 && await changedSince(e)) {
           left.push(e.rel);
           continue;
@@ -263,15 +289,11 @@ export function createLocker({ dir, cost, hooks = null }) {
         const d = path.join(openDir, sub);
         if (!known.has(path.resolve(d))) await wipeWorking(d);
       }
-      return { left };
+      return { left, open };
     },
 
-    /**
-     * After a crash, or a lock that could not finish: changes found in a plain
-     * copy become the file's next version, and the copy is removed. Whatever
-     * else is in a working folder is not a person's file.
-     */
-    async recoverOpenFiles() {
+    /** The copies a crash or a quit left, known again before anyone unlocks, so unchanged ones can be cleared. */
+    async loadOpenRecord() {
       let saved = [];
       try {
         saved = JSON.parse(await fsp.readFile(openFilesRecord, 'utf8'));
@@ -279,11 +301,27 @@ export function createLocker({ dir, cost, hooks = null }) {
         // Nothing was open.
       }
       for (const e of saved) if (!openFiles.has(path.resolve(e.path))) openFiles.set(path.resolve(e.path), e);
+    },
+
+    /**
+     * After a crash, or a lock that could not finish: changes found in a plain
+     * copy become the file's next version, and the copy is removed. Whatever
+     * else is in a working folder is not a person's file.
+     */
+    async recoverOpenFiles({ shown = () => false } = {}) {
+      await api.loadOpenRecord();
       const list = (await state()).folders;
       for (const [key, e] of [...openFiles.entries()]) {
         const inLocker = list.some((f) => f.id === e.folderId);
         if (!e.sha256 || !inLocker) {
           if (await wipeWorking(e.sub)) openFiles.delete(key);
+          continue;
+        }
+        // Still open in an Office window: what it saved while locked goes in now. With nothing saved its copy comes back, for the window's next Save and anything it reads.
+        if (shown(e.path)) {
+          e.seen = true;
+          const saved = await fsp.stat(e.path).then(() => true, () => false);
+          await (saved ? api.saveOpen(e.path) : putBackCopy(e)).catch(() => {});
           continue;
         }
         if (await isHeld(e.path)) {

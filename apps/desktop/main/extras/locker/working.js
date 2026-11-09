@@ -74,6 +74,12 @@ async function filesIn(dir) {
 
 const gone = (p) => fsp.stat(p).then(() => false, (err) => err.code === 'ENOENT');
 
+/** One copy overwritten and removed, its folder left for the window that may still save into it. Answers whether it has really gone. */
+export async function wipeCopy(file) {
+  await wipeFile(file).catch(() => {});
+  return gone(file);
+}
+
 /** A working folder and everything a program put in it, overwritten and removed. Answers whether it has really gone. */
 export async function wipeWorking(sub) {
   for (const f of await filesIn(sub)) await wipeFile(f);

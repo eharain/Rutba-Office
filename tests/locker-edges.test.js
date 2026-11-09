@@ -187,6 +187,98 @@ test('locking while keeping the temporary copies leaves them, and says how many'
   assert.ok(!fs.existsSync(copy), 'gone at the next ordinary lock');
 });
 
+async function openDoc() {
+  const made = await make();
+  fs.writeFileSync(path.join(made.folder, 'a.txt'), 'first words');
+  await made.locker.lockWaiting(made.id);
+  const { path: copy } = await made.locker.openPlain(made.id, 'a.txt');
+  return { ...made, copy };
+}
+
+async function lockedText({ locker, id }) {
+  const out = path.join(tmp(), 'out.txt');
+  await locker.exportCopy(id, 'a.txt', out);
+  return fs.readFileSync(out, 'utf8');
+}
+
+test('locking under a document open in Office removes its file and keeps its folder; a Save made then is locked in at the next unlock', async () => {
+  const d = await openDoc();
+  const shown = (f) => f === d.copy;
+  const out = await d.locker.lock({ shown });
+  assert.deepEqual(out.open, ['a.txt']);
+  assert.ok(!fs.existsSync(d.copy), 'nothing unlocked stays on the disk');
+  assert.ok(fs.existsSync(path.dirname(d.copy)), 'the window\'s Save needs somewhere to go');
+  fs.writeFileSync(d.copy, 'saved while locked');
+  assert.deepEqual(await d.locker.reapClosed({ shown }), [], 'still open, nothing cleared');
+  await d.locker.unlock({ password: 'pw' }, { shown });
+  assert.equal(await lockedText(d), 'saved while locked');
+  assert.ok(fs.existsSync(d.copy), 'unlocking does not take the file from under the window either');
+  assert.ok(d.locker.isOpenCopy(d.copy));
+  fs.writeFileSync(d.copy, 'saved after unlocking');
+  await d.locker.saveOpen(d.copy);
+  assert.equal(await lockedText(d), 'saved after unlocking');
+  assert.deepEqual(await d.locker.reapClosed({ shown: () => false }), ['a.txt']);
+  assert.ok(!fs.existsSync(d.copy));
+});
+
+test('a document closed while locked with a Save in it waits for the keys, then goes in and its copy goes', async () => {
+  const d = await openDoc();
+  await d.locker.lock({ shown: (f) => f === d.copy });
+  fs.writeFileSync(d.copy, 'saved while locked');
+  assert.deepEqual(await d.locker.reapClosed({ shown: () => false }), []);
+  assert.ok(fs.existsSync(d.copy), 'the only place that work is');
+  await d.locker.unlock({ password: 'pw' });
+  assert.equal(await lockedText(d), 'saved while locked');
+  assert.ok(!fs.existsSync(d.copy));
+});
+
+test('a document closed while locked with nothing saved has its copy cleared without the keys', async () => {
+  const d = await openDoc();
+  await d.locker.lock({ shown: (f) => f === d.copy });
+  assert.deepEqual(await d.locker.reapClosed({ shown: () => false }), ['a.txt']);
+  assert.ok(!fs.existsSync(path.dirname(d.copy)), 'its folder goes with it');
+});
+
+test('unlocking with nothing saved while locked puts the copy back for the window still showing it', async () => {
+  const d = await openDoc();
+  const shown = (f) => f === d.copy;
+  await d.locker.lock({ shown });
+  await d.locker.unlock({ password: 'pw' }, { shown });
+  assert.equal(fs.readFileSync(d.copy, 'utf8'), 'first words');
+  assert.deepEqual((await d.locker.saveOpen(d.copy)).changed, false);
+  assert.equal(await lockedText(d), 'first words');
+});
+
+test('a lock with no Office window showing the file clears the copy as before', async () => {
+  const d = await openDoc();
+  const out = await d.locker.lock({ shown: () => false });
+  assert.deepEqual(out.open, []);
+  assert.ok(!fs.existsSync(d.copy));
+});
+
+test('quitting with a document open: at the next start an unchanged copy is cleared, and a changed one waits for the keys', async () => {
+  const unchanged = await openDoc();
+  await unchanged.locker.lock({ shown: (f) => f === unchanged.copy });
+  const dirA = path.dirname(unchanged.locker.stateFile);
+  const nextA = createLocker({ dir: dirA, cost: CHEAP });
+  await nextA.loadOpenRecord();
+  assert.ok(nextA.hasOpenCopies());
+  assert.deepEqual(await nextA.reapClosed(), ['a.txt']);
+  assert.ok(!fs.existsSync(unchanged.copy));
+
+  const changed = await openDoc();
+  await changed.locker.lock({ shown: (f) => f === changed.copy });
+  fs.writeFileSync(changed.copy, 'saved as Office was closing');
+  const dirB = path.dirname(changed.locker.stateFile);
+  const nextB = createLocker({ dir: dirB, cost: CHEAP });
+  await nextB.loadOpenRecord();
+  assert.deepEqual(await nextB.reapClosed(), []);
+  assert.ok(fs.existsSync(changed.copy));
+  await nextB.unlock({ password: 'pw' });
+  assert.equal(await lockedText({ locker: nextB, id: changed.id }), 'saved as Office was closing');
+  assert.ok(!fs.existsSync(changed.copy));
+});
+
 test('keys: nothing to open it with is refused, an unknown folder is forgotten quietly, a folder file with no password route opens nothing', async () => {
   const k = createKeys({ dir: tmp(), cost: CHEAP });
   await k.setup('pw');

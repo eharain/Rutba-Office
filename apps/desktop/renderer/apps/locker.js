@@ -723,6 +723,7 @@ export default function Locker({ app, shell }) {
 
   useEffect(() => shell.on('locker:changed', (e) => {
     if (e?.left?.length) toast?.(t('Still open in another program, so not cleared yet: {files}. Close it to clear the temporary copy.', { files: e.left.join(', ') }), { tone: 'warn' });
+    if (e?.open?.length) toast?.(t('Still open in Office: {files}. Keep working and save as usual. Your saves are locked in when you next unlock.', { files: e.open.join(', ') }), { tone: 'warn' });
     if (e?.notLocked?.length) toast?.(t('{n} files could not be locked again. They are listed as not locked.', { n: e.notLocked.length }), { tone: 'warn' });
   }), [shell, toast]);
 

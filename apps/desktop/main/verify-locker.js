@@ -378,6 +378,37 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await js(`window.rutbaOffice.store.set({ key: 'locker.idleMinutes', value: 10 }).then(() => 1)`);
     await unlockAgain();
 
+    // Locking under an open document must not take its file away: Save still works, and is locked in at the next unlock.
+    await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Report.docx'))}))`), 'the document row again', 8000);
+    await clickSel(LOCKED_ROW('Report.docx'));
+    await until(() => js(`Boolean(document.querySelector('tr.sel .lk-open'))`), 'Open offered again', 3000);
+    await clickSel('tr.sel .lk-open');
+    let heldWin = null;
+    await until(() => {
+      heldWin = BrowserWindow.getAllWindows().find((x) => /locker/.test(decodeURIComponent(x.webContents.getURL())) && /[?&]file=/.test(x.webContents.getURL())) || null;
+      return Boolean(heldWin);
+    }, 'the document window to lock under', 15000);
+    const heldPath = /[?&]file=([^&]+)/.exec(decodeURIComponent(heldWin.webContents.getURL()))?.[1] || '';
+    await until(() => doc.sessions().some((s) => s.path === heldPath), 'that document\'s session', 15000);
+    const heldBefore = fs.readFileSync(`${words}.rlock`);
+    await js(`window.rutbaOffice.locker.lock().then(() => 1)`);
+    await until(isLockedNow, 'locked under the open document', 8000);
+    check('locker: locking removes the temporary copy of a document still open in Office, and leaves its folder', !fs.existsSync(heldPath) && fs.existsSync(path.dirname(heldPath)), heldPath);
+    const heldSession = doc.sessions().find((s) => s.path === heldPath);
+    await doc.apply({ id: heldSession.id, ops: [{ op: 'setSelection', anchor: { block: 1, offset: 0 }, focus: { block: 1, offset: 0 } }, { op: 'insertText', text: 'Saved while the Locker was locked. ' }] });
+    const savedWhileLocked = await (async () => { await doc.save({ id: heldSession.id, path: heldPath }); return true; })().catch((err) => String(err?.message || err));
+    check('locker: Save still works in a document left open when the Locker locked', savedWhileLocked === true, String(savedWhileLocked));
+    check('locker: what is saved while it is locked does not reach the locked file without the keys', fs.readFileSync(`${words}.rlock`).equals(heldBefore));
+    await unlockAgain();
+    const heldIn = await until(() => !fs.readFileSync(`${words}.rlock`).equals(heldBefore), 'the save locked in at unlock', 15000).then(() => true, () => false);
+    const heldOut = path.join(out, 'held.docx');
+    await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.exportCopy({ id: s.folders[0].id, rel: 'Report.docx', dest: ${JSON.stringify(heldOut)}, overwrite: true }); return 1; })()`);
+    check('locker: at the next unlock that save is locked in, and the document can go on saving', heldIn && fs.readFileSync(heldOut).equals(fs.readFileSync(heldPath)) && fs.existsSync(heldPath));
+    try { await doc.close?.({ id: heldSession.id }); } catch { /* the window goes next */ }
+    heldWin.destroy();
+    const heldCleared = await until(() => !fs.existsSync(heldPath), 'its copy cleared after closing', 15000).then(() => true, () => false);
+    check('locker: closing that document clears the copy', heldCleared);
+
     const home = await open('home');
     const tile = await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="locker"]'))`), 'the launcher card', 10000).then(() => true, () => false);
     check('locker: a build made with the switch shows the card on the launcher', tile);
