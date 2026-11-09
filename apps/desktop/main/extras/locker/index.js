@@ -28,6 +28,7 @@ const METHODS = {
     'exportCopy',  // ({ id, rel, dest, overwrite? }) -> { size }
     'exportShare', // ({ id, rel, dest, password }) -> { size }
     'openShared',  // ({ file, dest, password }) -> { size }
+    'importShared', // ({ file, id, password }) -> { rel }
     'importFile',  // ({ id, source, rel? }) -> { size }
     'unlockForGood', // ({ id, rel }) -> { dest }
     'lockOne',     // ({ id, rel }) -> { target, size }
@@ -365,6 +366,12 @@ export async function register({ stores, broadcast, electron, windows = () => []
       return locker.exportShare(id, rel, dest, password);
     },
     openShared: ({ file, dest, password }) => locker.openShared(file, dest, password),
+    importShared: async ({ file, id, password }) => {
+      touch();
+      const out = await locker.importShared(file, id, password);
+      await publish();
+      return out;
+    },
     importFile: async ({ id, source, rel }) => {
       touch();
       const out = await locker.importFile(id, source, rel);

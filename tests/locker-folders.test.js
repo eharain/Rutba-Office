@@ -470,6 +470,41 @@ test('a share file: its own password, its own file, the same content; a wrong pa
   assert.ok(fs.readFileSync(out).equals(bytes));
 });
 
+test('a sent file goes into the other person\'s folder locked, a name in use is kept, and a wrong password changes nothing', async () => {
+  const { locker, folder, id } = await make();
+  const bytes = random(70000);
+  write(folder, 'a.pdf', bytes);
+  await locker.lockWaiting(id);
+  const sent = path.join(tmp(), 'a.pdf.rlock');
+  await locker.exportShare(id, 'a.pdf', sent, 'for you');
+  const before = fs.readFileSync(sent);
+
+  const them = await make();
+  await assert.rejects(() => them.locker.importShared(sent, them.id, 'wrong'), (e) => e.code === 'bad-password');
+  assert.equal((await them.locker.scan(them.id)).length, 0);
+
+  assert.deepEqual(await them.locker.importShared(sent, them.id, 'for you'), { rel: 'a.pdf' });
+  assert.ok(fs.existsSync(path.join(them.folder, 'a.pdf.rlock')));
+  assert.ok(!fs.existsSync(path.join(them.folder, 'a.pdf')), 'nothing plain in the folder');
+  assert.ok(fs.readFileSync(sent).equals(before), 'the received file is left as it was');
+  const out = path.join(tmp(), 'out.pdf');
+  await them.locker.exportCopy(them.id, 'a.pdf', out);
+  assert.ok(fs.readFileSync(out).equals(bytes));
+
+  assert.deepEqual(await them.locker.importShared(sent, them.id, 'for you'), { rel: 'a (copy).pdf' });
+  assert.deepEqual((await them.locker.scan(them.id)).map((e) => e.state), ['locked', 'locked']);
+});
+
+test('a copy for sending cannot be saved inside a locked folder, where it could replace the locked original', async () => {
+  const { locker, folder, id } = await make();
+  const bytes = random(500);
+  write(folder, 'a.pdf', bytes);
+  await locker.lockWaiting(id);
+  const original = fs.readFileSync(path.join(folder, 'a.pdf.rlock'));
+  await assert.rejects(() => locker.exportShare(id, 'a.pdf', path.join(folder, 'a.pdf.rlock'), 'for you'), (e) => e.code === 'choice');
+  assert.ok(fs.readFileSync(path.join(folder, 'a.pdf.rlock')).equals(original));
+});
+
 test('large files are kept as pieces, change only what changed, and a missing or damaged piece is found', { timeout: 120000 }, async () => {
   const { locker, folder, id } = await make({ keepVersions: 2 });
   // A file over the threshold, with a repeating start so the cut points land the same.

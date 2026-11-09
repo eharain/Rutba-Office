@@ -575,6 +575,7 @@ export function createLocker({ dir, cost, hooks = null }) {
     /** One file locked with a password of its own, for someone else. */
     async exportShare(id, rel, dest, password) {
       if (!password) throw new LockerError('password', 'Choose a password for the shared file.');
+      if ((await state()).folders.some((f) => isInside(path.resolve(dest), path.resolve(f.root)))) throw new LockerError('choice', 'Save the copy for sending outside your locked folders.');
       return withFolder(id, async (folder) => {
         const e = await folder.entryFor(rel);
         if (!e || e.state === 'waiting' || e.state === 'excluded' || e.state === 'damaged') throw new LockerError('state', 'That file is not locked.');
@@ -607,6 +608,25 @@ export function createLocker({ dir, cost, hooks = null }) {
         await o.close();
         key.fill(0);
       }
+    },
+
+    /**
+     * A file someone sent, locked into a folder of this locker under the name it
+     * arrived with, or "name (copy)" if that is taken. The received file is left as it is.
+     */
+    async importShared(file, id, password) {
+      const name = path.basename(file).replace(/\.rlock$/i, '') || 'Received file';
+      return withFolder(id, async (folder) => {
+        const tmp = path.join(stageDir, `.rl-${crypto.randomBytes(12).toString('hex')}.part`);
+        try {
+          await api.openShared(file, tmp, password);
+          const rel = freeRel(await folder.scan(), name);
+          await folder.saveFrom(rel, tmp);
+          return { rel };
+        } finally {
+          await wipeFile(tmp);
+        }
+      });
     },
 
     /**

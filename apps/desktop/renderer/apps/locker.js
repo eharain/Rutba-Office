@@ -146,7 +146,7 @@ function useLocker(shell) {
 }
 
 /** First start: a password and the recovery key, said once. */
-function Setup({ shell, onDone }) {
+function Setup({ shell, onDone, onOpenSent }) {
   const [password, setPassword] = useState('');
   const [again, setAgain] = useState('');
   const [recovery, setRecovery] = useState(null);
@@ -189,6 +189,7 @@ function Setup({ shell, onDone }) {
             <div className="lk-card-sub">{t('At least eight characters. Rutba Office cannot get it back for you.')}</div>
             {error ? <div className="lk-error" role="alert">{error}</div> : null}
             <button type="button" className="lk-fullbtn primary" disabled={!can} onClick={make}>{t('Make the locker')}</button>
+            <button type="button" className="lk-link lk-open-sent" onClick={onOpenSent}>{t('Open a file someone sent you…')}</button>
           </>
         )}
       </div>
@@ -197,7 +198,7 @@ function Setup({ shell, onDone }) {
 }
 
 /** The locker is shut: Windows Hello if it was turned on here, the password, or the recovery key. */
-function Unlock({ shell, state, onOpened }) {
+function Unlock({ shell, state, onOpened, onOpenSent }) {
   const [password, setPassword] = useState('');
   const [recovery, setRecovery] = useState('');
   const [useRecovery, setUseRecovery] = useState(false);
@@ -252,6 +253,7 @@ function Unlock({ shell, state, onOpened }) {
           <button type="button" className="lk-link" onClick={() => setUseRecovery(!useRecovery)}>{useRecovery ? t('Use the password') : t('Use the recovery key')}</button>
           <span className="lk-card-sub">{t('Stays unlocked for {n} minutes', { n: state.idleMinutes })}</span>
         </div>
+        <button type="button" className="lk-link lk-open-sent" onClick={onOpenSent}>{t('Open a file someone sent you…')}</button>
       </div>
     </div>
   );
@@ -469,25 +471,96 @@ function Rules({ shell, folder, onClose }) {
   );
 }
 
-function Share({ shell, folder, entry, onClose, toast }) {
+function Share({ shell, folder, entry, onClose }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(null);
   const go = async () => {
     const dest = await shell.dialog.save({ title: t('Send to someone'), defaultPath: `${entry.name}.rlock` });
     if (!dest) return;
     try {
-      await shell.locker.exportShare({ id: folder.id, rel: entry.rel, dest, password });
-      toast?.(t('Saved. It opens with this password in the Locker on any computer.'));
-      onClose();
+      const out = await shell.locker.exportShare({ id: folder.id, rel: entry.rel, dest, password });
+      setPassword('');
+      setError(null);
+      setSaved({ dest, size: out.size });
     } catch (err) {
       setError(said(err));
     }
   };
+  const email = () => shell.win.create({ app: 'mail', query: { subject: t('A locked file for you'), attach: saved.dest, size: saved.size } }).catch((err) => setError(said(err)));
+  if (saved) {
+    return (
+      <Dialog title={t('{name} is ready to send', { name: entry.name })} width={460} onClose={onClose} actions={<><Button className="lk-share-close" label={t('Close')} onClick={onClose} /><Button className="lk-share-show" label={t('Show in Explorer')} onClick={() => shell.shell.showInFolder({ path: saved.dest })} /><Button primary className="lk-share-mail" label={t('Attach to an email')} onClick={email} /></>}>
+        <div className="lk-dialog-body lk-share-done">
+          <div>{t('The locked copy is saved. Send it any way you like.')}</div>
+          <div className="lk-card-sub">{t('Give the password a different way, such as a call or a text message, and never in the same email. The other person opens the file with Open a sent file in their Locker.')}</div>
+          {error ? <div className="lk-error" role="alert">{error}</div> : null}
+        </div>
+      </Dialog>
+    );
+  }
   return (
     <Dialog title={t('Send {name} to someone', { name: entry.name })} width={440} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Save the locked copy…')} disabled={password.length < 4} onClick={go} /></>}>
       <div className="lk-dialog-body">
         <Field label={t('A password for this one file')}><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label={t('A password for this one file')} /></Field>
         <div className="lk-card-sub">{t('Send the password separately from the file.')}</div>
+        {error ? <div className="lk-error" role="alert">{error}</div> : null}
+      </div>
+    </Dialog>
+  );
+}
+
+/** A file someone sent: its own password, then a plain copy, or into one of this person's locked folders. Needs no locker for the plain copy. */
+function OpenSent({ shell, state, file, into, onClose, toast }) {
+  const [password, setPassword] = useState('');
+  const folders = state?.open ? state.folders : [];
+  const [folderId, setFolderId] = useState(into || folders[0]?.id || '');
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(null);
+  const plainName = file.split(/[\\/]/).pop().replace(/\.rlock$/i, '');
+  const run = async (work) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+    } catch (err) {
+      setError(said(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const savePlain = () => run(async () => {
+    const dest = await shell.dialog.save({ title: t('Save a plain copy'), defaultPath: plainName });
+    if (!dest) return;
+    await shell.locker.openShared({ file, dest, password });
+    setPassword('');
+    setSaved(dest);
+  });
+  const addToFolder = () => run(async () => {
+    const out = await shell.locker.importShared({ file, id: folderId, password });
+    toast?.(t('{name} is locked in {folder}.', { name: out.rel, folder: folders.find((f) => f.id === folderId)?.name || '' }));
+    onClose();
+  });
+  if (saved) {
+    return (
+      <Dialog title={t('{name} is open', { name: plainName })} width={440} onClose={onClose} actions={<><Button className="lk-sent-close" label={t('Close')} onClick={onClose} /><Button primary className="lk-sent-show" label={t('Show in Explorer')} onClick={() => shell.shell.showInFolder({ path: saved })} /></>}>
+        <div className="lk-dialog-body"><div>{t('A plain copy is saved. That copy is not locked.')}</div></div>
+      </Dialog>
+    );
+  }
+  const can = Boolean(password) && !busy;
+  return (
+    <Dialog title={t('Open {name}', { name: plainName })} width={440} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary={!folders.length} label={t('Save a plain copy…')} disabled={!can} onClick={savePlain} />{folders.length ? <Button primary label={t('Add to this folder')} disabled={!can || !folderId} onClick={addToFolder} /> : null}</>}>
+      <div className="lk-dialog-body">
+        <Field label={t('The password for this file')}><Input type="password" value={password} autoFocus onChange={(e) => setPassword(e.target.value)} aria-label={t('The password for this file')} /></Field>
+        {folders.length ? (
+          <Field label={t('Keep it locked in')}>
+            <Select value={folderId} onChange={(e) => setFolderId(e.target.value)} aria-label={t('Keep it locked in')}>
+              {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </Select>
+          </Field>
+        ) : <div className="lk-card-sub">{state?.exists ? t('Unlock your locker first if you want to keep it in a locked folder.') : t('You do not need a locker of your own to open this file.')}</div>}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
     </Dialog>
@@ -740,13 +813,18 @@ export default function Locker({ app, shell }) {
 
   const lockNow = () => shell.locker.lock().then(setState).catch(() => {});
 
+  const openSent = async () => {
+    const paths = await shell.dialog.open({ title: t('Open a sent file'), filters: [{ name: t('Locked files'), extensions: ['rlock'] }] });
+    if (paths?.[0]) setDialog({ kind: 'sent', file: paths[0] });
+  };
+
   const minutesLeft = state?.lockAt ? Math.max(0, Math.ceil((state.lockAt - Date.now()) / 60000)) : null;
   void tick;
 
   let inner;
   if (!state) inner = null;
-  else if (!state.exists || settingUp) inner = <Setup shell={shell} onDone={() => { setSettingUp(false); refresh(); }} />;
-  else if (!state.open) inner = <Unlock shell={shell} state={state} onOpened={setState} />;
+  else if (!state.exists || settingUp) inner = <Setup shell={shell} onDone={() => { setSettingUp(false); refresh(); }} onOpenSent={openSent} />;
+  else if (!state.open) inner = <Unlock shell={shell} state={state} onOpened={setState} onOpenSent={openSent} />;
   else {
     const conflicts = entries.filter((e) => e.state === 'conflict');
     const waiting = entries.filter((e) => e.state === 'waiting').length;
@@ -764,6 +842,7 @@ export default function Locker({ app, shell }) {
           <Spacer />
           <Button className="lk-add" label={t('Add folder…')} onClick={addFolder} />
           <Button className="lk-import" label={t('Add files…')} disabled={!current} onClick={importFiles} />
+          <Button className="lk-open-sent" label={t('Open a sent file…')} onClick={openSent} />
           <Button className="lk-settings" label={t('Settings')} onClick={() => setDialog({ kind: 'settings' })} />
         </div>
         <div className="lk-body">
@@ -892,7 +971,8 @@ export default function Locker({ app, shell }) {
       {dialog?.kind === 'add' ? <AddFolder shell={shell} root={dialog.root} onClose={() => setDialog(null)} onAdded={(id) => { setDialog(null); setCurrent(id); refresh(); }} /> : null}
       {dialog?.kind === 'folder' && folder ? <FolderSettings shell={shell} folder={folder} onClose={() => { setDialog(null); refresh(); }} /> : null}
       {dialog?.kind === 'rules' && folder ? <Rules shell={shell} folder={folder} onClose={() => { setDialog(null); reload(); refresh(); }} /> : null}
-      {dialog?.kind === 'share' && folder ? <Share shell={shell} folder={folder} entry={dialog.entry} toast={toast} onClose={() => setDialog(null)} /> : null}
+      {dialog?.kind === 'share' && folder ? <Share shell={shell} folder={folder} entry={dialog.entry} onClose={() => setDialog(null)} /> : null}
+      {dialog?.kind === 'sent' ? <OpenSent shell={shell} state={state} file={dialog.file} into={current} toast={toast} onClose={() => { setDialog(null); refresh(); }} /> : null}
       {dialog?.kind === 'compare' && folder ? <Compare shell={shell} folder={folder} list={entries} onClose={() => setDialog(null)} /> : null}
       {dialog?.kind === 'settings' ? <Settings shell={shell} state={state} toast={toast} onClose={() => { setDialog(null); refresh(); }} /> : null}
     </AppFrame>

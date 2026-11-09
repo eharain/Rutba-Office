@@ -63,6 +63,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => js(`Boolean(document.querySelector('.lk-card'))`), 'the setup card', 15000);
     await setField('Locker password', 'correct horse battery');
     await setField('The same password again', 'correct horse battery');
+    check('locker: a file someone sent can be opened by a person with no locker of their own', await js(`Boolean(document.querySelector('.lk-open-sent'))`));
     const made = await clickText('Make the locker');
     await until(() => js(`Boolean(document.querySelector('[data-recovery]'))`), 'the recovery key', 15000);
     const recovery = await js(`document.querySelector('[data-recovery]').textContent`);
@@ -255,7 +256,44 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => fs.existsSync(shared), 'the shared file', 8000);
     const opener = await js(`window.rutbaOffice.locker.openShared({ file: ${JSON.stringify(shared)}, password: 'one file only', dest: ${JSON.stringify(path.join(out, 'shared.pdf'))} }).then(() => 'opened', (e) => e.message)`);
     check('locker: Export to share makes a file that opens with its own password and holds the original', opener === 'opened' && fs.readFileSync(path.join(out, 'shared.pdf')).equals(pdfBytes), opener);
+    await until(() => js(`Boolean(document.querySelector('.lk-share-done'))`), 'the ready-to-send step', 5000);
+    await capture(win, 'locker-share-done.png');
+    check('locker: after saving, the copy can go to an email or be shown in Explorer', await js(`Boolean(document.querySelector('.lk-share-mail') && document.querySelector('.lk-share-show'))`));
+    await clickSel('.lk-share-mail');
+    let mailWin = null;
+    await until(() => { mailWin = BrowserWindow.getAllWindows().find((x) => /[?&]app=mail(&|$)/.test(x.webContents.getURL())) || null; return Boolean(mailWin); }, 'the mail window', 15000);
+    const attached = await until(() => mailWin.webContents.executeJavaScript(`/shared\.rlock/.test(document.body.textContent)`), 'the attachment in the message', 15000).then(() => true, () => false);
+    check('locker: Attach to an email opens a new message with the locked copy attached', attached, mailWin.webContents.getURL());
+    mailWin.close();
+    await clickSel('.lk-share-close');
     await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the share dialog to close', 5000);
+
+    // The other side: a sent file, its password, then a plain copy or into a folder.
+    plan('open', [shared]);
+    await clickSel('.lk-bar .lk-open-sent');
+    await until(() => js(`Boolean(document.querySelector('input[aria-label="The password for this file"]'))`), 'the password box for a sent file', 5000);
+    await setField('The password for this file', 'not this one');
+    plan('save', path.join(out, 'not-saved.pdf'));
+    await clickText('Save a plain copy…');
+    await until(() => js(`Boolean(document.querySelector('.lk-dialog-body .lk-error'))`), 'the refusal', 8000);
+    check('locker: a sent file refuses the wrong password and writes nothing', !fs.existsSync(path.join(out, 'not-saved.pdf')));
+    await setField('The password for this file', 'one file only');
+    await capture(win, 'locker-open-sent.png');
+    plan('save', path.join(out, 'received.pdf'));
+    await clickText('Save a plain copy…');
+    await until(() => fs.existsSync(path.join(out, 'received.pdf')), 'the plain copy of the sent file', 8000);
+    check('locker: a sent file opens to a plain copy with its own password', fs.readFileSync(path.join(out, 'received.pdf')).equals(pdfBytes));
+    await until(() => js(`Boolean(document.querySelector('.lk-sent-close'))`), 'the finished step', 5000);
+    await clickSel('.lk-sent-close');
+    await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the sent-file dialog to close', 5000);
+    plan('open', [shared]);
+    await clickSel('.lk-bar .lk-open-sent');
+    await until(() => js(`Boolean(document.querySelector('input[aria-label="The password for this file"]'))`), 'the password box again', 5000);
+    await setField('The password for this file', 'one file only');
+    await clickText('Add to this folder');
+    await until(() => fs.existsSync(path.join(root, 'shared.rlock')), 'the sent file in the folder', 8000);
+    check('locker: a sent file can be kept in a locked folder, locked, and nothing plain is left there', !fs.existsSync(path.join(root, 'shared')) && fs.existsSync(shared), fs.readdirSync(root).join(', '));
+    await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the sent-file dialog to close', 5000);
 
     // Unlock for good.
     await clickSel(LOCKED_ROW('Lease, signed.pdf'));
