@@ -64,24 +64,29 @@ $mgr = [Windows.Security.Credentials.KeyCredentialManager]
 ${body}
 `;
 
-function runPowerShell(body, { prompts = false } = {}) {
+export function runPowerShell(body, { prompts = false } = {}) {
   return new Promise((resolve, reject) => {
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', SCRIPT(body, prompts)], { windowsHide: true, timeout: 120000, maxBuffer: 1 << 20 }, (err, stdout) => {
-      if (err) reject(err);
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', SCRIPT(body, prompts)], { windowsHide: true, timeout: 120000, maxBuffer: 1 << 20 }, (err, stdout, stderr) => {
+      if (err) reject(Object.assign(err, { said: String(stderr || '').trim().slice(0, 600) }));
       else resolve(String(stdout).trim());
     });
   });
 }
+
+// PowerShell cannot pass a buffer Windows made back into a WinRT method: it holds it as a plain COM
+// object and refuses the conversion. So what goes in is a .NET buffer, and what comes out is read by reflection.
+export const bufferFrom = (text) => "[System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions]::AsBuffer([byte[]][System.Text.Encoding]::UTF8.GetBytes('" + text + "'))";
+export const base64Of = (expr) => "[Windows.Security.Cryptography.CryptographicBuffer].GetMethod('EncodeToBase64String').Invoke($null, @(" + expr + "))";
 
 const credName = (id) => `RutbaOfficeLocker-${id}`;
 
 const signBody = (id, create) => `
 $c = Await (${create ? `$mgr::RequestCreateAsync('${credName(id)}', [Windows.Security.Credentials.KeyCredentialCreationOption]::ReplaceExisting)` : `$mgr::OpenAsync('${credName(id)}')`}) (${RESULT})
 if ($c.Status -ne 'Success') { Write-Output ('status:' + $c.Status); exit 0 }
-$b = [Windows.Security.Cryptography.CryptographicBuffer]::ConvertStringToBinary('${CHALLENGE}', [Windows.Security.Cryptography.BinaryStringEncoding]::Utf8)
+$b = ${bufferFrom(CHALLENGE)}
 $s = Await ($c.Credential.RequestSignAsync($b)) ([Windows.Security.Credentials.KeyCredentialOperationResult])
 if ($s.Status -ne 'Success') { Write-Output ('status:' + $s.Status); exit 0 }
-Write-Output ([Windows.Security.Cryptography.CryptographicBuffer]::EncodeToBase64String($s.Result))
+Write-Output (${base64Of('$s.Result')})
 `;
 
 const forgetBody = (id) => `
@@ -117,8 +122,15 @@ export function helloProvider({ run = runPowerShell } = {}) {
 
   async function secretFrom(id, create) {
     if (!ID.test(String(id))) throw helloFailure('NotFound');
-    const out = await run(signBody(id, create), { prompts: true }).catch(() => '');
-    if (out.startsWith('status:')) throw helloFailure(out.slice(7));
+    // What Windows said goes to the log: the window only says it did not finish. The signature never does.
+    const out = await run(signBody(id, create), { prompts: true }).catch((err) => {
+      console.error('[locker] Windows Hello could not run:', err?.killed ? 'timed out' : (err?.said || err?.code || 'no reason given'));
+      return '';
+    });
+    if (out.startsWith('status:')) {
+      console.error('[locker] Windows Hello answered:', out.slice(7));
+      throw helloFailure(out.slice(7));
+    }
     const signature = Buffer.from(out, 'base64');
     if (!signature.length) throw helloFailure('');
     return crypto.createHash('sha256').update(signature).digest();

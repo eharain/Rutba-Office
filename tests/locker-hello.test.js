@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { helloProvider } from '../apps/desktop/main/extras/locker/hello.js';
+import { helloProvider, runPowerShell, bufferFrom, base64Of } from '../apps/desktop/main/extras/locker/hello.js';
 import { createKeys } from '../apps/desktop/main/extras/locker/keys.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
@@ -81,6 +81,18 @@ test('the real system: its answers up to a prompt, with no prompt shown', { skip
   const never = crypto.randomBytes(8).toString('hex');
   await assert.rejects(() => h.secret(never), (e) => e.code === 'hello-gone');
   await h.forget(never);
+});
+
+test('the real system: the challenge goes in and a buffer Windows made comes out, as the signing step needs', { skip: process.platform !== 'win32' }, async () => {
+  const text = 'rutba-locker:v1:hello-challenge';
+  const want = Buffer.from(text).toString('base64');
+  // Going in: the kind of buffer the signing call accepts.
+  assert.equal(await runPowerShell(`Write-Output (${base64Of(bufferFrom(text))})`), want);
+  // Coming out: a buffer Windows made, the kind a signature is.
+  const made = `[Windows.Security.Cryptography.CryptographicBuffer]::ConvertStringToBinary('${text}', [Windows.Security.Cryptography.BinaryStringEncoding]::Utf8)`;
+  assert.equal(await runPowerShell(`$w = ${made}; Write-Output (${base64Of('$w')})`), want);
+  // And the signing call's own parameter takes what goes in.
+  assert.equal(await runPowerShell(`$p = [Windows.Security.Credentials.KeyCredential].GetMethod('RequestSignAsync').GetParameters()[0].ParameterType; Write-Output $p.IsInstanceOfType(${bufferFrom(text)})`), 'True');
 });
 
 test('a locker opened with Windows Hello can do what one opened with the password can, and a new password keeps it', async () => {
