@@ -68,12 +68,17 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await clickText('I have kept it');
     await until(() => js(`Boolean(document.querySelector('.lk-add'))`), 'the main window', 8000);
     check('locker: after setup it is unlocked, and asks for a folder', /locked folders/i.test(await bodyText()) && !(await js(`document.querySelectorAll('tbody tr').length`)));
+    check('locker: with no folder yet it offers a ready-made one', await js(`/Make my Locker folder/.test(document.querySelector('.lk-make')?.textContent || '')`));
 
     // Add a folder: the choices are asked, a suggestion on each, and the files are locked.
     plan('open', [root]);
     await clickSel('.lk-add');
     await until(() => js(`Boolean(document.querySelector('.lk-add-dialog'))`), 'the add-folder dialog', 6000);
     await capture(win, 'locker-add-folder.png');
+    check('locker: adding a folder asks nothing until the person asks to change how', await js(`!document.querySelector('.lk-add-dialog .lk-choice') && Boolean(document.querySelector('.lk-change'))`));
+    await clickSel('.lk-change');
+    await until(() => js(`Boolean(document.querySelector('.lk-add-dialog .lk-choice'))`), 'the choices', 4000);
+    await capture(win, 'locker-add-folder-choices.png');
     const asked = await js(`document.querySelector('.lk-add-dialog').textContent`);
     check('locker: adding a folder asks what to lock, names in the cloud and the plain copies, each with a suggestion',
       /Every file/.test(asked) && /Hidden/.test(asked) && /Delete the plain copy/.test(asked) && /suggested/i.test(asked), asked.slice(0, 200));
@@ -84,8 +89,11 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => js(`Boolean(document.querySelector('tr[data-rel="Report.docx"][data-state="locked"]'))`), 'the files to be locked', 30000);
     const sealed = fs.existsSync(`${words}.rlock`) && !fs.existsSync(words) && !fs.existsSync(pdfFile) && fs.existsSync(path.join(root, '.rutbalocker-keys'));
     check('locker: the folder\'s files are locked where they are, each its own .rlock, the plain copies gone', sealed, fs.readdirSync(root).join(', '));
-    const tmpFileRow = await js(`document.querySelector('tr[data-rel="~$Report.docx"]')?.textContent`);
+    await clickSel('tr[data-rel="~$Report.docx"]');
+    await until(() => js(`Boolean(document.querySelector('.lk-detail'))`), 'the line about the file', 4000);
+    const tmpFileRow = await js(`document.querySelector('tr[data-rel="~$Report.docx"]')?.textContent + ' ' + document.querySelector('.lk-detail').textContent`);
     check('locker: Office\'s own temporary file stays plain, and says why', /Not locked/.test(tmpFileRow || '') && /temporary/.test(tmpFileRow || ''), tmpFileRow);
+    check('locker: the list says Locked or Not locked, and the rules stay out of the way', await js(`!document.querySelector('.lk-rules') && !document.querySelector('.lk-folder-settings') && document.querySelectorAll('thead th').length === 3`));
     await capture(win, 'locker-main.png');
 
     // A file arriving is locked by the watcher while the locker is open.
@@ -163,6 +171,13 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
       await clickText('Cancel');
       await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the dialog to close', 5000);
     };
+    await clickSel('.lk-settings');
+    await until(() => js(`Boolean(document.querySelector('.lk-advanced input'))`), 'the settings dialog', 5000);
+    await clickSel('.lk-advanced input');
+    const advancedOn = await until(() => js(`Boolean(document.querySelector('.lk-rules')) && Boolean(document.querySelector('.lk-folder-settings')) && document.querySelectorAll('thead th').length === 5`), 'the advanced options', 6000).then(() => true, () => false);
+    check('locker: Show advanced options brings the rules, the folder settings and the extra columns', advancedOn);
+    await clickText('Cancel');
+    await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the settings to close', 5000);
     await look('.lk-rules', 'locker-rules.png');
     await look('.lk-folder-settings', 'locker-folder-settings.png');
     await look('.lk-settings', 'locker-settings.png');
@@ -174,7 +189,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await capture(win, 'locker-share.png');
     const shared = path.join(out, 'shared.rlock');
     plan('save', shared);
-    await clickText('Export…');
+    await clickText('Save the locked copy…');
     await until(() => fs.existsSync(shared), 'the shared file', 8000);
     const opener = await js(`window.rutbaOffice.locker.openShared({ file: ${JSON.stringify(shared)}, password: 'one file only', dest: ${JSON.stringify(path.join(out, 'shared.pdf'))} }).then(() => 'opened', (e) => e.message)`);
     check('locker: Export to share makes a file that opens with its own password and holds the original', opener === 'opened' && fs.readFileSync(path.join(out, 'shared.pdf')).equals(pdfBytes), opener);

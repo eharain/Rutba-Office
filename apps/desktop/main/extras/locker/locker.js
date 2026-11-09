@@ -318,6 +318,22 @@ export function createLocker({ dir, cost, hooks = null }) {
       return { id, root: resolved, joined };
     },
 
+    /**
+     * The ready-made folder, in the person's own home folder and so outside
+     * the folders a cloud drive normally takes. Asked again, it is the same one.
+     *
+     * @returns {Promise<{ id, root, made: boolean }>}
+     */
+    async makeHomeFolder(home) {
+      needOpen();
+      const root = path.join(home, 'Locker');
+      const known = (await state()).folders.find((f) => path.resolve(f.root).toLowerCase() === root.toLowerCase());
+      if (known) return { id: known.id, root: known.root, made: false };
+      await fsp.mkdir(root, { recursive: true });
+      const { id } = await api.addFolder(root);
+      return { id, root, made: true };
+    },
+
     /** A folder's choices changed. */
     async setChoices(id, patch) {
       const clean = cleanChoices(patch);

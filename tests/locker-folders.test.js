@@ -475,6 +475,20 @@ const holder = (file) => new Promise((resolve, reject) => {
 
 const windowsOnly = { skip: process.platform !== 'win32' };
 
+test('the ready-made folder is made once, in the home folder, and locks what is put in it', async () => {
+  const { locker } = await make();
+  const home = tmp('rl-home-');
+  const first = await locker.makeHomeFolder(home);
+  assert.equal(first.made, true);
+  assert.equal(first.root, path.join(home, 'Locker'));
+  const again = await locker.makeHomeFolder(home);
+  assert.deepEqual({ id: again.id, made: again.made }, { id: first.id, made: false });
+  const p = write(first.root, 'note.txt', random(50));
+  await locker.lockWaiting(first.id);
+  assert.ok(fs.existsSync(`${p}.rlock`) || fs.readdirSync(first.root).some((n) => n.endsWith('.rlock')));
+  assert.ok(!fs.existsSync(p));
+});
+
 test('a real program holding the copy: seen in use, reported at lock, cleared when it lets go', windowsOnly, async () => {
   const { locker, folder, copy } = await OPENED();
   const h = await holder(copy);

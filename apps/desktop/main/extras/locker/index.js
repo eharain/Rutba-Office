@@ -16,6 +16,8 @@ const METHODS = {
     'unlock',      // ({ password?, recovery?, hello? }) -> state
     'lock',        // () -> state
     'addFolder',   // ({ root, choices, password?, recovery? }) -> { id, root, joined }
+    'makeHomeFolder', // () -> { id, root, made }
+    'setAdvanced', // ({ on }) -> state
     'setChoices',  // ({ id, patch }) -> folder
     'removeFolder',// ({ id }) -> { removed, failed }
     'list',        // ({ id }) -> entries
@@ -98,6 +100,7 @@ export async function register({ stores, broadcast, electron, windows = () => []
       hello: await hello.available().catch(() => false),
       helloOn: (await locker.ways().catch(() => [])).includes('hello'),
       idleMinutes: idleMs() / 60000,
+      advanced: stores.settings.get('locker.advanced', false) === true,
       lockAt,
       folders,
     };
@@ -260,6 +263,18 @@ export async function register({ stores, broadcast, electron, windows = () => []
       startWatching();
       await publish();
       return out;
+    },
+    makeHomeFolder: async () => {
+      touch();
+      const out = await locker.makeHomeFolder(electron.getPath('home'));
+      startWatching();
+      await publish();
+      return out;
+    },
+    setAdvanced: async ({ on }) => {
+      stores.settings.set('locker.advanced', on === true);
+      await publish();
+      return stateOut();
     },
     setChoices: async ({ id, patch }) => {
       touch();
