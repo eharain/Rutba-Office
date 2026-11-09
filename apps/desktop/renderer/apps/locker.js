@@ -471,7 +471,7 @@ function Rules({ shell, folder, onClose }) {
   );
 }
 
-function Share({ shell, folder, entry, onClose }) {
+function Share({ shell, folder, entry, onClose, toast }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(null);
@@ -487,7 +487,17 @@ function Share({ shell, folder, entry, onClose }) {
       setError(said(err));
     }
   };
-  const email = () => shell.win.create({ app: 'mail', query: { subject: t('A locked file for you'), attach: saved.dest, size: saved.size } }).catch((err) => setError(said(err)));
+  const mailIt = (file) => shell.win.create({ app: 'mail', query: { subject: t('A locked file for you'), attach: file.dest, size: file.size } });
+  const email = () => mailIt(saved).catch((err) => setError(said(err)));
+  const emailNow = async () => {
+    try {
+      await mailIt(await shell.locker.shareForMail({ id: folder.id, rel: entry.rel, password }));
+      toast?.(t('Give the password a different way, such as a call or a text message.'));
+      onClose();
+    } catch (err) {
+      setError(said(err));
+    }
+  };
   if (saved) {
     return (
       <Dialog title={t('{name} is ready to send', { name: entry.name })} width={460} onClose={onClose} actions={<><Button className="lk-share-close" label={t('Close')} onClick={onClose} /><Button className="lk-share-show" label={t('Show in Explorer')} onClick={() => shell.shell.showInFolder({ path: saved.dest })} /><Button primary className="lk-share-mail" label={t('Attach to an email')} onClick={email} /></>}>
@@ -500,10 +510,10 @@ function Share({ shell, folder, entry, onClose }) {
     );
   }
   return (
-    <Dialog title={t('Send {name} to someone', { name: entry.name })} width={440} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Save the locked copy…')} disabled={password.length < 4} onClick={go} /></>}>
+    <Dialog title={t('Send {name} to someone', { name: entry.name })} width={440} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button label={t('Save the locked copy…')} disabled={password.length < 4} onClick={go} /><Button primary className="lk-share-email" label={t('Attach to an email')} disabled={password.length < 4} onClick={emailNow} /></>}>
       <div className="lk-dialog-body">
         <Field label={t('A password for this one file')}><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label={t('A password for this one file')} /></Field>
-        <div className="lk-card-sub">{t('Send the password separately from the file.')}</div>
+        <div className="lk-card-sub">{t('Attach it to an email here, or save it to send another way. Send the password separately from the file.')}</div>
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
     </Dialog>
@@ -971,7 +981,7 @@ export default function Locker({ app, shell }) {
       {dialog?.kind === 'add' ? <AddFolder shell={shell} root={dialog.root} onClose={() => setDialog(null)} onAdded={(id) => { setDialog(null); setCurrent(id); refresh(); }} /> : null}
       {dialog?.kind === 'folder' && folder ? <FolderSettings shell={shell} folder={folder} onClose={() => { setDialog(null); refresh(); }} /> : null}
       {dialog?.kind === 'rules' && folder ? <Rules shell={shell} folder={folder} onClose={() => { setDialog(null); reload(); refresh(); }} /> : null}
-      {dialog?.kind === 'share' && folder ? <Share shell={shell} folder={folder} entry={dialog.entry} onClose={() => setDialog(null)} /> : null}
+      {dialog?.kind === 'share' && folder ? <Share shell={shell} folder={folder} entry={dialog.entry} toast={toast} onClose={() => setDialog(null)} /> : null}
       {dialog?.kind === 'sent' ? <OpenSent shell={shell} state={state} file={dialog.file} into={current} toast={toast} onClose={() => { setDialog(null); refresh(); }} /> : null}
       {dialog?.kind === 'compare' && folder ? <Compare shell={shell} folder={folder} list={entries} onClose={() => setDialog(null)} /> : null}
       {dialog?.kind === 'settings' ? <Settings shell={shell} state={state} toast={toast} onClose={() => { setDialog(null); refresh(); }} /> : null}

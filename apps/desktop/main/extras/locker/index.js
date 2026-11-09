@@ -27,6 +27,7 @@ const METHODS = {
     'open',        // ({ id, rel }) -> { path, app }
     'exportCopy',  // ({ id, rel, dest, overwrite? }) -> { size }
     'exportShare', // ({ id, rel, dest, password }) -> { size }
+    'shareForMail', // ({ id, rel, password }) -> { dest, size }
     'openShared',  // ({ file, dest, password }) -> { size }
     'importShared', // ({ file, id, password }) -> { rel }
     'importFile',  // ({ id, source, rel? }) -> { size }
@@ -364,6 +365,21 @@ export async function register({ stores, broadcast, electron, windows = () => []
     exportShare: async ({ id, rel, dest, password }) => {
       touch();
       return locker.exportShare(id, rel, dest, password);
+    },
+    // A locked copy for an email, kept in the profile so a draft can still find it. Only copies a week old are cleared.
+    shareForMail: async ({ id, rel, password }) => {
+      touch();
+      const outgoing = path.join(dir, 'outgoing');
+      for (const name of await fs.promises.readdir(outgoing).catch(() => [])) {
+        const at = path.join(outgoing, name);
+        const st = await fs.promises.stat(at).catch(() => null);
+        if (st && Date.now() - st.mtimeMs > 7 * 86400000) await fs.promises.rm(at, { recursive: true, force: true }).catch(() => {});
+      }
+      const place = path.join(outgoing, crypto.randomBytes(8).toString('hex'));
+      await fs.promises.mkdir(place, { recursive: true });
+      const dest = path.join(place, `${path.posix.basename(rel)}.rlock`);
+      const out = await locker.exportShare(id, rel, dest, password);
+      return { dest, size: out.size };
     },
     openShared: ({ file, dest, password }) => locker.openShared(file, dest, password),
     importShared: async ({ file, id, password }) => {

@@ -268,6 +268,19 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await clickSel('.lk-share-close');
     await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the share dialog to close', 5000);
 
+    // The email offered at the start, with nothing to save first.
+    await clickSel('.lk-share');
+    await until(() => js(`Boolean(document.querySelector('.lk-share-email'))`), 'the email button on the first step', 5000);
+    await setField('A password for this one file', 'one file only');
+    await capture(win, 'locker-share-first.png');
+    await clickSel('.lk-share-email');
+    let mailNow = null;
+    await until(() => { mailNow = BrowserWindow.getAllWindows().find((x) => /[?&]app=mail(&|$)/.test(x.webContents.getURL())) || null; return Boolean(mailNow); }, 'the mail window from the first step', 15000);
+    const attachedNow = await until(() => mailNow.webContents.executeJavaScript(`/Lease, signed\.pdf\.rlock/.test(document.body.textContent)`), 'the attachment from the first step', 15000).then(() => true, () => false);
+    check('locker: Attach to an email is offered at the start and opens a message with the locked copy', attachedNow && /outgoing/.test(decodeURIComponent(mailNow.webContents.getURL())), mailNow.webContents.getURL());
+    mailNow.close();
+    await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the share dialog to close after the email', 5000);
+
     // The other side: a sent file, its password, then a plain copy or into a folder.
     plan('open', [shared]);
     await clickSel('.lk-bar .lk-open-sent');
