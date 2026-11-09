@@ -1,6 +1,6 @@
 # Rutba Office
 
-A free, open-source desktop office suite. Thirteen apps, working with the
+A free, open-source desktop office suite. Fifteen apps, working with the
 network switched off. The installer asks which apps to install, and only those
 are put on the computer; Add or remove apps on the launcher adds the others, or
 takes one away, whenever you want. Each app is a pack signed for its release.
@@ -32,7 +32,7 @@ Dual-licensed: **GNU AGPL v3.0**, or a commercial licence — see
 
 ## Video
 
-[![Rutba Office: ten free office apps for Windows, no account needed](https://raw.githubusercontent.com/eharain/Rutba-Office/main/docs/media/video-thumbnail.jpg)](https://www.youtube.com/watch?v=vPo8xXONjjk)
+[![Rutba Office: free office apps for Windows, no account needed](https://raw.githubusercontent.com/eharain/Rutba-Office/main/docs/media/video-thumbnail.jpg)](https://www.youtube.com/watch?v=vPo8xXONjjk)
 
 A 1:40 introduction on YouTube, with English captions.
 
