@@ -199,27 +199,23 @@ test('unlock for good writes the plain file first, and takes the locked copy awa
   assert.ok(fs.existsSync(path.join(folder, 'b.pdf.rlock')));
 });
 
-test('a file unlocked for good stays plain even though the rules say to lock it', async () => {
+test('a file unlocked is plain where it was, listed as not locked, until it is locked again', async () => {
   const { locker, folder, id } = await make();
   const p = write(folder, 'a.pdf', random(100));
   await locker.lockWaiting(id);
   await locker.unlockForGood(id, 'a.pdf');
-  const list = await locker.scan(id);
-  assert.equal(list.find((e) => e.rel === 'a.pdf').state, 'excluded');
-  assert.equal(list.find((e) => e.rel === 'a.pdf').why, 'Unlocked for good');
-  const out = await locker.lockWaiting(id);
-  assert.equal(out.locked.length, 0, 'the sweep leaves it alone');
   assert.ok(fs.existsSync(p));
+  assert.equal((await locker.scan(id)).find((e) => e.rel === 'a.pdf').state, 'waiting');
 });
 
-test('a file taken out can be put back, where it is, and is then treated like any other', async () => {
+test('a file unlocked can be locked again, where it is, and what comes out is what went in', async () => {
   const { locker, folder, id } = await make();
   const bytes = random(4000);
   const p = write(folder, 'sub/a.pdf', bytes);
   await locker.lockWaiting(id);
   await locker.unlockForGood(id, 'sub/a.pdf');
   assert.ok(fs.existsSync(p));
-  await locker.putBack(id, 'sub/a.pdf');
+  await locker.lockOne(id, 'sub/a.pdf');
   assert.ok(!fs.existsSync(p), 'the plain file is gone');
   assert.ok(fs.existsSync(`${p}.rlock`), 'locked where it was');
   const entry = (await locker.scan(id)).find((e) => e.rel === 'sub/a.pdf');
@@ -228,17 +224,6 @@ test('a file taken out can be put back, where it is, and is then treated like an
   await locker.exportCopy(id, 'sub/a.pdf', out);
   assert.ok(fs.readFileSync(out).equals(bytes), 'what comes out is what went in');
   fs.rmSync(out, { force: true });
-  // Taken out again, it stays out again: the folder forgot only the earlier choice.
-  await locker.unlockForGood(id, 'sub/a.pdf');
-  assert.equal((await locker.lockWaiting(id)).locked.length, 0);
-  assert.ok(fs.existsSync(p));
-});
-
-test('only a file that was taken out can be put back', async () => {
-  const { locker, folder, id } = await make();
-  write(folder, 'a.pdf', random(100));
-  await assert.rejects(() => locker.putBack(id, 'a.pdf'), (e) => e.code === 'state');
-  assert.ok(fs.existsSync(path.join(folder, 'a.pdf')));
 });
 
 test('removing a folder unlocks every file first; a file that will not unlock keeps the folder in the locker', async () => {

@@ -1,5 +1,5 @@
 // The Locker's window, end to end, in a build made with its switch: setting up,
-// adding a folder, a file dropped in being locked where it is, a file opened
+// adding a folder, a file dropped in waiting to be locked by hand, a file opened
 // into Documents and its Save written back to the locked copy, exporting a
 // copy and to share, locking and unlocking (a wrong password changing nothing),
 // and unlocking for good. It runs only in a run started with RUTBA_LOCKER=1;
@@ -96,10 +96,14 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     check('locker: the list says Locked or Not locked, and the rules stay out of the way', await js(`!document.querySelector('.lk-rules') && !document.querySelector('.lk-folder-settings') && document.querySelectorAll('thead th').length === 3`));
     await capture(win, 'locker-main.png');
 
-    // A file arriving is locked by the watcher while the locker is open.
+    // A file arriving is listed as not locked, and stays so until the person locks it.
     fs.writeFileSync(path.join(root, 'Dropped in.txt'), 'dropped in by the person');
+    const listedDrop = await until(() => js(`Boolean(document.querySelector('tr[data-rel="Dropped in.txt"][data-state="waiting"]'))`), 'the dropped file to be listed', 20000).then(() => true, () => false);
+    await wait(2500);
+    check('locker: a file dropped into the folder is listed as not locked and nothing locks it by itself', listedDrop && fs.existsSync(path.join(root, 'Dropped in.txt')) && !fs.existsSync(path.join(root, 'Dropped in.txt.rlock')), fs.readdirSync(root).join(', '));
+    await clickSel('.lk-lockall');
     const lockedDrop = await until(() => js(`Boolean(document.querySelector('tr[data-rel="Dropped in.txt"][data-state="locked"]'))`), 'the dropped file to lock', 20000).then(() => true, () => false);
-    check('locker: a file dropped into the folder is locked as it arrives', lockedDrop && fs.existsSync(path.join(root, 'Dropped in.txt.rlock')) && !fs.existsSync(path.join(root, 'Dropped in.txt')), fs.readdirSync(root).join(', '));
+    check('locker: the Lock button locks it where it is', lockedDrop && fs.existsSync(path.join(root, 'Dropped in.txt.rlock')) && !fs.existsSync(path.join(root, 'Dropped in.txt')), fs.readdirSync(root).join(', '));
 
     // Export a copy: the locked file is untouched and the copy is the original.
     const dest = path.join(out, 'copy.pdf');
@@ -240,15 +244,15 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     const backOnDisk = await until(() => fs.existsSync(pdfFile) && !fs.existsSync(`${pdfFile}.rlock`), 'the plain file back', 8000).then(() => true, () => false);
     check('locker: Unlock for good puts the plain file back and removes the locked one', backOnDisk && fs.readFileSync(pdfFile).equals(pdfBytes));
     await wait(2500);
-    check('locker: a file unlocked for good stays plain; the watcher does not lock it again', fs.existsSync(pdfFile) && !fs.existsSync(`${pdfFile}.rlock`));
+    check('locker: a file unlocked stays plain until the person locks it again', fs.existsSync(pdfFile) && !fs.existsSync(`${pdfFile}.rlock`));
 
     // And back again, with the one button.
-    await until(() => js(`Boolean(document.querySelector('tr[data-rel="Lease, signed.pdf"][data-state=excluded]'))`), 'the file listed as not locked', 8000);
-    await clickSel('tr[data-rel="Lease, signed.pdf"][data-state=excluded]');
-    await until(() => js(`Boolean(document.querySelector('.lk-putback')) && !document.querySelector('.lk-unlock')`), 'the Put back button', 4000);
-    await clickSel('.lk-putback');
+    await until(() => js(`Boolean(document.querySelector('tr[data-rel="Lease, signed.pdf"][data-state=waiting]'))`), 'the file listed as not locked', 8000);
+    await clickSel('tr[data-rel="Lease, signed.pdf"][data-state=waiting]');
+    await until(() => js(`Boolean(document.querySelector('.lk-lockfile')) && !document.querySelector('.lk-unlock')`), 'the Lock this file button', 4000);
+    await clickSel('.lk-lockfile');
     const putBack = await until(() => !fs.existsSync(pdfFile) && fs.existsSync(`${pdfFile}.rlock`), 'the file locked again', 8000).then(() => true, () => false);
-    check('locker: Put back in the Locker locks a file taken out, where it is', putBack);
+    check('locker: Lock this file locks an unlocked file again, where it is', putBack);
 
     const home = await open('home');
     const tile = await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="locker"]'))`), 'the launcher card', 10000).then(() => true, () => false);

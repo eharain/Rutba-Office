@@ -58,7 +58,7 @@ export async function wipeFile(file) {
  * @param {object} [o.hooks]    for the tests
  */
 export function createFolder({ root, key, folderId, stageDir, choices, hooks = null }) {
-  const opt = () => ({ hidden: false, afterLock: 'keep', keepDir: null, keepVersions: 3, released: [], ...choices });
+  const opt = () => ({ hidden: false, afterLock: 'keep', keepDir: null, keepVersions: 3, ...choices });
   const abs = (rel) => path.join(root, ...rel.split('/'));
 
   /** Every file under the folder, with the rules files found along the way. */
@@ -162,16 +162,10 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
       }
     }
     const lockedRels = new Set(entries.map((e) => e.rel.toLowerCase()));
-    const released = new Set((opt().released || []).map((r) => r.toLowerCase()));
     for (const { path: p, rel } of files) {
       const d = decide(rel, rulesFor(sets, rel));
       const st = await fsp.stat(p).catch(() => null);
       if (!st) continue;
-      // A file the person unlocked for good stays plain: the watcher must not lock it again.
-      if (d.lock && released.has(rel.toLowerCase())) {
-        entries.push({ rel, name: path.basename(rel), state: 'excluded', why: 'Unlocked for good', kind: 'released', size: st.size, modified: st.mtimeMs, path: p });
-        continue;
-      }
       if (d.lock) {
         entries.push({ rel, name: path.basename(rel), state: 'waiting', why: d.why, kind: d.kind, size: st.size, modified: st.mtimeMs, path: p, beside: lockedRels.has(rel.toLowerCase()) || undefined });
       } else {

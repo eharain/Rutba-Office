@@ -90,7 +90,7 @@ const stateName = (e) => ({
 
 const stateDetail = (e) => ({
   locked: e.pieces ? t('Locked, in {n} pieces', { n: e.pieces }) : t('Locked'),
-  waiting: t('Waiting to be locked'),
+  waiting: t('Not locked'),
   excluded: t('Stays plain'),
   conflict: t('{n} versions to choose between', { n: e.versions || 2 }),
   damaged: t('Damaged'),
@@ -341,7 +341,7 @@ function AddFolder({ shell, root, onClose, onAdded }) {
         await shell.locker.writeRules({ id: out.id, text: `# What to lock in this folder, in the wording of .gitignore.\n${lines.join('\n')}\n` });
       }
       const res = await shell.locker.lockWaiting({ id: out.id });
-      if (res.failed.length) toast?.(t('{n} files could not be locked yet. They are shown as waiting.', { n: res.failed.length }), { tone: 'warn' });
+      if (res.failed.length) toast?.(t('{n} files could not be locked yet. They are shown as not locked.', { n: res.failed.length }), { tone: 'warn' });
       onAdded(out.id);
     } catch (err) {
       if (err.original?.startsWith?.('That password') || err.message?.startsWith?.('That password')) {
@@ -364,7 +364,7 @@ function AddFolder({ shell, root, onClose, onAdded }) {
     >
       <div className="lk-dialog-body">
         <div className="lk-card-sub">{root}</div>
-        <div>{t('Every file in this folder is locked where it is, and each new file as it arrives.')}</div>
+        <div>{t('Every file in this folder is locked where it is. Files you add later stay unlocked until you lock them.')}</div>
         {more ? (
           <>
             <Choices c={c} set={set} keepDirPick={pickKeep} showWhat />
@@ -623,7 +623,7 @@ export default function Locker({ app, shell }) {
   const makeHomeFolder = () => act(async () => {
     const out = await shell.locker.makeHomeFolder();
     setCurrent(out.id);
-    toast?.(out.made ? t('Your Locker folder is ready. Anything you put in it is locked.') : t('This is your Locker folder.'));
+    toast?.(out.made ? t('Your Locker folder is ready. Put files in it, then lock them here.') : t('This is your Locker folder.'));
   });
 
   const importFiles = async () => {
@@ -660,15 +660,15 @@ export default function Locker({ app, shell }) {
   });
 
   const unlockForGood = (e) => act(async () => {
-    const { response } = await shell.dialog.message({ type: 'warning', message: t('Take {name} out of the Locker?', { name: e.name }), detail: t('It becomes an ordinary file in this folder and is no longer locked.'), buttons: [t('Take it out'), t('Cancel')], defaultId: 1, cancelId: 1 });
+    const { response } = await shell.dialog.message({ type: 'warning', message: t('Unlock {name}?', { name: e.name }), detail: t('It becomes an ordinary file in the same place, and the earlier versions the Locker kept of it are removed. You can lock it again whenever you like.'), buttons: [t('Unlock'), t('Cancel')], defaultId: 1, cancelId: 1 });
     if (response === 0) {
       await shell.locker.unlockForGood({ id: current, rel: e.rel });
       setSelected(null);
     }
   });
 
-  const putBack = (e) => act(async () => {
-    await shell.locker.putBack({ id: current, rel: e.rel });
+  const lockFile = (e) => act(async () => {
+    await shell.locker.lockOne({ id: current, rel: e.rel });
     setSelected(null);
   });
 
@@ -767,9 +767,9 @@ export default function Locker({ app, shell }) {
                   <Button primary className="lk-open" label={t('Open')} disabled={selEntry?.state !== 'locked'} onClick={() => openEntry(selEntry)} />
                   <Button className="lk-export" label={t('Save an unlocked copy…')} disabled={selEntry?.state !== 'locked'} onClick={() => exportCopy(selEntry)} />
                   <Button className="lk-share" label={t('Send to someone…')} disabled={selEntry?.state !== 'locked'} onClick={() => setDialog({ kind: 'share', entry: selEntry })} />
-                  {selEntry?.kind === 'released'
-                    ? <Button className="lk-putback" label={t('Put back in the Locker')} onClick={() => putBack(selEntry)} />
-                    : <Button className="lk-unlock" label={t('Take out of the Locker…')} disabled={selEntry?.state !== 'locked'} onClick={() => unlockForGood(selEntry)} />}
+                  {selEntry?.state === 'waiting'
+                    ? <Button className="lk-lockfile" label={t('Lock this file')} onClick={() => lockFile(selEntry)} />
+                    : <Button className="lk-unlock" label={t('Unlock this file…')} disabled={selEntry?.state !== 'locked'} onClick={() => unlockForGood(selEntry)} />}
                   <Spacer />
                   {state.advanced ? <Button className="lk-rules" label={t('Edit rules')} onClick={() => setDialog({ kind: 'rules' })} /> : null}
                   <Button className="lk-remove" label={t('Stop locking this folder…')} onClick={removeFolder} />

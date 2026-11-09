@@ -30,7 +30,7 @@ const METHODS = {
     'openShared',  // ({ file, dest, password }) -> { size }
     'importFile',  // ({ id, source, rel? }) -> { size }
     'unlockForGood', // ({ id, rel }) -> { dest }
-    'putBack',     // ({ id, rel }) -> { target, size }
+    'lockOne',     // ({ id, rel }) -> { target, size }
     'versions',    // ({ id, rel }) -> [{ version, current, label }]
     'restore',     // ({ id, rel, version }) -> { size }
     'readRules',   // ({ id }) -> text
@@ -117,15 +117,9 @@ export async function register({ stores, broadcast, electron, windows = () => []
     }
   }
 
-  /** Files that arrived are locked; files changed in a temporary copy are written back. */
-  async function sweep(id) {
-    if (!locker.isOpen()) return;
-    try {
-      const out = await locker.lockWaiting(id);
-      if (out.locked.length || out.failed.length) broadcast('locker:changed', { id, ...out });
-    } catch {
-      // A folder that has gone away is shown as it is on the next scan.
-    }
+  /** Something changed in a folder: the window's list is brought up to date. A file is locked only when the person asks. */
+  function changed(id) {
+    if (locker.isOpen()) broadcast('locker:changed', { id });
   }
 
   const debounced = new Map();
@@ -155,12 +149,12 @@ export async function register({ stores, broadcast, electron, windows = () => []
         try {
           const w = fs.watch(f.root, { recursive: true }, (_e, name) => {
             if (name && name.split(/[\\/]/).includes(OPEN_DIR)) noteOpen(path.join(f.root, name));
-            else later(f.id, () => sweep(f.id));
+            else later(f.id, () => changed(f.id));
           });
           w.on('error', () => {});
           watchers.set(f.id, w);
         } catch {
-          // A drive that does not support watching: the next start's sweep locks what arrived.
+          // A drive that does not support watching: the list is read again when the folder is next shown.
         }
       }
     }).catch(() => {});
@@ -188,8 +182,6 @@ export async function register({ stores, broadcast, electron, windows = () => []
     startLockTimer();
     startWatching();
     await publish();
-    // Whatever arrived while it was locked, or was still waiting.
-    for (const f of await locker.folders()) later(f.id, () => sweep(f.id));
   }
 
   async function doLock(reason) {
@@ -338,9 +330,9 @@ export async function register({ stores, broadcast, electron, windows = () => []
       await publish();
       return out;
     },
-    putBack: async ({ id, rel }) => {
+    lockOne: async ({ id, rel }) => {
       touch();
-      const out = await locker.putBack(id, rel);
+      const out = await locker.lockOne(id, rel);
       await publish();
       return out;
     },

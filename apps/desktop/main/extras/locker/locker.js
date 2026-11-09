@@ -383,27 +383,10 @@ export function createLocker({ dir, cost, hooks = null }) {
     lockWaiting: (id, opts) => withFolder(id, (f) => f.lockWaiting(opts)),
     lockOne: (id, rel, opts) => withFolder(id, (f) => f.lockOne(rel, opts)),
     exportCopy: (id, rel, dest, opts) => withFolder(id, (f) => f.exportCopy(rel, dest, opts)),
-    /** Back to a plain file for good: it stays plain, even if the rules say to lock it. */
+    /** Back to a plain file where it is. It stays plain until the person locks it again. */
     unlockForGood: async (id, rel) => {
       await closeCopies((e) => e.folderId === id && e.rel === rel);
-      return withFolder(id, async (f) => {
-        const out = await f.unlockForGood(rel);
-        const s = await state();
-        const rec = s.folders.find((x) => x.id === id);
-        rec.released = [...new Set([...(rec.released || []), rel])];
-        await saveState(s);
-        return out;
-      });
-    },
-    /** A file taken out put back: locked where it is, and treated by the folder like any other file again. */
-    async putBack(id, rel) {
-      const s = await state();
-      const rec = s.folders.find((x) => x.id === id);
-      const same = (r) => r.toLowerCase() === String(rel).toLowerCase();
-      if (!rec?.released?.some(same)) throw new LockerError('state', 'That file was not taken out of the Locker.');
-      rec.released = rec.released.filter((r) => !same(r));
-      await saveState(s);
-      return withFolder(id, (f) => f.lockOne(rel));
+      return withFolder(id, (f) => f.unlockForGood(rel));
     },
     versions: (id, rel) => withFolder(id, (f) => f.versions(rel)),
     restore: (id, rel, version) => withFolder(id, (f) => f.restore(rel, version)),
