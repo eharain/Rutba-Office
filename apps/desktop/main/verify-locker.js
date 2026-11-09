@@ -20,7 +20,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await wait(700);
     await shot(w, name);
   };
-  if (process.env.RUTBA_LOCKER !== '1') return;
+  if (process.env.RUTBA_LOCKER === '0') return;
   const answers = globalThis.__rutbaCheckDialogAnswers;
   const plan = (kind, answer) => answers.push({ kind, answer });
   const root = fs.mkdtempSync(path.join(dir, 'locker-folder-'));

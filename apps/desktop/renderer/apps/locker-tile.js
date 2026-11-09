@@ -1,4 +1,4 @@
-// The Locker's card on the launcher, in a build made with its switch only.
+// The Locker's card on the launcher.
 import React from 'react';
 import { t } from './locker-words.js';
 

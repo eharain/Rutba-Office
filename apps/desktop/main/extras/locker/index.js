@@ -1,6 +1,6 @@
 // The Locker in the running app: the window's calls, the idle timer, and
 // watching the folders and the temporary copies while it is unlocked. This
-// module is loaded only by a build made with RUTBA_LOCKER=1 (build-extras.js).
+// module is loaded through build-extras.js.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';

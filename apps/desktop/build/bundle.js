@@ -24,8 +24,9 @@ const out = process.env.RUTBA_BUNDLE_OUT ? path.resolve(process.env.RUTBA_BUNDLE
 export const RENDERER_META = process.env.RUTBA_BUNDLE_OUT ? path.join(out, '..', 'renderer-meta.json') : path.join(app, 'build', 'meta', 'renderer.json');
 const watch = process.argv.includes('--watch');
 const dev = watch || process.argv.includes('--dev');
-// A switch for code that ships only in a build made with it (main/build-extras.js): off unless named.
-const locker = process.env.RUTBA_LOCKER === '1';
+// The Locker is part of every build. RUTBA_LOCKER=0 leaves it out, which a release must never do:
+// people's locked files would have nothing to open them (main/build-extras.js).
+const locker = process.env.RUTBA_LOCKER !== '0';
 
 fs.mkdirSync(out, { recursive: true });
 

@@ -5159,7 +5159,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('transitionsound')) await verifyDeckTransitionSound({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('deckink')) await verifyDeckInk({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir });
     if (only.includes('locker')) {
-      if (process.env.RUTBA_LOCKER !== '1') check('locker: this run was started with RUTBA_LOCKER=1', false, 'without it there is no Locker to check');
+      if (process.env.RUTBA_LOCKER === '0') check('locker: this run was not started with RUTBA_LOCKER=0', false, 'with it there is no Locker to check');
       await verifyLocker({ open, check, until, wait, errorsIn, doc, capture: shotTo }, { dir, files });
     }
     if (only.includes('sheetink')) await verifySheetInk({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir });
@@ -5627,7 +5627,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await part('slides', () => verifyDeckScreenRecording({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDeckTransitionSound({ open, check, until, wait, doc, sessionFor }, { dir }));
   await part('slides', () => verifyDeckInk({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir }));
-  if (process.env.RUTBA_LOCKER === '1') await part('locker', () => verifyLocker({ open, check, until, wait, errorsIn, doc, capture: shotTo }, { dir, files }));
+  if (process.env.RUTBA_LOCKER !== '0') await part('locker', () => verifyLocker({ open, check, until, wait, errorsIn, doc, capture: shotTo }, { dir, files }));
   await part('sheets', () => verifySheetInk({ open, check, until, wait, doc, sessionFor, capture: shotTo }, { dir }));
   await part('word', () => verifyWordInk({ open, check, until, wait, capture: shotTo }, { dir }));
   await part('slides', () => verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir }));

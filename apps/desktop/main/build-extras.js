@@ -1,9 +1,10 @@
-// Code a build carries only when it was made with a switch that names it.
+// Code that is kept apart from the main process: today, the Locker.
 //
-// build/bundle.js writes the list (build/out/extras.json) as it builds; a build
-// made without a switch lists nothing and leaves the extras' code out of the
-// archive altogether (electron-builder.config.cjs). So there is nothing here
-// that a person can turn on: this file only loads what the build put in.
+// build/bundle.js writes the list (build/out/extras.json) as it builds. Every
+// build carries the Locker; a build made with RUTBA_LOCKER=0 lists nothing and
+// leaves its code out of the archive (electron-builder.config.cjs). There is
+// nothing here that a person can turn on: this file only loads what the build
+// put in.
 
 import fs from 'node:fs';
 import path from 'node:path';
