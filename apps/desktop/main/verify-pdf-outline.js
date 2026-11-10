@@ -91,19 +91,30 @@ function driver(win, { until, wait }) {
     el.dispatchEvent(new MouseEvent('mouseup', at));
     return 'picked';
   })()`);
+  // The strip may still be scrolling to the page just picked: wait for it to stand still, and aim at
+  // the target where it stands at each step, so a busy machine's late scroll cannot move the drop.
   const drag = (from, to) => js(`(async () => {
     const all = document.querySelectorAll('.pdf-thumb');
+    const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
+    let still = 0, last = null;
+    for (let n = 0; n < 200 && still < 5; n++) {
+      await frame();
+      const now = all[${from}].getBoundingClientRect().top + ',' + all[${to}].getBoundingClientRect().top;
+      still = now === last ? still + 1 : 0;
+      last = now;
+    }
     const a = all[${from}].getBoundingClientRect();
-    const b = all[${to}].getBoundingClientRect();
     const x = a.left + a.width / 2;
     const ev = (y) => ({ clientX: x, clientY: y, bubbles: true, cancelable: true, button: 0, buttons: 1 });
+    const aim = () => all[${to}].getBoundingClientRect().top + 4;
     all[${from}].dispatchEvent(new MouseEvent('mousedown', ev(a.top + a.height / 2)));
     for (let i = 1; i <= 8; i++) {
-      const y = a.top + a.height / 2 + ((b.top + 4) - (a.top + a.height / 2)) * (i / 8);
+      const y = a.top + a.height / 2 + (aim() - (a.top + a.height / 2)) * (i / 8);
       window.dispatchEvent(new MouseEvent('mousemove', ev(y)));
       await new Promise((r) => setTimeout(r, 30));
     }
-    window.dispatchEvent(new MouseEvent('mouseup', ev(b.top + 4)));
+    window.dispatchEvent(new MouseEvent('mousemove', ev(aim())));
+    window.dispatchEvent(new MouseEvent('mouseup', ev(aim())));
     return 'dragged';
   })()`);
   const setInput = (sel, value) => js(`(() => {

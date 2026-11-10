@@ -102,13 +102,13 @@ export async function verifyDrawingDelete(h, { dir }) {
     // Just inserted, and selected by the insert: Delete takes it out.
     const first = await insertOval();
     // As a person would: once it shows selected.
-    await until(() => wc.executeJavaScript(`document.querySelector('.sl-hit.selected')?.dataset.shape === ${JSON.stringify(String(first?.id))}`), 'the new oval selected', 4000).catch(() => {});
+    const shown = await until(() => wc.executeJavaScript(`document.querySelector('.sl-hit.selected')?.dataset.shape === ${JSON.stringify(String(first?.id))}`), 'the new oval selected', 4000).then(() => true).catch(() => false);
     await wait(100);
     const holder = await wc.executeJavaScript(`(() => { const a = document.activeElement; return a ? a.tagName + '.' + String(a.className || '').split(' ')[0] : 'none'; })()`);
     await press(wc, 'Delete');
     const firstGone = await until(() => !shapes().some((s) => s.id === first?.id), 'the new oval deleted', 4000).catch(() => false);
     check('slides: a shape just inserted from Home → Shapes goes with the Delete key, without a click first',
-      Boolean(first) && holder.startsWith('DIV.sl-stage') && firstGone === true, `oval ${first?.id}; focus on ${holder}; gone ${firstGone}; shapes ${shapes().map((s) => s.kind).join(',')}`);
+      Boolean(first) && holder.startsWith('DIV.sl-stage') && firstGone === true, `oval ${first?.id}; shown selected ${shown}; focus on ${holder}; gone ${firstGone}; shapes ${shapes().map((s) => s.kind).join(',')}`);
 
     // Pressed with the mouse, the focus elsewhere: Delete takes it out.
     const second = await insertOval();

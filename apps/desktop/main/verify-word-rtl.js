@@ -202,7 +202,8 @@ export async function verifyWordRtl(h, { dir }) {
     await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Layout')?.click(); return 1; })()`);
     await wait(250);
     await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.textContent || '').trim().startsWith('Columns')); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b?.click(); return 1; })()`);
-    await wait(250);
+    // The menu, once it shows (a busy machine draws it late).
+    await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((n) => n.textContent.trim() === 'Right to left')`), 'the Columns menu', 4000).catch(() => {});
     const picked = await js(`(() => { const item = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Right to left'); if (!item) return false; item.click(); return true; })()`);
     const turned = await until(() => model().section?.rtl === true, 'the section right to left', 4000).catch(() => false);
     check('word: Layout → Columns → Right to left turns the section', picked === true && turned === true, `menu item ${picked}; section rtl ${model().section?.rtl}`);

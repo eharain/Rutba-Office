@@ -116,6 +116,9 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const [panel, setPanel] = useState('main'); // setup | main (Record or Live)
   const [missing, setMissing] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  // Read by the tools' calls, which can come before the person's setup has been read in.
+  const loadedRef = useRef(false);
+  loadedRef.current = loaded;
   const [sources, setSources] = useState(null);
   const [devices, setDevices] = useState({ cameras: [], mics: [], labelled: false });
   const [selected, setSelected] = useState(null);
@@ -1293,6 +1296,10 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       return;
     }
     if (op === 'start') {
+      // A Recorder the tools have just opened is still reading in the person's setup, which would land
+      // over the tools' own and take their window away: the start waits for it.
+      for (let n = 0; !loadedRef.current && n < 300; n++) await new Promise((r) => setTimeout(r, 50));
+      if (!loadedRef.current) { answer(reply, null, 'The Recorder is still opening. Ask again in a moment.'); return; }
       if (phaseRef.current !== 'setup' || remote.current) { answer(reply, null, 'The Recorder is already recording.'); return; }
       let list = [];
       try { list = (await shell.capture.sources()) || []; } catch { /* none to give */ }
