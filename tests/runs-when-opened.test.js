@@ -9,7 +9,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { runsWhenOpened, openedExtension, markFromInternet, FROM_INTERNET } from '@rutba/office-shell/runs';
 import { isListed } from '../packages/office-shell/src/electron/packs.js';
-import { elevationCommand } from '../apps/desktop/main/packs-service.js';
+import { elevationCommand, elevatedLaunch } from '../apps/desktop/main/packs-service.js';
 
 test('programs are known by the extension Windows opens them under', () => {
   for (const name of ['setup.exe', 'C:\\Temp\\run.EXE', 'run.exe ', 'run.exe.', 'run.exe::$DATA', 'report.pdf.js', '/tmp/x.sh', 'disk.iso', 'link.lnk']) {
@@ -72,8 +72,24 @@ test('the elevated step runs only the script that was written', { skip: process.
   assert.match(fs.readFileSync(out, 'latin1'), /caf/);
 });
 
-test('the elevated step no longer names a file to run', () => {
-  const source = fs.readFileSync(path.join(import.meta.dirname, '..', 'apps', 'desktop', 'main', 'packs-service.js'), 'utf8');
-  assert.doesNotMatch(source, /'-File'/);
-  assert.match(source, /'-EncodedCommand','\$\{encoded\}'/);
+test('the elevated launch asks Windows first, then runs only the script that was written', { skip: process.platform !== 'win32', timeout: 60000 }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rutba-it's-launch-"));
+  const out = path.join(dir, 'ran.txt');
+  const script = path.join(dir, 'apply.ps1');
+  const text = `Set-Content -LiteralPath '${out.replace(/'/g, "''")}' -Value 'launched'\r\n`;
+  fs.writeFileSync(script, text);
+  const [program, args] = elevatedLaunch(elevationCommand(script, crypto.createHash('sha256').update(text, 'utf8').digest('hex')));
+  assert.equal(program, 'powershell.exe');
+  assert.deepEqual(args.slice(0, 2), ['-NoProfile', '-Command']);
+  // Start-Process stood in for by one that says what it was asked and runs it here, without the prompt.
+  const standIn = 'function Start-Process { param([string]$FilePath, [string]$Verb, [string]$WindowStyle, [string[]]$ArgumentList) Write-Output "verb=$Verb file=$FilePath"; & $FilePath @ArgumentList; exit $LASTEXITCODE }; ';
+  const run = () => spawnSync('powershell.exe', ['-NoProfile', '-Command', standIn + args[2]], { encoding: 'utf8' });
+  const first = run();
+  assert.match(first.stdout, /verb=RunAs file=powershell\.exe/);
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(fs.readFileSync(out, 'latin1').trim(), 'launched');
+  fs.rmSync(out);
+  fs.appendFileSync(script, "Set-Content -LiteralPath 'nope' -Value 'changed'\r\n");
+  assert.equal(run().status, 77, 'a script changed after it was written is not run');
+  assert.equal(fs.existsSync(out), false);
 });

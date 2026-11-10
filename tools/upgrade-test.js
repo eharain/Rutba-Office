@@ -42,6 +42,10 @@
 // install must succeed by itself, not hang, leave one copy of the newer
 // version and the report follow (tools/upgrade-check.js judgeInstallRace).
 //
+// --fetch-only (with --install) fetches the two installers, writes where they
+// are to --out and stops: the upgrade workflow's install and update proofs
+// start from them.
+//
 // Exit codes: 0 proven; 1 failed (what failed is printed); 2 could not run.
 // The verdict, with the evidence, is also written to --out (default
 // <temp>/rutba-upgrade-result.json).
@@ -261,6 +265,11 @@ async function main() {
   const from = await resolveFrom(to);
   say(`from ${from.version} (${from.file})`);
   say(`to   ${to.version} (${to.file})`);
+  // --fetch-only: the two files fetched and named in --out, for the installer and update proofs (tools/install-test.ps1, update-test.ps1).
+  if (flag('fetch-only')) {
+    fs.writeFileSync(out, JSON.stringify({ from, to }, null, 2));
+    return 0;
+  }
 
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-upgrade-'));
   const profile = path.join(work, 'profile');

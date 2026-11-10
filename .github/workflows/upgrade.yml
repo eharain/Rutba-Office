@@ -7,7 +7,9 @@
 # own closing, the 1.51 to 2.0 failure ("Uninstaller error 2"): the newer
 # installer run while the older copy is open, which is then closed (the
 # install must succeed) or left open (the installer closes it itself and
-# the install must succeed, since 2.1.0).
+# the install must succeed, since 2.1.0). Two more jobs run the built
+# installer on a clean machine and let the older copy's own updater install
+# the newest release (install and update, below).
 #
 # It runs by itself when a release is published (signed on the release PC,
 # some time after the release workflow left it a draft), and from the Actions
@@ -75,3 +77,64 @@ jobs:
           name: upgrade-${{ matrix.mode }}
           path: ${{ runner.temp }}/upgrade-${{ matrix.mode }}.json
           if-no-files-found: ignore
+
+  # The built installer on a clean machine (tools/install-test.ps1): it ends
+  # with 0, one copy is registered, the installed exe is the version in the
+  # installer's name, and the file kinds and their tiles are in place.
+  install:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          submodules: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install the newer release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+        run: |
+          $to = if ($env:TO) { $env:TO } else { 'newest' }
+          $pick = "$env:RUNNER_TEMP\pick.json"
+          $fetchArgs = @('tools/upgrade-test.js', '--install', '--fetch-only', '--to', $to, '--out', $pick)
+          if ($env:FROM) { $fetchArgs += @('--from', $env:FROM) }
+          node @fetchArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $files = Get-Content $pick -Raw | ConvertFrom-Json
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools\install-test.ps1 -Installer $files.to.file -Label $files.to.version
+          exit $LASTEXITCODE
+
+  # The older release installed, left to its own updater, which must find,
+  # download and install the newest published release
+  # (tools/update-test.ps1). This proves the OLDER release's updater: a
+  # change to the updater is first proven when the release after it is
+  # published. It always updates to the newest release, since that is what
+  # an installed copy finds; "to" is not used here.
+  update:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          submodules: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Update from the older release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FROM: ${{ inputs.from }}
+        run: |
+          $pick = "$env:RUNNER_TEMP\pick.json"
+          $fetchArgs = @('tools/upgrade-test.js', '--install', '--fetch-only', '--to', 'newest', '--out', $pick)
+          if ($env:FROM) { $fetchArgs += @('--from', $env:FROM) }
+          node @fetchArgs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $files = Get-Content $pick -Raw | ConvertFrom-Json
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools\update-test.ps1 -Older $files.from.file -Expect $files.to.version
+          exit $LASTEXITCODE

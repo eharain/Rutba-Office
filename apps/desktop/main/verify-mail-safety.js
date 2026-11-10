@@ -160,6 +160,21 @@ export async function verifyMailSafety(h, { dir }) {
       off && copiedLink === 'https://safety.example/report' && pictureCopied && size.width === 24 && size.height === 16 && saved && magic === '89504e47' && enabled.copy === false && enabled.save === false,
       JSON.stringify({ off, copiedLink, link, pictureCopied, picture, size, saved, magic, enabled }));
 
+    // Saved with Safety off, each attachment carries the mark a browser gives a download, so Windows asks before running it.
+    const zoneOf = (p) => { try { return fs.readFileSync(`${p}:Zone.Identifier`, 'utf8'); } catch { return ''; } };
+    const oneTo = path.join(dir, `safety-figures-${stamp}.zip`);
+    const allDir = path.join(dir, `safety-all-${stamp}`);
+    fs.mkdirSync(allDir, { recursive: true });
+    globalThis.__rutbaCheckDialogAnswers.push({ kind: 'save', answer: oneTo });
+    await js(`(() => { const a = [...document.querySelectorAll('.ml-attachment')].find((n) => n.textContent.includes('figures.zip')); a?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); return Boolean(a); })()`);
+    const oneSaved = await ok(until(() => fs.existsSync(oneTo) && fs.statSync(oneTo).size > 0, 'the attachment saved', 6000));
+    globalThis.__rutbaCheckDialogAnswers.push({ kind: 'open', answer: [allDir] });
+    await js(`document.querySelector('.ml-save-all')?.click(), 1`);
+    const allSaved = await ok(until(() => fs.readdirSync(allDir).length >= 2, 'Save all', 6000));
+    const marks = [oneTo, ...fs.readdirSync(allDir).map((n) => path.join(allDir, n))].map((p) => ({ name: path.basename(p), marked: /ZoneId=3/.test(zoneOf(p)) }));
+    check('mail safety: an attachment saved, and every one by Save all, carries the mark of a file from the internet',
+      oneSaved && allSaved && marks.length >= 3 && (process.platform !== 'win32' || marks.every((m) => m.marked)), JSON.stringify({ oneSaved, allSaved, marks }));
+
     // The next message: Safety on again.
     await read('Safety: the next one');
     const next = await js(`document.querySelector('.ml-safety')?.classList.contains('on')`);

@@ -93,6 +93,12 @@ export function elevationCommand(scriptPath, sha256) {
   return Buffer.from(command, 'utf16le').toString('base64');
 }
 
+/** How that command is started as administrator: the program and its arguments, Windows asking first. */
+export function elevatedLaunch(encoded) {
+  const args = `'-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-EncodedCommand','${encoded}'`;
+  return ['powershell.exe', ['-NoProfile', '-Command', `Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -ArgumentList ${args}`]];
+}
+
 export function elevatedScript({ pid, dir, exe, removals = [], additions = [] }) {
   const q = quotedForPowerShell;
   const lines = ['$ErrorActionPreference = \'Continue\'', `Wait-Process -Id ${Number(pid)} -Timeout 60 -ErrorAction SilentlyContinue`];
@@ -307,8 +313,8 @@ export function createPacksService({ plan, stores, broadcast = () => {}, version
         fs.writeFileSync(script, scriptText);
         const encoded = elevationCommand(script, crypto.createHash('sha256').update(scriptText, 'utf8').digest('hex'));
         const asked = await new Promise((resolve) => {
-          const args = `'-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-EncodedCommand','${encoded}'`;
-          const child = spawn('powershell.exe', ['-NoProfile', '-Command', `Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -ArgumentList ${args}`], { windowsHide: true, stdio: 'ignore' });
+          const [program, args] = elevatedLaunch(encoded);
+          const child = spawn(program, args, { windowsHide: true, stdio: 'ignore' });
           child.on('error', () => resolve(false));
           child.on('exit', (code) => resolve(code === 0));
         });
