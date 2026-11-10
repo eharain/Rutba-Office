@@ -14,7 +14,7 @@ import { createKeys } from '../apps/desktop/main/extras/locker/keys.js';
 import { sealFile } from '../apps/desktop/main/extras/locker/place.js';
 import { sealPieces, openPieces, listsIn } from '../apps/desktop/main/extras/locker/pieces.js';
 import { newHeader, openLocked } from '../apps/desktop/main/extras/locker/format.js';
-import { LARGE } from '../apps/desktop/main/extras/locker/folder.js';
+import { LARGE, createFolder } from '../apps/desktop/main/extras/locker/folder.js';
 
 const CHEAP = { N: 1024, r: 8, p: 1 };
 const tmp = (p = 'rl-edge-') => fs.mkdtempSync(path.join(os.tmpdir(), p));
@@ -356,4 +356,30 @@ test('an earlier version of a large file can be put back', { timeout: 120000 }, 
   const out = path.join(tmp(), 'out.mp4');
   await locker.exportCopy(id, 'film.mp4', out);
   assert.ok(fs.readFileSync(out).equals(base));
+});
+
+test('a locked file that records a name leading out of its folder is shown as damaged, and nothing is written outside', async () => {
+  const parent = tmp('rl-edge-p-');
+  const root = path.join(parent, 'folder');
+  fs.mkdirSync(root);
+  const key = random(32);
+  const folderId = random(16);
+  const src = path.join(tmp(), 's.bin');
+  const bytes = random(3000);
+  fs.writeFileSync(src, bytes);
+  const bad = ['../evil.pdf', '..\\evil.pdf', 'sub/evil.pdf', 'C:evil.pdf', '..', '.', 'nul\u0000.pdf'];
+  for (const [n, name] of bad.entries()) {
+    await sealFile({ source: src, target: path.join(root, `f${n}.pdf.rlock`), rootKey: key, headerBuf: newHeader({ folderId }), meta: { name }, stageDir: tmp() });
+  }
+  await sealPieces({ source: src, dir: path.join(root, 'big.bin.rlock.d'), folderKey: key, folderId, stageDir: tmp(), meta: { name: '../evil.bin' } });
+  // And one good one, so the folder is read at all.
+  await sealFile({ source: src, target: path.join(root, 'good.pdf.rlock'), rootKey: key, headerBuf: newHeader({ folderId }), meta: { name: 'good.pdf' }, stageDir: tmp() });
+  const folder = createFolder({ root, key, folderId, stageDir: tmp(), choices: { hidden: false } });
+  const list = await folder.scan();
+  assert.deepEqual(list.filter((e) => e.state !== 'damaged').map((e) => e.rel), ['good.pdf']);
+  assert.equal(list.filter((e) => e.state === 'damaged').length, bad.length + 1);
+  const out = path.join(tmp(), 'good.pdf');
+  await folder.exportCopy('good.pdf', out);
+  assert.ok(fs.readFileSync(out).equals(bytes));
+  assert.deepEqual(fs.readdirSync(parent), ['folder'], 'nothing beside the folder');
 });

@@ -878,6 +878,29 @@ test('rename: a large file kept in pieces takes the new name and keeps its conte
   assert.ok((await lockedBytes(locker, id, 'bigger.pdf')).equals(body), 'still reads after locking again');
 });
 
+test('a plain folder with a locked folder inside it says so, whichever kind of locked thing is there', async () => {
+  const { locker, folder, id } = await make();
+  write(folder, 'a.pdf', random(3000));
+  fs.writeFileSync(path.join(folder, 'big.bin'), random(LARGE + 1024));
+  await locker.lockWaiting(id);
+  const look = async (build) => {
+    const parent = tmp('rl-parent-');
+    write(parent, 'notes/plain.txt', 'nothing locked');
+    build(parent);
+    const before = fs.readdirSync(parent, { recursive: true }).sort();
+    const { lockedBelow } = await locker.lookAtFolder(parent);
+    assert.deepEqual(fs.readdirSync(parent, { recursive: true }).sort(), before, 'looking changes nothing');
+    return lockedBelow;
+  };
+  assert.equal(await look((p) => fs.cpSync(folder, path.join(p, 'work', 'kept'), { recursive: true })), true, 'a whole locked folder two levels down');
+  assert.equal(await look((p) => fs.cpSync(path.join(folder, FOLDER_KEYS), path.join(p, 'only-keys', FOLDER_KEYS), { recursive: true })), true, 'its key file alone');
+  assert.equal(await look((p) => fs.cpSync(path.join(folder, 'a.pdf.rlock'), path.join(p, 'one', 'a.pdf.rlock'))), true, 'one locked file');
+  assert.equal(await look((p) => fs.cpSync(path.join(folder, 'big.bin.rlock.d'), path.join(p, 'one', 'big.bin.rlock.d'), { recursive: true })), true, 'one large locked file');
+  assert.equal(await look(() => {}), false, 'and none at all');
+  assert.equal(await look((p) => fs.cpSync(path.join(folder, 'a.pdf.rlock'), path.join(p, '.git', 'a.pdf.rlock'))), false, 'a folder of the system\'s own is not looked in');
+  assert.equal(await look((p) => fs.cpSync(path.join(folder, 'a.pdf.rlock'), path.join(p, '1', '2', '3', '4', '5', '6', '7', '8', 'a.pdf.rlock'))), false, 'nor further down than a few levels');
+});
+
 test('a chosen folder is looked at first: plain, ours, or locked elsewhere, and looking changes nothing', async () => {
   const { locker, folder, id, recovery } = await make();
   write(folder, 'a.pdf', random(3000));
