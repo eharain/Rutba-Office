@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { VENDORED, vendoredFiles, spdxOf, resolveInLock, packageClosure, buildSbom, compareSboms } from '../tools/sbom.mjs';
+import { createRequire } from 'node:module';
+import { VENDORED, vendoredFiles, spdxOf, resolveInLock, packageClosure, buildSbom, compareSboms, shipsInCore, treeHash } from '../tools/sbom.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -80,4 +81,55 @@ test('the same commit gives the same bill, and a changed file is the one differe
   const diff = compareSboms(a, changed);
   assert.ok(diff.includes(`differs: ${a.metadata.component.components[0]['bom-ref']}`), diff.join(' | '));
   assert.ok(diff.some((d) => /^only in the first: pkg:npm\/imapflow@/.test(d)));
+});
+
+test('a workspace package is listed at the suite version, with a hash of its own files', () => {
+  const version = JSON.parse(fs.readFileSync(path.join(root, 'apps/desktop/package.json'), 'utf8')).version;
+  const ours = buildSbom().components.filter((c) => c.name.startsWith('@rutba/'));
+  assert.ok(ours.length > 5);
+  for (const c of ours) {
+    assert.equal(c.version, version, c.name);
+    assert.match(c.hashes[0]?.content || '', /^[0-9a-f]{64}$/, c.name);
+  }
+});
+
+test('the hash of a package changes with a file in it and not with a test beside it', () => {
+  const dir = fs.mkdtempSync(path.join(root, '.gate', 'tree-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'src'));
+    fs.mkdirSync(path.join(dir, 'tests'));
+    fs.writeFileSync(path.join(dir, 'src', 'a.js'), 'one');
+    const before = treeHash(dir);
+    fs.writeFileSync(path.join(dir, 'tests', 'a.test.js'), 'any');
+    assert.equal(treeHash(dir), before);
+    fs.writeFileSync(path.join(dir, 'src', 'a.js'), 'two');
+    assert.notEqual(treeHash(dir), before);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the bill lists what the core ships: no window check, no screens run, no file a pack took', () => {
+  assert.equal(shipsInCore('main/verify-apps.js'), false);
+  assert.equal(shipsInCore('main/screen-run.js'), false);
+  assert.equal(shipsInCore('main/updates.js'), true);
+  assert.equal(shipsInCore('main/mail.js', new Set(['main/mail.js'])), false);
+  const listed = buildSbom().metadata.component.components.map((f) => f.name);
+  assert.deepEqual(listed.filter((f) => /main\/(verify|screen)-/.test(f)), []);
+});
+
+test('licences survive packing, whatever format they are in, and the AGPL text is beside the program', async () => {
+  const require = createRequire(import.meta.url);
+  const { FileMatcher } = require('app-builder-lib/out/fileMatcher');
+  const config = await require('../apps/desktop/electron-builder.config.cjs')();
+  const desktop = path.join(root, 'apps/desktop');
+  const filter = new FileMatcher(desktop, desktop, (s) => s, config.files).createFilter();
+  const kept = (p) => Boolean(filter(path.join(desktop, ...p.split('/')), { isDirectory: () => false, isFile: () => true }));
+  assert.equal(kept('node_modules/sax/LICENSE.md'), true);
+  assert.equal(kept('node_modules/x/license.md'), true);
+  assert.equal(kept('node_modules/x/NOTICE.md'), true);
+  assert.equal(kept('node_modules/x/README.md'), false);
+  assert.equal(kept('node_modules/x/CHANGELOG.md'), false);
+  const agpl = config.extraFiles.find((e) => e.to === 'LICENSE.txt');
+  assert.ok(fs.readFileSync(agpl.from, 'utf8').includes('GNU AFFERO GENERAL PUBLIC LICENSE'));
 });

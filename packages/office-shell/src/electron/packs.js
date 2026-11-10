@@ -268,7 +268,7 @@ function checkPack({ dir, file, keys, version }) {
     windows: manifest.windows ? inArchive(manifest.windows) : null,
     ipc: manifest.ipc && typeof manifest.ipc === 'object' ? manifest.ipc : {},
     events: Array.isArray(manifest.events) ? manifest.events : [],
-    tiles: (Array.isArray(manifest.tiles) ? manifest.tiles : []).filter((t) => safePath(t?.icon) && files[t.icon]).map((t) => ({ ...t, icon: inArchive(t.icon) })),
+    tiles: (Array.isArray(manifest.tiles) ? manifest.tiles : []).filter((t) => safePath(t?.icon) && isListed(files, t.icon)).map((t) => ({ ...t, icon: inArchive(t.icon) })),
     fileTypes: Array.isArray(manifest.fileTypes) ? manifest.fileTypes : [],
     tools: Array.isArray(manifest.tools) ? manifest.tools : [],
     // The app's rows of the registry (its name, the kinds of file it opens and saves, its New templates).

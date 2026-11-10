@@ -144,16 +144,58 @@ const licenses = (expr) => {
   return /^[A-Za-z0-9.+-]+$/.test(expr) ? [{ license: { id: expr } }] : [{ license: { name: expr } }];
 };
 
+/** The files an app took into its own pack (build/make-app-packs.js), which the core no longer holds. */
+function movedFiles() {
+  try {
+    const { packs } = JSON.parse(fs.readFileSync(path.join(desktop, 'build', 'packs', 'moved.json'), 'utf8'));
+    return new Set(Object.values(packs || {}).flat());
+  } catch {
+    return new Set();
+  }
+}
+
+/** Whether a file of the app (its path from apps/desktop) goes into the core, by electron-builder.config.cjs `files`. */
+export function shipsInCore(file, moved = new Set()) {
+  if (/^main\/(verify|screen)-[^/]*\.js$/.test(file)) return false;
+  if (/(^|\/)tests?\//.test(file) || /\.(map|md)$/.test(file)) return false;
+  return !moved.has(file);
+}
+
+/** A hash of a workspace package's shipped files: their names and their bytes, in name order. */
+export function treeHash(dir) {
+  const files = [];
+  const walk = (at) => {
+    for (const e of fs.readdirSync(at, { withFileTypes: true })) {
+      const p = path.join(at, e.name);
+      if (e.isDirectory()) {
+        if (!['node_modules', 'test', 'tests'].includes(e.name)) walk(p);
+      } else if (!/\.(map|md)$/.test(e.name)) files.push(p);
+    }
+  };
+  walk(dir);
+  const names = files.map((f) => path.relative(dir, f).split(path.sep).join('/'));
+  const order = names.map((n, i) => [n, i]).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  const h = crypto.createHash('sha256');
+  for (const [name, i] of order) {
+    h.update(name);
+    h.update('\0');
+    h.update(fs.readFileSync(files[i]));
+    h.update('\0');
+  }
+  return h.digest('hex');
+}
+
 /** The application's own files the installer packs (electron-builder.config.cjs `files`). */
 function ownFiles() {
   const out = [];
+  const moved = movedFiles();
+  const fromDesktop = (p) => path.relative(desktop, p).split(path.sep).join('/');
   const walk = (dir) => {
     if (!fs.existsSync(dir)) return;
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);
-      if (e.isDirectory()) {
-        if (!['test', 'tests'].includes(e.name)) walk(p);
-      } else if (!/\.(map|md)$/.test(e.name)) out.push(p);
+      if (e.isDirectory()) walk(p);
+      else if (shipsInCore(fromDesktop(p), moved)) out.push(p);
     }
   };
   walk(path.join(desktop, 'main'));
@@ -195,16 +237,18 @@ export function buildSbom({ lock = JSON.parse(fs.readFileSync(path.join(root, 'p
   });
 
   for (const p of packageClosure(lock, 'apps/desktop')) {
-    const ref = p.workspace ? `workspace:${p.name}@${p.version}` : `pkg:npm/${p.name}@${p.version}`;
+    // A workspace package has no version of its own: it is this release of the suite, and its hash is of its files.
+    const version = p.workspace ? app.version : p.version;
+    const ref = p.workspace ? `workspace:${p.name}@${version}` : `pkg:npm/${p.name}@${p.version}`;
     components.push({
       type: 'library',
       'bom-ref': ref,
       name: p.name,
-      version: p.version,
+      version,
       ...(p.workspace ? {} : { purl: ref }),
       licenses: licenses(p.license),
       ...(p.workspace ? { description: `Part of Rutba Office (${p.key})` } : {}),
-      hashes: hashOfIntegrity(p.integrity),
+      hashes: p.workspace ? [{ alg: 'SHA-256', content: treeHash(path.join(root, p.key)) }] : hashOfIntegrity(p.integrity),
       properties: [{ name: 'rutba:ships', value: p.workspace ? 'workspace package, packed into app.asar' : 'npm package, packed into app.asar' }],
     });
   }

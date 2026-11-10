@@ -72,6 +72,10 @@ module.exports = async () => {
       '!**/test/**',
       '!**/tests/**',
       '!**/*.md',
+      // A package's licence must travel with it, in whichever format it was written.
+      '**/[Ll][Ii][Cc][Ee][Nn][CcSs][Ee]*.md',
+      '**/[Nn][Oo][Tt][Ii][Cc][Ee]*.md',
+      '**/[Cc][Oo][Pp][Yy][Ii][Nn][Gg]*.md',
       // An app that carries its code in its pack: not in the core as well.
       ...moved(),
     ],
@@ -80,6 +84,9 @@ module.exports = async () => {
     // that checks the path finds it (main/mcp/command.js); it loads the tools
     // from the archive.
     extraResources: [{ from: 'resources/mcp', to: 'mcp', filter: ['*.cjs'] }, { from: 'build/oauth', to: 'oauth', filter: ['clients.json'] }, ...(allPacks ? [{ from: 'build/packs/out', to: 'packs' }] : [])],
+
+    // The suite's own licence, beside the program, where someone who received a copy can read it.
+    extraFiles: [{ from: path.resolve(__dirname, '..', '..', 'LICENSE'), to: 'LICENSE.txt' }],
 
     asar: true,
     // The taskbar reads an app's icon straight from disk, so the tiles sit
