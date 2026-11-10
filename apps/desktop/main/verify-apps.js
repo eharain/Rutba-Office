@@ -792,6 +792,18 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   const open = async (app, file, query = null) => {
     const win = windows.create({ app, file: file || null, query });
     answersFirst(win.webContents);
+    // A toast is gone in about three seconds, and an error early in a long
+    // flow would be gone by the time errorsIn looks: every bad one is kept.
+    win.webContents.on('did-finish-load', () => {
+      win.webContents.executeJavaScript(`(() => {
+        if (window.__badToasts) return;
+        window.__badToasts = [];
+        const seen = new WeakSet();
+        const look = () => { for (const n of document.querySelectorAll('.rw-toast.bad')) if (!seen.has(n)) { seen.add(n); window.__badToasts.push(n.textContent); } };
+        new MutationObserver(look).observe(document.documentElement, { childList: true, subtree: true });
+        look();
+      })()`).catch(() => {});
+    });
     // A window that throws during render paints nothing and reports nothing, so
     // every check against it fails with a description of an empty page rather
     // than of the fault. The console is the only place the fault appears.
@@ -921,7 +933,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   const sessionFor = (kind) => doc.sessions().filter((s) => s.kind === kind).pop();
   const errorsIn = (win) =>
-    win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent)`);
+    win.webContents.executeJavaScript(`[...new Set([...(window.__badToasts || []), ...[...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent)])]`);
 
   const done = async () => {
     clearInterval(lagTimer);

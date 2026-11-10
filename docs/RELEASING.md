@@ -103,8 +103,8 @@ holds only while the commit and the working tree stay the same; a commit
 starts it afresh. `--apps` and `--changed` are for working days, and a run
 limited to some chunks is never put on the record.
 
-The fuzzer is run over the readers before a minor release, and its count
-goes in the note:
+The gate runs the fuzzers and the corpus run, and their counts go in the
+note. To repeat a fuzzer's run, with the seed its log prints:
 
 ```
 node tools/fuzz-open.js 300 <seed>

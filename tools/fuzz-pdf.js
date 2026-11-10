@@ -18,15 +18,18 @@ import path from 'node:path';
 
 // fuzz-open.js's judgement, copied rather than imported: importing that file
 // from a worker would start its own worker side too.
-const FAULT_NAMES = new Set(['RangeError', 'TypeError', 'ReferenceError', 'EvalError', 'InternalError', 'AggregateError']);
-const FAULT_WORDS = /Maximum call stack|Invalid array length|Array buffer allocation|out of memory|outside the bounds|Offset is outside|is not a function|is not iterable|Cannot read propert|Cannot set propert|undefined is not|null is not/i;
+const FAULT_NAMES = new Set(['RangeError', 'TypeError', 'ReferenceError', 'EvalError', 'InternalError', 'AggregateError', 'SyntaxError', 'AssertionError']);
+const FAULT_WORDS = /Maximum call stack|Invalid array length|Array buffer allocation|out of memory|outside the bounds|outside buffer bounds|out of range|Offset is outside|is not a function|is not iterable|Cannot read propert|Cannot set propert|undefined is not|null is not/i;
+/** A library's words, fair inside the chain but not what a person may be shown. */
+const RAW_WORDS = /invalid distance|invalid stored block|invalid block type|invalid code lengths|incorrect header check|incorrect data check|unexpected end of|Unexpected token|at parser\.js|\.js line \d+/i;
 function judge(err) {
   const links = [];
   for (let e = err, n = 0; e && n < 8; e = e.cause, n++) links.push({ name: e?.name || typeof e, message: String(e?.message ?? e) });
   const fault = links.find((l) => FAULT_NAMES.has(l.name) || FAULT_WORDS.test(l.message));
   const top = links[0]?.message || '';
-  return fault || !/[a-z]{3}.*[ .]/.test(top)
-    ? { outcome: 'FAULT', message: `${(fault || links[0]).name}: ${(fault || links[0]).message}`.slice(0, 200) }
+  const raw = RAW_WORDS.test(top) ? links[0] : null;
+  return fault || raw || !/[a-z]{3}.*[ .]/.test(top)
+    ? { outcome: 'FAULT', message: `${(fault || raw || links[0]).name}: ${(fault || raw || links[0]).message}`.slice(0, 200) }
     : { outcome: 'refused', message: top.slice(0, 200) };
 }
 

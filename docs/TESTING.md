@@ -16,10 +16,11 @@ importantly, what they do not.
 | **Corpus** | `npm run verify:corpus` | Every file in a folder, opened in the real application one window at a time | The file is shown, refused with a reason, hangs, or crashes — and how long it takes | Whether what is shown matches Word, Excel or PowerPoint |
 | Fidelity comparison | `tools/compare-word.ps1`, `compare-excel.ps1`, `pdf-pages.ps1` + a capture | A file in Microsoft's application and in ours, side by side | What differs on the page | It is a person looking, not a check |
 
-`npm run gate` runs the first four before a release. The corpus run is
-separate because it takes an hour over a thousand files; it is run before a
-release and its report is read, and the failures it names are fixed or
-listed in the release notes as known.
+`npm run gate` runs the first four before a release, then the app packs, the
+three fuzzers with a seed taken from the commit, and the corpus run over
+`.corpus`. A corpus run over a larger folder takes an hour per thousand files
+and stays separate; it is run before a release and its report is read, and
+the failures it names are fixed or listed in the release notes as known.
 
 ## What the corpus run reports
 

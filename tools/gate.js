@@ -51,6 +51,7 @@
 // counts brought to the same numbers.
 
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -128,11 +129,32 @@ export function countsOf(name, output) {
   if (name === 'verify:edit') return ratio(/^(\d+)\/(\d+) editing checks passed/gm);
   if (name === 'verify:apps') return ratio(/^(\d+)\/(\d+) application checks passed/gm);
   if (name === 'smoke') return ratio(/^(\d+)\/(\d+) windows rendered clean/gm);
+  if (name.startsWith('fuzz:')) {
+    const m = [...text.matchAll(/^(\d+) (?:damaged files|damaged PDFs|messages): .*faults (\d+|undefined)\s*$/gm)].pop();
+    if (!m) return null;
+    const faults = Number(m[2]) || 0;
+    return { passed: Number(m[1]) - faults, of: Number(m[1]) };
+  }
+  if (name === 'verify:packs') {
+    const lines = (re) => text.match(re)?.length || 0;
+    const [ok, bad] = [lines(/^ok\b/gm), lines(/^FAIL\b/gm)];
+    return ok + bad ? { passed: ok, of: ok + bad } : null;
+  }
+  if (name === 'corpus') {
+    const m = /^# Corpus run: (\d+) files/m.exec(text);
+    return m ? { passed: Number(m[1]), of: Number(m[1]) } : null;
+  }
   return null;
 }
 
 const n = (v) => Number(v).toLocaleString('en-GB');
 const PLATFORM = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
+
+/** The damaged files the fuzzers went through. */
+const fuzzed = (counts) => FUZZERS.reduce((total, [name]) => total + (counts[name]?.of || 0), 0);
+
+/** The fuzzers: each damages good files with the seed it is given, and fails on an answer that is not a sentence. */
+export const FUZZERS = [['fuzz:open', 'tools/fuzz-open.js', 'damaged Office files', 300], ['fuzz:pdf', 'tools/fuzz-pdf.js', 'damaged PDFs', 300], ['fuzz:smime', 'tools/fuzz-smime.js', 'damaged signed mail', 2000]];
 
 /** The release note's Gate section, in the note's own plain style. */
 export function gateSection(counts, { version, date, platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null }) {
@@ -142,6 +164,8 @@ export function gateSection(counts, { version, date, platform = process.platform
     counts['verify:edit'] ? `${n(counts['verify:edit'].passed)} of ${n(counts['verify:edit'].of)} editing checks` : null,
     counts['verify:apps'] ? `${n(counts['verify:apps'].passed)} of ${n(counts['verify:apps'].of)} application checks${apps ? `, of ${listed(apps)}, the ${apps.length === 1 ? 'app' : 'apps'} it changed` : ''}` : null,
     counts.smoke ? `${n(counts.smoke.passed)} of ${n(counts.smoke.of)} windows painted clean` : null,
+    fuzzed(counts) ? `${n(fuzzed(counts))} damaged files read or refused in a sentence` : null,
+    counts.corpus ? `${n(counts.corpus.of)} files from outside the project opened` : null,
   ].filter(Boolean);
   const list = parts.length > 1 ? `${parts.slice(0, -1).join('; ')}; and ${parts.at(-1)}` : parts[0];
   const again = reran.length
@@ -489,7 +513,8 @@ async function main() {
 
   // The record of runs on this commit: started afresh unless resuming.
   const head = git('rev-parse', 'HEAD');
-  const tree = git('status', '--porcelain', '--untracked-files=no');
+  // What the tree holds, not only which files differ: an old pass must not stand for a file edited since.
+  const tree = `${git('status', '--porcelain')}\n${crypto.createHash('sha256').update(git('diff', 'HEAD')).digest('hex')}`;
   for (const d of [STATE_DIR, LOGS, PARTS_DIR]) fs.mkdirSync(d, { recursive: true });
   // One gate at a time: two would write over each other's parts and counts.
   const running = path.join(STATE_DIR, 'running');
@@ -676,6 +701,19 @@ async function main() {
   // 6. Every window painted, once the rest has passed.
   if (want('smoke') && !failed) await pass('smoke', 'every window paints', 'npm', ['run', 'smoke']);
 
+  // The app packs, added and removed across two starts.
+  if (want('verify:packs') && !failed) await pass('verify:packs', 'app packs add and remove', 'node', [path.join('apps', 'desktop', 'build', 'verify-packs-run.js')], { log: path.join(LOGS, 'verify-packs.log') });
+
+  // 7. Files nobody made on purpose: damaged ones, then real ones from outside the project.
+  for (const [name, tool, what, rounds] of FUZZERS) {
+    if (want(name) && !failed) await pass(name, what, 'node', [tool, String(rounds), String(parseInt(head.slice(0, 8), 16))], { log: path.join(LOGS, `${name.replace(':', '-')}.log`) });
+  }
+  if (want('corpus') && !failed) {
+    const corpus = path.join(ROOT, '.corpus');
+    if (fs.existsSync(corpus)) await pass('corpus', 'real files, opened and saved', 'node', ['tools/corpus.js'], { log: path.join(LOGS, 'corpus.log'), env: { RUTBA_CORPUS: corpus, RUTBA_CORPUS_OUT: path.join(STATE_DIR, 'corpus') } });
+    else { console.log('corpus: there is no .corpus folder here (tools/downloads.js fetches it), so this gate cannot pass.'); failed = true; }
+  }
+
   // A full run must have run at least what the last one did.
   if (!partial && !failed) {
     const fell = belowFloor(counts, floorsFrom(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')));
@@ -700,7 +738,7 @@ async function main() {
   // a patch release with --changed, every pass and the chunks it changed.
   const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
   const scoped = changed && !only.length && !appsArg && isPatch(version) && wanted.length < VERIFY_APPS.length;
-  const whole = (!partial || scoped) && ['test', 'test:perf', 'verify:edit', 'smoke'].every((name) => state.passes[name]?.ok)
+  const whole = (!partial || scoped) && ['test', 'test:perf', 'verify:edit', 'smoke', 'verify:packs', ...FUZZERS.map(([name]) => name), 'corpus'].every((name) => state.passes[name]?.ok)
     && (scoped ? wanted : VERIFY_APPS).every((a) => state.apps[a]?.ok) && (!wanted.length || state.machine?.ok);
   if (record) {
     const dirty = dirtyForRecord(git('status', '--porcelain'), version);

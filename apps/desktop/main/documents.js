@@ -586,7 +586,7 @@ function wordDocumentToDocx(bytes, shown, locked) {
     model = readWordDocument(new Uint8Array(bytes));
   } catch (err) {
     if (err.encrypted) throw new Error(locked);
-    throw new Error(`${shown} could not be read: ${err.message}.`);
+    throw new Error(`${shown} could not be read: ${err.message}.`, { cause: err });
   }
   return { kind: 'doc', bytes: Buffer.from(docModelToDocx(model)), source: 'doc', converted: { from: model.format === 'write' ? 'wri' : 'doc', format: model.format } };
 }
@@ -601,7 +601,7 @@ function workbookToXlsx(bytes, shown, locked) {
     book = readXls(new Uint8Array(bytes));
   } catch (err) {
     if (err.encrypted) throw new Error(locked);
-    throw new Error(`${shown} could not be read: ${err.message}.`);
+    throw new Error(`${shown} could not be read: ${err.message}.`, { cause: err });
   }
   return { kind: 'sheet', bytes: Buffer.from(xlsModelToXlsx(book)), source: 'xls', converted: { from: 'xls', format: 'biff' + book.biff } };
 }
@@ -630,7 +630,7 @@ function legacySheetToXlsx(bytes, kind, filePath, shown) {
     model = readLegacySheets(new Uint8Array(bytes), kind, { name: shown.replace(/\.[^.]+$/, ''), memo, memoKind, Reader: MDBReader });
   } catch (err) {
     if (err.password) throw new Error(`${shown} is protected by a password. This suite cannot open a database with a password yet: open it in Access, remove the password, and save it again.`);
-    throw new Error(`${shown} could not be read: ${err.message}.`);
+    throw new Error(`${shown} could not be read: ${err.message}.`, { cause: err });
   }
   const from = filePath ? path.extname(filePath).slice(1).toLowerCase() || kind : kind;
   return { kind: 'sheet', bytes: Buffer.from(legacySheetsToXlsx(model)), source: kind, converted: { from, notes: model.notes || [] } };
@@ -646,7 +646,7 @@ function presentationToPptx(bytes, shown, locked) {
     model = readPpt(new Uint8Array(bytes));
   } catch (err) {
     if (err.encrypted) throw new Error(locked);
-    throw new Error(`${shown} could not be read: ${err.message}.`);
+    throw new Error(`${shown} could not be read: ${err.message}.`, { cause: err });
   }
   return { kind: 'deck', bytes: Buffer.from(pptModelToDeck(model)), source: 'ppt', converted: { from: 'ppt' } };
 }
