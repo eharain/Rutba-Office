@@ -6055,8 +6055,10 @@ export class Document {
     // moved-away words would read as words still there, and a rebuild would
     // put them back — so the paragraph stays as Word wrote it until the move
     // is accepted or rejected.
+    // A field or a control inside a deletion is a deletion's to keep whole (runs.js flatDelRuns): it locks nothing.
+    const notDeleted = ownXml.replace(/<w:del\b(?![^>]*\/>)[^>]*>[\s\S]*?<\/w:del>/g, '');
     const structural = ['w:fldChar', 'w:commentRangeStart', 'w:sdt', 'w:moveFrom', 'w:moveTo']
-      .filter((tag) => new RegExp('<' + tag + '\\b').test(ownXml))
+      .filter((tag) => new RegExp('<' + tag + '\\b').test(tag === 'w:fldChar' || tag === 'w:sdt' ? notDeleted : ownXml))
       // Mail merge fields are complex fields too, and a letter is made of
       // them — "Dear «FirstName»," must stay a line a person can type in.
       // When every complex field in the paragraph is a whole merge field at

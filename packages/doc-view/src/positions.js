@@ -116,6 +116,25 @@ export function removeRange(runs, from, to) {
   return [...sliceRuns(runs, 0, from), ...(from < to ? atStart : []), ...sliceRuns(runs, to, Infinity)];
 }
 
+const escXml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** What a tracked deletion keeps of a run that has no words of its own: the XML that goes back on Reject. */
+function deletedWhole(run) {
+  const props = run.rPr || '';
+  if (run.noteRef) return { text: '', xml: '<w:r>' + props + '<w:' + run.noteRef.kind + 'Reference w:id="' + escXml(run.noteRef.id) + '"/></w:r>' };
+  if (run.math) return { text: '', xml: run.math.xml };
+  if (run.control) {
+    // Inside a deletion, words are delText and a field's code delInstrText, or Word calls the file damaged.
+    const xml = run.control.xml.replace(/<(\/?)w:t(?=[\s>/])/g, '<$1w:delText').replace(/<(\/?)w:instrText\b/g, '<$1w:delInstrText');
+    return { text: '', xml };
+  }
+  // A simple field cannot stand inside a deletion, so it goes in as Word writes one: begin, code, separate, result, end.
+  const char = (type) => '<w:r>' + props + '<w:fldChar w:fldCharType="' + type + '"/></w:r>';
+  const code = '<w:r>' + props + '<w:delInstrText xml:space="preserve">' + escXml(run.field.instr) + '</w:delInstrText></w:r>';
+  const result = run.text === '' ? '' : char('separate') + '<w:r>' + props + '<w:delText xml:space="preserve">' + escXml(run.text) + '</w:delText></w:r>';
+  return { text: run.text, xml: char('begin') + code + result + char('end') };
+}
+
 /**
  * `removeRange`'s tracked-changes counterpart — Review → Track Changes on,
  * typing or Backspace/Delete over `[from, to)`. Not recording: identical to
@@ -125,8 +144,9 @@ export function removeRange(runs, from, to) {
  * still a pending insertion by the very same author, in which case Word
  * simply un-inserts them rather than marking a deletion of a deletion.
  *
- * A note/endnote reference, its mark, a field or an equation is never tracked — deleting
- * one takes it outright, recording or not, a stated simplification.
+ * A note reference, a field, an equation or a content control has no words to
+ * strike out, so the deletion holds the thing itself and Reject puts it back.
+ * Only a note's own mark goes outright: it is not the author's to take.
  */
 export function trackedRemoveRange(runs, from, to, recording, meta) {
   if (!recording) return removeRange(runs, from, to);
@@ -139,8 +159,10 @@ export function trackedRemoveRange(runs, from, to, recording, meta) {
     if (run.del) { out.push(run); continue; } // already deleted text is inert
     if (end <= from || start >= to) { out.push(run); continue; }
     if (run.noteRef || run.noteMark || run.field || run.math || run.control) {
-      if (!(from <= start && to >= end)) out.push(run); // partially covered: leave it whole
-      continue; // fully covered: removed outright, same as untracked
+      if (!(from <= start && to >= end)) { out.push(run); continue; } // partially covered: leave it whole
+      const ownPending = run.ins && run.ins.author === meta.author;
+      if (!run.noteMark && !ownPending) out.push({ rPr: run.rPr, text: '', del: { ...meta, ...deletedWhole(run) } });
+      continue;
     }
     const overlapStart = Math.max(0, from - start);
     const overlapEnd = Math.min(run.text.length, to - start);
@@ -212,7 +234,7 @@ export function coalesce(runs) {
     // of its own for the same reason — its one character IS the reference —
     // and a field run the same again: its text is a cached RESULT, not words
     // to fold into whatever sits beside it.
-    const marker = Boolean(run.sym || last?.sym || run.noteRef || run.noteMark || run.field || run.math || run.control || last?.noteRef || last?.noteMark || last?.field || last?.math || last?.control);
+    const marker = Boolean(run.del?.xml || last?.del?.xml || run.sym || last?.sym || run.noteRef || run.noteMark || run.field || run.math || run.control || last?.noteRef || last?.noteMark || last?.field || last?.math || last?.control);
     // Two runs of the SAME pending insertion or deletion merge into one, the
     // way ordinary typing already coalesces into one run — Word does not
     // write a fresh `w:ins` per keystroke either. A tracked run never merges

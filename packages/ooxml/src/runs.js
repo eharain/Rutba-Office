@@ -361,6 +361,11 @@ function flatInsRuns(fragment, out, insMeta) {
  * on `del.text` instead, a side channel the offset math never counts.
  */
 function flatDelRuns(fragment, out, delMeta) {
+  // A note reference, a field, an equation or a control has no words to read back: the deletion keeps it whole.
+  if (/<w:fldChar\b|<w:(?:footnote|endnote)Reference\b|<m:oMath\b|<w:sdt\b/.test(fragment)) {
+    out.push({ rPr: null, text: '', del: { ...delMeta, text: textOfDel(fragment), xml: String(fragment) } });
+    return;
+  }
   for (const m of String(fragment).matchAll(/<w:r\b(?![a-zA-Z])[^>]*>([\s\S]*?)<\/w:r>/g)) {
     const inner = m[1];
     if (!/<w:delText\b|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:noBreakHyphen\s*\/>|<w:sym\b|<w:(?:br|cr)\b/.test(inner)) continue;
