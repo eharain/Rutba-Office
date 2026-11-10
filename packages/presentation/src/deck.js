@@ -4709,7 +4709,10 @@ export class Deck {
     if (heads && parts) {
       const pairs = [...heads[2].matchAll(/<vt:lpstr>([^<]*)<\/vt:lpstr>[\s\S]*?<vt:i4>(\d+)<\/vt:i4>/g)];
       let offset = 0;
-      const at = pairs.findIndex((p) => { if (p[1] === 'Slide Titles') return true; offset += Number(p[2]); return false; });
+      // PowerPoint words this heading in the language it runs in, and writes it last of what a deck always has.
+      const named = pairs.findIndex((p) => p[1] === 'Slide Titles');
+      const at = named >= 0 ? named : pairs.length - 1;
+      for (let i = 0; i < at; i++) offset += Number(pairs[i][2]);
       if (at >= 0) {
         const titles = [...parts[1].matchAll(/<vt:lpstr>[^<]*<\/vt:lpstr>/g)].map((m) => m[0]);
         const now = this.slideParts.map((s) => `<vt:lpstr>${escapeXml(outlineTitle(this.pkg.text(s.part)) || 'PowerPoint Presentation')}</vt:lpstr>`);

@@ -948,6 +948,18 @@ class SheetPart {
 
     // Extensions: the newer conditional formats and validations, and sparklines.
     s = s.replace(/(<xm:f>)([\s\S]*?)(<\/xm:f>)/g, (m, o, f, c) => o + fx(f) + c);
+    if (place && axis === 'col') {
+      // A filter's columns are counted from its left edge: a column put in or taken out inside it moves them.
+      s = s.replace(/<autoFilter\b[^>]*?\bref="([^"]*)"[^>]*>[\s\S]*?<\/autoFilter>/, (block, first) => {
+        let ref = first;
+        let out = block;
+        for (const e of edits) {
+          out = shiftFilterColumns(out, rangeBounds(ref), op, e.at, e.count);
+          ref = placeMover(axis, op, [e])(ref) ?? ref;
+        }
+        return out;
+      });
+    }
     if (place) {
       for (const tag of ['x14:conditionalFormatting', 'x14:dataValidation', 'x14:sparkline']) {
         s = s.replace(new RegExp('<' + tag + '\\b[^>]*>[\\s\\S]*?</' + tag + '>', 'g'), (block) => {
@@ -1976,6 +1988,18 @@ export function adjustFormula(text, ctx) {
         else if (src[j] === ']') { depth -= 1; if (depth === 0) { j += 1; break; } }
         j += 1;
       }
+      // Another workbook's sheet and cell, [1]Data!B3: nothing on this sheet moves it, even a sheet here called Data.
+      if (!idChar(i > 0 ? src[i - 1] : '')) {
+        const other = /[\p{L}_][\p{L}\p{N}_.]*!/uy;
+        other.lastIndex = j;
+        const named = other.exec(src);
+        const ref = named ? matchRefAt(src, j + named[0].length) : null;
+        if (ref && refBoundaryOk(ref.end)) {
+          out += src.slice(i, ref.end);
+          i = ref.end;
+          continue;
+        }
+      }
       out += src.slice(i, j);
       i = j;
       continue;
@@ -2030,6 +2054,25 @@ export function adjustFormula(text, ctx) {
     i += 1;
   }
   return out;
+}
+
+/**
+ * A filter's columns after a column is put in or taken out of the range `b`:
+ * each is counted from the left edge, and one on a column taken out goes, with
+ * whatever is inside it.
+ */
+function shiftFilterColumns(xml, b, op, at, count) {
+  const lo = Math.max(at, b.left);
+  const hi = Math.min(at + count - 1, b.right);
+  const gone = Math.max(0, hi - lo + 1);
+  return xml.replace(/<filterColumn\b[^>]*?\bcolId="(\d+)"(?:[^>]*\/>|[^>]*>[\s\S]*?<\/filterColumn>)/g, (m, id) => {
+    const c = Number(id) + b.left;
+    const moved = (n) => m.replace(/colId="\d+"/, () => 'colId="' + n + '"');
+    if (op === 'insert') return at > b.left && at <= b.right && c >= at ? moved(Number(id) + count) : m;
+    if (!gone) return m;
+    if (c >= lo && c <= hi) return '';
+    return c > hi ? moved(Number(id) - gone) : m;
+  });
 }
 
 // ── sparklines (the x14 extension Excel writes them as) ─────────────────────
@@ -2260,6 +2303,8 @@ export class Workbook {
       this.pkg.write_(relsPart, rels.replace(new RegExp('<Relationship\\b[^>]*\\bId="' + entry.rId + '"[^>]*/>'), ''));
     }
     this.pkg.removePart(entry.part);
+    // The list of formula cells names cells on the sheet that has gone.
+    this._dropCalcChain();
     this._loaded.delete(entry.part);
     this._sheets = null;
     // As Excel does: a reference into the sheet that went — a cell, a range,
@@ -3831,6 +3876,18 @@ export class Workbook {
 
   insertRows(sheetName, at, count = 1) { return this._structuralEdit(sheetName, 'row', 'insert', at, count); }
   deleteRows(sheetName, at, count = 1) { return this._structuralEdit(sheetName, 'row', 'delete', at, count); }
+
+  /** The table whose header row these rows would take without taking the table: Excel refuses that. */
+  findTableHeaderCut(sheetName, at, count) {
+    for (const t of this.tables()) {
+      if (t.sheet !== sheetName || !t.headerRowCount) continue;
+      const b = rangeBounds(t.ref);
+      const takesHeader = at <= b.top && at + count > b.top;
+      const takesAll = at <= b.top && at + count > b.bottom;
+      if (takesHeader && !takesAll) return t.name ?? t.displayName ?? t.ref;
+    }
+    return null;
+  }
   insertCols(sheetName, at, count = 1) { return this._structuralEdit(sheetName, 'col', 'insert', at, count); }
   deleteCols(sheetName, at, count = 1) { return this._structuralEdit(sheetName, 'col', 'delete', at, count); }
 
@@ -3983,7 +4040,7 @@ export class Workbook {
       if (after !== before) this.pkg.write_(name, after);
     };
 
-    for (const t of this.tables().filter((x) => x.sheet === sheetName)) this._moveTable(t, axis, op, edits, place);
+    for (const t of this.tables().filter((x) => x.sheet === sheetName)) this._moveTable(t, axis, op, edits, place, (f) => through(f, sheetName));
 
     for (const name of target('/comments')) {
       rewrite(name, (xml) => xml.replace(/<comment\b[^>]*?\bref="([^"]+)"[\s\S]*?<\/comment>|<comment\b[^>]*?\/>/g, (m, ref) => {
@@ -4051,7 +4108,7 @@ export class Workbook {
   }
 
   /** A table over the edited axis: its range, and with columns the column list. */
-  _moveTable(table, axis, op, edits, place) {
+  _moveTable(table, axis, op, edits, place, formula = (f) => f) {
     let xml = this.pkg.text(table.part);
     let ref = table.ref;
     for (const { at, count } of edits) {
@@ -4061,6 +4118,15 @@ export class Workbook {
       if (next === null) {
         this._removeTablePart(table);
         return;
+      }
+      // Every data row gone: a table keeps one empty row under its header, as Excel leaves it.
+      const least = table.headerRowCount + table.totalsRowCount + 1;
+      if (axis === 'row' && op === 'delete' && table.headerRowCount > 0) {
+        const stays = rangeBounds(next);
+        if (stays.bottom - stays.top + 1 < least) {
+          ref = boundsRef({ ...stays, bottom: stays.top + least - 1 });
+          continue;
+        }
       }
       if (axis === 'col') {
         const first = b.left;
@@ -4078,19 +4144,13 @@ export class Workbook {
             added.push({ name: left + n, xml: '<tableColumn id="' + id + '" name="' + esc(left + n) + '"/>' });
           }
           xml = xml.replace(before, () => before + added.map((c) => c.xml).join(''));
-          xml = xml.replace(/<filterColumn\b([^>]*?)\bcolId="(\d+)"/g, (m, a, id2) => '<filterColumn' + a + 'colId="' + (Number(id2) >= at - first ? Number(id2) + count : id2) + '"');
+          xml = shiftFilterColumns(xml, b, op, at, count);
           if (Number(table.headerRowCount) > 0) added.forEach((c, k) => this._sheetPart(table.sheet).part.setCell(b.top, at + k, c.name));
         } else if (op === 'delete') {
           const lo = Math.max(at, first);
           const hi = Math.min(at + count - 1, b.right);
           for (let c = lo; c <= hi; c++) xml = xml.replace(names[c - first], '');
-          const gone = Math.max(0, hi - lo + 1);
-          if (gone) {
-            xml = xml.replace(/<filterColumn\b([^>]*?)\bcolId="(\d+)"[\s\S]*?(?:\/>|<\/filterColumn>)/g, (m, a, id2) => {
-              const c = Number(id2) + first;
-              return c >= lo && c <= hi ? '' : c > hi ? m.replace(/colId="\d+"/, () => 'colId="' + (Number(id2) - gone) + '"') : m;
-            });
-          }
+          if (hi >= lo) xml = shiftFilterColumns(xml, b, op, at, count);
         }
         xml = xml.replace(/(<tableColumns\b[^>]*?\bcount=")\d+(")/, (m, a, c) => a + (xml.match(/<tableColumn\b/g) ?? []).length + c);
       }
@@ -4101,6 +4161,8 @@ export class Workbook {
       for (const e of edits) t = placeMover(axis, op, [e])(t) ?? t;
       return t;
     };
+    // A calculated column's formula and a total row's are written in the table's own part.
+    xml = xml.replace(/(<(calculatedColumnFormula|totalsRowFormula)\b[^>]*>)([\s\S]*?)(<\/\2>)/g, (m, open, tag, body, close) => open + esc(formula(unesc(body))) + close);
     xml = xml.replace(/(<table\b[^>]*?\bref=")([^"]+)(")/, (m, a, r, c) => a + ref + c);
     xml = xml.replace(/(<autoFilter\b[^>]*?\bref=")([^"]+)(")/g, (m, a, r, c) => a + shift(r) + c);
     xml = xml.replace(/(<sort(?:State|Condition)\b[^>]*?\bref=")([^"]+)(")/g, (m, a, r, c) => a + shift(r) + c);

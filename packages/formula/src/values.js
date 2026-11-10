@@ -313,7 +313,8 @@ export function compareValues(a, b) {
   const rank = (v) => (typeof v === 'number' ? 0 : typeof v === 'string' ? 1 : 2); // number < text < boolean
   if (rank(a) !== rank(b)) return rank(a) < rank(b) ? -1 : 1;
 
-  if (typeof a === 'number') return a < b ? -1 : a > b ? 1 : 0;
+  // Numbers that agree to fifteen significant digits are the same number, as a spreadsheet compares them: 0.1+0.2 is 0.3.
+  if (typeof a === 'number') return a === b || a.toPrecision(15) === b.toPrecision(15) ? 0 : a < b ? -1 : 1;
   if (typeof a === 'boolean') return a === b ? 0 : a ? 1 : -1;
   const x = String(a).toUpperCase();
   const y = String(b).toUpperCase();

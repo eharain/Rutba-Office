@@ -38,6 +38,22 @@ function readable(cell, spilled) {
   return cell.value ?? null;
 }
 
+const MOST_NAMED_PASSES = 8;
+const sameAnswer = (a, b) => Object.is(a, b) || (isError(a) && isError(b) && a.type === b.type);
+
+/** Whether a formula calls INDIRECT or OFFSET, once asked. */
+function readsByName(cell) {
+  if (cell.readsByName === undefined) {
+    const walk = (n) => {
+      if (!n || typeof n !== 'object') return false;
+      if (n.type === 'call' && (n.name === 'INDIRECT' || n.name === 'OFFSET')) return true;
+      return ['left', 'right', 'operand', 'callee'].some((key) => walk(n[key])) || (n.args ?? []).some(walk);
+    };
+    cell.readsByName = walk(cell.ast);
+  }
+  return cell.readsByName;
+}
+
 export class Spreadsheet {
   /**
    * @param {object} [opts]
@@ -759,6 +775,7 @@ export class Spreadsheet {
       if (spillTouched.size !== ghosts || this.spills.has(k)) resolver.changedAll();
       else resolver.changed(cell.sheet, cell.row, cell.col);
     }
+    this._settleNamedReads({ order, scope, byKey, dependents, formulaDeps, resolver, spillTouched });
 
     // Whatever never reached in-degree zero is circular. A Set, not
     // `order.includes` — that was O(n) inside a loop over n, sixteen million
@@ -786,6 +803,48 @@ export class Spreadsheet {
       };
     }
     return { calculated: order.length, cycles: cycles.map(prettyKey) };
+  }
+
+  /**
+   * INDIRECT and OFFSET name the cell they read only when they are worked out,
+   * so no edge orders them after it: they may have read a formula not yet
+   * calculated. They are worked out again, and whatever reads them, until
+   * nothing moves. Only cells whose answer changed pass the change on.
+   */
+  _settleNamedReads({ order, scope, byKey, dependents, formulaDeps, resolver, spillTouched }) {
+    const named = new Set(order.filter((k) => readsByName(byKey.get(k))));
+    if (!named.size) return;
+    const reached = new Set(named);
+    const stack = [...named];
+    while (stack.length) {
+      for (const d of dependents.get(stack.pop()) ?? []) {
+        if (!scope.has(d) || reached.has(d)) continue;
+        reached.add(d);
+        stack.push(d);
+      }
+    }
+    const again = order.filter((k) => reached.has(k));
+    let movedLast = new Set();
+    for (let pass = 0; pass < MOST_NAMED_PASSES; pass++) {
+      const moved = new Set();
+      // Back and forth: a column of these reading downwards settles in one sweep up.
+      for (const k of pass % 2 ? again : [...again].reverse()) {
+        if (!named.has(k) && !formulaDeps.get(k).formulas.some((d) => moved.has(d) || movedLast.has(d))) continue;
+        const cell = byKey.get(k);
+        const before = cell.value;
+        // One that reads itself reads nothing, as it did the first time, or each sweep would add it to itself.
+        cell.value = null;
+        resolver.changed(cell.sheet, cell.row, cell.col);
+        const raw = this._evaluate(cell.ast, resolver, { sheet: cell.sheet, row: cell.row, col: cell.col, spill: true });
+        const ghosts = spillTouched.size;
+        this._settle(cell, k, raw, spillTouched);
+        if (spillTouched.size !== ghosts || this.spills.has(k)) resolver.changedAll();
+        else resolver.changed(cell.sheet, cell.row, cell.col);
+        if (!sameAnswer(before, cell.value)) moved.add(k);
+      }
+      if (!moved.size) return;
+      movedLast = moved;
+    }
   }
 
   /**
@@ -859,7 +918,9 @@ export class Spreadsheet {
    * #SPILL! rather than a silent partial overwrite.
    */
   _evaluate(ast, resolver, ctx) {
-    return withDate1904(this.date1904, () => evaluate(ast, resolver, ctx));
+    // What the evaluation met that this program does not know, for _settle: an IFERROR around it hides it from the answer.
+    this._notes = {};
+    return withDate1904(this.date1904, () => evaluate(ast, resolver, { ...ctx, notes: this._notes }));
   }
 
   /** Why a formula's stored result stands in for one it cannot work out, or null. */
@@ -867,6 +928,7 @@ export class Spreadsheet {
     if (cell.held === undefined) return null;
     if (cell.external) return 'it reads another workbook';
     if (isError(raw) && raw.type === '#NAME?') return raw.detail ?? 'it uses a name this program does not know';
+    if (this._notes?.unknown) return this._notes.unknown;
     return null;
   }
 

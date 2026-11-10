@@ -207,6 +207,22 @@ function aggregateNumbers(args) {
   return out;
 }
 
+/** A row or column number as a spreadsheet takes it: the part after the point is dropped. */
+const truncated = (n) => (typeof n === 'number' ? Math.trunc(n) : n);
+
+/** How many cells past the used part of whole columns every COUNTIFS criterion accepts: those are empty in all of them. */
+function emptyRowsCounted(pairs) {
+  let cells = null;
+  for (let i = 0; i + 1 < pairs.length; i += 2) {
+    const full = pairs[i]?.full;
+    if (!full || !makeMatcher(pairs[i + 1])(null)) return 0;
+    const total = full.rows * full.cols;
+    if (cells !== null && cells !== total) return 0;
+    cells = total;
+  }
+  return cells === null ? 0 : cells - vec(pairs[0]).length;
+}
+
 /** A value's date and time as the day-fractions the clock on this computer shows. */
 const localSerial = (d) => {
   const day = dateToSerial(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())));
@@ -566,6 +582,8 @@ export const FUNCTIONS = {
     const match = makeMatcher(criteria);
     let n = 0;
     for (const c of cells) if (match(c)) n += 1;
+    // A whole column is read as far as it is used; the rest of it is empty cells, which a criterion can count.
+    if (range?.full && match(null)) n += range.full.rows * range.full.cols - cells.length;
     return n;
   }),
   AVERAGEIF: def((range, criteria, avgRange) => {
@@ -700,7 +718,7 @@ export const FUNCTIONS = {
   VLOOKUP: def((needle, table, colIndex, approximate) => {
     const key = Array.isArray(needle) ? needle.flat(Infinity)[0] : needle;
     if (isError(key)) return key;
-    const idx = num1(colIndex);
+    const idx = truncated(num1(colIndex));
     if (isError(idx)) return idx;
     if (!Array.isArray(table) || !Array.isArray(table[0])) return ERR.VALUE('VLOOKUP needs a range');
     if (idx < 1) return ERR.VALUE('VLOOKUP columns start at 1');
@@ -723,9 +741,9 @@ export const FUNCTIONS = {
   INDEX: def((table, rowNum, colNum) => {
     if (!Array.isArray(table)) return ERR.VALUE('INDEX needs a range');
     const grid = Array.isArray(table[0]) ? table : [table];
-    const r = num1(rowNum);
+    const r = truncated(num1(rowNum));
     if (isError(r)) return r;
-    const c = colNum === undefined ? 1 : num1(colNum);
+    const c = colNum === undefined ? 1 : truncated(num1(colNum));
     if (isError(c)) return c;
     // One index into a single row counts along it; a row or column of 0 means all of them.
     const [down, across] = grid.length === 1 && colNum === undefined ? [1, r] : [r, c];
@@ -1028,7 +1046,8 @@ export const FUNCTIONS = {
   COUNTIFS: def((...pairs) => {
     if (!pairs.length) return ERR.VALUE('COUNTIFS needs at least one range and criteria');
     const hits = ifsIndices(vec(pairs[0]).length, pairs);
-    return isError(hits) ? hits : hits.length;
+    if (isError(hits)) return hits;
+    return hits.length + emptyRowsCounted(pairs);
   }),
   AVERAGEIFS: def((avgRange, ...pairs) => {
     const targets = vec(avgRange);
@@ -1169,7 +1188,7 @@ export const FUNCTIONS = {
   HLOOKUP: def((needle, table, rowIndex, approximate) => {
     const key = Array.isArray(needle) ? needle.flat(Infinity)[0] : needle;
     if (isError(key)) return key;
-    const idx = num1(rowIndex);
+    const idx = truncated(num1(rowIndex));
     if (isError(idx)) return idx;
     if (!Array.isArray(table) || !Array.isArray(table[0])) return ERR.VALUE('HLOOKUP needs a range');
     if (idx < 1) return ERR.VALUE('HLOOKUP rows start at 1');

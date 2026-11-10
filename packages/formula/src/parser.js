@@ -737,6 +737,28 @@ export function transposeFormula(formula, from, to) {
   });
 }
 
+/** SUMIF and AVERAGEIF read their last range from its top-left corner, in the shape of their first. */
+export const SHAPED_LIKE_FIRST = new Set(['SUMIF', 'AVERAGEIF']);
+const LAST_ROW = 1048575;
+const LAST_COL = 16383;
+
+/** `target` as the range starting at its top-left cell with the shape of `pattern`. Anything but a plain reference is left. */
+export function shapedLike(target, pattern) {
+  const corners = (n) => (n.type === 'cell'
+    ? { top: n.row, left: n.col, bottom: n.row, right: n.col }
+    : { top: Math.min(n.start.row, n.end.row), left: Math.min(n.start.col, n.end.col), bottom: Math.max(n.start.row, n.end.row), right: Math.max(n.start.col, n.end.col) });
+  const plain = (n) => n && (n.type === 'cell' || n.type === 'range');
+  if (!plain(target) || !plain(pattern)) return target;
+  const from = corners(target);
+  const shape = corners(pattern);
+  return {
+    type: 'range',
+    sheet: target.sheet ?? target.start?.sheet ?? null,
+    start: { row: from.top, col: from.left },
+    end: { row: Math.min(LAST_ROW, from.top + (shape.bottom - shape.top)), col: Math.min(LAST_COL, from.left + (shape.right - shape.left)) },
+  };
+}
+
 /** Every cell and range a formula depends on. Drives the recalculation graph. */
 export function dependencies(ast, out = []) {
   if (!ast || typeof ast !== 'object') return out;
@@ -754,6 +776,12 @@ export function dependencies(ast, out = []) {
   // a false cycle. The remaining arguments are ordinary values.
   if (ast.type === 'call' && ast.name === 'OFFSET') {
     for (const a of (ast.args ?? []).slice(1)) dependencies(a, out);
+    return out;
+  }
+  if (ast.type === 'call' && SHAPED_LIKE_FIRST.has(ast.name) && ast.args?.length === 3) {
+    dependencies(ast.args[0], out);
+    dependencies(ast.args[1], out);
+    dependencies(shapedLike(ast.args[2], ast.args[0]), out);
     return out;
   }
   for (const a of ast.args ?? []) dependencies(a, out);

@@ -149,6 +149,9 @@ function holidaysIn(h) {
   return out;
 }
 
+/** 31 December 9999, the last day a spreadsheet has. */
+const LAST_DATE = 2958465;
+
 function networkDays(a, b, weekend, holidays) {
   const s = num(a);
   const e = num(b);
@@ -158,6 +161,7 @@ function networkDays(a, b, weekend, holidays) {
   if (bad) return bad;
   const from = Math.trunc(Math.min(s, e));
   const to = Math.trunc(Math.max(s, e));
+  if (from < 0 || to > LAST_DATE) return ERR.NUM('that date is past the calendar');
   let count = 0;
   for (let d = from; d <= to; d++) if (!off[serialToParts(d).weekday] && !hol.has(d)) count += 1;
   return s > e ? -count : count;
@@ -176,6 +180,7 @@ function workDay(start, days, weekend, holidays) {
   while (left > 0) {
     d += step;
     if (d < 1) return ERR.NUM('that date is before the calendar starts');
+    if (d > LAST_DATE) return ERR.NUM('that date is past the calendar');
     if (!off[serialToParts(d).weekday] && !hol.has(d)) left -= 1;
   }
   return d;
@@ -352,7 +357,8 @@ export const moreFunctions = (base) => ({
     return a === 0 && b === 0 ? ERR.DIV0() : Math.atan2(b, a);
   }),
   FACT: math((x) => {
-    if (x < 0) return NaN;
+    // 170! is the largest a number can hold.
+    if (x < 0 || Math.trunc(x) > 170) return NaN;
     let r = 1;
     for (let i = 2; i <= Math.trunc(x); i++) r *= i;
     return r;
@@ -379,7 +385,10 @@ export const moreFunctions = (base) => ({
     if (Number.isNaN(a) || Number.isNaN(b)) return ERR.VALUE();
     if (a < 0 || b < 0 || b > a) return ERR.NUM();
     let r = 1;
-    for (let i = 1; i <= Math.min(b, a - b); i++) r = (r * (a - i + 1)) / i;
+    for (let i = 1; i <= Math.min(b, a - b); i++) {
+      r = (r * (a - i + 1)) / i;
+      if (!Number.isFinite(r)) return ERR.NUM();
+    }
     return Math.round(r);
   }),
   PERMUT: def((n, k) => {
@@ -388,7 +397,10 @@ export const moreFunctions = (base) => ({
     if (Number.isNaN(a) || Number.isNaN(b)) return ERR.VALUE();
     if (a < 0 || b < 0 || b > a) return ERR.NUM();
     let r = 1;
-    for (let i = 0; i < b; i++) r *= a - i;
+    for (let i = 0; i < b; i++) {
+      r *= a - i;
+      if (!Number.isFinite(r)) return ERR.NUM();
+    }
     return r;
   }),
   QUOTIENT: def((a, b) => {

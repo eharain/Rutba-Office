@@ -2268,6 +2268,8 @@ export class SheetView {
         throw new Error('cannot delete ' + (axis === 'row' ? 'rows' : 'columns')
           + ': that would split a merged cell (' + split + ')');
       }
+      const headed = axis === 'row' ? this.workbook.findTableHeaderCut(sheet, at, count) : null;
+      if (headed) throw new Error('cannot delete rows: that would take the header row of table ' + headed);
     }
 
     const parts = [...new Set([
@@ -5204,11 +5206,12 @@ export class SheetView {
 
       case 'timePeriod': {
         if (typeof value !== 'number') return null;
-        // The same UTC day-arithmetic TODAY() uses, so a rule and the
-        // function it usually guards agree about what day it is. Excel's
+        // The day on this computer's clock, as TODAY() has it, so a rule and
+        // the function it usually guards agree about what day it is. Excel's
         // weeks for these rules run Sunday to Saturday.
         const in1904 = (fn) => withDate1904(this.date1904, fn);
-        const todaySerial = in1904(() => Math.floor(dateToSerial(this._now ? this._now() : new Date())));
+        const clock = this._now ? this._now() : new Date();
+        const todaySerial = in1904(() => Math.floor(dateToSerial(new Date(Date.UTC(clock.getFullYear(), clock.getMonth(), clock.getDate())))));
         const d = Math.floor(value);
         const weekStart = todaySerial - in1904(() => serialToDate(todaySerial).getUTCDay());
         const monthOf = (serial, shift = 0) => {

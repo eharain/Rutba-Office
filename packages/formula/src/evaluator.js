@@ -17,7 +17,7 @@ import {
   toNumber, toText, toBoolean, compareValues,
 } from './values.js';
 import { FUNCTIONS } from './functions.js';
-import { parse, indexToCol } from './parser.js';
+import { parse, indexToCol, shapedLike, SHAPED_LIKE_FIRST } from './parser.js';
 
 const MAX_ROWS = 1048576;
 
@@ -61,6 +61,19 @@ function clip(resolver, sheet, start, end) {
   };
 }
 
+/**
+ * Whether an argument hands an aggregate a cell rather than a value: a
+ * reference, what INDEX, OFFSET and INDIRECT answer with, or an IF or CHOOSE
+ * whose every outcome is one of those.
+ */
+function answersWithCell(a) {
+  if (a.type === 'cell') return true;
+  if (a.type !== 'call') return false;
+  if (a.name === 'INDEX' || a.name === 'OFFSET' || a.name === 'INDIRECT') return true;
+  if (a.name === 'IF' || a.name === 'CHOOSE') return a.args.length > 1 && a.args.slice(1).every(answersWithCell);
+  return false;
+}
+
 export function evaluate(ast, resolver, context = {}) {
   const ctx = {
     sheet: context.sheet ?? null,
@@ -69,6 +82,8 @@ export function evaluate(ast, resolver, context = {}) {
     col: context.col ?? null,
     now: resolver.now ?? (() => new Date()),
     depth: context.depth ?? 0,
+    // Where a formula says what it met that this program does not know.
+    notes: context.notes ?? null,
   };
   if (ctx.depth > 128) return ERR.NUM('formula nested too deeply');
 
@@ -170,7 +185,10 @@ export function evaluate(ast, resolver, context = {}) {
         const bound = String(node.name).toUpperCase();
         if (bindings.has(bound)) return bindings.get(bound);
         const resolved = resolver.getName ? resolver.getName(node.name, ctx.sheet) : null;
-        if (resolved === null || resolved === undefined) return ERR.NAME('unknown name "' + node.name + '"');
+        if (resolved === null || resolved === undefined) {
+          if (ctx.notes) ctx.notes.unknown = 'it uses a name this program does not know';
+          return ERR.NAME('unknown name "' + node.name + '"');
+        }
         // A name holding a formula — a constant, a calculation, a LAMBDA — worked out where it is asked for.
         if (typeof resolved === 'object' && resolved.formula) {
           return evaluate(resolved.formula, resolver, { sheet: ctx.sheet, row: ctx.row, col: ctx.col, depth: ctx.depth + 1, spill: true, lambda: true });
@@ -526,7 +544,7 @@ export function evaluate(ast, resolver, context = {}) {
       if (refAst.type !== 'cell' && refAst.type !== 'range' && refAst.type !== 'name') {
         return ERR.REF('"' + text + '" is not a reference');
       }
-      if (refAst.type === 'name' && !bindings.has(String(refAst.name).toUpperCase()) && !resolver.getName?.(refAst.name)) {
+      if (refAst.type === 'name' && !bindings.has(String(refAst.name).toUpperCase()) && !resolver.getName?.(refAst.name, ctx.sheet)) {
         return ERR.REF('"' + text + '" is not a reference');
       }
       // Evaluated as if the formula had contained the reference itself, so
@@ -608,7 +626,10 @@ export function evaluate(ast, resolver, context = {}) {
     }
 
     const entry = FUNCTIONS[node.name];
-    if (!entry) return ERR.NAME('unknown function ' + node.name);
+    if (!entry) {
+      if (ctx.notes) ctx.notes.unknown = 'it uses a function this program does not know';
+      return ERR.NAME('unknown function ' + node.name);
+    }
 
     if (entry.lazy) {
       // Thunks, so a branch that is not taken is never evaluated.
@@ -622,9 +643,10 @@ export function evaluate(ast, resolver, context = {}) {
 
     // Text and TRUE in a cell an aggregate is pointed at are not counted, as
     // in a range, though typed straight into the formula they are.
-    const args = node.args.map((a) => {
-      const v = scalarOrArray(evalNode(a));
-      return entry.refsAsRanges && a.type === 'cell' ? [[v]] : v;
+    const shaped = SHAPED_LIKE_FIRST.has(node.name) && node.args.length === 3;
+    const args = node.args.map((a, i) => {
+      const v = scalarOrArray(evalNode(shaped && i === 2 ? shapedLike(a, node.args[0]) : a));
+      return entry.refsAsRanges && answersWithCell(a) && !Array.isArray(v) ? [[v]] : v;
     });
     // A function that shapes arrays passes an error inside one on as an
     // element (`keepsErrors`) and answers for its own scalar arguments.
@@ -689,6 +711,7 @@ export function evaluate(ast, resolver, context = {}) {
         return Array.from({ length: Math.trunc(r) }, (_, i) => Array.from({ length: Math.trunc(c) }, (_, j) => one(invoke(fn, [i + 1, j + 1]))));
       }
       default:
+        if (ctx.notes) ctx.notes.unknown = 'it uses a function this program does not know';
         return ERR.NAME('unknown function ' + node.name);
     }
   }
