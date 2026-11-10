@@ -16,6 +16,8 @@ function stopAt(t, at, torn, work) {
   let count = 0;
   const real = { writeFileSync: fs.writeFileSync, appendFileSync: fs.appendFileSync, renameSync: fs.renameSync, rmSync: fs.rmSync };
   const guard = (name, half) => t.mock.method(fs, name, (...args) => {
+    // appendFileSync is made of this one: the one write, counted once.
+    if (name === 'writeFileSync' && args[2]?.flag === 'a') return real[name](...args);
     if (++count === at) {
       if (torn && half) half(args);
       throw new Stopped(name);
