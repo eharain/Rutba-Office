@@ -122,7 +122,14 @@ function shareHost(p) {
     const text = String(p).replace(/\\/g, '/').replace(/^\/\?\?\//, '//?/');
     // //?/C:/ is this computer. //?/GLOBALROOT/Device/Mup/server and the like are a share by another name.
     const device = /^\/\/[?.]\/(?!unc\/)(.*)$/i.exec(text);
-    if (device) return /^[a-z]:/i.test(device[1]) ? null : 'device:' + device[1].toLowerCase();
+    if (device) {
+        if (/^[a-z]:/i.test(device[1])) return null;
+        // GLOBALROOT/Device/Mup/server/share and LanmanRedirector/;Z:0000/server/share: the server, as a share's own name would give.
+        const parts = device[1].split('/').filter(Boolean);
+        const redirected = /^globalroot$/i.test(parts[0]) && /^device$/i.test(parts[1]) && /^(mup|lanmanredirector)$/i.test(parts[2] || '');
+        const server = redirected ? parts.slice(3).find((x) => !x.startsWith(';')) : null;
+        return server ? server.toLowerCase() : 'device:' + (parts[0] || '').toLowerCase();
+    }
     const m = /^(?:\/\/(?:[?.]\/unc\/)?|file:\/\/(?!\/))([^/]+)/i.exec(text);
     return m ? m[1].toLowerCase() : null;
 }
@@ -164,7 +171,20 @@ export async function unzip(input) {
 // ── paths, without a path module ─────────────────────────────────────────────
 
 const sepOf = (p) => (String(p).includes('\\') && !String(p).includes('/') ? '\\' : '/');
-const partsOf = (p) => String(p).replace(/\\/g, '/').split('/').filter((x, i) => x !== '' || i === 0);
+// A share keeps both its leading slashes: //server/share/film, not /server/share/film on this drive.
+const partsOf = (p) => {
+    const text = String(p).replace(/\\/g, '/');
+    const parts = text.split('/').filter((x, i) => x !== '' || i === 0);
+    return text.startsWith('//') ? ['', ...parts] : parts;
+};
+/** How many of a path's parts are its root, which .. never climbs above: D:, /, //server/share, //?/D:, //?/UNC/server/share. */
+const rootOf = (parts) => {
+    if (parts[0] === '' && parts[1] === '') {
+        if (parts[2] === '?' || parts[2] === '.') return Math.min(parts.length, /^unc$/i.test(parts[3] || '') ? 6 : 4);
+        return Math.min(parts.length, 4);
+    }
+    return /^[A-Za-z]:$/.test(parts[0]) || parts[0] === '' ? 1 : 0;
+};
 const isAbsolute = (p) => /^([A-Za-z]:[\\/]|[\\/])/.test(String(p || ''));
 const sameDrive = (a, b) => {
     const da = /^([A-Za-z]):/.exec(a)?.[1]?.toLowerCase() || '';
@@ -186,6 +206,8 @@ export function relativePath(from, target) {
     const norm = (x) => (windows ? x.toLowerCase() : x);
     const a = partsOf(from);
     const b = partsOf(target);
+    // Two shares, or a share and a drive, have no way from one to the other.
+    if (rootOf(a) !== rootOf(b) || a.slice(0, rootOf(a)).some((x, k) => x.toLowerCase() !== String(b[k]).toLowerCase())) return null;
     let i = 0;
     while (i < a.length && i < b.length && norm(a[i]) === norm(b[i])) i++;
     return [...a.slice(i).map(() => '..'), ...b.slice(i)].join('/');
@@ -194,9 +216,10 @@ export function relativePath(from, target) {
 /** A relative path resolved against a folder. */
 export function resolvePath(from, rel) {
     const out = partsOf(from);
+    const root = rootOf(out);
     for (const part of String(rel).split(/[\\/]/)) {
         if (!part || part === '.') continue;
-        if (part === '..') out.pop();
+        if (part === '..') { if (out.length > root) out.pop(); }
         else out.push(part);
     }
     return out.join(sepOf(from));

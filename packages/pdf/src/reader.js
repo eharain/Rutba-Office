@@ -417,7 +417,8 @@ function ascii85(data) {
   return Buffer.from(out);
 }
 
-function lzw(data, early = 1) {
+/** LZW undone; `most` is how much it may come to, smaller only in a test. */
+function lzw(data, early = 1, most = MOST_BY_HAND) {
   const out = [];
   let dict = [];
   const reset = () => { dict = []; for (let i = 0; i < 256; i++) dict.push([i]); dict.push(null, null); };
@@ -440,7 +441,7 @@ function lzw(data, early = 1) {
       else if (prev) entry = [...prev, prev[0]];
       else return Buffer.from(out);
       out.push(...entry);
-      if (out.length > MOST_BY_HAND) throw refuseByHand();
+      if (out.length > most) throw refuseByHand();
       if (prev) dict.push([...prev, entry[0]]);
       prev = entry;
       if (dict.length + early >= (1 << bits) && bits < 12) bits += 1;
@@ -1074,7 +1075,7 @@ function asPdf(source, options) {
 }
 
 module.exports = {
-  inflate,
+  inflate, lzw,
   openPdf, asPdf, PdfFile, PdfReadError, Name, Ref, PdfString, Dict, Stream, Keyword, Lexer,
   parseValue, contentText, normaliseRotation, isName, INHERITABLE,
 };
