@@ -164,6 +164,8 @@ export function evaluate(ast, resolver, context = {}) {
         };
         const grid = resolver.getRange(sheet, start, end);
         if (cut && Array.isArray(grid)) grid.full = { rows, cols };
+        // Where it stands, for a formula stored without the array mark, which answers with the one cell in line with it.
+        if (Array.isArray(grid)) grid.origin = { row: Math.min(node.start.row, node.end.row), col: Math.min(node.start.col, node.end.col), top: start.row, left: start.col };
         return grid;
       }
 

@@ -8002,8 +8002,9 @@ export class SheetView {
      */
     // The live spills, so each anchor's `<f>` is written in the ARRAY form
     // (`t="array"` with its spilled range) — what makes the file mean the
-    // same thing in an Excel without dynamic arrays. A blocked #SPILL!
-    // anchor writes the plain formula: its range is a wish, not a fact.
+    // same thing in an Excel without dynamic arrays. One whose answer is a
+    // single cell for now, or that is blocked, is marked over its own cell:
+    // a formula with no mark is read back as answering with one value.
     const spillAnchors = new Map();
     for (const s of (this.calc.spills ?? new Map()).values()) {
       if (s.blocked || (s.h <= 1 && s.w <= 1)) continue;
@@ -8014,7 +8015,7 @@ export class SheetView {
       for (const cell of cells.values()) {
         if (!cell.formula) continue;
         writeCachedValue(this.workbook, sheetName, ref(cell.row, cell.col), cell.formula, cell.value,
-          { arrayRef: spillAnchors.get(sheetName + '|' + cell.row + '|' + cell.col) ?? null });
+          { arrayRef: spillAnchors.get(sheetName + '|' + cell.row + '|' + cell.col) ?? (cell.arrayAnswer ? ref(cell.row, cell.col) : null) });
       }
     }
     // Ghost cells cache no values, so the next consumer must compute them.

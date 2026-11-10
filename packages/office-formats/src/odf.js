@@ -188,7 +188,7 @@ function readTable(table, rowHeights = new Map(), shaded = () => false) {
       }
     }
     // Trim the trailing run of empty cells ODF writes to pad the row.
-    while (cells.length && !cells[cells.length - 1].text && cells[cells.length - 1].value == null && !cells[cells.length - 1].shaded) cells.pop();
+    while (cells.length && !cells[cells.length - 1].text && cells[cells.length - 1].value == null && !cells[cells.length - 1].shaded && !cells[cells.length - 1].formula) cells.pop();
     for (let i = 0; i < rowRepeat; i++) {
       built += cells.length;
       if (i > 0) repeated += cells.length;

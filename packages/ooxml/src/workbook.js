@@ -2462,7 +2462,7 @@ export class Workbook {
         // Words, not a formula, though they start with "=": the cell has no <f>.
         const text = typeof value === 'string' && value.startsWith('=') && !/<f\b/.test(cell.inner);
         if (!text && typeof value === 'string' && value.startsWith('=')) {
-          yield { ref: cell.ref, row: row.index, col: cell.col, value, cached: this._storedResult(cell) };
+          yield { ref: cell.ref, row: row.index, col: cell.col, value, cached: this._storedResult(cell), array: /<f\b[^>]*\bt="array"/.test(cell.inner) };
           continue;
         }
         yield text ? { ref: cell.ref, row: row.index, col: cell.col, value, text } : { ref: cell.ref, row: row.index, col: cell.col, value };

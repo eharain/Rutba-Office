@@ -103,7 +103,9 @@ for (const [what, text] of [
   ['stars around backticks', `*${'`'.repeat(300000)}`],
 ]) {
   test(`Markdown: a line of ${what} is read in time`, () => {
-    within(5000, () => inlineRuns(text));
+    const runs = within(5000, () => inlineRuns(text));
+    const read = runs.reduce((n, r) => n + String(r.text ?? '').length, 0);
+    assert.ok(read > text.length / 4, `only ${read} of ${text.length} characters were read`);
   });
 }
 
@@ -114,7 +116,10 @@ for (const [what, text] of [
   ['a paragraph padded with spaces', `x${' '.repeat(400000)}y\nnext`],
 ]) {
   test(`Markdown: ${what} is read in time`, () => {
-    within(5000, () => parseMarkdown(text));
+    const blocks = within(5000, () => parseMarkdown(text));
+    const words = JSON.stringify(blocks);
+    assert.match(words, new RegExp(`${text.trimEnd().slice(-1)}`), 'the end of the line was read');
+    assert.ok(words.length > 2, 'something came of it');
   });
 }
 
@@ -205,4 +210,11 @@ test('Calendar: sixty thousand events of one UID are expanded in time', () => {
     const of = exceptionsOf(events);
     for (const e of events) if (!e.recurrenceId) occurrences(e, { from: 0, to: 1800000000000, siblings: of(e), limit: 500 });
   });
+});
+
+test('ODS: a formula answering nothing, last on its row, is still there', () => {
+  const row = '<table:table-row><table:table-cell office:value-type="float" office:value="1"/><table:table-cell office:value-type="string" table:formula="of:=IFERROR(1/0;&quot;&quot;)"/></table:table-row>';
+  const [cells] = readOdf(ods(row)).sheets[0].rows;
+  assert.equal(cells.length, 2);
+  assert.match(cells[1].formula, /^=IFERROR/);
 });

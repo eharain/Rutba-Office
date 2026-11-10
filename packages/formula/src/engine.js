@@ -32,6 +32,23 @@ const WIDE_RANGE = 4096;
  * the same as a formula's empty text. Clearing a cell leaves '' on a lazy
  * sheet, and that is nothing too.
  */
+/**
+ * A formula stored without the array mark, reaching a whole range: Excel has
+ * always answered with the one cell in line with the formula, and #VALUE!
+ * when none is. An array that is not a range answers with its first value.
+ */
+function oneValue(raw, cell) {
+  const grid = Array.isArray(raw[0]) ? raw : [raw];
+  const at = raw.origin;
+  if (!at) return grid[0]?.length ? grid[0][0] : '';
+  const rows = raw.full?.rows ?? grid.length;
+  const cols = raw.full?.cols ?? (grid[0]?.length ?? 0);
+  const y = rows === 1 ? 0 : cell.row - at.row;
+  const x = cols === 1 ? 0 : cell.col - at.col;
+  if (y < 0 || y >= rows || x < 0 || x >= cols) return ERR.VALUE('this range does not line up with the cell reading it');
+  return grid[y + at.row - at.top]?.[x + at.col - at.left] ?? null;
+}
+
 function readable(cell, spilled) {
   if (!cell) return spilled() ?? null;
   if (!cell.formula && cell.value === '') return null;
@@ -86,6 +103,8 @@ export class Spreadsheet {
      * @type {Map<string, {sheet: string, top: number, left: number, h: number, w: number, values: any[][], blocked: boolean}>}
      */
     this.spills = new Map();
+    /** Formulas a file stored without the array mark, by where they stand. */
+    this.storedSingle = new Map();
 
     /**
      * Bumped whenever a cell or a spill changes shape, and used to date the
@@ -171,7 +190,7 @@ export class Spreadsheet {
    * Parse errors are stored as the cell's value so the user sees the problem in
    * the cell rather than losing what they typed.
    */
-  setCell(sheetName, row, col, input, { cached } = {}) {
+  setCell(sheetName, row, col, input, { cached, single = false } = {}) {
     this.addSheet(sheetName);
     const cells = this._sheet(sheetName);
     const k = key(sheetName, row, col);
@@ -198,6 +217,9 @@ export class Spreadsheet {
 
     if (isFormula) {
       cell.formula = input;
+      // Stored without the array mark: one value, also when an undo brings the same words back.
+      if (single) this.storedSingle.set(k, input);
+      cell.single = this.storedSingle.get(k) === input;
       // What the file last stored, for a formula that cannot be worked out here.
       if (cached !== undefined) {
         cell.held = cached;
@@ -933,6 +955,8 @@ export class Spreadsheet {
   }
 
   _settle(cell, k, raw, spillTouched) {
+    if (cell.single && Array.isArray(raw)) raw = oneValue(raw, cell);
+    cell.arrayAnswer = Array.isArray(raw);
     cell.foreign = this._heldReason(cell, raw);
     if (cell.foreign) {
       if (this.spills.has(k)) this._dropSpill(k, spillTouched);
