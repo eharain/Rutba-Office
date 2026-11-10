@@ -53,7 +53,7 @@ export function createArchiveHost({ onProgress = () => {}, slice, part } = {}) {
   }
 
   function start(id, file, name, kind) {
-    const worker = new Worker(WORKER, { workerData: { slice, part } });
+    const worker = new Worker(WORKER, { execArgv: globalThis.__rutbaPackWorkerArgv, workerData: { slice, part } });
     stats.started++;
     const entry = { worker, file, name, seq: 0, pending: new Map(), opened: null, busy: false, closing: false };
     worker.on('message', (msg) => {

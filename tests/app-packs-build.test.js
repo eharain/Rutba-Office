@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { makeKeyPair } from '../tools/make-pack-key.mjs';
 import { makeAppPacks, installerScript, installerArchives } from '../apps/desktop/build/make-app-packs.js';
 import { describePack, planPacks, readPackKeys, readPackSizes } from '../apps/desktop/main/app-packs.js';
@@ -22,6 +23,7 @@ import { readZip, writeZip, ZipEntry } from '../packages/ooxml/src/zip.js';
 import { PACKS } from '../packages/office-shell/src/contract.js';
 
 const VERSION = '9.9.9';
+const ELECTRON = fileURLToPath(new URL('../node_modules/electron/dist/electron.exe', import.meta.url));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-app-packs-build-'));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 const keys = makeKeyPair();
@@ -242,4 +244,33 @@ test('each pack is 7-Zipped whole, and the installer part that unpacks it compil
   // The installer holds the 7-Zip archives as they are, not compressed again.
   const exe = fs.statSync(path.join(tmp, 'seven.exe')).size;
   assert.ok(exe >= fs.statSync(archives.mail).size + fs.statSync(archives.word).size, `${exe} bytes`);
+});
+
+// A pack lives far from any node_modules of the core, and module hooks are per
+// thread: run from the source, every worker finds the core's packages by itself.
+// Only a pack outside the repository, in Electron's own Node, shows it.
+test('a worker thread started from a pack finds the packages only the core has', { skip: fs.existsSync(ELECTRON) ? false : 'no Electron here' }, () => {
+  const probe = path.join(tmp, 'worker-probe.mjs');
+  const accounts = path.join(tmp, 'accounts');
+  fs.mkdirSync(accounts, { recursive: true });
+  const url = (rel) => new URL(rel, import.meta.url).href;
+  const asar = path.join(built.out, 'mail.asar', 'node_modules', '@rutba', 'mailbox', 'src');
+  fs.writeFileSync(probe, `
+    import { pathToFileURL, fileURLToPath } from 'node:url';
+    import path from 'node:path';
+    import { installPackResolution } from ${JSON.stringify(url('../packages/office-shell/src/electron/pack-resolve.js'))};
+    installPackResolution({ packsDir: ${JSON.stringify(built.out)}, coreFile: fileURLToPath(${JSON.stringify(url('../apps/desktop/main/main.js'))}) });
+    const src = ${JSON.stringify(asar)};
+    const { createArchiveHost } = await import(pathToFileURL(path.join(src, 'archive-host.js')).href);
+    const host = createArchiveHost();
+    try {
+      const out = await host.call('accounts', 'sync', { accounts: [], keys: [] }, { file: ${JSON.stringify(accounts)}, name: 'accounts', kind: 'accounts' });
+      console.log('ANSWER', JSON.stringify(out));
+    } catch (err) {
+      console.log('FAILED', err.code, err.cause?.message || err.message);
+    }
+    process.exit(0);
+  `);
+  const out = execFileSync(ELECTRON, [probe], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8', timeout: 60000 });
+  assert.match(out, /ANSWER \{"accounts":0\}/);
 });

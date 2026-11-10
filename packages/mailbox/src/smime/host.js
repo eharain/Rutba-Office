@@ -36,7 +36,7 @@ export function createSmimeHost({ readMs = READ_MS, pkcs12Ms = PKCS12_MS, heapMb
 
   const start = () => {
     stats.started++;
-    const t = new Worker(WORKER, { resourceLimits: { maxOldGenerationSizeMb: heapMb, maxYoungGenerationSizeMb: 64 } });
+    const t = new Worker(WORKER, { execArgv: globalThis.__rutbaPackWorkerArgv, resourceLimits: { maxOldGenerationSizeMb: heapMb, maxYoungGenerationSizeMb: 64 } });
     t.unref?.();
     t.on('message', (msg) => {
       if (!current || msg.seq !== current.seq) return;

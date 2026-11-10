@@ -90,7 +90,7 @@ export function createOcrHost({ threads = defaultThreads(), vendor, idleMs = IDL
   }
 
   function startThread() {
-    const entry = { thread: new Worker(WORKER, { workerData: { vendor } }), job: null, languages: '', timer: null };
+    const entry = { thread: new Worker(WORKER, { execArgv: globalThis.__rutbaPackWorkerArgv, workerData: { vendor } }), job: null, languages: '', timer: null };
     stats.started++;
     entry.thread.unref?.();
     entry.thread.on('message', ({ id, ok, value, error }) => {

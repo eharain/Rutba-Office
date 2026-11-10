@@ -25,7 +25,7 @@ export function createSpellerHost({ worker = true } = {}) {
     if (threads.has(lane)) return threads.get(lane);
     try {
       const { Worker } = await import('node:worker_threads');
-      const t = new Worker(new URL('./speller-worker.js', import.meta.url));
+      const t = new Worker(new URL('./speller-worker.js', import.meta.url), { execArgv: globalThis.__rutbaPackWorkerArgv });
       t.unref?.();
       t.on('message', ({ id, result, error }) => {
         const w = waiting.get(id);

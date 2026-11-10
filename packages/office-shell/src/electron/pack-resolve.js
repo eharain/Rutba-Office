@@ -31,6 +31,11 @@ const folderUrl = (dir) => pathToFileURL(path.resolve(dir) + path.sep).href.toLo
 
 let state = null;
 
+/** Where a worker thread finds what this thread was told, the environment being copied to it. */
+export const WORKER_RESOLUTION = 'RUTBA_PACK_RESOLUTION';
+/** The worker options this run's threads are started with, read by name so that a pack need not import the core for them. */
+export const WORKER_ARGV = '__rutbaPackWorkerArgv';
+
 /**
  * From now on, a module inside `packsDir` that imports a package it cannot
  * find gets the core's: resolved from `coreFile`. Once per run; a second call
@@ -39,6 +44,10 @@ let state = null;
  */
 export function installPackResolution({ packsDir, coreFile }) {
   const next = { prefix: folderUrl(packsDir), core: pathToFileURL(coreFile).href };
+  // Hooks are per thread, and a worker's imports run before any of its code:
+  // a thread a pack starts is told to install these first (see packWorkerOptions).
+  process.env[WORKER_RESOLUTION] = JSON.stringify({ packsDir, coreFile });
+  globalThis[WORKER_ARGV] = ['--import', new URL('./pack-resolve-worker.js', import.meta.url).href];
   if (state) {
     Object.assign(state, next);
     return;
