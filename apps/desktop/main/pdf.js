@@ -46,6 +46,7 @@ import pdfTextLayer from '@rutba/pdf/textlayer';
 import pdfAnnotations from '@rutba/pdf/annotations';
 import pdfForms from '@rutba/pdf/forms';
 import pdfRedact from '@rutba/pdf/redact';
+import { findAll } from '@rutba/editing/find';
 import pdfNavigation from '@rutba/pdf/navigation';
 import pdfCompress from '@rutba/pdf/compress';
 
@@ -54,7 +55,7 @@ const { assemble } = pdfAssemble;
 const { addTextLayer } = pdfTextLayer;
 const { readAnnotations, annotate } = pdfAnnotations;
 const { readFields, fillFields, addCheckboxes } = pdfForms;
-const { redactPages, scrubber, redactionPlan } = pdfRedact;
+const { redactPages, scrubber, redactionPlan, pageGlyphs, quadsOf } = pdfRedact;
 const { outlinePages, readLinks, pageLabels, labelText } = pdfNavigation;
 const { compressPlan, compressPdf } = pdfCompress;
 
@@ -284,6 +285,16 @@ export function createPdfService() {
       const added = { file, path: entry.path, name: entry.name, owner: entry.owner ?? win?.id ?? null, updated: true, password: entry.password };
       open.set(newId, added);
       return { ...describe(newId, added), added: made, annotations: readAnnotations(file), fields: readFields(file), bytes: new Uint8Array(bytes) };
+    },
+
+    /**
+     * Each match of `query` on a page as QuadPoints, measured on the page's own
+     * glyphs. `count` lets the window see whether this agrees with what it found.
+     */
+    matchQuads: ({ source, page, query }) => {
+      const { text, boxes, unsure } = pageGlyphs(get(source).file, page);
+      const matches = unsure ? [] : findAll(text, query);
+      return { count: matches.length, unsure, quads: matches.flatMap((m) => quadsOf(boxes, m.start, m.end)) };
     },
 
     /**

@@ -475,6 +475,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
     let cut = false;
     for (const part of parts) {
       if (typeof part === 'number') {
+        if (ctx.collect && part < -200) ctx.collect.push({ text: ' ', box: null });
         result.push(part);
         tm = mul([1, 0, 0, 1, (-part / 1000) * size * gs.th, 0], tm);
         continue;
@@ -483,6 +484,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
       if (font.unsure) {
         // Where each glyph falls is not known here, so the string is judged whole, on a generous box.
         const count = Math.ceil(part.bytes.length / 2);
+        if (ctx.collect) ctx.collect.unsure = true;
         const trm = mul([size * gs.th, 0, 0, size, 0, gs.rise], mul(tm, gs.ctm));
         if (size !== 0 && glyphHit(boxOf(trm, -0.1, -0.5, count * 1.1 + 0.2, 1.5), areas)) {
           removed.glyphs += count;
@@ -502,6 +504,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
         const adv = (w0 * size + gs.tc + space) * gs.th;
         const trm = mul([size * gs.th, 0, 0, size, 0, gs.rise], mul(tm, gs.ctm));
         const box = boxOf(trm, 0, -0.22, Math.max(w0, 0.05), 0.88);
+        if (ctx.collect) ctx.collect.push({ text: font.unicode(g.code), box });
         if (size !== 0 && glyphHit(box, areas)) {
           if (pending === 0) flush();
           pending += size && gs.th ? (adv / (size * gs.th)) * 1000 : 0;
@@ -522,7 +525,10 @@ function redactContent(ctx, data, resources, base, depth = 0) {
   };
   // Letters cut from one line and then the next are two words, not one:
   // a move to a new line or a new place ends the word being taken.
-  const gap = () => { if (ctx.run && !ctx.run.endsWith(' ')) ctx.run += ' '; };
+  const gap = () => {
+    if (ctx.collect) ctx.collect.push({ text: ' ', box: null });
+    if (ctx.run && !ctx.run.endsWith(' ')) ctx.run += ' ';
+  };
 
   for (const o of ops) {
     const a = o.operands;
@@ -640,7 +646,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
           const bb = file.resolve(x.dict.get('BBox'));
           const ctm = mul(m, gs.ctm);
           const box = Array.isArray(bb) && bb.length >= 4 ? boxOf(ctm, ...bb.slice(0, 4).map((v) => num(file.resolve(v)))) : null;
-          if (box && !areas.some((r) => intersects(box, r))) { out.push(o); break; }
+          if (box && !ctx.collect && !areas.some((r) => intersects(box, r))) { out.push(o); break; }
           const before = removed.glyphs + removed.images + removed.pictures;
           let decoded;
           try { decoded = file.decode(x); } catch { decoded = Buffer.alloc(0); }
@@ -708,6 +714,48 @@ function marksOf(file) {
     out.get(a.page).push({ id: a.id, rects, fill: a.interior || [0, 0, 0], overlay: a.overlay || '', words: a.contents || '' });
   }
   return out;
+}
+
+/**
+ * A page's words as its own content draws them: `text`, and for each of its
+ * characters the box of the glyph that drew it (null for a space put in where
+ * a line or a gap ends). `unsure` when a font's codes could not be told apart.
+ */
+function pageGlyphs(bytes, page) {
+  const file = require('./reader').asPdf(bytes);
+  const entry = file.pages()[page];
+  if (!entry) return { text: '', boxes: [], unsure: false };
+  const collect = [];
+  const removed = { glyphs: 0, images: 0, pictures: 0, annotations: 0, pages: 0 };
+  const ctx = { file, areas: [], removed, plan: null, images: null, counter: 1, fill: [0, 0, 0], run: '', phrases: [], collect };
+  const resources = entry.dict.has('Resources') ? entry.dict.get('Resources') : entry.inherited.Resources;
+  redactContent(ctx, file.pageContent(page), resources, [1, 0, 0, 1, 0, 0]);
+  let text = '';
+  const boxes = [];
+  for (const g of collect) {
+    if (g.box === null && (!text || text.endsWith(' '))) continue;
+    for (let i = 0; i < g.text.length; i++) boxes.push(g.box);
+    text += g.text;
+  }
+  return { text, boxes, unsure: Boolean(collect.unsure) };
+}
+
+/** The characters from `start` to `end` as QuadPoints, one a line, the size of their glyphs exactly. */
+function quadsOf(boxes, start, end) {
+  const lines = [];
+  for (const b of boxes.slice(start, end)) {
+    if (!b) continue;
+    const line = lines[lines.length - 1];
+    const sameLine = line && b[1] < line[3] && b[3] > line[1] && b[0] >= line[0];
+    if (sameLine) {
+      line[1] = Math.min(line[1], b[1]);
+      line[2] = Math.max(line[2], b[2]);
+      line[3] = Math.max(line[3], b[3]);
+    } else {
+      lines.push([...b]);
+    }
+  }
+  return lines.map(([x0, y0, x1, y1]) => [x0, y1, x1, y1, x0, y0, x1, y0].map((v) => Math.round(v * 100) / 100));
 }
 
 /**
@@ -908,5 +956,5 @@ function bytesContain(bytes, word) {
 }
 
 module.exports = {
-  applyRedactions, redactPages, scrubber, redactionPlan, bytesContain, RedactError, parseToUnicode, parseContent, writeContent, fontInfo, textString, PdfReadError,
+  pageGlyphs, quadsOf, applyRedactions, redactPages, scrubber, redactionPlan, bytesContain, RedactError, parseToUnicode, parseContent, writeContent, fontInfo, textString, PdfReadError,
 };

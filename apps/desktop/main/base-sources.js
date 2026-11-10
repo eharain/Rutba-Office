@@ -22,15 +22,24 @@ export const SOURCE_FILES = ['csv', 'tsv', 'txt', 'xlsx', 'xlsm', 'xls', 'ods'];
 
 const isWeb = (where) => /^https?:\/\//i.test(String(where || '').trim());
 const TIMEOUT = 20000;
+const MOST_REDIRECTS = 10;
 
 /** The address's own name, for a message: its host. */
 const hostOf = (url) => { try { return new URL(url).host; } catch { return String(url); } };
 
 /** A web address fetched, its failures said in words a person can act on. */
-async function fetchFrom(url, { headers = {}, fetchImpl = fetch } = {}) {
+async function fetchFrom(url, { headers = {}, headersFor = null, fetchImpl = fetch } = {}) {
   let res;
   try {
-    res = await fetchImpl(url, { headers, redirect: 'follow', signal: AbortSignal.timeout(TIMEOUT) });
+    // With secrets to send the redirects are walked here: fetch itself would carry a custom header to any host it is sent on to.
+    for (let at = url, hops = 0; ; hops++) {
+      res = await fetchImpl(at, { headers: headersFor ? headersFor(at) : headers, redirect: headersFor ? 'manual' : 'follow', signal: AbortSignal.timeout(TIMEOUT) });
+      const next = headersFor && [301, 302, 303, 307, 308].includes(res.status) ? res.headers.get('location') : null;
+      if (!next) break;
+      if (hops >= MOST_REDIRECTS) throw new Error('too many redirects');
+      at = new URL(next, at).href;
+      if (!isWeb(at)) throw new Error('redirected away from the web');
+    }
   } catch (err) {
     const m = String(err?.cause?.code || err?.code || err?.message || err);
     if (/timeout|abort/i.test(m)) throw Object.assign(new Error(`${hostOf(url)} did not answer in time.`), { unreachable: true });
@@ -234,7 +243,7 @@ export async function readJsonSource({ where, headers = [], records = '', paging
   if (kind === 'page') url = withPage(first, paging.param || 'page', n);
   while (url && pages < maxPages && !seen.has(url)) {
     seen.add(url);
-    const res = await fetchFrom(url, { headers: headersFor(url), fetchImpl });
+    const res = await fetchFrom(url, { headersFor, fetchImpl });
     let answer;
     try { answer = await res.json(); } catch { throw new Error(`${hostOf(url)} did not answer in JSON.`); }
     const list = recordsIn(answer, records);

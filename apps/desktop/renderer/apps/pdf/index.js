@@ -802,7 +802,7 @@ export default function PdfApp({ app, shell, boot }) {
         const id = `${p.source}:${p.page}`;
         if (seen.has(id)) continue;
         seen.add(id);
-        const quads = await searchQuads(sourcesRef.current[p.source].doc, p.page, q);
+        const quads = await searchQuads(sourcesRef.current[p.source].doc, p.page, q, () => shell.pdf.matchQuads({ source: p.source, page: p.page, query: q }));
         if (!quads.length) continue;
         count += quads.length;
         if (!bySource.has(p.source)) bySource.set(p.source, []);

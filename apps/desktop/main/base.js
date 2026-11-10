@@ -39,6 +39,9 @@ export const isSqlite = (bytes) => Buffer.from(bytes.subarray(0, 16)).toString('
  * (base-trust.js, A2.18), kept in memory for the service's life when it is
  * not given.
  */
+/** The most records of a table read live; past this it is a copy kept in the file that serves. */
+const LIVE_MOST = 100_000;
+
 export function createBaseService({ secrets = null, connect = defaultConnect, trust = createTrust() } = {}) {
   const open = new Map(); // id -> { base, file, engines: Map(link -> engine), state: Map(table -> { error, at, count }) }
   const kept = keptSecrets(secrets);
@@ -64,7 +67,7 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
         const st = open.get(id).state.get(t.name) || {};
         const l = base.linked().find((x) => x.table === t.name);
         const link = l && base.links().find((x) => x.id === l.link);
-        return { ...t, mode: 'live', count: base.linkedLoaded(t.name) ? base.count(t.name) : 0, linkError: st.error || null, readAt: st.at || null, key: l?.key || null, blocked: Boolean(link) && !allowed(open.get(id), link) };
+        return { ...t, mode: 'live', count: base.linkedLoaded(t.name) ? base.count(t.name) : 0, linkError: st.error || null, cut: st.cut ? LIVE_MOST : null, readAt: st.at || null, key: l?.key || null, blocked: Boolean(link) && !allowed(open.get(id), link) };
       }),
       links: base.access?.locked || base.rights() ? [] : base.links().filter((l) => !SOURCE_KINDS.has(l.engine)).map((l) => ({ id: l.id, name: l.name, engine: l.engine, settings: l.settings, password: kept.has(secretKey(l.id), l) })),
       // The other sources tables are read from: a file, another database, a web address answering JSON.
@@ -170,13 +173,16 @@ export function createBaseService({ secrets = null, connect = defaultConnect, tr
       const engine = await engineFor(o, link);
       const design = await engine.describe(l.remote);
       o.base.relinkDesign(table, design);
-      const rows = await engine.read(l.remote, { fields: design.fields, key: design.key });
+      // One more than is kept, so that a table cut short can say so.
+      const rows = await engine.read(l.remote, { fields: design.fields, key: design.key, limit: LIVE_MOST + 1 });
+      const cut = rows.length > LIVE_MOST;
+      if (cut) rows.length = LIVE_MOST;
       // Read again with nothing changed in the engine: the copy here, and when it was read, stay as they are.
       const hash = crypto.createHash('sha256').update(JSON.stringify([design, rows])).digest('hex');
       const was = o.state.get(table);
       if (was?.hash === hash && !was.error && o.base.linkedLoaded(table)) return;
       o.base.loadLinked(table, rows);
-      o.state.set(table, { error: null, at: new Date().toISOString(), count: rows.length, hash });
+      o.state.set(table, { error: null, at: new Date().toISOString(), count: rows.length, hash, cut });
     } catch (err) {
       if (link && unreachable(err)) dropEngine(o, link);
       o.state.set(table, { error: err.message || String(err), at: null });

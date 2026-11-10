@@ -281,6 +281,7 @@ export function LinkedBar({ shell, db, table, design = false, onChanged, onPassw
       {tb.linkError
         ? <span>{t('The records of {table} could not be read from {link}: {why}', { table, link: link?.name || '', why: tb.linkError })}</span>
         : <span>{t('Linked to {link}: the records are the engine\'s, read from it here.', { link: link?.name || '' })}{tb.key ? null : ` ${t('With no primary key there, they can be read, not changed.')}`}</span>}
+      {!tb.linkError && tb.cut ? <span className="bs-source-note" data-cut={tb.cut}>{t('Only the first {count} records are read. Keep a copy in this file to work with all of them.', { count: tb.cut.toLocaleString() })}</span> : null}
       <span className="grow" />
       {tb.linkError && link && !link.password ? <Button label={t('Password…')} className="bs-linked-password" onClick={() => onPassword(link)} /> : null}
       {modeSelect}

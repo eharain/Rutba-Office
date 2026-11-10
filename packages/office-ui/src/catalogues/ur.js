@@ -3699,6 +3699,7 @@ export default {
   'Saved to Drafts': 'مسودوں میں محفوظ ہو گیا',
   'Saved {count} file': { one: '{count} فائل محفوظ ہو گئی', other: '{count} فائلیں محفوظ ہو گئیں' },
   'Saved {name}': '{name} محفوظ ہو گیا',
+  'Only the first {count} records are read. Keep a copy in this file to work with all of them.': 'صرف پہلے {count} ریکارڈ پڑھے گئے ہیں۔ سب کے ساتھ کام کرنے کے لیے اس فائل میں ایک نقل رکھیں۔',
   'This picture is animated. Turning it here would lose its frames.': 'یہ تصویر متحرک ہے۔ اسے یہاں گھمانے سے اس کے فریم ضائع ہو جائیں گے۔',
   'Writing stopped: {reason}. What was written before that is kept.': 'لکھنا رک گیا: {reason}۔ اس سے پہلے جو لکھا گیا وہ محفوظ ہے۔',
   'Stop recording?': 'ریکارڈنگ روکیں؟',

@@ -35,6 +35,8 @@ export function fromEngine(type, v) {
   if (typeof v === 'boolean') return v ? 1 : 0;
   if (['integer', 'number', 'currency', 'autonumber'].includes(type) && typeof v === 'string') {
     const n = Number(v.replace(/[^0-9.eE+-]/g, ''));
+    // A whole number too long for a JavaScript number keeps its digits: rounded, it names another record.
+    if (/^[+-]?\d+$/.test(v.trim()) && !Number.isSafeInteger(n)) return v.trim();
     return Number.isFinite(n) ? n : v;
   }
   if (typeof v === 'object') return JSON.stringify(v);

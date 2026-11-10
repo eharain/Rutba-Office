@@ -3701,6 +3701,7 @@ export default {
   'Saved to Drafts': 'ड्राफ़्ट में सहेजा गया',
   'Saved {count} file': { one: '{count} फ़ाइल सहेजी गई', other: '{count} फ़ाइलें सहेजी गईं' },
   'Saved {name}': '{name} सहेजा गया',
+  'Only the first {count} records are read. Keep a copy in this file to work with all of them.': 'केवल पहले {count} रिकॉर्ड पढ़े गए हैं। सभी के साथ काम करने के लिए इस फ़ाइल में एक प्रति रखें।',
   'This picture is animated. Turning it here would lose its frames.': 'यह तस्वीर एनिमेटेड है। इसे यहाँ घुमाने से इसके फ़्रेम खो जाएँगे।',
   'Writing stopped: {reason}. What was written before that is kept.': 'लिखना रुक गया: {reason}। उससे पहले जो लिखा गया वह सुरक्षित है।',
   'Stop recording?': 'रिकॉर्डिंग रोकें?',

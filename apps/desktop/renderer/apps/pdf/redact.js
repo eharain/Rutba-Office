@@ -14,13 +14,18 @@ import { findAll } from '@rutba/editing/find';
 import { drawText, getPage } from '../../pdfjs.js';
 import { joinLines } from './annots.js';
 
+/** How far past a measured match a mark reaches, in the line's height. */
+const WIDEN = 0.5;
+
 /**
  * Where `query` is found on a page, as QuadPoints in the page's own
  * coordinates: the page's words laid out off screen as pdf.js lays them over
- * a page, the matches measured there, line by line. Exact for pages far from
- * the screen, whose own word layers are not drawn yet.
+ * a page, the matches measured there, line by line. That layer is drawn in a
+ * stand-in font, so within a line it is only near: when the page's own glyphs
+ * (`exact`) find the same number of matches, their boxes are the ones used.
+ * Where they cannot, each mark is widened, since a mark too short leaves letters behind.
  */
-export async function searchQuads(doc, index, query) {
+export async function searchQuads(doc, index, query, exact = null) {
   const page = await getPage(doc, index);
   const vp = page.getViewport({ scale: 1, rotation: 0 });
   const host = document.createElement('div');
@@ -41,7 +46,10 @@ export async function searchQuads(doc, index, query) {
     };
     const box = host.getBoundingClientRect();
     const out = [];
-    for (const m of findAll(text, query)) {
+    const matches = findAll(text, query);
+    const measured = matches.length ? await exact?.().catch(() => null) : null;
+    if (measured && !measured.unsure && measured.count === matches.length) return measured.quads;
+    for (const m of matches) {
       const a = locate(m.start);
       const b = locate(m.end);
       if (!a || !b) continue;
@@ -50,10 +58,11 @@ export async function searchQuads(doc, index, query) {
       const rects = [...range.getClientRects()].filter((r) => r.width > 0.5 && r.height > 0.5)
         .map((r) => ({ left: r.left - box.left, right: r.right - box.left, top: r.top - box.top, bottom: r.bottom - box.top }));
       for (const line of joinLines(rects)) {
-        const tl = vp.convertToPdfPoint(line.left, line.top);
-        const tr = vp.convertToPdfPoint(line.right, line.top);
-        const bl = vp.convertToPdfPoint(line.left, line.bottom);
-        const br = vp.convertToPdfPoint(line.right, line.bottom);
+        const reach = (line.bottom - line.top) * WIDEN;
+        const tl = vp.convertToPdfPoint(line.left - reach, line.top);
+        const tr = vp.convertToPdfPoint(line.right + reach, line.top);
+        const bl = vp.convertToPdfPoint(line.left - reach, line.bottom);
+        const br = vp.convertToPdfPoint(line.right + reach, line.bottom);
         out.push([...tl, ...tr, ...bl, ...br].map((v) => Math.round(v * 100) / 100));
       }
     }

@@ -342,6 +342,7 @@ export const METHODS = {
     'navigation',   // ({ id }) -> { outline: [{ title, page, url, bold, italic, open, kids }], labels: [string] | null, links: [{ page, rect, target, url }] }
     'compressPlan', // ({ pages, dpi }) -> { token, size, plan: [{ ref, width, height, toWidth, toHeight, filter, comps, data }] }: pictures shown at more than dpi
     'compress',     // ({ token, dpi, images: { [ref]: { data, width, height, filter, comps } }, path }) -> { path, before, after, replaced }: written whole as a new file
+    'matchQuads',   // ({ source, page, query }) -> { count, unsure, quads }: a search's matches on a page, measured on its own glyphs
     'redactPlan',   // ({ sources }) -> [{ source, page, key, width, height, filter, rects, data }]: pictures under redaction marks only the window can decode
     'redact',       // ({ pages: [{ source, page, rotate }], path, images, title }) -> { path, size, removed: { glyphs, pictures, images, annotations, pages }, elsewhere: { [kind]: count }, words, unpainted: [{ page, count }] }: the marks applied, the marked words taken out of everything else, written whole as a new file
     'redactPreview', // ({ pages, images, title }) -> { removed, elsewhere, words, unpainted, size }: what applying would do, nothing written

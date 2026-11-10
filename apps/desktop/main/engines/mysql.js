@@ -33,6 +33,8 @@ export function fromEngine(type, v) {
   if (type === 'yesno') return v ? 1 : 0;
   if (['integer', 'number', 'currency', 'autonumber'].includes(type) && typeof v === 'string') {
     const n = Number(v);
+    // A whole number too long for a JavaScript number keeps its digits: rounded, it names another record.
+    if (/^[+-]?\d+$/.test(v.trim()) && !Number.isSafeInteger(n)) return v.trim();
     return Number.isFinite(n) ? n : v;
   }
   if (typeof v === 'object') return JSON.stringify(v);
@@ -51,7 +53,7 @@ function toEngine(type, v) {
 export async function connect({ host, port = 3306, database, user, ssl = false, sslAnyCertificate = false }, password) {
   let conn;
   try {
-    conn = await mysql.createConnection({ host, port: Number(port) || 3306, database, user, password, ssl: tlsOptions({ ssl, sslAnyCertificate }) || undefined, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true, connectTimeout: 8000 });
+    conn = await mysql.createConnection({ supportBigNumbers: true, host, port: Number(port) || 3306, database, user, password, ssl: tlsOptions({ ssl, sslAnyCertificate }) || undefined, dateStrings: true, supportBigNumbers: true, bigNumberStrings: true, connectTimeout: 8000 });
   } catch (err) {
     const m = String(err.message || err);
     if (ssl && certificateProblem(err, host)) throw new Error(certificateProblem(err, host));

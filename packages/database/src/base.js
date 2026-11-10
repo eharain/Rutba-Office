@@ -90,6 +90,30 @@ function cleanRow(r) {
   return r;
 }
 
+/**
+ * node:sqlite refuses an integer a JavaScript number cannot hold, and another
+ * engine's keys are often that long. Such a value is read as its digits, which
+ * compare and write back exactly; every other integer stays a number.
+ */
+function exactIntegers(db) {
+  const most = BigInt(Number.MAX_SAFE_INTEGER);
+  const exact = (v) => (typeof v === 'bigint' ? (v <= most && v >= -most ? Number(v) : String(v)) : v);
+  const row = (r) => {
+    if (r) for (const k of Object.keys(r)) r[k] = exact(r[k]);
+    return r;
+  };
+  const prepare = db.prepare.bind(db);
+  db.prepare = (sql) => {
+    const stmt = prepare(sql);
+    stmt.setReadBigInts(true);
+    const { all, get, run } = stmt;
+    stmt.all = (...args) => all.apply(stmt, args).map(row);
+    stmt.get = (...args) => row(get.apply(stmt, args));
+    stmt.run = (...args) => row(run.apply(stmt, args));
+    return stmt;
+  };
+}
+
 export class Base {
   /** Open (or make) the database at `file`; ':memory:' for one in memory. */
   static open(file) {
@@ -172,6 +196,7 @@ export class Base {
 
   constructor(db) {
     this.db = db;
+    exactIntegers(db);
     // A value put into a field's new type as its type is changed (_rebuild); one that does not fit is let go empty.
     try { db.function('rutba_fit', { deterministic: true }, (type, size, v) => fitTo({ type, size }, v) ?? (type === 'yesno' ? 0 : null)); } catch { /* an SQLite without functions of our own */ }
     // The day Date() and Now() answer in this database's expressions; null is today.
@@ -464,6 +489,7 @@ export class Base {
         if (now.name !== was.name) this.db.exec(`ALTER TABLE ${q(table)} RENAME COLUMN ${q(was.name)} TO ${q(now.name)}`);
         this._writeFields(table, next, { [was.name]: now.name });
         saveRelations();
+        this._followRename({ table, field: was.name, fieldTo: now.name });
       });
     }
     const convert = this._fitRecords(table, fields, was, now, { clear });
@@ -471,6 +497,7 @@ export class Base {
       this._rebuild(table, next.map((f, k) => ({ ...f, from: k === i ? was.name : f.name, ...(k === i && convert ? { convert: true } : {}) })), relations);
       this._writeFields(table, next, { [was.name]: now.name });
       saveRelations();
+      this._followRename({ table, field: was.name, fieldTo: now.name });
     });
   }
 
@@ -502,7 +529,33 @@ export class Base {
       this.db.prepare('UPDATE rutba_fields SET tbl = ? WHERE tbl = ?').run(name, table);
       this.db.prepare('UPDATE rutba_relations SET from_tbl = ? WHERE from_tbl = ?').run(name, table);
       this.db.prepare('UPDATE rutba_relations SET to_tbl = ? WHERE to_tbl = ?').run(name, table);
+      this._followRename({ table, to: name });
     });
+  }
+
+  /** Roles name tables and fields, and the trail names tables: a rename goes there too, or what a role had hidden shows again. */
+  _followRename({ table, to = table, field = null, fieldTo = null }) {
+    if (to === table && field === fieldTo) return;
+    if (this.hasDesignTable('rutba_trail') && to !== table) this.db.prepare('UPDATE rutba_trail SET tbl = ? WHERE tbl = ?').run(to, table);
+    if (!this.hasDesignTable('rutba_roles')) return;
+    const put = this.db.prepare('UPDATE rutba_roles SET rights = ? WHERE name = ?');
+    for (const { name, rights } of this.db.prepare('SELECT name, rights FROM rutba_roles').all()) {
+      let stored;
+      try { stored = JSON.parse(rights); } catch { continue; }
+      const each = stored?.tables?.each;
+      const entry = each?.[table];
+      if (entry === undefined) continue;
+      if (field !== null) {
+        if (entry?.fields?.[field] === undefined) continue;
+        entry.fields[fieldTo] = entry.fields[field];
+        delete entry.fields[field];
+      }
+      if (to !== table) {
+        each[to] = entry;
+        delete each[table];
+      }
+      put.run(JSON.stringify(stored), name);
+    }
   }
 
   /** Delete a table and its records. One another table points at stays until that relationship goes. */
@@ -751,6 +804,7 @@ export class Base {
    * the designer. Answers { columns, rows, count, sql }, at most `limit` rows.
    */
   runQuery({ name = null, design = null, limit = 5000, today = this.today } = {}) {
+    this._unlocked();
     const d = design || this.queries().find((x) => x.name === name)?.design;
     if (!d) throw new Error(`There is no query called ${name}.`);
     if (typeof d.sql === 'string') this._maySql();
@@ -767,6 +821,7 @@ export class Base {
    * descending), each column typed by the field it shows, or by its values.
    */
   queryRows({ name = null, design = null, offset = 0, limit = 200, order = null, search = '', filters = [], today = this.today } = {}) {
+    this._unlocked();
     const d = design || this.queries().find((x) => x.name === name)?.design;
     if (!d) throw new Error(`There is no query called ${name}.`);
     const designed = designToSql(d, this.relationships(), { ...this._designFields(), today });

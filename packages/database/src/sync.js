@@ -89,6 +89,12 @@ const intKeyOf = (fields, key) => {
   return Boolean(f && ['autonumber', 'integer'].includes(f.type));
 };
 
+/** A key as a rowid: a number, or its digits when a number would round it into another record's. */
+const ridOf = (v) => {
+  const n = Number(v);
+  return Number.isSafeInteger(n) ? n : String(v);
+};
+
 /** Whether a linked table is a source's (read only), by its link's kind. */
 export function isSource(base, l) {
   const link = base.db.prepare('SELECT engine FROM rutba_links WHERE id = ?').get(l.link);
@@ -191,7 +197,7 @@ function putRow(base, table, fields, key, row) {
   const cols = fields.map((f) => q(f.name)).join(', ');
   const marks = fields.map(() => '?').join(', ');
   const out = base.db.prepare(`INSERT INTO main.${q(table)} (${cols}) VALUES (${marks})`).run(...fields.map((f) => (row[f.name] === undefined ? null : row[f.name])));
-  return intKeyOf(fields, key) ? Number(row[key]) : Number(out.lastInsertRowid);
+  return intKeyOf(fields, key) ? ridOf(row[key]) : Number(out.lastInsertRowid);
 }
 
 /** A record of the copy that is only here moved to another rowid, its entry, and the records that point at it, with it. */
@@ -272,7 +278,7 @@ export function prepareSync(base, table, engineRows, { fields, key }, keys = nul
           clashes++;
           keepClash(base, table, e.kj, 'deleted', null, valuesOf(fields, there));
           base.db.prepare('DELETE FROM rutba_sync WHERE tbl = ? AND rid = ?').run(table, e.rid);
-          if (intKeyOf(fields, key)) freeRid(base, table, key, Number(there[key]));
+          if (intKeyOf(fields, key)) freeRid(base, table, key, ridOf(there[key]));
           const rid = putRow(base, table, fields, key, there);
           base.db.prepare('INSERT INTO rutba_sync (tbl, rid, kj, hash, state, n) VALUES (?, ?, ?, ?, NULL, 0) ON CONFLICT(tbl, rid) DO UPDATE SET kj = excluded.kj, hash = excluded.hash, state = NULL, since = NULL')
             .run(table, rid, e.kj, hashRecord(fields, there));
@@ -299,7 +305,7 @@ export function pushed(base, table, push, { fields, key }, newKey = null) {
     }
     if (push.action === 'added') {
       let k = newKey ?? push.values[key] ?? null;
-      if (k != null && intKeyOf(fields, key)) k = Number(k);
+      if (k != null && intKeyOf(fields, key)) k = ridOf(k);
       if (!e) return k == null ? 'done' : 'gone';
       let rid = push.rid;
       if (k != null && intKeyOf(fields, key) && k !== push.rid) {
@@ -370,7 +376,7 @@ export function reconcile(base, table, { rows, keys = null, complete = true }, {
       const h = hashRecord(fields, row);
       const e = byKj.get(kj);
       if (!e) {
-        if (intKey) freeRid(base, table, key, Number(row[key]));
+        if (intKey) freeRid(base, table, key, ridOf(row[key]));
         const rid = putRow(base, table, fields, key, row);
         base.db.prepare('INSERT INTO rutba_sync (tbl, rid, kj, hash, state, n) VALUES (?, ?, ?, ?, NULL, 0) ON CONFLICT(tbl, rid) DO UPDATE SET kj = excluded.kj, hash = excluded.hash, state = NULL, since = NULL')
           .run(table, rid, kj, h);

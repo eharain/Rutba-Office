@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8603,
+  "count": 8604,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -27793,6 +27793,12 @@
       "message": "Only the first {cap} cells of the selection were added",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Only the first {count} records are read. Keep a copy in this file to work with all of them.",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
