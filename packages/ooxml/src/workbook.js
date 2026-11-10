@@ -2416,9 +2416,32 @@ export class Workbook {
         if (value === null) continue;
         // Words, not a formula, though they start with "=": the cell has no <f>.
         const text = typeof value === 'string' && value.startsWith('=') && !/<f\b/.test(cell.inner);
+        if (!text && typeof value === 'string' && value.startsWith('=')) {
+          yield { ref: cell.ref, row: row.index, col: cell.col, value, cached: this._storedResult(cell) };
+          continue;
+        }
         yield text ? { ref: cell.ref, row: row.index, col: cell.col, value, text } : { ref: cell.ref, row: row.index, col: cell.col, value };
       }
     }
+  }
+
+  /** What a formula cell last stored: a number, words, a boolean, `{ error }`, or undefined. */
+  _storedResult(cell) {
+    const v = /<v>([\s\S]*?)<\/v>/.exec(cell.inner);
+    if (!v) return undefined;
+    const raw = unesc(v[1]);
+    if (cell.type === 'e') return { error: raw };
+    if (cell.type === 'b') return raw === '1';
+    if (cell.type === 'str') return raw;
+    if (cell.type === 's') return this.sharedStrings()[Number(raw)] ?? undefined;
+    const n = Number(raw);
+    return raw.trim() !== '' && Number.isFinite(n) ? n : undefined;
+  }
+
+  /** Whether this workbook counts its dates from 1904. */
+  get date1904() {
+    const pr = /<workbookPr\b([^>]*?)\/?>/.exec(this.pkg.text(this.mainPart));
+    return Boolean(pr && /\bdate1904="(?:1|true)"/.test(pr[1]));
   }
 
   /** A parsed cell's value: formula text, shared or inline string, boolean, error, number. */

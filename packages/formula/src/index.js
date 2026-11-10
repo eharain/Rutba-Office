@@ -18,7 +18,7 @@
 export {
   FormulaError, ERR, ERROR_TYPES, isError, isBlank, firstError,
   toNumber, toText, toBoolean, compareValues, formatNumber,
-  roundHalfAwayFromZero, dateToSerial, serialToDate, serialToParts, partsToSerial, numericText,
+  roundHalfAwayFromZero, dateToSerial, serialToDate, serialToParts, partsToSerial, withDate1904, numericText,
 } from './values.js';
 
 export {

@@ -17,7 +17,7 @@
  * value and is reported — degrading loudly beats silently writing a wrong
  * number into a file that goes to a bank.
  */
-import { Spreadsheet, isError, formatNumber, parse } from '@rutba/formula';
+import { Spreadsheet, FormulaError, ERROR_TYPES, isError, formatNumber, parse } from '@rutba/formula';
 import { Workbook, parseRef, makeRef } from './workbook.js';
 import { OoxmlPackage } from './package.js';
 import { toFileFormula, fromFileFormula } from './xlfn.js';
@@ -75,9 +75,26 @@ function lazyProvider(wb, part) {
   };
 }
 
+/** Every defined name into the engine, each under its own sheet when it has one. */
+export function loadDefinedNames(wb, sheet) {
+  const tabs = wb.sheets().map((s) => s.name);
+  for (const { name, ref, attrsStr } of wb.definedNames()) {
+    const parsed = parseDefinedName(ref);
+    if (!parsed) continue;
+    const local = /\blocalSheetId="(\d+)"/.exec(attrsStr ?? '');
+    sheet.defineName(name, parsed, local ? tabs[Number(local[1])] ?? null : null);
+  }
+}
+
+/** A stored result as the engine holds it; an error type it has no word for is not held. */
+function heldResult(cached) {
+  if (!cached || typeof cached !== 'object') return cached;
+  return ERROR_TYPES.includes(cached.error) ? new FormulaError(cached.error) : undefined;
+}
+
 export function toSpreadsheet(wb, { now } = {}) {
 
-  const sheet = new Spreadsheet({ now });
+  const sheet = new Spreadsheet({ now, date1904: wb.date1904 });
   const loaded = [];
 
   for (const { name } of wb.sheets()) {
@@ -131,21 +148,18 @@ export function toSpreadsheet(wb, { now } = {}) {
     // Pass 2: the cells, one row parse each. Asking the workbook for every
     // cell by reference re-parsed its row every time — quadratic in the
     // sheet's width, and eleven minutes on a 2.4-million-cell tender.
-    for (const { ref, row: r, col: c, value, text } of wb.cells(name)) {
+    for (const { ref, row: r, col: c, value, text, cached } of wb.cells(name)) {
       const isFormula = !text && typeof value === 'string' && value.startsWith('=');
       if (!isFormula && covered.length && isGhost(r, c)) continue;
       // Words that start with "=" or "'" go in quoted, as a person would type
       // them, so the engine keeps them words and keeps their own apostrophe.
       const quote = typeof value === 'string' && (text || value.startsWith("'"));
-      sheet.setCell(name, r, c, quote ? "'" + value : value);
+      sheet.setCell(name, r, c, quote ? "'" + value : value, isFormula ? { cached: heldResult(cached) } : undefined);
       if (isFormula) loaded.push({ sheet: name, ref, formula: value });
     }
   }
 
-  for (const { name, ref } of wb.definedNames()) {
-    const parsed = parseDefinedName(ref);
-    if (parsed) sheet.defineName(name, parsed);
-  }
+  loadDefinedNames(wb, sheet);
 
   for (const t of wb.tables()) {
     const [a, b] = String(t.ref).split(':');
@@ -216,10 +230,10 @@ export function recalculateWorkbook(buf, { now } = {}) {
     const cell = sheet.cell(sheetName, row, col);
     if (!cell) continue;
 
-    if (cell.error && cell.error.type === '#NAME?' && /unknown function/.test(cell.error.detail ?? '')) {
+    if (cell.foreign || (cell.error && cell.error.type === '#NAME?' && /unknown function/.test(cell.error.detail ?? ''))) {
       // We could not evaluate it, so we leave whatever Excel last cached rather
       // than replacing a good number with our failure.
-      unparsed.push({ sheet: sheetName, ref, formula, reason: cell.error.detail });
+      unparsed.push({ sheet: sheetName, ref, formula, reason: cell.foreign ?? cell.error.detail });
       continue;
     }
     if (isError(cell.value)) {

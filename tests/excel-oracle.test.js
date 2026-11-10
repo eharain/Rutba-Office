@@ -63,3 +63,23 @@ test('every number format prints what Excel prints', () => {
   }
   assert.deepEqual(wrong, [], `${wrong.length} of ${oracle.formats.length}`);
 });
+
+test('a workbook on the 1904 date system comes to what Excel says', () => {
+  const s = new Spreadsheet({ now: NOW, date1904: true });
+  for (const [sheet, cells] of Object.entries(oracle.sheets)) {
+    s.addSheet?.(sheet);
+    for (const [a1, v] of Object.entries(cells)) s.setByRef(sheet, a1, v);
+  }
+  const wrong = [];
+  for (const { formula, answer } of oracle.on1904.formulas) {
+    s.setByRef('Sheet1', 'J20', formula);
+    s.recalculate();
+    const mine = shown(s.getValue('Sheet1', 19, 9));
+    if (!same(mine, answer)) wrong.push(`${formula}  gives ${JSON.stringify(mine)}, Excel ${JSON.stringify(answer)}`);
+  }
+  for (const { value, format, text } of oracle.on1904.formats) {
+    const mine = formatValue(value, format, { date1904: true }).text;
+    if (mine !== text) wrong.push(`${value} as ${format}  prints ${JSON.stringify(mine)}, Excel ${JSON.stringify(text)}`);
+  }
+  assert.deepEqual(wrong, []);
+});

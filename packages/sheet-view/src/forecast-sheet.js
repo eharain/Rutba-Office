@@ -147,7 +147,7 @@ export function forecastPreview(view, spec = {}, { width = 580, height = 250, mo
     }
   });
   const code = plan.timeFormat || 'General';
-  const categories = [...pairs.map((p) => p.t), ...future].map((t) => formatValue(t, code).text);
+  const categories = [...pairs.map((p) => p.t), ...future].map((t) => formatValue(t, code, { date1904: view.date1904 }).text);
   const chartSeries = [{ name: names[1], values: actual, markers: false }, { name: names[2], values: fc, markers: false }];
   if (kind === 'line' && confidence !== null) chartSeries.push({ name: names[3], values: low, markers: false }, { name: names[4], values: high, markers: false });
   const svg = renderSvg(buildChart({ type: kind, categories, series: chartSeries, width, height, mode }));

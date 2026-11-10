@@ -57,6 +57,90 @@
  },
  "formulas": [
   {
+   "formula": "=DATE(99,1,1)",
+   "answer": {
+    "value": 36161
+   }
+  },
+  {
+   "formula": "=DATE(0,1,1)",
+   "answer": {
+    "value": 1
+   }
+  },
+  {
+   "formula": "=DATE(-1,1,1)",
+   "answer": {
+    "error": "#NUM!"
+   }
+  },
+  {
+   "formula": "=DATE(10000,1,1)",
+   "answer": {
+    "error": "#NUM!"
+   }
+  },
+  {
+   "formula": "=DATE(9999,12,31)",
+   "answer": {
+    "value": 2958465
+   }
+  },
+  {
+   "formula": "=DATE(1899,12,31)",
+   "answer": {
+    "value": 693962
+   }
+  },
+  {
+   "formula": "=DATE(1900,1,1)",
+   "answer": {
+    "value": 1
+   }
+  },
+  {
+   "formula": "=DATE(1900,1,0)",
+   "answer": {
+    "value": 0
+   }
+  },
+  {
+   "formula": "=DATE(1900,2,29)",
+   "answer": {
+    "value": 60
+   }
+  },
+  {
+   "formula": "=DATE(1900,3,0)",
+   "answer": {
+    "value": 60
+   }
+  },
+  {
+   "formula": "=DATE(2024.9,1.9,1.9)",
+   "answer": {
+    "value": 45292
+   }
+  },
+  {
+   "formula": "=DATE(2024,14,1)",
+   "answer": {
+    "value": 45689
+   }
+  },
+  {
+   "formula": "=DATE(2024,1,-1)",
+   "answer": {
+    "value": 45290
+   }
+  },
+  {
+   "formula": "=DATE(1900,1,-1)",
+   "answer": {
+    "error": "#NUM!"
+   }
+  },
+  {
    "formula": "=A7",
    "answer": {
     "value": 0
@@ -2786,6 +2870,158 @@
   }
  ],
  "excel": "16.0.20527",
+ "on1904": {
+  "formulas": [
+   {
+    "formula": "=DATE(2024,1,15)",
+    "answer": {
+     "value": 43844
+    }
+   },
+   {
+    "formula": "=YEAR(0)",
+    "answer": {
+     "value": 1904
+    }
+   },
+   {
+    "formula": "=MONTH(0)",
+    "answer": {
+     "value": 1
+    }
+   },
+   {
+    "formula": "=DAY(0)",
+    "answer": {
+     "value": 1
+    }
+   },
+   {
+    "formula": "=YEAR(1000)",
+    "answer": {
+     "value": 1906
+    }
+   },
+   {
+    "formula": "=WEEKDAY(0)",
+    "answer": {
+     "value": 6
+    }
+   },
+   {
+    "formula": "=WEEKDAY(1000)",
+    "answer": {
+     "value": 5
+    }
+   },
+   {
+    "formula": "=DATEVALUE(\"2024-03-01\")",
+    "answer": {
+     "value": 43890
+    }
+   },
+   {
+    "formula": "=EDATE(DATE(2024,1,31),1)",
+    "answer": {
+     "value": 43889
+    }
+   },
+   {
+    "formula": "=EOMONTH(DATE(2024,2,10),0)",
+    "answer": {
+     "value": 43889
+    }
+   },
+   {
+    "formula": "=DAYS(DATE(2024,3,1),DATE(2024,1,1))",
+    "answer": {
+     "value": 60
+    }
+   },
+   {
+    "formula": "=TEXT(1000,\"yyyy-mm-dd\")",
+    "answer": {
+     "value": "1906-09-27"
+    }
+   },
+   {
+    "formula": "=TEXT(0,\"yyyy-mm-dd dddd\")",
+    "answer": {
+     "value": "1904-01-01 Friday"
+    }
+   },
+   {
+    "formula": "=NETWORKDAYS(DATE(2024,1,1),DATE(2024,1,31))",
+    "answer": {
+     "value": 23
+    }
+   },
+   {
+    "formula": "=WORKDAY(DATE(2024,1,1),10)",
+    "answer": {
+     "value": 43844
+    }
+   },
+   {
+    "formula": "=DATE(1904,1,1)",
+    "answer": {
+     "value": 0
+    }
+   },
+   {
+    "formula": "=DATE(1904,1,2)",
+    "answer": {
+     "value": 1
+    }
+   },
+   {
+    "formula": "=DATE(1903,1,1)",
+    "answer": {
+     "error": "#NUM!"
+    }
+   },
+   {
+    "formula": "=YEARFRAC(DATE(2024,1,1),DATE(2024,7,1))",
+    "answer": {
+     "value": 0.5
+    }
+   },
+   {
+    "formula": "=WEEKNUM(DATE(2024,3,1))",
+    "answer": {
+     "value": 9
+    }
+   },
+   {
+    "formula": "=DATEDIF(DATE(2020,1,1),DATE(2024,3,1),\"m\")",
+    "answer": {
+     "value": 50
+    }
+   }
+  ],
+  "formats": [
+   {
+    "format": "yyyy-mm-dd",
+    "value": 0,
+    "text": "1904-01-01"
+   },
+   {
+    "format": "yyyy-mm-dd",
+    "value": 1000,
+    "text": "1906-09-27"
+   },
+   {
+    "format": "dd/mm/yy hh:mm",
+    "value": 46000.75,
+    "text": "10/12/29 18:00"
+   },
+   {
+    "format": "dddd mmmm d",
+    "value": 1000,
+    "text": "Thursday September 27"
+   }
+  ]
+ },
  "formats": [
   {
    "format": "\"x\"@",

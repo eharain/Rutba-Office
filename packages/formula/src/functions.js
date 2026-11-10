@@ -776,7 +776,11 @@ export const FUNCTIONS = {
     const dd = num1(d);
     const e = firstError([yy, mm, dd]);
     if (e) return e;
-    return partsToSerial(yy, mm - 1, dd);
+    const year = Math.trunc(yy);
+    if (year < 0 || year >= 10000) return ERR.NUM();
+    // A two- or three-digit year counts from 1900, on either date system.
+    const serial = partsToSerial(year < 1900 ? year + 1900 : year, Math.trunc(mm) - 1, Math.trunc(dd));
+    return serial < 0 ? ERR.NUM() : serial;
   }),
   YEAR: def((v) => { const n = num1(v); return isError(n) ? n : serialToParts(n).y; }),
   MONTH: def((v) => { const n = num1(v); return isError(n) ? n : serialToParts(n).m + 1; }),

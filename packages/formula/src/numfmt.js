@@ -30,7 +30,7 @@
  *     Hijri calendar. A section that starts `B2` is Hijri too, `B1` Gregorian,
  *     as Excel writes them.
  */
-import { serialToParts, formatNumber } from './values.js';
+import { serialToParts, formatNumber, withDate1904 } from './values.js';
 
 /**
  * The short date this computer writes, as a format code: `dd/mm/yyyy` on a
@@ -529,7 +529,8 @@ function renderFraction(magnitude, body) {
  * @param {string} code    a format code, or 'General'
  * @returns {{text: string, colour: string|null, align: 'left'|'right'}}
  */
-export function formatValue(value, code = 'General') {
+export function formatValue(value, code = 'General', { date1904 = false } = {}) {
+  if (date1904) return withDate1904(true, () => formatValue(value, code));
   // Errors and booleans ignore the format entirely, as they do in a spreadsheet.
   if (value && typeof value === 'object' && typeof value.type === 'string' && value.type.startsWith('#')) {
     return { text: value.type, colour: null, align: 'center' };

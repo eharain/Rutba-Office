@@ -18,7 +18,7 @@
  * typing fast and keeps the preserving write path on one well-tested road.
  */
 import { Workbook, OoxmlPackage, toFileFormula, fromFileFormula } from '@rutba/ooxml';
-import { toSpreadsheet, writeCachedValue, parseDefinedNameRange, parseDefinedName } from '@rutba/ooxml/recalc';
+import { toSpreadsheet, writeCachedValue, parseDefinedNameRange, parseDefinedName, loadDefinedNames } from '@rutba/ooxml/recalc';
 import {
 
   readPivots, computePivot, updatePivotLocation, dataFieldLabel, areaRef,
@@ -31,7 +31,7 @@ import {
   readSlicers, addSlicer, removeSlicer, slicerAnchorXml, writeSlicerCacheItems, setSlicerProps as writeSlicerProps,
 } from '@rutba/ooxml/slicers';
 import {
-  isError, shiftFormula, transposeFormula, moveReferences, calculate, parse, compareValues, serialToDate, dateToSerial, FormulaEvaluation,
+  isError, shiftFormula, transposeFormula, moveReferences, calculate, parse, compareValues, serialToDate, serialToParts, dateToSerial, withDate1904, FormulaEvaluation,
 } from '@rutba/formula';
 import { formatValue, BUILTIN_FORMATS, isDateFormat } from './numfmt.js';
 import { applyFormat, formatOf, ensureDxf, ensureStylesPart } from './styles-write.js';
@@ -709,7 +709,7 @@ export class SheetView {
       if (value === '' || value === null || value === undefined) return '';
       const index = this._styleIndexAt(at.sheet, row, col);
       const code = index === null ? 'General' : this.styles.byStyleIndex[index]?.numFmt ?? 'General';
-      return formatValue(value, code).text;
+      return formatValue(value, code, { date1904: this.date1904 }).text;
     });
   }
 
@@ -1193,7 +1193,7 @@ export class SheetView {
   /** What the grid shows: calculated, then formatted. */
   displayValue(row, col) {
     const value = this.calc.getValue(this.activeSheet, row, col);
-    return formatValue(value, this.formatFor(row, col));
+    return formatValue(value, this.formatFor(row, col), { date1904: this.date1904 });
   }
 
   /** What the formula bar shows: exactly what was typed. */
@@ -2301,7 +2301,7 @@ export class SheetView {
     for (const key of [...this.dirtyCells, ...this.styledCells]) {
       if (seen.has(key)) continue;
       seen.add(key);
-      const [sheetName, cellRef] = key.split('!');
+      const [sheetName, cellRef] = splitCellKey(key);
       const [row, col] = parseRefPair(cellRef);
       out.push({
         sheet: sheetName, row, col,
@@ -2328,14 +2328,14 @@ export class SheetView {
   /** Write pending calc-level edits into the workbook parts, as save() would. */
   _flushPendingEdits() {
     for (const key of this.dirtyCells) {
-      const [sheetName, cellRef] = key.split('!');
+      const [sheetName, cellRef] = splitCellKey(key);
       const input = this.calc.getInput(sheetName, ...parseRefPair(cellRef));
       const runs = typeof input === 'string' && input !== '' && !input.startsWith('=') ? this._cellRuns(sheetName, ...parseRefPair(cellRef)) : null;
       if (runs && runs.map((r) => r.text).join('') === wordsOf(input)) continue;
       this.workbook.setCell(sheetName, cellRef, input === '' ? null : fileValue(input));
     }
     for (const key of this.styledCells) {
-      const [sheetName, cellRef] = key.split('!');
+      const [sheetName, cellRef] = splitCellKey(key);
       const [row, col] = parseRefPair(cellRef);
       this.workbook.setCellStyle(sheetName, cellRef, this._styleIndexAt(sheetName, row, col));
     }
@@ -3465,7 +3465,7 @@ export class SheetView {
       // fall through to the ordinary numeric step, which already gets them.
       const allDates = allNumeric
         && sources.every((c) => isDateFormat(this.formatFor(c.row, c.col)));
-      const monthly = allDates && n > 1 ? monthSeries(numbers) : null;
+      const monthly = allDates && n > 1 ? monthSeries(numbers, this.date1904) : null;
       const named = listSeries(numbers);
       // Whether this lane continues as a series or is copied, by the mode.
       const isSeries = Boolean(named || (allDates && n === 1) || monthly || (allNumeric && n > 1) || textNum);
@@ -3585,15 +3585,15 @@ export class SheetView {
     const sheet = this.activeSheet;
     const lanes = down ? Array.from({ length: s.right - s.left + 1 }, (_, i) => s.left + i) : Array.from({ length: s.bottom - s.top + 1 }, (_, i) => s.top + i);
     const room = single ? 10000 : (down ? s.bottom - s.top : s.right - s.left);
-    const weekend = (serial) => { const d = ((Math.floor(serial) % 7) + 7) % 7; return d === 0 || d === 1; };
-    const addMonths = (serial, months) => {
+    const weekend = (serial) => withDate1904(this.date1904, () => { const d = serialToParts(serial).weekday; return d === 0 || d === 6; });
+    const addMonths = (serial, months) => withDate1904(this.date1904, () => {
       const d = serialToDate(serial);
       const m = d.getUTCFullYear() * 12 + d.getUTCMonth() + months;
       const year = Math.floor(m / 12);
       const month = ((m % 12) + 12) % 12;
       const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
       return dateToSerial(new Date(Date.UTC(year, month, Math.min(d.getUTCDate(), last)))) + (serial - Math.floor(serial));
-    };
+    });
     const writes = [];
     let reach = 0;
     for (const lane of lanes) {
@@ -4717,11 +4717,14 @@ export class SheetView {
 
   /** Re-derive the calc model's name table from the workbook part. */
   _syncNames() {
-    this.calc.names.clear();
-    for (const { name, ref: target } of this.workbook.definedNames()) {
-      const parsed = parseDefinedName(target);
-      if (parsed) this.calc.defineName(name, parsed);
-    }
+    this.calc.clearNames();
+    loadDefinedNames(this.workbook, this.calc);
+  }
+
+  /** Whether this workbook counts its dates from 1904; read once. */
+  get date1904() {
+    this._date1904 ??= this.workbook.date1904;
+    return this._date1904;
   }
 
   /** The current selection as a sheet-qualified absolute ref: `Data!$A$1:$B$3`. */
@@ -4846,7 +4849,7 @@ export class SheetView {
       let target = null;
       if (ast.type === 'range') target = { sheet: ast.sheet ?? ast.start.sheet, start: ast.start, end: ast.end };
       else if (ast.type === 'name') {
-        const resolved = resolver.getName(ast.name);
+        const resolved = resolver.getName(ast.name, this.activeSheet);
         if (resolved && resolved.start && resolved.end) target = resolved;
       }
       if (target) {
@@ -5204,11 +5207,12 @@ export class SheetView {
         // The same UTC day-arithmetic TODAY() uses, so a rule and the
         // function it usually guards agree about what day it is. Excel's
         // weeks for these rules run Sunday to Saturday.
-        const todaySerial = Math.floor(dateToSerial(this._now ? this._now() : new Date()));
+        const in1904 = (fn) => withDate1904(this.date1904, fn);
+        const todaySerial = in1904(() => Math.floor(dateToSerial(this._now ? this._now() : new Date())));
         const d = Math.floor(value);
-        const weekStart = todaySerial - serialToDate(todaySerial).getUTCDay();
+        const weekStart = todaySerial - in1904(() => serialToDate(todaySerial).getUTCDay());
         const monthOf = (serial, shift = 0) => {
-          const at = serialToDate(serial);
+          const at = in1904(() => serialToDate(serial));
           return at.getUTCFullYear() * 12 + at.getUTCMonth() + shift;
         };
         let fired;
@@ -5537,7 +5541,7 @@ export class SheetView {
 
   /** A pivot item in the words a filter list shows it in: a date as the sheet shows it. */
   _pivotItemText(pivot, fld, v) {
-    if (typeof v === 'number' && this._pivotFieldIsDate(pivot, fld)) return formatValue(v, this._pivotFieldFormat(pivot, fld)).text;
+    if (typeof v === 'number' && this._pivotFieldIsDate(pivot, fld)) return formatValue(v, this._pivotFieldFormat(pivot, fld), { date1904: this.date1904 }).text;
     return itemLabel(v);
   }
 
@@ -7973,7 +7977,7 @@ export class SheetView {
     if (recalc && this.calc.calculationPending) this.calc.recalculate({ force: true });
     const edited = this.isDirty;
     for (const key of this.dirtyCells) {
-      const [sheetName, cellRef] = key.split('!');
+      const [sheetName, cellRef] = splitCellKey(key);
       const input = this.calc.getInput(sheetName, ...parseRefPair(cellRef));
       // Words the part already holds as runs, with their looks, stay as it has them.
       const runs = typeof input === 'string' && input !== '' && !input.startsWith('=') ? this._cellRuns(sheetName, ...parseRefPair(cellRef)) : null;
@@ -8014,7 +8018,7 @@ export class SheetView {
     if (spillAnchors.size) this.workbook.setFullCalcOnLoad();
 
     for (const key of this.styledCells) {
-      const [sheetName, cellRef] = key.split('!');
+      const [sheetName, cellRef] = splitCellKey(key);
       const [row, col] = parseRefPair(cellRef);
       this.workbook.setCellStyle(sheetName, cellRef, this._styleIndexAt(sheetName, row, col));
     }
@@ -8296,15 +8300,21 @@ function listSeries(inputs) {
   return null;
 }
 
+/** A `Sheet!A1` key as [sheet, cell]. The cell never holds a "!"; a tab's name can. */
+export function splitCellKey(key) {
+  const at = key.lastIndexOf('!');
+  return [key.slice(0, at), key.slice(at + 1)];
+}
+
 /**
  * Do a lane's date serials step by MONTHS — same day each month, or each
  * month's end? Linear day arithmetic cannot say "the 15th of every month"
  * (months are unequal), so this is its own series kind, clamped the way
  * Excel clamps: Jan 31 + one month is Feb 28.
  */
-function monthSeries(serials) {
+function monthSeries(serials, date1904 = false) {
   if (serials.length < 2) return null;
-  const dates = serials.map((s) => serialToDate(s));
+  const dates = serials.map((s) => withDate1904(date1904, () => serialToDate(s)));
   if (dates.some((d) => !(d instanceof Date) || Number.isNaN(d.getTime()))) return null;
   const months = dates.map((d) => d.getUTCFullYear() * 12 + d.getUTCMonth());
   const step = months[1] - months[0];
@@ -8321,7 +8331,7 @@ function monthSeries(serials) {
     const year = Math.floor(m / 12);
     const month = ((m % 12) + 12) % 12;
     const wanted = !sameDay && monthEnd ? lastDay(year, month) : Math.min(day, lastDay(year, month));
-    return dateToSerial(new Date(Date.UTC(year, month, wanted)));
+    return withDate1904(date1904, () => dateToSerial(new Date(Date.UTC(year, month, wanted))));
   };
 }
 

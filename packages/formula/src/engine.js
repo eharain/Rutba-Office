@@ -20,7 +20,7 @@
  */
 import { parse, dependencies, indexToCol, colToIndex } from './parser.js';
 import { evaluate } from './evaluator.js';
-import { ERR, isError, isBlank } from './values.js';
+import { ERR, isError, isBlank, withDate1904 } from './values.js';
 import { isVolatile, FUNCTIONS } from './functions.js';
 
 const key = (sheet, row, col) => sheet + '!' + row + ':' + col;
@@ -43,7 +43,9 @@ export class Spreadsheet {
    * @param {object} [opts]
    * @param {() => Date} [opts.now] clock, injectable so tests are deterministic
    */
-  constructor({ now = () => new Date() } = {}) {
+  constructor({ now = () => new Date(), date1904 = false } = {}) {
+    /** Serials count from 1904 in this workbook. */
+    this.date1904 = date1904;
     /** @type {Map<string, Map<string, object>>} sheet -> cellKey -> cell */
     this.sheets = new Map();
     /** Sheets answered by a provider rather than held here — see addLazySheet. */
@@ -51,6 +53,8 @@ export class Spreadsheet {
 
     /** @type {Map<string, {sheet: string|null, start: object, end: object}>} */
     this.names = new Map();
+    /** Names that belong to one sheet, keyed `SHEET\0NAME`; they hide a workbook name there. */
+    this.localNames = new Map();
     /** @type {Map<string, object>} UPPER table name -> {sheet, top, left, bottom, right, headerRows, totalsRows, columns, name} */
     this.tables = new Map();
     this.now = now;
@@ -151,7 +155,7 @@ export class Spreadsheet {
    * Parse errors are stored as the cell's value so the user sees the problem in
    * the cell rather than losing what they typed.
    */
-  setCell(sheetName, row, col, input) {
+  setCell(sheetName, row, col, input, { cached } = {}) {
     this.addSheet(sheetName);
     const cells = this._sheet(sheetName);
     const k = key(sheetName, row, col);
@@ -178,6 +182,11 @@ export class Spreadsheet {
 
     if (isFormula) {
       cell.formula = input;
+      // What the file last stored, for a formula that cannot be worked out here.
+      if (cached !== undefined) {
+        cell.held = cached;
+        cell.external = EXTERNAL_BOOK.test(input.replace(/"(?:[^"]|"")*"/g, '""'));
+      }
       try {
         cell.ast = parse(input);
         cell.deps = dependencies(cell.ast);
@@ -189,6 +198,11 @@ export class Spreadsheet {
         cell.ast = null;
         cell.value = isError(e) ? e : ERR.VALUE(e.message ?? String(e));
         cell.error = cell.value;
+        if (cell.held !== undefined) {
+          cell.foreign = 'written in a form this program cannot read';
+          cell.value = cell.held;
+          cell.error = isError(cell.held) ? cell.held : null;
+        }
       }
     } else {
       cell.value = quoted ? input.slice(1) : input;
@@ -250,7 +264,27 @@ export class Spreadsheet {
     return this.cell(sheetName, row, col)?.input ?? '';
   }
 
-  defineName(name, target) { this.names.set(name.toUpperCase(), target); return this; }
+  /** A name for the workbook, or for one sheet when `scope` is that sheet's name. */
+  defineName(name, target, scope = null) {
+    if (scope === null) this.names.set(name.toUpperCase(), target);
+    else this.localNames.set(scope.toUpperCase() + '\u0000' + name.toUpperCase(), target);
+    return this;
+  }
+
+  /** Forget every defined name, of the workbook and of its sheets. */
+  clearNames() { this.names.clear(); this.localNames.clear(); return this; }
+
+  /** What a name means on a sheet: its own first, then the workbook's. `Sheet!Name` asks that sheet. */
+  _name(name, sheet = null) {
+    let upper = String(name).toUpperCase();
+    let on = sheet === null || sheet === undefined ? null : String(sheet).toUpperCase();
+    const bang = upper.lastIndexOf('!');
+    if (bang >= 0) {
+      on = upper.slice(0, bang).replace(/^'|'$/g, '').replace(/''/g, "'");
+      upper = upper.slice(bang + 1);
+    }
+    return (on === null ? undefined : this.localNames.get(on + '\u0000' + upper)) ?? this.names.get(upper) ?? null;
+  }
 
   /**
    * Register a table (a ListObject) so structured references resolve.
@@ -370,8 +404,8 @@ export class Spreadsheet {
         if (cached) wide.set(cacheKey, { sheet, start, end, grid });
         return grid;
       },
-      getName(name) {
-        return self.names.get(String(name).toUpperCase()) ?? null;
+      getName(name, sheet) {
+        return self._name(name, sheet);
       },
       // Whether a row is hidden, and whether a filter hid it ('filter' or
       // 'manual', null when it shows) — what SUBTOTAL leaves out. The sheet
@@ -454,7 +488,7 @@ export class Spreadsheet {
         const c1 = Math.min(Math.max(dep.start.col, dep.end.col), bounds.maxCol);
         area(sheet, r0, r1, c0, c1);
       } else if (dep.type === 'name') {
-        const target = this.names.get(String(dep.name).toUpperCase());
+        const target = this._name(dep.name, cell.sheet);
         // A name holding a formula reads what its formula reads.
         if (target && target.formula) {
           // Names that name each other stop somewhere: the evaluator answers such a loop #NUM!.
@@ -716,7 +750,7 @@ export class Spreadsheet {
     const spillTouched = new Set();
     for (const k of order) {
       const cell = byKey.get(k);
-      const raw = evaluate(cell.ast, resolver, {
+      const raw = this._evaluate(cell.ast, resolver, {
         sheet: cell.sheet, row: cell.row, col: cell.col, spill: true,
       });
       const ghosts = spillTouched.size;
@@ -768,7 +802,7 @@ export class Spreadsheet {
       const [row, col] = k.slice(bang + 1).split(':').map(Number);
       const cell = this.sheets.get(k.slice(0, bang))?.get(k);
       if (cell?.ast) {
-        const raw = evaluate(cell.ast, resolver, { sheet: cell.sheet, row, col, spill: true });
+        const raw = this._evaluate(cell.ast, resolver, { sheet: cell.sheet, row, col, spill: true });
         this._settle(cell, k, raw, spillTouched);
         calculated += 1;
       }
@@ -781,7 +815,9 @@ export class Spreadsheet {
 
   /** The anchor whose spill (live or blocked) covers a cell key, or null. */
   _spillAnchorTouching(cellKey) {
-    const [sheet, rc] = cellKey.split('!');
+    const bang = cellKey.lastIndexOf('!');
+    const sheet = cellKey.slice(0, bang);
+    const rc = cellKey.slice(bang + 1);
     const [row, col] = rc.split(':').map(Number);
     for (const [anchorKey, s] of this.spills) {
       if (s.sheet === sheet && row >= s.top && row < s.top + s.h && col >= s.left && col < s.left + s.w) {
@@ -822,7 +858,26 @@ export class Spreadsheet {
    * become ghosts, and anything real in the way makes the whole thing
    * #SPILL! rather than a silent partial overwrite.
    */
+  _evaluate(ast, resolver, ctx) {
+    return withDate1904(this.date1904, () => evaluate(ast, resolver, ctx));
+  }
+
+  /** Why a formula's stored result stands in for one it cannot work out, or null. */
+  _heldReason(cell, raw) {
+    if (cell.held === undefined) return null;
+    if (cell.external) return 'it reads another workbook';
+    if (isError(raw) && raw.type === '#NAME?') return raw.detail ?? 'it uses a name this program does not know';
+    return null;
+  }
+
   _settle(cell, k, raw, spillTouched) {
+    cell.foreign = this._heldReason(cell, raw);
+    if (cell.foreign) {
+      if (this.spills.has(k)) this._dropSpill(k, spillTouched);
+      cell.value = cell.held;
+      cell.error = isError(cell.held) ? cell.held : null;
+      return;
+    }
     if (!Array.isArray(raw)) {
       if (this.spills.has(k)) this._dropSpill(k, spillTouched);
       // A formula that lands on an empty cell shows 0, as =A7 does.
@@ -923,6 +978,9 @@ function calledNames(node, out = new Set()) {
   return out;
 }
 
+/** `[1]Book!A1`, as a file writes a reference to another workbook. */
+const EXTERNAL_BOOK = /(^|[^\p{L}\p{N}_.\[\]])\[\d+\]|'\[\d+\]/u;
+
 /** Does a formula call a volatile function, at any depth? */
 function hasVolatileCall(node) {
   if (!node || typeof node !== 'object') return false;
@@ -932,8 +990,9 @@ function hasVolatileCall(node) {
 }
 
 function prettyKey(k) {
-  const [sheet, rc] = k.split('!');
-  const [row, col] = rc.split(':').map(Number);
+  const bang = k.lastIndexOf('!');
+  const sheet = k.slice(0, bang);
+  const [row, col] = k.slice(bang + 1).split(':').map(Number);
   return sheet + '!' + indexToCol(col) + (row + 1);
 }
 

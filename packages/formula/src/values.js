@@ -233,10 +233,24 @@ export function roundHalfAwayFromZero(n, digits = 0) {
 const EPOCH_UTC = Date.UTC(1899, 11, 31);
 const MS_PER_DAY = 86400000;
 
+// A workbook on the 1904 date system counts from 1 January 1904, which is day
+// 1462 of the other. The file's serials stay as they are; only the calendar
+// they mean moves, so this is applied where a serial meets a calendar.
+const DAYS_TO_1904 = 1462;
+let dayShift = 0;
+
+/** Run `fn` with serials read on the 1904 system when `on`. */
+export function withDate1904(on, fn) {
+  if (!on) return fn();
+  const was = dayShift;
+  dayShift = DAYS_TO_1904;
+  try { return fn(); } finally { dayShift = was; }
+}
+
 export function dateToSerial(date) {
   const utc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
   const days = (utc - EPOCH_UTC) / MS_PER_DAY;
-  return days >= 60 ? days + 1 : days;
+  return (days >= 60 ? days + 1 : days) - dayShift;
 }
 
 /**
@@ -245,7 +259,7 @@ export function dateToSerial(date) {
  * 1 March. Use `serialToParts` where the day matters.
  */
 export function serialToDate(serial) {
-  const n = Math.floor(serial);
+  const n = Math.floor(serial) + dayShift;
   const days = n > 60 ? n - 1 : n;
   return new Date(EPOCH_UTC + days * MS_PER_DAY);
 }
@@ -264,10 +278,10 @@ export function serialToDate(serial) {
  *   month index (January 0); weekday is 0 for Sunday.
  */
 export function serialToParts(serial) {
-  const n = Math.floor(serial);
+  const n = Math.floor(serial) + dayShift;
   const weekday = (((n - 1) % 7) + 7) % 7;
   if (n === 60) return { y: 1900, m: 1, d: 29, weekday };
-  const date = serialToDate(n);
+  const date = serialToDate(Math.floor(serial));
   return { y: date.getUTCFullYear(), m: date.getUTCMonth(), d: date.getUTCDate(), weekday };
 }
 
@@ -277,7 +291,7 @@ export function serialToParts(serial) {
  * and the day that never existed: (1900, 1, 29) and (1900, 2, 0) are 60.
  */
 export function partsToSerial(y, m, d) {
-  if (y === 1900 && ((m === 1 && d === 29) || (m === 2 && d === 0))) return 60;
+  if (y === 1900 && ((m === 1 && d === 29) || (m === 2 && d === 0))) return 60 - dayShift;
   return dateToSerial(new Date(Date.UTC(y, m, d)));
 }
 

@@ -27,6 +27,7 @@ export const SHEETS = {
 };
 
 export const FORMULAS = [
+  '=DATE(99,1,1)', '=DATE(0,1,1)', '=DATE(-1,1,1)', '=DATE(10000,1,1)', '=DATE(9999,12,31)', '=DATE(1899,12,31)', '=DATE(1900,1,1)', '=DATE(1900,1,0)', '=DATE(1900,2,29)', '=DATE(1900,3,0)', '=DATE(2024.9,1.9,1.9)', '=DATE(2024,14,1)', '=DATE(2024,1,-1)', '=DATE(1900,1,-1)',
   // What a blank is, and what empty text is.
   '=A7', '=IF(TRUE,A7)', '=A7&""', '=INDEX(A1:A10,7)', '=IF(A7,1,2)', '=B5&"x"', '=LEN(A7)', '=SUM(B5)', '=AVERAGE(B5,1)', '=N(B5)', '=ABS(B5)',
   '=MAX(A6,1)', '=MIN(A6)', '=COUNT(A6)', '=COUNT(A4)', '=SUM(A4)', '=PRODUCT(A4)', '=AVERAGE(A4)', '=AND(A6)', '=AND(B5)', '=NOT(B5)', '=OR(A4)',
@@ -77,12 +78,18 @@ export const FORMATS = [
   [46000.75, 'yyyy-mm-dd'], [46000.75, 'dd/mm/yy'], [46000.75, 'm/d/yyyy'], [46000.75, 'mmm'], [46000.75, 'mmmm'], [46000.75, 'mmmmm'], [46000.75, 'ddd'], [46000.75, 'dddd'], [46000.75, 'd-mmm-yy'], [46000.75, 'h:mm'], [46000.75, 'h:mm AM/PM'], [46000.75, 'hh:mm:ss'], [46000.75, 'yyyy-mm-dd hh:mm'], [0.5, '[h]:mm'], [1.5, '[h]:mm'], [1.5, '[mm]:ss'], [0.51, 'mm:ss'], [0.123456, 'h:mm:ss.00'], [46000, 'yy'], [46000, 'yyy'], [60, 'yyyy-mm-dd'], [61, 'yyyy-mm-dd'], [1, 'yyyy-mm-dd'],
 ];
 
+/** Asked again of the same book on the 1904 date system. */
+export const ON_1904 = {
+  formulas: ['=DATE(2024,1,15)', '=YEAR(0)', '=MONTH(0)', '=DAY(0)', '=YEAR(1000)', '=WEEKDAY(0)', '=WEEKDAY(1000)', '=DATEVALUE("2024-03-01")', '=EDATE(DATE(2024,1,31),1)', '=EOMONTH(DATE(2024,2,10),0)', '=DAYS(DATE(2024,3,1),DATE(2024,1,1))', '=TEXT(1000,"yyyy-mm-dd")', '=TEXT(0,"yyyy-mm-dd dddd")', '=NETWORKDAYS(DATE(2024,1,1),DATE(2024,1,31))', '=WORKDAY(DATE(2024,1,1),10)', '=DATE(1904,1,1)', '=DATE(1904,1,2)', '=DATE(1903,1,1)', '=YEARFRAC(DATE(2024,1,1),DATE(2024,7,1))', '=WEEKNUM(DATE(2024,3,1))', '=DATEDIF(DATE(2020,1,1),DATE(2024,3,1),"m")'],
+  formats: [[0, 'yyyy-mm-dd'], [1000, 'yyyy-mm-dd'], [46000.75, 'dd/mm/yy hh:mm'], [1000, 'dddd mmmm d']],
+};
+
 function main() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-excel-oracle-'));
   const input = path.join(dir, 'in.json');
   const output = path.join(dir, 'out.json');
-  fs.writeFileSync(input, JSON.stringify({ sheets: SHEETS, formulas: FORMULAS, formats: FORMATS }));
+  fs.writeFileSync(input, JSON.stringify({ sheets: SHEETS, formulas: FORMULAS, formats: FORMATS, on1904: ON_1904 }));
   const script = path.join(dir, 'ask.ps1');
   fs.writeFileSync(script, `${String.fromCharCode(0xfeff)}$ErrorActionPreference = 'Stop'
 $in = Get-Content -Raw -Encoding UTF8 '${input}' | ConvertFrom-Json
@@ -124,6 +131,20 @@ try {
     $c.ColumnWidth = 80
     $c.NumberFormat = $pair[1]; if ($pair[0] -is [string]) { $c.Value2 = $pair[0] } else { $c.Value2 = [double]$pair[0] }
     $out.formats += ,(@{ value = $pair[0]; format = $pair[1]; text = [string]$c.Text })
+  }
+  $wb.Date1904 = $true
+  $out.on1904 = @{ formulas = @(); formats = @() }
+  foreach ($f in $in.on1904.formulas) {
+    $c = $ws.Range('J20'); $c.Clear() | Out-Null
+    $c.Formula2 = $f
+    $xl.Calculate()
+    $out.on1904.formulas += ,(@{ formula = $f; answer = (Answer $c) })
+  }
+  foreach ($pair in $in.on1904.formats) {
+    $c = $ws.Range('L20'); $c.Clear() | Out-Null
+    $c.ColumnWidth = 80
+    $c.NumberFormat = $pair[1]; $c.Value2 = [double]$pair[0]
+    $out.on1904.formats += ,(@{ value = $pair[0]; format = $pair[1]; text = [string]$c.Text })
   }
   $out.excel = [string]$xl.Version + '.' + [string]$xl.Build
   $wb.Close($false)
