@@ -540,9 +540,70 @@ function styleFor(ctx, family, prefix, key, xmlOf) {
 
 const cmOf = (px) => `${(Number(px) / 96 * 2.54).toFixed(3)}cm`;
 
-export function writeOds({ sheets = [], title = '' } = {}) {
+const ODF_COMPARE = { equal: '=', notEqual: '!=', greaterThan: '>', lessThan: '<', greaterThanOrEqual: '>=', lessThanOrEqual: '<=' };
+const ODF_NUMBER_KIND = { whole: 'cell-content-is-whole-number()', decimal: 'cell-content-is-decimal-number()' };
+
+/** A data-validation rule as an ODF condition, or null for one the format has no plain way to say. */
+export function validationToOdf(rule) {
+  const f1 = String(rule.formula1 ?? '').trim();
+  const f2 = String(rule.formula2 ?? '').trim();
+  if (rule.type === 'list') {
+    const words = /^"(.*)"$/s.exec(f1);
+    if (words) return `of:cell-content-is-in-list(${words[1].split(',').map((w) => `"${w.trim().replace(/"/g, '""')}"`).join(';')})`;
+    if (/^\$?[A-Z]+\$?\d+(:\$?[A-Z]+\$?\d+)?$/i.test(f1)) return `of:cell-content-is-in-list([${f1.split(':').map((p) => `.${p}`).join(':')}])`;
+    return null;
+  }
+  const isNumber = (v) => /^-?\d+(\.\d+)?$/.test(v);
+  const op = rule.operator || 'between';
+  const range = op === 'between' ? 'between' : op === 'notBetween' ? 'not-between' : null;
+  if (!isNumber(f1) || (range && !isNumber(f2)) || (!range && !ODF_COMPARE[op])) return null;
+  if (rule.type === 'textLength') return range ? `of:cell-content-text-length-is-${range}(${f1},${f2})` : `of:cell-content-text-length()${ODF_COMPARE[op]}${f1}`;
+  const kind = ODF_NUMBER_KIND[rule.type];
+  if (!kind) return null;
+  return `of:${kind} and ${range ? `cell-content-is-${range}(${f1},${f2})` : `cell-content()${ODF_COMPARE[op]}${f1}`}`;
+}
+
+/** A sheet's name as an ODF address spells it. */
+const odfSheet = (name) => (/[^A-Za-z0-9_]/.test(name) ? `'${name.replace(/'/g, "''")}'` : name);
+
+/** A defined name as a named range, or null when it is not one plain range. */
+export function namedRangeToOdf({ name, ref }) {
+  const m = /^(?:'((?:[^']|'')+)'|([^'!]+))!(\$?[A-Z]+\$?\d+)(?::(\$?[A-Z]+\$?\d+))?$/i.exec(String(ref || '').trim());
+  if (!m || !name || name.startsWith('_xlnm')) return null;
+  const sheet = odfSheet((m[1] ?? m[2]).replace(/''/g, "'"));
+  const address = `$${sheet}.${m[3]}${m[4] ? `:.${m[4]}` : ''}`;
+  return `<table:named-range table:name="${esc(name)}" table:base-cell-address="$${esc(sheet)}.$A$1" table:cell-range-address="${esc(address)}"/>`;
+}
+
+/** A note on a cell. */
+function annotationXml({ author = '', text = '' }) {
+  const paragraphs = String(text).split('\n').map((p) => `<text:p>${textXml(p)}</text:p>`).join('');
+  return `<office:annotation>${author ? `<dc:creator>${esc(author)}</dc:creator>` : ''}${paragraphs}</office:annotation>`;
+}
+
+/** A sheet's validation rules: the elements to write, and which rule each cell in the written rows wears. */
+function validationsOf(sheet, ctx, rowCount, columnCount) {
+  const cells = new Map();
+  for (const rule of sheet.validations || []) {
+    const condition = validationToOdf(rule);
+    if (!condition) continue;
+    ctx.validations = (ctx.validations || 0) + 1;
+    const name = `val${ctx.validations}`;
+    const message = (tag, title, words, extra = '') => (words || title
+      ? `<table:${tag}${title ? ` table:title="${esc(title)}"` : ''}${extra} table:display="true">${words ? `<text:p>${textXml(words)}</text:p>` : ''}</table:${tag}>`
+      : '');
+    const style = { warning: 'warning', information: 'information' }[rule.errorStyle] || 'stop';
+    ctx.validationXml.push(`<table:content-validation table:name="${name}" table:condition="${esc(condition)}" table:allow-empty-cell="${rule.allowBlank === false ? 'false' : 'true'}" table:base-cell-address="${esc(odfSheet(sheet.name || 'Sheet1'))}.A1"${rule.suppressDropdown ? ' table:display-list="no"' : ''}>${message('help-message', rule.promptTitle, rule.prompt)}${message('error-message', rule.errorTitle, rule.error, ` table:message-type="${style}"`)}</table:content-validation>`);
+    for (const { top, left, bottom, right } of rule.ranges || []) {
+      for (let r = top; r <= Math.min(bottom, rowCount - 1); r++) for (let c = left; c <= Math.min(right, columnCount - 1); c++) cells.set(`${r},${c}`, name);
+    }
+  }
+  return cells;
+}
+
+export function writeOds({ sheets = [], title = '', names = [] } = {}) {
   // The drawings' and the cells' styles, charts and pictures, gathered across the sheets.
-  const ctx = { count: 0, styles: 0, styleXml: [], objects: [], pictures: [], named: new Map() };
+  const ctx = { count: 0, styles: 0, styleXml: [], objects: [], pictures: [], named: new Map(), validationXml: [] };
   const tables = sheets
     .map((sheet, si) => {
       const rows = sheet.rows || [];
@@ -555,6 +616,9 @@ export function writeOds({ sheets = [], title = '' } = {}) {
         for (let r = m.top; r <= m.bottom; r++) for (let c = m.left; c <= m.right; c++) if (r !== m.top || c !== m.left) covered.add(`${r},${c}`);
       }
       const heights = sheet.heights || {};
+      const validated = validationsOf(sheet, ctx, rows.length, cols);
+      const hiddenRows = new Set(sheet.hiddenRows || []);
+      const hiddenCols = new Set(sheet.hiddenCols || []);
       const rowXml = rows
         .map((row, r) => {
           let xml = '';
@@ -574,7 +638,9 @@ export function writeOds({ sheets = [], title = '' } = {}) {
             const formula = cell?.formula ? formulaToOdf(cell.formula) : null;
             const look = cell?.look && Object.keys(cell.look).length ? cell.look : null;
             const span = spans.get(`${r},${c}`);
-            if (!attrs && !formula && !look && !span) {
+            const note = cell?.comment ? annotationXml(cell.comment) : '';
+            const validation = validated.get(`${r},${c}`);
+            if (!attrs && !formula && !look && !span && !note && !validation) {
               gap += 1;
               continue;
             }
@@ -582,28 +648,30 @@ export function writeOds({ sheets = [], title = '' } = {}) {
             const style = look ? ` table:style-name="${styleFor(ctx, 'cell', 'ce', JSON.stringify(look), (name) => cellStyleXml(name, look))}"` : '';
             const spanned = span ? ` table:number-columns-spanned="${span.cols}" table:number-rows-spanned="${span.rows}"` : '';
             const text = cell?.text ?? (cell?.value === null || cell?.value === undefined ? '' : String(cell.value));
-            xml += `<table:table-cell${style}${spanned}${attrs ? ` ${attrs}` : ''}${formula ? ` table:formula="${esc(formula)}"` : ''}>${text === '' ? '' : `<text:p>${textXml(text)}</text:p>`}</table:table-cell>`;
+            xml += `<table:table-cell${style}${spanned}${attrs ? ` ${attrs}` : ''}${formula ? ` table:formula="${esc(formula)}"` : ''}${validation ? ` table:content-validation-name="${validation}"` : ''}>${note}${text === '' ? '' : `<text:p>${textXml(text)}</text:p>`}</table:table-cell>`;
           }
           const height = heights[r];
           const rowStyle = height ? ` table:style-name="${styleFor(ctx, 'row', 'ro', String(height), (name) => `<style:style style:name="${name}" style:family="table-row"><style:table-row-properties style:row-height="${cmOf(height)}" style:use-optimal-row-height="false"/></style:style>`)}"` : '';
-          return `<table:table-row${rowStyle}>${xml || '<table:table-cell/>'}</table:table-row>`;
+          return `<table:table-row${rowStyle}${hiddenRows.has(r) ? ' table:visibility="collapse"' : ''}>${xml || '<table:table-cell/>'}</table:table-row>`;
         })
         .join('');
       // Each column its width, when the sheet gives one; the rest one run.
       const widths = sheet.widths || {};
-      const columns = Object.keys(widths).length
+      const hideColumn = (c) => (hiddenCols.has(c) ? ' table:visibility="collapse"' : '');
+      const columns = Object.keys(widths).length || hiddenCols.size
         ? Array.from({ length: cols }, (_, c) => (widths[c]
-          ? `<table:table-column table:style-name="${styleFor(ctx, 'column', 'co', String(widths[c]), (name) => `<style:style style:name="${name}" style:family="table-column"><style:table-column-properties style:column-width="${cmOf(widths[c])}"/></style:style>`)}"/>`
-          : '<table:table-column/>')).join('')
+          ? `<table:table-column table:style-name="${styleFor(ctx, 'column', 'co', String(widths[c]), (name) => `<style:style style:name="${name}" style:family="table-column"><style:table-column-properties style:column-width="${cmOf(widths[c])}"/></style:style>`)}"${hideColumn(c)}/>`
+          : `<table:table-column${hideColumn(c)}/>`)).join('')
         : `<table:table-column table:number-columns-repeated="${cols}"/>`;
       // Its drawings first, as the schema orders a table's parts.
       return `<table:table table:name="${esc(sheet.name || `Sheet${si + 1}`)}">${sheetDrawingsXml(sheet.drawings, ctx)}${columns}${rowXml || '<table:table-row><table:table-cell/></table:table-row>'}</table:table>`;
     })
     .join('');
 
+  const namedXml = names.map(namedRangeToOdf).filter(Boolean).join('');
   const content =
     `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-content ${NS}>${ctx.styleXml.length ? `<office:automatic-styles>${ctx.styleXml.join('')}</office:automatic-styles>` : '<office:automatic-styles/>'}` +
-    `<office:body><office:spreadsheet>${tables}</office:spreadsheet></office:body></office:document-content>`;
+    `<office:body><office:spreadsheet>${ctx.validationXml.length ? `<table:content-validations>${ctx.validationXml.join('')}</table:content-validations>` : ''}${tables}${namedXml ? `<table:named-expressions>${namedXml}</table:named-expressions>` : ''}</office:spreadsheet></office:body></office:document-content>`;
   const styles = `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-styles ${NS}><office:styles><style:default-style style:family="table-cell"><style:text-properties style:font-name="Calibri" fo:font-size="11pt"/></style:default-style></office:styles><office:font-face-decls><style:font-face style:name="Calibri" svg:font-family="Calibri"/></office:font-face-decls></office:document-styles>`;
   return archive('ods', { content, styles, title, pictures: ctx.pictures, objects: ctx.objects });
 }

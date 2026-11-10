@@ -73,6 +73,26 @@ const refText = (row, col) => colLabel(col) + (row + 1);
  * active cell's fields rather than a frame; the cells already on screen are
  * re-flagged here. Cells whose flags did not change keep their identity.
  */
+
+/** In words, one thing a format has no place for (documents.js sheetLosses). */
+function saveLossWords(code) {
+  switch (code) {
+    case 'sheets': return t('every sheet but this one');
+    case 'formulas': return t('formulas, which become their results');
+    case 'formatting': return t('colours, fonts and number formats');
+    case 'merges': return t('merged cells');
+    case 'comments': return t('comments');
+    case 'validations': return t('data validation rules');
+    case 'conditional': return t('conditional formatting');
+    case 'drawings': return t('charts and pictures');
+    case 'hidden': return t('which rows and columns are hidden');
+    case 'names': return t('named ranges');
+    case 'frozen': return t('frozen panes');
+    case 'tables': return t('tables');
+    default: return code;
+  }
+}
+
 function withSelection(model, patch) {
   const sel = patch.selection;
   const inside = (row, col) => {
@@ -210,6 +230,7 @@ export default function Sheets({ app, shell, boot }) {
   const [passwordAsk, setPasswordAsk] = useState(null);
   /** An edit refused because its cell is in a password range: the window asks for the password (set below). */
   const rangeLockRef = useRef(null);
+  const lossesAccepted = useRef(new Set());
   /** Page Layout → Background: the picture's part and the address its bytes are drawn from. */
   const [backdrop, setBackdrop] = useState(null);
   /** Data → Consolidate and Forecast Sheet: what each dialog opens on. */
@@ -506,6 +527,30 @@ export default function Sheets({ app, shell, boot }) {
         target = await pickSave(shell, 'sheets', cannotWrite && named ? named.replace(/\.[^.\\/]+$/, '') + '.xlsx' : named, doc.conformance);
         // A cancelled Save As is not a save; the caller must know.
         if (!target) return false;
+      }
+      // What this format has no place for, said before it is gone; the person chooses, once for each thing.
+      try {
+        const { lost } = await shell.doc.saveLosses({ id: doc.id, path: target });
+        const fresh = lost.filter((code) => !lossesAccepted.current.has(`${doc.id}|${target}|${code}`));
+        if (fresh.length) {
+          const format = target.split('.').pop().toUpperCase();
+          const { response } = await shell.dialog.message({
+            type: 'warning',
+            message: t('A {format} file cannot hold everything in this workbook.', { format }),
+            detail: `${t('Saving as {format} leaves out:', { format })}\n${fresh.map((code) => `\u2022 ${saveLossWords(code)}`).join('\n')}\n\n${t('Other features only a workbook has may be left out too. To keep them all, save as .xlsx.')}`,
+            buttons: [t('Save as {format}', { format }), t('Save as .xlsx instead'), t('Cancel')],
+            defaultId: 1,
+            cancelId: 2,
+          });
+          if (response === 2) return false;
+          if (response === 1) {
+            target = await pickSave(shell, 'sheets', target.replace(/\.[^.\\/]+$/, '') + '.xlsx', doc.conformance);
+            if (!target) return false;
+          } else for (const code of fresh) lossesAccepted.current.add(`${doc.id}|${target}|${code}`);
+        }
+      } catch (err) {
+        toast(err.message, { tone: 'bad' });
+        return false;
       }
       try {
         // `conformance` is a Save As's choice of form; left out, the file keeps its own.

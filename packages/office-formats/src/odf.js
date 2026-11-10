@@ -135,6 +135,9 @@ function readTable(table, rowHeights = new Map(), shaded = () => false) {
   const drawings = [];
   for (const shapes of kids(table, 'table:shapes')) for (const node of kids(shapes).filter((k) => DRAWN.has(k.name))) drawings.push({ row: null, col: null, node });
   const heights = {};
+  // The rules cells wear and the notes on them, by place: an empty cell can carry either.
+  const validated = [];
+  const notes = [];
   for (const r of all(table, 'table:table-row')) {
     const rowRepeat = repeatOf(r.attrs, 'table:number-rows-repeated');
     const height = rowHeights.get(r.attrs['table:style-name']);
@@ -147,6 +150,13 @@ function readTable(table, rowHeights = new Map(), shaded = () => false) {
     let runs = [];
     for (const c of kids(r).filter((k) => k.name === 'table:table-cell' || k.name === 'table:covered-table-cell')) {
       const repeat = repeatOf(c.attrs, 'table:number-columns-repeated');
+      if (c.attrs['table:content-validation-name']) {
+        const left = cells.length + pending;
+        validated.push({ name: c.attrs['table:content-validation-name'], top: rows.length, left, bottom: Math.min(rows.length + rowRepeat - 1, 1048575), right: Math.min(left + repeat - 1, 16383) });
+      }
+      for (const a of kids(c, 'office:annotation')) {
+        notes.push({ row: rows.length, col: cells.length + pending, author: kids(a, 'dc:creator').map(inlineText).join(''), text: kids(a, 'text:p').map(inlineText).join('\n') });
+      }
       for (const node of kids(c).filter((k) => DRAWN.has(k.name))) drawings.push({ row: rows.length, col: cells.length + pending, node });
       const text = kids(c, 'text:p').map(inlineText).join('\n');
       const cell = {
@@ -189,7 +199,7 @@ function readTable(table, rowHeights = new Map(), shaded = () => false) {
     if (rows.length > 200000) break;
   }
   while (rows.length && rows[rows.length - 1].length === 0) rows.pop();
-  return { type: 'table', name: table.attrs['table:name'] || '', rows, hiddenRows: hiddenRows.filter((r) => r < rows.length), drawings, heights };
+  return { type: 'table', name: table.attrs['table:name'] || '', rows, validated, notes, hiddenRows: hiddenRows.filter((r) => r < rows.length), drawings, heights };
 }
 
 const colName = (i) => {
@@ -236,8 +246,55 @@ function readSheets(body, formats = new Map(), columnWidths = new Map(), { rowHe
     for (const { row, col, node } of table.drawings) {
       for (const d of readDrawings({ children: [node] }, styles)) drawings.push({ ...d, anchor: row == null ? null : { row, col } });
     }
-    return { name: table.name, rows: table.rows, merges, formats: cellFormats, looks: cellLooks, hiddenRows: table.hiddenRows, hiddenCols: hiddenCols.filter((c) => c < 1024), widths, heights: table.heights, drawings };
+    return { name: table.name, rows: table.rows, validated: table.validated, notes: table.notes, merges, formats: cellFormats, looks: cellLooks, hiddenRows: table.hiddenRows, hiddenCols: hiddenCols.filter((c) => c < 1024), widths, heights: table.heights, drawings };
   });
+}
+
+/** One ODF condition as a data-validation rule, or null for one not understood. */
+export function validationFromOdf(condition) {
+  const text = String(condition || '').replace(/^of:/, '').trim();
+  const list = /^cell-content-is-in-list\((.*)\)$/s.exec(text);
+  if (list) {
+    const inner = list[1].trim();
+    if (inner.startsWith('[')) {
+      const parts = inner.replace(/^\[|\]$/g, '').split(':');
+      const dot = parts[0].lastIndexOf('.');
+      const sheet = dot > 0 ? `${parts[0].slice(0, dot).replace(/^\$/, '')}!` : '';
+      return { type: 'list', formula1: sheet + parts.map((p) => p.slice(p.lastIndexOf('.') + 1)).join(':') };
+    }
+    const words = [...inner.matchAll(/"((?:[^"]|"")*)"|([^;]+)/g)].map((m) => (m[1] ?? m[2]).replace(/""/g, '"').trim());
+    return words.length ? { type: 'list', formula1: `"${words.join(',')}"` } : null;
+  }
+  const COMPARE = { '=': 'equal', '!=': 'notEqual', '>': 'greaterThan', '<': 'lessThan', '>=': 'greaterThanOrEqual', '<=': 'lessThanOrEqual' };
+  const bounds = (type, what, rest) => {
+    const between = new RegExp(`^${what}-is-(not-)?between\\(\\s*(-?[\\d.]+)\\s*[,;]\\s*(-?[\\d.]+)\\s*\\)$`).exec(rest);
+    if (between) return { type, operator: between[1] ? 'notBetween' : 'between', formula1: between[2], formula2: between[3] };
+    const compared = new RegExp(`^${what}\\(\\)\\s*(!=|>=|<=|=|>|<)\\s*(-?[\\d.]+)$`).exec(rest);
+    return compared ? { type, operator: COMPARE[compared[1]], formula1: compared[2] } : null;
+  };
+  if (text.startsWith('cell-content-text-length')) return bounds('textLength', 'cell-content-text-length', text);
+  const kind = /^cell-content-is-(whole-number|decimal-number)\(\)\s+and\s+(.*)$/s.exec(text);
+  if (kind) return bounds(kind[1] === 'whole-number' ? 'whole' : 'decimal', 'cell-content', kind[2]);
+  return bounds('decimal', 'cell-content', text);
+}
+
+/** The validation rules of a file, by name; a rule not understood is there as null, so it can be said. */
+function readValidations(body) {
+  const out = new Map();
+  const words = (node) => kids(node, 'text:p').map(inlineText).join('\n') || null;
+  for (const v of all(body, 'table:content-validation')) {
+    const rule = validationFromOdf(v.attrs['table:condition']);
+    const help = kids(v, 'table:help-message')[0];
+    const error = kids(v, 'table:error-message')[0];
+    out.set(v.attrs['table:name'], rule && {
+      ...rule,
+      allowBlank: v.attrs['table:allow-empty-cell'] !== 'false',
+      errorStyle: { warning: 'warning', information: 'information' }[error?.attrs['table:message-type']] || 'stop',
+      ...(error ? { errorTitle: error.attrs['table:title'] || undefined, error: words(error) || undefined } : {}),
+      ...(help ? { promptTitle: help.attrs['table:title'] || undefined, prompt: words(help) || undefined } : {}),
+    });
+  }
+  return out;
 }
 
 /**
@@ -833,6 +890,7 @@ export function readOdf(bytes) {
     const stylesRoot = stylesXml ? parse(stylesXml) : null;
     out.sheets = readSheets(body, formats, readColumnWidths([root, stylesRoot]), { rowHeights: readRowHeights([root, stylesRoot]), styles: readGraphicStyles([stylesRoot, root]), looks: readCellLooks([stylesRoot, root]) });
     out.names = readNames(body);
+    out.validations = readValidations(body);
     // Each sheet's charts, read from their own parts with the cells they plot.
     const byName = new Map(out.sheets.map((s) => [s.name, s]));
     const cellAt = (sheet, row, col) => byName.get(sheet)?.rows[row]?.[col] ?? null;

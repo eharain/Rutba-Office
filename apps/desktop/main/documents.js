@@ -70,7 +70,7 @@ import { writeOdtDocument } from '@rutba/office-formats/odt-write';
 import { writeHtmlDocument, writePlainDocument, writeRtfDocument } from '@rutba/office-formats/doc-export';
 import { readHtmlDocument } from '@rutba/office-formats/html-read';
 import { readRtfDocument } from '@rutba/office-formats/rtf-read';
-import { writeOds, writeOdp } from '@rutba/office-formats/odf-write';
+import { writeOds, validationToOdf, namedRangeToOdf, writeOdp } from '@rutba/office-formats/odf-write';
 import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, decodeText } from '@rutba/office-formats/text';
 import { markdownToParagraphs, paragraphsToMarkdown } from './markdown-bridge.js';
 import { readMergeSource, writeMergeList } from './mailmerge-source.js';
@@ -161,17 +161,31 @@ function blocksToParagraphs(blocks) {
   return out.length ? out : [{ text: '' }];
 }
 
+/**
+ * What a field of a delimited file is: a number only when it can be taken for
+ * nothing else. 00123 is a code and keeps its zeros, 1,5 is not one thousand
+ * and anything, and a number of more digits than a number holds is a card or
+ * an account, which would come back with its end changed.
+ */
+function delimitedValue(value) {
+  if (value == null || value === '') return null;
+  const trimmed = String(value).trim();
+  const plain = /^-?(?:(?:0|[1-9]\d*)(?:\.\d+)?|\.\d+)$/.test(trimmed);
+  const grouped = /^-?[1-9]\d{0,2}(?:,\d{3})+(?:\.\d+)?$/.test(trimmed);
+  if (!plain && !grouped) return String(value);
+  if (trimmed.replace(/[-.,]/g, '').replace(/^0+/, '').length > 15) return String(value);
+  return Number(trimmed.replace(/,/g, ''));
+}
+
+/** Whether a cell still holds what this field of the file was read as. */
+function stillAsRead(field, value) {
+  const read = delimitedValue(field);
+  return typeof read === 'number' ? read === value : (read ?? '') === (value ?? '');
+}
+
 /** Rows of text → a one-sheet workbook, with numbers left as numbers. */
 function rowsToWorkbook(rows, name = 'Sheet1') {
-  const cells = rows.map((row) =>
-    row.map((value) => {
-      if (value == null || value === '') return null;
-      const trimmed = String(value).trim();
-      const asNumber = Number(trimmed.replace(/,/g, ''));
-      if (trimmed !== '' && Number.isFinite(asNumber) && /^-?[\d,]*\.?\d+%?$/.test(trimmed)) return asNumber;
-      return String(value);
-    })
-  );
+  const cells = rows.map((row) => row.map(delimitedValue));
   return buildXlsx({ sheets: [{ name: name.slice(0, 31) || 'Sheet1', rows: cells }] });
 }
 
@@ -368,6 +382,60 @@ export function lookDelta(look) {
   return delta;
 }
 
+/** A sheet's validation rules as the workbook writes them, each with the cells that wear it. */
+function odsValidations(sheet, rules) {
+  const byName = new Map();
+  for (const v of sheet.validated || []) {
+    if (!rules?.get(v.name)) continue;
+    const start = `${colName(v.left)}${v.top + 1}`;
+    const whole = v.right === v.left && v.bottom === v.top ? start : `${start}:${colName(v.right)}${v.bottom + 1}`;
+    byName.set(v.name, [...(byName.get(v.name) || []), whole]);
+  }
+  return [...byName].map(([name, refs]) => ({ ...rules.get(name), sqref: refs.join(' ') }));
+}
+
+/**
+ * What a sheet format has no place for, of what this workbook holds, so Save
+ * can say so before it is written rather than after it is gone.
+ */
+function sheetLosses(view, ext, session) {
+  const lost = new Set();
+  const names = view.sheetNames();
+  const plain = ext === 'csv' || ext === 'tsv';
+  const wb = view.workbook;
+  const hasList = (map, name) => Boolean(map?.get(name)?.length);
+  if (plain) {
+    if (names.length > 1) lost.add('sheets');
+    const name = view.activeSheet;
+    const { maxRow, maxCol } = view.bounds;
+    scan: for (let r = 0; r <= maxRow; r++) {
+      for (let c = 0; c <= maxCol; c++) {
+        if (String(view.editValue(r, c)).startsWith('=')) lost.add('formulas');
+        const format = view.formatFor(r, c);
+        if (odsLookOf(view.styleFor(r, c)) || (format && format !== 'General')) lost.add('formatting');
+        if (lost.has('formulas') && lost.has('formatting')) break scan;
+      }
+    }
+    if (hasList(view.merges, name)) lost.add('merges');
+    if (wb.comments(name).length) lost.add('comments');
+    if (hasList(view.validations, name)) lost.add('validations');
+    if (hasList(view.conditionals, name)) lost.add('conditional');
+    if (odsDrawingsOf(view, name).length) lost.add('drawings');
+    if (view.geo?.hiddenRows?.size || view.geo?.hiddenCols?.size) lost.add('hidden');
+    if (wb.definedNames().some((n) => !n.name.startsWith('_xlnm'))) lost.add('names');
+    return [...lost];
+  }
+  if (session.converted?.rulesNotRead) lost.add('validations');
+  for (const name of names) {
+    if (hasList(view.conditionals, name)) lost.add('conditional');
+    if ((view.validations.get(name) || []).some((rule) => !validationToOdf(rule))) lost.add('validations');
+    if (wb.frozenPane(name)?.rows || wb.frozenPane(name)?.cols) lost.add('frozen');
+  }
+  if (wb.tables().length) lost.add('tables');
+  if (wb.definedNames().some((n) => !n.name.startsWith('_xlnm') && !namedRangeToOdf(n))) lost.add('names');
+  return [...lost];
+}
+
 /**
  * An .ods as a workbook: the values, formulas, merges and number formats,
  * then what the sheet's layout said — its column widths, row heights, the
@@ -392,6 +460,7 @@ function odfSheetsToWorkbook(odf) {
     sheets: (sheets.length ? sheets : [{ name: 'Sheet1', rows: [] }]).map((s, i) => ({
       name: (s.name || `Sheet${i + 1}`).slice(0, 31),
       merges: s.merges || [],
+      validations: odsValidations(s, odf.validations),
       ...(s.drawings?.length ? { drawings: odsDrawings(s, odf.images || new Map()) } : {}),
       styles: Object.fromEntries(Object.entries(s.formats || {}).map(([ref, numFmt]) => [ref, { numFmt }])),
       // The width the file keeps for a column that many pixels wide, by the
@@ -413,7 +482,7 @@ function odfSheetsToWorkbook(odf) {
       ),
     })),
   });
-  const layouts = sheets.filter((s) => s.hiddenRows?.length || s.hiddenCols?.length || s.frozen);
+  const layouts = sheets.filter((s) => s.hiddenRows?.length || s.hiddenCols?.length || s.frozen || s.notes?.length);
   const looked = sheets.some((s) => Object.keys(s.looks || {}).length);
   if (!layouts.length && !looked) return built;
   const wb = Workbook.open(built);
@@ -425,6 +494,7 @@ function odfSheetsToWorkbook(odf) {
     for (const col of s.hiddenCols || []) part.setColOutline(col, { hidden: true });
     if (s.hiddenRows?.length) wb.setRowsHidden(name, Math.min(...s.hiddenRows), Math.max(...s.hiddenRows), new Set(s.hiddenRows));
     if (s.frozen) wb.setFrozenPane(name, s.frozen.rows, s.frozen.cols);
+    for (const n of s.notes || []) wb.setComment(name, `${colName(n.col)}${n.row + 1}`, { author: n.author, text: n.text });
   });
   // Each cell's look, through the grid's own Format Cells, so it reads back as the grid wrote it.
   if (looked) {
@@ -720,7 +790,8 @@ function labelledFor(bytes, ext, name) {
 }
 
 class Session {
-  constructor({ id, kind, filePath, engine, source, converted }) {
+  constructor({ id, kind, filePath, engine, source, converted, delimited }) {
+    this.delimited = delimited || null;
     this.id = id;
     this.kind = kind;
     this.path = filePath;
@@ -1279,7 +1350,10 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       case 'csv':
       case 'tsv': {
         const { rows, delimiter } = readDelimited(bytes);
+        const text = decodeText(bytes);
         return {
+          // How the file was written, for Save to write it the same way.
+          delimited: { rows, from: kind, delimiter, bom: bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf, eol: text.includes('\r\n') ? '\r\n' : '\n', finalEol: text.endsWith('\n') },
           kind: 'sheet',
           bytes: rowsToWorkbook(rows, filePath ? path.basename(filePath, path.extname(filePath)) : 'Sheet1'),
           source: kind,
@@ -1288,7 +1362,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       }
       case 'ods': {
         const odf = readOdf(bytes);
-        return { kind: 'sheet', bytes: odfSheetsToWorkbook(odf), source: 'ods', converted: { from: 'ods' } };
+        return { kind: 'sheet', bytes: odfSheetsToWorkbook(odf), source: 'ods', converted: { from: 'ods', rulesNotRead: [...(odf.validations?.values() || [])].some((rule) => !rule) } };
       }
       case 'odt': {
         // Read whole — styles, lists, tables, pictures, the page — and written as the .docx it is.
@@ -1501,6 +1575,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
 
       source: loaded.source,
       converted: loaded.converted,
+      delimited: loaded.delimited,
     });
     // The window that opened it: when that window closes, the session goes
     // with it. Nothing closed a session before this, so every document
@@ -3661,6 +3736,14 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       return { ...session.meta(), model: modelOf(session, { width, slide, master }) };
     },
 
+    /** What saving to this path would leave out of the file: words for each are the window's. */
+    saveLosses: ({ id, path: target }) => {
+      const session = get(id);
+      const ext = path.extname(target || session.path || '').toLowerCase().slice(1);
+      if (session.kind !== 'sheet' || !['csv', 'tsv', 'ods'].includes(ext)) return { lost: [] };
+      return { lost: sheetLosses(session.engine, ext, session) };
+    },
+
     save: ({ id, path: target, conformance = null, warmed = false }) => {
       const session = get(id);
       // Save As Strict Open XML, or as the usual form: what this save and the ones after it write.
@@ -4030,20 +4113,35 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       try {
         for (const name of view.sheetNames()) {
           view.selectSheet(name);
-          const bounds = styledBounds(view, name, view.bounds);
+          const bounds = { ...styledBounds(view, name, view.bounds) };
+          const notes = new Map(view.workbook.comments(name).map((n) => [n.ref, { author: n.author, text: n.text }]));
+          const validations = view.validations.get(name) || [];
+          // Past the last cell with words a note or a rule still has a cell to be on, within reason.
+          for (const ref of notes.keys()) {
+            const at = parseRef(ref);
+            bounds.maxRow = Math.max(bounds.maxRow, at.row);
+            bounds.maxCol = Math.max(bounds.maxCol, at.col);
+          }
+          for (const rule of validations) {
+            for (const range of rule.ranges || []) {
+              bounds.maxRow = Math.max(bounds.maxRow, Math.min(range.bottom, 4999));
+              bounds.maxCol = Math.max(bounds.maxCol, Math.min(range.right, 255));
+            }
+          }
           const rows = [];
           for (let r = 0; r <= bounds.maxRow; r++) {
             const row = [];
             for (let c = 0; c <= bounds.maxCol; c++) {
               const input = view.editValue(r, c);
               const look = odsLookOf(view.styleFor(r, c));
+              const comment = notes.get(`${colName(c)}${r + 1}`);
               if (input === '') {
                 // An empty cell keeps its fill and borders: a shaded band is a real thing.
-                row.push(look && (look.fill || look.borders) ? { look } : null);
+                row.push(look && (look.fill || look.borders) ? { look, comment } : comment ? { comment } : null);
                 continue;
               }
               const value = view.calc.getValue(name, r, c);
-              row.push({ value, text: view.displayValue(r, c)?.text ?? '', formula: input.startsWith('=') ? input : null, format: view.formatFor(r, c), ...(look ? { look } : {}) });
+              row.push({ value, text: view.displayValue(r, c)?.text ?? '', formula: input.startsWith('=') ? input : null, format: view.formatFor(r, c), ...(comment ? { comment } : {}), ...(look ? { look } : {}) });
             }
             rows.push(row);
           }
@@ -4052,12 +4150,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
           const heights = {};
           for (const [c, px] of view.geo.colWidths || []) if (c <= bounds.maxCol + 32) widths[c] = px;
           for (const [r, px] of view.geo.rowHeights || []) if (r <= bounds.maxRow + 32) heights[r] = px;
-          sheets.push({ name, rows, widths, heights, merges: view.merges.get(name) || [], drawings: odsDrawingsOf(view, name) });
+          sheets.push({ name, rows, widths, heights, merges: view.merges.get(name) || [], drawings: odsDrawingsOf(view, name), validations, hiddenRows: [...(view.geo?.hiddenRows || [])], hiddenCols: [...(view.geo?.hiddenCols || [])] });
         }
       } finally {
         if (current) view.selectSheet(current);
       }
-      writeWhole(target, writeOds({ sheets, title: session.name }));
+      writeWhole(target, writeOds({ sheets, title: session.name, names: view.workbook.definedNames() }));
       return { path: target, format: 'ods', sheets: sheets.length };
     }
     if (session.kind === 'deck' && ext === 'odp') {
@@ -4107,13 +4205,26 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     if (session.kind === 'sheet' && (ext === 'csv' || ext === 'tsv')) {
       const view = session.engine;
       const bounds = view.bounds;
+      // A field the cell still means is written as the file had it: 1,234 or 1.50 was never
+      // changed by anyone, so neither is it here. The file's own separator and line endings stay too.
+      const was = session.delimited;
+      const name = view.activeSheet;
       const rows = [];
       for (let r = 0; r <= bounds.maxRow; r++) {
         const row = [];
-        for (let c = 0; c <= bounds.maxCol; c++) row.push(view.displayValue(r, c)?.text ?? '');
+        const source = was?.rows[r];
+        for (let c = 0; c <= bounds.maxCol; c++) {
+          const field = source?.[c];
+          row.push(field !== undefined && stillAsRead(field, view.calc.getValue(name, r, c)) ? field : view.displayValue(r, c)?.text ?? '');
+        }
+        // A short line stays short: the longest line's width is not everyone's.
+        if (source) while (row.length > source.length && row[row.length - 1] === '') row.pop();
         rows.push(row);
       }
-      writeWhole(target, writeDelimited(rows, { delimiter: ext === 'tsv' ? '\t' : ',' }), 'utf8');
+      const delimiter = was?.from === ext ? was.delimiter : ext === 'tsv' ? '\t' : ',';
+      const eol = was?.eol || '\r\n';
+      writeWhole(target, `${was?.bom ? '\uFEFF' : ''}${writeDelimited(rows, { delimiter, eol })}${was?.finalEol ? eol : ''}`, 'utf8');
+      if (was) session.delimited = { ...was, rows };
       return { path: target, format: ext, rows: rows.length };
     }
 

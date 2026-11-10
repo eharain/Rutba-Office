@@ -121,6 +121,7 @@ export const METHODS = {
     'undo',         // ({ id }) -> { version, model }
     'redo',         // ({ id }) -> { version, model }
     'save',         // ({ id, path, conformance? }) -> { path, stat, conformance }: 'strict' or 'transitional' chooses the form, the file's own when left out
+    'saveLosses',   // ({ id, path }) -> { lost: [code] }  what that format has no place for
     'export',       // ({ id, format, path, options }) -> { path }
     'search',       // ({ id, query, options }) -> [hit]
     'asset',        // ({ id, ref }) -> { url, type, name }
