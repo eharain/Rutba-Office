@@ -1,11 +1,11 @@
-// The one thing this application says to the outside world.
+// The daily announcement check, the one request that is counted.
 //
-// Rutba Office does not phone home. No account, no identifier, no telemetry, no
+// No account, no identifier, no
 // crash reports, no document ever leaving the machine — that is the promise the
 // mail client's tracker report is written against, and it would be worthless if
 // the suite itself did quietly what it accuses newsletters of doing.
 //
-// This is the single, stated exception: once a day, at most, the launcher asks
+// This request is stated in the interface: once a day, at most, the launcher asks
 // office.rutba.io whether there is an announcement — a release worth knowing
 // about, a security note, a change to the licence. Two things follow from that
 // request, and both are said plainly in the interface:

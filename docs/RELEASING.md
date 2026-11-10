@@ -111,9 +111,10 @@ node tools/fuzz-open.js 300 <seed>
 ```
 
 It damages a new document, workbook and deck and every old-format file in
-`tests/fixtures/binary`, opens each in a worker of its own with a
-two-second limit, and fails on anything that is not a document, a password
-asked for, or a refusal in a sentence.
+`tests/fixtures/binary`, opens each in a worker with a two-second limit (a
+new worker after any fault or time-out, so one bad file cannot take the next
+with it), and fails on anything that is not a document, a password asked for,
+or a refusal in a sentence.
 
 The PDF reader has its own, since 1.46.0, because the PDF app reads files it
 did not write on the main process:
@@ -214,7 +215,8 @@ starts the new installer the moment the app begins to quit, and 1.51 to
 `--race close` starts the older copy again, runs the newer installer
 silently while it is open (`/S --updated`, as the updater runs it) and
 closes the copy 2 to 5 seconds later: the install must succeed and the
-report follow. `--race never-close` leaves the copy open: the installer
-must give up by itself after its 15 seconds of retries with a code other
-than 0, not hang, and leave the older copy installed. Both need a newer
+report follow. `--race never-close` leaves the copy open: the installer closes it
+itself (its windows are asked after 5 seconds, what is left is ended after
+10), must end with 0 and not hang, and must leave one copy, of the newer
+version. Both need a newer
 installer with the retry in `resources/installer.nsh`.

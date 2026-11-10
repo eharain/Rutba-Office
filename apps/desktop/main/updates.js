@@ -5,8 +5,8 @@
 // is worth being precise about what it costs in privacy, because the rest of
 // this application makes a point of contacting nothing:
 //
-//   - One HTTPS request to api.github.com for the release feed, carrying no
-//     identifier beyond what any HTTP request carries.
+//   - HTTPS requests to GitHub for the release feed and for a newer template
+//     set, carrying no identifier beyond what any HTTP request carries.
 //   - Nothing about your documents, your mail or your machine is sent.
 //   - It can be turned off, and when it is off no request is made at all.
 //

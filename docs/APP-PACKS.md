@@ -10,9 +10,9 @@ start and loads only when it checks out.
 This is the design, from the code as it is. It has five parts: the map of
 what each app takes from another (section 1), the pack format (2), the tools
 that make and sign packs (3), the core's loader (4) and the move of the app
-code into packs (5). Sections 1 to 4 are built and tested; section 5 is the
-plan, and its first part, the core that loads packs, is being built: each
-item says what is built. No app code has moved yet.
+code into packs (5). All five are built and released. Section 5 was written
+as the plan for that move and is kept as the record of why it went as it did,
+so where it says "will", read what the code does.
 
 ## 1. The map
 
@@ -478,8 +478,8 @@ throws all of it away. Nothing secret is in the repository.
 
 ## 4. The core's loader
 
-`packages/office-shell/src/electron/packs.js`, not yet wired into
-`main.js`:
+`packages/office-shell/src/electron/packs.js`, used from
+`apps/desktop/main/main.js` through `app-packs.js`:
 
 ```js
 import { findPacks } from '@rutba/office-shell/electron/packs'; // export added with the move

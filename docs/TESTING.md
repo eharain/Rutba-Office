@@ -94,9 +94,9 @@ documents and with usability that none of the checks had caught. In order:
    247 `.txt`, 98 `.doc`, 96 `.xlsx`, 44 `.pptx`, and the rest) is the
    baseline; every failure it names becomes a fixture and a check.
 2. **Time budgets.** A file that opens in twelve seconds has not "opened" in
-   any sense a person would accept. The corpus report's per-format
-   percentiles set the budgets: the check fails when the median for a format
-   regresses past its budget, not only when a file fails.
+   any sense a person would accept. Not built for the corpus: its report
+   prints per-format times and no check fails on them. The performance
+   budgets that do fail a run are `npm run test:perf`, on set files.
 3. **Round trips for every format.** Open, edit one thing, save, reopen, and
    compare: the edit is there and nothing else changed. Today this exists for
    `.docx`, `.xlsx` and `.pptx` on fixtures; it is extended to every format
@@ -121,10 +121,10 @@ documents and with usability that none of the checks had caught. In order:
    per release, so a regression on a page is caught by a picture rather than
    by a person.
 
-Items 1 and 2 exist as of this writing, and the first parts of 5 and 7: a
+Item 1 exists as of this writing, and the first parts of 5 and 7: a
 broken file in each document app must produce the sentence, and the
 journeys block covers Escape on dialogs, the minimum window size, Ctrl+F1
-and the launcher's recent list. Items 3, 4, 6, 8 and the rest of 5 and 7
+and the launcher's recent list. Items 2, 3, 4, 6, 8 and the rest of 5 and 7
 are the work.
 
 Item 3 and most of item 5 arrived with `tests/document-service.test.js`,
