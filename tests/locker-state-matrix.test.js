@@ -325,6 +325,18 @@ async function twoLockers() {
   return { first: c, second: { locker: second, folder: c.folder, id, at: c.at } };
 }
 
+/** What the other locker finds after each: a.txt still locked with these bytes, under another name, plain again, or gone. */
+const SEEN_BY_OTHER = {
+  export: { rel: 'a.txt', locked: PLAIN },
+  open: { rel: 'a.txt', locked: PLAIN },
+  share: { rel: 'a.txt', locked: PLAIN },
+  versions: { rel: 'a.txt', locked: PLAIN },
+  'go back a version': { rel: 'a.txt', locked: OLD },
+  rename: { rel: 'b.txt', locked: PLAIN, gone: 'a.txt' },
+  unlock: { rel: 'a.txt', plain: PLAIN },
+  delete: { gone: 'a.txt' },
+};
+
 for (const [opName, op] of Object.entries(OPS)) {
   if (opName === 'lock it') continue;
   for (const [who, other] of [['first', 'second'], ['second', 'first']]) {
@@ -334,12 +346,21 @@ for (const [opName, op] of Object.entries(OPS)) {
       await op.good(both[who], result, 'a.txt');
       if (opName === 'open') await both[who].locker.unlock({ password: who === 'first' ? 'password one' : 'password two' });
       await both[other].locker.healFolderKeys();
-      const list = await both[other].locker.scan(both[other].id);
+      const them = both[other];
+      const list = await them.locker.scan(them.id);
       assert.equal(list.some((e) => e.state === 'damaged'), false, JSON.stringify(list.map((e) => [e.rel, e.state, e.message])));
-      for (const row of list.filter((e) => e.state === 'locked')) {
+      const seen = SEEN_BY_OTHER[opName];
+      const row = (rel) => list.find((e) => e.rel === rel);
+      if (seen.gone) assert.equal(row(seen.gone), undefined, `${seen.gone} is gone for the ${other} too`);
+      if (seen.plain) {
+        assert.equal(row(seen.rel)?.state, 'waiting');
+        assert.ok(fs.readFileSync(them.at(seen.rel)).equals(seen.plain));
+      }
+      if (seen.locked) {
+        assert.equal(row(seen.rel)?.state, 'locked', JSON.stringify(list.map((e) => [e.rel, e.state])));
         const dest = outDest();
-        await both[other].locker.exportCopy(both[other].id, row.rel, dest);
-        assert.ok(fs.readFileSync(dest).length > 0);
+        await them.locker.exportCopy(them.id, seen.rel, dest);
+        assert.ok(fs.readFileSync(dest).equals(seen.locked), `the ${other} reads what the ${who} left`);
       }
     });
   }
