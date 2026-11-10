@@ -16,7 +16,8 @@ import {
 function sheetOf(cells, now = new Date('2026-08-20T12:00:00Z')) {
   const at = (row, col) => {
     const letters = (n) => { let s = ''; let v = n + 1; while (v > 0) { const r = (v - 1) % 26; s = String.fromCharCode(65 + r) + s; v = Math.floor((v - 1) / 26); } return s; };
-    return cells[letters(col) + (row + 1)] ?? '';
+    const v = cells[letters(col) + (row + 1)];
+    return v === '' || v === undefined ? null : v; // what the engine hands over for an empty cell
   };
   return {
     now: () => now,
@@ -46,12 +47,12 @@ test('tokenizer distinguishes unary from binary minus', () => {
   assert.equal(evalIn('=-(3-5)'), 2);
 });
 
-test('power binds tighter than unary minus, as in a spreadsheet', () => {
+test('a sign binds tighter than power, and power runs left to right, as in Excel', () => {
   // This is the case that differs from most programming languages.
-  assert.equal(evalIn('=-2^2'), -4);
+  assert.equal(evalIn('=-2^2'), 4);
   assert.equal(evalIn('=(-2)^2'), 4);
   assert.equal(evalIn('=2^-1'), 0.5);
-  assert.equal(evalIn('=2^3^2'), 512, 'power is right-associative');
+  assert.equal(evalIn('=2^3^2'), 64);
 });
 
 test('percent is a postfix operator', () => {
@@ -103,7 +104,8 @@ test('coercion follows spreadsheet rules, not JavaScript rules', () => {
   assert.equal(evalIn('="x"&A1', {}), 'x', 'a blank cell is "" in concatenation');
   assert.equal(evalIn('=TRUE&""'), 'TRUE', 'TRUE is "TRUE" in concatenation');
   assert.equal(evalIn('=1&2'), '12');
-  assert.equal(toNumber(''), 0);
+  assert.equal(toNumber(null), 0);
+  assert.ok(isError(toNumber('')), 'empty text is text');
   assert.equal(toText(1.5), '1.5');
 });
 

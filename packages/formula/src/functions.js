@@ -18,10 +18,11 @@
  * would still divide by zero.
  */
 import {
-  ERR, FormulaError, isError, isBlank, firstError,
+  ERR, ERROR_TYPES, FormulaError, isError, isBlank, isEmpty, firstError,
   toNumber, toText, toBoolean, compareValues, roundHalfAwayFromZero,
-  dateToSerial, serialToDate, serialToParts, partsToSerial, numericText,
+  dateToSerial, serialToDate, serialToParts, partsToSerial, numericText, textAsNumber,
 } from './values.js';
+import { moreFunctions } from './functions-more.js';
 import { indexToCol } from './parser.js';
 import { formatValue } from './numfmt.js';
 import {
@@ -197,7 +198,7 @@ function aggregateNumbers(args) {
       // skipped above and a lone one was not, so =COUNT(A1) on an empty cell
       // answered 1 and =AVERAGE(A1) answered 0 where Excel answers #DIV/0! —
       // the difference between "nothing here" and "nothing here, counted".
-      if (isBlank(arg)) continue;
+      if (isEmpty(arg)) continue;
       const n = toNumber(arg);
       if (isError(n)) return n;
       out.push(n);
@@ -206,10 +207,43 @@ function aggregateNumbers(args) {
   return out;
 }
 
+/** A value's date and time as the day-fractions the clock on this computer shows. */
+const localSerial = (d) => {
+  const day = dateToSerial(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())));
+  return { day, part: (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400 };
+};
+
+// Not Math.max(...list): a long column is more arguments than a call can take.
+const highest = (list) => list.reduce((a, b) => (b > a ? b : a));
+const lowest = (list) => list.reduce((a, b) => (b < a ? b : a));
+
 const numericArgs = (args) => {
   const nums = aggregateNumbers(args);
   return isError(nums) ? nums : nums;
 };
+
+/**
+ * What AND, OR and XOR weigh. In a range or a cell pointed at, text and blanks
+ * do not count; typed into the formula, text that is not TRUE or FALSE is
+ * #VALUE!. With nothing left to weigh the answer is #VALUE! too.
+ */
+function logicalsIn(args) {
+  const out = [];
+  for (const arg of args) {
+    if (Array.isArray(arg)) {
+      for (const v of arg.flat(Infinity)) {
+        if (isError(v)) return v;
+        if (typeof v === 'number') out.push(v !== 0);
+        else if (typeof v === 'boolean') out.push(v);
+      }
+    } else if (!isEmpty(arg)) {
+      const b = toBoolean(arg);
+      if (isError(b)) return b;
+      out.push(b);
+    }
+  }
+  return out.length ? out : ERR.VALUE('there is nothing to weigh');
+}
 
 /** One required scalar, coerced to number. */
 const num1 = (v) => toNumber(Array.isArray(v) ? v.flat(Infinity)[0] : v);
@@ -217,55 +251,104 @@ const text1 = (v) => toText(Array.isArray(v) ? v.flat(Infinity)[0] : v);
 
 const def = (fn, opts = {}) => ({ fn, ...opts });
 
+/** A text pattern with * and ?, ~ escaping them, as a whole-text test ignoring case. */
+function patternOf(text) {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '~' && /[*?~]/.test(text[i + 1] ?? '')) { i += 1; out += text[i].replace(/[*?]/, '\\$&'); }
+    else if (c === '*') out += '[\\s\\S]*';
+    else if (c === '?') out += '[\\s\\S]';
+    else out += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp('^' + out + '$', 'iu');
+}
+
+const numberIn = (v) => (typeof v === 'number' ? v : typeof v === 'string' ? numericText(v) : null);
+
 /**
- * Criteria matching for SUMIF/COUNTIF: ">100", "<=5", "<>x", "apple", or a
- * bare value. Text comparison is case-insensitive, and `*`/`?` are wildcards.
+ * Criteria matching for SUMIF, COUNTIF and their kin, as Excel has it: an
+ * error matches that error and a boolean a boolean; a number matches numbers
+ * and text that reads as one; < and > compare numbers with numbers and text
+ * with text, and leave blanks out; "" finds blanks and empty text, "=" only
+ * blanks, "<>" anything that is not blank; * and ? work on text only. A
+ * reference to a blank cell asks for 0.
  */
 function makeMatcher(criteria) {
   const raw = Array.isArray(criteria) ? criteria.flat(Infinity)[0] : criteria;
-  if (isError(raw)) return () => raw;
-  const s = toText(raw);
-  const m = /^(<=|>=|<>|=|<|>)(.*)$/.exec(s);
+  if (isError(raw)) return (v) => isError(v) && v.type === raw.type;
+  if (isEmpty(raw)) return (v) => numberIn(v) === 0;
+  if (typeof raw === 'number') return (v) => numberIn(v) === raw;
+  if (typeof raw === 'boolean') return (v) => v === raw;
+  const m = /^(<=|>=|<>|=|<|>)([\s\S]*)$/.exec(raw);
   const op = m ? m[1] : '=';
-  const operandText = m ? m[2] : s;
-  const operandNum = numericText(operandText);
-  const operand = operandNum === null ? operandText : operandNum;
+  const text = m ? m[2] : raw;
+  const yes = op !== '<>';
 
-  const hasWildcard = typeof operand === 'string' && /[*?]/.test(operand);
-  const wildcard = hasWildcard
-    ? new RegExp('^' + operand.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i')
-    : null;
+  if (text === '') {
+    if (!m) return (v) => isEmpty(v) || v === '';
+    if (op === '=') return (v) => isEmpty(v);
+    if (op === '<>') return (v) => !isEmpty(v);
+    return () => false;
+  }
+  const upper = text.trim().toUpperCase();
+  if (ERROR_TYPES.includes(upper)) return (v) => (isError(v) && v.type === upper) === yes;
+  if (upper === 'TRUE' || upper === 'FALSE') {
+    const want = upper === 'TRUE';
+    if (op === '=' || op === '<>') return (v) => (v === want) === yes;
+  }
+  const asNumber = textAsNumber(text);
+  if (asNumber !== null) {
+    if (op === '=') return (v) => numberIn(v) === asNumber;
+    // Text that reads as the number is found by = and is still "not" it to <>.
+    if (op === '<>') return (v) => v !== asNumber;
+    return (v) => typeof v === 'number' && compareBy(op, v, asNumber);
+  }
+  if (op === '=' || op === '<>') {
+    const test = /[*?~]/.test(text) ? patternOf(text) : null;
+    const fold = text.toUpperCase();
+    return (v) => (typeof v === 'string' && (test ? test.test(v) : v.toUpperCase() === fold)) === yes;
+  }
+  const fold = text.toUpperCase();
+  return (v) => typeof v === 'string' && compareBy(op, v.toUpperCase(), fold);
+}
 
-  return (value) => {
-    if (isError(value)) return value;
-    if (wildcard && (op === '=' || op === '<>')) {
-      const hit = wildcard.test(toText(value));
-      return op === '=' ? hit : !hit;
-    }
-    const cmp = compareValues(value, operand);
-    if (isError(cmp)) return cmp;
-    switch (op) {
-      case '=': return cmp === 0;
-      case '<>': return cmp !== 0;
-      case '<': return cmp < 0;
-      case '<=': return cmp <= 0;
-      case '>': return cmp > 0;
-      case '>=': return cmp >= 0;
-      default: return false;
-    }
-  };
+function compareBy(op, a, b) {
+  if (op === '<') return a < b;
+  if (op === '<=') return a <= b;
+  if (op === '>') return a > b;
+  return a >= b;
 }
 
 /** One argument as a flat vector of scalars, preserving order. */
 const vec = (arg) => (Array.isArray(arg) ? arg.flat(Infinity) : [arg]);
 
 /**
+ * Which cells an exact lookup takes for its key: values of the key's own
+ * kind, text ignoring case, and with `wild` the * and ? of VLOOKUP and MATCH.
+ * Blank cells and errors are never found; a blank key asks for 0.
+ */
+function exactTest(key, wild) {
+  if (typeof key === 'string') {
+    if (wild && /[*?~]/.test(key)) {
+      const re = patternOf(key);
+      return (v) => typeof v === 'string' && re.test(v);
+    }
+    const fold = key.toUpperCase();
+    return (v) => typeof v === 'string' && v.toUpperCase() === fold;
+  }
+  const k = isEmpty(key) ? 0 : key;
+  return (v) => v === k;
+}
+
+/** Whether an approximate lookup can place this cell against the key at all. */
+const sameKind = (v, key) => !isEmpty(v) && !isError(v) && typeof v === typeof (isEmpty(key) ? 0 : key);
+
+/**
  * A long table's first column, indexed for exact lookups: a range read whole
  * is one grid for a whole recalculation, and forty thousand VLOOKUPs into
- * seven thousand rows each walked it from the top. The index answers what
- * the walk would have: the first row equal to the key under compareValues,
- * or the first error met before it. A column holding anything other than
- * numbers, text, booleans, blanks and errors is not indexed.
+ * seven thousand rows each walked it from the top. A column holding anything
+ * other than numbers, text, booleans, blanks and errors is not indexed.
  */
 const exactIndexes = new WeakMap();
 const LONG_TABLE = 256;
@@ -274,48 +357,29 @@ const exactKey = (v) => (typeof v === 'number' ? 'n' + v : typeof v === 'string'
 function exactIndexOf(table) {
   let index = exactIndexes.get(table);
   if (index !== undefined) return index;
-  index = { rows: new Map(), blank: -1, zero: -1, error: -1, errorValue: null };
+  index = new Map();
   for (let r = 0; r < table.length; r++) {
     const v = table[r][0];
-    if (isError(v)) {
-      index.error = r;
-      index.errorValue = v;
-      break; // nothing past the first error can be reached
-    }
-    if (isBlank(v)) {
-      if (index.blank < 0) index.blank = r;
-      continue;
-    }
+    if (isError(v) || isEmpty(v)) continue;
     const t = typeof v;
     if (t !== 'number' && t !== 'string' && t !== 'boolean') { index = null; break; }
-    if (t === 'number' && v === 0 && index.zero < 0) index.zero = r;
     const k = exactKey(v);
-    if (!index.rows.has(k)) index.rows.set(k, r);
+    if (!index.has(k)) index.set(k, r);
   }
   exactIndexes.set(table, index);
   return index;
 }
 
-/** The row an exact lookup stops at: a row index, an error, or -1 for none. */
+/** The row an exact lookup stops at, or -1 for none. */
 function exactRow(table, key) {
-  const plain = isBlank(key) || ['number', 'string', 'boolean'].includes(typeof key);
-  const index = plain && table.length > LONG_TABLE ? exactIndexOf(table) : null;
+  const wild = typeof key === 'string' && /[*?~]/.test(key);
+  const index = !wild && table.length > LONG_TABLE ? exactIndexOf(table) : null;
   if (!index) {
-    for (let r = 0; r < table.length; r++) {
-      const cmp = compareValues(table[r][0], key);
-      if (isError(cmp)) return cmp;
-      if (cmp === 0) return r;
-    }
+    const hit = exactTest(key, true);
+    for (let r = 0; r < table.length; r++) if (hit(table[r][0])) return r;
     return -1;
   }
-  // A blank key equals blanks and 0; a 0 key equals 0 and blanks.
-  const hits = isBlank(key)
-    ? [index.blank, index.zero]
-    : [index.rows.get(exactKey(key)) ?? -1, key === 0 ? index.blank : -1];
-  const found = hits.filter((r) => r >= 0);
-  const row = found.length ? Math.min(...found) : -1;
-  if (index.error >= 0 && (row < 0 || index.error < row)) return index.errorValue;
-  return row;
+  return index.get(exactKey(isEmpty(key) ? 0 : key)) ?? -1;
 }
 
 /**
@@ -334,9 +398,7 @@ function ifsIndices(length, pairs) {
   for (let i = 0; i < length; i++) {
     let all = true;
     for (const t of tests) {
-      const hit = t.match(t.cells[i]);
-      if (isError(hit)) return hit;
-      if (!hit) { all = false; break; }
+      if (!t.match(t.cells[i])) { all = false; break; }
     }
     if (all) hits.push(i);
   }
@@ -393,19 +455,27 @@ export const FUNCTIONS = {
   MIN: def((...args) => {
     const nums = numericArgs(args);
     if (isError(nums)) return nums;
-    return nums.length ? Math.min(...nums) : 0;
+    return nums.length ? lowest(nums) : 0;
   }),
   MAX: def((...args) => {
     const nums = numericArgs(args);
     if (isError(nums)) return nums;
-    return nums.length ? Math.max(...nums) : 0;
+    return nums.length ? highest(nums) : 0;
   }),
   COUNT: def((...args) => {
-    const nums = numericArgs(args);
-    return isError(nums) ? nums : nums.length;
+    let n = 0;
+    for (const arg of args) {
+      if (Array.isArray(arg)) n += arg.flat(Infinity).filter((v) => typeof v === 'number').length;
+      else if (!isEmpty(arg) && !isError(toNumber(arg))) n += 1;
+    }
+    return n;
   }),
-  COUNTA: def((...args) => flatten(args).filter((v) => !isBlank(v)).length),
-  COUNTBLANK: def((...args) => flatten(args).filter((v) => isBlank(v)).length),
+  COUNTA: def((...args) => flatten(args).filter((v) => !isEmpty(v)).length),
+  COUNTBLANK: def((range) => {
+    const inUse = flatten([range]);
+    const full = range?.full ? range.full.rows * range.full.cols - inUse.length : 0;
+    return full + inUse.filter((v) => isBlank(v)).length;
+  }),
   // SUBTOTAL(function_num, ref1, …): the aggregate a table's total row uses.
   // 1–11 are AVERAGE … VARP over what a filter has not hidden; 101–111 the
   // same over the rows nobody has hidden. The evaluator blanks the hidden
@@ -449,7 +519,8 @@ export const FUNCTIONS = {
     const digits = d === undefined ? 0 : num1(d);
     if (isError(digits)) return digits;
     const f = 10 ** digits;
-    return Math.trunc(n * f) / f;
+    // 4.35 is a hair under itself in binary, and =TRUNC(4.35,2) is still 4.35.
+    return Math.trunc(Number((n * f).toPrecision(15))) / f;
   }),
   ROUND: def((v, d) => {
     const n = num1(v);
@@ -483,9 +554,7 @@ export const FUNCTIONS = {
     const match = makeMatcher(criteria);
     let total = 0;
     for (let i = 0; i < cells.length; i++) {
-      const hit = match(cells[i]);
-      if (isError(hit)) return hit;
-      if (!hit) continue;
+      if (!match(cells[i])) continue;
       const v = targets[i];
       if (typeof v === 'number') total += v;
       else if (isError(v)) return v;
@@ -496,11 +565,7 @@ export const FUNCTIONS = {
     const cells = Array.isArray(range) ? range.flat(Infinity) : [range];
     const match = makeMatcher(criteria);
     let n = 0;
-    for (const c of cells) {
-      const hit = match(c);
-      if (isError(hit)) return hit;
-      if (hit) n += 1;
-    }
+    for (const c of cells) if (match(c)) n += 1;
     return n;
   }),
   AVERAGEIF: def((range, criteria, avgRange) => {
@@ -537,23 +602,12 @@ export const FUNCTIONS = {
     return isError(v) && v.type === '#N/A' ? (fallback ? fallback() : '') : v;
   }, { lazy: true }),
   AND: def((...args) => {
-    for (const v of flatten(args)) {
-      if (isBlank(v)) continue;
-      const b = toBoolean(v);
-      if (isError(b)) return b;
-      if (!b) return false;
-    }
-    return true;
+    const all = logicalsIn(args);
+    return isError(all) ? all : all.every(Boolean);
   }),
   OR: def((...args) => {
-    let any = false;
-    for (const v of flatten(args)) {
-      if (isBlank(v)) continue;
-      const b = toBoolean(v);
-      if (isError(b)) return b;
-      if (b) any = true;
-    }
-    return any;
+    const all = logicalsIn(args);
+    return isError(all) ? all : all.some(Boolean);
   }),
   NOT: def((v) => {
     const b = toBoolean(Array.isArray(v) ? v.flat(Infinity)[0] : v);
@@ -563,7 +617,7 @@ export const FUNCTIONS = {
   FALSE: def(() => false),
 
   // ---- type tests ---------------------------------------------------------
-  ISBLANK: def((v) => isBlank(Array.isArray(v) ? v.flat(Infinity)[0] : v)),
+  ISBLANK: def((v) => isEmpty(Array.isArray(v) ? v.flat(Infinity)[0] : v)),
   ISNUMBER: def((v) => typeof (Array.isArray(v) ? v.flat(Infinity)[0] : v) === 'number'),
   ISTEXT: def((v) => typeof (Array.isArray(v) ? v.flat(Infinity)[0] : v) === 'string'),
   ISLOGICAL: def((v) => typeof (Array.isArray(v) ? v.flat(Infinity)[0] : v) === 'boolean'),
@@ -608,18 +662,25 @@ export const FUNCTIONS = {
   UPPER: def((v) => { const s = text1(v); return isError(s) ? s : s.toUpperCase(); }),
   LOWER: def((v) => { const s = text1(v); return isError(s) ? s : s.toLowerCase(); }),
   TRIM: def((v) => { const s = text1(v); return isError(s) ? s : s.replace(/\s+/g, ' ').trim(); }),
-  SUBSTITUTE: def((v, find, replace) => {
+  SUBSTITUTE: def((v, find, replace, instance) => {
     const s = text1(v);
     const f = text1(find);
     const r = text1(replace);
-    const e = firstError([s, f, r]);
+    const which = instance === undefined ? null : num1(instance);
+    const e = firstError([s, f, r, which]);
     if (e) return e;
-    return f === '' ? s : s.split(f).join(r);
+    if (f === '') return s;
+    if (which === null) return s.split(f).join(r);
+    if (which < 1) return ERR.VALUE('the instance starts at 1');
+    const parts = s.split(f);
+    const n = Math.trunc(which);
+    if (n >= parts.length) return s;
+    return parts.slice(0, n).join(f) + r + parts.slice(n).join(f);
   }),
   VALUE: def((v) => {
     const s = text1(v);
     if (isError(s)) return s;
-    const n = numericText(s);
+    const n = textAsNumber(s);
     return n === null ? ERR.VALUE('"' + s + '" is not a number') : n;
   }),
   TEXT: def((v, fmt) => {
@@ -642,23 +703,22 @@ export const FUNCTIONS = {
     const idx = num1(colIndex);
     if (isError(idx)) return idx;
     if (!Array.isArray(table) || !Array.isArray(table[0])) return ERR.VALUE('VLOOKUP needs a range');
-    if (idx < 1 || idx > table[0].length) return ERR.REF('VLOOKUP column ' + idx + ' is outside the range');
+    if (idx < 1) return ERR.VALUE('VLOOKUP columns start at 1');
+    if (idx > table[0].length) return ERR.REF('VLOOKUP column ' + idx + ' is outside the range');
     const exact = approximate === undefined ? false : !toBoolean(Array.isArray(approximate) ? approximate.flat(Infinity)[0] : approximate);
 
     if (exact) {
       const row = exactRow(table, key);
-      if (isError(row)) return row;
-      return row < 0 ? ERR.NA('VLOOKUP found no match') : (table[row][idx - 1] ?? '');
+      return row < 0 ? ERR.NA('VLOOKUP found no match') : (table[row][idx - 1] ?? null);
     }
     // approximate: last row whose first column is <= key, assuming sorted
     let best = null;
     for (const row of table) {
-      const cmp = compareValues(row[0], key);
-      if (isError(cmp)) return cmp;
-      if (cmp <= 0) best = row;
+      if (!sameKind(row[0], key)) continue;
+      if (compareValues(row[0], key) <= 0) best = row;
       else break;
     }
-    return best ? (best[idx - 1] ?? '') : ERR.NA('VLOOKUP found no match');
+    return best ? (best[idx - 1] ?? null) : ERR.NA('VLOOKUP found no match');
   }),
   INDEX: def((table, rowNum, colNum) => {
     if (!Array.isArray(table)) return ERR.VALUE('INDEX needs a range');
@@ -667,10 +727,20 @@ export const FUNCTIONS = {
     if (isError(r)) return r;
     const c = colNum === undefined ? 1 : num1(colNum);
     if (isError(c)) return c;
-    const row = grid[r - 1];
-    if (!row) return ERR.REF('INDEX row ' + r + ' is outside the range');
-    const v = row[c - 1];
-    if (v === undefined) return ERR.REF('INDEX column ' + c + ' is outside the range');
+    // One index into a single row counts along it; a row or column of 0 means all of them.
+    const [down, across] = grid.length === 1 && colNum === undefined ? [1, r] : [r, c];
+    if (down === 0 && across === 0) return grid;
+    if (down === 0) {
+      if (across < 0 || across > (grid[0]?.length ?? 0)) return ERR.REF('INDEX column ' + across + ' is outside the range');
+      return grid.map((line) => [line[across - 1]]);
+    }
+    const row = grid[down - 1];
+    // Past the cells in use but inside a whole column: an empty cell, not an error.
+    const inside = table.full && down >= 1 && down <= table.full.rows && across >= 1 && across <= table.full.cols;
+    if (!row) return inside ? null : ERR.REF('INDEX row ' + down + ' is outside the range');
+    if (across === 0) return [row];
+    const v = row[across - 1];
+    if (v === undefined) return inside ? null : ERR.REF('INDEX column ' + across + ' is outside the range');
     return v;
   }),
   MATCH: def((needle, range, matchType) => {
@@ -680,28 +750,25 @@ export const FUNCTIONS = {
     const type = matchType === undefined ? 1 : num1(matchType);
     if (isError(type)) return type;
     if (type === 0) {
-      for (let i = 0; i < cells.length; i++) {
-        const cmp = compareValues(cells[i], key);
-        if (isError(cmp)) return cmp;
-        if (cmp === 0) return i + 1;
-      }
+      const hit = exactTest(key, true);
+      for (let i = 0; i < cells.length; i++) if (hit(cells[i])) return i + 1;
       return ERR.NA('MATCH found no match');
     }
     let best = null;
     for (let i = 0; i < cells.length; i++) {
+      if (!sameKind(cells[i], key)) continue;
       const cmp = compareValues(cells[i], key);
-      if (isError(cmp)) return cmp;
       if (type > 0 ? cmp <= 0 : cmp >= 0) best = i + 1;
     }
     return best ?? ERR.NA('MATCH found no match');
   }),
 
   // ---- dates --------------------------------------------------------------
-  TODAY: def((_, ctx) => dateToSerial(ctx.now()), { wantsContext: true, volatile: true }),
+  // The date on this computer's clock: at 03:00 in Karachi it is already today.
+  TODAY: def((_, ctx) => localSerial(ctx.now()).day, { wantsContext: true, volatile: true }),
   NOW: def((_, ctx) => {
-    const d = ctx.now();
-    const dayFraction = (d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds()) / 86400;
-    return dateToSerial(d) + dayFraction;
+    const { day, part } = localSerial(ctx.now());
+    return day + part;
   }, { wantsContext: true, volatile: true }),
   DATE: def((y, m, d) => {
     const yy = num1(y);
@@ -748,7 +815,7 @@ export const FUNCTIONS = {
     if (e) return e;
     if (s === 0) return 0;
     if (n > 0 && s < 0) return ERR.NUM('CEILING with opposite signs');
-    return Math.ceil(n / s) * s;
+    return Math.ceil(Number((n / s).toPrecision(15))) * s;
   }),
   FLOOR: def((v, sig) => {
     const n = num1(v);
@@ -757,7 +824,7 @@ export const FUNCTIONS = {
     if (e) return e;
     if (s === 0) return 0;
     if (n > 0 && s < 0) return ERR.NUM('FLOOR with opposite signs');
-    return Math.floor(n / s) * s;
+    return Math.floor(Number((n / s).toPrecision(15))) * s;
   }),
   // CEILING.MATH / FLOOR.MATH are the 2013 forms: the significance defaults
   // to 1, its sign never matters, and a negative number rounds toward zero
@@ -973,14 +1040,14 @@ export const FUNCTIONS = {
     const hits = ifsIndices(targets.length, pairs);
     if (isError(hits)) return hits;
     const picked = hits.map((i) => targets[i]).filter((v) => typeof v === 'number');
-    return picked.length ? Math.max(...picked) : 0;
+    return picked.length ? highest(picked) : 0;
   }),
   MINIFS: def((range, ...pairs) => {
     const targets = vec(range);
     const hits = ifsIndices(targets.length, pairs);
     if (isError(hits)) return hits;
     const picked = hits.map((i) => targets[i]).filter((v) => typeof v === 'number');
-    return picked.length ? Math.min(...picked) : 0;
+    return picked.length ? lowest(picked) : 0;
   }),
 
   // ---- logic, extended ----------------------------------------------------
@@ -1009,14 +1076,8 @@ export const FUNCTIONS = {
     return hasDefault ? thunks[thunks.length - 1]() : ERR.NA('no SWITCH case matched');
   }, { lazy: true }),
   XOR: def((...args) => {
-    let odd = false;
-    for (const v of flatten(args)) {
-      if (isBlank(v)) continue;
-      const b = toBoolean(v);
-      if (isError(b)) return b;
-      if (b) odd = !odd;
-    }
-    return odd;
+    const all = logicalsIn(args);
+    return isError(all) ? all : all.filter(Boolean).length % 2 === 1;
   }),
 
   // ---- text, extended ------------------------------------------------------
@@ -1107,26 +1168,23 @@ export const FUNCTIONS = {
     const idx = num1(rowIndex);
     if (isError(idx)) return idx;
     if (!Array.isArray(table) || !Array.isArray(table[0])) return ERR.VALUE('HLOOKUP needs a range');
-    if (idx < 1 || idx > table.length) return ERR.REF('HLOOKUP row ' + idx + ' is outside the range');
+    if (idx < 1) return ERR.VALUE('HLOOKUP rows start at 1');
+    if (idx > table.length) return ERR.REF('HLOOKUP row ' + idx + ' is outside the range');
     const exact = approximate === undefined ? false : !toBoolean(Array.isArray(approximate) ? approximate.flat(Infinity)[0] : approximate);
     const headers = table[0];
 
     if (exact) {
-      for (let c = 0; c < headers.length; c++) {
-        const cmp = compareValues(headers[c], key);
-        if (isError(cmp)) return cmp;
-        if (cmp === 0) return table[idx - 1][c] ?? '';
-      }
+      const hit = exactTest(key, true);
+      for (let c = 0; c < headers.length; c++) if (hit(headers[c])) return table[idx - 1][c] ?? null;
       return ERR.NA('HLOOKUP found no match');
     }
     let best = -1;
     for (let c = 0; c < headers.length; c++) {
-      const cmp = compareValues(headers[c], key);
-      if (isError(cmp)) return cmp;
-      if (cmp <= 0) best = c;
+      if (!sameKind(headers[c], key)) continue;
+      if (compareValues(headers[c], key) <= 0) best = c;
       else break;
     }
-    return best >= 0 ? (table[idx - 1][best] ?? '') : ERR.NA('HLOOKUP found no match');
+    return best >= 0 ? (table[idx - 1][best] ?? null) : ERR.NA('HLOOKUP found no match');
   }),
   /**
    * XLOOKUP(lookup, lookupArray, returnArray, [ifNotFound], [matchMode], [searchMode]).
@@ -1246,8 +1304,8 @@ export const FUNCTIONS = {
   // form and keep the catalog honest.
   ROW: def((v, ctx) => ((ctx.row ?? 0) + 1), { wantsContext: true }),
   COLUMN: def((v, ctx) => ((ctx.col ?? 0) + 1), { wantsContext: true }),
-  ROWS: def((v) => (Array.isArray(v) ? v.length : 1)),
-  COLUMNS: def((v) => (Array.isArray(v) ? (Array.isArray(v[0]) ? v[0].length : v.length) : 1)),
+  ROWS: def((v) => (Array.isArray(v) ? (v.full?.rows ?? v.length) : 1)),
+  COLUMNS: def((v) => (Array.isArray(v) ? v.full?.cols ?? (Array.isArray(v[0]) ? v[0].length : v.length) : 1)),
   // OFFSET and INDIRECT are answered by the evaluator too — they build a new
   // reference at run time, which needs the AST and the resolver. These entries
   // carry the volatile flag the engine reads and keep the catalog honest; the
@@ -1701,6 +1759,22 @@ export const FUNCTIONS = {
     return ERR.NUM('DATEDIF unit must be Y, M, D, MD, YM or YD');
   }),
 };
+
+Object.assign(FUNCTIONS, moreFunctions(FUNCTIONS));
+
+// These answer for an error themselves: a count or a lookup is not spoiled by
+// one bad cell it does not use, and ISNUMBER exists to look at one.
+for (const name of ['ISNUMBER', 'ISTEXT', 'ISBLANK', 'ISLOGICAL', 'ISNONTEXT', 'COUNT', 'COUNTA', 'COUNTBLANK',
+  'COUNTIF', 'COUNTIFS', 'SUMIF', 'SUMIFS', 'AVERAGEIF', 'AVERAGEIFS', 'MAXIFS', 'MINIFS',
+  'MATCH', 'VLOOKUP', 'HLOOKUP', 'XLOOKUP', 'XMATCH', 'INDEX', 'ROWS', 'COLUMNS']) {
+  if (FUNCTIONS[name]) FUNCTIONS[name].keepsErrors = true;
+}
+
+// A cell these are pointed at counts as a range of one.
+for (const name of ['SUM', 'AVERAGE', 'MAX', 'MIN', 'PRODUCT', 'COUNT', 'MEDIAN', 'STDEV', 'STDEV.S', 'STDEV.P', 'STDEVP',
+  'VAR', 'VAR.S', 'VAR.P', 'VARP', 'MAXA', 'MINA', 'AVERAGEA', 'AND', 'OR', 'XOR']) {
+  if (FUNCTIONS[name]) FUNCTIONS[name].refsAsRanges = true;
+}
 
 export const FUNCTION_NAMES = Object.keys(FUNCTIONS).sort();
 export const isVolatile = (name) => Boolean(FUNCTIONS[name]?.volatile);

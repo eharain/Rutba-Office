@@ -46,7 +46,10 @@ export const ERR = {
 };
 
 export const isError = (v) => v instanceof FormulaError;
+/** Nothing, or empty text: what clears a cell, and what leaves out an optional argument. */
 export const isBlank = (v) => v === null || v === undefined || v === '';
+/** A cell with nothing in it. Empty text from a formula is text: =""+1 is #VALUE!. */
+export const isEmpty = (v) => v === null || v === undefined;
 
 /**
  * A long array's first error, once worked out: a range read whole is one
@@ -84,14 +87,86 @@ export function numericText(s) {
   return Number.isFinite(n) ? (pct ? n / 100 : n) : null;
 }
 
+const MONTH_NAMES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+let dayFirstHere = null;
+/** Whether this computer writes the day before the month, as Excel reads 3/4/2026 by it. */
+function dayFirst() {
+  if (dayFirstHere === null) {
+    try {
+      const order = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(Date.UTC(2001, 10, 22, 12))).map((p) => p.type);
+      dayFirstHere = order.indexOf('day') < order.indexOf('month');
+    } catch { dayFirstHere = true; }
+  }
+  return dayFirstHere;
+}
+
+const fullYear = (y) => (y.length <= 2 ? (Number(y) < 30 ? 2000 : 1900) + Number(y) : Number(y));
+
+function dateSerial(y, m, d) {
+  if (y < 1900 || y > 9999 || m < 0 || m > 11 || d < 1) return null;
+  const at = new Date(Date.UTC(y, m, d));
+  return at.getUTCMonth() === m ? partsToSerial(y, m, d) : null;
+}
+
+/** A time written as text, as a part of a day, or null: 12:30, 7:05:09 PM. */
+export function parseTimeText(text) {
+  const m = /(?:^|\s)(\d{1,2}):(\d{1,2})(?::(\d{1,2}(?:\.\d+)?))?\s*(am|pm|a|p)?\s*$/i.exec(String(text).trim());
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const sec = Number(m[3] ?? 0);
+  if (min > 59 || sec >= 60) return null;
+  if (m[4]) {
+    if (h < 1 || h > 12) return null;
+    h = (h % 12) + (/p/i.test(m[4]) ? 12 : 0);
+  }
+  if (h > 9999) return null;
+  return (h * 3600 + min * 60 + sec) / 86400;
+}
+
+/**
+ * A date written as text, as a serial, or null. The year must be there: 1/2
+ * alone is left as text. With `dropTime` a time after the date is not added.
+ */
+export function parseDateText(text, { dropTime = false } = {}) {
+  const t = String(text).trim();
+  const time = /\s\d{1,2}:\d/.test(t) ? t.slice(t.search(/\s\d{1,2}:\d/)) : '';
+  const date = (time ? t.slice(0, t.length - time.length) : t).trim();
+  let serial = null;
+  let m;
+  const monthOf = (name) => MONTH_NAMES.indexOf(name.slice(0, 3).toLowerCase());
+  if ((m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(date))) serial = dateSerial(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  else if ((m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4}|\d{2})$/.exec(date))) {
+    const [d, mon] = dayFirst() ? [m[1], m[2]] : [m[2], m[1]];
+    serial = dateSerial(fullYear(m[3]), Number(mon) - 1, Number(d));
+  } else if ((m = /^(\d{1,2})[- ]([A-Za-z]{3,9})[-, ]+(\d{4}|\d{2})$/.exec(date))) serial = monthOf(m[2]) < 0 ? null : dateSerial(fullYear(m[3]), monthOf(m[2]), Number(m[1]));
+  else if ((m = /^([A-Za-z]{3,9})[- ](\d{1,2})[-, ]+(\d{4}|\d{2})$/.exec(date))) serial = monthOf(m[1]) < 0 ? null : dateSerial(fullYear(m[3]), monthOf(m[1]), Number(m[2]));
+  if (serial === null) return null;
+  if (dropTime || !time) return serial;
+  const part = parseTimeText(time);
+  return part === null ? null : serial + part;
+}
+
+/** What arithmetic reads a text as: a number, 1,234.5, a date or a time; else null. */
+export function textAsNumber(s) {
+  const plain = numericText(s);
+  if (plain !== null) return plain;
+  const t = String(s).trim();
+  if (/^[+-]?\d{1,3}(,\d{3})+(\.\d*)?%?$/.test(t)) return numericText(t.replace(/,/g, ''));
+  const date = parseDateText(t);
+  if (date !== null) return date;
+  return /^\d{1,2}:\d/.test(t) ? parseTimeText(t) : null;
+}
+
 /** Coerce to a number for arithmetic. Returns a FormulaError if impossible. */
 export function toNumber(v) {
   if (isError(v)) return v;
-  if (isBlank(v)) return 0;
+  if (isEmpty(v)) return 0;
   if (typeof v === 'number') return Number.isFinite(v) ? v : ERR.NUM();
   if (typeof v === 'boolean') return v ? 1 : 0;
   if (typeof v === 'string') {
-    const n = numericText(v);
+    const n = textAsNumber(v);
     return n === null ? ERR.VALUE('"' + v + '" is not a number') : n;
   }
   if (v instanceof Date) return dateToSerial(v);
@@ -111,7 +186,7 @@ export function toText(v) {
 /** Coerce to boolean for logical context. */
 export function toBoolean(v) {
   if (isError(v)) return v;
-  if (isBlank(v)) return false;
+  if (isEmpty(v)) return false;
   if (typeof v === 'boolean') return v;
   if (typeof v === 'number') return v !== 0;
   if (typeof v === 'string') {
@@ -208,19 +283,18 @@ export function partsToSerial(y, m, d) {
 
 /**
  * Compare two values the way a spreadsheet does.
- * Text comparison is case-insensitive; numbers sort before text; blanks equal
- * both 0 and "".
+ * Text comparison is case-insensitive; numbers sort before text. A blank takes
+ * the other side's kind, so it equals 0, "" and FALSE; empty text is text.
  * @returns {-1|0|1|FormulaError}
  */
 export function compareValues(a, b) {
   const err = firstError([a, b]);
   if (err) return err;
 
-  const aBlank = isBlank(a);
-  const bBlank = isBlank(b);
-  if (aBlank && bBlank) return 0;
-  if (aBlank) return typeof b === 'number' ? (0 < b ? -1 : 0 > b ? 1 : 0) : (b === '' ? 0 : -1);
-  if (bBlank) return typeof a === 'number' ? (a < 0 ? -1 : a > 0 ? 1 : 0) : (a === '' ? 0 : 1);
+  if (isEmpty(a) && isEmpty(b)) return 0;
+  const zeroOf = (v) => (typeof v === 'number' ? 0 : typeof v === 'boolean' ? false : '');
+  if (isEmpty(a)) return compareValues(zeroOf(b), b);
+  if (isEmpty(b)) return compareValues(a, zeroOf(a));
 
   const rank = (v) => (typeof v === 'number' ? 0 : typeof v === 'string' ? 1 : 2); // number < text < boolean
   if (rank(a) !== rank(b)) return rank(a) < rank(b) ? -1 : 1;

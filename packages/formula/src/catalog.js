@@ -12,6 +12,8 @@
  * arguments are in brackets, repeatable ones end with an ellipsis.
  */
 
+import { MORE_CATALOG } from './functions-more.js';
+
 export const CATEGORIES = [
   'Math & Trig',
   'Statistical',
@@ -215,6 +217,7 @@ export const FUNCTION_CATALOG = [
   info('ISODD', '(number)', 'Is the integer part odd'),
   info('NA', '()', 'The error #N/A'),
   info('N', '(value)', 'A value as a number, text as 0'),
+  ...MORE_CATALOG.map(([category, name, args, help]) => entry(name, args, help, category)),
 ];
 
 /** The catalog grouped by category, in CATEGORIES order, for a menu to render. */

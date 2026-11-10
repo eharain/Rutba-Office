@@ -27,6 +27,17 @@ const key = (sheet, row, col) => sheet + '!' + row + ':' + col;
 /** Cells past which a range a formula reads is kept whole in the dependency graph, not expanded. */
 const WIDE_RANGE = 4096;
 
+/**
+ * What a formula reads from a cell: null when nothing is there, which is not
+ * the same as a formula's empty text. Clearing a cell leaves '' on a lazy
+ * sheet, and that is nothing too.
+ */
+function readable(cell, spilled) {
+  if (!cell) return spilled() ?? null;
+  if (!cell.formula && cell.value === '') return null;
+  return cell.value ?? null;
+}
+
 export class Spreadsheet {
   /**
    * @param {object} [opts]
@@ -118,6 +129,15 @@ export class Spreadsheet {
     this.addSheet(name);
     this.lazy.set(name, provider);
     return this;
+  }
+
+  /** A sheet's own name for what a formula wrote: sheet1 means Sheet1. */
+  _sheetName(name) {
+    if (this.sheets.has(name) || this.lazy.has(name)) return name;
+    const wanted = String(name).toUpperCase();
+    for (const known of this.sheets.keys()) if (known.toUpperCase() === wanted) return known;
+    for (const known of this.lazy.keys()) if (known.toUpperCase() === wanted) return known;
+    return name;
   }
 
   _sheet(name) {
@@ -305,11 +325,24 @@ export class Spreadsheet {
     const wide = wideCache ? new Map() : null;
     return {
       now: self.now,
-      usedBounds: (sheet) => self.usedBounds(sheet),
-      getCell(sheet, row, col) {
-        const c = self.cell(sheet, row, col);
-        if (!c) return self.spillValueAt(sheet, row, col) ?? '';
-        return c.value ?? '';
+      usedBounds: (sheet) => self.usedBounds(self._sheetName(sheet)),
+      widestBounds() {
+        let maxRow = 0;
+        let maxCol = 0;
+        for (const name of new Set([...self.sheets.keys(), ...self.lazy.keys()])) {
+          const b = self.usedBounds(name);
+          maxRow = Math.max(maxRow, b.maxRow);
+          maxCol = Math.max(maxCol, b.maxCol);
+        }
+        return { maxRow, maxCol };
+      },
+      hasSheet(sheet) {
+        const name = self._sheetName(sheet);
+        return self.sheets.has(name) || self.lazy.has(name);
+      },
+      getCell(sheetName, row, col) {
+        const sheet = self._sheetName(sheetName);
+        return readable(self.cell(sheet, row, col), () => self.spillValueAt(sheet, row, col));
       },
       changed(sheet, row, col) {
         if (!wide?.size) return;
@@ -320,7 +353,8 @@ export class Spreadsheet {
       changedAll() {
         wide?.clear();
       },
-      getRange(sheet, start, end) {
+      getRange(sheetName, start, end) {
+        const sheet = self._sheetName(sheetName);
         const cached = wide && (end.row - start.row + 1) * (end.col - start.col + 1) > WIDE_RANGE;
         const cacheKey = cached ? sheet + '!' + start.row + ':' + start.col + ':' + end.row + ':' + end.col : null;
         if (cached && wide.has(cacheKey)) return wide.get(cacheKey).grid;
@@ -329,7 +363,7 @@ export class Spreadsheet {
           const line = [];
           for (let c = start.col; c <= end.col; c++) {
             const cell = self.cell(sheet, r, c);
-            line.push(cell ? (cell.value ?? '') : (self.spillValueAt(sheet, r, c) ?? ''));
+            line.push(readable(cell, () => self.spillValueAt(sheet, r, c)));
           }
           grid.push(line);
         }
@@ -343,16 +377,16 @@ export class Spreadsheet {
       // 'manual', null when it shows) — what SUBTOTAL leaves out. The sheet
       // view knows; on its own the engine sees every row.
       rowHidden(sheet, row) {
-        return self.rowHidden ? self.rowHidden(sheet, row) : null;
+        return self.rowHidden ? self.rowHidden(self._sheetName(sheet), row) : null;
       },
       // Whether a cell's own formula is a SUBTOTAL, which a SUBTOTAL over
       // it leaves out. The flag is worked out once per formula text.
       isSubtotalCell(sheet, row, col) {
-        const c = self.cell(sheet, row, col);
+        const c = self.cell(self._sheetName(sheet), row, col);
         if (!c || !c.ast) return false;
         if (c._subtotalOf !== c.input) {
           c._subtotalOf = c.input;
-          c._subtotal = /\bSUBTOTAL\s*\(/i.test(String(c.input ?? ''));
+          c._subtotal = /\b(SUBTOTAL|AGGREGATE)\s*\(/i.test(String(c.input ?? ''));
         }
         return c._subtotal;
       },
@@ -365,7 +399,7 @@ export class Spreadsheet {
       // The live spill at an anchor, for the `A1#` operator. A blocked spill
       // has no range to give.
       spillRange(sheet, row, col) {
-        const s = self.spills.get(key(sheet, row, col));
+        const s = self.spills.get(key(self._sheetName(sheet), row, col));
         if (!s || s.blocked) return null;
         return s.values.map((line) => [...line]);
       },
@@ -382,7 +416,7 @@ export class Spreadsheet {
   subtotalsChanged() {
     let any = false;
     for (const c of this._formulaCells()) {
-      if (!/\bSUBTOTAL\s*\(/i.test(String(c.input ?? ''))) continue;
+      if (!/\b(SUBTOTAL|AGGREGATE)\s*\(/i.test(String(c.input ?? ''))) continue;
       this.dirty.add(key(c.sheet, c.row, c.col));
       any = true;
     }
@@ -410,9 +444,9 @@ export class Spreadsheet {
     };
     for (const dep of cell.deps ?? []) {
       if (dep.type === 'cell') {
-        out.add(key(dep.sheet ?? cell.sheet, dep.row, dep.col));
+        out.add(key(this._sheetName(dep.sheet ?? cell.sheet), dep.row, dep.col));
       } else if (dep.type === 'range') {
-        const sheet = dep.sheet ?? dep.start.sheet ?? cell.sheet;
+        const sheet = this._sheetName(dep.sheet ?? dep.start.sheet ?? cell.sheet);
         const bounds = this.usedBounds(sheet);
         const r0 = Math.min(dep.start.row, dep.end.row);
         const r1 = Math.min(Math.max(dep.start.row, dep.end.row), bounds.maxRow);
@@ -436,7 +470,7 @@ export class Spreadsheet {
         // evaluates AFTER it; the coverage keys are the previous pass's — a
         // spill that changes shape re-runs its readers through the touched
         // ghosts of the follow-up pass, whose graph sees the new coverage.
-        const sheet = dep.sheet ?? cell.sheet;
+        const sheet = this._sheetName(dep.sheet ?? cell.sheet);
         const anchorKey = key(sheet, dep.row, dep.col);
         out.add(anchorKey);
         const s = this.spills.get(anchorKey);
@@ -791,7 +825,8 @@ export class Spreadsheet {
   _settle(cell, k, raw, spillTouched) {
     if (!Array.isArray(raw)) {
       if (this.spills.has(k)) this._dropSpill(k, spillTouched);
-      cell.value = raw;
+      // A formula that lands on an empty cell shows 0, as =A7 does.
+      cell.value = raw ?? 0;
       cell.error = isError(raw) ? raw : null;
       return;
     }
@@ -799,7 +834,7 @@ export class Spreadsheet {
     const grid = raw.length && Array.isArray(raw[0]) ? raw : [raw];
     const h = Math.max(1, grid.length);
     const w = Math.max(1, ...grid.map((line) => line.length));
-    const values = grid.map((line) => Array.from({ length: w }, (_, j) => line[j] ?? ''));
+    const values = grid.map((line) => Array.from({ length: w }, (_, j) => (line[j] === null ? 0 : line[j] ?? '')));
     if (h === 1 && w === 1) {
       if (this.spills.has(k)) this._dropSpill(k, spillTouched);
       cell.value = values[0][0];

@@ -33,10 +33,10 @@ const T = {
   LBRACE: '{', RBRACE: '}', SEMI: ';',
 };
 
-const REF_RE = /^(?:(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_.]*))!)?(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?![\w(])/;
-const COL_RANGE_RE = /^(?:(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_.]*))!)?(\$?)([A-Za-z]{1,3}):(\$?)([A-Za-z]{1,3})(?![\w(])/;
-const ROW_RANGE_RE = /^(?:(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_.]*))!)?(\$?)(\d{1,7}):(\$?)(\d{1,7})(?![\w(])/;
-const NAME_RE = /^[A-Za-z_\\][A-Za-z0-9_.\\]*/;
+const REF_RE = /^(?:(?:'((?:[^']|'')+)'|([\p{L}_][\p{L}\p{N}_.]*))!)?(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?![\p{L}\p{N}_(])/u;
+const COL_RANGE_RE = /^(?:(?:'((?:[^']|'')+)'|([\p{L}_][\p{L}\p{N}_.]*))!)?(\$?)([A-Za-z]{1,3}):(\$?)([A-Za-z]{1,3})(?![\p{L}\p{N}_(])/u;
+const ROW_RANGE_RE = /^(?:(?:'((?:[^']|'')+)'|([\p{L}_][\p{L}\p{N}_.]*))!)?(\$?)(\d{1,7}):(\$?)(\d{1,7})(?![\p{L}\p{N}_(])/u;
+const NAME_RE = /^[\p{L}_\\][\p{L}\p{N}_.\\]*/u;
 const ERROR_RE = /^#(NULL!|DIV\/0!|VALUE!|REF!|NAME\?|NUM!|N\/A|CIRCULAR!|SPILL!|CALC!)/;
 
 export function tokenize(input) {
@@ -50,7 +50,7 @@ export function tokenize(input) {
   // A '-' is unary when nothing value-like precedes it.
   const expectsValue = () => {
     const p = prev();
-    return !p || p.type === T.OP || p.type === T.LPAREN || p.type === T.COMMA || p.type === T.COLON;
+    return !p || p.type === T.OP || p.type === T.LPAREN || p.type === T.COMMA || p.type === T.COLON || p.type === T.LBRACE || p.type === T.SEMI;
   };
 
   // The text inside a structured reference's OUTER brackets, from `[` at
@@ -158,7 +158,7 @@ export function tokenize(input) {
       continue;
     }
 
-    if (/[A-Za-z_\\]/.test(ch)) {
+    if (NAME_RE.test(slice)) {
       const m = NAME_RE.exec(slice);
       let name = m[0];
       let j = i + name.length;
@@ -412,33 +412,33 @@ export function parse(input, { spans = false } = {}) {
     return left;
   }
   function parseMultiplicative() {
-    let left = parseUnary();
+    let left = parsePower();
     while (peek() && peek().type === T.OP && (peek().value === '*' || peek().value === '/')) {
       const op = next().value;
-      const right = parseUnary();
+      const right = parsePower();
       left = joined({ type: 'binary', op, left, right }, left, right);
+    }
+    return left;
+  }
+  // Excel's order, which is not algebra's: a sign binds tighter than ^, so
+  // -2^2 is 4, and ^ runs left to right, so 2^3^2 is 64.
+  function parsePower() {
+    let left = parseUnary();
+    while (at(T.OP, '^')) {
+      next();
+      const right = parseUnary();
+      left = joined({ type: 'binary', op: '^', left, right }, left, right);
     }
     return left;
   }
   function parseUnary() {
     if (peek() && peek().type === T.OP && peek().unary) {
       const opTok = next();
-      // `^` binds tighter than unary minus: -2^2 === -4
       const operand = parseUnary();
       const node = { type: 'unary', op: opTok.value, operand };
       return spans ? mark(node, opTok.pos, ext(operand)[1]) : node;
     }
-    return parsePower();
-  }
-  function parsePower() {
-    const base = parsePostfix();
-    if (at(T.OP, '^')) {
-      next();
-      // right-associative, and its right side may itself be unary: 2^-1
-      const right = parseUnary();
-      return joined({ type: 'binary', op: '^', left: base, right }, base, right);
-    }
-    return base;
+    return parsePostfix();
   }
   function parsePostfix() {
     let node = parsePrimary();
@@ -671,11 +671,11 @@ export function shiftFormula(formula, dr, dc, mapCell = null) {
 export function moveReferences(formula, { home, newHome = home, from, to }) {
   const src = String(formula);
   const same = (a, b) => String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase();
-  const quote = (name) => (/^[A-Za-z_][A-Za-z0-9_.]*$/.test(name) && !/^[A-Za-z]{1,3}\d+$/.test(name) ? name : "'" + String(name).replace(/'/g, "''") + "'");
+  const quote = (name) => (/^[\p{L}_][\p{L}\p{N}_.]*$/u.test(name) && !/^[A-Za-z]{1,3}\d+$/.test(name) ? name : "'" + String(name).replace(/'/g, "''") + "'");
   const dr = to.row - from.top;
   const dc = to.col - from.left;
   const inside = (r, c) => r >= from.top && r <= from.bottom && c >= from.left && c <= from.right;
-  const REF = /^(?:'((?:[^']|'')+)'!|([A-Za-z_][A-Za-z0-9_.]*)!)?(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?::(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7}))?(?![\w(!])/;
+  const REF = /^(?:'((?:[^']|'')+)'!|([\p{L}_][\p{L}\p{N}_.]*)!)?(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?::(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7}))?(?![\p{L}\p{N}_(!])/u;
   let out = '';
   let i = 0;
   while (i < src.length) {

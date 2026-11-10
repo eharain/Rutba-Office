@@ -84,10 +84,10 @@ test('a lookup reads a formula in its range after that formula settles in the sa
 
 /** The walk the index stands in for. */
 function walk(table, key, idx) {
+  const k = key === null ? 0 : key;
+  const fold = (v) => (typeof v === 'string' ? v.toUpperCase() : v);
   for (const row of table) {
-    const cmp = compareValues(row[0], key);
-    if (isError(cmp)) return cmp;
-    if (cmp === 0) return row[idx - 1] ?? '';
+    if (typeof row[0] === typeof k && !isError(row[0]) && fold(row[0]) === fold(k)) return row[idx - 1];
   }
   return ERR.NA('no match');
 }

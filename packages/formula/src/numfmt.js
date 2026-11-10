@@ -120,16 +120,17 @@ function inDigits(text, system) {
 /** Pull `[Red]`, `[$-409]`, `[h]` etc out of a section. */
 function extractDirectives(section) {
   let colour = null;
-  let elapsed = false;
+  let elapsed = null;
   let condition = null;
   let digits = 0;
   let calendar = 0;
   let lcid = 0;
-  const raw = section.replace(/\[([^\]]*)\]/g, (_, inner) => {
+  const raw = section.replace(/"[^"]*"|\\.|\[([^\]]*)\]/g, (whole, inner) => {
+    if (inner === undefined) return whole;
     const lower = inner.toLowerCase();
     if (COLOURS.includes(lower)) { colour = lower; return ''; }
     if (/^color\s*\d+$/i.test(inner)) { colour = 'color' + inner.replace(/\D/g, ''); return ''; }
-    if (/^(h+|m+|s+)$/i.test(inner)) { elapsed = true; return inner; } // [h] elapsed time
+    if (/^(h+|m+|s+)$/i.test(inner)) { elapsed = lower[0]; return inner; } // [h] elapsed time
     const cond = /^([<>=]{1,2})(-?[\d.]+)$/.exec(inner);
     if (cond) { condition = { op: cond[1], value: Number(cond[2]) }; return ''; }
     if (inner.startsWith('$')) {
@@ -142,7 +143,9 @@ function extractDirectives(section) {
         calendar = (n >>> 16) & 0xff;
         digits = (n >>> 24) & 0xff;
       }
-      return '';
+      // What stands before the hyphen is a currency symbol to print: [$£-809].
+      const symbol = inner.slice(1).split('-')[0];
+      return symbol ? '"' + symbol.replace(/"/g, '') + '"' : '';
     }
     return '';
   });
@@ -185,7 +188,7 @@ function toHijri(y, m, d, lcid) {
   return { y: year, m: month - 1, d: day, month: months.format(at) };
 }
 
-const DATE_TOKEN = /(am\/pm|a\/p|yyyy|yy|mmmmm|mmmm|mmm|mm|m|dddd|ddd|dd|d|hh|h|ss|s|\.0+)/i;
+const DATE_TOKEN = /(am\/pm|a\/p|yyyy|yyy|yy|y|mmmmm|mmmm|mmm|mm|m|dddd|ddd|dd|d|hh|h|ss|s|\.0+)/i;
 
 /** Does this section format a date/time rather than a number? */
 export function isDateFormat(body) {
@@ -193,7 +196,7 @@ export function isDateFormat(body) {
   const bare = body.replace(/"[^"]*"/g, '').replace(/\\./g, '');
   // Month tokens count: `mmmm` alone is a date format and carries no y/d/h/s.
   // The `#?` guard is what keeps a numeric pattern out of this branch.
-  return /(y{2,4}|m{1,5}|d{1,4}|h{1,2}|s{1,2}|am\/pm|a\/p)/i.test(bare) && !/[#?]/.test(bare);
+  return /(y{1,4}|m{1,5}|d{1,4}|h{1,2}|s{1,2}|am\/pm|a\/p)/i.test(bare) && !/[#?]/.test(bare);
 }
 
 /**
@@ -226,6 +229,7 @@ function classifyMonthMinute(tokens) {
 /** Tokenize one section body. */
 export function tokenize(body) {
   const tokens = [];
+  const dates = isDateFormat(body);
   let i = 0;
   while (i < body.length) {
     const ch = body[i];
@@ -240,6 +244,13 @@ export function tokenize(body) {
     if (ch === '*') { i += 2; continue; } // fill — an alignment hint, not content
     if (ch === '@') { tokens.push({ kind: 'text' }); i += 1; continue; }
     if (ch === '%') { tokens.push({ kind: 'percent' }); i += 1; continue; }
+    if (!dates && /^general/i.test(body.slice(i, i + 7))) { tokens.push({ kind: 'general' }); i += 7; continue; }
+    if (!dates && (('#0?'.includes(ch)) || (ch === '.' && /[#0?]/.test(body[i + 1] ?? '')))) {
+      let run = '';
+      while (i < body.length && '#0?,.'.includes(body[i])) { run += body[i]; i += 1; }
+      tokens.push({ kind: 'number', text: run });
+      continue;
+    }
 
     const dateMatch = DATE_TOKEN.exec(body.slice(i));
     if (dateMatch && dateMatch.index === 0) {
@@ -259,57 +270,134 @@ export function tokenize(body) {
   return tokens;
 }
 
-/** Parse a numeric pattern like `#,##0.00` into its parts. */
-function parseNumericPattern(pattern) {
-  const [intPart, fracPart = ''] = pattern.split('.');
-  const grouped = intPart.includes(',');
-  const cleanInt = intPart.replace(/,/g, '');
-  // trailing commas scale by thousands: `#,##0,` shows thousands
-  const trailingCommas = (/,+$/.exec(intPart) ?? [''])[0].length;
-  return {
-    grouped,
-    minInt: (cleanInt.match(/0/g) ?? []).length,
-    minFrac: (fracPart.match(/0/g) ?? []).length,
-    maxFrac: (fracPart.match(/[0#?]/g) ?? []).length,
-    scale: trailingCommas,
-  };
+/**
+ * A number as digits, rounded in decimal: fifteen significant digits and then
+ * half up, so 2.675 at two places is 2.68 and 123456789012345678 ends in
+ * zeros, as Excel shows them. Answers [whole part, fraction of `places` digits].
+ */
+function decimalDigits(x, places) {
+  if (x === 0) return ['0', '0'.repeat(places)];
+  const [mantissa, e] = x.toExponential(14).split('e');
+  const digits = mantissa.replace('.', '');
+  const point = Number(e) + 1;
+  let ints;
+  let frac;
+  if (point <= 0) { ints = '0'; frac = '0'.repeat(-point) + digits; }
+  else if (point >= digits.length) { ints = digits + '0'.repeat(point - digits.length); frac = ''; }
+  else { ints = digits.slice(0, point); frac = digits.slice(point); }
+  if (frac.length > places) {
+    const up = frac[places] >= '5';
+    frac = frac.slice(0, places);
+    if (up) {
+      const width = ints.length + frac.length;
+      const raised = (BigInt(ints + frac) + 1n).toString().padStart(width, '0');
+      const keep = raised.length - frac.length;
+      ints = raised.slice(0, keep);
+      frac = raised.slice(keep);
+    }
+  } else frac = frac.padEnd(places, '0');
+  return [ints.replace(/^0+(?=\d)/, ''), frac];
 }
 
-/** Renders the MAGNITUDE. The sign is the caller's decision — see formatValue. */
-function renderNumber(value, pattern, { percent }) {
-  const p = parseNumericPattern(pattern);
+/**
+ * Number placeholders, however literals split them: `#,##0.00` is one piece
+ * and `000-00-0000` three, which between them hold one number. Each slot is
+ * `0` (a digit, zero if none), `#` (nothing if none) or `?` (a space if none).
+ * Answers the text for each piece, in order.
+ */
+function renderPieces(pieces, value, { percent }) {
+  const joined = pieces.join('');
+  const dot = joined.indexOf('.');
+  let intCode = dot < 0 ? joined : joined.slice(0, dot);
+  let fracCode = dot < 0 ? '' : joined.slice(dot + 1);
+  // Commas straight after the last digit place divide by a thousand each.
+  const trailing = (code) => (/,+$/.exec(code) ?? [''])[0].length;
+  let scale = trailing(dot < 0 ? intCode : fracCode);
+  if (dot >= 0 && !fracCode.replace(/,/g, '')) scale += trailing(intCode);
+  else if (dot >= 0) scale += trailing(intCode);
+  const grouped = /[#0?],+[#0?]/.test(intCode);
+
   let n = value;
   if (percent) n *= 100;
-  if (p.scale) n /= 1000 ** p.scale;
+  if (scale) n /= 1000 ** scale;
 
-  const fixed = Math.abs(n).toFixed(p.maxFrac);
-  let [ints, frac = ''] = fixed.split('.');
+  const intSlots = intCode.replace(/,/g, '').split('');
+  const fracSlots = fracCode.replace(/,/g, '').split('');
+  const [ints, frac] = decimalDigits(Math.abs(n), fracSlots.length);
+  const allZero = /^0*$/.test(ints + frac);
 
-  // trim optional trailing zeros down to the minimum the pattern demands
-  while (frac.length > p.minFrac && frac.endsWith('0')) frac = frac.slice(0, -1);
-  while (ints.length < p.minInt) ints = '0' + ints;
-  if (p.minInt === 0 && ints === '0' && p.maxFrac > 0) ints = '';
+  // Whole part, from the right; digits with no slot left go before the first.
+  const number = ints === '0' ? '' : ints;
+  const out = new Array(intSlots.length).fill('');
+  let d = number.length - 1;
+  for (let i = intSlots.length - 1; i >= 0; i--) {
+    if (d >= 0) out[i] = number[d--];
+    else out[i] = intSlots[i] === '0' ? '0' : intSlots[i] === '?' ? ' ' : '';
+  }
+  const overflow = d >= 0 ? number.slice(0, d + 1).split('') : [];
+  const line = [...overflow, ...out];
+  if (grouped) {
+    let seen = 0;
+    for (let i = line.length - 1; i >= 0; i--) {
+      if (!/\d/.test(line[i])) continue;
+      if (seen > 0 && seen % 3 === 0) line[i] += ',';
+      seen += 1;
+    }
+  }
+  const whole = line.slice(overflow.length);
+  if (overflow.length) {
+    if (whole.length) whole[0] = line.slice(0, overflow.length).join('') + whole[0];
+    else whole.push(line.join(''));
+  }
 
-  if (p.grouped) ints = ints.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return ints + (frac ? '.' + frac : '');
+  // Fraction, from the left; a place past the last digit that matters is left out.
+  let last = frac.length;
+  while (last > 0 && frac[last - 1] === '0' && fracSlots[last - 1] !== '0') last -= 1;
+  const part = fracSlots.map((slot, i) => (i < last ? frac[i] : slot === '0' ? '0' : slot === '?' ? ' ' : ''));
+
+  let wi = 0;
+  let fi = 0;
+  let afterDot = false;
+  const rendered = pieces.map((piece) => {
+    let text = '';
+    for (const c of piece) {
+      if (c === ',') continue;
+      if (c === '.') { if (!afterDot) { text += '.'; afterDot = true; } continue; }
+      if (afterDot) text += part[fi++] ?? '';
+      else text += whole[wi++] ?? '';
+    }
+    return text;
+  });
+  return { rendered, allZero };
+}
+
+/** Renders the MAGNITUDE. The sign is the caller's decision: see formatValue. */
+function renderNumber(value, pattern, opts) {
+  return renderPieces([pattern], value, opts).rendered[0];
 }
 
 const pad = (n, width) => String(n).padStart(width, '0');
 
 function renderDate(value, tokens, { elapsed, hijri = false, lcid = 0 }) {
   // The parts, not a Date: serial 60 is 29 February 1900 here, as in Excel.
-  const gregorian = serialToParts(value);
+  const places = Math.max(0, ...tokens.filter((t) => t.kind === 'date' && /^\.0+$/.test(t.text)).map((t) => t.text.length - 1));
+  // Seconds are rounded to what is shown; a time that rounds to midnight is the next day.
+  const unit = 10 ** places;
+  let wholeDays = Math.floor(value);
+  let clock = Math.round((value - wholeDays) * 86400 * unit) / unit;
+  if (clock >= 86400) { clock -= 86400; wholeDays += 1; }
+  const gregorian = serialToParts(wholeDays);
   // In the Hijri calendar the year, month and day are Hijri's; the weekday is the same day's.
   const h = hijri ? toHijri(gregorian.y, gregorian.m, gregorian.d, lcid) : null;
   const date = h ? { ...gregorian, y: h.y, m: h.m, d: h.d } : gregorian;
   const monthName = (m) => (h ? h.month : MONTHS[m]);
-  const dayFraction = value - Math.floor(value);
-  const totalSeconds = Math.round(dayFraction * 86400);
+  const totalSeconds = Math.floor(clock);
   const hours24 = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   const usesAmPm = tokens.some((t) => t.kind === 'date' && /^(am\/pm|a\/p)$/i.test(t.text));
   const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  let elapsedShown = false;
 
   return tokens.map((t) => {
     if (t.kind !== 'date') return t.kind === 'literal' ? t.text : '';
@@ -323,13 +411,21 @@ function renderDate(value, tokens, { elapsed, hijri = false, lcid = 0 }) {
     if (/^d{3}$/.test(lower)) return DAYS[date.weekday].slice(0, 3);
     if (/^d{2}$/.test(lower)) return pad(date.d, 2);
     if (/^d$/.test(lower)) return String(date.d);
+    if (elapsed && !elapsedShown && lower[0] === elapsed) {
+      elapsedShown = true;
+      const perDay = { h: 24, m: 1440, s: 86400 }[elapsed];
+      const total = Math.floor((wholeDays * 86400 + totalSeconds) / (86400 / perDay));
+      return raw.length > 1 ? pad(total, raw.length) : String(total);
+    }
     if (/^h+$/.test(lower)) {
-      if (elapsed) return String(Math.floor(value * 24));
       const h = usesAmPm ? hours12 : hours24;
       return raw.length > 1 ? pad(h, 2) : String(h);
     }
     if (/^s+$/.test(lower)) return raw.length > 1 ? pad(seconds, 2) : String(seconds);
-    if (/^\.0+$/.test(lower)) return '.' + pad(0, raw.length - 1);
+    if (/^\.0+$/.test(lower)) {
+      const shown = Math.round((clock - totalSeconds) * 10 ** (raw.length - 1));
+      return '.' + pad(shown, raw.length - 1);
+    }
     if (/^m+$/.test(lower)) {
       if (t.meaning === 'minute') return raw.length > 1 ? pad(minutes, 2) : String(minutes);
       if (raw.length === 5) return monthName(date.m)[0];
@@ -446,7 +542,9 @@ export function formatValue(value, code = 'General') {
 
   if (!isNumber) {
     // Text uses the fourth section when present, otherwise renders as-is.
-    const textSection = sections.length >= 4 ? sections[3] : null;
+    // or a last section that says where the text goes.
+    const lastOne = sections[sections.length - 1];
+    const textSection = sections.length >= 4 ? sections[3] : tokenize(extractDirectives(lastOne).body).some((t) => t.kind === 'text') ? lastOne : null;
     if (!textSection) return { text: String(value), colour: null, align: 'left' };
     const { body, colour } = extractDirectives(textSection);
     const rendered = tokenize(body)
@@ -455,23 +553,18 @@ export function formatValue(value, code = 'General') {
     return { text: rendered, colour, align: 'left' };
   }
 
-  // Which section applies: positive / negative / zero.
-  let section;
-  if (sections.length === 1) section = sections[0];
-  else if (sections.length === 2) section = value < 0 ? sections[1] : sections[0];
-  else section = value > 0 ? sections[0] : value < 0 ? sections[1] : sections[2];
-
+  const { section, implied, matched } = chooseSection(sections, value);
   const { body, colour, elapsed, condition, digits, hijri, lcid } = extractDirectives(section);
   // Whatever the section writes, in the digits its code names.
   const out = (text) => ({ text: inDigits(text, digits), colour, align: 'right' });
-  if (condition && !testCondition(value, condition)) {
-    // a conditional section that does not apply falls back to General
-    return out(formatNumber(value));
-  }
+  // A section with only a condition that does not hold shows the plain number.
+  if (!matched) return out(formatNumber(value));
+  // A negative in the negative section has its sign in the code: -500 in
+  // `(#,##0)` is (500). So does a condition that only negatives can meet.
+  const formatSuppliesSign = implied === 'negative' || Boolean(condition && (condition.op === '<' || condition.op === '<=') && condition.value <= 0);
 
   const trimmed = body.trim();
   if (trimmed === '' ) return { text: '', colour, align: 'right' };
-  if (/^general$/i.test(trimmed)) return out(formatNumber(value));
 
   if (isDateFormat(body)) {
     const tokens = classifyMonthMinute(tokenize(body));
@@ -479,39 +572,59 @@ export function formatValue(value, code = 'General') {
   }
 
   if (SCIENTIFIC.test(body.trim())) {
-    const sign = sections.length > 1 || value >= 0 ? '' : '-';
+    const sign = formatSuppliesSign || value >= 0 ? '' : '-';
     return out(sign + renderScientific(Math.abs(value), body));
   }
 
   if (FRACTION.test(body.trim())) {
-    const sign = sections.length > 1 || value >= 0 ? '' : '-';
+    const sign = formatSuppliesSign || value >= 0 ? '' : '-';
     return out(sign + renderFraction(Math.abs(value), body));
   }
 
   const tokens = tokenize(body);
   const percent = tokens.some((t) => t.kind === 'percent');
-  // The negative section formats the absolute value; its sign comes from the
-  // literal text in the format, so -500 with `(#,##0)` is "(500)" not "(-500)".
-  const formatSuppliesSign = sections.length > 1;
+  if (/^general$/i.test(trimmed) && value < 0 && formatSuppliesSign) return out(formatNumber(-value));
+  if (/^general$/i.test(trimmed)) return out(formatNumber(value));
   const magnitude = Math.abs(value);
-  const sign = !formatSuppliesSign && value < 0 ? '-' : '';
-  let numberRendered = false;
-
+  const pieces = tokens.filter((t) => t.kind === 'number').map((t) => t.text);
+  const { rendered, allZero } = pieces.length ? renderPieces(pieces, magnitude, { percent }) : { rendered: [], allZero: false };
+  // A value that rounds to nothing has no sign: -0.001 in 0.00 is 0.00.
+  const sign = !formatSuppliesSign && value < 0 && !allZero ? '-' : '';
+  let piece = 0;
   const text = tokens.map((t) => {
-    if (t.kind === 'number') {
-      numberRendered = true;
-      return renderNumber(magnitude, t.text, { percent });
-    }
+    if (t.kind === 'number') return rendered[piece++];
     if (t.kind === 'percent') return '%';
     if (t.kind === 'literal') return t.text;
-    if (t.kind === 'text') return formatNumber(magnitude);
+    if (t.kind === 'text' || t.kind === 'general') return formatNumber(magnitude);
     return '';
   }).join('');
-
-  // A section with no numeric placeholder renders only its literals — that is
-  // how `#,##0;(#,##0);"-"` shows a dash for zero rather than "-0".
-  void numberRendered;
   return out(sign + text);
+}
+
+/**
+ * Which section of a code a number takes. Without conditions: positive and
+ * zero; negative; or positive, negative, zero. With them, each in turn, and a
+ * last section with none takes whatever is left.
+ */
+function chooseSection(sections, value) {
+  const numeric = sections.slice(0, 3);
+  const conditions = numeric.map((x) => extractDirectives(x).condition);
+  if (!conditions.some(Boolean)) {
+    if (numeric.length === 1) return { section: numeric[0], matched: true };
+    if (value < 0) return { section: numeric[1], implied: 'negative', matched: true };
+    if (numeric.length === 2 || value > 0) return { section: numeric[0], matched: true };
+    return { section: numeric[2], matched: true };
+  }
+  for (let i = 0; i < numeric.length; i++) {
+    if (!conditions[i]) {
+      if (i === numeric.length - 1) return { section: numeric[i], matched: true };
+      if (i === 1 && value < 0) return { section: numeric[i], implied: 'negative', matched: true };
+      if (i === 0 && value > 0) return { section: numeric[i], matched: true };
+      continue;
+    }
+    if (testCondition(value, conditions[i])) return { section: numeric[i], matched: true };
+  }
+  return { section: numeric[numeric.length - 1], matched: false };
 }
 
 function testCondition(value, { op, value: threshold }) {

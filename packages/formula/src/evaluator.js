@@ -36,9 +36,13 @@ export class Lambda {
 }
 const MAX_COLS = 16384;
 
+/** Above this many cells a range is cut to the cells in use; below it, it keeps its shape. */
+const CLIP_ABOVE = 200000;
+
 /** Clip whole-column/row ranges to what the sheet actually uses. */
 function clip(resolver, sheet, start, end) {
-  const used = resolver.usedBounds ? resolver.usedBounds(sheet) : null;
+  // The whole workbook's extent, so two whole columns on different sheets stay the same length.
+  const used = resolver.widestBounds ? resolver.widestBounds() : resolver.usedBounds ? resolver.usedBounds(sheet) : null;
   const maxRow = used ? used.maxRow : 1000;
   const maxCol = used ? used.maxCol : 100;
   // Clipping trims a range that runs PAST the used cells; it must never pull
@@ -120,12 +124,20 @@ export function evaluate(ast, resolver, context = {}) {
       case 'cell': {
         const sheet = node.sheet ?? ctx.sheet;
         if (node.row < 0 || node.col < 0) return ERR.REF();
+        if (resolver.hasSheet?.(sheet) === false) return ERR.REF('there is no sheet called ' + sheet);
         return resolver.getCell(sheet, node.row, node.col);
       }
 
       case 'range': {
         const sheet = node.sheet ?? node.start.sheet ?? ctx.sheet;
-        const bounds = clip(resolver, sheet, node.start, node.end);
+        if (resolver.hasSheet?.(sheet) === false) return ERR.REF('there is no sheet called ' + sheet);
+        // ROWS(A1:A100), COUNTBLANK and a range from another sheet need the
+        // range as written, whatever is in use; only a vast one is cut, and
+        // what it was is kept on the grid for those that ask.
+        const rows = Math.abs(node.end.row - node.start.row) + 1;
+        const cols = Math.abs(node.end.col - node.start.col) + 1;
+        const cut = rows * cols > CLIP_ABOVE;
+        const bounds = cut ? clip(resolver, sheet, node.start, node.end) : node;
         // A range written backwards (B2:A1) is normalised, as a spreadsheet does.
         const start = {
           row: Math.min(bounds.start.row, bounds.end.row),
@@ -135,7 +147,9 @@ export function evaluate(ast, resolver, context = {}) {
           row: Math.max(bounds.start.row, bounds.end.row),
           col: Math.max(bounds.start.col, bounds.end.col),
         };
-        return resolver.getRange(sheet, start, end);
+        const grid = resolver.getRange(sheet, start, end);
+        if (cut && Array.isArray(grid)) grid.full = { rows, cols };
+        return grid;
       }
 
       // An array constant, as a grid of values. A row shorter than the widest
@@ -340,7 +354,13 @@ export function evaluate(ast, resolver, context = {}) {
       case '*': return a * b;
       case '/': return b === 0 ? ERR.DIV0() : a / b;
       case '^': {
-        const r = a ** b;
+        if (a === 0 && b === 0) return ERR.NUM('0^0');
+        let r = a ** b;
+        // A root of a negative number is real when the root is odd: (-8)^(1/3).
+        if (a < 0 && !Number.isInteger(b)) {
+          const root = Number((1 / b).toPrecision(15));
+          if (Number.isInteger(root) && root % 2 !== 0) r = -((-a) ** b);
+        }
         return Number.isFinite(r) ? r : ERR.NUM();
       }
       default: return ERR.VALUE('unknown operator ' + op);
@@ -348,6 +368,8 @@ export function evaluate(ast, resolver, context = {}) {
   }
 
   function applyUnary(op, value) {
+    // A plus sign changes nothing, not even text: =+"x" is x.
+    if (op === '+') return value;
     const n = toNumber(value);
     if (isError(n)) return n;
     if (op === '%') return n / 100;
@@ -483,13 +505,18 @@ export function evaluate(ast, resolver, context = {}) {
       if (node.args.length < 1 || node.args.length > 2) {
         return ERR.VALUE('INDIRECT takes 1 or 2 arguments');
       }
+      let r1c1 = false;
       if (node.args[1] !== undefined) {
         const a1 = toBoolean(scalar(evalNode(node.args[1])));
         if (isError(a1)) return a1;
-        if (a1 === false) return ERR.REF('R1C1-style references are not supported');
+        r1c1 = a1 === false;
       }
-      const text = toText(scalar(evalNode(node.args[0])));
+      let text = toText(scalar(evalNode(node.args[0])));
       if (isError(text)) return text;
+      if (r1c1) {
+        text = r1c1ToA1(text, ctx);
+        if (text === null) return ERR.REF('that is not an R1C1 reference');
+      }
       let refAst;
       try {
         refAst = parse('=' + text);
@@ -497,6 +524,9 @@ export function evaluate(ast, resolver, context = {}) {
         return ERR.REF('"' + text + '" is not a reference');
       }
       if (refAst.type !== 'cell' && refAst.type !== 'range' && refAst.type !== 'name') {
+        return ERR.REF('"' + text + '" is not a reference');
+      }
+      if (refAst.type === 'name' && !bindings.has(String(refAst.name).toUpperCase()) && !resolver.getName?.(refAst.name)) {
         return ERR.REF('"' + text + '" is not a reference');
       }
       // Evaluated as if the formula had contained the reference itself, so
@@ -540,16 +570,19 @@ export function evaluate(ast, resolver, context = {}) {
     // out hidden rows too — 1–11 the rows a filter hides, 101–111 every
     // hidden row. Only the AST still knows which cells a range covers, so it
     // is done here.
-    if (node.name === 'SUBTOTAL' && node.args.length >= 2 && (resolver.isSubtotalCell || resolver.rowHidden)) {
+    const isAggregate = node.name === 'AGGREGATE' && node.args.length >= 3;
+    if ((node.name === 'SUBTOTAL' || isAggregate) && node.args.length >= 2 && (resolver.isSubtotalCell || resolver.rowHidden)) {
       const args = [evalNode(node.args[0])];
-      const which = Math.trunc(Number(scalar(args[0])));
-      const everyHidden = which >= 101 && which <= 111;
+      if (isAggregate) args.push(evalNode(node.args[1]));
+      const which = Math.trunc(Number(scalar(args[isAggregate ? 1 : 0])));
+      const everyHidden = isAggregate ? [1, 3, 5, 7].includes(which) : which >= 101 && which <= 111;
       const hiddenRow = (sheet, row) => {
         const why = resolver.rowHidden?.(sheet, row);
-        return Boolean(why) && (everyHidden || why === 'filter');
+        return Boolean(why) && (everyHidden || (!isAggregate && why === 'filter'));
       };
-      const left = (sheet, row, col) => Boolean(resolver.isSubtotalCell?.(sheet, row, col)) || hiddenRow(sheet, row);
-      for (const a of node.args.slice(1)) {
+      const nested = !isAggregate || which <= 3;
+      const left = (sheet, row, col) => (nested && Boolean(resolver.isSubtotalCell?.(sheet, row, col))) || hiddenRow(sheet, row);
+      for (const a of node.args.slice(isAggregate ? 2 : 1)) {
         if (a.type === 'range') {
           const sheet = a.sheet ?? a.start.sheet ?? ctx.sheet;
           const bounds = clip(resolver, sheet, a.start, a.end);
@@ -558,17 +591,17 @@ export function evaluate(ast, resolver, context = {}) {
           const grid = resolver.getRange(sheet, { row: top, col: left0 }, {
             row: Math.max(bounds.start.row, bounds.end.row), col: Math.max(bounds.start.col, bounds.end.col),
           });
-          args.push(grid.map((line, i) => line.map((v, j) => (left(sheet, top + i, left0 + j) ? '' : v))));
+          args.push(grid.map((line, i) => line.map((v, j) => (left(sheet, top + i, left0 + j) ? null : v))));
         } else if (a.type === 'cell' && left(a.sheet ?? ctx.sheet, a.row, a.col)) {
-          args.push('');
+          args.push(null);
         } else {
           args.push(evalNode(a));
         }
       }
-      const e = firstError(args);
+      const e = isAggregate ? null : firstError(args);
       if (e) return e;
       try {
-        return FUNCTIONS.SUBTOTAL.fn(...args);
+        return FUNCTIONS[node.name].fn(...args);
       } catch (err) {
         return isError(err) ? err : ERR.VALUE(err.message);
       }
@@ -587,7 +620,12 @@ export function evaluate(ast, resolver, context = {}) {
       }
     }
 
-    const args = node.args.map((a) => scalarOrArray(evalNode(a)));
+    // Text and TRUE in a cell an aggregate is pointed at are not counted, as
+    // in a range, though typed straight into the formula they are.
+    const args = node.args.map((a) => {
+      const v = scalarOrArray(evalNode(a));
+      return entry.refsAsRanges && a.type === 'cell' ? [[v]] : v;
+    });
     // A function that shapes arrays passes an error inside one on as an
     // element (`keepsErrors`) and answers for its own scalar arguments.
     if (!entry.wantsContext && !entry.keepsErrors) {
@@ -625,7 +663,7 @@ export function evaluate(ast, resolver, context = {}) {
       }
       case 'REDUCE':
       case 'SCAN': {
-        const [initial, array] = lead.length >= 2 ? lead : ['', lead[0]];
+        const [initial, array] = lead.length >= 2 ? lead : [null, lead[0]];
         if (array === undefined) return ERR.VALUE(node.name + ' needs an array');
         const g = to2d(array);
         let acc = initial;
@@ -670,6 +708,26 @@ export function evaluate(ast, resolver, context = {}) {
   } catch (e) {
     return isError(e) ? e : ERR.VALUE(e.message ?? String(e));
   }
+}
+
+/**
+ * An R1C1 reference as A1, or null: R2C3, R[-1]C, R1C1:R2C2, Sheet!R1C1. A
+ * bracket counts from the formula's own cell.
+ */
+function r1c1ToA1(text, ctx) {
+  const bang = String(text).lastIndexOf('!');
+  const prefix = bang >= 0 ? String(text).slice(0, bang + 1) : '';
+  const body = bang >= 0 ? String(text).slice(bang + 1) : String(text);
+  const one = (part) => {
+    const m = /^R(\[-?\d+\]|\d+)?C(\[-?\d+\]|\d+)?$/i.exec(part);
+    if (!m) return null;
+    const at = (t, here) => (t === undefined ? here : t[0] === '[' ? here + Number(t.slice(1, -1)) : Number(t) - 1);
+    const row = at(m[1], ctx.row ?? 0);
+    const col = at(m[2], ctx.col ?? 0);
+    return row < 0 || col < 0 ? null : indexToCol(col) + (row + 1);
+  };
+  const parts = body.split(':').map(one);
+  return parts.some((p) => p === null) || parts.length > 2 ? null : prefix + parts.join(':');
 }
 
 /** The functions that call a LAMBDA once for each value. */
