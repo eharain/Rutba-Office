@@ -131,8 +131,8 @@ node tools/fuzz-pdf.js 300 <seed>
 4. `git push origin main dev v<version>`.
 5. The tag starts `.github/workflows/release.yml`, which runs the engine
    suite on Windows, builds the installer and the portable executable, and
-   publishes them with the note (`tools/publish-release.js`). Watch it to
-   the end (`gh run watch`) and look at the release's files
+   leaves them with the note in a draft (`tools/publish-release.js`). Watch
+   it to the end (`gh run watch`) and look at the draft's files
    (`gh release view v<version>`): the installer, the portable executable,
    `latest.yml` and the blockmap.
 
@@ -140,17 +140,31 @@ node tools/fuzz-pdf.js 300 <seed>
    feed leaves out. Every file is uploaded to it, then `latest.yml` is read
    back from the release and held to the files (its version the tag's,
    each file it names uploaded at the size it says with the SHA-512 of the
-   file built, the installer's blockmap beside it), and only then is it
-   published. A run that fails leaves the draft: run the workflow again
-   (or `node tools/publish-release.js v<version>` on the build machine)
-   and it finds the draft, uploads what is missing and checks again.
+   file built, the installer's blockmap beside it). A run that fails leaves
+   the draft: run the workflow again and it finds the draft, uploads what
+   is missing and checks again.
+
+   **Signing and publishing, on the release PC only.** With
+   `RUTBA_UPDATE_KEY_FILE` pointing at the update key:
+
+   ```
+   node tools/publish-release.js v<version> --sign
+   ```
+
+   It reads each installer back from the draft, holds it to `latest.yml`,
+   signs it, uploads the `.sig` beside it and publishes. An installed copy
+   installs nothing without a good `.sig`
+   (`apps/desktop/main/update-signature.js`). The key is never put in
+   Actions or in any repository. There are two keys, and each copy accepts
+   either: losing both means no copy can update again, so both are backed
+   up away from this PC. A release can be signed again if a `.sig` is lost.
 
    Steps 3 and 4 can leave the tag out: push `main` and `dev`, then
    `gh workflow run release.yml --ref main`. The release then makes the
-   tag itself, at the commit it built, when it publishes, so the tag never
-   exists without its files. A pushed tag still starts the workflow as
-   before; the release stays a draft until its files are checked either way.
-   When it has published, `.github/workflows/upgrade.yml` runs by itself
+   tag itself, at the commit it built, when `--sign` publishes it, so the
+   tag never exists without its files. A pushed tag still starts the
+   workflow as before; the release stays a draft until it is signed either
+   way. When it has published, `.github/workflows/upgrade.yml` runs by itself
    (see **The upgrade test**); its four jobs must pass.
 6. The site (Rutba-Management) is brought to the release in the same sitting:
    `npm run import:releases`, then `npm run check:facts`, there.

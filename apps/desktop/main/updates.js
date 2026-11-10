@@ -30,9 +30,10 @@
 // and `seen` puts the card away everywhere. While a download runs, every
 // window's status bar counts it and the taskbar button shows it.
 
-import { app } from 'electron';
+import { app, net } from 'electron';
 import { isSnoozed, snoozeFor } from './update-snooze.js';
 import { updateErrorKind } from './update-error.js';
+import { guardDownloads, signatureAddress } from './update-signature.js';
 
 export const FEED = { provider: 'github', owner: 'eharain', repo: 'Rutba-Office' };
 const SIX_HOURS = 6 * 60 * 60 * 1000;
@@ -130,7 +131,19 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
     updater = mod.autoUpdater ?? mod.default?.autoUpdater;
 
     updater.autoDownload = true;
-    updater.autoInstallOnAppQuit = true;
+    // Automatic updates turned off means nothing is installed unasked, a download already made included.
+    updater.autoInstallOnAppQuit = enabled();
+    // Only Windows goes through this door; a Windows copy installs nothing the makers did not sign.
+    if (process.platform === 'win32') {
+      guardDownloads(updater, {
+        current: () => updater.updateInfoAndProvider?.info ?? info,
+        fetchSignature: async ({ version, file }) => {
+          const response = await net.fetch(signatureAddress({ owner: FEED.owner, repo: FEED.repo, version, file }));
+          if (!response.ok) throw new Error(`${response.status}`);
+          return response.text();
+        },
+      });
+    }
     // Releases up to 2.24.0 were published as pre-releases, so the newest entry
     // in the feed is what a copy follows, whichever kind it is.
     updater.allowPrerelease = true;
@@ -239,6 +252,7 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
     },
     setAutomatic: ({ on }) => {
       stores.settings.set('updates.automatic', Boolean(on));
+      if (updater) updater.autoInstallOnAppQuit = Boolean(on);
       if (on && app.isPackaged) {
         state = 'idle';
         check().catch(() => {});

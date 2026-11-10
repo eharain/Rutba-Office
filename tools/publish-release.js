@@ -29,7 +29,11 @@
 //      the tag's, every file it names uploaded, at the size it says, with the
 //      SHA-512 of the file that was built, and each installer's blockmap
 //      beside it. Anything wrong stops here, and the draft stays a draft;
-//   4. published, as a full release, so GitHub shows it as the latest.
+//   4. left as a draft, which is what a build does here. Then, on the release
+//      PC and only there, `node tools/publish-release.js <tag> --sign` with
+//      RUTBA_UPDATE_KEY_FILE set reads each installer back from the draft,
+//      holds it to the feed, signs it, and publishes (signAndPublish). The key
+//      is not in Actions, so a stolen token can make a draft and no more.
 //
 // A release already published (made before this, or by hand) is not taken
 // back to a draft: what is missing is uploaded to it and it is checked the same way.
@@ -37,9 +41,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { unwrapNotes, mentionsIn } from './release-notes.js';
+import { UPDATE_KEYS, signedWords, signatureHolds } from '../apps/desktop/main/update-signature.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OWNER = 'eharain';
@@ -136,7 +142,7 @@ export function checkFeed({ name, feed, tag, uploaded, local }) {
  * The release, made and published as the header says. `client` is GitHub
  * (githubClient below), or the engine tests' stand-in for it.
  */
-export async function publishRelease({ client, dir, tag, notes, commit = null, prerelease = false, log = console.log }) {
+export async function publishRelease({ client, dir, tag, notes, commit = null, prerelease = false, leaveDraft = false, log = console.log }) {
   if (!fs.existsSync(dir)) throw new Error(`nothing built: ${dir} does not exist`);
   const assets = releaseAssets(fs.readdirSync(dir), tag);
   if (!assets.length) throw new Error('no release artefacts found: run npm run dist first');
@@ -207,11 +213,59 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
   log(`\nchecked: ${assets.length} files uploaded at their sizes; the update feed matches them`);
 
   // 4. Published: from here the updater's feed and the releases page show it.
-  if (release.draft) {
+  if (release.draft && leaveDraft) {
+    log(`left as draft #${release.id}: it is signed and published with --sign on the release PC`);
+  } else if (release.draft) {
     release = await client.updateRelease(release, { draft: false, tag_name: tag, ...(commit ? { target_commitish: commit } : {}) });
     log(`published release #${release.id}`);
   }
   log(`\n${release.html_url}`);
+  return release;
+}
+
+/**
+ * Signs what is in the draft and publishes it. `sign` turns the words into
+ * the text of a .sig file; the key stays with whoever calls this. Nothing is
+ * taken from this disk: what is signed is what people will download.
+ */
+export async function signAndPublish({ client, tag, sign, keys = UPDATE_KEYS, log = console.log }) {
+  const version = tag.replace(/^v/, '');
+  let release = (await client.listReleases()).find((r) => r.tag_name === tag) || null;
+  if (!release) throw new Error(`there is no release for ${tag} to sign`);
+  const listed = await client.listAssets(release);
+  const byName = new Map(listed.map((a) => [a.name, a]));
+  const uploaded = new Map(listed.filter((a) => a.state === 'uploaded').map((a) => [a.name, a.size]));
+  const feedAsset = byName.get('latest.yml');
+  if (!feedAsset) throw new Error('the release has no latest.yml');
+  const feed = parseFeed((await client.downloadAsset(release, feedAsset)).toString('utf8'));
+  const problems = checkFeed({ name: 'latest.yml', feed, tag, uploaded, local: new Map() });
+  if (problems.length) throw new Error(`the release's files do not agree: ${problems.join('; ')}`);
+  const installers = feed.files.filter((f) => /\.exe$/i.test(String(f.url)));
+  if (!installers.length) throw new Error('latest.yml names no installer');
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-sign-'));
+  try {
+    for (const f of installers) {
+      const file = decodeURIComponent(String(f.url)).split('/').pop();
+      const sha512 = sha512Of(await client.downloadAsset(release, byName.get(file)));
+      if (sha512 !== f.sha512) throw new Error(`${file} in the release is not what latest.yml says it is`);
+      const words = signedWords({ version, file, sha512 });
+      const text = sign(words);
+      if (!signatureHolds(words, text, keys)) throw new Error(`this key is not one the program trusts, so installed copies would refuse ${file}`);
+      const name = `${file}.sig`;
+      if (byName.has(name)) await client.deleteAsset(release, byName.get(name));
+      const out = path.join(scratch, name);
+      fs.writeFileSync(out, `${text}\n`);
+      await client.uploadAsset(release, name, out, fs.statSync(out).size);
+      log(`signed ${file}`);
+    }
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+  if (release.draft) {
+    release = await client.updateRelease(release, { draft: false, tag_name: tag });
+    log(`published release #${release.id}`);
+  }
+  log(release.html_url);
   return release;
 }
 
@@ -341,7 +395,9 @@ function notesFor(forTag) {
 }
 
 async function main() {
-  const tag = process.argv[2] || `v${JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version}`;
+  const args = process.argv.slice(2);
+  const signing = args.includes('--sign');
+  const tag = args.find((a) => !a.startsWith('--')) || `v${JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version}`;
   // The file is wrapped for editors; the release page breaks a line wherever
   // the body does, so each paragraph goes up as one line (release-notes.js).
   const written = notesFor(tag);
@@ -355,7 +411,15 @@ async function main() {
   if (mentioned.length) {
     throw new Error(`docs/releases/${tag}.md mentions ${mentioned.join(', ')} on GitHub, which would list them as the release's contributors and notify them. Put each in backticks, as code.`);
   }
+  if (signing) {
+    const keyFile = process.env.RUTBA_UPDATE_KEY_FILE;
+    if (!keyFile || !fs.existsSync(keyFile)) throw new Error('Set RUTBA_UPDATE_KEY_FILE to the update key on the release PC.');
+    const key = crypto.createPrivateKey(fs.readFileSync(keyFile));
+    await signAndPublish({ client: githubClient(credential()), tag, sign: (words) => crypto.sign(null, Buffer.from(words, 'utf8'), key).toString('base64') });
+    return;
+  }
   await publishRelease({
+    leaveDraft: true,
     client: githubClient(credential()),
     dir: path.join(root, 'apps', 'desktop', 'release'),
     tag,

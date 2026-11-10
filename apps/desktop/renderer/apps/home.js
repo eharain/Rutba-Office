@@ -582,6 +582,7 @@ function updateSentence(update) {
       if (update.errorKind === 'publishing') return t('A new release is still being published. This copy is fine as it is; check again in a few minutes.');
       if (update.errorKind === 'offline') return t('The check could not reach GitHub, where the releases are kept. Check your connection and try again.');
       if (update.errorKind === 'refused') return t('GitHub turned the check away for now. Try again in an hour.');
+      if (update.errorKind === 'unsigned') return t('An update was downloaded but its signature did not check out, so it was not installed. This copy is fine as it is.');
       return t('The last check did not complete: {error}', { error: update.error });
     default:
       return t('No check has run yet. This build contacts nothing on its own.');

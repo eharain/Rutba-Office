@@ -1,8 +1,10 @@
-# Builds the Windows installers on a Windows runner and publishes them as a
-# release on GitHub, using the repository's own token, the same
-# tools/publish-release.js the owner runs by hand, so the release body comes
-# from docs/releases/<tag>.md and the update feed (latest.yml) and the
-# blockmap go up with the installers.
+# Builds the Windows installers on a Windows runner and leaves them as a draft
+# release on GitHub, using the repository's own token and
+# tools/publish-release.js, so the release body comes from
+# docs/releases/<tag>.md and the update feed (latest.yml) and the blockmap go
+# up with the installers. A draft is seen by nobody. It is signed and published
+# from the release PC (--sign), so the key that installed copies trust is never
+# on this runner.
 #
 # Run it from the Actions tab (workflow_dispatch) on the branch to release;
 # the tag is v<version> from package.json, created by the release if it is
@@ -57,7 +59,7 @@ jobs:
       # Beside the installers, so it goes up with them (docs/REPRODUCIBLE.md).
       - name: The software bill of materials
         run: node tools/sbom.mjs
-      - name: Publish the release
+      - name: Leave the release as a draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node tools/publish-release.js

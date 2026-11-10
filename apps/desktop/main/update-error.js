@@ -9,11 +9,13 @@
  * cut short, for somebody who wants to report it.
  */
 
-/** @returns {{ kind: 'publishing'|'offline'|'refused'|'other', detail: string }} */
+/** @returns {{ kind: 'publishing'|'offline'|'refused'|'unsigned'|'other', detail: string }} */
 export function updateErrorKind(message) {
   const text = String(message || '');
   const first = text.split(/\r?\n/)[0].replace(/\s+/g, ' ').trim();
   const detail = first.length > 160 ? `${first.slice(0, 157)}...` : first;
+  // Ours to say plainly, ahead of anything else in the message.
+  if (/not signed by|signature of this update|does not say what it is/i.test(text)) return { kind: 'unsigned', detail };
   // A release whose tag is out before its files: the newest one is still
   // being published, and the copy already installed is fine as it is.
   if (/latest(-\w+)?\.yml/i.test(text) && /\b404\b|Cannot find/i.test(text)) return { kind: 'publishing', detail };
