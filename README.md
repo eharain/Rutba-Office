@@ -11,12 +11,12 @@ takes one away, whenever you want. Each app is a pack signed for its release.
 
 | | | |
 |---|---|---|
-| **Mail** | Every account, every archive, one inbox | An address and a password — the servers are found from the domain's own records — with sign-in to Gmail, Outlook.com and Microsoft 365, or a file of accounts set up at once; plus the archives other clients leave behind — Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg`. Names the trackers in a message, and offers the way off the list |
+| **Mail** | Every account, every archive, one inbox | An address and a password (the servers are found from the domain's own records), with sign-in to Gmail, Outlook.com and Microsoft 365, or a file of accounts set up at once; plus the archives other clients leave behind: Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg`. Names the trackers in a message, and offers the way off the list |
 | **Calendar** | Meetings, kept on your own machine | Month, week, day and agenda; `.ics` in and out, repeats and time zones included; an invitation in a message answered from Mail, with a reply the organizer's calendar understands |
 | **Contacts** | The address book Mail completes from | `.vcf` and CSV in, vCards out; a sender kept from the reading pane in one click |
-| **Documents** | Documents that open the same everywhere, laid out on pages | `.docx` on an engine we own, opening and saving `.odt`, `.rtf` and web pages whole, reading `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
+| **Documents** | Documents that open the same everywhere, laid out on pages | `.docx` on an engine we own, opening and saving `.odt`, `.rtf` and web pages whole, reading `.doc` and text, and a GitHub-flavoured Markdown editor that gives a README back unchanged |
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.xls` of every age, `.ods` and `.csv`, and old files to save as `.xlsx`: Lotus 1-2-3, dBASE and FoxPro tables, Access databases (read only), SYLK and DIF |
-| **Presentations** | Slides that survive the round trip, shapes you move and recolour by hand | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen; reading `.ppt` and `.odp` |
+| **Presentations** | Slides that survive the round trip, shapes you move and recolour by hand | `.pptx` read, edited, rendered and presented, with pictures and shapes on a slide, speaker notes, and a presenter view for the other screen; reading `.ppt` and `.odp` |
 | **PDF** | Pages put in order, without redrawing them | Read, find and copy; reorder, rotate, delete, extract, insert, split and merge, each page copied into the new file exactly as it was; Recognise Text makes scanned pages searchable with an invisible text layer; pages drawn by pdf.js, offline |
 | **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn; star ratings and tags kept on this computer, a search through the folders inside, and a whole folder resized, converted and renamed in one go; Copy Text from Picture reads the words in a photo or scan |
 | **Image** | Crop, correct, select, paint, layer, export | Levels, curves, white balance, straighten; selections, brushes, clone and heal, masks and perspective; layers with blend modes and adjustments, saved as a project; Edit in Image from the other apps; non-destructive, so your original is never touched |
@@ -27,14 +27,14 @@ takes one away, whenever you want. Each app is a pack signed for its release.
 | **Data Files** | Tables of records, related to each other, in one file | A table and its design (text, numbers, currency, dates, yes/no; required, unique, a default), records a page at a time, relationships the file keeps, queries designed with criteria and totals or written in SQL, forms made by a wizard, reports grouped with totals to print or save as PDF, ready-made databases to start from, a recipient list for Documents' mail merge, and imports from CSV and the old files Worksheets reads; one `.rbase` SQLite file, and any SQLite database opens too |
 | **Locker** | Folders only you can open, encrypted where they are | Files locked one by one in place with AES-256-GCM; open with a password, a recovery key or Windows Hello; lock and unlock by hand; send one file with a password of its own. First version: no outside security review yet, and English only |
 
-Dual-licensed: **GNU AGPL v3.0**, or a commercial licence — see
+Dual-licensed: **GNU AGPL v3.0**, or a commercial licence. See
 [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
 
 ## Video
 
 [![Rutba Office: free office apps for Windows, no account needed](https://raw.githubusercontent.com/eharain/Rutba-Office/main/docs/media/video-thumbnail.jpg)](https://www.youtube.com/watch?v=vPo8xXONjjk)
 
-A 1:40 introduction on YouTube, with English captions.
+A 1:40 introduction on YouTube, with English captions. It was made when the suite had ten apps; there are fifteen now.
 
 ---
 
@@ -47,12 +47,12 @@ privacy, your old mail, or your patience. This asks for none of those.
   afterthought. So are the mail archives you have been carrying between
   computers for fifteen years.
 - **It works offline.** No account, no telemetry, nothing to sign up for. It
-  makes exactly two requests of its own — an update check, and one announcement
-  check a day — and both are switches. Unplug the machine and everything in the
+  makes exactly two requests of its own, an update check and one announcement
+  check a day, and both are switches. Unplug the machine and everything in the
   list above still works.
 - **It does not damage your files.** The engine rewrites only the parts of a
-  document it deliberately edited; everything else — charts, pivot caches,
-  macros, signatures, embedded media — is returned byte-for-byte as it arrived.
+  document it deliberately edited; everything else (charts, pivot caches,
+  macros, signatures, embedded media) is returned byte-for-byte as it arrived.
 - **The source is published.** Under the AGPL, which means you can read it,
   change it and share it.
 
@@ -82,18 +82,18 @@ The Windows builds are not code-signed, so SmartScreen warns on first run.
 That warning is telling you the truth: Windows cannot name a publisher for an
 unsigned file. This note will change when a signed release ships.
 
-Privacy policy: Rutba Office collects no user data at all — see [Privacy](#privacy)
+Privacy policy: Rutba Office collects no user data at all. See [Privacy](#privacy)
 below.
 
 The Windows installer keeps **one copy** of Rutba Office on a machine: it
-removes whatever version is already installed — for this user or for all
-users, in whichever directory — before it installs, and it does the same when
+removes whatever version is already installed, for this user or for all
+users, in whichever directory, before it installs, and it does the same when
 an installed copy updates itself. Your documents and settings stay where they
 are. The portable build installs nothing and is not counted.
 
 Once Rutba Office is the default, each kind of file wears the icon of the
-app that opens it — a document, a workbook, a deck, a picture, a video, a
-message and a PDF each look like what they are in Explorer — and on
+app that opens it (a document, a workbook, a deck, a picture, a video, a
+message and a PDF each look like what they are in Explorer), and on
 Windows each app's windows carry that app's tile and sit under their own
 taskbar icon, so Documents and Worksheets can be pinned and opened on their own.
 
@@ -112,8 +112,8 @@ https://github.com/eharain/Rutba-Office/releases/download/v<version>/Rutba-Offic
 https://github.com/eharain/Rutba-Office/releases/download/v<version>/Rutba-Office-<version>-linux-x86_64.AppImage
 ```
 
-Each release also carries `latest.yml`, `latest-mac.yml` and `latest-linux.yml`
-— the feeds the installed application reads to find a newer version. They are
+Each release also carries `latest.yml`, `latest-mac.yml` and `latest-linux.yml`,
+the feeds the installed application reads to find a newer version. They are
 generated by the build; a release published without them leaves existing
 installations on the version they have.
 
@@ -130,13 +130,13 @@ npm run dev       # run the app, rebuilding the window's code on every save
 npm run dist      # installers for this platform, into apps/desktop/release
 ```
 
-Node 20 or later. Nothing else — no Python, no C++ toolchain, no native modules.
+Node 20 or later. Nothing else: no Python, no C++ toolchain, no native modules.
 
 ## What is in the repository
 
 ```
 packages/
-  ooxml            the preserving .xlsx/.docx package layer — the engine core
+  ooxml            the preserving .xlsx/.docx package layer, the engine core
   formula          spreadsheet calculation: parser, evaluator, dependency order
   sheet-view       the renderable model of a sheet: formats, geometry, selection
   doc-view         the editable model of a document: runs, positions, formatting
@@ -158,7 +158,7 @@ packages/
   office-shell     the platform contract, and its Electron backend
   office-ui        the design system every app renders with
 
-apps/desktop       the application: main process, renderer, fourteen apps
+apps/desktop       the application: main process, renderer, fifteen apps
 tools/             probes for looking inside real files during development
 tests/             the engine suite
 ```
@@ -184,7 +184,7 @@ two. Two things follow:
 ### The two decisions that shape everything else
 
 **Documents live in the backend.** The OOXML engine inflates with zlib and works
-in Buffers — it is a Node engine, not a browser one. So a document opens, edits
+in Buffers. It is a Node engine, not a browser one. So a document opens, edits
 and saves in Node, on a thread of the main process's own (since 1.37.0, so the
 other windows answer while one document is busy), and the window draws the view
 model it is sent.
@@ -194,7 +194,7 @@ is why the size of a workbook has no bearing on the size of a window's heap.
 **We only rewrite what we edit.** An `.xlsx` is a zip of XML parts, and almost
 everything we will not implement for years lives in a part that can be carried
 through untouched. Fidelity is therefore high on day one and degrades only in
-the specific places we choose to touch — which are also the places we test.
+the specific places we choose to touch, which are also the places we test.
 
 ## Formats
 
@@ -208,36 +208,36 @@ the specific places we choose to touch — which are also the places we test.
 
 **Strict Open XML:** `.docx`, `.xlsx` and `.pptx` in the ISO/IEC 29500 Strict form open as the usual form does and stay Strict when saved; Save as Strict Open XML in each app writes one. What real files do that the standard does not describe is in [docs/OOXML-NOTES.md](docs/OOXML-NOTES.md).
 
-A format we can read but not write is opened by converting it into one we can —
-an `.odt` becomes a document, an `.ods` a workbook — and the title bar says so,
+A format we can read but not write is opened by converting it into one we can
+(an `.odt` becomes a document, an `.ods` a workbook), and the title bar says so,
 so Save As is never a surprise.
 
 ### Outlook data files
 
 `.pst` and `.ost` are read in full: the node and block B-trees, the heap,
 property and table contexts, folders, messages, recipients and attachments.
-Verified against a real 906 MB `.ost` — 467 folders, 12,172 messages indexed in
-under a second — which is how three things were found that no amount of reading
+Verified against a real 906 MB `.ost` (467 folders, 12,172 messages indexed in
+under a second), which is how three things were found that no amount of reading
 the specification would have given:
 
 - Outlook 2013 and later compress the larger data blocks of an `.ost` with
   zlib. It is not in the published structure, and a reader that does not notice
   sees every message in the file as empty.
-- In an `.ost` the hierarchy and contents tables are mostly not materialised —
-  449 folders with five hierarchy tables between them — so the folder tree has
+- In an `.ost` the hierarchy and contents tables are mostly not materialised
+  (449 folders with five hierarchy tables between them), so the folder tree has
   to come from the node B-tree's parent pointers, which are always complete.
 - A view table that does exist may still carry no subject column.
 
 The substitution tables for Outlook's block encoding are transcribed from
 Microsoft's published [MS-PST] open specification, and checked three ways when
-they load: each is a permutation of 0–255, and the encode and decode tables are
+they load: each is a permutation of 0 to 255, and the encode and decode tables are
 exact inverses in both directions. A damaged table decodes nothing rather than
 decoding wrongly.
 
 ## Updates
 
 Installed copies check [github.com/eharain/Rutba-Office/releases](https://github.com/eharain/Rutba-Office/releases)
-for a newer version — twenty-five seconds after launch, then every six hours.
+for a newer version, twenty-five seconds after launch, then every six hours.
 A new release downloads in the background and installs the next time you quit;
 nothing is ever installed while you are working. You are told at every step:
 a card in every window when a release is found, with the download's progress
@@ -266,7 +266,7 @@ to the servers you add, which is what they are for.)
 | Mail server lookup | Only when you press Add (or Add for several accounts), for an address whose provider is not in the built-in list | The address's domain, asked of that domain's own DNS records (SRV, MX) and its own autoconfig and autodiscover addresses (autoconfig.domain, domain/.well-known, autodiscover.domain), then a knock on the servers they name, over https only (a redirect to plain http is refused). No lookup service of anyone else's. A server they name outside the address's own domain, and not in the built-in list, is shown by name and gets the password only if you agree; no server is ever sent it unencrypted | Fill the servers in yourself under Add account → Advanced |
 
 The announcement is also how we know anyone is using this. The server counts
-requests, and a request carries nothing that identifies the copy making it — so
+requests, and a request carries nothing that identifies the copy making it, so
 what is counted is *"a copy of Rutba Office opened somewhere today"*, never you.
 Turning it off turns off the notice board too: there is deliberately no setting
 that reports without showing you something back.
@@ -309,9 +309,9 @@ Other things worth reading:
 - [AI-TOOLS.md](docs/AI-TOOLS.md): letting an AI app on this computer make and
   read documents with the suite, off unless you turn it on, with nothing
   listening on the network.
-- [OAUTH.md](docs/OAUTH.md) — signing in to Gmail and Outlook.com, and why a
+- [OAUTH.md](docs/OAUTH.md): signing in to Gmail and Outlook.com, and why a
   client id is not a secret
-- [ANNOUNCEMENT.md](docs/ANNOUNCEMENT.md) — the announcement contract, in full
+- [ANNOUNCEMENT.md](docs/ANNOUNCEMENT.md): the announcement contract, in full
 
 ## Testing
 
@@ -329,10 +329,10 @@ node tools/fuzz-open.js 500                         # damage good files at rando
 `npm run gate` is what runs before a release: 3,777 engine tests, 12 editing checks,
 2,543 application checks (most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard) and 16 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about twenty minutes.
 
-The engine suite includes `tests/rich-fixtures.test.js`, which opens a workbook, a document and a deck that Excel, Word and PowerPoint themselves wrote — charts, shapes, pictures, cross-sheet formulas, names, number formats, notes, footnotes, tracked changes, fields, a watermark — and holds the engine to Excel's own results. `tools/make-rich-fixtures.ps1` regenerates them on a machine with Office; docs/TESTING.md says what they hold and what they found.
+The engine suite includes `tests/rich-fixtures.test.js`, which opens a workbook, a document and a deck that Excel, Word and PowerPoint themselves wrote (charts, shapes, pictures, cross-sheet formulas, names, number formats, notes, footnotes, tracked changes, fields, a watermark) and holds the engine to Excel's own results. `tools/make-rich-fixtures.ps1` regenerates them on a machine with Office; docs/TESTING.md says what they hold and what they found.
 
 The window runs are the ones that find what a build cannot. They launch the
-actual application — same main process, same preload, same bundle — in a profile
+actual application (same main process, same preload, same bundle) in a profile
 of their own against generated fixtures, so they pass or fail on the code rather
 than on whatever happens to be on the machine. Several defects in this
 repository's history were caught by them and by nothing else, including a video
@@ -341,16 +341,16 @@ timeline that was never built when the file loaded faster than the window did.
 ## Licence
 
 Copyright © 2026 Tech Style Ltd (Company No. 11101491), registered in England &
-Wales — [tech-style.co](https://tech-style.co). The product lives at
+Wales, [tech-style.co](https://tech-style.co). The product lives at
 [office.rutba.io](https://office.rutba.io), and questions go to
 [office.rutba.io/contact](https://office.rutba.io/contact).
 
-Dual-licensed under the GNU Affero General Public License v3.0 — see
-[LICENSE](LICENSE) — and a separate commercial licence for use without the
+Dual-licensed under the GNU Affero General Public License v3.0 (see
+[LICENSE](LICENSE)) and a separate commercial licence for use without the
 AGPL's obligations: [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
 
 Notice: the spelling dictionaries are third-party work under their own
-permissive terms — nspell (MIT, © Titus Wormer) and the English Hunspell
+permissive terms: nspell (MIT, © Titus Wormer) and the English Hunspell
 dictionaries made from SCOWL (© 2000-2018 Kevin Atkinson and the other
 authors named in their licence files; MIT and BSD-style terms), shipped as
 the npm packages dictionary-en and dictionary-en-gb with their licence files.
