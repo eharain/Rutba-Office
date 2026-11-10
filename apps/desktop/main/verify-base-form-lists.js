@@ -37,8 +37,10 @@ export async function verifyBaseFormLists({ open, check, until, wait }, { dir })
     })()`);
     // A date and time typed in the form (its box answers to the minute) is kept.
     const when = await js(`(() => { const el = document.querySelector('.bs-fc-datetime'); if (!el) return null; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '2025-11-01T08:15'); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); el.focus(); el.blur(); return el.dataset.field; })()`);
-    await wait(800);
-    const keptWhen = when ? (() => { const x = Base.open(file); try { return x.rows(form.layout.table, { limit: 1 })[0]?.[when]; } finally { x.close(); } })() : null;
+    const readWhen = () => { const x = Base.open(file); try { return x.rows(form.layout.table, { limit: 1 })[0]?.[when]; } finally { x.close(); } };
+    // Kept once the save has reached the file, which a busy machine takes longer over.
+    if (when) await until(() => readWhen() === '2025-11-01T08:15:00', 'the date and time kept', 8000).catch(() => {});
+    const keptWhen = when ? readWhen() : null;
     seen.when = { field: when, kept: keptWhen };
     // A list too long to hold (a line's Sale, one of 20,000): a box showing the sale by its receipt number, searched as typed.
     const lines = await js(`Boolean(document.querySelector('[data-form="Sale Lines"]'))`);

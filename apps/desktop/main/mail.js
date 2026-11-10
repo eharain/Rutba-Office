@@ -384,6 +384,9 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       tls: { rejectUnauthorized: account.imap.rejectUnauthorized !== false },
       ...extra,
     });
+    // A server that drops the connection (a reset, a timeout) is reported to the command waiting on it;
+    // the client's own 'error' event, with nobody listening, would be thrown in the main process instead.
+    client.on('error', () => {});
     await client.connect();
     return client;
   }
@@ -927,6 +930,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
           auth: { user: account.imap.user || account.email, pass: password },
           logger: false,
         });
+        // As imapFor: a dropped connection fails the test, it is not thrown in the main process.
+        client.on('error', () => {});
         await client.connect();
         const list = await client.list();
         // What the server said it was: its ID answer and its capabilities (Gmail's own extension, Exchange's).

@@ -71,9 +71,10 @@ export async function verifyMailSync(h) {
 
     // Deleted from the list: in the server's Trash.
     await select(subjects.del);
-    await js(`(${button('Delete')})?.click(), 1`);
+    const opened = await js(`(document.querySelector('.ml-reader h2')?.textContent || '').includes(${JSON.stringify(subjects.del)})`);
+    const clicked = await until(() => js(`(() => { const b = ${button('Delete')}; if (!b) return false; b.click(); return true; })()`), 'the Delete button', 6000).then(() => true).catch(() => false);
     const trashed = await until(() => !at('INBOX').includes(subjects.del) && at('Trash').includes(subjects.del), 'in the Trash at the server', 8000).then(() => true).catch(() => false);
-    check('mail sync: a message deleted from the list is in the server\'s Trash', trashed, JSON.stringify({ inbox: at('INBOX').includes(subjects.del), trash: at('Trash').includes(subjects.del) }));
+    check('mail sync: a message deleted from the list is in the server\'s Trash', trashed, JSON.stringify({ opened, clicked, inbox: at('INBOX').includes(subjects.del), trash: at('Trash').includes(subjects.del) }));
 
     // Moved with Move to.
     await select(subjects.move);
