@@ -880,7 +880,7 @@ test('a chosen folder is looked at first: plain, ours, or locked elsewhere, and 
   write(folder, 'a.pdf', random(3000));
   await locker.lockWaiting(id);
   const plain = tmp('rl-plain-');
-  assert.deepEqual(await locker.lookAtFolder(plain), { locked: false, opens: false });
+  assert.deepEqual(await locker.lookAtFolder(plain), { locked: false, opens: false, lockedBelow: false });
   assert.deepEqual(fs.readdirSync(plain), []);
   assert.deepEqual(await locker.lookAtFolder(folder), { locked: true, opens: true });
 

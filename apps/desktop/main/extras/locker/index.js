@@ -21,7 +21,7 @@ const METHODS = {
     'makeHomeFolder', // () -> { id, root, made }
     'setAdvanced', // ({ on }) -> state
     'setChoices',  // ({ id, patch }) -> folder
-    'removeFolder',// ({ id }) -> { removed, failed }
+    'removeFolder',// ({ id, leaveDamaged }) -> { removed, failed, damaged }
     'list',        // ({ id }) -> entries
     'lockWaiting', // ({ id }) -> { locked, failed }
     'why',         // ({ id, rel }) -> { state, why }
@@ -41,7 +41,7 @@ const METHODS = {
     'restore',     // ({ id, rel, version }) -> { size }
     'readRules',   // ({ id }) -> text
     'writeRules',  // ({ id, text }) -> void
-    'changePassword',  // ({ current, next }) -> { failed }
+    'changePassword',  // ({ current, next, recovery }) -> { failed }
     'replaceRecovery', // ({ current }) -> { recovery }
     'enableHello',  // () -> void
     'disableHello', // () -> void
@@ -352,9 +352,9 @@ export async function register({ stores, broadcast, electron, windows = () => []
       await publish();
       return f;
     },
-    removeFolder: async ({ id }) => {
+    removeFolder: async ({ id, leaveDamaged = false }) => {
       touch();
-      const out = await locker.removeFolder(id);
+      const out = await locker.removeFolder(id, { leaveDamaged });
       startWatching();
       await publish();
       return out;
@@ -441,10 +441,10 @@ export async function register({ stores, broadcast, electron, windows = () => []
       await locker.writeRules(id, text);
       await publish();
     },
-    changePassword: async ({ current, next }) => {
+    changePassword: async ({ current, next, recovery = null }) => {
       if (!locker.isOpen()) throw new LockerError('locked', 'Unlock the locker first.');
       touch();
-      return locker.changePassword(current, next);
+      return locker.changePassword(current, next, { recovery });
     },
     replaceRecovery: async ({ current }) => {
       if (!locker.isOpen()) throw new LockerError('locked', 'Unlock the locker first.');

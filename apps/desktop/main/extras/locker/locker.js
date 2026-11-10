@@ -4,6 +4,7 @@
 
 import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { createKeys, writeJsonAtomic, FOLDER_KEYS, passwordKey, newKdf } from './keys.js';
 import { createFolder, wipeFile, MODE_SHARED, newHeader, sharedKey } from './folder.js';
@@ -47,11 +48,23 @@ export function createLocker({ dir, cost, hooks = null }) {
   /** Kept on disk before a plain copy exists, so a crash can always be cleaned up after. */
   const recordOpenFiles = () => writeJsonAtomic(openFilesRecord, [...openFiles.values()]);
 
+  // Which locker a working folder belongs to: on a folder a cloud drive shares, another computer's may be in use there.
+  const owner = crypto.createHash('sha256').update(`${os.hostname()}|${path.resolve(dir)}`).digest('hex').slice(0, 12);
+  const ours = (sub) => !path.basename(sub).includes('-') || path.basename(sub).startsWith(`${owner}-`);
+
   async function state() {
+    let text;
     try {
-      return JSON.parse(await fsp.readFile(stateFile, 'utf8'));
+      text = await fsp.readFile(stateFile, 'utf8');
+    } catch (err) {
+      if (err.code === 'ENOENT') return { folders: [] };
+      throw new LockerError('format', 'The list of locked folders could not be read.');
+    }
+    try {
+      return JSON.parse(text);
     } catch {
-      return { folders: [] };
+      // Never taken for an empty list: the next save would forget every folder.
+      throw new LockerError('format', 'The list of locked folders could not be read.');
     }
   }
   const saveState = (s) => writeJsonAtomic(stateFile, s);
@@ -64,6 +77,15 @@ export function createLocker({ dir, cost, hooks = null }) {
     return next;
   }
 
+  /** True while the locker is closing: nothing new starts, and what is running stops at its next file. */
+  let closing = false;
+  let locking = null;
+  /** The work on the keys themselves that is not one folder's, kept from running across a lock. */
+  const exclusive = (fn) => (closing ? Promise.reject(new LockerError('locked', 'Unlock the locker first.')) : queued('*', async () => {
+    if (closing) throw new LockerError('locked', 'Unlock the locker first.');
+    return fn();
+  }));
+
   /** Whether the person chose, at the last lock, to keep the plain copies until the next unlock. */
   let keepingCopies = false;
 
@@ -71,12 +93,12 @@ export function createLocker({ dir, cost, hooks = null }) {
   async function clearCopiedWorking(root) {
     const known = new Set([...openFiles.values()].map((e) => path.resolve(e.sub)));
     for (const d of await findWorkingDirs(root).catch(() => [])) {
-      if (!known.has(path.resolve(d))) await wipeWorking(d);
+      if (!known.has(path.resolve(d)) && ours(d)) await wipeWorking(d);
     }
   }
 
   function needOpen() {
-    if (!keys.isOpen()) throw new LockerError('locked', 'Unlock the locker first.');
+    if (!keys.isOpen() || closing) throw new LockerError('locked', 'Unlock the locker first.');
   }
 
   async function folderRecord(id) {
@@ -152,10 +174,12 @@ export function createLocker({ dir, cost, hooks = null }) {
       if (!key) throw new LockerError('bad-key', 'The locker cannot open this folder. Enter the password that locked it.');
       keys.rememberFolderKey(f.id, key);
     }
-    return createFolder({ root: f.root, key, folderId: Buffer.from(f.id, 'hex'), stageDir, choices: f, hooks });
+    // Its own copy: the keys are wiped when the locker closes, and work under way must never see them turn to zeros.
+    return createFolder({ root: f.root, key: Buffer.from(key), folderId: Buffer.from(f.id, 'hex'), stageDir, choices: f, hooks });
   }
 
-  const withFolder = (id, fn) => queued(id, async () => fn(await folderEngine(await folderRecord(id))));
+  const refusedWhileClosing = () => Promise.reject(new LockerError('locked', 'Unlock the locker first.'));
+  const withFolder = (id, fn) => (closing ? refusedWhileClosing() : queued(id, async () => fn(await folderEngine(await folderRecord(id)))));
 
   async function changedSince(e) {
     try {
@@ -211,6 +235,36 @@ export function createLocker({ dir, cost, hooks = null }) {
     }
   }
 
+  /**
+   * A folder is left alone if its file already has this locker's password and
+   * recovery key and opens to the right key. A folder that cannot be reached
+   * now (a moved folder, a drive not plugged in) is not recreated. What other
+   * lockers put in a key file stays.
+   */
+  async function healFolders() {
+    const s = await state();
+    const failed = [];
+    for (const f of s.folders) {
+      const file = path.join(f.root, FOLDER_KEYS);
+      const key = keys.folderKey(f.id);
+      if (!key) continue;
+      try {
+        if (!(await fsp.stat(f.root).then((st) => st.isDirectory(), () => false))) {
+          failed.push({ id: f.id, message: 'That folder could not be found.' });
+          continue;
+        }
+        const existing = await keys.readFolderKeysFile(file);
+        const opens = existing ? await keys.openFolderKeys(existing) : null;
+        if (!opens || !opens.equals(key) || !(await keys.folderKeysCurrent(existing))) {
+          await keys.writeFolderKeysFile(file, await keys.mergedFolderKeys(existing, key, f.id));
+        }
+      } catch (err) {
+        failed.push({ id: f.id, message: err?.message || String(err) });
+      }
+    }
+    return { failed };
+  }
+
   const api = {
     exists: keys.exists,
     isOpen: keys.isOpen,
@@ -249,7 +303,13 @@ export function createLocker({ dir, cost, hooks = null }) {
      * @param {{ keepCopies?: boolean, relock?: boolean, budgetMs?: number, shown?: (file: string) => boolean }} [o]
      * @returns {Promise<{ left: string[], open: string[], notLocked: string[], kept: number }>}
      */
-    async lock({ keepCopies = false, relock = false, budgetMs = 30000, shown } = {}) {
+    lock(options = {}) {
+      locking ||= api.closeLocker(options).finally(() => { locking = null; });
+      return locking;
+    },
+
+    /** The work of `lock`: one at a time, whichever of a sleep, an idle timer and a press asks first. */
+    async closeLocker({ keepCopies = false, relock = false, budgetMs = 30000, shown } = {}) {
       const notLocked = [];
       if (keys.isOpen()) {
         for (const e of [...openFiles.values()]) {
@@ -263,7 +323,14 @@ export function createLocker({ dir, cost, hooks = null }) {
           }
         }
       }
-      keys.lock();
+      // Nothing new starts, what is running stops at its next file, and only then do the keys go.
+      closing = true;
+      try {
+        await Promise.allSettled([...queues.values()]);
+        keys.lock();
+      } finally {
+        closing = false;
+      }
       if (keepCopies) {
         keepingCopies = openFiles.size > 0;
         await recordOpenFiles().catch(() => {});
@@ -341,7 +408,7 @@ export function createLocker({ dir, cost, hooks = null }) {
       const known = new Set([...openFiles.values()].map((e) => path.resolve(e.sub)));
       for (const f of list) {
         for (const d of await findWorkingDirs(f.root)) {
-          if (!known.has(path.resolve(d))) await wipeWorking(d);
+          if (!known.has(path.resolve(d)) && ours(d)) await wipeWorking(d);
         }
       }
     },
@@ -380,35 +447,25 @@ export function createLocker({ dir, cost, hooks = null }) {
       return closed;
     },
 
-    async changePassword(current, next) {
+    /** A new password, by the old one or, when that is lost, the recovery key. */
+    changePassword: (current, next, how = {}) => exclusive(async () => {
       if (!next) throw new LockerError('password', 'Choose a new password.');
-      await keys.changePassword(current, next);
-      return api.healFolderKeys();
-    },
+      await keys.changePassword(current, next, how);
+      return healFolders();
+    }),
 
-    replaceRecovery: (password) => keys.replaceRecovery(password),
+    /** A new recovery key, reaching every folder's own key file: the old one stops opening them. */
+    replaceRecovery: (password) => exclusive(async () => {
+      const { recovery } = await keys.replaceRecovery(password);
+      const { failed } = await healFolders();
+      return { recovery, failed };
+    }),
     helloId: () => keys.helloId(),
     enableHello: (secret, id) => keys.enableHello(secret, id),
     disableHello: () => keys.disableHello(),
 
-    /** Each folder's own key file brought up to date with the password and recovery key: a folder is left alone if its file already opens. */
-    async healFolderKeys() {
-      const s = await state();
-      const failed = [];
-      for (const f of s.folders) {
-        const file = path.join(f.root, FOLDER_KEYS);
-        const key = keys.folderKey(f.id);
-        if (!key) continue;
-        try {
-          const existing = await keys.readFolderKeysFile(file);
-          const opens = existing ? await keys.openFolderKeys(existing) : null;
-          if (!opens || !opens.equals(key)) await keys.writeFolderKeysFile(file, keys.wrapForFolder(key, f.id));
-        } catch (err) {
-          failed.push({ id: f.id, message: err?.message || String(err) });
-        }
-      }
-      return { failed };
-    },
+    /** Each folder's own key file brought up to date with the password and recovery key. */
+    healFolderKeys: () => exclusive(healFolders),
 
     async folders() {
       const s = await state();
@@ -420,12 +477,12 @@ export function createLocker({ dir, cost, hooks = null }) {
      * (it has a key file), and whether this locker opens it with nothing typed.
      * A key file that cannot be read is an error, never a folder with no key.
      *
-     * @returns {Promise<{ locked: boolean, opens: boolean }>}
+     * @returns {Promise<{ locked: boolean, opens: boolean, lockedBelow?: boolean }>}
      */
     async lookAtFolder(root) {
       needOpen();
       const existing = await keys.readFolderKeysFile(path.join(path.resolve(root), FOLDER_KEYS));
-      if (!existing) return { locked: false, opens: false };
+      if (!existing) return { locked: false, opens: false, lockedBelow: await hasLockedBelow(path.resolve(root)) };
       const key = keys.folderKey(existing.id) || await keys.openFolderKeys(existing);
       return { locked: true, opens: Boolean(key) };
     },
@@ -436,7 +493,9 @@ export function createLocker({ dir, cost, hooks = null }) {
      *
      * @returns {Promise<{ id, root, joined: boolean }>}
      */
-    async addFolder(root, choices = {}, { password = null, recovery = null } = {}) {
+    addFolder: (root, choices = {}, how = {}) => exclusive(() => api.addOneFolder(root, choices, how)),
+
+    async addOneFolder(root, choices = {}, { password = null, recovery = null } = {}) {
       needOpen();
       const resolved = path.resolve(root);
       const st = await fsp.stat(resolved).catch(() => null);
@@ -591,11 +650,15 @@ export function createLocker({ dir, cost, hooks = null }) {
      * and only then forgotten. A file that will not unlock stops it, and the
      * folder stays in the locker so nothing is left unreachable.
      */
-    async removeFolder(id) {
+    async removeFolder(id, { leaveDamaged = false } = {}) {
       await closeCopies((e) => e.folderId === id);
       return withFolder(id, async (folder) => {
         const failed = [];
-        for (const e of await folder.scan()) {
+        const entries = await folder.scan();
+        // A file that will not open is not gone: it may be a newer version's, or in use, or still on its way from the cloud.
+        const damaged = entries.filter((e) => e.state === 'damaged');
+        if (damaged.length && !leaveDamaged) return { removed: false, damaged: damaged.length, failed: damaged.map((e) => ({ rel: e.rel, message: e.message })) };
+        for (const e of entries) {
           if (e.state !== 'locked' && e.state !== 'conflict') continue;
           try {
             await folder.unlockForGood(e.rel);
@@ -606,8 +669,11 @@ export function createLocker({ dir, cost, hooks = null }) {
         if (failed.length) return { removed: false, failed };
         const s = await state();
         const f = s.folders.find((x) => x.id === id);
-        await fsp.rm(path.join(f.root, FOLDER_KEYS), { force: true }).catch(() => {});
-        await fsp.rm(path.join(f.root, '.rlocker-old'), { recursive: true, force: true }).catch(() => {});
+        // Files left locked still need the key file that opens them.
+        if (!damaged.length) {
+          await fsp.rm(path.join(f.root, FOLDER_KEYS), { force: true }).catch(() => {});
+          await fsp.rm(path.join(f.root, '.rlocker-old'), { recursive: true, force: true }).catch(() => {});
+        }
         keys.forgetFolderKey(id);
         s.folders = s.folders.filter((x) => x.id !== id);
         await saveState(s);
@@ -617,7 +683,7 @@ export function createLocker({ dir, cost, hooks = null }) {
 
     scan: (id) => withFolder(id, (f) => f.scan()),
     why: (id, rel) => withFolder(id, (f) => f.why(rel)),
-    lockWaiting: (id, opts) => withFolder(id, (f) => f.lockWaiting(opts)),
+    lockWaiting: (id, opts) => withFolder(id, (f) => f.lockWaiting({ ...opts, shouldStop: () => closing })),
     lockOne: (id, rel, opts) => withFolder(id, (f) => f.lockOne(rel, opts)),
     exportCopy: (id, rel, dest, opts) => withFolder(id, (f) => f.exportCopy(rel, dest, opts)),
     /** Back to a plain file where it is. It stays plain until the person locks it again. */
@@ -709,7 +775,7 @@ export function createLocker({ dir, cost, hooks = null }) {
         const e = await folder.entryFor(rel);
         if (!e || (e.state !== 'locked')) throw new LockerError('state', 'That file is not locked.');
         const top = rec.openIn === 'profile' ? openDir : path.join(path.dirname(path.join(rec.root, ...e.rel.split('/'))), OPEN_DIR);
-        const sub = await makeWorkingDir(top);
+        const sub = await makeWorkingDir(top, owner);
         const dest = path.join(sub, e.name);
         const key = path.resolve(dest);
         const entry = { path: dest, sub, folderId: id, rel: e.rel, sha256: null, seen: false };
@@ -778,6 +844,20 @@ export function createLocker({ dir, cost, hooks = null }) {
     get stageDir() { return stageDir; },
   };
   return api;
+}
+
+/** Whether anything under this folder is already locked: a key file or a locked file, looked for a few levels down. */
+async function hasLockedBelow(root) {
+  let left = 5000;
+  const go = async (dir, depth) => {
+    for (const e of await fsp.readdir(dir, { withFileTypes: true }).catch(() => [])) {
+      if (left-- <= 0) return false;
+      if (e.name === FOLDER_KEYS || e.name.endsWith('.rlock') || e.name.endsWith('.rlock.d')) return true;
+      if (e.isDirectory() && depth < 6 && !e.name.startsWith('.') && await go(path.join(dir, e.name), depth + 1)) return true;
+    }
+    return false;
+  };
+  return go(root, 0);
 }
 
 function isInside(p, root) {

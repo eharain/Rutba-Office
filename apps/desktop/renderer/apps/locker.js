@@ -702,10 +702,11 @@ function Settings({ shell, state, onClose, toast }) {
     await shell.locker.setIdle({ minutes });
     onClose();
   };
+  const [forgot, setForgot] = useState(false);
   const changePw = async () => {
     setError(null);
     try {
-      await shell.locker.changePassword({ current, next });
+      await shell.locker.changePassword(forgot ? { current: '', next, recovery: current } : { current, next });
       setCurrent('');
       setNext('');
       toast?.(t('The password was changed.'));
@@ -718,6 +719,7 @@ function Settings({ shell, state, onClose, toast }) {
     try {
       const out = await shell.locker.replaceRecovery({ current });
       setRecovery(out.recovery);
+      if (out.failed?.length) toast?.(t('{n} folders could not be reached. They take the new recovery key the next time they are here when the Locker opens.', { n: out.failed.length }), { tone: 'warn' });
       setCurrent('');
     } catch (err) {
       setError(said(err));
@@ -764,11 +766,12 @@ function Settings({ shell, state, onClose, toast }) {
             <span className="lk-card-sub">{t('On this computer only. The password stays the master.')}</span>
           </div>
         ) : null}
-        <Field label={t('Current password')}><Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} aria-label={t('Current password')} /></Field>
+        <Field label={forgot ? t('Recovery key') : t('Current password')}><Input className="lk-current" type={forgot ? 'text' : 'password'} value={current} onChange={(e) => setCurrent(e.target.value)} aria-label={forgot ? t('Recovery key') : t('Current password')} /></Field>
+        <label className="lk-forgot"><input type="checkbox" checked={forgot} onChange={(e) => { setForgot(e.target.checked); setCurrent(''); }} /> {t('I have forgotten it: use my recovery key')}</label>
         <Field label={t('New password')}><Input type="password" value={next} onChange={(e) => setNext(e.target.value)} aria-label={t('New password')} /></Field>
         <div className="lk-actions">
           <Button label={t('Change password')} disabled={!current || next.length < 8} onClick={changePw} />
-          <Button label={t('Replace the recovery key')} disabled={!current} onClick={newRecovery} />
+          <Button label={t('Replace the recovery key')} disabled={!current || forgot} onClick={newRecovery} />
         </div>
         {recovery ? <div className="lk-key">{recovery}</div> : null}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
@@ -930,7 +933,12 @@ export default function Locker({ app, shell }) {
   const removeFolder = () => act(async () => {
     const { response } = await shell.dialog.message({ type: 'warning', message: t('Stop locking {name}?', { name: folder.name }), detail: t('Every file in it is unlocked first, and the earlier versions it kept are removed. The folder itself stays where it is.'), buttons: [t('Stop locking'), t('Cancel')], defaultId: 1, cancelId: 1 });
     if (response === 0) {
-      const out = await shell.locker.removeFolder({ id: current });
+      let out = await shell.locker.removeFolder({ id: current });
+      if (!out.removed && out.damaged) {
+        const again = await shell.dialog.message({ type: 'warning', message: t('{n} files in {name} cannot be read.', { n: out.damaged, name: folder.name }), detail: t('Nothing has been changed. If you go on, every other file is unlocked, these stay locked, and the key file stays in the folder so they can still be opened later.'), buttons: [t('Go on'), t('Cancel')], defaultId: 1, cancelId: 1 });
+        if (again.response === 0) out = await shell.locker.removeFolder({ id: current, leaveDamaged: true });
+        else return;
+      }
       if (!out.removed) toast?.(t('{n} files could not be unlocked, so the folder was not removed.', { n: out.failed.length }), { tone: 'error' });
     }
   });

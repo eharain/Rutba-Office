@@ -34,13 +34,17 @@ const randomName = () => `${crypto.randomBytes(16).toString('hex')}${LOCK_EXT}`;
 /** A file's bytes overwritten and removed, as far as a program can: an SSD may keep the old blocks, and the Locker says so. */
 export async function wipeFile(file) {
   try {
-    const st = await fsp.stat(file);
-    const fh = await fsp.open(file, 'r+');
-    try {
-      await fh.write(Buffer.alloc(Math.min(st.size, 8 * 1024 * 1024)), 0, Math.min(st.size, 8 * 1024 * 1024), 0);
-      await fh.sync();
-    } finally {
-      await fh.close();
+    // Never through a link: what it points at is not this file.
+    const st = await fsp.lstat(file);
+    if (st.isFile()) {
+      const fh = await fsp.open(file, 'r+');
+      try {
+        const zeros = Buffer.alloc(1024 * 1024);
+        for (let at = 0; at < st.size; at += zeros.length) await fh.write(zeros, 0, Math.min(zeros.length, st.size - at), at);
+        await fh.sync();
+      } finally {
+        await fh.close();
+      }
     }
   } catch {
     // A file that is open elsewhere is removed as it is, below.
@@ -57,6 +61,12 @@ function checkedName(typed) {
   if (!name || BAD_NAME.test(name) || RESERVED_NAME.test(name) || name.endsWith(LOCK_EXT) || isLockerOwn(name) || isWorkingFile(name)) {
     throw new LockerError('name', 'That name cannot be used for a file.');
   }
+  return name;
+}
+
+/** A locked file's own record of its name, if it is a name and not a way out of the folder. */
+function recordedName(name) {
+  if (typeof name !== 'string' || !name || name === '.' || name === '..' || /[/\\:\x00]/.test(name)) throw new LockerError('format', 'This locked file records a name that cannot be used.');
   return name;
 }
 
@@ -141,7 +151,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
         const o = await openLocked(p, key);
         const meta = o.meta;
         await o.close();
-        const name = meta.name;
+        const name = recordedName(meta.name);
         const realRel = opt().hidden || !rel.endsWith(`${name}${LOCK_EXT}`) ? (dir ? `${dir}/${name}` : name) : rel.slice(0, -LOCK_EXT.length);
         const entry = { rel: realRel, name, state: 'locked', size: meta.size, modified: meta.modified, path: p, lockedRel: rel, sha256: meta.sha256, fileId: h.fileId.toString('hex'), why: null };
         entries.push(entry);
@@ -156,7 +166,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
         const item = await readItem(p);
         const opened = await openPieces({ dir: p, folderKey: key });
         const lists = await listsIn(p);
-        const name = opened.meta.name;
+        const name = recordedName(opened.meta.name);
         const realRel = dir ? `${dir}/${name}` : name;
         const entry = { rel: realRel, name, state: 'locked', size: opened.meta.size, modified: opened.meta.modified, path: p, lockedRel: rel, sha256: opened.meta.sha256, fileId: item.fileId, pieces: opened.meta.pieces, why: null };
         if (lists.length > 1 && lists[0].seq === lists[1].seq) entry.conflictNote = true;
@@ -248,8 +258,12 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     if (!(await plainStillIs(plain, { size: sealed.size, sha256: sealed.sha256, mtimeMs: sealed.modified }))) {
       throw new LockerError('busy', 'This file changed after it was locked. The plain file was left where it was, and the new version will be locked next.');
     }
+    const removePlain = async () => {
+      await wipeFile(plain);
+      if (await fsp.access(plain).then(() => true, () => false)) throw new LockerError('busy', 'This file is in use. It is locked, and its plain copy could not be removed yet.');
+    };
     if (verdict === 'delete') {
-      await fsp.rm(plain, { force: true });
+      await removePlain();
       return 'deleted';
     }
     if (verdict === 'keep') {
@@ -272,7 +286,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
         await fsp.rm(dest, { force: true }).catch(() => {});
         throw new LockerError('failed', 'The plain file could not be moved to the folder you chose, so it was left here.');
       }
-      await fsp.rm(plain, { force: true });
+      await removePlain();
       return 'moved';
     }
     return 'kept';
@@ -353,6 +367,8 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
       headerBuf = newHeader({ mode: MODE_FOLDER, folderId });
     }
     const out = await sealFile({ source: plain, target, rootKey: key, headerBuf, meta, stageDir, previous, hooks });
+    // A large file that shrank: its old pieces go, once the single file is in place and read back.
+    if (existing?.pieces && await readBackMatches(target, out.sha256, out.size)) await fsp.rm(existing.path, { recursive: true, force: true }).catch(() => {});
     if (existing) await pruneVersions(existing.fileId);
     return { ...out, target };
   }
@@ -386,13 +402,17 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     return { plain: plainWent, target: sealed.target, sha256: sealed.sha256, size: sealed.size, reused: sealed.reused, frames: sealed.frames };
   }
 
-  /** Every waiting file, one at a time. Answers what happened to each, and what would not go. A deadline leaves the rest as they are. */
-  async function lockWaiting({ deadline = Infinity, ...options } = {}) {
+  /** Every waiting file, one at a time. Answers what happened to each, and what would not go. A deadline, or the locker closing, leaves the rest as they are. */
+  async function lockWaiting({ deadline = Infinity, shouldStop = () => false, ...options } = {}) {
     await sweepWorking(root).catch(() => {});
     const list = await scan();
     const done = [];
     const failed = [];
     for (const e of list.filter((x) => x.state === 'waiting')) {
+      if (shouldStop()) {
+        failed.push({ rel: e.rel, code: 'stopped', message: 'The locker closed before this file was locked. It stays as it was.' });
+        continue;
+      }
       if (Date.now() > deadline) {
         failed.push({ rel: e.rel, code: 'time', message: 'There was not time to lock this file.' });
         continue;

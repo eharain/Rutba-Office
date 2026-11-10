@@ -28,8 +28,8 @@ async function restrict(dir) {
   await run('icacls', [dir, '/inheritance:r', '/grant:r', `${who}:(OI)(CI)F`]);
 }
 
-/** A new empty working folder inside `top`. `top` is restricted before anything goes in it. */
-export async function makeWorkingDir(top) {
+/** A new empty working folder inside `top`, named for the locker that made it. `top` is restricted before anything goes in it. */
+export async function makeWorkingDir(top, owner = '') {
   let made = false;
   try {
     await fsp.mkdir(top);
@@ -43,7 +43,7 @@ export async function makeWorkingDir(top) {
     }
   }
   if (made) await restrict(top);
-  const sub = path.join(top, crypto.randomBytes(8).toString('hex'));
+  const sub = path.join(top, `${owner ? `${owner}-` : ''}${crypto.randomBytes(8).toString('hex')}`);
   await fsp.mkdir(sub);
   return sub;
 }

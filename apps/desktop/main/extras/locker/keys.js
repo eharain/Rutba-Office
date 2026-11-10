@@ -36,7 +36,14 @@ const scryptAsync = promisify(crypto.scrypt);
 export const KEY_LEN = 32;
 /** The cost of a password, as OWASP suggests for scrypt: 128 MB. Recorded with what it derived, so it can rise. */
 export const SCRYPT_DEFAULT = { N: 2 ** 17, r: 8, p: 1 };
-const LIMITS = { N: 2 ** 22, r: 32, p: 16 };
+const LIMITS = { N: 2 ** 20, r: 16, p: 4 };
+/** At most this much memory for one password, whatever a file asks for: a file someone sent must not be able to take the computer's. */
+const MOST_MEMORY = 2 ** 30;
+/** The most entries of one kind tried in a folder's key file. */
+const MOST_TRIED = 8;
+
+/** What tells two entries of a key file apart: each locker's password and recovery key have their own salt. */
+const saltOf = (u) => (u?.kind === 'password' ? u.kdf?.salt : u?.salt) || null;
 const STORE = 'locker';
 const CONTEXT = 'rutba-locker:v1:';
 const KEYRING_FILE = 'keyring.json';
@@ -55,7 +62,7 @@ function scryptParams(kdf) {
   const N = Number(kdf?.N);
   const r = Number(kdf?.r);
   const p = Number(kdf?.p);
-  if (!Number.isInteger(N) || !Number.isInteger(r) || !Number.isInteger(p) || N < 2 || N > LIMITS.N || r < 1 || r > LIMITS.r || p < 1 || p > LIMITS.p || !Number.isInteger(Math.log2(N))) {
+  if (!Number.isInteger(N) || !Number.isInteger(r) || !Number.isInteger(p) || N < 2 || N > LIMITS.N || r < 1 || r > LIMITS.r || p < 1 || p > LIMITS.p || !Number.isInteger(Math.log2(N)) || 128 * N * r > MOST_MEMORY) {
     throw new LockerError('format', 'This file asks for settings Rutba Office does not use.');
   }
   return { N, r, p, maxmem: 128 * N * r + 1024 * 1024 };
@@ -345,17 +352,23 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
       folderWrap = null;
     },
 
-    /** A new password. The old one must be right; on any failure the keyring is exactly as it was. */
-    async changePassword(current, next) {
+    /** A new password. The old one or the recovery key must be right; on any failure the keyring is exactly as it was. */
+    async changePassword(current, next, { recovery = null } = {}) {
       const rec = await ringToUse();
       const u = rec.unlockers.find((x) => x.kind === 'password');
-      const pk = await passwordKey(current, u.kdf);
-      const r = unwrap(pk, u, 'password');
-      if (!r) throw new LockerError('bad-password', 'That password does not open this locker.');
+      let r;
+      if (recovery !== null) {
+        const way = rec.unlockers.find((x) => x.kind === 'recovery');
+        r = way ? unwrap(secretKey(recoveryBytes(recovery), way.salt, 'recovery'), way, 'recovery') : null;
+        if (!r) throw new LockerError('bad-recovery', 'That recovery key does not open this locker.');
+      } else {
+        r = unwrap(await passwordKey(current, u.kdf), u, 'password');
+        if (!r) throw new LockerError('bad-password', 'That password does not open this locker.');
+      }
       const nextKdf = newKdf(cost);
       const nextPk = await passwordKey(next, nextKdf);
       const others = rec.unlockers.filter((x) => x.kind !== 'password');
-      await writeJsonAtomic(ringFile, { ...rec, unlockers: [{ kind: 'password', kdf: nextKdf, ...wrap(nextPk, r, 'password') }, ...others] });
+      await writeJsonAtomic(ringFile, { ...rec, retired: [...(rec.retired || []), u.kdf.salt], unlockers: [{ kind: 'password', kdf: nextKdf, ...wrap(nextPk, r, 'password') }, ...others] });
       kdf = nextKdf;
       if (root) {
         storeSecret('folder-wrap', toHex(nextPk));
@@ -375,7 +388,8 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
       const salt = crypto.randomBytes(32).toString('hex');
       const rWrap = secretKey(recovery.bytes, salt, 'recovery');
       const others = rec.unlockers.filter((x) => x.kind !== 'recovery');
-      await writeJsonAtomic(ringFile, { ...rec, unlockers: [...others, { kind: 'recovery', salt, ...wrap(rWrap, r, 'recovery') }] });
+      const before = rec.unlockers.find((x) => x.kind === 'recovery')?.salt;
+      await writeJsonAtomic(ringFile, { ...rec, retired: [...(rec.retired || []), ...(before ? [before] : [])], unlockers: [...others, { kind: 'recovery', salt, ...wrap(rWrap, r, 'recovery') }] });
       if (root) {
         storeSecret('recovery-wrap', `${salt}:${toHex(rWrap)}`);
         folderWrap.recoveryWrap = { salt, key: rWrap };
@@ -437,22 +451,53 @@ export function createKeys({ dir, cost = SCRYPT_DEFAULT }) {
     async openFolderKeys(file, { password = null, recovery = null } = {}) {
       checkVersion(file?.v);
       const id = file.id;
+      // A folder opened by more than one locker has an entry for each.
+      const entries = (kind) => (file.unlockers || []).filter((x) => x.kind === kind).slice(0, MOST_TRIED);
       if (password !== null) {
-        const u = file.unlockers?.find((x) => x.kind === 'password');
-        if (!u) return null;
-        return unwrap(await passwordKey(password, u.kdf), u, `folder:${id}`);
+        for (const u of entries('password')) {
+          const opened = unwrap(await passwordKey(password, u.kdf), u, `folder:${id}`);
+          if (opened) return opened;
+        }
+        return null;
       }
       if (recovery !== null) {
-        const u = file.unlockers?.find((x) => x.kind === 'recovery');
-        if (!u) return null;
-        return unwrap(secretKey(recoveryBytes(recovery), u.salt, 'recovery'), u, `folder:${id}`);
+        if (!entries('recovery').length) return null;
+        const bytes = recoveryBytes(recovery);
+        for (const u of entries('recovery')) {
+          const opened = unwrap(secretKey(bytes, u.salt, 'recovery'), u, `folder:${id}`);
+          if (opened) return opened;
+        }
+        return null;
       }
       if (folderWrap?.wrapKey) {
-        const u = file.unlockers?.find((x) => x.kind === 'password');
-        if (!u) return null;
-        return unwrap(folderWrap.wrapKey, u, `folder:${id}`);
+        for (const u of entries('password')) {
+          const opened = unwrap(folderWrap.wrapKey, u, `folder:${id}`);
+          if (opened) return opened;
+        }
       }
       return null;
+    },
+
+    /** Whether a folder's key file already has this locker's present password and recovery key, and nothing retired. */
+    async folderKeysCurrent(file) {
+      const retired = new Set((await ring())?.retired || []);
+      const salts = (file.unlockers || []).map(saltOf);
+      if (salts.some((s) => retired.has(s))) return false;
+      return salts.includes(kdf?.salt) && (!folderWrap?.recoveryWrap || salts.includes(folderWrap.recoveryWrap.salt));
+    },
+
+    /**
+     * A folder's key file brought up to date for this locker: its own entries
+     * made afresh and those it has retired removed. Entries belonging to another
+     * locker that opened the same folder stay: this locker cannot make them
+     * again, and they may be the only way that person has in.
+     */
+    async mergedFolderKeys(existing, fk, id) {
+      const retired = new Set((await ring())?.retired || []);
+      const mine = api.wrapForFolder(fk, id);
+      const own = new Set(mine.unlockers.map(saltOf));
+      const others = (existing?.unlockers || []).filter((u) => !retired.has(saltOf(u)) && !own.has(saltOf(u)));
+      return { ...mine, unlockers: [...mine.unlockers, ...others] };
     },
 
     /** Everything this module would write as a folder's key file. */
