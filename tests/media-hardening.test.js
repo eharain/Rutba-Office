@@ -84,6 +84,40 @@ test('four turns bring back every byte of the pixels', () => {
   for (let i = 0; i < 4; i++) now = turnPng(now);
   const decoded = (b) => Buffer.from(decodePng(b).rgba).toString('hex');
   assert.equal(decoded(now), decoded(before));
+  // The picture as eight bits a sample would hide a lost low byte: the samples themselves, all sixteen bits.
+  assert.equal(samplesOf(now).toString('hex'), samplesOf(before).toString('hex'));
+});
+
+/** A PNG's samples as stored, its row filters undone (bpp: bytes a pixel). */
+function samplesOf(png, bpp = 8) {
+  const head = Buffer.from(chunksOf(png)[0].body);
+  const width = head.readUInt32BE(0);
+  const height = head.readUInt32BE(4);
+  const raw = rawOf(png);
+  const stride = width * bpp;
+  const out = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)];
+    for (let i = 0; i < stride; i++) {
+      const x = raw[y * (stride + 1) + 1 + i];
+      const a = i >= bpp ? out[y * stride + i - bpp] : 0;
+      const b = y ? out[(y - 1) * stride + i] : 0;
+      const c = y && i >= bpp ? out[(y - 1) * stride + i - bpp] : 0;
+      const p = a + b - c;
+      const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+      const paeth = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+      out[y * stride + i] = (x + [0, a, b, (a + b) >> 1, paeth][filter]) & 255;
+    }
+  }
+  return { width, height, bytes: out, toString: (f) => out.toString(f), pixel: (px, py) => out.subarray(py * stride + px * bpp, py * stride + px * bpp + bpp).toString('hex') };
+}
+
+test('one turn moves each sixteen-bit sample whole', () => {
+  const src = samplesOf(makePng(deep()));
+  const turned = samplesOf(turnPng(makePng(deep())));
+  assert.deepEqual([turned.width, turned.height], [3, 2]);
+  // Clockwise: the bottom left pixel goes to the top left, the top left to the top right.
+  for (let y = 0; y < 2; y++) for (let x = 0; x < 3; x++) assert.equal(turned.pixel(x, y), src.pixel(y, 2 - x), `pixel ${x},${y}`);
 });
 
 test('a turn is clockwise', () => {
@@ -111,6 +145,30 @@ test('an interlaced PNG turns, and comes out plain', () => {
   const after = turnPng(makePng({ width: 1, height: 1, depth: 8, colour: 2, interlace: 1, raw: Buffer.from([0, 9, 8, 7]) }));
   assert.equal(chunksOf(after)[0].body[12], 0);
   assert.deepEqual([...decodePng(after).rgba.subarray(0, 3)], [9, 8, 7]);
+});
+
+test('an interlaced PNG large enough for all seven passes turns as the same picture stored plain', () => {
+  const W = 9;
+  const H = 9;
+  const rgb = (x, y) => [x * 25, y * 25, (x * 7 + y * 13) & 255];
+  const plainRows = [];
+  for (let y = 0; y < H; y++) { plainRows.push(0); for (let x = 0; x < W; x++) plainRows.push(...rgb(x, y)); }
+  // Adam7: each pass a small picture of its own, rows unfiltered.
+  const passes = [[0, 0, 8, 8], [4, 0, 8, 8], [0, 4, 4, 8], [2, 0, 4, 4], [0, 2, 2, 4], [1, 0, 2, 2], [0, 1, 1, 2]];
+  const laced = [];
+  for (const [x0, y0, dx, dy] of passes) {
+    for (let y = y0; y < H; y += dy) {
+      const row = [];
+      for (let x = x0; x < W; x += dx) row.push(...rgb(x, y));
+      if (row.length) laced.push(0, ...row);
+    }
+  }
+  const plain = makePng({ width: W, height: H, depth: 8, colour: 2, raw: Buffer.from(plainRows) });
+  const interlaced = makePng({ width: W, height: H, depth: 8, colour: 2, interlace: 1, raw: Buffer.from(laced) });
+  const after = turnPng(interlaced);
+  assert.equal(chunksOf(after)[0].body[12], 0, 'written plain');
+  assert.equal(Buffer.from(decodePng(after).rgba).toString('hex'), Buffer.from(decodePng(turnPng(plain)).rgba).toString('hex'));
+  assert.equal(samplesOf(after, 3).toString('hex'), samplesOf(turnPng(plain), 3).toString('hex'));
 });
 
 test('an animated PNG is not turned at all', () => {
@@ -241,14 +299,34 @@ test('a reply too short to read fails the stream instead of throwing from the so
   assert.equal(failures.length, 1);
 });
 
-test('the broadcast ends with the window that began it', async () => {
-  const closed = [];
-  const makePublisher = () => Object.assign(new EventEmitter(), { start: async () => {}, connect: async () => {}, stop: () => closed.push('stopped'), close: () => closed.push('closed'), send: () => {} });
+test('the broadcast ends with the window that began it, and its stream is closed', async () => {
+  const made = [];
+  const makePublisher = (o) => {
+    const p = Object.assign(new EventEmitter(), { o, ended: 0, start: async () => {}, connect: async () => {}, stop: () => { p.ended += 1; }, close: () => { p.ended += 1; }, send: () => {} });
+    made.push(p);
+    return p;
+  };
   const settings = new Map();
-  const live = createLiveService({ stores: { settings: { get: (k, d) => settings.get(k) ?? d, set: (k, v) => settings.set(k, v) }, secrets: { get: () => null, set: () => {}, delete: () => {} } }, makePublisher, send: () => {} });
+  const secrets = new Map();
+  const live = createLiveService({
+    stores: {
+      settings: { get: (k, d) => settings.get(k) ?? d, set: (k, v) => settings.set(k, v) },
+      secrets: { available: () => true, get: (k) => secrets.get(k) ?? null, set: (k, v) => secrets.set(k, v), delete: (k) => secrets.delete(k) },
+    },
+    makePublisher,
+    send: () => {},
+  });
+  const [stream] = live.saveDestination({ platform: 'custom', name: 'Test ingest', url: 'rtmp://127.0.0.1/live', key: 'abcd-1234', on: true });
   const win = Object.assign(new EventEmitter(), { isDestroyed: () => false, webContents: { send: () => {} } });
-  await live.start({ ids: [], video: { width: 1280, height: 720, fps: 30, kbps: 2000 }, audio: { kbps: 128, sampleRate: 48000, channels: 2 } }, win);
+  const other = Object.assign(new EventEmitter(), { isDestroyed: () => false, webContents: { send: () => {} } });
+  const { started } = await live.start({ ids: [stream.id], video: { width: 1280, height: 720, fps: 30, kbps: 2000 }, audio: { kbps: 128, sampleRate: 48000, channels: 2 } }, win);
+  assert.deepEqual(started, [stream.id]);
   assert.equal(live.status().live, true);
+  assert.ok(made.length >= 1, 'a stream was opened');
+  other.emit('closed');
+  assert.equal(live.status().live, true, 'another window closing does not end it');
+  assert.ok(made.every((p) => p.ended === 0));
   win.emit('closed');
   assert.equal(live.status().live, false);
+  assert.ok(made.every((p) => p.ended > 0), 'every stream it opened was closed');
 });
