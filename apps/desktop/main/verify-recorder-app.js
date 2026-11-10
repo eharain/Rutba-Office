@@ -299,9 +299,38 @@ async function appChecks(h, { dir }) {
     const complaints = await errorsIn(win);
     check('recorder app: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
 
+    // A disk that stops taking the recording part way: it ends there by itself, keeps what was written, and says why.
+    // The file made read-only does that as a full or pulled disk would: each piece is its own append.
+    await js(`document.querySelector('.st-again')?.click(), 1`);
+    await until(() => js(`Boolean(document.querySelector('.st-record')) && !document.querySelector('.st-saved')`), 'the scenes again', 4000).catch(() => {});
+    const soundsBefore = files(/^Sound .*\.weba$/).map((f) => f.name);
+    await js(`window.__badToasts = [], 1`);
+    await js(`document.querySelector('.st-record')?.click(), 1`);
+    const refusedOn = await ok(until(() => js(`document.querySelector('.st-record')?.classList.contains('on')`), 'recording before the disk stops', 15000));
+    const growing = await ok(until(() => files(/^Sound .*\.weba$/).some((f) => !soundsBefore.includes(f.name) && f.size > 2000), 'the take on disk', 8000));
+    const take = files(/^Sound .*\.weba$/).find((f) => !soundsBefore.includes(f.name));
+    const takePath = take ? path.join(folder, take.name) : null;
+    if (takePath) fs.chmodSync(takePath, 0o444);
+    let endedByItself = false;
+    let told = '';
+    let keptBytes = 0;
+    try {
+      endedByItself = await ok(until(() => js(`!document.querySelector('.st-record')?.classList.contains('on')`), 'the recording to end by itself', 8000));
+      await until(() => js(`(window.__badToasts || []).some((s) => /Writing stopped/.test(s))`), 'the reason to be said', 4000).catch(() => {});
+      told = await js(`(window.__badToasts || []).join(' | ')`);
+      keptBytes = takePath && fs.existsSync(takePath) ? fs.statSync(takePath).size : 0;
+    } finally {
+      if (takePath && fs.existsSync(takePath)) fs.chmodSync(takePath, 0o666);
+    }
+    await js(`window.__badToasts = [], 1`);
+    check('recorder app: a disk that stops taking the recording ends it at once, keeps what was written and says why',
+      refusedOn && growing && endedByItself && /Writing stopped/.test(told) && /kept/.test(told) && keptBytes > 2000,
+      JSON.stringify({ refusedOn, growing, endedByItself, told: told.slice(0, 160), keptBytes }));
+
     // Closed while it records: it asks first, stops, keeps the take, then closes.
     await js(`document.querySelector('.st-again')?.click(), 1`);
     await until(() => js(`Boolean(document.querySelector('.st-record')) && !document.querySelector('.st-saved')`), 'the scenes again', 4000).catch(() => {});
+    const beforeClose = files(/^Sound .*\.weba$/);
     await js(`document.querySelector('.st-record')?.click(), 1`);
     const takeOn = await ok(until(() => js(`document.querySelector('.st-record')?.classList.contains('on')`), 'recording to close', 15000));
     await wait(2200);
@@ -313,7 +342,7 @@ async function appChecks(h, { dir }) {
     if (asked) await js(`${STOP_AND_CLOSE}.click(), 1`);
     const closed = await ok(until(() => win.isDestroyed(), 'the window to close', 30000));
     const kept2 = files(/^Sound .*\.weba$/);
-    const newest = kept2.find((f) => !sound.some((s) => s.name === f.name));
+    const newest = kept2.find((f) => !beforeClose.some((s) => s.name === f.name));
     const lastProbe = newest ? probeMedia(new Uint8Array(fs.readFileSync(path.join(folder, newest.name))), { complete: true }) : null;
     check('recorder app: closing the window while it records asks first, then stops, keeps the take and closes',
       takeOn && asked && stillOpen && closed && lastProbe?.hasAudio && lastProbe.duration > 1.5,
