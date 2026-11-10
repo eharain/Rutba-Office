@@ -9,8 +9,8 @@ const { text, lines, words } = await recognize(pixels, { languages: ['urd', 'eng
 ```
 
 `pixels` is `{ width, height, data }` with one to four eight-bit channels (a
-canvas's ImageData will do) or a PNG file's bytes. Languages: `eng`, `urd`
-(beta), `ara`, `hin`, `chi_sim`, `jpn`.
+canvas's ImageData will do) or a PNG file's bytes. Languages: `eng`, `urd`,
+`ara`, `hin`, `chi_sim`, `jpn`.
 
 Recognition runs on a pool of worker threads (`src/host.js`), one page a
 thread, at most one thread a core and never more than four, the rest

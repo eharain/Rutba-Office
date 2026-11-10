@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
+import { createLocker } from './extras/locker/locker.js';
 
 const js2 = (w, code) => w.webContents.executeJavaScript(code);
 const LOCKED_ROW = (rel) => `tr[data-rel=${JSON.stringify(rel)}][data-state=locked]`;
@@ -442,6 +443,44 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     const tile = await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="locker"]'))`), 'the launcher card', 10000).then(() => true, () => false);
     check('locker: a build made with the switch shows the card on the launcher', tile);
     await capture(home, 'locker-home-tile.png');
+
+    // A folder locked by another locker: recognised when chosen, opened, its files as they were.
+    const lockedElsewhere = fs.mkdtempSync(path.join(dir, 'locker-elsewhere-'));
+    const elsewhereBytes = crypto.randomBytes(5000);
+    fs.writeFileSync(path.join(lockedElsewhere, 'Elsewhere.pdf'), elsewhereBytes);
+    const otherLocker = createLocker({ dir: fs.mkdtempSync(path.join(dir, 'locker-other-')), cost: { N: 1024, r: 8, p: 1 } });
+    await otherLocker.setup('a password from elsewhere');
+    const { id: otherId } = await otherLocker.addFolder(lockedElsewhere, { hidden: false });
+    await otherLocker.lockWaiting(otherId);
+    const listing = () => fs.readdirSync(lockedElsewhere).sort().join();
+    const keyBytes = () => fs.readFileSync(path.join(lockedElsewhere, '.rutbalocker-keys'), 'utf8');
+    const listedBefore = listing();
+    const keysBefore = keyBytes();
+    await until(() => js(`Boolean(document.querySelector('.lk-add'))`), 'the main window again', 10000);
+    plan('open', [lockedElsewhere]);
+    await clickSel('.lk-add');
+    const openDialog = await until(() => js(`Boolean(document.querySelector('.lk-open-locked'))`), 'the open-a-locked-folder dialog', 6000).then(() => true, () => false);
+    const openWords = await js(`document.querySelector('.lk-open-locked')?.textContent || document.querySelector('.lk-add-dialog')?.textContent || ''`);
+    check('locker: a folder that is already locked is recognised when chosen, and asks for its password with no error and no offer to lock it',
+      openDialog && /already locked/.test(openWords) && !(await js(`Boolean(document.querySelector('.lk-open-locked .lk-error')) || Boolean(document.querySelector('.lk-add-go'))`)), openWords.slice(0, 300));
+    await capture(win, 'locker-open-locked.png');
+    await setField('Password that locked this folder', 'not the right one');
+    await clickSel('.lk-open-go');
+    await until(() => js(`Boolean(document.querySelector('.lk-open-locked .lk-error'))`), 'the refusal', 15000).catch(() => false);
+    const refused = await js(`document.querySelector('.lk-open-locked .lk-error')?.textContent || ''`);
+    check('locker: a wrong password says so and changes nothing in the folder', /does not open/.test(refused || '') && listing() === listedBefore && keyBytes() === keysBefore, String(refused));
+    await js(`document.querySelector('.lk-open-switch')?.click(), 1`);
+    const recoveryField = await until(() => js(`[...document.querySelectorAll('.lk-open-locked input')].some((i) => i.getAttribute('aria-label') === 'Recovery key that opens this folder')`), 'the recovery key field', 4000).then(() => true, () => false);
+    check('locker: the same dialog takes the recovery key instead', recoveryField);
+    await js(`document.querySelector('.lk-open-switch')?.click(), 1`);
+    await until(() => js(`[...document.querySelectorAll('.lk-open-locked input')].some((i) => i.getAttribute('aria-label') === 'Password that locked this folder')`), 'the password field again', 4000);
+    await setField('Password that locked this folder', 'a password from elsewhere');
+    await wait(200);
+    await clickSel('.lk-open-go');
+    const added = await until(() => js(`!document.querySelector('.lk-open-locked')`), 'the folder to open', 20000).then(() => true, () => false);
+    const openedRow = await until(() => js(`Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Elsewhere.pdf'))}))`), 'its locked file listed', 10000).then(() => true, () => false);
+    check('locker: the right password opens the folder, its files listed as locked, and the folder on disk as it was',
+      added && openedRow && listing() === listedBefore && keyBytes() === keysBefore, JSON.stringify({ added, openedRow, listing: listing() }));
 
     const errors = await errorsIn(win).catch(() => []);
     check('locker: no errors in the window', !errors.length, JSON.stringify(errors).slice(0, 200));

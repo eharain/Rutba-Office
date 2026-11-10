@@ -165,8 +165,8 @@ export async function verifyReceiptRow(h, { dir }) {
     await capture('receipt-row-03-limits.png');
     await tick(['eng']);
     const gone = await until(() => js(`!document.querySelector('.rr-body [data-role="ocr-limits"]')`), 'the notes gone', 4000).then(() => true).catch(() => false);
-    check('receipt-row: choosing Arabic says Arabic-Indic and Urdu digits are not read yet, Urdu adds that Nastaliq is beta, English alone says neither',
-      /Arabic-Indic and Urdu digits are not read yet/.test(arabic || '') && /beta/.test(urdu || '') && /Nastaliq/.test(urdu || '') && gone, JSON.stringify({ arabic, urdu, gone }));
+    check('receipt-row: choosing Arabic says Arabic-Indic and Urdu digits are not read yet, Urdu adds that Nastaliq print is not read reliably, English alone says neither',
+      /Arabic-Indic and Urdu digits are not read yet/.test(arabic || '') && !/beta/i.test(urdu || '') && /Nastaliq/.test(urdu || '') && gone, JSON.stringify({ arabic, urdu, gone }));
 
     // Corrections, then Insert: headings and three rows, typed.
     await setCell(1, 'supplier', 'Northgate Supplies Ltd');

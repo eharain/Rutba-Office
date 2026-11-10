@@ -1,7 +1,7 @@
 // PDF: Recognise Text, pressed in the window. A three-page PDF made here
 // holds an English page that is only a picture of text, a page that already
 // has text, and an Urdu page that is only a picture; Recognise Text's dialog
-// offers the six languages with Urdu marked beta, reads the two scanned
+// offers the six languages, reads the two scanned
 // pages on the main process's threads (the main process's own loop never
 // held up while it does) and leaves the text page alone; then Find finds
 // words on both scans, English and Urdu, the recognised words can be
@@ -105,15 +105,15 @@ export async function verifyOcrPdf(h, { dir }) {
     await until(() => d.js(`(document.querySelectorAll('.pdf-page .textLayer')[1]?.textContent.length || 0) > 0`), 'the typed page’s text', 15000).catch(() => {});
     const before = await d.js(`[...document.querySelectorAll('.pdf-page .textLayer')].map((l) => l.textContent.length)`);
 
-    // The dialog: three ways to choose pages, six languages, Urdu marked beta and explained when ticked.
+    // The dialog: three ways to choose pages, six languages, what Urdu cannot read explained when ticked.
     const pressed = await d.tip('Recognise Text');
     const dialog = await until(() => d.js(`Boolean(document.querySelector('[data-role="ocr-dialog"]'))`), 'the Recognise Text dialog', 5000).then(() => true).catch(() => false);
     const offered = await d.js(`(() => {
-      const langs = [...document.querySelectorAll('.ocr-lang')].map((n) => ({ code: n.dataset.code, on: n.querySelector('input').checked, beta: Boolean(n.querySelector('.ocr-beta')) }));
+      const langs = [...document.querySelectorAll('.ocr-lang')].map((n) => ({ code: n.dataset.code, on: n.querySelector('input').checked }));
       return { langs, scopes: document.querySelectorAll('[name="ocr-scope"]').length };
     })()`);
-    check('ocr-pdf: Recognise Text opens a dialog offering all pages, the selected ones or this one, and six languages with only Urdu marked beta', pressed === 'clicked' && dialog && offered.scopes === 3
-      && offered.langs.map((l) => l.code).join() === 'eng,urd,ara,hin,chi_sim,jpn' && offered.langs.filter((l) => l.beta).map((l) => l.code).join() === 'urd', JSON.stringify({ pressed, dialog, offered }));
+    check('ocr-pdf: Recognise Text opens a dialog offering all pages, the selected ones or this one, and six languages', pressed === 'clicked' && dialog && offered.scopes === 3
+      && offered.langs.map((l) => l.code).join() === 'eng,urd,ara,hin,chi_sim,jpn', JSON.stringify({ pressed, dialog, offered }));
     // English and Urdu, whatever was chosen last time.
     await d.js(`(() => {
       for (const n of document.querySelectorAll('.ocr-lang')) {
@@ -126,7 +126,7 @@ export async function verifyOcrPdf(h, { dir }) {
     await until(() => d.js(`Boolean(document.querySelector('[data-role="ocr-urdu-note"]'))`), 'the Urdu note', 3000).catch(() => {});
     const note = await d.js(`document.querySelector('[data-role="ocr-urdu-note"]')?.textContent || ''`);
     await d.capture('ocr-pdf-01-dialog.png');
-    check('ocr-pdf: ticking Urdu says it is beta, good on Naskh and not yet reliable on Nastaliq print', /beta/i.test(note) && /Nastaliq/.test(note), note);
+    check('ocr-pdf: ticking Urdu says it is good on Naskh and not yet reliable on Nastaliq print', !/beta/i.test(note) && /Nastaliq/.test(note), note);
 
     // Reading: the main process's loop is timed all along; a hold of more than a fraction of a second would show.
     let worst = 0;

@@ -37,10 +37,9 @@ function cer(truth, read, unspaced = false) {
   return prev[b.length] / a.length;
 }
 
-test('languages: the six shipped, Urdu marked beta, unknown codes refused, a window language suggests its own script', () => {
+test('languages: the six shipped, none marked as unfinished, unknown codes refused, a window language suggests its own script', () => {
   assert.deepEqual(LANGUAGES.map((l) => l.code), ['eng', 'urd', 'ara', 'hin', 'chi_sim', 'jpn']);
-  assert.equal(LANGUAGES.find((l) => l.code === 'urd').beta, true);
-  assert.equal(LANGUAGES.filter((l) => l.beta).length, 1);
+  assert.equal(LANGUAGES.filter((l) => 'beta' in l).length, 0);
   assert.deepEqual(checkLanguages('urd+eng+urd'), ['urd', 'eng']);
   assert.deepEqual(checkLanguages([]), ['eng']);
   assert.throws(() => checkLanguages(['deu']), OcrLanguageError);

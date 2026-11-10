@@ -5,7 +5,7 @@
 // (window.rutbaOffice.ocr, apps/desktop/main/ocr.js); a window only hands
 // over pixels and shows what came back. Here: which languages to read, as
 // the person last chose them (or the window's own language and English),
-// the picker that chooses them with Urdu marked beta, pixels from a picture
+// the picker that chooses them, pixels from a picture
 // or a canvas, and the words laid over a picture so they can be selected.
 
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
@@ -42,7 +42,7 @@ export function rememberOcrLanguages(list) {
   try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { /* the next window asks again */ }
 }
 
-/** Checkboxes for the six languages; Urdu is marked beta, with a word on why when it is ticked. */
+/** Checkboxes for the six languages, with a word on what Urdu cannot read yet when it is ticked. */
 export function OcrLanguagePicker({ value, onChange }) {
   const names = ocrLanguageNames();
   const toggle = (code) => {
@@ -57,7 +57,6 @@ export function OcrLanguagePicker({ value, onChange }) {
           <label key={code} className="ocr-lang" data-code={code}>
             <input type="checkbox" checked={value.includes(code)} onChange={() => toggle(code)} />
             <span>{names[code] || LANGUAGES.find((l) => l.code === code)?.name}</span>
-            {code === 'urd' ? <span className="ocr-beta" title={t('Urdu text recognition is in beta')}>{t('Beta')}</span> : LANGUAGES.find((l) => l.code === code)?.beta ? <span className="ocr-beta">{t('Beta')}</span> : null}
           </label>
         ))}
       </div>
@@ -69,7 +68,7 @@ export function OcrLanguagePicker({ value, onChange }) {
 /**
  * What cannot be read yet in the languages chosen, said where it applies:
  * Arabic-Indic and Urdu digits (no figures or dates from a page printed in
- * them) when Arabic or Urdu is read, and Nastaliq as beta when Urdu is.
+ * them) when Arabic or Urdu is read, and Nastaliq print when Urdu is.
  */
 export function OcrLimits({ languages = [], compact = false }) {
   const limits = ocrLimits(languages);
@@ -77,7 +76,7 @@ export function OcrLimits({ languages = [], compact = false }) {
   return (
     <div className={`ocr-limits${compact ? ' compact' : ''}`} data-role="ocr-limits" data-limits={limits.join(' ')}>
       {limits.includes('nastaliq') ? (
-        <div className="ocr-note" data-role="ocr-urdu-note">{t('Urdu text recognition is in beta: it reads Naskh type well, but not yet Nastaliq print reliably.')}</div>
+        <div className="ocr-note" data-role="ocr-urdu-note">{t('Urdu text recognition reads Naskh type well, but not yet Nastaliq print reliably.')}</div>
       ) : null}
       {limits.includes('digits') ? (
         <div className="ocr-note" data-role="ocr-digits-note">{t('Arabic-Indic and Urdu digits are not read yet: figures and dates printed in them are left out or come out wrong. Western digits on the same page are read.')}</div>
@@ -159,7 +158,6 @@ export const OCR_CSS = `
 .ocr-langs-grid { display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 6px 18px; }
 .ocr-lang { display: flex; align-items: center; gap: 8px; font-size: 13px; min-height: 26px; cursor: default; }
 .ocr-lang input { margin: 0; }
-.ocr-beta { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
 .ocr-note { font-size: 12px; line-height: 1.45; color: var(--ink-2); padding: 7px 10px; border-radius: var(--r-2); background: color-mix(in srgb, var(--warn) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 28%, var(--line)); max-width: 420px; }
 .ocr-limits { display: flex; flex-direction: column; gap: 6px; }
 .ocr-limits.compact .ocr-note { font-size: 11.5px; padding: 5px 8px; max-width: none; }

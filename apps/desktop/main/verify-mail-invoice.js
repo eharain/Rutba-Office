@@ -8,7 +8,7 @@
 // again, the invoice shows its note at once, read from what was kept with the
 // message, and nothing is read again. In Urdu the note reads right to left,
 // and the reading in Urdu and English says that Arabic-Indic and Urdu digits
-// are not read yet and that Nastaliq is beta. Everything the check made is
+// are not read yet and that Nastaliq print is not read reliably. Everything the check made is
 // taken away at the end. Run alone with RUTBA_VERIFY_ONLY=mail-invoice.
 
 import fs from 'node:fs';
@@ -177,7 +177,7 @@ export async function verifyMailInvoice(h, { dir }) {
         digits: p.querySelector('[data-role="ocr-digits-note"]')?.textContent || '', nastaliq: p.querySelector('[data-role="ocr-urdu-note"]')?.textContent || '' };
     })()`), 'the Urdu note and its limits', 15000);
     await capture(w, 'mail-invoice-03-urdu.png');
-    check('mail-invoice: in Urdu the note reads right to left in Urdu, and a reading in Urdu says Arabic-Indic and Urdu digits are not read yet and Nastaliq is beta',
+    check('mail-invoice: in Urdu the note reads right to left in Urdu, and a reading in Urdu says Arabic-Indic and Urdu digits are not read yet and Nastaliq print is not read reliably',
       urdu?.dir === 'rtl' && urdu.iconRight && /[؀-ۿ]/.test(urdu.title) && /190\.13/.test(urdu.total) && /[؀-ۿ]/.test(urdu.digits) && /[؀-ۿ]/.test(urdu.nastaliq), JSON.stringify(urdu));
     w.destroy();
   } catch (err) {

@@ -172,7 +172,7 @@ export function checkboxLabels(checkboxes, words = [], { rtl = false } = {}) {
  * 'digits' when Arabic or Urdu is read (the models do not read Arabic-Indic or
  * Urdu digits, so a page printed in them gives no figures or dates), and
  * 'nastaliq' when Urdu is (Naskh type reads well; Nastaliq print, the style
- * most Urdu is printed in, is beta).
+ * most Urdu is printed in, is not read reliably).
  */
 export function ocrLimits(languages = []) {
   const out = [];

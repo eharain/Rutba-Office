@@ -261,7 +261,7 @@ export const TOOL_LIST = [
   },
   {
     name: 'read_text_in_picture',
-    description: 'Read the words in a PNG picture, on this computer, with Rutba Office\'s text recognition. Languages: eng (English), urd (Urdu, beta), ara (Arabic), hin (Hindi), chi_sim (Chinese), jpn (Japanese).',
+    description: 'Read the words in a PNG picture, on this computer, with Rutba Office\'s text recognition. Languages: eng (English), urd (Urdu), ara (Arabic), hin (Hindi), chi_sim (Chinese), jpn (Japanese).',
     inputSchema: { type: 'object', properties: { path: FILE, languages: { type: 'array', items: { type: 'string' }, description: 'eng when left out.' } }, required: ['path'], additionalProperties: false },
   },
 ];

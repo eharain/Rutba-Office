@@ -416,6 +416,21 @@ export function createLocker({ dir, cost, hooks = null }) {
     },
 
     /**
+     * What a folder already is, before anything is asked or written: locked
+     * (it has a key file), and whether this locker opens it with nothing typed.
+     * A key file that cannot be read is an error, never a folder with no key.
+     *
+     * @returns {Promise<{ locked: boolean, opens: boolean }>}
+     */
+    async lookAtFolder(root) {
+      needOpen();
+      const existing = await keys.readFolderKeysFile(path.join(path.resolve(root), FOLDER_KEYS));
+      if (!existing) return { locked: false, opens: false };
+      const key = keys.folderKey(existing.id) || await keys.openFolderKeys(existing);
+      return { locked: true, opens: Boolean(key) };
+    },
+
+    /**
      * A folder added to the locker. A folder already locked elsewhere is
      * recognised by its key file, and opens with the password that locked it.
      *
@@ -434,7 +449,8 @@ export function createLocker({ dir, cost, hooks = null }) {
       const keyFile = path.join(resolved, FOLDER_KEYS);
       let id;
       let joined = false;
-      const existing = await keys.readFolderKeysFile(keyFile).catch(() => null);
+      // Not caught: writing a new key over one that could not be read would lose the folder.
+      const existing = await keys.readFolderKeysFile(keyFile);
       if (existing) {
         id = existing.id;
         const twin = s.folders.find((f) => f.id === id);
@@ -462,7 +478,7 @@ export function createLocker({ dir, cost, hooks = null }) {
         let key = keys.folderKey(id);
         if (!key && (password || recovery)) key = await keys.openFolderKeys(existing, { password, recovery });
         if (!key) key = await keys.openFolderKeys(existing);
-        if (!key) throw new LockerError('bad-password', 'That password does not open this folder.');
+        if (!key) throw new LockerError('bad-password', recovery ? 'That recovery key does not open this folder.' : 'That password does not open this folder.');
         keys.rememberFolderKey(id, key);
         joined = true;
       } else {

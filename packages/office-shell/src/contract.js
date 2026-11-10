@@ -349,7 +349,7 @@ export const METHODS = {
   ocr: [
     'recognize',    // ({ image: { width, height, data } | pngBytes, languages, dpi, mode, table, document, job }) -> { text, lines, words: [{ text, box, confidence, line }], width, height, languages, angle, ms, table?: { rows, columns, cells, confidence, ruled }, document?: { kind, fields, items, checks, currency, checkboxes, words } }
     'cancel',       // ({ job }) -> { cancelled }   a job this window named, waiting or reading
-    'languages',    // () -> [{ code, name, script, direction, beta? }]
+    'languages',    // () -> [{ code, name, script, direction }]
     'stats',        // () -> { threads, busy, queued, limit, done, failed, cancelled }   for the checks
   ],
   // Recorder → Go Live: the destinations a person streams to (their keys kept in the

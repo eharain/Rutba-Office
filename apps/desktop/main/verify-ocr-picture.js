@@ -3,7 +3,7 @@
 // main process's threads, puts every word on the clipboard and lays the
 // lines over the picture, where one line can be selected and copied alone;
 // zoomed in, the lines stay on their words; the next picture leaves the last
-// one's words behind; Languages offers the six with Urdu marked beta. In
+// one's words behind; Languages offers the six. In
 // Image the same letter is read from the picture as edited, an edit takes
 // the words away, and an Urdu letter read in Urdu comes out right to left.
 // The clipboard's text is kept and put back.
@@ -94,13 +94,13 @@ export async function verifyOcrPicture(h, { dir }) {
       && Math.abs((zoomed.lines[0].left - zoomed.pic.left) / zoomed.pic.width - (first.lines[0].left - first.pic.left) / first.pic.width) < 0.01,
       JSON.stringify({ before: first.pic, after: zoomed.pic }));
 
-    // Languages: six, Urdu marked beta.
+    // Languages: six, none marked as unfinished.
     await d.role('text-languages');
     await until(() => d.js(`Boolean(document.querySelector('[data-role="ocr-languages"]'))`), 'the languages dialog', 4000).catch(() => {});
-    const langs = await d.js(`[...document.querySelectorAll('[data-role="ocr-languages"] .ocr-lang')].map((n) => n.dataset.code + (n.querySelector('.ocr-beta') ? '*' : '')).join()`);
+    const langs = await d.js(`[...document.querySelectorAll('[data-role="ocr-languages"] .ocr-lang')].map((n) => n.dataset.code).join()`);
     await d.capture('ocr-picture-03-languages.png');
     await d.js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((n) => n.textContent.trim() === 'Cancel')?.click(), 1`);
-    check('ocr-picture: Languages offers the six languages Copy Text reads, Urdu marked beta', langs === 'eng,urd*,ara,hin,chi_sim,jpn', langs);
+    check('ocr-picture: Languages offers the six languages Copy Text reads', langs === 'eng,urd,ara,hin,chi_sim,jpn', langs);
 
     // The next picture: the words of the last one are gone.
     await d.js(`[...document.querySelectorAll('.rw-btn')].find((n) => (n.dataset.tip || n.title || '') === 'Next')?.click(), 1`);
@@ -141,7 +141,7 @@ export async function verifyOcrPicture(h, { dir }) {
     const ucopied = await clipboard().readText();
     const ulayer = await u.layer('.im-canvas');
     await u.capture('ocr-picture-05-urdu.png');
-    check('ocr-picture: an Urdu picture read in Urdu (marked beta) copies Urdu words, its lines right to left', uready && /کمپیوٹر/.test(ucopied) && /beta/i.test(note)
+    check('ocr-picture: an Urdu picture read in Urdu copies Urdu words, its lines right to left', uready && /کمپیوٹر/.test(ucopied) && /Nastaliq/i.test(note) && !/beta/i.test(note)
       && ulayer.lines.length >= 4 && ulayer.lines.every((l) => l.dir === 'rtl') && u.inside(ulayer), JSON.stringify({ uready, ucopied: ucopied.slice(0, 60), lines: ulayer.lines.length }));
     const uErrors = await errorsIn(uw);
     const errors = [...pErrors, ...iErrors, ...uErrors];

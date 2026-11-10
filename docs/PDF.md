@@ -68,7 +68,7 @@ over itself), `assemble` writes the pages named (whole or not at all),
 scanned pages found on this computer and written into the file as an
 invisible text layer, so Find, selecting and copying work on scans. A dialog
 chooses all pages, the selected ones or this one, and the languages (the six
-the suite reads, Urdu marked beta); pages that already have text are left
+the suite reads); pages that already have text are left
 alone; a progress bar counts the pages, with Cancel. The layer is an
 incremental update (`packages/pdf/src/textlayer.js`): the original bytes
 stay the start of the file and no page is redrawn. Undo takes it away, and a

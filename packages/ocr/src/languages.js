@@ -7,16 +7,15 @@
 //   code       the language as recognition names it (Tesseract's code)
 //   ui         the suite's own code for it (its catalogue, its window language)
 //   model      the model's file name in vendor/tessdata, without .traineddata
-//   script, direction, and beta while its rates are not yet good enough
-//              to promise (docs/OCR.md has them)
+//   script, direction
 //
-// The names are English: the window translates them. Urdu is beta: its
-// model reads Naskh type well and the Nastaliq most Urdu is printed in
-// poorly.
+// The names are English: the window translates them. Urdu's model reads
+// Naskh type well and the Nastaliq most Urdu is printed in poorly, and the
+// window says so when Urdu is chosen (docs/OCR.md has the rates).
 
 export const LANGUAGES = Object.freeze([
   { code: 'eng', ui: 'en', model: 'eng', name: 'English', script: 'Latin', direction: 'ltr' },
-  { code: 'urd', ui: 'ur', model: 'urd', name: 'Urdu', script: 'Arabic', direction: 'rtl', beta: true },
+  { code: 'urd', ui: 'ur', model: 'urd', name: 'Urdu', script: 'Arabic', direction: 'rtl' },
   { code: 'ara', ui: 'ar', model: 'ara', name: 'Arabic', script: 'Arabic', direction: 'rtl' },
   { code: 'hin', ui: 'hi', model: 'hin', name: 'Hindi', script: 'Devanagari', direction: 'ltr' },
   { code: 'chi_sim', ui: 'zh', model: 'chi_sim', name: 'Chinese (Simplified)', script: 'Han', direction: 'ltr', unspaced: true },

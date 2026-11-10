@@ -5484,10 +5484,12 @@ export class Document {
    * blank until Update Table supplies one.
    */
   insertTableOfContents({ at, levels = 3, pages } = {}) {
-    const p = this.paragraph(at);
-    if (!p) throw new Error('no paragraph at index ' + at);
+    if (!this.paragraph(at)) throw new Error('no paragraph at index ' + at);
     this._ensureTocStyles(levels);
     const { xml } = this._buildToc(levels, pages);
+    // Read after the build: it puts a bookmark in every heading, so where this
+    // paragraph ended before that is inside a heading now, or past it.
+    const p = this.paragraph(at);
     this._spliceBody(p.end, p.end, xml);
     this.dirty = true;
     return this;
@@ -5511,7 +5513,9 @@ export class Document {
     const effectivePages = pages || this._tocCachedPages(existing);
     this._ensureTocStyles(levels);
     const { xml } = this._buildToc(levels, effectivePages);
-    this._spliceBody(span.start, span.end, xml);
+    // Read again: the build changes the bookmarks in the headings before it.
+    const now = this._tocSpan();
+    this._spliceBody(now.start, now.end, xml);
     this.dirty = true;
     return this;
   }

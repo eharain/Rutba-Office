@@ -31,7 +31,7 @@ the suite's English, Urdu, Arabic and Hindi and the Chinese and Japanese it
 is gaining, and each language the suite adds gains recognition too. The
 list is one table, `packages/ocr/src/languages.js`: a row a language with
 the suite's own code for it, its model's file name, its script, its
-direction and whether it is beta. Adding a language is a row and its model
+and direction. Adding a language is a row and its model
 file; `tools/vendor-ocr.mjs` takes the models it copies from that table,
 the language picker in the windows lists its rows, a window speaking the
 language suggests it first, and the package's tests check every row has its
@@ -62,7 +62,7 @@ tried.
 
 **PDF: Recognise Text** (Home and Pages, and the thumbnails' menu). A
 dialog chooses the pages (all, the selected ones, or this one) and the
-languages, Urdu marked beta with a sentence on why. Pages that already have
+languages, with a sentence on what Urdu cannot read yet. Pages that already have
 text are left as they are. Each scanned page is drawn by pdf.js at up to
 300 dots per inch (its long side at most 4,200 pixels) and read on the pool;
 each word's box is turned into the page's own coordinates by the viewport
@@ -91,7 +91,7 @@ selects and copies words or a line alone; a bar over the picture says how
 many lines were found, with Copy All and Hide. The lines follow the picture
 as it is zoomed, scrolled or turned in Pictures; in Image the picture is read
 as it is edited, and any edit takes the words away. Languages chooses which
-of the six are read (Urdu marked beta), remembered for every window.
+of the six are read, remembered for every window.
 
 **Worksheets: Data from Picture** (Data, From Picture: Picture From File or
 Picture From Clipboard). The picture is read with the table pass (below)
@@ -247,8 +247,8 @@ Fast models, SIMD build. CER and WER in percent; time per further page.
   6.1 percent for Urdu.
 - **Urdu in Nastaliq**, the style most Urdu is printed in, is read poorly:
   one character in five is wrong on a clean page, and three words in five;
-  half the characters on a simulated scan. Urdu recognition is therefore
-  labelled beta in the suite, good on Naskh and on Urdu typed in a Naskh
+  half the characters on a simulated scan. So the suite says what Urdu
+  recognition does: good on Naskh and on Urdu typed in a Naskh
   font, not yet for Nastaliq print. A recogniser of our own for Nastaliq is
   being prepared (below, "A model of our own").
 - **Chinese** loses a character or two a page (1.5 to 2.9 percent).
@@ -325,7 +325,7 @@ proofread pages), read as a 1,800 to 1,920 pixel wide JPEG of the page:
 CER / WER in percent. Each page's running head is not in its transcription
 but is read, so a point or two of each rate is the head. The real pages
 agree with the corpus: English and Hindi read well, and Nastaliq print is
-not read reliably, which is why Urdu is beta. The pages are not kept in the
+not read reliably, and the window says so when Urdu is chosen. The pages are not kept in the
 repository; `Page:` titles on en, hi and ur.wikisource.org find them.
 
 ### Not measured yet

@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8577,
+  "count": 8575,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -5638,12 +5638,6 @@
       "message": "Berry",
       "where": [
         "apps/desktop/renderer/shared-words.js"
-      ]
-    },
-    {
-      "message": "Beta",
-      "where": [
-        "apps/desktop/renderer/ocr-ui.js"
       ]
     },
     {
@@ -47527,13 +47521,7 @@
       ]
     },
     {
-      "message": "Urdu text recognition is in beta",
-      "where": [
-        "apps/desktop/renderer/ocr-ui.js"
-      ]
-    },
-    {
-      "message": "Urdu text recognition is in beta: it reads Naskh type well, but not yet Nastaliq print reliably.",
+      "message": "Urdu text recognition reads Naskh type well, but not yet Nastaliq print reliably.",
       "where": [
         "apps/desktop/renderer/ocr-ui.js"
       ]

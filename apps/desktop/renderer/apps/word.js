@@ -100,17 +100,20 @@ function offsetIn(blockEl, node, offset) {
 }
 
 /**
- * The soft hyphens automatic hyphenation draws between a word's letters are
- * the page's, not the document's: they sit in `.wd-shy` spans, and every
- * count of characters here passes over them.
+ * What the page draws that is not the document's words: the soft hyphens
+ * automatic hyphenation puts between a word's letters, a list item's number,
+ * and a tracked deletion's struck-out words. Every count of characters here
+ * passes over them. Counting the number put Tab at the start of "2." two
+ * letters into the item, and every letter typed on the line with it.
  */
-const SHY_FILTER = { acceptNode: (n) => (n.parentElement?.classList.contains('wd-shy') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) };
+const DRAWN_ONLY = '.wd-shy, .wd-marker, .wd-del';
+const drawnOnly = (textNode) => Boolean(textNode.parentElement?.closest(DRAWN_ONLY));
+const WORDS_ONLY = { acceptNode: (n) => (drawnOnly(n) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) };
 const textLength = (node) => {
   if (!node) return 0;
-  if (node.nodeType === Node.TEXT_NODE) return node.parentElement?.classList.contains('wd-shy') ? 0 : node.nodeValue.length;
-  if (node.classList?.contains('wd-shy')) return 0;
-  const shy = node.querySelectorAll ? node.querySelectorAll('.wd-shy').length : 0;
-  return (node.textContent?.length ?? 0) - shy;
+  if (node.nodeType === Node.TEXT_NODE) return drawnOnly(node) ? 0 : node.nodeValue.length;
+  if (node.matches?.(DRAWN_ONLY)) return 0;
+  return [...node.childNodes].reduce((n, child) => n + textLength(child), 0);
 };
 
 function offsetWithin(blockEl, node, offset) {
@@ -122,7 +125,7 @@ function offsetWithin(blockEl, node, offset) {
   }
 
   let total = 0;
-  const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT, SHY_FILTER);
+  const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT, WORDS_ONLY);
   let current = walker.nextNode();
   while (current) {
     if (current === node) return total + offset;
@@ -136,7 +139,7 @@ function offsetWithin(blockEl, node, offset) {
 /** The DOM position for a character offset inside a block. */
 function pointIn(blockEl, offset) {
   if (!blockEl) return null;
-  const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT, SHY_FILTER);
+  const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT, WORDS_ONLY);
   let seen = 0;
   let node = walker.nextNode();
   while (node) {
@@ -3850,7 +3853,9 @@ function planTabs(p, stops) {
       }
       width -= stop.align === 'center' ? w / 2 : w;
     }
-    const finalWidth = Math.max(2, Math.round(width));
+    // Down, never up, to a right or centre stop: half a pixel over the line's
+    // end sent a contents entry's page number onto the next line.
+    const finalWidth = Math.max(2, stop.align === 'left' ? Math.round(width) : Math.floor(width));
     carried += finalWidth;
     plan.push({ span, width: finalWidth, leader: stop.leader || '' });
   }

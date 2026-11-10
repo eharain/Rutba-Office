@@ -874,3 +874,39 @@ test('rename: a large file kept in pieces takes the new name and keeps its conte
   await locker.unlock({ password: 'pw' });
   assert.ok((await lockedBytes(locker, id, 'bigger.pdf')).equals(body), 'still reads after locking again');
 });
+
+test('a chosen folder is looked at first: plain, ours, or locked elsewhere, and looking changes nothing', async () => {
+  const { locker, folder, id, recovery } = await make();
+  write(folder, 'a.pdf', random(3000));
+  await locker.lockWaiting(id);
+  const plain = tmp('rl-plain-');
+  assert.deepEqual(await locker.lookAtFolder(plain), { locked: false, opens: false });
+  assert.deepEqual(fs.readdirSync(plain), []);
+  assert.deepEqual(await locker.lookAtFolder(folder), { locked: true, opens: true });
+
+  const elsewhere = createLocker({ dir: tmp(), cost: CHEAP });
+  await elsewhere.setup('pw');
+  const keysBefore = fs.readFileSync(path.join(folder, FOLDER_KEYS));
+  assert.deepEqual(await elsewhere.lookAtFolder(folder), { locked: true, opens: false }, 'the same password typed elsewhere is not known until it is typed for this folder');
+  assert.ok(fs.readFileSync(path.join(folder, FOLDER_KEYS)).equals(keysBefore));
+
+  // The recovery key opens it as the password does, and a wrong one says which it was.
+  await assert.rejects(() => elsewhere.addFolder(folder, {}, { recovery: 'AAAA-BBBB-CCCC-DDDD' }), (e) => ['bad-password', 'bad-recovery'].includes(e.code));
+  const joined = await elsewhere.addFolder(folder, {}, { recovery });
+  assert.equal(joined.joined, true);
+  assert.equal(joined.id, id);
+  assert.ok(fs.readFileSync(path.join(folder, FOLDER_KEYS)).equals(keysBefore), 'opening it writes no key file');
+});
+
+test('a key file that cannot be read is left alone and the folder is refused, never given a new key', async () => {
+  const profile = tmp();
+  const locker = createLocker({ dir: profile, cost: CHEAP });
+  await locker.setup('pw');
+  const folder = tmp('rl-damaged-');
+  write(folder, 'a.pdf.rlock', random(200));
+  fs.writeFileSync(path.join(folder, FOLDER_KEYS), '{ not a key file');
+  await assert.rejects(() => locker.lookAtFolder(folder), (e) => e.code === 'format');
+  await assert.rejects(() => locker.addFolder(folder, {}), (e) => e.code === 'format');
+  assert.equal(fs.readFileSync(path.join(folder, FOLDER_KEYS), 'utf8'), '{ not a key file');
+  assert.equal((await locker.folders()).length, 0);
+});

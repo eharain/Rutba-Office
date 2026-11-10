@@ -25,7 +25,7 @@ export function createOcrService({ host = ocrHost() } = {}) {
   };
 
   return {
-    /** The languages there are models for: [{ code, name, script, direction, beta? }]. */
+    /** The languages there are models for: [{ code, name, script, direction }]. */
     languages: () => LANGUAGES.map((l) => ({ ...l })),
 
     /**

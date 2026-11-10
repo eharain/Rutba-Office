@@ -281,7 +281,7 @@ character word count and no spelling check. Added for Japanese:
 | Then | Japanese | As Chinese, with the era calendar and reading sort |
 | Then | Traditional Chinese | The second Chinese catalogue and stroke sort |
 
-Each language ships as a beta catalogue first, with the release note saying
+Each language ships as a first catalogue, with the release note saying
 it awaits a native speaker's review, as Urdu's did. Studio's editors
 ([STUDIO.md](STUDIO.md)) follow the same rules: titles and captions in each
 of these scripts are part of their checks.

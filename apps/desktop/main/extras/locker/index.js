@@ -16,6 +16,7 @@ const METHODS = {
     'setup',       // ({ password }) -> { recovery }
     'unlock',      // ({ password?, recovery?, hello? }) -> state
     'lock',        // () -> state
+    'lookAtFolder', // ({ root }) -> { locked, opens }
     'addFolder',   // ({ root, choices, password?, recovery? }) -> { id, root, joined }
     'makeHomeFolder', // () -> { id, root, made }
     'setAdvanced', // ({ on }) -> state
@@ -315,6 +316,10 @@ export async function register({ stores, broadcast, electron, windows = () => []
     lock: async () => {
       await doLock('asked');
       return stateOut();
+    },
+    lookAtFolder: async ({ root }) => {
+      touch();
+      return locker.lookAtFolder(root);
     },
     addFolder: async ({ root, choices, password = null, recovery = null }) => {
       touch();

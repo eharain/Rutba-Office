@@ -351,13 +351,89 @@ function Choices({ c, set, keepDirPick, showWhat }) {
   );
 }
 
-/** Adding a folder: the choices asked once, with a suggestion on each. */
+/** A chosen folder, looked at first: one that is already locked is opened, never locked again. */
 function AddFolder({ shell, root, onClose, onAdded }) {
+  const [seen, setSeen] = useState(null);
+  useEffect(() => {
+    let live = true;
+    shell.locker.lookAtFolder({ root }).then((v) => { if (live) setSeen(v); }, (err) => { if (live) setSeen({ trouble: said(err) }); });
+    return () => { live = false; };
+  }, [shell, root]);
+  if (!seen) return null;
+  if (seen.trouble) {
+    return (
+      <Dialog title={t('This folder cannot be added')} width={520} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
+        <div className="lk-dialog-body">
+          <div className="lk-card-sub">{root}</div>
+          <div className="lk-error" role="alert">{seen.trouble}</div>
+        </div>
+      </Dialog>
+    );
+  }
+  if (seen.locked) return <OpenLockedFolder shell={shell} root={root} opens={seen.opens} onClose={onClose} onAdded={onAdded} />;
+  return <LockNewFolder shell={shell} root={root} onClose={onClose} onAdded={onAdded} />;
+}
+
+/** A folder locked before, here or on another computer: its password or recovery key opens it, and its files stay as they are. */
+function OpenLockedFolder({ shell, root, opens, onClose, onAdded }) {
+  const [useRecovery, setUseRecovery] = useState(false);
+  const [password, setPassword] = useState('');
+  const [recovery, setRecovery] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const can = !busy && (opens || Boolean(useRecovery ? recovery : password));
+  const go = async () => {
+    if (!can) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const out = await shell.locker.addFolder({ root, choices: {}, password: !opens && !useRecovery ? password : null, recovery: !opens && useRecovery ? recovery : null });
+      onAdded(out.id);
+    } catch (err) {
+      setError(said(err));
+      setBusy(false);
+    }
+  };
+  const onKeyDown = (e) => { if (e.key === 'Enter') go(); };
+  return (
+    <Dialog
+      title={t('Open the locked folder {name}', { name: root.split(/[\\/]/).pop() })}
+      width={560}
+      className="lk-open-locked"
+      onClose={onClose}
+      actions={<>
+        <Button label={t('Cancel')} onClick={onClose} />
+        <Button primary className="lk-open-go" label={busy ? t('Opening…') : t('Open this folder')} disabled={!can} onClick={go} />
+      </>}
+    >
+      <div className="lk-dialog-body">
+        <div className="lk-card-sub">{root}</div>
+        {opens ? <div>{t('This folder is already locked, and this locker can open it. Its files stay locked.')}</div> : (
+          <>
+            <div>{t('This folder is already locked. Enter the password that locked it, or its recovery key. Nothing in the folder changes.')}</div>
+            {useRecovery ? (
+              <Field label={t('Recovery key')}>
+                <Input value={recovery} onChange={(e) => setRecovery(e.target.value)} onKeyDown={onKeyDown} autoFocus aria-label={t('Recovery key that opens this folder')} />
+              </Field>
+            ) : (
+              <Field label={t('Password')}>
+                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={onKeyDown} autoFocus aria-label={t('Password that locked this folder')} />
+              </Field>
+            )}
+            <button type="button" className="lk-link lk-open-switch" style={{ alignSelf: 'flex-start' }} onClick={() => { setUseRecovery(!useRecovery); setError(null); }}>{useRecovery ? t('Use the password') : t('Use the recovery key')}</button>
+          </>
+        )}
+        {error ? <div className="lk-error" role="alert">{error}</div> : null}
+      </div>
+    </Dialog>
+  );
+}
+
+/** Locking a folder for the first time: the choices asked once, with a suggestion on each. */
+function LockNewFolder({ shell, root, onClose, onAdded }) {
   const toast = useToast();
   const [c, set] = useState({ what: 'every', types: '.pdf, .docx, .xlsx, .jpg', hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3, openIn: 'beside' });
   const [busy, setBusy] = useState(false);
-  const [needPassword, setNeedPassword] = useState(false);
-  const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [more, setMore] = useState(false);
   const cloud = whichCloud(root);
@@ -370,7 +446,7 @@ function AddFolder({ shell, root, onClose, onAdded }) {
     setBusy(true);
     setError(null);
     try {
-      const out = await shell.locker.addFolder({ root, password: password || null, choices: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions, openIn: c.openIn } });
+      const out = await shell.locker.addFolder({ root, choices: { hidden: c.hidden, afterLock: c.afterLock, keepDir: c.keepDir, keepVersions: c.keepVersions, openIn: c.openIn } });
       if (c.what === 'types') {
         const lines = c.types.split(',').map((s) => s.trim()).filter(Boolean).map((s) => (s.startsWith('.') ? `*${s}` : s));
         await shell.locker.writeRules({ id: out.id, text: `# What to lock in this folder, in the wording of .gitignore.\n${lines.join('\n')}\n` });
@@ -379,9 +455,6 @@ function AddFolder({ shell, root, onClose, onAdded }) {
       if (res.failed.length) toast?.(t('{n} files could not be locked yet. They are shown as not locked.', { n: res.failed.length }), { tone: 'warn' });
       onAdded(out.id);
     } catch (err) {
-      if (err.original?.startsWith?.('That password') || err.message?.startsWith?.('That password')) {
-        setNeedPassword(true);
-      }
       setError(said(err));
       setBusy(false);
     }
@@ -411,11 +484,6 @@ function AddFolder({ shell, root, onClose, onAdded }) {
             <Icon name="warn" size={16} />
             <span>{t('This folder is in {cloud}, which keeps earlier versions of each file. Those earlier plain versions stay there after locking; clear them in {cloud}\'s version history. While a file is open beside itself, {cloud} can upload its plain copy too.', { cloud })}</span>
           </div>
-        ) : null}
-        {needPassword ? (
-          <Field label={t('This folder was locked elsewhere. Enter the password that locked it.')}>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label={t('Password that locked this folder')} />
-          </Field>
         ) : null}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
