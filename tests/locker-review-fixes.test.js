@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createLocker } from '../apps/desktop/main/extras/locker/locker.js';
-import { FOLDER_KEYS, createKeys, newKdf, passwordKey } from '../apps/desktop/main/extras/locker/keys.js';
+import { FOLDER_KEYS, newKdf, passwordKey } from '../apps/desktop/main/extras/locker/keys.js';
 import { wipeFile, LARGE } from '../apps/desktop/main/extras/locker/folder.js';
 import { newHeader, sealFrame, MODE_FOLDER } from '../apps/desktop/main/extras/locker/format.js';
 
@@ -199,13 +199,61 @@ test('a state file that cannot be read is an error, never a locker with no folde
   assert.equal(fs.readFileSync(path.join(dir, 'state.json'), 'utf8'), '{ cut sho', 'left as it was');
 });
 
-test('a key file cannot ask for more memory than a person\'s computer can spare', async () => {
-  await assert.rejects(passwordKey('x', { ...newKdf({ N: 2 ** 22, r: 8, p: 1 }) }), (e) => e.code === 'format');
-  await assert.rejects(passwordKey('x', { ...newKdf({ N: 2 ** 20, r: 16, p: 1 }) }), (e) => e.code === 'format');
-  assert.ok(createKeys({ dir: tmp(), cost: CHEAP }));
+test('a key file cannot ask for more memory than a person\'s computer can spare, nor for settings no locker writes', async () => {
+  const refused = [
+    { N: 2 ** 22, r: 8, p: 1 }, // more rounds than any locker asks for
+    { N: 2 ** 20, r: 16, p: 1 }, // each within its own limit, 2 GB together
+    { N: 2 ** 20, r: 9, p: 1 }, // just over 1 GB
+    { N: 1000, r: 8, p: 1 },
+    { N: 1, r: 8, p: 1 },
+    { N: 1024, r: 0, p: 1 },
+    { N: 1024, r: 17, p: 1 },
+    { N: 1024, r: 8, p: 0 },
+    { N: 1024, r: 8, p: 5 },
+    { N: 1024.5, r: 8, p: 1 },
+    { N: undefined, r: undefined, p: undefined },
+  ];
+  for (const cost of refused) {
+    const started = Date.now();
+    await assert.rejects(passwordKey('x', { ...newKdf(cost), ...cost }), (e) => e.code === 'format', JSON.stringify(cost));
+    assert.ok(Date.now() - started < 1000, `refused before any work, ${JSON.stringify(cost)}`);
+  }
+  // What a locker does write still makes a key: the same one for the same password, another for another.
+  for (const cost of [CHEAP, undefined]) {
+    const kdf = newKdf(cost);
+    const key = await passwordKey('x', kdf);
+    assert.equal(key.length, 32);
+    assert.ok(key.equals(await passwordKey('x', kdf)));
+    assert.ok(!key.equals(await passwordKey('y', kdf)));
+  }
 });
 
-test('removing a plain file overwrites all of it, and never through a link', async () => {
+test('the locker overwrites a plain file it takes away, when it is locked and when a waiting one is removed', async () => {
+  const { locker, folder, id } = await make({ afterLock: 'delete' });
+  const SIZE = 300000;
+  const held = (name) => {
+    const p = path.join(folder, name);
+    fs.writeFileSync(p, crypto.randomBytes(SIZE));
+    return { p, fd: fs.openSync(p, 'r') };
+  };
+  // Removal may wait for the handle on Windows; what the handle reads is what was on the disk.
+  const readHeld = ({ fd }) => {
+    const b = Buffer.alloc(SIZE);
+    fs.readSync(fd, b, 0, SIZE, 0);
+    fs.closeSync(fd);
+    return b;
+  };
+  const lockedOne = held('a.bin');
+  const { failed } = await locker.lockWaiting(id);
+  assert.deepEqual(failed, []);
+  assert.ok(readHeld(lockedOne).every((b) => b === 0), 'the plain copy of the file just locked');
+  const waiting = held('b.bin');
+  await locker.deleteFile(id, 'b.bin');
+  assert.ok(readHeld(waiting).every((b) => b === 0), 'a waiting file removed');
+  assert.equal(fs.existsSync(waiting.p), false);
+});
+
+test('removing a plain file overwrites all of it, and never through a link', async (t) => {
   const dir = tmp();
   const big = path.join(dir, 'big.bin');
   fs.writeFileSync(big, crypto.randomBytes(12 * 1024 * 1024));
@@ -223,8 +271,10 @@ test('removing a plain file overwrites all of it, and never through a link', asy
   const link = path.join(dir, 'link.bin');
   try {
     fs.symlinkSync(target, link);
-  } catch {
-    return; // Links need a right this account may not have.
+  } catch (err) {
+    // Links need a right this account may not have; said, so a run that could not check this does not read as passed.
+    t.skip(`a link could not be made here (${err.code}), so the link half was not checked`);
+    return;
   }
   await wipeFile(link);
   assert.ok(fs.readFileSync(target).equals(bytes), 'what the link pointed at is untouched');
