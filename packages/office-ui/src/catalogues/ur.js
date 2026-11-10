@@ -3699,6 +3699,8 @@ export default {
   'Saved to Drafts': 'مسودوں میں محفوظ ہو گیا',
   'Saved {count} file': { one: '{count} فائل محفوظ ہو گئی', other: '{count} فائلیں محفوظ ہو گئیں' },
   'Saved {name}': '{name} محفوظ ہو گیا',
+  'This message is being sent right now, so it cannot be taken back.': 'یہ پیغام اس وقت بھیجا جا رہا ہے، اس لیے اسے واپس نہیں لیا جا سکتا۔',
+  'Sent, but a copy could not be kept in your Sent folder.': 'بھیج دیا گیا، لیکن بھیجے گئے فولڈر میں اس کی نقل نہیں رکھی جا سکی۔',
   'Sent, but the server refused {who}': 'بھیج دیا گیا، لیکن سرور نے {who} کو مسترد کر دیا',
   'Only the first {count} records are read. Keep a copy in this file to work with all of them.': 'صرف پہلے {count} ریکارڈ پڑھے گئے ہیں۔ سب کے ساتھ کام کرنے کے لیے اس فائل میں ایک نقل رکھیں۔',
   'This picture is animated. Turning it here would lose its frames.': 'یہ تصویر متحرک ہے۔ اسے یہاں گھمانے سے اس کے فریم ضائع ہو جائیں گے۔',

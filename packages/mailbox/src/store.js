@@ -294,9 +294,10 @@ export class MailStore {
     } catch (err) {
       // Sealed and no key for it: nothing here can be read anyway, and the list must not be written over.
       if (err.code === 'MAIL_LOCKED') return null;
-      // Not there yet is the only other reason to start afresh: a list that cannot be read now is not an empty one.
-      if (err.code !== 'ENOENT') throw err;
-      dirs = new Map();
+      // A disk that will not answer now is not an empty list.
+      if (err.syscall && err.code !== 'ENOENT') throw err;
+      // Not there yet starts afresh. Spoiled (a power cut can leave it empty) is made again from the folders themselves.
+      dirs = err.code === 'ENOENT' ? new Map() : this.#dirsFromDisk(accountId);
     }
     this.#folderDirs.set(accountId, dirs);
     return dirs;
@@ -304,7 +305,25 @@ export class MailStore {
 
   #saveDirs(accountId) {
     if (!this.#dirsOf(accountId)) return;
-    this.#write(path.join(this.#accountDir(accountId), FOLDER_DIRS), JSON.stringify(Object.fromEntries(this.#dirsOf(accountId))));
+    // Every folder's mail is found through this one file: it reaches the disk before anything relies on it.
+    writeAtomic(path.join(this.#accountDir(accountId), FOLDER_DIRS), this.#seal(JSON.stringify(Object.fromEntries(this.#dirsOf(accountId)))), { flush: true });
+  }
+
+  /** The list of folder directories made again from what is on the disk, when the file that held it cannot be read. */
+  #dirsFromDisk(accountId) {
+    const here = new Set(fs.readdirSync(this.#accountDir(accountId), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name));
+    const dirs = new Map();
+    for (const { path: folder } of this.folders(accountId)) {
+      const plain = safe(folder);
+      const clashed = `${plain.slice(0, 100)}~${crypto.createHash('sha256').update(folder).digest('hex').slice(0, 10)}`;
+      const dir = here.has(clashed) ? clashed : here.has(plain) ? plain : null;
+      if (!dir) continue;
+      dirs.set(folder, dir);
+      here.delete(dir);
+    }
+    // A directory no listed folder explains is named for itself, so its mail is not orphaned.
+    for (const dir of here) if (!RESERVED_DIRS.has(dir.toLowerCase())) dirs.set(dir, dir);
+    return dirs;
   }
 
   /**
@@ -452,14 +471,22 @@ export class MailStore {
    * given, collects the id of each one added, so what arrived is known by
    * name rather than guessed from the newest dates.
    */
+  /** The ids a folder lists: a message counts as held only when it is on this list, whatever files are on the disk. */
+  listedIds(accountId, folder) {
+    return new Set(this.#index(accountId, folder).map((row) => row.id));
+  }
+
   putMany(accountId, folder, messages, { ids = null } = {}) {
     const dir = this.#folderDir(accountId, folder);
     const lines = [];
     let added = 0;
     // Asked for once, and only if a message file is found already here (see put).
     let listed = null;
+    const thisBatch = new Set();
     for (const message of messages) {
       const id = messageKey(message);
+      if (thisBatch.has(id)) continue;
+      thisBatch.add(id);
       const file = path.join(dir, 'm', `${id}.json`);
       if (fs.existsSync(file)) {
         listed ??= new Set(this.#index(accountId, folder).map((row) => row.id));

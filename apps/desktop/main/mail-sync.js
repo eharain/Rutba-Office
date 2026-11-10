@@ -436,6 +436,7 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
   async function download(client, accountId, folder, uids) {
     const ids = [];
     let added = 0;
+    const listed = store.listedIds(accountId, folder);
     for (let i = 0; i < uids.length; i += BATCH) {
       const batch = [];
       const known = {};
@@ -444,11 +445,13 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
         parsed.uid = msg.uid;
         Object.assign(parsed, marksOf(msg.flags));
         const id = messageKey(parsed);
-        if (store.get(accountId, folder, id)) known[id] = msg.uid;
+        // Listed, not merely on the disk: a stop between the message's file and its row leaves a file no list shows.
+        if (listed.has(id)) known[id] = msg.uid;
         else batch.push(parsed);
       }
       if (Object.keys(known).length) store.setUids(accountId, folder, known);
       added += store.putMany(accountId, folder, batch, { ids });
+      for (const m of batch) listed.add(messageKey(m));
     }
     return { ids, added };
   }

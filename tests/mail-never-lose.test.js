@@ -286,7 +286,7 @@ test('a recipient the server refused is said, though the message went to the oth
   assert.deepEqual(f.told.find((e) => e.name === 'mail:sent').data.refused, ['gone@b.com', 'no@b.com']);
 });
 
-test('a folder exported keeps its attachments, its copies and its page', () => {
+test('a folder exported keeps its attachments, its copies and its page', async () => {
   const f = fixture();
   new MailStore(path.join(f.userData, 'mail')).putMany(f.account.id, 'INBOX', [{
     messageId: 'kept@x', subject: 'The report', date: '2026-03-01T09:00:00Z',
@@ -295,7 +295,7 @@ test('a folder exported keeps its attachments, its copies and its page', () => {
     attachments: [{ filename: 'report.pdf', type: 'application/pdf', bytes: Buffer.from('%PDF-1.4 the report') }],
   }]);
   const out = path.join(f.userData, 'out');
-  assert.equal(f.service.export({ accountId: f.account.id, folder: 'INBOX', path: out, format: 'eml' }).messages, 1);
+  assert.equal((await f.service.export({ accountId: f.account.id, folder: 'INBOX', path: out, format: 'eml' })).messages, 1);
   const eml = fs.readFileSync(path.join(out, fs.readdirSync(out)[0]));
   const back = parseMessage(eml);
   assert.equal(back.subject, 'The report');

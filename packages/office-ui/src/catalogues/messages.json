@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8605,
+  "count": 8607,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -36938,6 +36938,12 @@
       ]
     },
     {
+      "message": "Sent, but a copy could not be kept in your Sent folder.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Sent, but the server refused {who}",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -45131,6 +45137,12 @@
     },
     {
       "message": "This message does not offer one-click unsubscribe.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "This message is being sent right now, so it cannot be taken back.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
       ]

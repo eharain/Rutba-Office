@@ -3701,6 +3701,8 @@ export default {
   'Saved to Drafts': 'تم الحفظ في المسودات',
   'Saved {count} file': { zero: 'لم يتم حفظ أي ملف', one: 'تم حفظ ملف واحد', two: 'تم حفظ ملفين', few: 'تم حفظ {count} ملفات', many: 'تم حفظ {count} ملفًا', other: 'تم حفظ {count} ملف' },
   'Saved {name}': 'تم حفظ {name}',
+  'This message is being sent right now, so it cannot be taken back.': 'تُرسل هذه الرسالة الآن، لذا لا يمكن استرجاعها.',
+  'Sent, but a copy could not be kept in your Sent folder.': 'تم الإرسال، لكن تعذر الاحتفاظ بنسخة في مجلد المرسل.',
   'Sent, but the server refused {who}': 'أُرسلت، لكن الخادم رفض {who}',
   'Only the first {count} records are read. Keep a copy in this file to work with all of them.': 'تُقرأ أول {count} سجل فقط. احتفظ بنسخة في هذا الملف للعمل عليها جميعًا.',
   'This picture is animated. Turning it here would lose its frames.': 'هذه الصورة متحركة. تدويرها هنا يُفقدها إطاراتها.',

@@ -424,8 +424,9 @@ export default function Mail({ app, shell }) {
       refreshList();
       setFolderTick((n) => n + 1);
     });
-    const offSent = shell.on('mail:sent', ({ to, refused }) => {
+    const offSent = shell.on('mail:sent', ({ to, refused, notKept }) => {
       if (refused?.length) toast(t('Sent, but the server refused {who}', { who: refused.join(', ') }), { tone: 'bad', ms: 9000 });
+      else if (notKept) toast(t('Sent, but a copy could not be kept in your Sent folder.'), { tone: 'bad', ms: 9000 });
       else toast(t('Sent to {to}', { to }), { tone: 'good' });
       shell.mail.outbox().then(setOutbox).catch(() => {});
       refreshList();
@@ -830,9 +831,10 @@ export default function Mail({ app, shell }) {
     async (id) => {
       const item = await shell.mail.unsend({ id });
       setOutbox(await shell.mail.outbox());
-      if (item) setCompose({ ...item.draft, accountId: item.accountId });
+      if (item?.sending) toast(t('This message is being sent right now, so it cannot be taken back.'), { tone: 'bad', ms: 7000 });
+      else if (item) setCompose({ ...item.draft, accountId: item.accountId });
     },
-    [shell]
+    [shell, toast]
   );
 
   /** Send now: take it off the schedule and hand it to SMTP immediately. */
@@ -859,9 +861,12 @@ export default function Mail({ app, shell }) {
   /** Cancel a scheduled send. The words are not thrown away — they go to Drafts. */
   const cancelOutboxItem = useCallback(
     async (item) => {
-      const back = await shell.mail.unsend({ id: item.id });
-      await shell.mail.saveDraft({ accountId: item.accountId, draft: back?.draft || item.draft });
+      const back = await shell.mail.unsend({ id: item.id, toDrafts: true });
       setOutbox(await shell.mail.outbox());
+      if (back?.sending) {
+        toast(t('This message is being sent right now, so it cannot be taken back.'), { tone: 'bad', ms: 7000 });
+        return;
+      }
       toast(t('Moved to Drafts'), { tone: 'good' });
       refreshList();
     },

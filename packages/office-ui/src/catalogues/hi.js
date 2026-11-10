@@ -3701,6 +3701,8 @@ export default {
   'Saved to Drafts': 'ड्राफ़्ट में सहेजा गया',
   'Saved {count} file': { one: '{count} फ़ाइल सहेजी गई', other: '{count} फ़ाइलें सहेजी गईं' },
   'Saved {name}': '{name} सहेजा गया',
+  'This message is being sent right now, so it cannot be taken back.': 'यह संदेश अभी भेजा जा रहा है, इसलिए इसे वापस नहीं लिया जा सकता।',
+  'Sent, but a copy could not be kept in your Sent folder.': 'भेज दिया गया, लेकिन भेजे गए फ़ोल्डर में इसकी प्रति नहीं रखी जा सकी।',
   'Sent, but the server refused {who}': 'भेज दिया गया, लेकिन सर्वर ने {who} को अस्वीकार कर दिया',
   'Only the first {count} records are read. Keep a copy in this file to work with all of them.': 'केवल पहले {count} रिकॉर्ड पढ़े गए हैं। सभी के साथ काम करने के लिए इस फ़ाइल में एक प्रति रखें।',
   'This picture is animated. Turning it here would lose its frames.': 'यह तस्वीर एनिमेटेड है। इसे यहाँ घुमाने से इसके फ़्रेम खो जाएँगे।',

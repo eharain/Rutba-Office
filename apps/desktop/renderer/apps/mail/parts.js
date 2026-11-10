@@ -34,6 +34,11 @@ const FINE_PICTURE = /^\s*(https?:|cid:|data:image\/(png|jpe?g|gif|webp|bmp);)/i
 export function safeDraftHtml(html) {
   const page = new DOMParser().parseFromString(String(html || ''), 'text/html');
   for (const el of [...page.body.querySelectorAll('*')]) {
+    // A form's own controls go; a message wrapped in one is still the message.
+    if (el.tagName.toUpperCase() === 'FORM') {
+      el.replaceWith(...el.childNodes);
+      continue;
+    }
     if (NOT_IN_A_DRAFT.has(el.tagName.toUpperCase())) {
       el.remove();
       continue;

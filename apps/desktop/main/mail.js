@@ -688,21 +688,54 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     if (!draft?.attachments?.some((a) => a.kept)) return draft;
     return { ...draft, attachments: draft.attachments.map((a) => (a.kept ? { filename: a.filename, content: store.readOutgoing(a.kept) } : a)) };
   }
+  // The messages on their way to the server this moment, in this run of the program.
+  const goingNow = new Set();
   function forgetKept(draft) {
     if (draft?.keptWords) fs.rmSync(draft.keptWords, { force: true });
     for (const a of draft?.attachments || []) if (a.kept) fs.rmSync(a.kept, { force: true });
   }
-  /** Back in the form: each kept attachment as a file again, and the copy let go. */
+  /** A message the server has taken, kept in Sent here and, where it is not kept for us, at the server. */
+  function fileSentCopy({ accountId, account, draft, made, info }) {
+    // A sent message belongs in Sent whether or not the server puts it there.
+    let stored;
+    if (made) {
+      // The Sent copy is the message as it went, so it is read as its recipients read it.
+      stored = parseMessage(made);
+    } else {
+      const extra = [];
+      if (draft.inReplyTo) extra.push(`In-Reply-To: <${draft.inReplyTo}>`);
+      if (draft.references?.length) extra.push(`References: ${draft.references.map((r) => `<${r}>`).join(' ')}`);
+      for (const [k, v] of Object.entries(draft.headers || {})) extra.push(`${k}: ${v}`);
+      stored = parseMessage(
+        `From: ${account.email}\r\nTo: ${draft.to}\r\nSubject: ${draft.subject || ''}\r\n` +
+          `Date: ${new Date(now()).toUTCString()}\r\nMessage-ID: <${info.messageId || crypto.randomUUID()}>\r\n` +
+          `${extra.length ? extra.join('\r\n') + '\r\n' : ''}\r\n${draft.text || ''}`
+      );
+    }
+    stored.unread = false;
+    const sent = folderFor(accountId, 'sent') || 'Sent';
+    const id = store.put(accountId, sent, stored) || messageKey(stored);
+    if (!(store.folders(accountId) || []).some((f) => f.path === sent)) store.upsertFolder(accountId, { path: sent, name: sent.split('/').pop(), role: 'sent' });
+    // And in Sent at the server, unless the server keeps its own copy of what it sends (Gmail, Outlook).
+    if (made && live(accountId) && !serverKeepsSent(account)) {
+      const file = store.writeOutgoing(accountId, `${id}.eml`, Buffer.isBuffer(made) ? made : Buffer.from(made));
+      if (mailSync.record(accountId, { kind: 'append', folder: sent, file, id, messageId: stored.messageId || null })) mailSync.kick(accountId);
+    }
+  }
+
+  /**
+   * Back in the form: each kept attachment as a file again. Nothing kept is let
+   * go here: that is for the caller, with forgetKept, once the message is safe
+   * somewhere else. Anything that fails on the way leaves it all where it was.
+   */
   function takeBackKept(queued) {
     const draft = withWords(queued);
-    if (queued?.keptWords) fs.rmSync(queued.keptWords, { force: true });
     if (!draft?.attachments?.some((a) => a.kept)) return draft;
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-office-'));
     const attachments = draft.attachments.map((a, n) => {
       if (!a.kept) return a;
       const file = path.join(dir, `${n}-${path.basename(String(a.filename || 'attachment')).replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')}`);
       fs.writeFileSync(file, store.readOutgoing(a.kept));
-      fs.rmSync(a.kept, { force: true });
       return { filename: a.filename, size: a.size ?? null, path: file };
     });
     return { ...draft, attachments };
@@ -758,16 +791,19 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         const item = stores.settings.get('mail.outbox', []).find((o) => o.id === planned.id);
         if (!item || !isDue(item)) continue;
         write((list) => list.map((o) => (o.id === item.id ? { ...o, sending: true } : o)));
+        goingNow.add(item.id);
         try {
           const done = await service.send({ accountId: item.accountId, draft: draftToSend(item.draft) });
           write((list) => list.filter((o) => o.id !== item.id));
           forgetKept(item.draft);
-          broadcast?.('mail:sent', { id: item.id, to: item.draft?.to || '', refused: done?.refused || [] });
+          broadcast?.('mail:sent', { id: item.id, to: item.draft?.to || '', refused: done?.refused || [], notKept: Boolean(done?.notKept) });
         } catch (error) {
           const message = String(error?.message || error);
           const attempts = (item.attempts || 0) + 1;
           write((list) => list.map((o) => (o.id === item.id ? { ...o, sending: false, attempts, error: message, at: new Date(nowMs + RETRY_DELAY_MS).toISOString() } : o)));
           broadcast?.('mail:sendFailed', { id: item.id, message, attempts });
+        } finally {
+          goingNow.delete(item.id);
         }
       }
     }
@@ -1583,12 +1619,24 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     /** Everything still waiting, so the window can show an Outbox that is real. */
     outbox: () => stores.settings.get('mail.outbox', []),
 
-    /** Take one back. Nothing has left, so this always works. */
-    unsend: ({ id }) => {
-      const outbox = stores.settings.get('mail.outbox', []);
-      const item = outbox.find((o) => o.id === id) || null;
-      stores.settings.set('mail.outbox', outbox.filter((o) => o.id !== id));
-      return item ? { ...item, draft: takeBackKept(item.draft) } : null;
+    /**
+     * Take one back, unless it is on its way to the server this moment: then
+     * it cannot be stopped, and the person is told rather than given a draft of
+     * something the recipient also gets. With `toDrafts`, it is saved to Drafts
+     * first. What was kept for it goes last, once the message is safe elsewhere.
+     */
+    unsend: ({ id, toDrafts = false }) => {
+      if (goingNow.has(id)) return { sending: true };
+      const item = stores.settings.get('mail.outbox', []).find((o) => o.id === id) || null;
+      if (!item) return null;
+      const draft = takeBackKept(item.draft);
+      const release = () => {
+        stores.settings.set('mail.outbox', stores.settings.get('mail.outbox', []).filter((o) => o.id !== id));
+        forgetKept(item.draft);
+        return { ...item, draft };
+      };
+      if (!toDrafts) return release();
+      return service.saveDraft({ accountId: item.accountId, draft }).then(release);
     },
 
     /**
@@ -1675,33 +1723,16 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         }
       }
       const info = await transport.send({ account, credentials, draft });
-      // A sent message belongs in Sent whether or not the server puts it there.
-      let stored;
-      if (made) {
-        // The Sent copy is the message as it went, so it is read as its recipients read it.
-        stored = parseMessage(made);
-      } else {
-        const extra = [];
-        if (draft.inReplyTo) extra.push(`In-Reply-To: <${draft.inReplyTo}>`);
-        if (draft.references?.length) extra.push(`References: ${draft.references.map((r) => `<${r}>`).join(' ')}`);
-        for (const [k, v] of Object.entries(draft.headers || {})) extra.push(`${k}: ${v}`);
-        stored = parseMessage(
-          `From: ${account.email}\r\nTo: ${draft.to}\r\nSubject: ${draft.subject || ''}\r\n` +
-            `Date: ${new Date(now()).toUTCString()}\r\nMessage-ID: <${info.messageId || crypto.randomUUID()}>\r\n` +
-            `${extra.length ? extra.join('\r\n') + '\r\n' : ''}\r\n${draft.text || ''}`
-        );
-      }
-      stored.unread = false;
-      const sent = folderFor(accountId, 'sent') || 'Sent';
-      const id = store.put(accountId, sent, stored) || messageKey(stored);
-      if (!(store.folders(accountId) || []).some((f) => f.path === sent)) store.upsertFolder(accountId, { path: sent, name: sent.split('/').pop(), role: 'sent' });
-      // And in Sent at the server, unless the server keeps its own copy of what it sends (Gmail, Outlook).
-      if (made && live(accountId) && !serverKeepsSent(account)) {
-        const file = store.writeOutgoing(accountId, `${id}.eml`, Buffer.isBuffer(made) ? made : Buffer.from(made));
-        if (mailSync.record(accountId, { kind: 'append', folder: sent, file, id, messageId: stored.messageId || null })) mailSync.kick(accountId);
+      const refused = (info.rejected || []).map((a) => a?.address || String(a));
+      // From here it has gone: nothing below may look like a failure to send, or the Outbox would send it again.
+      try {
+        fileSentCopy({ accountId, account, draft, made, info });
+      } catch (err) {
+        console.warn('mail: sent, but the copy in Sent could not be kept:', err?.message || err);
+        return { messageId: info.messageId, refused, notKept: true };
       }
       // A server can take a message for some recipients and turn down others; only all of them refused is an error.
-      return { messageId: info.messageId, refused: (info.rejected || []).map((a) => a?.address || String(a)) };
+      return { messageId: info.messageId, refused };
     },
 
     /**
@@ -1819,20 +1850,42 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       return { accountId: id, messages: count, folders: seenFolders.size, again: Boolean(earlier) };
     },
 
-    export: ({ accountId, folder, path: target, format = 'mbox' }) => {
+    /** A folder written out, a message at a time: a folder of years of attachments is not held in memory, and the windows go on answering. */
+    export: async ({ accountId, folder, path: target, format = 'mbox' }) => {
       const { rows } = store.list(accountId, folder, { limit: 1e6 });
-      const held = rows.map((r) => ({ id: r.id, m: store.get(accountId, folder, r.id) })).filter((x) => x.m);
-      const fileOf = ({ id, m }) => rebuildSource(withHeaders(m), (a) => store.attachmentBytes(accountId, folder, id, a.stored));
+      const fileOf = (id, m) => rebuildSource(withHeaders(m), (a) => store.attachmentBytes(accountId, folder, id, a.stored));
+      let messages = 0;
+      const each = async (write) => {
+        for (const r of rows) {
+          const m = store.get(accountId, folder, r.id);
+          if (!m) continue;
+          messages += 1;
+          write(r.id, m);
+          if (messages % 20 === 0) await new Promise((done) => setImmediate(done));
+        }
+      };
       if (format === 'mbox') {
-        fs.writeFileSync(target, Buffer.from(writeMbox(held.map((x) => ({ from: x.m.from?.[0], date: x.m.date, raw: fileOf(x) })))));
+        // Written beside the place and moved there whole: a stop part way never leaves half a backup under its name.
+        const part = `${target}.part`;
+        const fd = fs.openSync(part, 'w');
+        try {
+          await each((id, m) => fs.writeFileSync(fd, Buffer.from(writeMbox([{ from: m.from?.[0], date: m.date, raw: fileOf(id, m) }]))));
+          fs.fsyncSync(fd);
+        } catch (err) {
+          fs.closeSync(fd);
+          fs.rmSync(part, { force: true });
+          throw err;
+        }
+        fs.closeSync(fd);
+        fs.renameSync(part, target);
       } else {
         fs.mkdirSync(target, { recursive: true });
-        held.forEach((x, i) => {
-          const name = `${String(i + 1).padStart(5, '0')}-${(x.m.subject || 'message').replace(/[^\w. -]/g, '_').slice(0, 60)}.eml`;
-          fs.writeFileSync(path.join(target, name), fileOf(x));
+        await each((id, m) => {
+          const name = `${String(messages).padStart(5, '0')}-${(m.subject || 'message').replace(/[^\w. -]/g, '_').slice(0, 60)}.eml`;
+          fs.writeFileSync(path.join(target, name), fileOf(id, m));
         });
       }
-      return { messages: held.length, path: target };
+      return { messages, path: target };
     },
 
     attachment: ({ accountId, folder, id, index }) => {
