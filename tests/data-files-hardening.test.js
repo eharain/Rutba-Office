@@ -66,6 +66,26 @@ test('a role narrowed to some tables cannot run SQL of its own through a query p
   b.close();
 });
 
+test('a person signed in with a narrowed role: a designed query reads what the role shows, and nothing past it', () => {
+  const b = roles();
+  b.createTable({ name: 'Shop', fields: [{ name: 'Item', type: 'text' }] });
+  b.insert('Shop', { Item: 'Bread' });
+  b.insert('Pay', { Who: 'Ana', Salary: 4100 });
+  b.saveQuery('Salaries', { tables: ['Pay'], columns: [{ table: 'Pay', field: 'Salary' }] });
+  b.saveRole('Clerk', { tables: { default: 'read', each: { Pay: 'hidden' } } });
+  b.addPerson({ name: 'Cleo', role: 'Clerk', password: 'clerk-pass' });
+  b.signIn('Cleo', 'clerk-pass');
+  const design = (table, field) => ({ design: { tables: [table], columns: [{ table, field }] } });
+  assert.deepEqual(b.queryRows(design('Shop', 'Item')).rows.map((r) => r.Item), ['Bread'], 'what the role shows');
+  for (const [table, field] of [['Pay', 'Salary'], ['rutba_people', 'hash'], ['rutba_roles', 'rights'], ['rutba_links', 'settings']]) {
+    assert.throws(() => b.queryRows(design(table, field)), (e) => !/no such/i.test(e.message), `${table} is refused as past the role`);
+    assert.throws(() => b.runQuery(design(table, field)), (e) => !/no such/i.test(e.message), `${table}, run`);
+  }
+  assert.equal(b.queries().some((x) => x.name === 'Salaries'), false, 'a saved query over the hidden table is not listed');
+  assert.throws(() => b.queryRows({ name: 'Salaries' }));
+  b.close();
+});
+
 const LONG = '9007199254740993';
 
 test('a key longer than a JavaScript number keeps every digit from each engine', () => {
