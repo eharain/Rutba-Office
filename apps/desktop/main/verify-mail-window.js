@@ -249,7 +249,8 @@ export async function verifyMailWindow(h) {
       try { fs.rmSync(own, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* left in the temp folder */ }
     }
 
-    const complaints = [...(await errorsIn(win))];
+    // The two made-up data files above are refused, and rightly: that may or may not have shown yet.
+    const complaints = [...(await errorsIn(win))].filter((c) => !/not an Outlook data file/.test(c));
     check('mail window: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check('mail window: the check ran to the end', false, err?.message || String(err));

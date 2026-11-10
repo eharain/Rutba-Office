@@ -418,9 +418,13 @@ test('the information dictionary goes with the first file, and the title can be 
   assert.equal(openPdf(assemble([{ file, page: 0 }])).info().title, 'Report file');
 });
 
-test('another reader opens what this writes (pdf.js, when it is installed)', async (t) => {
-  let pdfjs;
-  try { pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs'); } catch { t.skip('pdf.js is not installed'); return; }
+test('another reader opens what this writes (the pdf.js that ships with Office)', async () => {
+  // The window's build expects a browser's matrix class, which reading words never calls on.
+  Uint8Array.prototype.toHex ??= function toHex() { return Buffer.from(this).toString('hex'); };
+  Promise.try ??= (f, ...a) => new Promise((r) => r(f(...a)));
+  globalThis.DOMMatrix ??= class { multiplySelf() { return this; } preMultiplySelf() { return this; } translate() { return this; } scale() { return this; } invertSelf() { return this; } };
+  const pdfjs = await import(new URL('../apps/desktop/vendor/pdfjs/pdf.min.mjs', import.meta.url).href);
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL('../apps/desktop/vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
   const second = openPdf(handmade(treeObjects(), { objStm: [2, 3, 6, 7], xref: 'stream' }));
   const first = openPdf(written(2, 'First'));
   const bytes = assemble([{ file: second, page: 2 }, { file: first, page: 1, rotate: 90 }, { file: second, page: 0 }]);
@@ -436,7 +440,7 @@ test('another reader opens what this writes (pdf.js, when it is installed)', asy
   }
   assert.deepEqual(words, ['Charlie', 'First 2', 'Alpha']);
   assert.deepEqual(rotations, [0, 90, 90]);
-  await doc.destroy();
+  await doc.loadingTask.destroy();
 });
 
 test('values the reader hands out are the format\'s own', () => {

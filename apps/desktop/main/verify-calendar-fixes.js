@@ -86,7 +86,14 @@ export async function verifyCalendarFixes({ open, check, until, wait, errorsIn }
     await until(() => js(`Boolean(document.querySelector('.cal-offer'))`), 'the offer to send the invitation', 4000).catch(() => {});
     const offer = await js(`document.querySelector('.cal-offer')?.textContent || ''`);
     const [y, m, d] = date.split('-').map(Number);
-    const expected = localToUtc({ y, m, d, H: 9, M: 0 }, away);
+    // Worked out by the system's own zone rules, not the code being checked.
+    const clockAt = (ms) => {
+      const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: away, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' }).formatToParts(ms).map((x) => [x.type, x.value]));
+      return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute);
+    };
+    const wanted = Date.UTC(y, m - 1, d, 9, 0);
+    let expected = wanted;
+    for (let i = 0; i < 3; i++) expected += wanted - clockAt(expected);
     const stored = await js(`(async () => { const all = await window.rutbaOffice.calendar.events({ from: ${expected - 86400000}, to: ${expected + 86400000} }); const s = all.find((e) => e.summary === 'Zone call'); return s ? { start: s.start, ev: await window.rutbaOffice.calendar.get({ id: s.id }) } : null; })()`);
     check('calendar: an event\'s time zone can be chosen: its times kept on that zone\'s clock, and the editor says the time here',
       stored?.start === expected && stored?.ev?.start?.tzid === away && hint.length > 0, JSON.stringify({ expected, start: stored?.start, tzid: stored?.ev?.start?.tzid, hint }));

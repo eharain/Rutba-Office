@@ -86,9 +86,10 @@ export function appsForPath(file) {
   const pkg = /^packages\/([a-z-]+)\//.exec(f)?.[1];
   if (pkg) {
     return {
-      ooxml: ['word', 'sheets', 'slides'], 'doc-view': ['word'], 'sheet-view': ['sheets'], formula: ['sheets'], presentation: ['slides'],
-      mailbox: ['mail'], calendar: ['calendar', 'mail'], contacts: ['contacts', 'mail'], pdf: ['pdf', 'word', 'sheets', 'slides'],
-      imaging: ['image', 'pictures'], media: ['video', 'recorder', 'broadcast'], stream: ['broadcast'], studio: ['video', 'recorder', 'broadcast'], database: ['base'], ocr: ['pdf', 'pictures', 'sheets'],
+      // tests/gate-apps.test.js holds this to what each app really imports (tools/app-map.mjs).
+      ooxml: ['word', 'sheets', 'slides', 'base', 'mail'], 'doc-view': ['word'], 'sheet-view': ['sheets', 'base'], formula: ['sheets', 'base'], presentation: ['slides'],
+      mailbox: ['mail'], calendar: ['calendar', 'mail', 'contacts'], contacts: ['contacts', 'mail'], pdf: ['pdf', 'word', 'sheets', 'slides'],
+      imaging: ['image', 'pictures', 'broadcast', 'slides', 'word'], media: ['video', 'recorder', 'broadcast', 'pictures'], stream: ['broadcast'], studio: ['video', 'recorder', 'broadcast', 'image', 'slides'], database: ['base'], ocr: ['pdf', 'pictures', 'sheets', 'image', 'mail'],
     }[pkg] || ['shell'];
   }
   return ['shell'];

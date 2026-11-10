@@ -30,6 +30,7 @@ import pdfUpdate from '@rutba/pdf/update';
 import pdfAssemble from '@rutba/pdf/assemble';
 import pdfNavigation from '@rutba/pdf/navigation';
 import pdfAnnotations from '@rutba/pdf/annotations';
+import { anyStreamHolds } from './verify-measure.js';
 
 const { PdfDocument } = pdfWriter;
 const { openPdf, Stream, Dict, Name, Ref } = pdfReader;
@@ -38,6 +39,7 @@ const { textString } = pdfAssemble;
 const { readOutline } = pdfNavigation;
 const { readAnnotations } = pdfAnnotations;
 const { bytesContain } = pdfRedact;
+
 
 function makeLetter(file) {
   const doc = new PdfDocument({ title: 'Client letter on SECRET-4417', created: '2026-10-14T09:00:00Z' });
@@ -227,11 +229,15 @@ export async function verifyPdfRedact(h, { dir }) {
   await d.setInput('[data-role="find-input"]', 'SECRET');
   await until(() => d.js(`(document.querySelector('.pdf-find-count')?.textContent || '') !== ''`), 'find', 6000).catch(() => {});
   await wait(400);
-  const found = await d.js(`Number(document.querySelector('.pdf-find-count')?.dataset.count || 0)`);
+  const found = await d.js(`Number(document.querySelector('.pdf-find-count')?.dataset.count ?? -1)`);
+  // Find itself is proved live on words that stayed, or nothing found would mean nothing.
+  await d.setInput('[data-role="find-input"]', 'belongs to the client');
+  await until(() => d.js(`Number(document.querySelector('.pdf-find-count')?.dataset.count || 0) > 0`), 'the words that stayed', 6000).catch(() => {});
+  const wordsKept = await d.js(`Number(document.querySelector('.pdf-find-count')?.dataset.count || 0)`);
   await d.js(`document.querySelector('[data-tip^="Close Find"]')?.click(), 1`);
   await d.capture('pdf-redact-03-applied.png');
-  check('pdf-redact: the redacted file opens in the window, where pdf.js finds the redacted words nowhere and the words beside them stay', wrote && opened && found === 0 && !/SECRET|1234567/.test(layerText) && /belongs to the client/.test(layerText) && /about the account/.test(layerText),
-    JSON.stringify({ wrote, opened, found, layerText: layerText.slice(0, 240) }));
+  check('pdf-redact: the redacted file opens in the window, where pdf.js finds the redacted words nowhere and the words beside them stay', wrote && opened && found === 0 && wordsKept > 0 && !/SECRET|1234567/.test(layerText) && /belongs to the client/.test(layerText) && /about the account/.test(layerText),
+    JSON.stringify({ wrote, opened, found, wordsKept, layerText: layerText.slice(0, 240) }));
 
   // Read back: this package's reader, a plain search of the bytes, the photograph's pixels, the original.
   let back = {};
@@ -248,7 +254,8 @@ export async function verifyPdfRedact(h, { dir }) {
     back = {
       readerClean: !/SECRET|1234567/.test(text),
       kept: /belongs to the client/.test(text) && /Again/.test(text),
-      bytesClean: !bytesContain(bytes, 'SECRET-4417') && !bytesContain(bytes, '0300-1234567') && !bytesContain(bytes, '1234567'),
+      bytesClean: !bytesContain(bytes, 'SECRET-4417') && !bytesContain(bytes, '0300-1234567') && !bytesContain(bytes, '1234567')
+        && !anyStreamHolds(bytes, 'SECRET-4417') && !anyStreamHolds(bytes, '1234567'),
       whole: !bytes.subarray(0, original.length).equals(original),
       pictures: pics.length,
       black,

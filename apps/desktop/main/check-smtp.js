@@ -15,6 +15,8 @@ import crypto from 'node:crypto';
 export function checkTransport() {
   return {
     async send({ account, draft }) {
+      // The one address a check uses to see what a refusal does.
+      if (/refused@check\.invalid/.test(String(draft?.to))) throw new Error('550 Mailbox unavailable');
       const to = globalThis.__rutbaCheckSmtp;
       if (!to?.port) return { messageId: `check-${crypto.randomUUID()}` };
       const nodemailer = (await import('nodemailer')).default;

@@ -1,6 +1,8 @@
 // What an exported file really holds, measured in the window that made it:
 // a file with an audio track can be silent, and a picture can be the wrong one.
 
+import zlib from 'node:zlib';
+
 /** Sound in a file: { duration, peak, at: [{ t, rms, hz }] }, each `t` measured over a tenth of a second either side. */
 export function soundIn(js, file, times = []) {
   return js(`(async () => {
@@ -51,3 +53,27 @@ export function framesIn(js, file, times) {
 
 /** Whether two average colours are the same picture, allowing for what encoding moves them. */
 export const sameColour = (a, b, within = 30) => Boolean(a && b) && a.every((v, i) => Math.abs(v - b[i]) <= within);
+
+/**
+ * Whether words are anywhere in a PDF, by a reading that shares nothing with
+ * the code that made it: the file's bytes, and every stream inflated.
+ */
+export function anyStreamHolds(bytes, words) {
+  const buf = Buffer.from(bytes);
+  if (buf.includes(words, 0, 'latin1')) return true;
+  const start = Buffer.from('stream');
+  const stop = Buffer.from('endstream');
+  for (let at = buf.indexOf(start); at >= 0; at = buf.indexOf(start, at + start.length)) {
+    if (buf.subarray(Math.max(0, at - 3), at).toString('latin1') === 'end') continue;
+    let from = at + start.length;
+    if (buf[from] === 13) from++;
+    if (buf[from] === 10) from++;
+    const end = buf.indexOf(stop, from);
+    if (end < 0) break;
+    let inflated = null;
+    try { inflated = zlib.inflateSync(buf.subarray(from, end), { finishFlush: zlib.constants.Z_SYNC_FLUSH }); } catch { /* not deflated */ }
+    if (inflated?.includes(words, 0, 'latin1')) return true;
+    at = end;
+  }
+  return false;
+}

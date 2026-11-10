@@ -2,6 +2,10 @@
 // break, and what every app shares names them all.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { appsForPath, appsForChanges, VERIFY_APPS } from '../tools/gate.js';
 
 test('gate by app: an app\'s own files, its checks and its service name that app', () => {
@@ -18,9 +22,9 @@ test('gate by app: an app\'s own files, its checks and its service name that app
 });
 
 test('gate by app: an engine names the apps built on it; notes and engine tests name none', () => {
-  assert.deepEqual(appsForPath('packages/ooxml/src/docx.js'), ['word', 'sheets', 'slides']);
+  assert.deepEqual(appsForPath('packages/ooxml/src/docx.js'), ['word', 'sheets', 'slides', 'base', 'mail']);
   assert.deepEqual(appsForPath('packages/mailbox/src/store.js'), ['mail']);
-  assert.deepEqual(appsForPath('packages/studio/src/compositor.js'), ['video', 'recorder', 'broadcast']);
+  assert.deepEqual(appsForPath('packages/studio/src/compositor.js'), ['video', 'recorder', 'broadcast', 'image', 'slides']);
   assert.deepEqual(appsForPath('docs/releases/v2.7.0.md'), []);
   assert.deepEqual(appsForPath('README.md'), []);
   assert.deepEqual(appsForPath('tests/gate-apps.test.js'), []);
@@ -31,7 +35,7 @@ test('gate by app: the shell, the shared packages and the main process name ever
   assert.deepEqual(appsForPath('packages/office-ui/src/index.js'), ['shell']);
   assert.deepEqual(appsForPath('apps/desktop/main/main.js'), ['shell']);
   assert.deepEqual(appsForChanges(['packages/office-ui/src/index.js', 'apps/desktop/renderer/apps/mail.js']), VERIFY_APPS);
-  assert.deepEqual(appsForChanges(['apps/desktop/renderer/apps/mail/reader.js', 'packages/ooxml/src/x.js']), ['word', 'sheets', 'slides', 'mail']);
+  assert.deepEqual(appsForChanges(['apps/desktop/renderer/apps/mail/reader.js', 'packages/ooxml/src/x.js']), ['word', 'sheets', 'slides', 'base', 'mail']);
   assert.deepEqual(appsForChanges(['docs/a.md']), []);
 });
 
@@ -50,4 +54,24 @@ test('the gate in lanes: the longest chunk starts first, a first guess where non
   const task = (v) => async () => { now++; most = Math.max(most, now); await new Promise((r) => setTimeout(r, 5)); now--; return v; };
   assert.deepEqual(await pool([1, 2, 3, 4, 5].map(task), 2), [1, 2, 3, 4, 5]);
   assert.equal(most, 2);
+});
+
+test('a changed package selects every app that really imports it', () => {
+  fs.mkdirSync('.gate', { recursive: true });
+  const dir = fs.mkdtempSync(path.join('.gate', 'app-map-'));
+  try {
+    const out = path.join(dir, 'map.json');
+    execFileSync(process.execPath, ['tools/app-map.mjs', '--json', out], { stdio: 'ignore' });
+    const missing = [];
+    for (const p of JSON.parse(fs.readFileSync(out, 'utf8')).packages) {
+      const short = String(p.name).replace('@rutba/', '');
+      const chosen = appsForPath(`packages/${short}/src/x.js`);
+      if (chosen.includes('shell')) continue;
+      const reached = [...new Set([...(p.reachedBy || []), ...Object.keys(p.importers || {})])];
+      for (const app of reached) if (VERIFY_APPS.includes(app) && !chosen.includes(app)) missing.push(`${short}: ${app}`);
+    }
+    assert.deepEqual(missing, []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

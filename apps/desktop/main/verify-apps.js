@@ -673,6 +673,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // name. Name it.
   process.on('unhandledRejection', (e) => console.log(`     [unhandled] ${e?.stack || e}`));
   process.on('uncaughtException', (e) => console.log(`     [uncaught] ${e?.stack || e}`));
+  // Errors in a window's console, each failing the part it happened in: a toast goes, this stays.
+  const consoleFaults = [];
+  let consoleAnswered = 0;
+  const EXPECTED_CONSOLE = /scripts-worker\.js' violates the following Content Security Policy/;
 
   const results = [];
   const opened = [];
@@ -810,6 +814,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     win.webContents.on('console-message', (...args) => {
       const m = consoleMessage(args);
       if (m.level >= 2) console.log(`     [${app}] ${m.text.split('\n')[0].slice(0, 200)}`);
+      // A check that opens a door to see it refused logs the refusal.
+      if (m.level >= 3 && !EXPECTED_CONSOLE.test(m.text)) consoleFaults.push(`${app}: ${m.text.split('\n')[0].slice(0, 200)}`);
     });
     // A window that goes away mid-run takes its checks with it and, once the
     // last one goes, the whole run — say which one went, and when.
@@ -923,8 +929,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     const [outerApp, outerPart] = [currentApp, currentPart];
     currentApp = app;
     currentPart = id;
+    const faultsBefore = consoleFaults.length;
     try {
       await block(run);
+      if (consoleFaults.length > faultsBefore) check(`${app}: part ${id} logged no error in a window's console`, false, consoleFaults.slice(faultsBefore, faultsBefore + 4).join(' | '));
+      consoleAnswered = consoleFaults.length;
     } finally {
       currentApp = outerApp;
       currentPart = outerPart;
@@ -948,6 +957,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // A window still holding a fixture open leaves the folder behind in
       // the temp directory; nothing reads it again.
     }
+
+    // Whatever was logged outside any part: most checks are not in one.
+    if (consoleFaults.length > consoleAnswered) check(`the checks outside a part logged no error in a window's console`, false, consoleFaults.slice(consoleAnswered, consoleAnswered + 4).join(' | '));
 
     const failed = results.filter((r) => !r.ok);
     if (process.env.RUTBA_VERIFY_PARTS) {
@@ -7428,6 +7440,17 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('mail: Undo takes it back and reopens it', (await mail('outbox')).length === 0 && reopened === 'someone@example.com', `outbox ${(await mail('outbox')).length}; reopened to ${JSON.stringify(reopened)}`);
       await js(`[...document.querySelectorAll('.ml-compose .rw-btn')].find((b) => b.textContent.trim() === 'Discard')?.click(), 'discarded'`);
       await wait(300);
+
+      // A server that turns a message down: it stays in the Outbox, says why, and is tried again.
+      await js(`(async () => { const a = (await window.rutbaOffice.mail.accounts())[0].id; await window.rutbaOffice.mail.queue({ accountId: a, draft: { to: 'refused@check.invalid', subject: 'Turned down', text: 'x' } }); return 1; })()`);
+      await until(async () => (await mail('outbox')).some((o) => o.error), 'the refusal to be recorded', 8000).catch(() => {});
+      const turnedDown = (await mail('outbox')).find((o) => o.draft?.to === 'refused@check.invalid');
+      await until(() => js(`(window.__badToasts || []).length > 0`), 'the refusal to be said', 3000).catch(() => {});
+      const toldOfIt = await js(`(window.__badToasts || []).join(' | ')`);
+      check('mail: a message the server refuses stays in the Outbox, says why and says it will try again', /550/.test(turnedDown?.error || '') && /Send failed, trying again/.test(toldOfIt), JSON.stringify({ error: turnedDown?.error, toldOfIt }));
+      if (turnedDown) await mail('unsend', { id: turnedDown.id });
+      await until(() => js(`!document.querySelector('.rw-toast.bad')`), 'the refusal to clear', 12000).catch(() => {});
+      await js(`window.__badToasts = [], 1`);
 
       // The attachment view is a place, not a search.
       await js(`(() => {

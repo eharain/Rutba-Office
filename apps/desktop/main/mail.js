@@ -1740,7 +1740,13 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
 
     /** Look inside an archive without importing any of it. */
     importScan: ({ path: target }) => {
-      const found = scan(target);
+      let found;
+      try {
+        found = scan(target);
+      } catch (err) {
+        if (err?.code === 'not-pst') throw new Error('That is not an Outlook data file, or it is damaged.');
+        throw err;
+      }
       return { ...found, kindLabel: found.label, identified: identify(target).kind };
     },
 

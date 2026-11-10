@@ -6,6 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -94,7 +95,7 @@ test('a workspace package is listed at the suite version, with a hash of its own
 });
 
 test('the hash of a package changes with a file in it and not with a test beside it', () => {
-  const dir = fs.mkdtempSync(path.join(root, '.gate', 'tree-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-tree-'));
   try {
     fs.mkdirSync(path.join(dir, 'src'));
     fs.mkdirSync(path.join(dir, 'tests'));

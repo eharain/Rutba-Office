@@ -31,7 +31,7 @@ export const hasShell = () => Boolean(globalThis.rutbaOffice);
  * application's own backend read like a network failure. Nothing here is
  * remote; the wording is stripped so the message says what went wrong.
  */
-const CHANNEL_NOISE = /^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/;
+export const CHANNEL_NOISE = /^Error invoking remote method '[^']*':\s*(?:[A-Za-z]*Error:\s*)?/;
 
 /**
  * What the window does to a message before a person reads it: the windows put
