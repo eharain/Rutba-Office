@@ -39,6 +39,10 @@
 //                 check that failed is seen passing here, by its name; one
 //                 that fails again closes it. The record names each one.
 //   smoke         every window paints without logging anything.
+//   then          the app packs added and removed; the rich fixtures saved,
+//                 edited and saved as Strict, opened in Word, Excel and
+//                 PowerPoint themselves (office:reopen, so this machine needs
+//                 Microsoft Office); the four fuzzers; the corpus.
 //
 // Lanes side by side: as many as the processors allow (one to each two and a
 // half, four at most), one more started only while 1.5 GB of memory is free,
@@ -174,7 +178,7 @@ export function countsOf(name, output) {
     const faults = Number(m[2]) || 0;
     return { passed: Number(m[1]) - faults, of: Number(m[1]) };
   }
-  if (name === 'verify:packs') {
+  if (name === 'verify:packs' || name === 'office:reopen') {
     const lines = (re) => text.match(re)?.length || 0;
     const [ok, bad] = [lines(/^ok\b/gm), lines(/^FAIL\b/gm)];
     return ok + bad ? { passed: ok, of: ok + bad } : null;
@@ -206,6 +210,7 @@ export function gateSection(counts, { version, date, fewer = [], platform = proc
     counts['verify:edit'] ? `${n(counts['verify:edit'].passed)} of ${n(counts['verify:edit'].of)} editing checks` : null,
     counts['verify:apps'] && apps?.length !== 0 ? `${n(counts['verify:apps'].passed)} of ${n(counts['verify:apps'].of)} application checks${apps ? `, of ${listed(apps)}, the ${apps.length === 1 ? 'app' : 'apps'} it changed` : ''}` : null,
     counts.smoke ? `${n(counts.smoke.passed)} of ${n(counts.smoke.of)} windows painted clean` : null,
+    counts['office:reopen'] ? `${n(counts['office:reopen'].passed)} of ${n(counts['office:reopen'].of)} saves reopened in Word, Excel and PowerPoint with what the original holds` : null,
     fuzzed(counts) ? `${n(fuzzed(counts))} damaged files read or refused in a sentence` : null,
     counts.corpus ? `${n(counts.corpus.of)} files from outside the project opened` : null,
   ].filter(Boolean);
@@ -282,7 +287,7 @@ export function floorsNow(counts, { apps = {}, machine = null } = {}) {
     machine: machine?.of ?? null,
     // A --serial run has no machine lane of its own: those checks ran inside each app's count.
     ...(machine?.serial ? { serial: true } : {}),
-    ...Object.fromEntries(['fuzz:open', 'fuzz:pdf', 'fuzz:grammar', 'fuzz:smime', 'verify:packs', 'corpus'].map((k) => [k, counts[k]?.of ?? null])),
+    ...Object.fromEntries(['fuzz:open', 'fuzz:pdf', 'fuzz:grammar', 'fuzz:smime', 'verify:packs', 'office:reopen', 'corpus'].map((k) => [k, counts[k]?.of ?? null])),
   };
 }
 
@@ -298,7 +303,7 @@ export function belowRecorded(now, was) {
     held('window checks, the machine lane\'s among them', windows(now), windows(was));
   } else held('machine lane', now.machine, was.machine);
   for (const [a, of] of Object.entries(was.apps || {})) held(`${a} window checks`, now.apps?.[a], of);
-  for (const k of ['fuzz:open', 'fuzz:pdf', 'fuzz:grammar', 'fuzz:smime', 'verify:packs', 'corpus']) held(k, now[k], was[k]);
+  for (const k of ['fuzz:open', 'fuzz:pdf', 'fuzz:grammar', 'fuzz:smime', 'verify:packs', 'office:reopen', 'corpus']) held(k, now[k], was[k]);
   return fell;
 }
 
@@ -588,7 +593,7 @@ async function main() {
   }
 
   // A pass named that the gate does not have would run nothing and still open the gate.
-  const known = ['test', 'test:perf', 'verify:edit', 'verify:apps', 'smoke', 'verify:packs', ...FUZZERS.map(([name]) => name), 'corpus'];
+  const known = ['test', 'test:perf', 'verify:edit', 'verify:apps', 'smoke', 'verify:packs', 'office:reopen', ...FUZZERS.map(([name]) => name), 'corpus'];
   const unknown = only.filter((name) => !known.includes(name));
   if (unknown.length) {
     console.log(`The gate has no pass called ${unknown.join(', ')}. Its passes: ${known.join(', ')}.`);
@@ -807,6 +812,9 @@ async function main() {
   // The app packs, added and removed across two starts.
   if (want('verify:packs') && !failed) await pass('verify:packs', 'app packs add and remove', 'node', [path.join('apps', 'desktop', 'build', 'verify-packs-run.js')], { log: path.join(LOGS, 'verify-packs.log') });
 
+  // What the suite saves, opened in Word, Excel and PowerPoint themselves: they must find what the original holds, and the edit.
+  if (want('office:reopen') && !failed) await pass('office:reopen', 'Word, Excel and PowerPoint reopen our saves', 'powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join('tools', 'check-strict-office.ps1'), '-Dir', path.join(STATE_DIR, 'office-saves')], { log: path.join(LOGS, 'office-reopen.log') });
+
   // 7. Files nobody made on purpose: damaged ones, then real ones from outside the project.
   for (const [name, tool, what, rounds] of FUZZERS) {
     if (want(name) && !failed) await pass(name, what, 'node', [tool, String(rounds), String(parseInt(head.slice(0, 8), 16))], { log: path.join(LOGS, `${name.replace(':', '-')}.log`) });
@@ -847,7 +855,7 @@ async function main() {
   // a patch release with --changed, every pass and the chunks it changed.
   const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
   const scoped = changed && !only.length && !appsArg && isPatch(version) && wanted.length < VERIFY_APPS.length;
-  const whole = (!partial || scoped) && ['test', 'test:perf', 'verify:edit', 'smoke', 'verify:packs', ...FUZZERS.map(([name]) => name), 'corpus'].every((name) => state.passes[name]?.ok)
+  const whole = (!partial || scoped) && ['test', 'test:perf', 'verify:edit', 'smoke', 'verify:packs', 'office:reopen', ...FUZZERS.map(([name]) => name), 'corpus'].every((name) => state.passes[name]?.ok)
     && (scoped ? wanted : VERIFY_APPS).every((a) => state.apps[a]?.ok) && (!wanted.length || machineCovers(state.machine, scoped ? wanted : VERIFY_APPS));
   if (record) {
     const dirty = dirtyForRecord(porcelain(), version);

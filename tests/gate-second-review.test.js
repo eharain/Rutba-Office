@@ -113,6 +113,17 @@ test('the key --resume keeps changes with any byte of the tree: untracked files 
   }
 });
 
+test('Word, Excel and PowerPoint reopening our saves is counted, held to its floor and said in the note', async () => {
+  const { countsOf } = await import('../tools/gate.js');
+  const out = '== word\n{"file":"saved.docx"}\nok   saved.docx: opens with what showcase.docx has\nFAIL edited.docx: The file appears to be corrupted.\nFAIL strict-edited.xlsx: the edit is not there\n3 check(s) failed\n';
+  assert.deepEqual(countsOf('office:reopen', out), { passed: 1, of: 3 });
+  assert.equal(countsOf('office:reopen', 'every save reopens'), null, 'an answer with no files in it counted nothing');
+  const was = floorsNow({ ...counts, 'office:reopen': { passed: 15, of: 15 } }, state);
+  assert.deepEqual(belowRecorded(floorsNow(counts, state), was), ['office:reopen: none, down from 15']);
+  const note = gateSection({ ...counts, 'office:reopen': { passed: 15, of: 15 } }, { version: '9.9.9', date: '2026-11-11', platform: 'win32', arch: 'x64' });
+  assert.match(note.replace(/\s+/g, ' '), /15 of 15 saves reopened in Word, Excel and PowerPoint with what the original holds/);
+});
+
 test('with nothing on record there is nothing to fall below', () => {
   assert.deepEqual(belowRecorded(floorsNow(counts, state), null), []);
 });

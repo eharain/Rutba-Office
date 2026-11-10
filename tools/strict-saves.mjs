@@ -1,7 +1,8 @@
-// The Strict saves Office is asked to reopen (tools/check-strict-office.ps1):
-// each rich fixture saved by Rutba Office as Strict Open XML, and each of
-// Word's, Excel's and PowerPoint's own Strict fixtures edited here and saved,
-// so staying Strict.
+// The saves Office is asked to reopen (tools/check-strict-office.ps1, the
+// gate's office:reopen pass): each rich fixture saved by Rutba Office as it
+// is, saved after an edit, and saved as Strict Open XML, and each of Word's,
+// Excel's and PowerPoint's own Strict fixtures edited here and saved, so
+// staying Strict.
 //
 //   node tools/strict-saves.mjs <out-dir>
 import fs from 'node:fs';
@@ -20,13 +21,25 @@ const EDITS = {
   pptx: [{ op: 'setNotes', slide: 0, text: 'Edited in Rutba Office.' }],
 };
 
+/** Open `from`, make `edits`, save to `name` in the out folder; the conformance the save chose. */
+function saved(from, name, { edits = null, conformance } = {}) {
+  const opened = doc.open({ path: from });
+  try {
+    if (edits) doc.apply({ id: opened.id, ops: edits });
+    const r = doc.save({ id: opened.id, path: path.join(out, name), ...(conformance ? { conformance } : {}) });
+    return `${path.basename(r.path)} (${r.conformance})`;
+  } finally {
+    doc.close({ id: opened.id });
+  }
+}
+
 for (const ext of ['docx', 'xlsx', 'pptx']) {
-  const plain = doc.open({ path: path.join(root, 'tests', 'fixtures', 'rich', `showcase.${ext}`) });
-  const a = doc.save({ id: plain.id, path: path.join(out, `saved-as-strict.${ext}`), conformance: 'strict' });
-  doc.close({ id: plain.id });
-  const strict = doc.open({ path: path.join(root, 'tests', 'fixtures', 'strict', `showcase-strict.${ext}`) });
-  doc.apply({ id: strict.id, ops: EDITS[ext] });
-  const b = doc.save({ id: strict.id, path: path.join(out, `strict-edited.${ext}`) });
-  doc.close({ id: strict.id });
-  console.log(`${path.basename(a.path)} (${a.conformance}), ${path.basename(b.path)} (${b.conformance})`);
+  const rich = path.join(root, 'tests', 'fixtures', 'rich', `showcase.${ext}`);
+  const strict = path.join(root, 'tests', 'fixtures', 'strict', `showcase-strict.${ext}`);
+  console.log([
+    saved(rich, `saved.${ext}`),
+    saved(rich, `edited.${ext}`, { edits: EDITS[ext] }),
+    saved(rich, `saved-as-strict.${ext}`, { conformance: 'strict' }),
+    saved(strict, `strict-edited.${ext}`, { edits: EDITS[ext] }),
+  ].join(', '));
 }

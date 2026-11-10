@@ -18,7 +18,7 @@ The checks behind the notes:
 |---|---|
 | `tests/strict-ooxml.test.js` | A Strict file reads as its usual twin does; an unedited part is saved as the bytes it came as; a Strict file stays Strict when edited; both directions of Save As; every Strict save passes a structural check that needs no Office. |
 | `tests/rich-fixtures.test.js` | The Strict files are held to the same results as the usual ones. |
-| `tools/check-strict-office.ps1` | Word, Excel and PowerPoint open Office's Strict files, our Strict saves of the usual files and our edited Strict files, and find the same content in each. Run under the shared lock, on a machine with Office. |
+| `tools/check-strict-office.ps1` | Word, Excel and PowerPoint open Office's Strict files, our saves of the usual files (as they are, edited, and as Strict) and our edited Strict files, and find the same content in each, and the edit where there is one. Run under the shared lock, on a machine with Office, and by the gate as its office:reopen pass. |
 | `RUTBA_VERIFY_ONLY=strictsave npm run verify:apps` | The menu entries in Documents, Worksheets and Presentations write the form they name. |
 
 ## 1. Transitional and Strict in practice

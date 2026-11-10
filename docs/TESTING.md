@@ -16,8 +16,11 @@ importantly, what they do not.
 | **Corpus** | `npm run verify:corpus` | Every file in a folder, opened in the real application one window at a time | The file is shown, refused with a reason, hangs, or crashes — and how long it takes | Whether what is shown matches Word, Excel or PowerPoint |
 | Fidelity comparison | `tools/compare-word.ps1`, `compare-excel.ps1`, `pdf-pages.ps1` + a capture | A file in Microsoft's application and in ours, side by side | What differs on the page | It is a person looking, not a check |
 
-`npm run gate` runs the first four before a release, then the app packs, the
-four fuzzers (damaged Office files, damaged PDFs, damaged signed mail, and
+`npm run gate` runs the first four before a release, then the app packs,
+`tools/check-strict-office.ps1` (the rich fixtures saved as they are, saved
+after an edit and saved as Strict, each opened in Word, Excel or PowerPoint,
+which must find what the original holds and the edit; so the gate machine
+needs Microsoft Office), the four fuzzers (damaged Office files, damaged PDFs, damaged signed mail, and
 files made to do harm) with a seed taken from the commit, and the corpus run
 over `.corpus`. A corpus run over a larger folder takes an hour per thousand files
 and stays separate; it is run before a release and its report is read, and
@@ -352,8 +355,9 @@ and pinned. Equations and tracked changes shown as changes were built on
 PowerPoint as Strict Open XML (`tools/make-strict-fixtures.ps1`), and the rich
 fixture tests hold them to the same results. `tests/strict-ooxml.test.js`
 checks the Strict reading and writing without Office, and
-`tools/check-strict-office.ps1`, run under the shared lock, has Word, Excel and
-PowerPoint open our Strict saves. What they found is in docs/OOXML-NOTES.md.
+`tools/check-strict-office.ps1`, run under the shared lock and by the gate,
+has Word, Excel and PowerPoint open our Strict saves and our ordinary ones,
+edited and not. What they found is in docs/OOXML-NOTES.md.
 
 ### The downloaded corpus
 

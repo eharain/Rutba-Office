@@ -20,7 +20,8 @@ if ($App -eq 'word') {
       # ConfirmConversions off, read only, not in the recent list.
       $d = $w.Documents.Open($f, $false, $true, $false)
       [ordered]@{ file = (Split-Path -Leaf $f); format = $d.SaveFormat; paragraphs = $d.Paragraphs.Count; tables = $d.Tables.Count; pictures = $d.InlineShapes.Count;
-        shapes = $d.Shapes.Count; headerShapes = $d.Sections.Item(1).Headers.Item(1).Shapes.Count; comments = $d.Comments.Count; footnotes = $d.Footnotes.Count; endnotes = $d.Endnotes.Count; sections = $d.Sections.Count } | ConvertTo-Json -Compress
+        shapes = $d.Shapes.Count; headerShapes = $d.Sections.Item(1).Headers.Item(1).Shapes.Count; comments = $d.Comments.Count; footnotes = $d.Footnotes.Count; endnotes = $d.Endnotes.Count; sections = $d.Sections.Count;
+        start = $d.Paragraphs.Item(1).Range.Text.Substring(0, [Math]::Min(60, $d.Paragraphs.Item(1).Range.Text.Length)) } | ConvertTo-Json -Compress
       $d.Close(0)
     } catch { [ordered]@{ file = (Split-Path -Leaf $f); error = $_.Exception.Message } | ConvertTo-Json -Compress }
   }
@@ -39,7 +40,8 @@ if ($App -eq 'excel') {
       foreach ($ws in $wb.Worksheets) { $charts += $ws.ChartObjects().Count; $shapes += $ws.Shapes.Count; $comments += $ws.Comments.Count; $tables += $ws.ListObjects.Count }
       $types = $wb.Worksheets.Item('Data types')
       [ordered]@{ file = (Split-Path -Leaf $f); name = $wb.Name; format = $wb.FileFormat; sheets = $wb.Worksheets.Count; charts = $charts; shapes = $shapes; comments = $comments; tables = $tables;
-        total = $wb.Worksheets.Item('Sales').Range('F14').Value2; date = $types.Range('B6').Value2; dateText = $types.Range('B6').Text; time = $types.Range('B7').Value2 } | ConvertTo-Json -Compress
+        total = $wb.Worksheets.Item('Sales').Range('F14').Value2; date = $types.Range('B6').Value2; dateText = $types.Range('B6').Text; time = $types.Range('B7').Value2;
+        edited = $wb.Worksheets.Item('Sales').Range('A31').Text } | ConvertTo-Json -Compress
       $wb.Close($false)
     } catch { [ordered]@{ file = (Split-Path -Leaf $f); error = $_.Exception.Message } | ConvertTo-Json -Compress }
   }
