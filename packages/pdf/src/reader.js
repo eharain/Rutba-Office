@@ -364,6 +364,17 @@ function unpredict(data, parms) {
   return out;
 }
 
+/**
+ * What the filters undone by hand may take in or give out. They grow an array a
+ * byte at a time on the thread every window waits for; Flate is held by zlib.
+ */
+const MOST_BY_HAND = 64 * 1024 * 1024;
+const refuseByHand = () => new PdfReadError('a compressed stream in this file unpacks to more than this program can hold');
+const checkByHand = (data) => {
+  if (data.length > MOST_BY_HAND) throw refuseByHand();
+  return data;
+};
+
 function asciiHex(data) {
   const out = [];
   let high = -1;
@@ -429,6 +440,7 @@ function lzw(data, early = 1) {
       else if (prev) entry = [...prev, prev[0]];
       else return Buffer.from(out);
       out.push(...entry);
+      if (out.length > MOST_BY_HAND) throw refuseByHand();
       if (prev) dict.push([...prev, entry[0]]);
       prev = entry;
       if (dict.length + early >= (1 << bits) && bits < 12) bits += 1;
@@ -443,6 +455,7 @@ function runLength(data) {
     const n = data[i];
     if (n === 128) break;
     if (n < 128) { for (let k = 0; k <= n; k++) out.push(data[i + 1 + k]); i += n + 2; } else { for (let k = 0; k < 257 - n; k++) out.push(data[i + 1]); i += 2; }
+    if (out.length > MOST_BY_HAND) throw refuseByHand();
   }
   return Buffer.from(out);
 }
@@ -872,10 +885,10 @@ class PdfFile {
       const name = f instanceof Name ? f.name : '';
       const p = this.resolve(parmList[i]) || null;
       if (name === 'FlateDecode' || name === 'Fl') data = unpredict(inflate(data), p);
-      else if (name === 'LZWDecode' || name === 'LZW') data = unpredict(lzw(data, p ? num(p.get('EarlyChange'), 1) : 1), p);
-      else if (name === 'ASCIIHexDecode' || name === 'AHx') data = asciiHex(data);
-      else if (name === 'ASCII85Decode' || name === 'A85') data = ascii85(data);
-      else if (name === 'RunLengthDecode' || name === 'RL') data = runLength(data);
+      else if (name === 'LZWDecode' || name === 'LZW') data = unpredict(lzw(checkByHand(data), p ? num(p.get('EarlyChange'), 1) : 1), p);
+      else if (name === 'ASCIIHexDecode' || name === 'AHx') data = asciiHex(checkByHand(data));
+      else if (name === 'ASCII85Decode' || name === 'A85') data = ascii85(checkByHand(data));
+      else if (name === 'RunLengthDecode' || name === 'RL') data = runLength(checkByHand(data));
     });
     return data;
   }

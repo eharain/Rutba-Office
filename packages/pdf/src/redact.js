@@ -148,6 +148,70 @@ function parseToUnicode(data) {
 // Windows-1252's 0x80 to 0x9F, as the reader reads them.
 const HIGH = '\u20ac\u0081\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u008d\u017d\u008f\u0090\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u009d\u017e\u0178';
 
+/** Whether a composite font's encoding writes top to bottom: a predefined one named -V, or a CMap that says WMode 1. */
+function writesDown(file, encoding) {
+  if (encoding instanceof Name) return /-V$/.test(encoding.name);
+  if (!(encoding instanceof Stream)) return false;
+  if (num(file.resolve(encoding.dict.get('WMode'))) === 1) return true;
+  try {
+    return /\/WMode\s+1\s+def/.test(file.decode(encoding).toString('latin1'));
+  } catch {
+    return false;
+  }
+}
+
+/** The widths a font lists, a sample at most: a hostile list is held to what a spread of arguments can take. */
+function widthBounds(widths) {
+  let least = Infinity;
+  let most = -Infinity;
+  for (const v of widths.values()) {
+    if (v < least) least = v;
+    if (v > most) most = v;
+  }
+  return Number.isFinite(least) ? [least, most] : [];
+}
+
+/**
+ * A top-to-bottom font's metrics (DW2 and W2): how far each glyph moves down
+ * the column, and the vector from its upright origin to the point on the
+ * column it is placed at.
+ */
+function readVerticalMetrics(file, desc, info) {
+  const dw2 = desc instanceof Dict ? file.resolve(desc.get('DW2')) : null;
+  const originY = Array.isArray(dw2) ? num(file.resolve(dw2[0]), 880) : 880;
+  const moveY = Array.isArray(dw2) ? num(file.resolve(dw2[1]), -1000) : -1000;
+  const listed = new Map();
+  const w2 = desc instanceof Dict ? file.resolve(desc.get('W2')) : null;
+  const n3 = (a, i) => ({ w1: num(file.resolve(a[i])), vx: num(file.resolve(a[i + 1])), vy: num(file.resolve(a[i + 2])) });
+  if (Array.isArray(w2)) {
+    for (let i = 0; i < w2.length;) {
+      const first = num(file.resolve(w2[i]));
+      const next = file.resolve(w2[i + 1]);
+      if (Array.isArray(next)) {
+        for (let k = 0; k + 2 < next.length; k += 3) listed.set(first + k / 3, n3(next, k));
+        i += 2;
+      } else {
+        const last = num(next);
+        const value = n3(w2, i + 2);
+        for (let c = first; c <= last && c - first < 65536; c++) listed.set(c, value);
+        i += 5;
+      }
+    }
+  }
+  info.placed = (code) => {
+    const v = listed.get(code);
+    return v ? { w1: v.w1 / 1000, vx: v.vx / 1000, vy: v.vy / 1000 } : { w1: moveY / 1000, vx: info.width(code) / 2, vy: originY / 1000 };
+  };
+  let tallest = Math.abs(moveY);
+  let shortest = Math.abs(moveY);
+  for (const v of listed.values()) {
+    tallest = Math.max(tallest, Math.abs(v.w1));
+    shortest = Math.min(shortest, Math.abs(v.w1));
+  }
+  info.widest = tallest / 1000;
+  info.narrowest = shortest / 1000;
+}
+
 function fontInfo(file, fontDict) {
   const font = file.resolve(fontDict);
   const info = { twoByte: false, width: () => 0.5, scale: 0.001, type3: false, unicode: (code) => (code >= 0x80 && code <= 0x9f ? HIGH[code - 0x80] : String.fromCharCode(code)) };
@@ -166,8 +230,9 @@ function fontInfo(file, fontDict) {
   if (subtype === 'Type0') {
     info.twoByte = true;
     // Codes are two bytes and name the glyph only under the Identity encodings. Under any other a code may be one byte or two and its width is a guess, so a string that comes near a mark goes whole.
-    const encoding = font.get('Encoding');
+    const encoding = file.resolve(font.get('Encoding'));
     info.unsure = !(encoding instanceof Name && /^Identity-[HV]$/.test(encoding.name));
+    info.vertical = writesDown(file, encoding);
     const desc = file.resolve((file.resolve(font.get('DescendantFonts')) || [])[0]);
     const dw = desc instanceof Dict ? num(file.resolve(desc.get('DW')), 1000) : 1000;
     const widths = new Map();
@@ -188,6 +253,9 @@ function fontInfo(file, fontDict) {
       }
     }
     info.width = (code) => (widths.has(code) ? widths.get(code) : dw) / 1000;
+    info.widest = Math.max(dw, ...widthBounds(widths)) / 1000;
+    info.narrowest = Math.max(0, Math.min(dw, ...widthBounds(widths))) / 1000;
+    if (info.vertical) readVerticalMetrics(file, desc, info);
     return info;
   }
   const first = num(file.resolve(font.get('FirstChar')), 0);
@@ -378,6 +446,34 @@ function imageStream(file, original, pix, data, { rects = [], width = pix.width,
 
 const SPOKEN = ['ActualText', 'Alt', 'E'];
 
+/**
+ * How much form drawing one page may ask for. A form can name itself, or draw
+ * another many times over at each of a dozen levels, and this runs where every
+ * window waits for it: past these the rest is treated as unreadable.
+ */
+const MOST_FORM_VISITS = 10000;
+const MOST_FORM_BYTES = 256 * 1024 * 1024;
+
+const intersectsAny = (box, areas) => areas.some((r) => intersects(box, r));
+
+/** Where a form or a soft mask's group lands, under the matrix `ctm`: null when it names no box. */
+function formBoxIn(file, stream, ctm) {
+  const fm = file.resolve(stream.dict.get('Matrix'));
+  const m = Array.isArray(fm) && fm.length >= 6 ? fm.slice(0, 6).map((v) => num(file.resolve(v))) : [1, 0, 0, 1, 0, 0];
+  const bb = file.resolve(stream.dict.get('BBox'));
+  return Array.isArray(bb) && bb.length >= 4 ? boxOf(mul(m, ctm), ...bb.slice(0, 4).map((v) => num(file.resolve(v)))) : null;
+}
+
+/** The words of a string judged whole, as far as its font can say: two bytes a code, or else one. */
+function spokenWhole(font, bytes) {
+  let two = '';
+  for (let i = 0; i + 1 < bytes.length; i += 2) two += font.unicode((bytes[i] << 8) | bytes[i + 1]);
+  if (two) return two;
+  let one = '';
+  for (const b of bytes) one += font.unicode(b);
+  return one;
+}
+
 /** Whether a content stream draws words or pictures, which is what could hold something a mark covers. */
 function drawsWords(file, stream) {
   try {
@@ -388,12 +484,14 @@ function drawsWords(file, stream) {
 }
 
 /**
- * The tiling patterns and soft-mask groups of a redacted page that draw words
- * or pictures, blanked. Where a pattern lands on the page is not followed, so
- * one that could hold the words is emptied and counted among what was left
- * off the page, for the person to be told. { kind: [[name, replacement]] }.
+ * The tiling patterns and soft-mask groups a mark reaches that draw words or
+ * pictures, blanked: a pattern a shape or words under a mark were painted
+ * with, a soft mask whose group lies under one (`reached`, by name). What is
+ * inside them is not cut piece by piece, so one is emptied and counted among
+ * what was left off the page, for the person to be told. Those nowhere near a
+ * mark stay as they are. { kind: [[name, replacement]] }.
  */
-function drawingResources(ctx, res) {
+function drawingResources(ctx, res, reached) {
   const { file, removed } = ctx;
   const blanked = new Map();
   if (!(res instanceof Dict)) return blanked;
@@ -408,7 +506,7 @@ function drawingResources(ctx, res) {
     const list = [];
     for (const [name, ref] of patterns.entries()) {
       const p = file.resolve(ref);
-      if (!(p instanceof Stream) || num(file.resolve(p.dict.get('PatternType'))) !== 1 || !drawsWords(file, p)) continue;
+      if (!reached.patterns.has(name) || !(p instanceof Stream) || num(file.resolve(p.dict.get('PatternType'))) !== 1 || !drawsWords(file, p)) continue;
       const dict = new Dict();
       for (const [k, v] of p.dict.entries()) if (!NOT_CARRIED.has(k)) dict.set(k, k === 'Resources' ? new Dict() : v);
       list.push([name, new Stream(dict, Buffer.alloc(0))]);
@@ -423,7 +521,7 @@ function drawingResources(ctx, res) {
       const state = file.resolve(ref);
       const soft = state instanceof Dict ? file.resolve(state.get('SMask')) : null;
       const group = soft instanceof Dict ? file.resolve(soft.get('G')) : null;
-      if (!(group instanceof Stream) || !drawsWords(file, group)) continue;
+      if (!reached.states.has(name) || !(group instanceof Stream) || !drawsWords(file, group)) continue;
       const copy = new Dict(state.entries());
       copy.set('SMask', new Name('None'));
       list.push([name, copy]);
@@ -450,13 +548,20 @@ function redactContent(ctx, data, resources, base, depth = 0) {
   const propsGone = new Map(); // the name of a property list that held words -> the list without them
   const newX = new Map(); // fresh name -> replacement (Stream)
   const gone = new Set(); // names a picture or form was drawn under, painted out or left out
+  const formBox = (stream, ctm) => formBoxIn(file, stream, ctm);
   const fontCache = new Map();
+  const readings = (ctx.fontReadings ||= new Map()); // a font is read once, however many forms draw with it
+  const readFont = (ref) => {
+    const key = file.resolve(ref) ?? null;
+    if (!readings.has(key)) readings.set(key, fontInfo(file, key));
+    return readings.get(key);
+  };
   const fontOf = (name) => {
-    if (!fontCache.has(name)) fontCache.set(name, fontInfo(file, fonts instanceof Dict ? fonts.get(name) : null));
+    if (!fontCache.has(name)) fontCache.set(name, readFont(fonts instanceof Dict ? fonts.get(name) : null));
     return fontCache.get(name);
   };
   const fontOfObject = (ref) => {
-    if (!fontCache.has(ref)) fontCache.set(ref, fontInfo(file, ref));
+    if (!fontCache.has(ref)) fontCache.set(ref, readFont(ref));
     return fontCache.get(ref);
   };
 
@@ -466,6 +571,9 @@ function redactContent(ctx, data, resources, base, depth = 0) {
   let tlm = [1, 0, 0, 1, 0, 0];
   const marked = []; // BDC/BMC: { op, hit }
   const out = [];
+  const reached = { patterns: new Set(), states: new Set() }; // names a mark reaches
+  let slack = 0; // how much farther along the line the words may really be, after strings whose widths could only be bounded
+  let shape = null; // the bounds of the path being built, on the page
 
   const show = (o, parts) => {
     // parts: PdfStrings and numbers, as in TJ. Returns the new array and whether a glyph went.
@@ -477,20 +585,31 @@ function redactContent(ctx, data, resources, base, depth = 0) {
       if (typeof part === 'number') {
         if (ctx.collect && part < -200) ctx.collect.push({ text: ' ', box: null });
         result.push(part);
-        tm = mul([1, 0, 0, 1, (-part / 1000) * size * gs.th, 0], tm);
+        tm = font.vertical ? mul([1, 0, 0, 1, 0, (-part / 1000) * size], tm) : mul([1, 0, 0, 1, (-part / 1000) * size * gs.th, 0], tm);
         continue;
       }
       if (!(part instanceof PdfString)) continue;
       if (font.unsure) {
-        // Where each glyph falls is not known here, so the string is judged whole, on a generous box.
+        // Where each glyph falls is not known here: a code may be one byte or
+        // two and its width anything the font lists. So the string is judged
+        // whole, on a box as long as it could possibly be, and the line goes
+        // on from the shortest it could have been, with the difference kept.
         const count = Math.ceil(part.bytes.length / 2);
+        const most = part.bytes.length;
         if (ctx.collect) ctx.collect.unsure = true;
+        const spacing = size ? (Math.abs(gs.tc) + Math.abs(gs.tw)) / Math.abs(size) : 0;
+        const longest = most * (font.widest + spacing);
+        const shortest = Math.max(0, count * font.narrowest - most * spacing);
+        const reach = longest + (size ? slack / Math.abs(size) : 0) + 0.2;
         const trm = mul([size * gs.th, 0, 0, size, 0, gs.rise], mul(tm, gs.ctm));
-        if (size !== 0 && glyphHit(boxOf(trm, -0.1, -0.5, count * 1.1 + 0.2, 1.5), areas)) {
+        const whole = font.vertical ? boxOf(trm, -1.1, -reach, 1.1, 1.1) : boxOf(trm, -0.1, -0.5, reach, 1.5);
+        if (size !== 0 && intersectsAny(whole, areas)) {
           removed.glyphs += count;
           cut = true;
+          ctx.run += spokenWhole(font, part.bytes);
         } else result.push(part);
-        tm = mul([1, 0, 0, 1, (count * size + gs.tc * count) * gs.th, 0], tm);
+        slack += (longest - shortest) * Math.abs(size);
+        tm = font.vertical ? mul([1, 0, 0, 1, 0, -shortest * size], tm) : mul([1, 0, 0, 1, shortest * size * gs.th, 0], tm);
         continue;
       }
       let kept = [];
@@ -501,13 +620,16 @@ function redactContent(ctx, data, resources, base, depth = 0) {
       for (const g of codesOf(part.bytes, font.twoByte)) {
         const w0 = font.width(g.code);
         const space = !font.twoByte && g.code === 32 ? gs.tw : 0;
-        const adv = (w0 * size + gs.tc + space) * gs.th;
+        const down = font.vertical ? font.placed(g.code) : null;
+        const adv = down ? down.w1 * size + gs.tc + space : (w0 * size + gs.tc + space) * gs.th;
         const trm = mul([size * gs.th, 0, 0, size, 0, gs.rise], mul(tm, gs.ctm));
-        const box = boxOf(trm, 0, -0.22, Math.max(w0, 0.05), 0.88);
+        const box = down
+          ? boxOf(trm, -down.vx, -0.22 - down.vy, Math.max(w0, 0.05) - down.vx, 0.88 - down.vy)
+          : boxOf(trm, 0, -0.22, Math.max(w0, 0.05), 0.88);
         if (ctx.collect) ctx.collect.push({ text: font.unicode(g.code), box });
         if (size !== 0 && glyphHit(box, areas)) {
           if (pending === 0) flush();
-          pending += size && gs.th ? (adv / (size * gs.th)) * 1000 : 0;
+          pending += down ? (size ? (adv / size) * 1000 : 0) : (size && gs.th ? (adv / (size * gs.th)) * 1000 : 0);
           removed.glyphs += 1;
           ctx.run += font.unicode(g.code);
           cut = true;
@@ -516,7 +638,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
           if (ctx.run) { ctx.phrases.push(ctx.run); ctx.run = ''; }
           kept.push(g.bytes);
         }
-        tm = mul([1, 0, 0, 1, adv, 0], tm);
+        tm = down ? mul([1, 0, 0, 1, 0, adv], tm) : mul([1, 0, 0, 1, adv, 0], tm);
       }
       if (pending) { flush(); result.push(-Math.round(pending * 1000) / 1000); }
       flush();
@@ -526,12 +648,65 @@ function redactContent(ctx, data, resources, base, depth = 0) {
   // Letters cut from one line and then the next are two words, not one:
   // a move to a new line or a new place ends the word being taken.
   const gap = () => {
+    slack = 0;
     if (ctx.collect) ctx.collect.push({ text: ' ', box: null });
     if (ctx.run && !ctx.run.endsWith(' ')) ctx.run += ' ';
   };
 
+  // A span that held words that went: what it carried for search and reading
+  // aloud, written in the stream or kept under a name in the page's /Properties, goes too.
+  const closeSpan = (m) => {
+    if (!m || !m.hit || m.op.op !== 'BDC') return;
+    const operand = m.op.operands[1];
+    const named = operand instanceof Name ? operand.name : null;
+    const held = named && properties instanceof Dict ? file.resolve(properties.get(named)) : operand;
+    if (held instanceof Dict && SPOKEN.some((k) => held.has(k))) {
+      const props = new Dict(held.entries());
+      for (const k of SPOKEN) props.delete(k);
+      m.op.operands = [m.op.operands[0], props];
+      if (named) propsGone.set(named, props);
+    }
+    if (marked.length) marked[marked.length - 1].hit = true;
+  };
+
+  // The path as it is built, and whether what paints it is under a mark.
+  const addPoint = (x, y) => {
+    const [px, py] = apply(gs.ctm, num(x), num(y));
+    shape = shape ? [Math.min(shape[0], px), Math.min(shape[1], py), Math.max(shape[2], px), Math.max(shape[3], py)] : [px, py, px, py];
+  };
+  const paintShape = (fills, strokes) => {
+    if (shape && areas.some((r) => intersects(shape, r))) {
+      if (fills && gs.fillPattern) reached.patterns.add(gs.fillPattern);
+      if (strokes && gs.strokePattern) reached.patterns.add(gs.strokePattern);
+    }
+    shape = null;
+  };
+  const followPainting = (o) => {
+    const a = o.operands;
+    switch (o.op) {
+      case 'm': case 'l': addPoint(a[0], a[1]); break;
+      case 'c': addPoint(a[0], a[1]); addPoint(a[2], a[3]); addPoint(a[4], a[5]); break;
+      case 'v': case 'y': addPoint(a[0], a[1]); addPoint(a[2], a[3]); break;
+      case 're': {
+        const [x, y, w, h] = a.map((v) => num(v));
+        addPoint(x, y); addPoint(x + w, y); addPoint(x, y + h); addPoint(x + w, y + h);
+        break;
+      }
+      case 'f': case 'F': case 'f*': paintShape(true, false); break;
+      case 'S': case 's': paintShape(false, true); break;
+      case 'B': case 'B*': case 'b': case 'b*': paintShape(true, true); break;
+      case 'n': shape = null; break;
+      case 'scn': { const last = a[a.length - 1]; gs.fillPattern = last instanceof Name ? last.name : null; break; }
+      case 'SCN': { const last = a[a.length - 1]; gs.strokePattern = last instanceof Name ? last.name : null; break; }
+      case 'cs': case 'sc': case 'g': case 'rg': case 'k': gs.fillPattern = null; break;
+      case 'CS': case 'SC': case 'G': case 'RG': case 'K': gs.strokePattern = null; break;
+      default: break;
+    }
+  };
+
   for (const o of ops) {
     const a = o.operands;
+    followPainting(o);
     switch (o.op) {
       case 'q': stack.push({ ...gs, ctm: gs.ctm.slice() }); out.push(o); break;
       case 'Q': if (stack.length) gs = stack.pop(); out.push(o); break;
@@ -543,6 +718,13 @@ function redactContent(ctx, data, resources, base, depth = 0) {
         const state = a[0] instanceof Name && extGStates instanceof Dict ? file.resolve(extGStates.get(a[0].name)) : null;
         const setFont = state instanceof Dict ? file.resolve(state.get('Font')) : null;
         if (Array.isArray(setFont) && setFont.length >= 2) { gs.fontObject = setFont[0]; gs.font = null; gs.size = num(file.resolve(setFont[1])); }
+        // A soft mask's group is placed by the matrix in force now.
+        const soft = state instanceof Dict ? file.resolve(state.get('SMask')) : null;
+        const group = soft instanceof Dict ? file.resolve(soft.get('G')) : null;
+        if (group instanceof Stream && a[0] instanceof Name) {
+          const box = formBox(group, gs.ctm);
+          if (!box || areas.some((r) => intersects(box, r))) reached.states.add(a[0].name);
+        }
         out.push(o);
         break;
       }
@@ -566,6 +748,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
         const parts = o.op === 'TJ' ? (Array.isArray(a[0]) ? a[0] : []) : [a[a.length - 1]];
         const { result, cut } = show(o, parts);
         if (cut) for (const m of marked) m.hit = true;
+        if (cut && gs.fillPattern) reached.patterns.add(gs.fillPattern);
         out.push(cut || o.op !== 'Tj' ? { op: 'TJ', operands: [result] } : o);
         break;
       }
@@ -576,21 +759,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
         break;
       }
       case 'EMC': {
-        const m = marked.pop();
-        if (m && m.hit && m.op.op === 'BDC') {
-          // Words the marked content carried for search and reading aloud go with the glyphs,
-          // written in the stream or kept under a name in the page's /Properties.
-          const operand = m.op.operands[1];
-          const named = operand instanceof Name ? operand.name : null;
-          const held = named && properties instanceof Dict ? file.resolve(properties.get(named)) : operand;
-          if (held instanceof Dict && SPOKEN.some((k) => held.has(k))) {
-            const props = new Dict(held.entries());
-            for (const k of SPOKEN) props.delete(k);
-            m.op.operands = [m.op.operands[0], props];
-            if (named) propsGone.set(named, props);
-          }
-          if (marked.length) marked[marked.length - 1].hit = true;
-        }
+        closeSpan(marked.pop());
         out.push(o);
         break;
       }
@@ -640,18 +809,36 @@ function redactContent(ctx, data, resources, base, depth = 0) {
           }
           break;
         }
-        if (sub === 'Form' && depth < 12) {
+        if (sub === 'Form') {
           const fm = file.resolve(x.dict.get('Matrix'));
           const m = Array.isArray(fm) && fm.length >= 6 ? fm.slice(0, 6).map((v) => num(file.resolve(v))) : [1, 0, 0, 1, 0, 0];
-          const bb = file.resolve(x.dict.get('BBox'));
           const ctm = mul(m, gs.ctm);
-          const box = Array.isArray(bb) && bb.length >= 4 ? boxOf(ctm, ...bb.slice(0, 4).map((v) => num(file.resolve(v)))) : null;
+          const box = formBox(x, gs.ctm);
           if (box && !ctx.collect && !areas.some((r) => intersects(box, r))) { out.push(o); break; }
+          // A form that cannot be looked inside leaves the page whole: it may
+          // hold what the mark covers. Reading a page's words only notes it.
+          const leaveOff = () => {
+            if (ctx.collect) { ctx.collect.unsure = true; out.push(o); return; }
+            removed.images += 1;
+            gone.add(name);
+            for (const m2 of marked) m2.hit = true;
+          };
+          const open = (ctx.formsOpen ||= new Set());
+          ctx.formVisits = (ctx.formVisits || 0) + 1;
+          if (depth >= 12 || open.has(x) || ctx.formVisits > MOST_FORM_VISITS || (ctx.formBytes || 0) > MOST_FORM_BYTES) { leaveOff(); break; }
           const before = removed.glyphs + removed.images + removed.pictures;
           let decoded;
-          try { decoded = file.decode(x); } catch { decoded = Buffer.alloc(0); }
-          const inner = redactContent(ctx, decoded, x.dict.get('Resources') || resources, ctm, depth + 1);
-          if (removed.glyphs + removed.images + removed.pictures === before) { out.push(o); break; }
+          try { decoded = file.decode(x); } catch { leaveOff(); break; }
+          ctx.formBytes = (ctx.formBytes || 0) + decoded.length;
+          open.add(x);
+          let inner;
+          try {
+            inner = redactContent(ctx, decoded, x.dict.get('Resources') || resources, ctm, depth + 1);
+          } finally {
+            open.delete(x);
+          }
+          // A pattern or mask blanked in another form is counted there, and this copy of it must go all the same.
+          if (removed.glyphs + removed.images + removed.pictures === before && !inner.resources) { out.push(o); break; }
           gone.add(name);
           const dict = new Dict();
           for (const [k, v] of x.dict.entries()) if (!NOT_CARRIED.has(k)) dict.set(k, v);
@@ -671,11 +858,14 @@ function redactContent(ctx, data, resources, base, depth = 0) {
     }
   }
 
+  // A span the stream never closed still carried its words.
+  while (marked.length) closeSpan(marked.pop());
+
   // A property list named again where nothing was cut would be left pointing at nothing.
   for (const o of out) {
     if (o.op === 'BDC' && o.operands[1] instanceof Name && propsGone.has(o.operands[1].name)) o.operands = [o.operands[0], propsGone.get(o.operands[1].name)];
   }
-  const blanked = drawingResources(ctx, res);
+  const blanked = drawingResources(ctx, res, reached);
 
   let newResources = null;
   if (newX.size || gone.size || propsGone.size || blanked.size) {
@@ -780,6 +970,7 @@ function run(file, { areas: given = null, plan = null, images = null }) {
   const phrases = [];
   const under = {}; // kind -> count, of the annotations lying under a mark
   const unpainted = []; // { page, count }: pictures left off a page
+  const annotationsGone = new Set(); // the objects of comments that went under a mark
   pages.forEach((page, p) => {
     const mine = marks.get(p) || [];
     const extra = given ? given.filter((g) => g.page === p).flatMap((g) => g.rects.map((r) => ({ rects: [r], fill: g.fill || [0, 0, 0], overlay: g.overlay || '' }))) : [];
@@ -831,6 +1022,7 @@ function run(file, { areas: given = null, plan = null, images = null }) {
         const r = file.resolve(d.get('Rect'));
         const box = Array.isArray(r) && r.length >= 4 ? (() => { const v = r.map((x) => num(file.resolve(x))); return [Math.min(v[0], v[2]), Math.min(v[1], v[3]), Math.max(v[0], v[2]), Math.max(v[1], v[3])]; })() : null;
         if (sub === 'Redact' || (box && rects.some((a) => intersects(box, a)))) {
+          if (item instanceof Ref) annotationsGone.add(item.key);
           if (sub !== 'Redact' && sub !== 'Popup') {
             removed.annotations += 1;
             const kind = sub === 'Link' ? 'link' : sub === 'FileAttachment' ? 'attached file' : sub === 'Widget' ? 'form field' : 'comment';
@@ -859,6 +1051,33 @@ function run(file, { areas: given = null, plan = null, images = null }) {
       },
     });
   });
+  // A reply is written with a link to the comment it answers, and whatever a
+  // kept object links to is written out: a reply under no mark would bring the
+  // comment back. So it goes too, and a reply to it, and their popups.
+  for (let changed = annotationsGone.size > 0; changed;) {
+    changed = false;
+    for (const item of items) {
+      const list = item.override && 'Annots' in item.override ? item.override.Annots : file.resolve(pages[item.page].dict.get('Annots'));
+      if (!Array.isArray(list)) continue;
+      const stays = list.filter((entry) => {
+        const d = file.resolve(entry);
+        if (!(d instanceof Dict)) return true;
+        const popup = d.get('Subtype') instanceof Name && d.get('Subtype').name === 'Popup';
+        const link = d.get(popup ? 'Parent' : 'IRT');
+        if (!(link instanceof Ref) || !annotationsGone.has(link.key)) return true;
+        if (entry instanceof Ref) annotationsGone.add(entry.key);
+        if (!popup) {
+          removed.annotations += 1;
+          under.comment = (under.comment || 0) + 1;
+        }
+        return false;
+      });
+      if (stays.length !== list.length) {
+        item.override = { ...(item.override || {}), Annots: stays.length ? stays : null };
+        changed = true;
+      }
+    }
+  }
   return { items, removed, phrases, under, unpainted };
 }
 
