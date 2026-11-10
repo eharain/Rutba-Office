@@ -110,6 +110,25 @@ export function porcelain(cwd = ROOT) {
   try { return execFileSync('git', ['status', '--porcelain'], { cwd, encoding: 'utf8' }); } catch { return ''; }
 }
 
+/**
+ * What the working tree holds beyond HEAD, as one key for --resume: the
+ * status, every change to a tracked file byte for byte (binary ones too), and
+ * the contents of each file git does not track yet, so an old pass never
+ * stands for a file edited since.
+ */
+export function treeKey(cwd = ROOT) {
+  const run = (args) => { try { return execFileSync('git', args, { cwd, maxBuffer: 2 ** 31 - 1 }); } catch { return null; } };
+  const hash = crypto.createHash('sha256');
+  hash.update(porcelain(cwd));
+  hash.update(run(['diff', 'HEAD', '--binary']) ?? 'no diff');
+  const untracked = String(run(['ls-files', '--others', '--exclude-standard', '-z']) || '').split('\0').filter(Boolean).sort();
+  for (const f of untracked) {
+    hash.update(`\0${f}\0`);
+    try { hash.update(fs.readFileSync(path.join(cwd, f))); } catch { hash.update('unreadable'); }
+  }
+  return hash.digest('hex');
+}
+
 /** The apps a --changed run checks. With no tag to compare with, nothing can be said to be unchanged: all of them. */
 export function wantedForChanged(since, files) {
   return since ? appsForChanges(files) : VERIFY_APPS.slice();
@@ -260,6 +279,8 @@ export function floorsNow(counts, { apps = {}, machine = null } = {}) {
     ran: all ? all.tests - all.skipped : null,
     apps: Object.fromEntries(Object.entries(apps).map(([a, v]) => [a, v.of])),
     machine: machine?.of ?? null,
+    // A --serial run has no machine lane of its own: those checks ran inside each app's count.
+    ...(machine?.serial ? { serial: true } : {}),
     ...Object.fromEntries(['fuzz:open', 'fuzz:pdf', 'fuzz:grammar', 'fuzz:smime', 'verify:packs', 'corpus'].map((k) => [k, counts[k]?.of ?? null])),
   };
 }
@@ -270,7 +291,11 @@ export function belowRecorded(now, was) {
   const fell = [];
   const held = (what, a, b) => { if (b != null && (a == null || a < b)) fell.push(`${what}: ${a ?? 'none'}, down from ${b}`); };
   held('engine tests that ran rather than skipped', now.ran, was.ran);
-  held('machine lane', now.machine, was.machine);
+  if (now.serial) {
+    // Its machine checks are inside the apps' counts, so the whole is held to the whole.
+    const windows = (f) => Object.values(f.apps || {}).reduce((t, v) => t + (v || 0), 0) + (f.machine || 0);
+    held('window checks, the machine lane\'s among them', windows(now), windows(was));
+  } else held('machine lane', now.machine, was.machine);
   for (const [a, of] of Object.entries(was.apps || {})) held(`${a} window checks`, now.apps?.[a], of);
   for (const k of ['fuzz:open', 'fuzz:pdf', 'fuzz:grammar', 'fuzz:smime', 'verify:packs', 'corpus']) held(k, now[k], was[k]);
   return fell;
@@ -583,7 +608,7 @@ async function main() {
   // The record of runs on this commit: started afresh unless resuming.
   const head = git('rev-parse', 'HEAD');
   // What the tree holds, not only which files differ: an old pass must not stand for a file edited since.
-  const tree = `${porcelain()}\n${crypto.createHash('sha256').update(git('diff', 'HEAD')).digest('hex')}`;
+  const tree = treeKey();
   for (const d of [STATE_DIR, LOGS, PARTS_DIR]) fs.mkdirSync(d, { recursive: true });
   // One gate at a time: two would write over each other's parts and counts.
   const running = path.join(STATE_DIR, 'running');

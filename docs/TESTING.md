@@ -17,10 +17,27 @@ importantly, what they do not.
 | Fidelity comparison | `tools/compare-word.ps1`, `compare-excel.ps1`, `pdf-pages.ps1` + a capture | A file in Microsoft's application and in ours, side by side | What differs on the page | It is a person looking, not a check |
 
 `npm run gate` runs the first four before a release, then the app packs, the
-three fuzzers with a seed taken from the commit, and the corpus run over
-`.corpus`. A corpus run over a larger folder takes an hour per thousand files
+four fuzzers (damaged Office files, damaged PDFs, damaged signed mail, and
+files made to do harm) with a seed taken from the commit, and the corpus run
+over `.corpus`. A corpus run over a larger folder takes an hour per thousand files
 and stays separate; it is run before a release and its report is read, and
 the failures it names are fixed or listed in the release notes as known.
+
+The gate proves the commit on this machine. Two workflows prove the
+installer built from it, each on a clean Windows runner:
+
+- Before the tag, `.github/workflows/candidate.yml` (run from the Actions tab
+  at the commit the gate passed) builds that commit, installs it over the
+  last release in every way a person's copy can be updated, the all-users
+  copy and a copy left open among them, and installs it alone with a short
+  list of apps. It publishes nothing. A release is not tagged until it
+  passes (RELEASING.md, Publishing).
+- After the release is published, `.github/workflows/upgrade.yml` does the
+  same with the published files, runs the installer on a clean machine
+  (`tools/install-test.ps1`), and lets the previous release's own updater
+  find, download and install the new one (`tools/update-test.ps1`). That
+  last proof is of the previous release's updater: a change to the updater
+  is first proven when the release after it is published.
 
 ## What the corpus run reports
 

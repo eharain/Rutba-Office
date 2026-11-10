@@ -78,6 +78,41 @@ test('fuzzing, app packs and the corpus each have a floor, and a part that stopp
   assert.deepEqual(belowRecorded(floorsNow(rest, state), was), ['corpus: none, down from 147']);
 });
 
+test('a --serial run is held to the window checks as a whole, its machine checks being inside the apps', () => {
+  const was = floorsNow(counts, state);
+  const serial = (mail, word) => floorsNow(counts, { apps: { mail: { of: mail }, word: { of: word } }, machine: { ok: true, of: 0, serial: true } });
+  assert.deepEqual(belowRecorded(serial(56, 36), was), [], 'the twelve machine checks ran inside mail and word');
+  assert.deepEqual(belowRecorded(serial(50, 36), was), ["window checks, the machine lane's among them: 86, down from 92"]);
+  assert.deepEqual(belowRecorded(serial(45, 47), was), ['mail window checks: 45, down from 50'], 'one app still may not lose what another gained');
+  // A run in lanes still holds the machine lane on its own.
+  assert.deepEqual(belowRecorded(floorsNow(counts, { apps: { mail: { of: 56 }, word: { of: 36 } }, machine: { of: 0 } }), was), ['machine lane: 0, down from 12']);
+});
+
+test('the key --resume keeps changes with any byte of the tree: untracked files and binary ones too', async () => {
+  const { treeKey } = await import('../tools/gate.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-gate-key-'));
+  try {
+    const git = (...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'core.hooksPath=', '-c', 'core.autocrlf=false', ...a], { cwd: dir, encoding: 'utf8' });
+    git('init', '-q');
+    fs.writeFileSync(path.join(dir, 'picture.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3]));
+    git('add', '.');
+    git('commit', '-q', '-m', 'x');
+    const keys = new Set([treeKey(dir)]);
+    const changed = (what) => { const k = treeKey(dir); assert.ok(!keys.has(k), what); keys.add(k); };
+    fs.writeFileSync(path.join(dir, 'picture.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 4]));
+    changed('a binary file changed');
+    fs.writeFileSync(path.join(dir, 'picture.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 5]));
+    changed('the same binary file changed again: the status line is the same');
+    fs.writeFileSync(path.join(dir, 'new.js'), 'one');
+    changed('an untracked file added');
+    fs.writeFileSync(path.join(dir, 'new.js'), 'two');
+    changed('the untracked file edited: its name and status are the same');
+    assert.equal(treeKey(dir), treeKey(dir), 'the same tree gives the same key');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('with nothing on record there is nothing to fall below', () => {
   assert.deepEqual(belowRecorded(floorsNow(counts, state), null), []);
 });

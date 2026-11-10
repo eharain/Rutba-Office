@@ -47,7 +47,9 @@ if (!isMainThread) {
     const t = performance.now();
     try {
       const r = readSmime(Buffer.from(bytes), { identities, anchors });
-      const shown = crypto.createHash('sha256').update(JSON.stringify([r.message?.text ?? null, r.message?.html ?? null, (r.message?.attachments || []).map((a) => [a.filename, a.size])])).digest('hex');
+      // What a person is shown, attachments by their bytes: one changed under a good signature, same name and size, is a fault too.
+      const bytesOf = (a) => (a.bytes ? crypto.createHash('sha256').update(a.bytes).digest('hex') : null);
+      const shown = crypto.createHash('sha256').update(JSON.stringify([r.message?.text ?? null, r.message?.html ?? null, (r.message?.attachments || []).map((a) => [a.filename, a.type, a.size, bytesOf(a)])])).digest('hex');
       parentPort.postMessage({ outcome: 'read', status: r.error || r.encrypted?.status || r.signed?.status || 'plain', intact: INTACT.has(r.signed?.status), shown, ms: performance.now() - t });
     } catch (err) {
       parentPort.postMessage({ ...judge(err), ms: performance.now() - t });
