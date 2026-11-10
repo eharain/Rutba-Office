@@ -494,11 +494,11 @@ createShell({
     // saving at once, as their reads expect; opening as a window opens.
     const directDoc = () => ({ ...docHost.direct, open: docHost.direct.openAsync, saveNow: docHost.direct.save });
     // tools/upgrade-test.js: what this copy read from the profile an older
-    // version left, and the update feed, written to a file before any window.
+    // version left, the update feed, and whether its first window came up.
     if (process.env.RUTBA_OFFICE_UPGRADE_REPORT) {
       return finish(async () => {
         const { upgradeReport } = await import('./upgrade-report.js');
-        return upgradeReport({ stores, out: process.env.RUTBA_OFFICE_UPGRADE_REPORT, feed: process.env.RUTBA_UPGRADE_FEED !== '0' });
+        return upgradeReport({ stores, windows, out: process.env.RUTBA_OFFICE_UPGRADE_REPORT, feed: process.env.RUTBA_UPGRADE_FEED !== '0' });
       });
     }
     if (process.env.RUTBA_OFFICE_VERIFY_EDIT) {

@@ -52,7 +52,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseVersion, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade, judgeInstallRace } from './upgrade-check.js';
+import { parseVersion, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade, profileFiles, goneFromProfile, judgeInstallRace } from './upgrade-check.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OWNER = 'eharain';
@@ -317,10 +317,14 @@ async function main() {
       (one ? verdict.evidence : verdict.failures).push(one ? `one copy registered: ${copies[0]}` : `the registry has ${copies.length ? copies.join('; ') : 'no copy'}, not one copy of ${to.version}`);
     }
     const reportFile = path.join(work, 'report.json');
+    const leftByOlder = profileFiles(profile);
     say(`starting ${to.version} on the same profile`);
     const now = launch(newer, [`--user-data-dir=${profile}`, '--app=home'], { RUTBA_OFFICE_UPGRADE_REPORT: reportFile, RUTBA_UPGRADE_FEED: feed ? '1' : '0' });
     const code = await Promise.race([now.done, wait(180000).then(() => 'timeout')]);
     if (code === 'timeout') await close(now);
+    (code === 0 ? verdict.evidence : verdict.failures).push(code === 0 ? `${to.version} wrote its report and ended cleanly` : `${to.version} did not end cleanly: ${code}`);
+    const gone = goneFromProfile(leftByOlder, profileFiles(profile));
+    (gone.length ? verdict.failures : verdict.evidence).push(gone.length ? `${to.version} removed what ${from.version} left: ${gone.slice(0, 8).join(', ')}` : `none of the ${leftByOlder.length} files ${from.version} left is gone`);
     // A portable stub can end before the copy it started has written: give the file a moment.
     for (let i = 0; i < 20 && !fs.existsSync(reportFile); i++) await wait(500);
     const report = fs.existsSync(reportFile) ? JSON.parse(fs.readFileSync(reportFile, 'utf8')) : null;

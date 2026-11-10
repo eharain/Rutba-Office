@@ -2,10 +2,11 @@
 // upgrade test (tools/upgrade-test.js).
 //
 // The test runs an older release over a profile of its own, then this one
-// over the same profile with RUTBA_OFFICE_UPGRADE_REPORT=<file>. Before any
-// window opens, this writes what the application read: its version, every
-// setting, the recent list as the launcher shows it, and the update feed as
-// the updater reads it. Then it quits. The judgement is the test's
+// over the same profile with RUTBA_OFFICE_UPGRADE_REPORT=<file>. This writes
+// what the application read: its version, every setting, the recent list as
+// the launcher shows it, the update feed as the updater reads it, and whether
+// the launcher's window came up and drew itself, because a copy can read its
+// profile and still show nothing. Then it quits. The judgement is the test's
 // (tools/upgrade-check.js), from the file.
 //
 // The feed is read with the updater's own library and the same feed, with
@@ -40,7 +41,28 @@ async function readFeed() {
   }
 }
 
-export async function upgradeReport({ stores, out, feed = true }) {
+const until = async (ask, ms) => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    try { if (await ask()) return true; } catch { /* not there yet */ }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+};
+
+/** The launcher, opened as a person's start opens it: did it show, and did it draw? */
+async function firstWindow(windows) {
+  try {
+    const win = windows.open({ app: 'home' });
+    const visible = await until(() => !win.isDestroyed() && win.isVisible(), 30000);
+    const drawn = await until(() => win.webContents.executeJavaScript('document.body.innerText.trim().length > 20'), 30000);
+    return { visible, drawn };
+  } catch (err) {
+    return { visible: false, drawn: false, error: String(err?.message || err).slice(0, 400) };
+  }
+}
+
+export async function upgradeReport({ stores, windows, out, feed = true }) {
   const report = {
     version: app.getVersion(),
     packaged: app.isPackaged,
@@ -48,6 +70,7 @@ export async function upgradeReport({ stores, out, feed = true }) {
     settings: stores.settings.all(),
     recent: await stores.recent.list(),
     feed: feed ? await readFeed() : null,
+    window: await firstWindow(windows),
   };
   fs.writeFileSync(out, JSON.stringify(report, null, 2));
   return true;

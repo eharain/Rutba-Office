@@ -72,6 +72,33 @@ export function seedProfile(dir, { document, token }) {
   return { settings, recent, document };
 }
 
+/** Chromium's own folders in a profile: they come and go with no meaning for a person's work. */
+const BROWSER_PARTS = /^(cache|code cache|gpucache|dawncache|dawngraphitecache|dawnwebgpucache|shadercache|grshadercache|blob_storage|session storage|local storage|network|shared dictionary|service worker|webstorage|crashpad|sentry|logs?)$/i;
+
+/** Every file of Office's own in a profile, as a path from its folder. */
+export function profileFiles(dir) {
+  const out = [];
+  const walk = (at, rel, depth) => {
+    for (const e of fs.readdirSync(at, { withFileTypes: true })) {
+      const name = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) {
+        if (depth > 0 || !BROWSER_PARTS.test(e.name)) walk(path.join(at, e.name), name, depth + 1);
+      } else if (depth > 0 || /\.(json|db|sqlite|key|bin)$/i.test(e.name)) {
+        out.push(name);
+      }
+    }
+  };
+  walk(dir, '', 0);
+  return out.sort();
+}
+
+/** What an upgrade took away: files the older version left that are gone after the newer one ran. */
+export function goneFromProfile(before, after) {
+  const now = new Set(after);
+  // A lock, a temporary or a journal is meant to go.
+  return before.filter((f) => !now.has(f) && !/(\.tmp|\.lock|-journal|-wal|-shm)$/i.test(f));
+}
+
 /** What the older version left in the profile: has it run over it yet? */
 export function olderHasRun(dir, version, { document = null } = {}) {
   let settings = {};
@@ -104,6 +131,10 @@ export function judgeUpgrade({ from, to, seeded, report, feed = true }) {
   const s = report.settings || {};
 
   want(report.version === newV, `the newer copy is ${report.version}`, `the newer copy says it is ${report.version}, not ${newV}`);
+  // Reports before 2.24.1 were written before any window opened, and cannot say.
+  if (compareVersions(newV, '2.24.1') >= 0) {
+    want(report.window?.visible === true && report.window?.drawn === true, 'its first window came up and drew itself', `its first window did not come up: ${JSON.stringify(report.window ?? null)}`);
+  }
   for (const [key, value] of Object.entries(seeded.settings)) {
     want(JSON.stringify(s[key]) === JSON.stringify(value), `setting ${key} kept: ${JSON.stringify(value)}`, `setting ${key} was ${JSON.stringify(value)} and is ${JSON.stringify(s[key])}`);
   }

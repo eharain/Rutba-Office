@@ -379,7 +379,8 @@ async function press(wc, keyCode, { modifiers = [], char = false } = {}) {
 
 async function typeText(wc, text) {
   for (const ch of text) {
-    wc.sendInputEvent({ type: 'keyDown', keyCode: ch });
+    // A capital is typed with Shift held: a key caught before the editor has focus is read from this event.
+    wc.sendInputEvent({ type: 'keyDown', keyCode: ch, ...(/[A-Z]/.test(ch) ? { modifiers: ['shift'] } : {}) });
     wc.sendInputEvent({ type: 'char', keyCode: ch });
     wc.sendInputEvent({ type: 'keyUp', keyCode: ch });
     await wait(60);

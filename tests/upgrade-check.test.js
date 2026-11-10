@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseVersion, compareVersions, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade, judgeInstallRace } from '../tools/upgrade-check.js';
+import { parseVersion, compareVersions, previousRelease, newestRelease, assetName, seedProfile, olderHasRun, judgeUpgrade, profileFiles, goneFromProfile, judgeInstallRace } from '../tools/upgrade-check.js';
 
 test('versions compare as numbers, a pre-release before its release', () => {
   assert.equal(parseVersion('v2.0.0').text, '2.0.0');
@@ -129,4 +129,36 @@ test('an update that meets the app left open closes it itself and installs, as t
   assert.match(judgeInstallRace({ ...base, exit: 0, seconds: 13, copies: ['2.1.0 user'], appEnded: false }).failures[0], /still running when the installer finished/);
   assert.match(judgeInstallRace({ ...base, exit: 0, seconds: 13, copies: ['2.1.0 user', '2.0.0 machine'], appEnded: true }).failures[0], /not one copy of 2\.1\.0/);
   assert.throws(() => judgeInstallRace({ ...base, race: 'sometimes', exit: 0, seconds: 1, copies: [] }));
+});
+
+test('from 2.24.1 the newer copy must have shown its first window and drawn it', () => {
+  const seen = (window) => judgeUpgrade({ from: '2.24.0', to: '2.24.1', seeded, report: { ...good(), version: '2.24.1', settings: { ...good().settings, 'updates.lastRun': '2.24.1' }, window } }).failures.filter((f) => /first window/.test(f));
+  assert.deepEqual(seen({ visible: true, drawn: true }), []);
+  assert.equal(seen({ visible: false, drawn: true }).length, 1);
+  assert.equal(seen({ visible: true, drawn: false }).length, 1);
+  assert.equal(seen(undefined).length, 1);
+});
+
+test('a report from before 2.24.1 is not asked about a window it could not see', () => {
+  assert.deepEqual(judgeUpgrade({ from: '1.51.0', to: '2.0.0', seeded, report: good() }).failures.filter((f) => /first window/.test(f)), []);
+});
+
+test('an upgrade that takes away what the older copy left is caught; the browser engine\'s folders and locks are not', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-upgrade-profile-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'mail', 'one'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'Cache'));
+    fs.writeFileSync(path.join(dir, 'settings.json'), '{}');
+    fs.writeFileSync(path.join(dir, 'mail', 'one', 'index'), 'x');
+    fs.writeFileSync(path.join(dir, 'Cache', 'data_0'), 'x');
+    fs.writeFileSync(path.join(dir, 'mail', 'one', 'a.lock'), 'x');
+    const before = profileFiles(dir);
+    assert.deepEqual(before, ['mail/one/a.lock', 'mail/one/index', 'settings.json']);
+    fs.rmSync(path.join(dir, 'mail', 'one', 'a.lock'));
+    assert.deepEqual(goneFromProfile(before, profileFiles(dir)), []);
+    fs.rmSync(path.join(dir, 'mail', 'one', 'index'));
+    assert.deepEqual(goneFromProfile(before, profileFiles(dir)), ['mail/one/index']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
