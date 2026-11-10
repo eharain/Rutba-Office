@@ -13,6 +13,7 @@ import { Button, Dialog, Icon, language, t, tn } from '@rutba/office-ui';
 import { findAll } from '@rutba/editing/find';
 import { drawText, getPage } from '../../pdfjs.js';
 import { joinLines } from './annots.js';
+import { exactQuads } from './quads.js';
 
 /** How far past a measured match a mark reaches, in the line's height. */
 const WIDEN = 0.5;
@@ -48,7 +49,8 @@ export async function searchQuads(doc, index, query, exact = null) {
     const out = [];
     const matches = findAll(text, query);
     const measured = matches.length ? await exact?.().catch(() => null) : null;
-    if (measured && !measured.unsure && measured.count === matches.length) return measured.quads;
+    const sure = exactQuads(matches.length, measured);
+    if (sure) return sure;
     for (const m of matches) {
       const a = locate(m.start);
       const b = locate(m.end);
