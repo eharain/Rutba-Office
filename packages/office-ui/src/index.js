@@ -378,7 +378,10 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
       el.removeEventListener('scroll', measure);
       ro?.disconnect();
     };
-  }, [showGroups, active, children]);
+    // Not on `children`: they are new on every render of the app, and a ResizeObserver made afresh reports at once,
+    // so a window re-rendering quickly (a 200-slide deck's thumbnails arriving four at a time) set this state past
+    // React's limit (error 185). New groups are measured anyway: the fitting below watches them and sends a scroll.
+  }, [showGroups, active]);
 
   // The groups fitted to the window, again whenever it or what is in the
   // groups changes (a tab chosen, a contextual group come and gone).

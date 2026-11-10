@@ -118,7 +118,16 @@ export async function verifyA11yAudit({ open, check, until, wait, press }, { dir
         const shown = await step.open(js, win);
         if (shown === false) { check(`a11y-audit: ${app}: ${step.name} opens for the audit`, false, 'it never opened'); continue; }
         await wait(300);
-        take(step.name, await runAxe(win, step.include ? { include: step.include } : {}));
+        let results;
+        try {
+          results = await runAxe(win, step.include ? { include: step.include } : {});
+        } catch (err) {
+          // A menu closes when its window loses focus, as a menu should; on a busy machine that can happen in the 300 ms before the audit. Opened once more, it is audited at once.
+          if (!/No elements found for include/.test(err.message) || (await step.open(js, win)) === false) throw err;
+          console.log(`     [a11y-audit] ${app}: ${step.name} had closed before the audit; opened again`);
+          results = await runAxe(win, step.include ? { include: step.include } : {});
+        }
+        take(step.name, results);
         if (step.shot) await snap(win, `a11y-${app}-${step.shot}.png`);
         if (step.close) await step.close(js);
       } catch (err) {
