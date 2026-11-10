@@ -682,16 +682,17 @@ function OpenSent({ shell, state, file, into, onClose, toast }) {
 }
 
 function Compare({ shell, folder, list, onClose, onChanged }) {
-  const conflicts = list.filter((e) => e.state === 'conflict');
+  // A large file's two versions live in the one folder, so that entry makes two rows.
+  const conflicts = list.filter((e) => e.state === 'conflict').flatMap((e) => (e.twoLists ? e.twoLists.map((l) => ({ ...e, size: l.size, modified: l.modified, list: l.file })) : [e]));
   const [error, setError] = useState(null);
   const exportOne = async (e) => {
     const dest = await shell.dialog.save({ title: t('Save an unlocked copy'), defaultPath: e.name });
-    if (dest) await shell.locker.exportCopy({ id: folder.id, rel: e.rel, dest, overwrite: true, allowConflict: true, lockedRel: e.lockedRel }).catch((err) => setError(said(err)));
+    if (dest) await shell.locker.exportCopy({ id: folder.id, rel: e.rel, dest, overwrite: true, allowConflict: true, lockedRel: e.lockedRel, list: e.list }).catch((err) => setError(said(err)));
   };
   const removeOne = async (e) => {
     const { response } = await shell.dialog.message({ type: 'warning', message: t('Delete this version of {name}?', { name: e.name }), detail: t('The other version stays as the file. This cannot be undone.'), buttons: [t('Delete'), t('Cancel')], defaultId: 1, cancelId: 1 });
     if (response !== 0) return;
-    await shell.locker.deleteFile({ id: folder.id, rel: e.rel, state: 'conflict', lockedRel: e.lockedRel }).then(onChanged, (err) => setError(said(err)));
+    await shell.locker.deleteFile({ id: folder.id, rel: e.rel, state: 'conflict', lockedRel: e.lockedRel, list: e.list }).then(onChanged, (err) => setError(said(err)));
   };
   return (
     <Dialog title={t('Two versions')} width={640} onClose={onClose} actions={<Button label={t('Close')} onClick={onClose} />}>
@@ -699,7 +700,7 @@ function Compare({ shell, folder, list, onClose, onChanged }) {
         <div className="lk-card-sub">{t('Your cloud kept both copies when two computers saved the file. Neither has been changed. Save each to compare them, then delete the one you do not want.')}</div>
         <div className="lk-choices">
           {conflicts.map((e) => (
-            <div key={e.lockedRel} className="lk-choice lk-version" style={{ flexDirection: 'column', cursor: 'default' }}>
+            <div key={`${e.lockedRel}/${e.list || ''}`} className="lk-choice lk-version" style={{ flexDirection: 'column', cursor: 'default' }}>
               <b>{e.name}</b>
               <small>{formatBytes(e.size)} · {formatWhen(e.modified)}</small>
               <Button label={t('Save an unlocked copy…')} onClick={() => exportOne(e)} />

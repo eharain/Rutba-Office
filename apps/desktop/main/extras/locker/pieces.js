@@ -214,9 +214,9 @@ async function writePiece({ dir, folderKey, item, name, plain, stageDir, hooks }
 }
 
 /** A large file opened for reading: the newest list by default, every piece authenticated and the whole checked. */
-export async function openPieces({ dir, folderKey, version = 0 }) {
+export async function openPieces({ dir, folderKey, version = 0, file = null }) {
   const lists = await listsIn(dir);
-  const chosen = lists[version];
+  const chosen = file ? lists.find((l) => l.file === file) : lists[version];
   if (!chosen) throw new LockerError('truncated', 'This locked file has no list of its pieces.');
   const list = await readList(dir, chosen, folderKey);
   const item = await readItem(dir);
@@ -251,20 +251,22 @@ export async function openPieces({ dir, folderKey, version = 0 }) {
  * of the same number. The list the file opens from goes, and the pieces only it
  * used; the other list, and everything it needs, stays in the same folder.
  */
-export async function removeNewestList(dir, folderKey) {
+export async function removeNewestList(dir, folderKey, file = null) {
   const lists = await listsIn(dir);
   if (lists.length < 2) throw new LockerError('state', 'This file has only the one version.');
+  const chosen = file ? lists.find((l) => l.file === file) : lists[0];
+  if (!chosen) throw new LockerError('state', 'That file is not in this folder.');
   const needed = new Set();
   let known = true;
-  for (const l of lists.slice(1)) {
+  for (const l of lists.filter((x) => x !== chosen)) {
     try {
       for (const p of (await readList(dir, l, folderKey)).pieces) needed.add(p.name);
     } catch {
       known = false; // A list that will not read may need any of them: its pieces stay.
     }
   }
-  const going = await readList(dir, lists[0], folderKey).then((l) => l.pieces, () => []);
-  await fsp.rm(path.join(dir, lists[0].file), { force: true });
+  const going = await readList(dir, chosen, folderKey).then((l) => l.pieces, () => []);
+  await fsp.rm(path.join(dir, chosen.file), { force: true });
   if (known) for (const p of going) if (!needed.has(p.name)) await fsp.rm(piecePath(dir, p.name), { force: true }).catch(() => {});
 }
 

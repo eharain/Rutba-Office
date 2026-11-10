@@ -162,7 +162,7 @@ function defaultTransport() {
  * came, then its text, its page and its attachments as one MIME message,
  * with a header saying it was rebuilt rather than kept.
  */
-export function rebuildSource(message, readAttachment) {
+export function rebuildSource(message, readAttachment, onMissing = () => {}) {
   const boundary = `rebuilt-${crypto.randomBytes(8).toString('hex')}`;
   const alt = `${boundary}-alt`;
   const kept = String(message.internetHeaders || (message.headers || []).map((h) => `${h.name}: ${h.value}`).join('\r\n'))
@@ -186,7 +186,10 @@ export function rebuildSource(message, readAttachment) {
   for (const a of message.attachments || []) {
     let bytes = null;
     try { bytes = a.stored ? readAttachment(a) : null; } catch { /* not kept */ }
-    if (!bytes) continue;
+    if (!bytes) {
+      onMissing(a);
+      continue;
+    }
     const name = String(a.filename || 'attachment').replace(/["\r\n]/g, '');
     out.push(`--${boundary}`, `Content-Type: ${a.type || 'application/octet-stream'}; name="${name}"`, 'Content-Transfer-Encoding: base64',
       `Content-Disposition: ${a.inline ? 'inline' : 'attachment'}; filename="${name}"`, ...(a.contentId ? [`Content-ID: <${a.contentId}>`] : []), '', b64(bytes));
@@ -1855,12 +1858,16 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     export: async ({ accountId, folder, path: target, format = 'mbox' }) => {
       const marked = (file) => markFromInternet(file, { write: fs.promises.writeFile, platform: process.platform });
       const { rows } = store.list(accountId, folder, { limit: 1e6 });
-      const fileOf = (id, m) => rebuildSource(withHeaders(m), (a) => store.attachmentBytes(accountId, folder, id, a.stored));
+      let missing = 0; // Read as a whole copy, so what could not go into it is said.
+      const fileOf = (id, m) => rebuildSource(withHeaders(m), (a) => store.attachmentBytes(accountId, folder, id, a.stored), () => { missing += 1; });
       let messages = 0;
       const each = async (write) => {
         for (const r of rows) {
           const m = store.get(accountId, folder, r.id);
-          if (!m) continue;
+          if (!m) {
+            missing += 1;
+            continue;
+          }
           messages += 1;
           write(r.id, m);
           if (messages % 20 === 0) await new Promise((done) => setImmediate(done));
@@ -1891,7 +1898,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         });
         for (const name of written) await marked(path.join(target, name));
       }
-      return { messages, path: target };
+      return { messages, missing, path: target };
     },
 
     attachment: ({ accountId, folder, id, index }) => {

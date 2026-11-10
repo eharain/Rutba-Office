@@ -218,9 +218,13 @@ export function bufferReader(bytes) {
  * deep; and however it is arranged a node cannot be larger than this.
  */
 const MOST_IN_A_NODE = 1024 * 1024 * 1024;
-const newWalk = () => ({ trees: new Set(), left: MOST_IN_A_NODE });
-function spent(walk, raw) {
+// A block can be named by every node, so each node's limit could be reached again and again. A real file is read a few times over at most.
+const allowanceFor = (size) => ({ left: 16 * size + 16 * 1024 * 1024 * 1024 });
+export const newWalk = (file = allowanceFor(0)) => ({ trees: new Set(), left: MOST_IN_A_NODE, file });
+export function spent(walk, raw) {
   walk.left -= raw.length;
+  walk.file.left -= raw.length;
+  if (walk.file.left < 0) throw new NdbError('This .pst file is damaged: its items claim far more than the file holds.');
   if (walk.left < 0) throw new NdbError('This .pst file is damaged: one of its items claims to be larger than a mailbox can hold.');
   return raw;
 }
@@ -229,6 +233,7 @@ export class Ndb {
   /** @param {{ size: number, read: (offset: number, length: number) => Uint8Array }} reader */
   constructor(reader) {
     this.reader = reader;
+    this.allowance = allowanceFor(reader.size);
     this.#readHeader();
   }
 
@@ -392,7 +397,7 @@ export class Ndb {
    * A node's data, following XBLOCK/XXBLOCK trees so anything over one block
    * arrives as one contiguous run of bytes.
    */
-  blockData(bid, depth = 0, walk = newWalk()) {
+  blockData(bid, depth = 0, walk = newWalk(this.allowance)) {
     if (!bid || depth > 8) return new Uint8Array(0);
     const raw = this.#rawBlock(bid);
     if (!raw) return new Uint8Array(0);
@@ -426,7 +431,7 @@ export class Ndb {
    * within it, so concatenating first and splitting later would put every item
    * after the first block at the wrong offset.
    */
-  blockParts(bid, out = [], depth = 0, walk = newWalk()) {
+  blockParts(bid, out = [], depth = 0, walk = newWalk(this.allowance)) {
     if (!bid || depth > 8) return out;
     const raw = this.#rawBlock(bid);
     if (!raw) return out;

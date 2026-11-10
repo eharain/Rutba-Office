@@ -8617,4 +8617,5 @@ export default {
   "named ranges": "नामित श्रेणियाँ",
   "tables": "तालिकाएँ",
   "which rows and columns are hidden": "कौन-सी पंक्तियाँ और स्तंभ छिपे हैं",
+  "{count} exported, but {missing} messages or attachments could not be read, so this copy is not complete.": "{count} निर्यात किए गए, लेकिन {missing} संदेश या अटैचमेंट पढ़े नहीं जा सके, इसलिए यह प्रति पूरी नहीं है।",
 };

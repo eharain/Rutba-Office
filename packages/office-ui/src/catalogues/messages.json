@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8607,
+  "count": 8608,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -52542,6 +52542,12 @@
       "plural": "{count} events in {name}.",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "{count} exported, but {missing} messages or attachments could not be read, so this copy is not complete.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {

@@ -1841,7 +1841,8 @@ export default function Mail({ app, shell }) {
                     const target = await shell.dialog.save({ title: t('Export folder'), defaultPath: `${current?.name || t('folder')}.mbox` });
                     if (!target) return;
                     const r = await shell.mail.export({ accountId, folder, path: target, format: 'mbox' });
-                    toast(tn(r.messages, 'Exported {count} message', 'Exported {count} messages'), { tone: 'good' });
+                    if (r.missing) toast(t('{count} exported, but {missing} messages or attachments could not be read, so this copy is not complete.', { count: r.messages, missing: r.missing }), { tone: 'warn' });
+                    else toast(tn(r.messages, 'Exported {count} message', 'Exported {count} messages'), { tone: 'good' });
                   }}
                 />
                 <Button tall icon="pdf" label={t('For legal hold')} title={t('For legal hold: mbox and PDF with a manifest of hashes')} disabled={!folder || unified} onClick={() => setDialog({ kind: 'hold' })} />

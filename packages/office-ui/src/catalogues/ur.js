@@ -8615,4 +8615,5 @@ export default {
   "named ranges": "نام شدہ رینجز",
   "tables": "ٹیبلز",
   "which rows and columns are hidden": "کون سی قطاریں اور کالم چھپے ہوئے ہیں",
+  "{count} exported, but {missing} messages or attachments could not be read, so this copy is not complete.": "{count} برآمد ہوئے، لیکن {missing} پیغامات یا منسلکات پڑھے نہیں جا سکے، اس لیے یہ نقل مکمل نہیں ہے۔",
 };

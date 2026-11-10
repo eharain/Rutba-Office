@@ -149,6 +149,12 @@ export function toStored(field, value) {
       return field.type === 'currency' ? Math.round(n * 10000) / 10000 : n;
     }
     case 'integer': case 'autonumber': {
+      // Digits past what a JavaScript number holds, which is how such a number is shown and given back: the file keeps it whole.
+      const digits = typeof value === 'string' ? value.replace(/[,\s]/g, '') : '';
+      if (/^-?\d{16,}$/.test(digits)) {
+        const whole = BigInt(digits);
+        if (whole >= -(2n ** 63n) && whole < 2n ** 63n && !Number.isSafeInteger(Number(whole))) return whole;
+      }
       const n = typeof value === 'number' ? value : Number(String(value).replace(/[,\s]/g, ''));
       if (!Number.isInteger(n)) throw new Error(`${field.name} takes a whole number.`);
       // Past this a number rounds without a word: 9007199254740993 would be kept as ...992.

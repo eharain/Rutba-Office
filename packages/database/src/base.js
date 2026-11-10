@@ -674,7 +674,7 @@ export class Base {
     const fixed = fields.filter((f) => f.readOnly);
     if (fixed.length) {
       const now = this.db.prepare(`SELECT * FROM main.${q(table)} WHERE rowid = ?`).get(rowid) || {};
-      for (const f of fixed) if (String(values[f.name] ?? '') !== String(now[f.name] ?? '') && toStored(f, values[f.name]) !== now[f.name]) throw new Error(`${f.name} is read only for you.`);
+      for (const f of fixed) if (String(values[f.name] ?? '') !== String(now[f.name] ?? '') && String(toStored(f, values[f.name])) !== String(now[f.name])) throw new Error(`${f.name} is read only for you.`);
       fields = fields.filter((f) => !f.readOnly);
     }
     if (!fields.length) return 0;

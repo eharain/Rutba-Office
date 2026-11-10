@@ -8617,4 +8617,5 @@ export default {
   "named ranges": "النطاقات المسماة",
   "tables": "الجداول",
   "which rows and columns are hidden": "الصفوف والأعمدة المخفية",
+  "{count} exported, but {missing} messages or attachments could not be read, so this copy is not complete.": "تم تصدير {count}، لكن تعذرت قراءة {missing} من الرسائل أو المرفقات، لذا فهذه النسخة غير مكتملة.",
 };

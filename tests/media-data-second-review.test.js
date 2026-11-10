@@ -55,8 +55,9 @@ test('the owner, with no role in force, is not held to any list', () => {
 
 const f = { name: 'Key', type: 'integer' };
 
-test('a whole number too long to keep exactly is refused, not rounded', () => {
-  assert.throws(() => toStored(f, '9007199254740993'), /exactly/);
+test('a whole number past what the file holds is refused, not rounded', () => {
+  assert.equal(toStored(f, '9007199254740993'), 9007199254740993n);
+  assert.throws(() => toStored(f, '9223372036854775808'), /exactly/);
   assert.throws(() => toStored(f, 1e300), /exactly/);
   assert.equal(toStored(f, '9007199254740991'), 9007199254740991);
   assert.equal(toStored(f, '-12'), -12);

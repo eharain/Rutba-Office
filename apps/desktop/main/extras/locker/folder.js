@@ -201,7 +201,12 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
         const name = recordedName(opened.meta.name);
         const realRel = dir ? `${dir}/${name}` : name;
         const entry = { rel: realRel, name, state: 'locked', size: opened.meta.size, modified: opened.meta.modified, path: p, lockedRel: rel, sha256: opened.meta.sha256, fileId: item.fileId, pieces: opened.meta.pieces, why: null };
-        if (lists.length > 1 && lists[0].seq === lists[1].seq) entry.conflictNote = true;
+        if (lists.length > 1 && lists[0].seq === lists[1].seq) {
+          entry.conflictNote = true;
+          // Two computers' versions in the one folder: each has its own row, to be saved or removed on its own.
+          const other = await openPieces({ dir: p, folderKey: key, version: 1 }).catch(() => null);
+          if (other) entry.twoLists = [{ file: lists[0].file, size: opened.meta.size, modified: opened.meta.modified }, { file: lists[1].file, size: other.meta.size, modified: other.meta.modified }];
+        }
         entries.push(entry);
         note(entry.fileId, entry);
       } catch (err) {
@@ -485,17 +490,17 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
   }
 
   /** A locked file (or one in pieces) opened for reading: `frames()`, `meta`, `close()`. */
-  async function opener(entry) {
-    if (entry.pieces) return openPieces({ dir: entry.path, folderKey: key });
+  async function opener(entry, file = null) {
+    if (entry.pieces) return openPieces({ dir: entry.path, folderKey: key, file });
     return openLocked(entry.path, key);
   }
 
   /** A plain copy written elsewhere: nothing about the locked file changes. */
-  async function exportCopy(rel, dest, { overwrite = false, allowConflict = false, lockedRel = null } = {}) {
+  async function exportCopy(rel, dest, { overwrite = false, allowConflict = false, lockedRel = null, list = null } = {}) {
     const e = lockedRel ? (await scan()).find((x) => x.lockedRel === lockedRel && x.rel.toLowerCase() === rel.toLowerCase()) || null : await entryFor(rel);
     if (!e || e.state === 'waiting' || e.state === 'excluded' || e.state === 'damaged') throw new LockerError('state', 'That file is not locked.');
     if (e.state === 'conflict' && !allowConflict) throw new LockerError('conflict', 'This file has two versions. Compare them first.');
-    const o = await opener(e);
+    const o = await opener(e, list);
     try {
       return await writePlainFrom(o, dest, { overwrite });
     } finally {
@@ -610,14 +615,14 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
   }
 
   /** A file gone for good, with the earlier versions kept of it. */
-  async function removeFile(rel, state, { lockedRel = null } = {}) {
+  async function removeFile(rel, state, { lockedRel = null, list = null } = {}) {
     const e = lockedRel ? (await scan()).find((x) => x.lockedRel === lockedRel && x.rel.toLowerCase() === rel.toLowerCase()) || null : await rowFor(rel, state);
     if (!e) throw new LockerError('state', 'That file is not in this folder.');
     // One of two versions may be removed by naming which; the earlier versions belong to the one that stays.
     if (e.state === 'conflict' && !lockedRel) throw new LockerError('conflict', 'This file has two versions. Compare them first.');
     if (e.conflictNote) {
       // Both versions of a large file live in the one folder: only the one named goes.
-      await removeNewestList(e.path, key);
+      await removeNewestList(e.path, key, list);
       return { removed: e.rel };
     }
     if (e.state === 'waiting' || e.state === 'excluded') await wipeFile(e.path);
