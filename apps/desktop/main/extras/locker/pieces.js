@@ -246,6 +246,28 @@ export async function openPieces({ dir, folderKey, version = 0 }) {
   };
 }
 
+/**
+ * One of a large file's two versions removed: two computers each wrote a list
+ * of the same number. The list the file opens from goes, and the pieces only it
+ * used; the other list, and everything it needs, stays in the same folder.
+ */
+export async function removeNewestList(dir, folderKey) {
+  const lists = await listsIn(dir);
+  if (lists.length < 2) throw new LockerError('state', 'This file has only the one version.');
+  const needed = new Set();
+  let known = true;
+  for (const l of lists.slice(1)) {
+    try {
+      for (const p of (await readList(dir, l, folderKey)).pieces) needed.add(p.name);
+    } catch {
+      known = false; // A list that will not read may need any of them: its pieces stay.
+    }
+  }
+  const going = await readList(dir, lists[0], folderKey).then((l) => l.pieces, () => []);
+  await fsp.rm(path.join(dir, lists[0].file), { force: true });
+  if (known) for (const p of going) if (!needed.has(p.name)) await fsp.rm(piecePath(dir, p.name), { force: true }).catch(() => {});
+}
+
 /** The lists beyond the kept number, removed, and the pieces only they used. Pieces no list has ever named stay a day, in case another computer's list has not arrived yet. */
 async function pruneLists(dir, folderKey, keep) {
   const lists = await listsIn(dir);

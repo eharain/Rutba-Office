@@ -38,6 +38,8 @@ function cleanChoices(c = {}) {
 /** How long a mark from another live process is believed without being touched. */
 const IN_USE_FOR = 120000;
 
+const UNSAVED_COPY = 'This file is open with changes that could not be saved. Save them somewhere else or close it, then try again.';
+
 export function createLocker({ dir, cost, hooks = null }) {
   const keys = createKeys({ dir, cost });
   const stateFile = path.join(dir, 'state.json');
@@ -229,13 +231,23 @@ export function createLocker({ dir, cost, hooks = null }) {
     }
   }
 
-  /** The copies of a file or folder that is leaving the locker: changes saved, copies removed. One a program holds is cleared at the next unlock. */
+  /**
+   * The copies of a file or folder that is leaving the locker: changes saved,
+   * copies removed. One a program holds is cleared at the next unlock. A copy
+   * with changes that could not be saved stays on the list and is answered: it
+   * is the only place those changes are.
+   */
   async function closeCopies(which) {
+    const unsaved = [];
     for (const [key, e] of [...openFiles.entries()]) {
       if (!which(e)) continue;
-      if (e.sha256) await finishOpen(e);
+      if (e.sha256 && !(await finishOpen(e)) && await changedSince(e)) {
+        unsaved.push(e.rel);
+        continue;
+      }
       if (openFiles.delete(key)) await recordOpenFiles().catch(() => {});
     }
+    return unsaved;
   }
 
   /**
@@ -257,6 +269,11 @@ export function createLocker({ dir, cost, hooks = null }) {
           continue;
         }
         const existing = await keys.readFolderKeysFile(file);
+        // Another locked folder's key file, restored here or arrived from a cloud: rewriting it under this folder's id would lock its owners out.
+        if (existing?.id && existing.id !== f.id) {
+          failed.push({ id: f.id, message: 'This folder holds the key file of a different locked folder, so it was left as it is.' });
+          continue;
+        }
         const opens = existing ? await keys.openFolderKeys(existing) : null;
         if (!opens || !opens.equals(key) || !(await keys.folderKeysCurrent(existing))) {
           await keys.writeFolderKeysFile(file, await keys.mergedFolderKeys(existing, key, f.id));
@@ -696,7 +713,8 @@ export function createLocker({ dir, cost, hooks = null }) {
      * folder stays in the locker so nothing is left unreachable.
      */
     async removeFolder(id, { leaveDamaged = false } = {}) {
-      await closeCopies((e) => e.folderId === id);
+      const unsaved = await closeCopies((e) => e.folderId === id);
+      if (unsaved.length) return { removed: false, failed: unsaved.map((rel) => ({ rel, message: UNSAVED_COPY })) };
       return withFolder(id, async (folder) => {
         const failed = [];
         const entries = await folder.scan();
@@ -736,7 +754,7 @@ export function createLocker({ dir, cost, hooks = null }) {
     exportCopy: (id, rel, dest, opts) => withFolder(id, (f) => f.exportCopy(rel, dest, opts)),
     /** Back to a plain file where it is. It stays plain until the person locks it again. */
     unlockForGood: async (id, rel) => {
-      await closeCopies((e) => e.folderId === id && e.rel === rel);
+      if ((await closeCopies((e) => e.folderId === id && e.rel === rel)).length) throw new LockerError('open', UNSAVED_COPY);
       return withFolder(id, (f) => f.unlockForGood(rel));
     },
     renameFile: async (id, rel, name, state) => {

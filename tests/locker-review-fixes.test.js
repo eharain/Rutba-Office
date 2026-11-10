@@ -239,9 +239,11 @@ test('a large file that shrinks leaves one locked copy, not two', async () => {
   assert.ok(fs.existsSync(path.join(folder, `${name}.rlock.d`)));
   const small = write(folder, name, 5000);
   await locker.lockWaiting(id);
-  assert.equal(fs.existsSync(path.join(folder, `${name}.rlock.d`)), false, 'the pieces went');
+  assert.ok(fs.existsSync(path.join(folder, `${name}.rlock.d`)), 'the pieces stay: the earlier version is in them');
+  assert.equal(fs.existsSync(path.join(folder, `${name}.rlock`)), false, 'and there is no second copy beside them');
   const list = await locker.scan(id);
   assert.deepEqual(list.map((e) => e.state), ['locked']);
+  assert.equal((await locker.versions(id, name)).length, 2, 'the version before it can still be had');
   const out = path.join(tmp('rl-out-'), name);
   await locker.exportCopy(id, name, out);
   assert.ok(fs.readFileSync(out).equals(small));

@@ -20,7 +20,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { newHeader, readHeader, openLocked, verifyLocked, fileHash, LockerError, HEADER_SIZE, MODE_FOLDER, MODE_SHARED } from './format.js';
 import { sealFile, writePlain, writePlainFrom, sweepWorking, isWorkingFile } from './place.js';
-import { sealPieces, openPieces, listsIn, readItem } from './pieces.js';
+import { sealPieces, openPieces, listsIn, readItem, removeNewestList } from './pieces.js';
 import { parseRules, decide, isLockerOwn, OPEN_DIR } from './rules.js';
 
 export const OLD_DIR = '.rlocker-old';
@@ -31,13 +31,45 @@ const PIECES_EXT = '.rlock.d';
 const posix = (p) => p.split(path.sep).join('/');
 const randomName = () => `${crypto.randomBytes(16).toString('hex')}${LOCK_EXT}`;
 
-/** A file's bytes overwritten and removed, as far as a program can: an SSD may keep the old blocks, and the Locker says so. */
+/**
+ * Whether a file can be removed at all, found by moving it and moving it back.
+ * A program can hold a file so that it may be written but not deleted. Windows
+ * then opens it for writing and refuses only the delete, so overwriting first
+ * would leave that program a file of zeros. A move needs the same permission a
+ * delete does. Answers the name the file now has, or null.
+ */
+async function removableAs(file) {
+  const moved = `${file}.${crypto.randomBytes(4).toString('hex')}.rl-part`;
+  try {
+    await fsp.rename(file, moved);
+  } catch {
+    return null;
+  }
+  for (let tries = 0; tries < 5; tries += 1) {
+    try {
+      await fsp.rename(moved, file);
+      return file;
+    } catch {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+  return moved;
+}
+
+/**
+ * A file's bytes overwritten and removed, as far as a program can: an SSD may
+ * keep the old blocks, and the Locker says so. A file another program holds is
+ * left exactly as it is, and still there for the caller to notice.
+ */
 export async function wipeFile(file) {
+  let target = file;
   try {
     // Never through a link: what it points at is not this file.
     const st = await fsp.lstat(file);
     if (st.isFile()) {
-      const fh = await fsp.open(file, 'r+');
+      target = await removableAs(file);
+      if (!target) return;
+      const fh = await fsp.open(target, 'r+');
       try {
         const zeros = Buffer.alloc(1024 * 1024);
         for (let at = 0; at < st.size; at += zeros.length) await fh.write(zeros, 0, Math.min(zeros.length, st.size - at), at);
@@ -47,9 +79,9 @@ export async function wipeFile(file) {
       }
     }
   } catch {
-    // A file that is open elsewhere is removed as it is, below.
+    // A file that cannot be overwritten is removed as it is, below.
   }
-  await fsp.rm(file, { force: true }).catch(() => {});
+  await fsp.rm(target, { force: true }).catch(() => {});
 }
 
 const BAD_NAME = /[<>:"/\\|?*\x00-\x1f]|[. ]$/;
@@ -335,7 +367,8 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
    */
   async function sealInto(plain, realRel, existing, meta) {
     const st = await fsp.stat(plain);
-    const useLarge = st.size > LARGE;
+    // A file already in pieces stays in pieces though it has shrunk: its earlier versions are in that folder.
+    const useLarge = st.size > LARGE || Boolean(existing?.pieces);
     await fsp.mkdir(path.dirname(abs(realRel)), { recursive: true });
     if (useLarge) {
       const dir = existing?.pieces ? existing.path : path.join(path.dirname(abs(realRel)), `${opt().hidden ? randomName() : `${path.basename(realRel)}${LOCK_EXT}`}.d`);
@@ -367,8 +400,6 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
       headerBuf = newHeader({ mode: MODE_FOLDER, folderId });
     }
     const out = await sealFile({ source: plain, target, rootKey: key, headerBuf, meta, stageDir, previous, hooks });
-    // A large file that shrank: its old pieces go, once the single file is in place and read back.
-    if (existing?.pieces && await readBackMatches(target, out.sha256, out.size)) await fsp.rm(existing.path, { recursive: true, force: true }).catch(() => {});
     if (existing) await pruneVersions(existing.fileId);
     return { ...out, target };
   }
@@ -584,6 +615,11 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     if (!e) throw new LockerError('state', 'That file is not in this folder.');
     // One of two versions may be removed by naming which; the earlier versions belong to the one that stays.
     if (e.state === 'conflict' && !lockedRel) throw new LockerError('conflict', 'This file has two versions. Compare them first.');
+    if (e.conflictNote) {
+      // Both versions of a large file live in the one folder: only the one named goes.
+      await removeNewestList(e.path, key);
+      return { removed: e.rel };
+    }
     if (e.state === 'waiting' || e.state === 'excluded') await wipeFile(e.path);
     else await fsp.rm(e.path, { recursive: true, force: true });
     if (await fsp.access(e.path).then(() => true, () => false)) throw new LockerError('busy', 'That file is in use, so it could not be deleted.');
