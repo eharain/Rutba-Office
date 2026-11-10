@@ -521,12 +521,32 @@ export function importSlide(fromDeck, fromIndex, deck, at) {
   return String(deck.slideParts[index].id);
 }
 
-/** A slide deleted on accept put back on reject: its entry restored where it stood, its part never having left the package. */
+/** A part of the base deck, and all it leads to, put back where this deck no longer has them. */
+function bringBack(deck, base, part) {
+  const seen = new Set([part]);
+  const todo = [part];
+  while (todo.length) {
+    const name = todo.pop();
+    if (!deck.pkg.has(name) && base.pkg.has(name)) {
+      deck.pkg.addPart(name, base.pkg.read(name), base.pkg.contentTypeOf(name));
+      const rels = OoxmlPackage.relsPathFor(name);
+      if (base.pkg.has(rels) && !deck.pkg.has(rels)) deck.pkg.addPart(rels, base.pkg.read(rels), 'application/vnd.openxmlformats-package.relationships+xml');
+    }
+    for (const r of base.pkg.rels(name)) {
+      if (r.TargetMode === 'External') continue;
+      const target = OoxmlPackage.resolveTarget(name, r.Target);
+      if (!seen.has(target)) { seen.add(target); todo.push(target); }
+    }
+  }
+}
+
+/** A slide deleted on accept put back on reject: its parts from the base, its entry where it stood. */
 function restoreSlide(deck, base, slideId) {
   const b = slidesOf(base);
   const at = b.findIndex((s) => s.id === slideId);
   const entry = base.slideParts[at];
   if (!entry) return;
+  bringBack(deck, base, entry.part);
   const pres = deck.pkg.text('ppt/presentation.xml');
   const rel = deck.pkg.rels('ppt/presentation.xml').find((r) => r.Id === entry.rId && OoxmlPackage.resolveTarget('ppt/presentation.xml', r.Target) === entry.part);
   const rId = rel ? rel.Id : deck.pkg.addRelationshipTo('ppt/presentation.xml', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide', entry.part.slice('ppt/'.length));

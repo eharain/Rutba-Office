@@ -1307,7 +1307,7 @@ export class Deck {
     const shapeXml = xml.slice(range.start, range.end);
     const bodyStart = shapeXml.indexOf('<p:txBody>');
     const bodyEnd = shapeXml.indexOf('</p:txBody>');
-    const newBody = buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd);
+    const newBody = buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd, this.#bodySource(slideIndex, bodyStart < 0 ? '' : shapeXml.slice(bodyStart, bodyEnd + '</p:txBody>'.length)));
     let nextShape;
     if (bodyStart < 0) {
       // A shape with no text body yet — add one before the closing tag.
@@ -1318,6 +1318,38 @@ export class Deck {
     }
     this.#writeSlide(part, xml.slice(0, range.start) + nextShape + xml.slice(range.end));
     return true;
+  }
+
+  /**
+   * A text body's own XML, paragraph by paragraph, beside what the reader
+   * made of it, so an edit can keep whatever the reader has no field for.
+   * Null when there is nothing to keep, or an equation sits in it.
+   */
+  #bodySource(slideIndex, bodyXml) {
+    if (!bodyXml || bodyXml.includes('<a14:m')) return null;
+    try {
+      const node = kids(parse(bodyXml))[0];
+      const model = readTextBody(node, this.#themeFor(this.masterOf(slideIndex))).paragraphs;
+      return [...bodyXml.matchAll(/<a:p\b[^>]*?(?:\/>|>[\s\S]*?<\/a:p>)/g)].map(([xml], i) => {
+        const open = xml.indexOf('>');
+        const parts = xml.endsWith('/>') && open === xml.length - 1 ? [] : topChildren(xml.slice(open + 1, -'</a:p>'.length));
+        const runs = parts.filter((c) => c.name === 'r' || c.name === 'br' || c.name === 'fld');
+        return {
+          model: model[i] ?? null,
+          pPr: parts.find((c) => c.name === 'pPr')?.xml ?? '',
+          end: parts.find((c) => c.name === 'endParaRPr')?.xml ?? '',
+          runs: runs.map((c, j) => ({
+            name: c.name,
+            xml: c.xml,
+            model: model[i]?.runs?.[j] ?? null,
+            rPr: /<a:rPr\b[^>]*?(?:\/>|>[\s\S]*?<\/a:rPr>)/.exec(c.xml)?.[0] ?? '',
+            id: c.name === 'fld' ? /\bid="([^"]*)"/.exec(c.xml)?.[1] ?? null : null,
+          })),
+        };
+      });
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -1341,23 +1373,23 @@ export class Deck {
       let shapeXml = input;
 
       const offRe = /<a:off\b[^>]*\/>/;
-      const extRe = /<a:ext\b[^>]*\/>/;
-      const hasXfrm = /<a:xfrm\b/.test(shapeXml);
+      const extRe = /<a:ext\b(?=[^>]*\bcx=)[^>]*\/>/;
+      const hasXfrm = /<[ap]:xfrm\b/.test(shapeXml);
 
       const offXml = `<a:off x="${pxToEmu(x)}" y="${pxToEmu(y)}"/>`;
       const extXml = `<a:ext cx="${Math.max(1, pxToEmu(w))}" cy="${Math.max(1, pxToEmu(h))}"/>`;
       const touchesTransform = rot !== undefined || flipH !== undefined || flipV !== undefined;
 
       if (hasXfrm) {
-        shapeXml = offRe.test(shapeXml) ? shapeXml.replace(offRe, () => offXml) : shapeXml.replace(/<a:xfrm\b[^>]*>/, (m) => m + offXml);
+        shapeXml = offRe.test(shapeXml) ? shapeXml.replace(offRe, () => offXml) : shapeXml.replace(/<[ap]:xfrm\b[^>]*>/, (m) => m + offXml);
         shapeXml = extRe.test(shapeXml) ? shapeXml.replace(extRe, () => extXml) : shapeXml.replace(offXml, () => offXml + extXml);
         if (touchesTransform) {
-          shapeXml = shapeXml.replace(/<a:xfrm\b([^>]*)>/, (m, attrs) => {
+          shapeXml = shapeXml.replace(/<([ap]):xfrm\b([^>]*)>/, (m, ns, attrs) => {
             let next = attrs;
             if (rot !== undefined) { next = next.replace(/\s*rot="[^"]*"/, ''); if (rot) next += ` rot="${Math.round(rot * 60000)}"`; }
             if (flipH !== undefined) { next = next.replace(/\s*flipH="[^"]*"/, ''); if (flipH) next += ' flipH="1"'; }
             if (flipV !== undefined) { next = next.replace(/\s*flipV="[^"]*"/, ''); if (flipV) next += ' flipV="1"'; }
-            return `<a:xfrm${next}>`;
+            return `<${ns}:xfrm${next}>`;
           });
         }
       } else {
@@ -4369,7 +4401,7 @@ export class Deck {
     const cellXml = tc[0];
     const bodyStart = cellXml.indexOf('<a:txBody>');
     const bodyEnd = cellXml.indexOf('</a:txBody>');
-    const body = buildTextBody(paragraphs, cellXml, bodyStart, bodyEnd)
+    const body = buildTextBody(paragraphs, cellXml, bodyStart, bodyEnd, this.#bodySource(slideIndex, bodyStart < 0 ? '' : cellXml.slice(bodyStart, bodyEnd + '</a:txBody>'.length)))
       .replace(/^<p:txBody>/, '<a:txBody>')
       .replace(/<\/p:txBody>$/, '</a:txBody>');
     const newCell = bodyStart < 0
@@ -4395,9 +4427,23 @@ export class Deck {
     const insertAt = Math.max(0, Math.min(trs.length, at == null ? trs.length : at));
     const near = trs[Math.min(insertAt, trs.length - 1)]?.[0] || trs[0]?.[0] || '';
     const rowH = Number(/\bh="(\d+)"/.exec(near)?.[1]) || TABLE_ROW_H;
-    const newRow = `<a:tr h="${rowH}">${Array.from({ length: cols }, () => tableCellXml(null)).join('')}</a:tr>`;
-    const at2 = insertAt < trs.length ? trs[insertAt].index : tbl[0].lastIndexOf('</a:tbl>');
-    const newTbl = tbl[0].slice(0, at2) + newRow + tbl[0].slice(at2);
+    // A row put through a merged cell lengthens it and is covered by it.
+    const grid = trs.map((t) => [...t[0].matchAll(TC_RE)].map((m) => m[0]));
+    const below = insertAt > 0 && insertAt < grid.length ? grid[insertAt] : [];
+    const cells = Array.from({ length: cols }, (_, c) => {
+      const cell = below[c];
+      if (!cell || !tcFlag(cell, 'vMerge')) return tableCellXml(null);
+      let top = insertAt - 1;
+      while (top > 0 && tcFlag(grid[top][c], 'vMerge')) top -= 1;
+      grid[top][c] = withTcAttr(grid[top][c], 'rowSpan', (tcNumber(grid[top][c], 'rowSpan') || 1) + 1);
+      let covering = withTcAttr(tableCellXml(null), 'vMerge', 1);
+      if (tcNumber(cell, 'gridSpan') > 1) covering = withTcAttr(covering, 'gridSpan', tcNumber(cell, 'gridSpan'));
+      if (tcFlag(cell, 'hMerge')) covering = withTcAttr(covering, 'hMerge', 1);
+      return covering;
+    });
+    const rows = trs.map((t, r) => rebuildRow(t[0], grid[r]));
+    rows.splice(insertAt, 0, `<a:tr h="${rowH}">${cells.join('')}</a:tr>`);
+    const newTbl = replaceRows(tbl[0], trs, rows);
     const newFrame = growFrameHeight(frameXml.slice(0, tbl.index) + newTbl + frameXml.slice(tbl.index + tbl[0].length), rowH);
     this.#writeSlide(part, xml.slice(0, range.start) + newFrame + xml.slice(range.end));
     return true;
@@ -4411,7 +4457,20 @@ export class Deck {
     const tr = trs[at];
     if (!tr) throw new Error(`no row ${at} in table`);
     const rowH = Number(/\bh="(\d+)"/.exec(tr[0])?.[1]) || TABLE_ROW_H;
-    const newTbl = tbl[0].slice(0, tr.index) + tbl[0].slice(tr.index + tr[0].length);
+    // A merged cell loses a row. Where this row held its words they go, as in PowerPoint, and the next row carries on.
+    const grid = trs.map((t) => [...t[0].matchAll(TC_RE)].map((m) => m[0]));
+    grid[at].forEach((cell, c) => {
+      if (tcFlag(cell, 'vMerge')) {
+        let top = at - 1;
+        while (top > 0 && tcFlag(grid[top][c], 'vMerge')) top -= 1;
+        grid[top][c] = withTcAttr(grid[top][c], 'rowSpan', (tcNumber(grid[top][c], 'rowSpan') || 1) - 1);
+      } else if (tcNumber(cell, 'rowSpan') > 1 && grid[at + 1]?.[c]) {
+        grid[at + 1][c] = withTcAttr(withTcAttr(grid[at + 1][c], 'vMerge', 0), 'rowSpan', tcNumber(cell, 'rowSpan') - 1);
+      }
+    });
+    const rows = trs.map((t, r) => rebuildRow(t[0], grid[r]));
+    rows.splice(at, 1);
+    const newTbl = replaceRows(tbl[0], trs, rows);
     const newFrame = growFrameHeight(frameXml.slice(0, tbl.index) + newTbl + frameXml.slice(tbl.index + tbl[0].length), -rowH);
     this.#writeSlide(part, xml.slice(0, range.start) + newFrame + xml.slice(range.end));
     return true;
@@ -4436,9 +4495,18 @@ export class Deck {
     const newGrid = `<a:tblGrid>${Array.from({ length: nextCount }, () => `<a:gridCol w="${colW}"/>`).join('')}</a:tblGrid>`;
     let newTbl = tbl[0].slice(0, grid.index) + newGrid + tbl[0].slice(grid.index + grid[0].length);
     newTbl = newTbl.replace(TR_RE, (rowXml) => {
-      const tcs = [...rowXml.matchAll(TC_RE)];
-      const pos = insertAt < tcs.length ? tcs[insertAt].index : rowXml.lastIndexOf('</a:tr>');
-      return rowXml.slice(0, pos) + tableCellXml(null) + rowXml.slice(pos);
+      const cells = [...rowXml.matchAll(TC_RE)].map((m) => m[0]);
+      let added = tableCellXml(null);
+      // A column put through a merged cell widens it and is covered by it.
+      if (insertAt > 0 && insertAt < cells.length && tcFlag(cells[insertAt], 'hMerge')) {
+        let left = insertAt - 1;
+        while (left > 0 && tcFlag(cells[left], 'hMerge')) left -= 1;
+        cells[left] = withTcAttr(cells[left], 'gridSpan', (tcNumber(cells[left], 'gridSpan') || 1) + 1);
+        added = withTcAttr(added, 'hMerge', 1);
+        if (tcFlag(cells[insertAt], 'vMerge')) added = withTcAttr(added, 'vMerge', 1);
+      }
+      cells.splice(Math.min(insertAt, cells.length), 0, added);
+      return rebuildRow(rowXml, cells);
     });
     const newFrame = frameXml.slice(0, tbl.index) + newTbl + frameXml.slice(tbl.index + tbl[0].length);
     this.#writeSlide(part, xml.slice(0, range.start) + newFrame + xml.slice(range.end));
@@ -4515,10 +4583,22 @@ export class Deck {
     const newGrid = `<a:tblGrid>${Array.from({ length: nextCount }, () => `<a:gridCol w="${colW}"/>`).join('')}</a:tblGrid>`;
     let newTbl = tbl[0].slice(0, grid.index) + newGrid + tbl[0].slice(grid.index + grid[0].length);
     newTbl = newTbl.replace(TR_RE, (rowXml) => {
-      const tcs = [...rowXml.matchAll(TC_RE)];
-      const tc = tcs[at];
+      const cells = [...rowXml.matchAll(TC_RE)].map((m) => m[0]);
+      const tc = cells[at];
       if (!tc) return rowXml;
-      return rowXml.slice(0, tc.index) + rowXml.slice(tc.index + tc[0].length);
+      if (tcFlag(tc, 'hMerge')) {
+        let left = at - 1;
+        while (left > 0 && tcFlag(cells[left], 'hMerge')) left -= 1;
+        cells[left] = withTcAttr(cells[left], 'gridSpan', (tcNumber(cells[left], 'gridSpan') || 1) - 1);
+        cells.splice(at, 1);
+      } else if (tcNumber(tc, 'gridSpan') > 1 && cells[at + 1]) {
+        // Its words go with their column, as in PowerPoint; the next cell it covered carries on.
+        cells[at + 1] = withTcAttr(withTcAttr(cells[at + 1], 'hMerge', 0), 'gridSpan', tcNumber(tc, 'gridSpan') - 1);
+        cells.splice(at, 1);
+      } else {
+        cells.splice(at, 1);
+      }
+      return rebuildRow(rowXml, cells);
     });
     const newFrame = frameXml.slice(0, tbl.index) + newTbl + frameXml.slice(tbl.index + tbl[0].length);
     this.#writeSlide(part, xml.slice(0, range.start) + newFrame + xml.slice(range.end));
@@ -4538,6 +4618,8 @@ export class Deck {
     const srcRels = `ppt/slides/_rels/${src.part.split('/').pop()}.rels`;
     if (this.pkg.has(srcRels)) {
       this.pkg.addPart(relsPart, this.pkg.read(srcRels), 'application/vnd.openxmlformats-package.relationships+xml');
+      const notes = [...this.#relMap(newPart).values()].find((r) => r.type === REL.notes && this.pkg.has(r.resolved));
+      if (notes) this.#giveOwnNotes(newPart, relsPart, notes);
     }
 
     const rId = this.pkg.addRelationshipTo('ppt/presentation.xml', REL.slide, `slides/slide${n}.xml`);
@@ -4554,6 +4636,90 @@ export class Deck {
     this.#load();
     this.#syncSections();
     return this.slideParts.findIndex((s) => s.part === newPart);
+  }
+
+  /** A copy of a slide's notes for a new slide, each pointing at the other. */
+  #giveOwnNotes(slidePart, slideRels, rel) {
+    const m = this.pkg.nextPartNumber('ppt/notesSlides/', 'notesSlide');
+    const copy = `ppt/notesSlides/notesSlide${m}.xml`;
+    this.pkg.addPart(copy, this.pkg.read(rel.resolved), CT.notes);
+    const notesRels = OoxmlPackage.relsPathFor(rel.resolved);
+    if (this.pkg.has(notesRels)) {
+      const slideName = '../slides/' + slidePart.split('/').pop();
+      const pointed = this.pkg.text(notesRels).replace(/<Relationship\b[^>]*\/>/g, (tag) => (tag.includes('/relationships/slide"') ? tag.replace(/\bTarget="[^"]*"/, () => `Target="${slideName}"`) : tag));
+      this.pkg.addPart(OoxmlPackage.relsPathFor(copy), pointed, 'application/vnd.openxmlformats-package.relationships+xml');
+    }
+    const relsXml = this.pkg.text(slideRels).replace(/<Relationship\b[^>]*\/>/g, (tag) => (tag.includes(`Id="${rel.id}"`) ? tag.replace(/\bTarget="[^"]*"/, () => `Target="../notesSlides/notesSlide${m}.xml"`) : tag));
+    this.pkg.write_(slideRels, relsXml);
+  }
+
+  /** Every part reached by following relationships from these. */
+  #reachableFrom(starts) {
+    const seen = new Set();
+    const todo = [...starts];
+    while (todo.length) {
+      for (const r of this.#relMap(todo.pop()).values()) {
+        if (r.mode === 'External' || seen.has(r.resolved) || !this.pkg.has(r.resolved)) continue;
+        seen.add(r.resolved);
+        todo.push(r.resolved);
+      }
+    }
+    return seen;
+  }
+
+  /**
+   * Take a deleted slide out of the package, with its notes, comments and
+   * whatever pictures only it used. What is deleted must not travel with the
+   * file. Undo brings it all back: a snapshot holds the package's entries.
+   */
+  #removeSlideParts(entry, wasFirst) {
+    this.pkg.removeRelationship('ppt/presentation.xml', entry.rId);
+    for (const other of this.slideParts) {
+      if (other.part === entry.part) continue;
+      const links = [...this.#relMap(other.part).values()].filter((r) => r.type === REL.slide && r.resolved === entry.part);
+      if (!links.length) continue;
+      let xml = this.pkg.text(other.part);
+      for (const link of links) {
+        this.pkg.removeRelationship(other.part, link.id);
+        xml = xml.replace(new RegExp(`<a:hlink(Click|Hover|MouseOver)\\b[^>]*\\br:id="${link.id}"[^>]*?(?:/>|>[\\s\\S]*?</a:hlink\\1>)`, 'g'), '');
+      }
+      this.pkg.write_(other.part, xml);
+    }
+    const kept = this.#reachableFrom(['']);
+    for (const name of [entry.part, ...this.#reachableFrom([entry.part])]) {
+      if (!kept.has(name) && this.pkg.has(name)) this.pkg.removePart(name);
+    }
+    // The picture of the first slide that Explorer shows for the file.
+    if (wasFirst) {
+      for (const r of this.#relMap('').values()) {
+        if (!String(r.type).endsWith('/thumbnail')) continue;
+        this.pkg.removeRelationship('', r.id);
+        if (this.pkg.has(r.resolved)) this.pkg.removePart(r.resolved);
+      }
+    }
+  }
+
+  /** The file's own list of slide titles and its count, as the slides now stand. */
+  #syncAppProperties() {
+    const name = 'docProps/app.xml';
+    if (!this.pkg.has(name)) return;
+    let xml = this.pkg.text(name).replace(/<Slides>\d+<\/Slides>/, () => `<Slides>${this.slideCount}</Slides>`);
+    const heads = /(<HeadingPairs>\s*<vt:vector\b[^>]*>)([\s\S]*?)(<\/vt:vector>\s*<\/HeadingPairs>)/.exec(xml);
+    const parts = /<TitlesOfParts>\s*<vt:vector\b[^>]*>([\s\S]*?)<\/vt:vector>\s*<\/TitlesOfParts>/.exec(xml);
+    if (heads && parts) {
+      const pairs = [...heads[2].matchAll(/<vt:lpstr>([^<]*)<\/vt:lpstr>[\s\S]*?<vt:i4>(\d+)<\/vt:i4>/g)];
+      let offset = 0;
+      const at = pairs.findIndex((p) => { if (p[1] === 'Slide Titles') return true; offset += Number(p[2]); return false; });
+      if (at >= 0) {
+        const titles = [...parts[1].matchAll(/<vt:lpstr>[^<]*<\/vt:lpstr>/g)].map((m) => m[0]);
+        const now = this.slideParts.map((s) => `<vt:lpstr>${escapeXml(outlineTitle(this.pkg.text(s.part)) || 'PowerPoint Presentation')}</vt:lpstr>`);
+        const list = [...titles.slice(0, offset), ...now, ...titles.slice(offset + Number(pairs[at][2]))];
+        const counted = pairs[at][0].replace(/<vt:i4>\d+<\/vt:i4>/, () => `<vt:i4>${now.length}</vt:i4>`);
+        xml = xml.replace(heads[0], () => heads[1] + heads[2].replace(pairs[at][0], () => counted) + heads[3]);
+        xml = xml.replace(/<TitlesOfParts>[\s\S]*?<\/TitlesOfParts>/, () => `<TitlesOfParts><vt:vector size="${list.length}" baseType="lpstr">${list.join('')}</vt:vector></TitlesOfParts>`);
+      }
+    }
+    this.pkg.write_(name, xml);
   }
 
   /**
@@ -4608,7 +4774,17 @@ export class Deck {
     let layoutTarget = spec.layoutPart && this.pkg.has(spec.layoutPart) ? `../slideLayouts/${spec.layoutPart.split('/').pop()}` : null;
     if (!layoutTarget && neighbour) {
       for (const r of this.pkg.rels(neighbour.part) || []) {
-        if (r.type === REL.layout) layoutTarget = r.target;
+        if (r.Type === REL.layout) layoutTarget = r.Target;
+      }
+    }
+    // A neighbour on a layout with nothing to fill gives a slide with nothing on it, as
+    // New Slide does. Words given for it need a layout that has a place for them.
+    if (layoutTarget && !spec.layoutPart && layout !== 'blank') {
+      const borrowed = OoxmlPackage.resolveTarget(newPart, layoutTarget);
+      const places = this.pkg.has(borrowed) ? [...this.pkg.text(borrowed).matchAll(/<p:ph\b([^>]*?)\/?>/g)].filter((m) => !/\btype="(?:dt|ftr|sldNum)"/.test(m[1])) : [];
+      if (!places.length) {
+        if (title || body) layoutTarget = null;
+        else this.pkg.write_(newPart, Buffer.from(slideXml({ layout: 'blank' }), 'utf8'));
       }
     }
     if (!layoutTarget) {
@@ -4839,9 +5015,12 @@ export class Deck {
     const presXml = this.pkg.text('ppt/presentation.xml');
     const next = presXml.replace(new RegExp(`<p:sldId\\b[^>]*r:id="${entry.rId}"[^>]*/>`), '');
     this.pkg.write_('ppt/presentation.xml', Buffer.from(next, 'utf8'));
+    this.#removeSlideParts(entry, index === 0);
+    this._scenes.clear();
     this.dirty = true;
     this.#load();
     this.#syncSections();
+    this.#syncAppProperties();
     // A custom show that played it plays on without it, as in PowerPoint.
     if (/<p:custShowLst\b/.test(next)) this.setCustomShows(this.customShows());
     return true;
@@ -5712,7 +5891,28 @@ function nextShapeId(xml) {
  * Build a `<p:txBody>`, reusing the body properties the shape already had so an
  * edit does not silently reset autofit, insets or vertical anchoring.
  */
-function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
+const LOOK_LEAVES = new Set(['text', 'break', 'math', 'plain', 'runs', 'endProps']);
+/** Everything about a run or a paragraph but its words, comparable. */
+const lookOf = (x) => JSON.stringify(Object.keys(x ?? {}).filter((k) => !LOOK_LEAVES.has(k) && x[k] !== undefined).sort().map((k) => [k, x[k]]));
+const newFieldId = () => '{' + [8, 4, 4, 4, 12].map((n) => Array.from({ length: n }, () => '0123456789ABCDEF'[Math.floor(Math.random() * 16)]).join('')).join('-') + '}';
+
+/** The file's own run for one being written: this place first, then this paragraph, then the body. */
+function sourceRun(source, pi, ri, run) {
+  if (!source) return null;
+  const look = lookOf(run);
+  const name = run.text === '\n' ? 'br' : run.field ? 'fld' : 'r';
+  const fits = (x) => x && x.name === name && x.model && lookOf(x.model) === look;
+  const here = source[pi]?.runs[ri];
+  if (fits(here)) return here;
+  for (const x of source[pi]?.runs ?? []) if (fits(x)) return x;
+  for (const para of source) for (const x of para.runs) if (fits(x)) return x;
+  return null;
+}
+
+/** The solid fill a run states for its words, not the one on an outline. */
+const wordsFill = (rPr) => /<a:solidFill>[\s\S]*?<\/a:solidFill>/.exec(rPr.replace(/<a:ln\b[\s\S]*?<\/a:ln>/, ''))?.[0] ?? null;
+
+function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd, source = null) {
   let bodyPr = '<a:bodyPr/>';
   let lstStyle = '<a:lstStyle/>';
   if (bodyStart >= 0) {
@@ -5722,7 +5922,7 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
     const ls = /<a:lstStyle\b[^>]*(\/>|>[\s\S]*?<\/a:lstStyle>)/.exec(inner);
     if (ls) lstStyle = ls[0];
   }
-  const ps = (paragraphs || []).map((p) => {
+  const ps = (paragraphs || []).map((p, pi) => {
     const pPrBits = [];
     if (p.indent != null) pPrBits.push(`marL="${pxToEmu(p.indent)}"`);
     if (p.level) pPrBits.push(`lvl="${p.level}"`);
@@ -5747,13 +5947,23 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
       else if (bullet.type === 'number') kids.push(`<a:buAutoNum type="${escapeXml(bullet.scheme || 'arabicPeriod')}"${bullet.start && Number(bullet.start) !== 1 ? ` startAt="${Number(bullet.start)}"` : ''}/>`);
       else kids.push(`<a:buChar char="${escapeXml(bullet.char || '•')}"/>`);
     }
-    const pPr = kids.length
-      ? `<a:pPr${pPrBits.length ? ' ' + pPrBits.join(' ') : ''}>${kids.join('')}</a:pPr>`
-      : pPrBits.length ? `<a:pPr ${pPrBits.join(' ')}/>` : '';
+    const was = source?.[pi] ?? null;
+    const pPr = was?.model && lookOf(was.model) === lookOf(p)
+      ? was.pPr
+      : kids.length
+        ? `<a:pPr${pPrBits.length ? ' ' + pPrBits.join(' ') : ''}>${kids.join('')}</a:pPr>`
+        : pPrBits.length ? `<a:pPr ${pPrBits.join(' ')}/>` : '';
     const runs = (p.runs || [])
       .filter((r) => r.text != null)
-      .map((r) => {
-        if (r.text === '\n') return '<a:br/>';
+      .map((r, ri) => {
+        const same = sourceRun(source, pi, ri, r);
+        if (r.text === '\n') return same ? same.xml : '<a:br/>';
+        if (same) {
+          const words = `${same.rPr}<a:t xml:space="preserve">${escapeXml(r.text)}</a:t>`;
+          return same.name === 'fld' ? `<a:fld id="${same.id ?? newFieldId()}" type="${escapeXml(r.field)}">${words}</a:fld>` : `<a:r>${words}</a:r>`;
+        }
+        // Its look was changed: what the change did not touch still stays.
+        const near = was?.runs[ri]?.name === 'r' ? was.runs[ri] : null;
         // The run's own language, as read, or as Review → Language chose it;
         // PowerPoint writes one on every run.
         const lang = r.lang && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/.test(String(r.lang)) ? String(r.lang) : 'en-US';
@@ -5779,10 +5989,13 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
             + (fx.shadow ? outerShadowXml({ blur: (Number(fx.shadow.blurPx) || 0) * 0.75, dist: (Number(fx.shadow.distPx) || 0) * 0.75, dir: Number(fx.shadow.dir) || 0, color: fx.shadow.color, alpha: fx.shadow.alpha ?? 1 }) : '')
             + '</a:effectLst>'
           : '';
-        const fill = outline + (r.noFill ? '<a:noFill/>' : r.color ? `<a:solidFill><a:srgbClr val="${String(r.color).replace('#', '')}"/></a:solidFill>` : '') + effects;
+        const sameColour = r.color && near?.model?.color === r.color ? wordsFill(near.rPr) : null;
+        const fill = outline + (r.noFill ? '<a:noFill/>' : sameColour ?? (r.color ? `<a:solidFill><a:srgbClr val="${String(r.color).replace('#', '')}"/></a:solidFill>` : '')) + effects;
         // A highlight sits after the fill and before the font in rPr's order.
         const highlight = r.highlight ? `<a:highlight><a:srgbClr val="${String(r.highlight).replace('#', '')}"/></a:highlight>` : '';
-        const font = r.font ? `<a:latin typeface="${escapeXml(r.font)}"/>` : '';
+        // Urdu and Arabic take their face from a:cs. A face chosen here reaches them too.
+        const otherScripts = [...(near?.rPr ?? '').matchAll(/<a:(ea|cs|sym)\b[^>]*\/>/g)].map((m) => (r.font && near.model.font !== r.font && m[1] === 'cs' ? `<a:cs typeface="${escapeXml(r.font)}"/>` : m[0])).join('');
+        const font = (r.font ? `<a:latin typeface="${escapeXml(r.font)}"/>` : '') + otherScripts;
         // A link is the run's relationship id — as the reader gives it, or
         // inside the { id, url } the scene resolves it to — last in rPr.
         const rId = typeof r.link === 'string' ? r.link : r.link?.id;
@@ -5791,10 +6004,11 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
           ? `<a:rPr ${bits.join(' ')}>${fill}${highlight}${font}${link}</a:rPr>`
           : `<a:rPr ${bits.join(' ')}/>`;
         // `xml:space` keeps leading and trailing spaces, which a title often has.
-        return `<a:r>${rPr}<a:t xml:space="preserve">${escapeXml(r.text)}</a:t></a:r>`;
+        const body = `${rPr}<a:t xml:space="preserve">${escapeXml(r.text)}</a:t>`;
+        return r.field ? `<a:fld id="${newFieldId()}" type="${escapeXml(r.field)}">${body}</a:fld>` : `<a:r>${body}</a:r>`;
       })
       .join('');
-    return `<a:p>${pPr}${runs}</a:p>`;
+    return `<a:p>${pPr}${runs}${was?.end ?? ''}</a:p>`;
   });
   if (!ps.length) ps.push('<a:p/>');
   return `<p:txBody>${bodyPr}${lstStyle}${ps.join('')}</p:txBody>`;
@@ -5831,6 +6045,31 @@ function topChildren(xml) {
     if (m[2] === '/') { if (depth === 0) { out.push({ name, xml: m[0] }); start = -1; } } else depth += 1;
   }
   return out;
+}
+
+/** The number an `<a:tc>` states for an attribute, or 0. */
+const tcNumber = (tc, name) => Number(new RegExp(`^<a:tc\\b[^>]*?\\s${name}="(\\d+)"`).exec(tc)?.[1] ?? 0);
+const tcFlag = (tc, name) => new RegExp(`^<a:tc\\b[^>]*?\\s${name}="(?:1|true)"`).test(tc);
+/** An `<a:tc>` with an attribute set; a span of one is no span, and is left off. */
+function withTcAttr(tc, name, value) {
+  return tc.replace(/^<a:tc\b[^>]*>/, (open) => {
+    const bare = open.replace(new RegExp(`\\s${name}="[^"]*"`), '');
+    const keep = name === 'gridSpan' || name === 'rowSpan' ? value > 1 : Boolean(value);
+    return keep ? bare.replace(/^<a:tc/, () => `<a:tc ${name}="${value}"`) : bare;
+  });
+}
+/** A row with its cells replaced, its own attributes and tail kept. */
+function rebuildRow(rowXml, cells) {
+  const first = rowXml.search(/<a:tc\b/);
+  const last = rowXml.lastIndexOf('</a:tc>');
+  if (first < 0 || last < 0) return rowXml.replace('</a:tr>', () => cells.join('') + '</a:tr>');
+  return rowXml.slice(0, first) + cells.join('') + rowXml.slice(last + '</a:tc>'.length);
+}
+/** A table with its rows replaced, what comes before and after them kept. */
+function replaceRows(tblXml, trs, rows) {
+  const first = trs[0].index;
+  const end = trs[trs.length - 1].index + trs[trs.length - 1][0].length;
+  return tblXml.slice(0, first) + rows.join('') + tblXml.slice(end);
 }
 
 function tableCellXml(text) {

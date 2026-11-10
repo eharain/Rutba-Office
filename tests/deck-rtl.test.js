@@ -27,7 +27,7 @@ test('a paragraph right to left is read from rtl="1" and written back with it', 
   // A round trip through setText, as an edit makes one, keeps it.
   deck.setText(0, box(deck).id, box(deck).text.paragraphs);
   const xml = OoxmlPackage.read(deck.save()).text(deck.slideParts[0].part);
-  assert.match(xml, /<a:pPr algn="r" rtl="1"\/>/);
+  assert.match(xml, /<a:pPr (?=[^>]*algn="r")(?=[^>]*rtl="1")[^>]*>/);
   assert.equal((xml.match(/rtl="1"/g) || []).length, 1, 'only the Arabic paragraph');
   const turnedBack = box(deck).text.paragraphs.map((p, i) => (i === 0 ? { ...p, rtl: false } : p));
   deck.setText(0, box(deck).id, turnedBack);
