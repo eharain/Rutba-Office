@@ -175,6 +175,9 @@ class Refusal extends Error {
  * Checks one pack against the keys and the core's version; answers what to
  * load, or throws a Refusal saying why not.
  */
+/** Whether the manifest lists this path. A path may be called "constructor", which every object answers to. */
+export const isListed = (files, p) => Object.hasOwn(files, p);
+
 function checkPack({ dir, file, keys, version }) {
   const stem = file.slice(0, -'.pack.json'.length);
   let signed;
@@ -212,7 +215,7 @@ function checkPack({ dir, file, keys, version }) {
     if (!safePath(p) || !Number.isSafeInteger(f?.size) || typeof f?.sha512 !== 'string') throw new Refusal('format', `The ${name} pack lists a file it may not: ${p}.`);
   }
   for (const key of ['main', 'windows']) {
-    if (manifest[key] != null && (!safePath(manifest[key]) || !files[manifest[key]])) throw new Refusal('format', `The ${name} pack's ${key} module (${manifest[key]}) is not one of its files.`);
+    if (manifest[key] != null && (!safePath(manifest[key]) || !isListed(files, manifest[key]))) throw new Refusal('format', `The ${name} pack's ${key} module (${manifest[key]}) is not one of its files.`);
   }
   if (!manifest.main) throw new Refusal('format', `The ${name} pack names no main module.`);
   const needs = manifest.needs ?? [];
@@ -230,7 +233,7 @@ function checkPack({ dir, file, keys, version }) {
   }
   for (const [p, entry] of table) {
     if (entry.link) throw new Refusal('unknown', `The ${name} pack holds a link, which a pack may not: ${p}.`);
-    if (!files[p]) throw new Refusal('unknown', `The ${name} pack holds a file its manifest does not list: ${p}. It may have been tampered with.`);
+    if (!isListed(files, p)) throw new Refusal('unknown', `The ${name} pack holds a file its manifest does not list: ${p}. It may have been tampered with.`);
   }
   // Beside the archive, only the unpacked files it lists.
   const listedUnpacked = new Set([...table].filter(([, e]) => e.unpacked).map(([p]) => p));

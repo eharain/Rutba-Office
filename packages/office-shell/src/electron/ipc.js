@@ -18,7 +18,7 @@ import { ipcMain } from 'electron';
 import { METHODS, CHANNEL_PREFIX, CONTRACT_CHANNEL } from '../contract.js';
 import { recorderRemote } from './recorder-remote.js';
 import { blobOwner } from './blobs.js';
-import { runsWhenOpened } from '../runs.js';
+import { runsWhenOpened, markFromInternet } from '../runs.js';
 import { writeWhole } from '../write-whole.js';
 import { grantPlace } from './grants.js';
 import { speakAs, t } from './words.js';
@@ -237,9 +237,10 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       text: await fsp.readFile(p, encoding),
       stat: statOf(p),
     }),
-    write: async ({ path: p, bytes }) => {
+    write: async ({ path: p, bytes, fromInternet = false }) => {
       await fsp.mkdir(path.dirname(p), { recursive: true });
       await writeWhole(p, Buffer.from(bytes));
+      if (fromInternet) await markFromInternet(p, { write: fsp.writeFile, platform: process.platform });
       return { stat: statOf(p) };
     },
     writeText: async ({ path: p, text }) => {
@@ -273,10 +274,11 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     // Deleting is always to the OS trash. An office suite must never be the
     // reason a file is unrecoverable.
     remove: async ({ path: p }) => void (await shell.trashItem(p)),
-    temp: async ({ ext = '', bytes = null }) => {
+    temp: async ({ ext = '', bytes = null, fromInternet = false }) => {
       const dir = await fsp.mkdtemp(path.join(app.getPath('temp'), 'rutba-office-'));
       const p = path.join(dir, `scratch${ext.startsWith('.') || !ext ? ext : `.${ext}`}`);
       if (bytes) await fsp.writeFile(p, Buffer.from(bytes));
+      if (bytes && fromInternet) await markFromInternet(p, { write: fsp.writeFile, platform: process.platform });
       temps.add(p);
       return { path: p };
     },

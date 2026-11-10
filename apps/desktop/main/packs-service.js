@@ -73,6 +73,20 @@ export function unpackPackFile(bytes, id, into) {
  * file of those added registered for every user, then Rutba Office started
  * again. PowerShell, quoted with single quotes throughout.
  */
+/**
+ * What the elevated PowerShell is told to run. The script sits in a folder the
+ * person's own programs can write to, and Windows asks for permission between
+ * its being written and its being run, so anything else running as that person
+ * could change it and be run as administrator. So the command holds the
+ * script's hash, reads the file once into memory, and runs only those bytes if
+ * they are the bytes that were written.
+ */
+export function elevationCommand(scriptPath, sha256) {
+  const q = String(scriptPath).replace(/'/g, "''");
+  const command = `$b=[IO.File]::ReadAllBytes('${q}');$h=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($b)).Replace('-','');if($h -ne '${sha256.toUpperCase()}'){exit 77};& ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString($b)))`;
+  return Buffer.from(command, 'utf16le').toString('base64');
+}
+
 export function elevatedScript({ pid, dir, exe, removals = [], additions = [] }) {
   const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
   const lines = ['$ErrorActionPreference = \'Continue\'', `Wait-Process -Id ${Number(pid)} -Timeout 60 -ErrorAction SilentlyContinue`];
@@ -265,15 +279,17 @@ export function createPacksService({ plan, stores, broadcast = () => {}, version
       if (elevated) {
         const script = path.join(staging, `apply-${crypto.randomUUID()}.ps1`);
         fs.mkdirSync(staging, { recursive: true });
-        fs.writeFileSync(script, elevatedScript({
+        const scriptText = elevatedScript({
           pid: process.pid,
           dir,
           exe: process.execPath,
           removals: [...goingElevated].map((id) => ({ id, types: plan.packs.find((p) => p.id === id)?.fileTypes || [] })),
           additions: [...adding.entries()].filter(([, a]) => a.staged).map(([id, a]) => ({ id, staging: a.staged, types: a.types })),
-        }));
+        });
+        fs.writeFileSync(script, scriptText);
+        const encoded = elevationCommand(script, crypto.createHash('sha256').update(scriptText, 'utf8').digest('hex'));
         const asked = await new Promise((resolve) => {
-          const args = `'-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File','"${script.replace(/'/g, "''")}"'`;
+          const args = `'-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-EncodedCommand','${encoded}'`;
           const child = spawn('powershell.exe', ['-NoProfile', '-Command', `Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -ArgumentList ${args}`], { windowsHide: true, stdio: 'ignore' });
           child.on('error', () => resolve(false));
           child.on('exit', (code) => resolve(code === 0));

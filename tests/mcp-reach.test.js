@@ -166,6 +166,19 @@ async function sendAndAnswer(w, choice) {
   return { result: await asked, id: waiting.id };
 }
 
+test('send with confirmation: the whole message is shown, however long, or it is not sent', async () => {
+  const w = world({ steps: { mail: 'act' } });
+  const long = `${'word '.repeat(2000)}and the last line nobody would otherwise see`;
+  const asked = w.call('send_message', { account: 'me@home.example', to: 'a@b.example', subject: 'Long', text: long });
+  for (let i = 0; i < 50 && !w.confirm.pending().length; i++) await new Promise((r) => setTimeout(r, 10));
+  const [waiting] = w.confirm.pending();
+  assert.equal(waiting.body, long);
+  await w.confirm.answer(waiting.id, 'cancel');
+  await asked;
+  assert.match(textOf(await w.call('send_message', { account: 'me@home.example', to: 'a@b.example', subject: 'Huge', text: 'x'.repeat(300000) })), /too long to show in full/);
+  assert.equal(w.sent.length, 0);
+});
+
 test('send with confirmation: it goes only on the press of Send; Keep as draft makes a draft; Cancel does nothing', async () => {
   const w = world({ steps: { mail: 'act' } });
   const sent = await sendAndAnswer(w, 'act');

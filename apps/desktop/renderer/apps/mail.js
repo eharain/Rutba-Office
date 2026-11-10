@@ -877,7 +877,7 @@ export default function Mail({ app, shell }) {
           const held = await shell.mail.attachment({ ...selected, index: i });
           if (!held) continue;
           const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
-          await shell.fs.write({ path: `${dirs[0]}/${held.name}`, bytes });
+          await shell.fs.write({ path: `${dirs[0]}/${held.name}`, bytes, fromInternet: true });
         }
         toast(tn(list.length, 'Saved {count} file', 'Saved {count} files'), { tone: 'good' });
         return;
@@ -887,7 +887,7 @@ export default function Mail({ app, shell }) {
       const target = await shell.dialog.save({ title: t('Save attachment'), defaultPath: held.name });
       if (!target) return;
       const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
-      await shell.fs.write({ path: target, bytes });
+      await shell.fs.write({ path: target, bytes, fromInternet: true });
       toast(t('Saved {name}', { name: held.name }), { tone: 'good' });
     },
     [selected, message, shell, toast]
@@ -979,7 +979,7 @@ export default function Mail({ app, shell }) {
       if (!held) return toast(t('That attachment is not stored.'), { tone: 'bad' });
       const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
       const name = String(meta?.filename || held.name);
-      const { path } = await shell.fs.temp({ ext: attachmentExtension(name), bytes });
+      const { path } = await shell.fs.temp({ ext: attachmentExtension(name), bytes, fromInternet: true });
       const owner = appFor(kindFromExtension(name));
       // Anything the suite understands opens in the app that owns it; anything
       // else goes to whatever this computer uses for that kind of file.

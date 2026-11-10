@@ -38,6 +38,9 @@ const trimTo = (s, max) => (s.length > max ? `${s.slice(0, max)}\n\n[… cut at 
 const addressList = (list) => (Array.isArray(list) ? list : list ? [list] : []).map((a) => (a?.name ? `${a.name} <${a.address}>` : a?.address || String(a || ''))).filter(Boolean).join(', ');
 const words = (v) => String(v ?? '').trim();
 const same = (a, b) => words(a).toLowerCase() === words(b).toLowerCase();
+/** What a person is asked about is shown whole, or it is not asked. */
+const MOST_SHOWN = 200000;
+
 const stripHtml = (html) => String(html || '').replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, '').replace(/<br\s*\/?>|<\/p>|<\/div>|<\/li>|<\/tr>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim();
 const notThere = (what, name) => Object.assign(new Error(`Rutba Office has no ${what} called ${name}. list_allowed names those the AI tools may use.`), { refusal: true });
 
@@ -359,8 +362,10 @@ export function createReachTools({ settings, mail = null, calendar = null, conta
       };
       if (!t.linked) return { result: text(await run()), log: thing };
       need(thing, 'act');
+      const shownValues = JSON.stringify(values, null, 1);
+      if (shownValues.length > MOST_SHOWN) throw Object.assign(new Error('These values are too long to show in full before they are written, so nothing was changed.'), { refusal: true });
       const r = await confirm.ask(
-        { kind: 'database', thing: thing.name, fields: { database: thing.name, table: t.name, record: kind === 'add' ? null : String(args.rowid), values: JSON.stringify(values, null, 1).slice(0, 2000) }, change: kind },
+        { kind: 'database', thing: thing.name, fields: { database: thing.name, table: t.name, record: kind === 'add' ? null : String(args.rowid), values: shownValues }, change: kind },
         { act: run }
       );
       return { result: answered(r, `The change to ${t.name} goes to its database engine.`), log: thing, step: 'act' };
@@ -469,8 +474,9 @@ export function createReachTools({ settings, mail = null, calendar = null, conta
         await mail.saveDraft({ accountId: thing.id, draft });
         return `Kept as a draft in ${thing.name}'s Drafts, as the person chose. Nothing was sent.`;
       };
+      if (draft.text.length > MOST_SHOWN) throw Object.assign(new Error('This message is too long to show in full before it is sent, so it was not sent. Keep it as a draft instead.'), { refusal: true });
       const r = await confirm.ask(
-        { kind: 'mail', thing: thing.name, fields: { from: thing.name, to: draft.to, cc: draft.cc || null, bcc: draft.bcc || null, subject: draft.subject, attachments: draft.attachments.map((a) => a.filename).join(', ') || null }, body: draft.text.slice(0, 4000) },
+        { kind: 'mail', thing: thing.name, fields: { from: thing.name, to: draft.to, cc: draft.cc || null, bcc: draft.bcc || null, subject: draft.subject, attachments: draft.attachments.map((a) => a.filename).join(', ') || null }, body: draft.text },
         {
           act: async () => {
             try {

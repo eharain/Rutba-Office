@@ -253,6 +253,7 @@ export const AI_TOOLS_CSS = `
 .ai-confirm-fields { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0 0 8px; font-size: 13px; }
 .ai-confirm-fields dt { color: var(--ink-3); }
 .ai-confirm-fields dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ai-confirm-fields dd.ai-confirm-values { max-height: 240px; overflow: auto; }
 .ai-confirm-body { margin: 0; padding: 8px 10px; border-radius: var(--r-2); background: var(--sunken); font: 12.5px/1.5 inherit; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
 .ai-confirm-more { color: var(--ink-3); font-size: 12px; }
 .ai-tools-dialog .ai-lead { margin-top: 0; }
