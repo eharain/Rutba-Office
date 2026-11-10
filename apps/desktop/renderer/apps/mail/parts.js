@@ -50,6 +50,41 @@ export function safeDraftHtml(html) {
   return page.body.innerHTML;
 }
 
+/**
+ * A place in this folder for a file of this name that is not already taken:
+ * "report.pdf", then "report (2).pdf". Two attachments of one name, or a file
+ * already there, used to be written over without a word.
+ */
+export async function freeNameIn(folder, name, exists) {
+  const clean = String(name || 'attachment').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '') || 'attachment';
+  const dot = clean.lastIndexOf('.');
+  const [stem, ext] = dot > 0 ? [clean.slice(0, dot), clean.slice(dot)] : [clean, ''];
+  let candidate = `${folder}/${clean}`;
+  for (let n = 2; await exists(candidate); n++) candidate = `${folder}/${stem} (${n})${ext}`;
+  return candidate;
+}
+
+const DRAWN_INLINE = /^image\/(png|jpe?g|gif|webp|bmp)$/i;
+
+/** The page with this attachment's cid: address replaced by the picture itself, or as it was if it cannot be. */
+export async function pictureInline(html, attachment, fetchHeld) {
+  const cid = String(attachment.contentId).replace(/^<|>$/g, '');
+  if (!html.includes(`cid:${cid}`)) return html;
+  try {
+    const held = await fetchHeld();
+    if (!held) return html;
+    const blob = await (await fetch(held.url)).blob();
+    const type = attachment.type || blob.type;
+    if (!DRAWN_INLINE.test(type)) return html;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let text = '';
+    for (let i = 0; i < bytes.length; i += 32768) text += String.fromCharCode(...bytes.subarray(i, i + 32768));
+    return html.split(`cid:${cid}`).join(`data:${type};base64,${btoa(text)}`);
+  } catch {
+    return html;
+  }
+}
+
 export function bodyDocument(message, { remote = false, dark = false, plain = false } = {}) {
   const escape = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   let html = plain ? '' : message.html || '';

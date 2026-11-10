@@ -202,6 +202,7 @@ export const METHODS = {
     'queue',        // ({ accountId, draft, at, holdSeconds }) -> outbox item
     'outbox',       // () -> items still waiting to go
     'unsend',       // ({ id }) -> the item, taken back
+    'sendNow',      // ({ id }) -> { sent, error }  the same queue, at its front
     'rules',        // () -> [rule]
     'saveRule',     // ({ rule }) -> rule
     'deleteRule',   // ({ id }) -> { removed }

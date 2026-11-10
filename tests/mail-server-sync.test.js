@@ -426,3 +426,51 @@ test('mail a server filed in its Junk before the first fetch comes in with the f
     await s.close();
   }
 });
+
+test('a move the server cannot do never takes the only copy: mail it has not got stays here', async () => {
+  const s = await setUp();
+  try {
+    await s.service.sync({ accountId: s.accountId });
+    const two = s.row('INBOX', 'Message 2');
+    const three = s.row('INBOX', 'Message 3');
+    s.server.expunge('INBOX', s.server.messages('INBOX').find((m) => m.subject === 'Message 2').uid);
+    s.server.refuse(/UID MOVE/);
+    s.service.move({ accountId: s.accountId, folder: 'INBOX', ids: [two.id, three.id], to: 'Archive' });
+    await s.service.flushChanges({ accountId: s.accountId });
+    assert.deepEqual(s.subjects('Archive'), ['Message 2'], 'the server has not got it, so it stays where it was put');
+    assert.deepEqual(s.subjects('INBOX'), ['Message 1', 'Message 3'], 'and what the server has got is back');
+  } finally {
+    await s.close();
+  }
+});
+
+test('a move out of a folder the server no longer has keeps the mail here', async () => {
+  const s = await setUp();
+  try {
+    s.server.makeFolder('Old');
+    s.server.deliver('Old', message(5));
+    await s.service.sync({ accountId: s.accountId });
+    await s.service.sync({ accountId: s.accountId, folder: 'Old' });
+    const five = s.row('Old', 'Message 5');
+    s.server.deleteFolder('Old');
+    s.service.move({ accountId: s.accountId, folder: 'Old', ids: [five.id], to: 'Archive' });
+    await s.service.flushChanges({ accountId: s.accountId });
+    assert.deepEqual(s.subjects('Archive'), ['Message 5']);
+  } finally {
+    await s.close();
+  }
+});
+
+test('a backlog bigger than a fetch all arrives, with no gap left in the middle', async () => {
+  const s = await setUp();
+  try {
+    await s.service.sync({ accountId: s.accountId });
+    for (let n = 100; n < 450; n++) s.server.deliver('INBOX', message(n));
+    await s.service.sync({ accountId: s.accountId });
+    const rows = s.service.messages({ accountId: s.accountId, folder: 'INBOX', limit: 1000 }).rows;
+    assert.equal(rows.length, 353);
+    assert.ok(rows.some((r) => r.subject === 'Message 100'), 'the oldest of the new ones too');
+  } finally {
+    await s.close();
+  }
+});

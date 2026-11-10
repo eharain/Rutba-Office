@@ -390,13 +390,17 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
       }
       case 'move':
       case 'expunge': {
-        // Gone from where it was put here; back where the server still keeps it.
-        if (change.kind === 'move') store.removeMany(accountId, change.to, ids);
+        // Back where the server still keeps it. Only what really came back leaves where it was put
+        // here: mail the server has not got is this computer's only copy, and stays.
         const lock = await client.getMailboxLock(change.folder).catch(() => null);
         if (!lock) return;
         try {
           const found = await uidsOf(client, accountId, change);
           await download(client, accountId, change.folder, found.map((f) => f.uid));
+          if (change.kind === 'move') {
+            const back = new Set(store.list(accountId, change.folder, { limit: 1e7 }).rows.map((r) => r.id));
+            store.removeMany(accountId, change.to, found.map((f) => f.item.id).filter((id) => back.has(id)));
+          }
         } finally {
           lock.release();
         }
@@ -512,7 +516,9 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
         else need.push(h.uid);
       }
       if (Object.keys(known).length) store.setUids(accountId, folder, known);
-      ({ ids, added } = await download(client, accountId, folder, need.slice(-limit)));
+      // All of them. A first sync may stop at the newest few, and Load older reaches back from
+      // there; a gap left here, between mail already kept, nothing would ever reach.
+      ({ ids, added } = await download(client, accountId, folder, need));
     }
     // Marks and presence over the newest FETCH_WINDOW already here.
     const rows = store.list(accountId, folder, { limit: 1e7 }).rows.filter((r) => r.uid != null && r.uid <= lastSeen).sort((a, b) => a.uid - b.uid).slice(-FETCH_WINDOW);

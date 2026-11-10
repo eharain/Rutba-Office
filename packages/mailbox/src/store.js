@@ -48,12 +48,36 @@ import { sealBytes, openBytes, isSealed, sealLine, openLine, isSealedLine, seale
 const RESEAL = '.reseal.json';
 /** How many files are sealed again between looks at everything else waiting. */
 const RESEAL_SLICE = 40;
+/** Which directory each folder is in, kept with the account's own files. */
+const FOLDER_DIRS = 'folder-dirs.json';
+/** Directories of an account that are not folders. */
+const RESERVED_DIRS = new Set(['outgoing']);
 
 /** A file written whole or not at all: a crash mid-write leaves the one before. */
-function writeAtomic(file, data) {
+function writeAtomic(file, data, { flush = false } = {}) {
   const temp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(temp, data);
-  fs.renameSync(temp, file);
+  if (flush) {
+    const handle = fs.openSync(temp, 'w');
+    try {
+      fs.writeFileSync(handle, data);
+      fs.fsyncSync(handle);
+    } finally {
+      fs.closeSync(handle);
+    }
+  } else fs.writeFileSync(temp, data);
+  // A virus scanner or an indexer can hold a file for a moment on Windows.
+  for (let tries = 0; ; tries++) {
+    try {
+      fs.renameSync(temp, file);
+      return;
+    } catch (err) {
+      if (tries >= 5 || !['EPERM', 'EBUSY', 'EACCES'].includes(err.code)) {
+        fs.rmSync(temp, { force: true });
+        throw err;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30);
+    }
+  }
 }
 
 // Anything a file system anywhere objects to, plus whitespace, so a stored
@@ -124,6 +148,7 @@ export class MailStore {
    * hundreds of folders held every one of them parsed for the life of the app.
    */
   #cache = new Map();
+  #folderDirs = new Map();
 
   /**
    * The search index: a segment per folder of every account, and of every
@@ -211,7 +236,7 @@ export class MailStore {
   }
 
   #write(file, data) {
-    fs.writeFileSync(file, this.#seal(data));
+    writeAtomic(file, this.#seal(data));
   }
 
   /** One index line as written: sealed alone, so the next is an append. */
@@ -225,11 +250,14 @@ export class MailStore {
 
   /** A folder's index written whole. */
   #writeRows(file, rows) {
-    fs.writeFileSync(file, rows.map((r) => this.#line(JSON.stringify(r))).join('\n') + (rows.length ? '\n' : ''));
+    writeAtomic(file, rows.map((r) => this.#line(JSON.stringify(r))).join('\n') + (rows.length ? '\n' : ''), { flush: true });
   }
 
   #appendRows(file, rows) {
-    if (rows.length) fs.appendFileSync(file, `${rows.map((r) => this.#line(JSON.stringify(r))).join('\n')}\n`);
+    if (!rows.length) return;
+    // A crash can leave a last line half written; what comes next must not join it.
+    const torn = this.#endsTorn(file);
+    fs.appendFileSync(file, `${torn ? '\n' : ''}${rows.map((r) => this.#line(JSON.stringify(r))).join('\n')}\n`);
   }
 
   #accountDir(accountId) {
@@ -238,8 +266,75 @@ export class MailStore {
     return dir;
   }
 
+  /** Whether a file has words after its last line ending. */
+  #endsTorn(file) {
+    let handle;
+    try {
+      handle = fs.openSync(file, 'r');
+    } catch {
+      return false;
+    }
+    try {
+      const size = fs.fstatSync(handle).size;
+      if (!size) return false;
+      const last = Buffer.alloc(1);
+      fs.readSync(handle, last, 0, 1, size - 1);
+      return last[0] !== 10;
+    } finally {
+      fs.closeSync(handle);
+    }
+  }
+
+  /** Which directory each of an account's folders is in, or null while the list is sealed with a key not held. */
+  #dirsOf(accountId) {
+    let dirs = this.#folderDirs.get(accountId);
+    if (dirs) return dirs;
+    try {
+      dirs = new Map(Object.entries(JSON.parse(this.#readText(path.join(this.#accountDir(accountId), FOLDER_DIRS)))));
+    } catch (err) {
+      // Sealed and no key for it: nothing here can be read anyway, and the list must not be written over.
+      if (err.code === 'MAIL_LOCKED') return null;
+      // Not there yet is the only other reason to start afresh: a list that cannot be read now is not an empty one.
+      if (err.code !== 'ENOENT') throw err;
+      dirs = new Map();
+    }
+    this.#folderDirs.set(accountId, dirs);
+    return dirs;
+  }
+
+  #saveDirs(accountId) {
+    if (!this.#dirsOf(accountId)) return;
+    this.#write(path.join(this.#accountDir(accountId), FOLDER_DIRS), JSON.stringify(Object.fromEntries(this.#dirsOf(accountId))));
+  }
+
+  /**
+   * The directory of a folder. Names a file system cannot hold are changed to
+   * ones it can, so "Old Mail" and "Old/Mail" would come to one directory, and
+   * "Inbox" and "INBOX" do on Windows, and each folder would read the other's
+   * mail and a delete of one would take both. So a name is claimed once, and
+   * the next folder that would come to it gets one of its own. A directory
+   * made before this is claimed by the first folder that asks for it.
+   */
+  #dirName(accountId, folder) {
+    let dirs = this.#dirsOf(accountId);
+    if (!dirs) return safe(folder);
+    if (dirs.has(folder)) return dirs.get(folder);
+    // The search thread has a store of its own on these files: what it holds may be older than the list.
+    this.#folderDirs.delete(accountId);
+    dirs = this.#dirsOf(accountId);
+    if (!dirs) return safe(folder);
+    if (dirs.has(folder)) return dirs.get(folder);
+    const wanted = safe(folder);
+    const taken = new Set([...dirs.values()].map((d) => d.toLowerCase()));
+    const clash = taken.has(wanted.toLowerCase()) || RESERVED_DIRS.has(wanted.toLowerCase());
+    const dir = clash ? `${wanted.slice(0, 100)}~${crypto.createHash('sha256').update(folder).digest('hex').slice(0, 10)}` : wanted;
+    dirs.set(folder, dir);
+    this.#saveDirs(accountId);
+    return dir;
+  }
+
   #folderDir(accountId, folder) {
-    const dir = path.join(this.#accountDir(accountId), safe(folder));
+    const dir = path.join(this.#accountDir(accountId), this.#dirName(accountId, folder));
     fs.mkdirSync(path.join(dir, 'm'), { recursive: true });
     return dir;
   }
@@ -669,7 +764,8 @@ export class MailStore {
 
   /** Does the store hold this folder (its directory), without making it? */
   hasFolder(accountId, folder) {
-    return fs.existsSync(path.join(this.root, safe(accountId), safe(folder)));
+    const dir = this.#dirsOf(accountId)?.get(folder) ?? safe(folder);
+    return fs.existsSync(path.join(this.root, safe(accountId), dir));
   }
 
   /**
@@ -780,9 +876,16 @@ export class MailStore {
     const inside = (p) => p === from || p.startsWith(`${from}${delimiter}`);
     for (const f of folders.filter((x) => inside(x.path)).sort((a, b) => b.path.length - a.path.length)) {
       const next = to + f.path.slice(from.length);
-      const oldDir = path.join(this.#accountDir(accountId), safe(f.path));
-      const newDir = path.join(this.#accountDir(accountId), safe(next));
+      const oldDir = path.join(this.#accountDir(accountId), this.#dirName(accountId, f.path));
+      const newDir = path.join(this.#accountDir(accountId), this.#dirName(accountId, next));
       if (fs.existsSync(oldDir) && !fs.existsSync(newDir)) fs.renameSync(oldDir, newDir);
+      else if (oldDir !== newDir && fs.existsSync(oldDir) && !fs.readdirSync(newDir).some((n) => n !== 'm')) {
+        // Made empty a moment ago by asking for its name.
+        fs.rmSync(newDir, { recursive: true, force: true });
+        fs.renameSync(oldDir, newDir);
+      }
+      this.#dirsOf(accountId)?.delete(f.path);
+      this.#saveDirs(accountId);
       this.#cache.delete(`${accountId}\u0000${f.path}`);
       // Each message and index row says which folder it is in.
       const rows = this.#index(accountId, next).map((r) => ({ ...r, folder: next }));
@@ -798,7 +901,9 @@ export class MailStore {
 
   /** A folder gone, with everything in it, and out of the folder list. */
   removeFolder(accountId, folder) {
-    fs.rmSync(path.join(this.#accountDir(accountId), safe(folder)), { recursive: true, force: true });
+    fs.rmSync(path.join(this.#accountDir(accountId), this.#dirName(accountId, folder)), { recursive: true, force: true });
+    this.#dirsOf(accountId)?.delete(folder);
+    this.#saveDirs(accountId);
     this.#cache.delete(`${accountId}\u0000${folder}`);
     this.setFolders(accountId, this.folders(accountId).filter((f) => f.path !== folder));
     return true;
@@ -963,13 +1068,24 @@ export class MailStore {
       const lines = raw.toString('utf8').split('\n');
       let changed = false;
       const out = [];
-      for (const line of lines) {
+      const lastWithWords = lines.findLastIndex((l) => l.trim());
+      let unopened = false;
+      for (const [n, line] of lines.entries()) {
         if (!line.trim()) {
           out.push(line);
           continue;
         }
         const by = sealedWith(keys, line);
-        if (by === -1) return 'unopened';
+        if (by === -1) {
+          // A line a crash cut short is dropped; the lines it would have held back are not.
+          if (n === lastWithWords && lastWithWords > 0 && !raw.toString('utf8').endsWith('\n')) {
+            changed = true;
+            continue;
+          }
+          unopened = true;
+          out.push(line);
+          continue;
+        }
         if ((by === 0 && this.#key) || (by === null && !this.#key)) {
           out.push(line);
           continue;
@@ -978,9 +1094,9 @@ export class MailStore {
         out.push(this.#line(text));
         changed = true;
       }
-      if (!changed) return 'kept';
-      writeAtomic(file, out.join('\n'));
-      return 'sealed';
+      if (changed) writeAtomic(file, out.join('\n'));
+      if (unopened) return 'unopened';
+      return changed ? 'sealed' : 'kept';
     }
     const by = sealedWith(keys, raw);
     if (by === -1) return 'unopened';

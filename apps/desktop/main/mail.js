@@ -10,6 +10,7 @@
 // the moment a connection is being made.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { MailStore, messageKey } from '@rutba/mailbox/store';
@@ -145,7 +146,7 @@ function defaultTransport() {
         inReplyTo: draft.inReplyTo ? `<${draft.inReplyTo}>` : undefined,
         references: draft.references?.length ? draft.references.map((r) => `<${r}>`) : undefined,
         headers: draft.headers || undefined,
-        attachments: (draft.attachments || []).map((a) => ({ filename: a.filename, path: a.path })),
+        attachments: (draft.attachments || []).map((a) => ({ filename: a.filename, ...(a.content ? { content: a.content } : { path: a.path }) })),
       });
     },
   };
@@ -207,7 +208,7 @@ async function composeRaw({ account, draft }) {
     inReplyTo: draft.inReplyTo ? `<${draft.inReplyTo}>` : undefined,
     references: draft.references?.length ? draft.references.map((r) => `<${r}>`) : undefined,
     headers: draft.headers || undefined,
-    attachments: (draft.attachments || []).map((a) => ({ filename: a.filename, path: a.path })),
+    attachments: (draft.attachments || []).map((a) => ({ filename: a.filename, ...(a.content ? { content: a.content } : { path: a.path }) })),
   })
     .compile()
     .build();
@@ -625,6 +626,44 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
    * choice `cancel` (called from the window) makes, never a silent one.
    */
   let outboxTimer = null;
+
+  /**
+   * A queued message's attachments, copied out of the temporary folder they
+   * are picked from, which is cleared at each start: a message scheduled for
+   * next week went without them. Kept sealed with the rest of the mail.
+   */
+  function keepAttachments(accountId, id, draft) {
+    if (!draft?.attachments?.length) return draft;
+    return {
+      ...draft,
+      attachments: draft.attachments.map((a, n) => {
+        if (!a.path) return a;
+        const kept = store.writeOutgoing(accountId, `queued-${id}-${n}`, fs.readFileSync(a.path));
+        return { filename: a.filename, size: a.size ?? null, kept };
+      }),
+    };
+  }
+  /** The draft as SMTP takes it, each kept attachment read back. */
+  function draftToSend(draft) {
+    if (!draft?.attachments?.some((a) => a.kept)) return draft;
+    return { ...draft, attachments: draft.attachments.map((a) => (a.kept ? { filename: a.filename, content: store.readOutgoing(a.kept) } : a)) };
+  }
+  function forgetKept(draft) {
+    for (const a of draft?.attachments || []) if (a.kept) fs.rmSync(a.kept, { force: true });
+  }
+  /** Back in the form: each kept attachment as a file again, and the copy let go. */
+  function takeBackKept(draft) {
+    if (!draft?.attachments?.some((a) => a.kept)) return draft;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-office-'));
+    const attachments = draft.attachments.map((a, n) => {
+      if (!a.kept) return a;
+      const file = path.join(dir, `${n}-${path.basename(String(a.filename || 'attachment')).replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')}`);
+      fs.writeFileSync(file, store.readOutgoing(a.kept));
+      fs.rmSync(a.kept, { force: true });
+      return { filename: a.filename, size: a.size ?? null, path: file };
+    });
+    return { ...draft, attachments };
+  }
   // Two callers can ask for a pass at once — `queue()` fires one the moment
   // a message is added, and a person can press Retry while start-up's own
   // pass, or another queue(), is still running. A chain rather than a
@@ -648,35 +687,43 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     // added something new, and neither should be lost waiting for a call
     // stack that already has an answer for what the queue used to hold.
     for (;;) {
-      const outbox = stores.settings.get('mail.outbox', []);
+      // Marked as going when this pass began, by a run that is not this one: that run stopped
+      // mid-send, and whether the message left is not known. It is held for the person to decide:
+      // sent again unasked it might arrive twice, and dropped it might never arrive at all.
+      const outbox = stores.settings.get('mail.outbox', []).map((o) => (o.sending ? { ...o, sending: false, held: true, error: null } : o));
       if (!outbox.length) return;
+      stores.settings.set('mail.outbox', outbox);
 
       const nowMs = now();
-      const due = outbox.filter((o) => new Date(o.at).getTime() <= nowMs).sort((a, b) => new Date(a.at) - new Date(b.at));
-      const waiting = outbox.filter((o) => new Date(o.at).getTime() > nowMs);
+      const isDue = (o) => !o.held && new Date(o.at).getTime() <= nowMs;
+      const due = outbox.filter(isDue).sort((a, b) => new Date(a.at) - new Date(b.at));
+      const waiting = outbox.filter((o) => !o.held && !isDue(o));
 
       if (!due.length) {
+        if (!waiting.length) return;
         const soonest = Math.min(...waiting.map((o) => new Date(o.at).getTime()));
         outboxTimer = setTimeout(() => { pumpOutbox().catch(() => {}); }, Math.min(Math.max(soonest - now(), 500), 60_000));
         outboxTimer.unref?.();
         return;
       }
 
-      // Taken off the queue *before* sending, so a crash mid-send cannot send
-      // the same message twice on the next start. A failure puts it back.
-      stores.settings.set('mail.outbox', waiting);
-      for (const item of due) {
+      // One at a time, each marked as going just before it goes and taken off when it has. A stop
+      // part way loses none of them: those not reached are still due, and the one going is held.
+      const write = (change) => stores.settings.set('mail.outbox', change(stores.settings.get('mail.outbox', [])));
+      for (const planned of due) {
+        // Taken back or changed since this pass began.
+        const item = stores.settings.get('mail.outbox', []).find((o) => o.id === planned.id);
+        if (!item || !isDue(item)) continue;
+        write((list) => list.map((o) => (o.id === item.id ? { ...o, sending: true } : o)));
         try {
-          await service.send({ accountId: item.accountId, draft: item.draft });
+          await service.send({ accountId: item.accountId, draft: draftToSend(item.draft) });
+          write((list) => list.filter((o) => o.id !== item.id));
+          forgetKept(item.draft);
           broadcast?.('mail:sent', { id: item.id, to: item.draft?.to || '' });
         } catch (error) {
           const message = String(error?.message || error);
           const attempts = (item.attempts || 0) + 1;
-          const held = stores.settings.get('mail.outbox', []);
-          stores.settings.set('mail.outbox', [
-            ...held,
-            { ...item, attempts, error: message, at: new Date(nowMs + RETRY_DELAY_MS).toISOString() },
-          ]);
+          write((list) => list.map((o) => (o.id === item.id ? { ...o, sending: false, attempts, error: message, at: new Date(nowMs + RETRY_DELAY_MS).toISOString() } : o)));
           broadcast?.('mail:sendFailed', { id: item.id, message, attempts });
         }
       }
@@ -1482,7 +1529,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      */
     queue: ({ accountId, draft, at = null, holdSeconds = 0 }) => {
       const when = at ? new Date(at).toISOString() : new Date(now() + holdSeconds * 1000).toISOString();
-      const item = { id: crypto.randomUUID(), accountId, draft, at: when, queuedAt: new Date(now()).toISOString() };
+      const id = crypto.randomUUID();
+      const item = { id, accountId, draft: keepAttachments(accountId, id, draft), at: when, queuedAt: new Date(now()).toISOString() };
       const outbox = stores.settings.get('mail.outbox', []);
       stores.settings.set('mail.outbox', [...outbox, item]);
       pumpOutbox().catch(() => {});
@@ -1497,7 +1545,21 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const outbox = stores.settings.get('mail.outbox', []);
       const item = outbox.find((o) => o.id === id) || null;
       stores.settings.set('mail.outbox', outbox.filter((o) => o.id !== id));
-      return item;
+      return item ? { ...item, draft: takeBackKept(item.draft) } : null;
+    },
+
+    /**
+     * Sends one waiting message now, by moving it to the front of the same
+     * queue, so a failure leaves it there to try again. Taking it off and
+     * sending it from the window lost the message when the server said no.
+     */
+    sendNow: async ({ id }) => {
+      const outbox = stores.settings.get('mail.outbox', []);
+      if (!outbox.some((o) => o.id === id)) return { sent: false, error: 'That message is no longer waiting.' };
+      stores.settings.set('mail.outbox', outbox.map((o) => (o.id === id ? { ...o, held: false, sending: false, at: new Date(now()).toISOString() } : o)));
+      await pumpOutbox();
+      const still = stores.settings.get('mail.outbox', []).find((o) => o.id === id);
+      return still ? { sent: false, error: still.error || null } : { sent: true };
     },
 
     /**
@@ -1679,7 +1741,11 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         broadcast?.('mail:progress', { accountId: id, folder: batchFolder, done: count, total: 0, phase: 'import' });
       };
 
-      for (const { folder, message } of readArchive(target, { folders: only })) {
+      // The name of a file is its folder's name, and the same file can be named in another case.
+      const kept = account ? store.folders(id) || [] : [];
+      const sameFolder = (name) => (kept.some((f) => f.path === name) ? name : kept.find((f) => f.path.toLowerCase() === name.toLowerCase())?.path ?? name);
+      for (const { folder: named, message } of readArchive(target, { folders: only })) {
+        const folder = sameFolder(named);
         if (folder !== batchFolder) {
           flush();
           batchFolder = folder;

@@ -26,7 +26,7 @@ import {
 import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { DefaultsDialog } from '../defaults.js';
-import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, nextAfterRemoved, syncProblemWords } from './mail/parts.js';
+import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags, safeDraftHtml, freeNameIn, pictureInline, nextAfterRemoved, syncProblemWords } from './mail/parts.js';
 import { useAttachmentNotes, AttachmentNotes } from './mail/docnote.js';
 import { linkKind, linkRisks, mailtoFields, fromFrameUrl } from './mail/links.js';
 import Reader from './mail/reader.js';
@@ -838,8 +838,11 @@ export default function Mail({ app, shell }) {
   const sendOutboxNow = useCallback(
     async (item) => {
       try {
-        await shell.mail.unsend({ id: item.id });
-        await shell.mail.send({ accountId: item.accountId, draft: item.draft });
+        const done = await shell.mail.sendNow({ id: item.id });
+        if (!done.sent) {
+          toast(done.error ? t('Not sent yet, and still in the Outbox: {error}', { error: done.error }) : t('Not sent yet, and still in the Outbox.'), { tone: 'bad', ms: 7000 });
+          return;
+        }
         toast(t('Sent to {to}', { to: item.draft?.to || t('recipient') }), { tone: 'good' });
         refreshList();
         setFolderTick((n) => n + 1);
@@ -877,7 +880,7 @@ export default function Mail({ app, shell }) {
           const held = await shell.mail.attachment({ ...selected, index: i });
           if (!held) continue;
           const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
-          await shell.fs.write({ path: `${dirs[0]}/${held.name}`, bytes, fromInternet: true });
+          await shell.fs.write({ path: await freeNameIn(dirs[0], held.name, (p) => shell.fs.exists({ path: p })), bytes, fromInternet: true });
         }
         toast(tn(list.length, 'Saved {count} file', 'Saved {count} files'), { tone: 'good' });
         return;
@@ -942,8 +945,13 @@ export default function Mail({ app, shell }) {
     if (asked !== editAsked.current) return;
     const list = (v) => (Array.isArray(v) ? v : v ? [v] : []).map((x) => (typeof x === 'string' ? x : x?.name ? `${x.name} <${x.address}>` : x?.address || '')).filter(Boolean).join(', ');
     const attachments = [];
+    let html = m.html || null;
     for (const [index, a] of (m.attachments || []).entries()) {
-      if (a.inline) continue;
+      if (a.inline) {
+        // A picture in the words: its place in the page goes on holding it.
+        html = html && a.contentId ? await pictureInline(html, a, () => shell.mail.attachment({ ...where, index })) : html;
+        continue;
+      }
       try {
         const held = await shell.mail.attachment({ ...where, index });
         if (!held) continue;
@@ -964,7 +972,7 @@ export default function Mail({ app, shell }) {
       bcc: m.draftBcc || '',
       subject: m.subject || '',
       text: m.text || '',
-      html: m.html ? safeDraftHtml(m.html) : null,
+      html: html ? safeDraftHtml(html) : null,
       attachments,
       accountId: isArchiveId(where.accountId) ? undefined : where.accountId,
       replaces: isArchiveId(where.accountId) ? null : where,
@@ -2499,6 +2507,7 @@ export default function Mail({ app, shell }) {
                     <div className="what">
                       {t('To {to}', { to: item.draft?.to || '' })} · {new Date(item.at) > new Date() ? t('sends {when}', { when: new Date(item.at).toLocaleString() }) : t('sending now')}
                       {unified ? ` · ${accounts.find((a) => a.id === item.accountId)?.email || item.accountId}` : ''}
+                      {item.held ? ` · ${t('Rutba Office stopped while this was being sent, so it may or may not have gone. Look in Sent, then send it again or delete it.')}` : ''}
                       {item.error ? ` · ${t('last try failed: {error} — trying again', { error: item.error })}` : ''}
                     </div>
                     <div className="ml-outbox-actions">
