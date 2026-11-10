@@ -129,6 +129,5 @@ test('text put in at the start of a table cell stays in that cell', async () => 
   const doc = backend.doc;
   assert.equal(doc.editParagraphCount(), 2, 'the paragraph above, and the one in the cell');
   backend.insertParagraphsXml(1, ['<w:p><w:r><w:t>Put in</w:t></w:r></w:p>'], { before: true });
-  const xml = doc.pkg.text('word/document.xml');
-  assert.match(xml, /<w:tc>(?:(?!<\/w:tc>).)*Put in(?:(?!<\/w:tc>).)*In the cell/s);
+  assert.match(doc.xml, /<w:tc>(?:(?!<\/w:tc>).)*Put in(?:(?!<\/w:tc>).)*In the cell/s);
 });
