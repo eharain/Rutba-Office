@@ -23,6 +23,7 @@ import path from 'node:path';
 import { Mp4Writer, memorySink } from '@rutba/media/mp4-write';
 import { readMp4 } from '@rutba/media/mp4-read';
 import { makeFixtures } from './verify-video-editor.js';
+import { soundIn, framesIn, sameColour } from './verify-measure.js';
 
 /** The share of the processors busy over `ms`, from the operating system's own counters. */
 async function busyShare(ms) {
@@ -333,6 +334,23 @@ export async function verifyVideoMp4(h, { dir }) {
     check('video mp4: frames read back with a picture wherever a source lies: the 1080p clip, both WebM clips decoded frame by frame, the still and the end',
       Array.isArray(seen) && seen.length === spots.length && seen.every((f) => f.mean > 20 && f.spread > 6),
       (Array.isArray(seen) ? seen : []).map((f, i) => `${spots[i]?.[1]} at ${f.t} s (${f.at}): ${f.error || `mean ${f.mean}, spread ${f.spread}, rgb ${f.rgb}`}`).join('; '));
+
+    // Each spot is the picture that belongs there, against the source read the same way.
+    const [source] = await framesIn(js, hd.file, [1.25]);
+    const rgbAt = (t) => (Array.isArray(seen) ? seen.find((f) => f.t === t)?.rgb : null);
+    const orange = rgbAt(13.5);
+    const blue = rgbAt(28.2);
+    const stillSeen = rgbAt(44);
+    check('video mp4: the exported frames are the right pictures: the 1080p clip as its source, the two small clips their own colours, the still its own average',
+      sameColour(rgbAt(1.25), source?.rgb) && orange?.[0] > orange?.[2] * 2 && blue?.[2] > blue?.[0] * 2 && sameColour(stillSeen, [130, 150, 115], 14),
+      JSON.stringify({ first: rgbAt(1.25), source: source?.rgb, orange, blue, still: stillSeen }));
+
+    // And the sound: a track can be there and silent.
+    const sound = await soundIn(js, target, [1.25, 13.5, 28.2]);
+    const [hdTone, toneA, toneB] = sound.at || [];
+    check('video mp4: the exported sound is heard where each clip is, each small clip at its own pitch',
+      !sound.error && hdTone?.rms > 0.02 && toneA?.rms > 0.02 && toneB?.rms > 0.02 && Math.abs(toneA.hz - 440) < 45 && Math.abs(toneB.hz - 660) < 65,
+      JSON.stringify(sound));
   }
 
   // Played in Pictures, the suite's own player.

@@ -33,6 +33,7 @@ import { EXPORT_EXT } from './verify-video-editor.js';
 import { readRvid } from '@rutba/studio/rvid';
 import { addItem, emptyStack } from '@rutba/studio/stack';
 import { seedSetup, restoreSetup, recorderOpened, windowsNow, CHECK_SOUNDS, RECORDING, PRESS_RECORD } from './verify-studio-seed.js';
+import { soundIn } from './verify-measure.js';
 
 /**
  * @param {object} h the harness: open, check, until, wait, errorsIn, doc
@@ -246,6 +247,9 @@ async function recorderChecks(h, { dir }) {
     check('recorder: the recording exports as one video, as long as the project, with its picture and its sound',
       Boolean(probe?.hasVideo && probe?.hasAudio && Math.abs(probe.duration - projectLength) < 0.75),
       probe ? `${path.basename(target)}: ${probe.duration?.toFixed(2)} s for ${projectLength.toFixed(2)} s; tracks ${(probe.tracks || []).map((x) => `${x.type} ${x.codec}`).join(', ')}` : 'no file');
+    // A track can be there and silent: the stand-in microphone beeps, so its export has something to hear.
+    const heard = written ? await soundIn(js, target) : { error: 'no file' };
+    check('recorder: the sound in the export can be heard', !heard.error && heard.peak > 0.02, JSON.stringify(heard));
 
     // The copy made while recording, recovered: its takes settle to the files' real lengths.
     if (copyBytes) {

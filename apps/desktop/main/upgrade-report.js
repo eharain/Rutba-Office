@@ -23,7 +23,7 @@ async function readFeed() {
     const updater = mod.autoUpdater ?? mod.default?.autoUpdater;
     updater.autoDownload = false;
     updater.autoInstallOnAppQuit = false;
-    updater.allowPrerelease = true;
+    updater.allowPrerelease = false;
     updater.logger = null;
     updater.setFeedURL(FEED);
     const result = await updater.checkForUpdates();

@@ -144,9 +144,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
         },
       });
     }
-    // Releases up to 2.24.0 were published as pre-releases, so the newest entry
-    // in the feed is what a copy follows, whichever kind it is.
-    updater.allowPrerelease = true;
+    // Full releases only from 2.24.1 on. A copy of 2.24.0 or before still looks at the newest entry and finds the full release.
+    updater.allowPrerelease = false;
 
     updater.logger = null;
     updater.setFeedURL(FEED);
