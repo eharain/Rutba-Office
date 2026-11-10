@@ -368,7 +368,8 @@ export class MailStore {
     const dir = this.#folderDir(accountId, folder);
     const id = messageKey(message);
     const file = path.join(dir, 'm', `${id}.json`);
-    const existed = fs.existsSync(file);
+    // A file with no row is a message a crash stopped between the two writes: it has not arrived yet.
+    const existed = fs.existsSync(file) && this.#index(accountId, folder).some((row) => row.id === id);
     if (!force && existed) return null;
 
     const attachments = (message.attachments || []).map((a, i) => {
@@ -455,10 +456,15 @@ export class MailStore {
     const dir = this.#folderDir(accountId, folder);
     const lines = [];
     let added = 0;
+    // Asked for once, and only if a message file is found already here (see put).
+    let listed = null;
     for (const message of messages) {
       const id = messageKey(message);
       const file = path.join(dir, 'm', `${id}.json`);
-      if (fs.existsSync(file)) continue;
+      if (fs.existsSync(file)) {
+        listed ??= new Set(this.#index(accountId, folder).map((row) => row.id));
+        if (listed.has(id)) continue;
+      }
       const attachments = (message.attachments || []).map((a, i) => {
         if (!a.bytes) return { filename: a.filename, type: a.type, size: a.size || 0, contentId: a.contentId, inline: a.inline, stored: false };
         const adir = path.join(dir, 'a', id);
