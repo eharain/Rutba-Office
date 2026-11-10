@@ -121,7 +121,7 @@ test('a release is made as a draft, its files uploaded, the feed read back from 
     const release = await publishRelease({ client: gh.client, dir, tag: TAG, notes: 'Notes.', commit: 'abc123', log: quiet });
     assert.deepEqual(gh.calls, [
       'list',
-      'create draft=true prerelease=true',
+      'create draft=true prerelease=false',
       `upload ${PORTABLE}`,
       `upload ${INSTALLER}`,
       `upload ${INSTALLER}.blockmap`,
@@ -220,12 +220,12 @@ test('a release already published is mended and checked, not taken back to a dra
   }
 });
 
-test('RUTBA_RELEASE_FINAL is the only way to a full release: the default is a pre-release', async () => {
+test('a release is a full release, and a pre-release only when a caller asks for one', async () => {
   const dir = buildDir();
   try {
     const gh = fakeGitHub();
-    await publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', prerelease: false, log: quiet });
-    assert.ok(gh.calls.includes('create draft=true prerelease=false'));
+    await publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', prerelease: true, log: quiet });
+    assert.ok(gh.calls.includes('create draft=true prerelease=true'));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

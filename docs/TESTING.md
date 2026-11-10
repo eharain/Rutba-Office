@@ -233,8 +233,8 @@ and each has caught something the gate cannot:
    and its first start is the one a person gets after an update. A copy
    installed fresh never meets that start, and it is where 1.28.0's window
    stayed hidden; the second run fails (exit 3) if the window does not come.
-3. **Publish**, with `node tools/publish-release.js`, a pre-release by
-   default; the tag goes on the commit the notes and the version bump are
+3. **Publish**, with `node tools/publish-release.js`, a full
+   release; the tag goes on the commit the notes and the version bump are
    in, after the two runs above, never before.
 4. **The update test**, after publishing. `tools/update-test.ps1 -Older
    <the previous release's setup exe> -Expect <the version just published>`

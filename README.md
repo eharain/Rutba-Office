@@ -58,11 +58,9 @@ privacy, your old mail, or your patience. This asks for none of those.
 
 ## Install
 
-**Rutba Office is in beta.** Every release is published as a pre-release,
-the window title says so, and an installed copy follows the beta releases.
-It opens and edits real files today; it also still meets documents it draws
-wrongly and places where the way to do something is not yet obvious. The
-issue tracker is where those go, and the release notes say what each
+Rutba Office opens and edits real files today. It also still meets documents
+it draws wrongly and places where the way to do something is not yet obvious.
+The issue tracker is where those go, and the release notes say what each
 release fixed.
 
 Downloads are built for Windows. The build configuration has macOS and Linux targets, but

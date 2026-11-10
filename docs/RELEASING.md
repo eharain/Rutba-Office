@@ -127,7 +127,7 @@ node tools/fuzz-pdf.js 300 <seed>
 1. `git fetch`; the integration branch must have `origin/main` in it.
 2. `main` and `dev` are moved to the release commit (`git fetch . <branch>:main
    <branch>:dev`); nothing is merged on the way.
-3. `git tag -a v<version> -m "Rutba Office <version> beta"`.
+3. `git tag -a v<version> -m "Rutba Office <version>"`.
 4. `git push origin main dev v<version>`.
 5. The tag starts `.github/workflows/release.yml`, which runs the engine
    suite on Windows, builds the installer and the portable executable, and

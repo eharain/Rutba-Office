@@ -29,7 +29,7 @@
 //      the tag's, every file it names uploaded, at the size it says, with the
 //      SHA-512 of the file that was built, and each installer's blockmap
 //      beside it. Anything wrong stops here, and the draft stays a draft;
-//   4. published, as a pre-release unless RUTBA_RELEASE_FINAL=1.
+//   4. published, as a full release, so GitHub shows it as the latest.
 //
 // A release already published (made before this, or by hand) is not taken
 // back to a draft: what is missing is uploaded to it and it is checked the same way.
@@ -136,7 +136,7 @@ export function checkFeed({ name, feed, tag, uploaded, local }) {
  * The release, made and published as the header says. `client` is GitHub
  * (githubClient below), or the engine tests' stand-in for it.
  */
-export async function publishRelease({ client, dir, tag, notes, commit = null, prerelease = true, log = console.log }) {
+export async function publishRelease({ client, dir, tag, notes, commit = null, prerelease = false, log = console.log }) {
   if (!fs.existsSync(dir)) throw new Error(`nothing built: ${dir} does not exist`);
   const assets = releaseAssets(fs.readdirSync(dir), tag);
   if (!assets.length) throw new Error('no release artefacts found: run npm run dist first');
@@ -164,7 +164,6 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
       name: `Rutba Office ${tag.replace(/^v/, '')}`,
       body: notes,
       draft: true,
-      // Beta: every release is a pre-release until the owner says otherwise.
       prerelease,
     });
     log(`\ncreated draft release #${release.id}`);
@@ -328,9 +327,6 @@ async function main() {
     tag,
     notes,
     commit: process.env.GITHUB_SHA || null,
-    // Beta: every release is a pre-release until the owner says otherwise
-    // (RUTBA_RELEASE_FINAL=1 publishes a full release).
-    prerelease: process.env.RUTBA_RELEASE_FINAL !== '1',
   });
 }
 

@@ -483,7 +483,7 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
 
   useEffect(() => {
     const of = profile && profile.count > 1 ? ` · ${profileName(profile)}` : '';
-    shell.win.setTitle({ title: `${title ? `${title} \u2014 ` : ''}${app?.name || 'Rutba Office'} (beta)${of}` }).catch(() => {});
+    shell.win.setTitle({ title: `${title ? `${title} \u2014 ` : ''}${app?.name || 'Rutba Office'}${of}` }).catch(() => {});
 
     shell.win.setDocumentEdited({ edited: Boolean(dirty) }).catch(() => {});
   }, [title, dirty, app, shell, profile]);

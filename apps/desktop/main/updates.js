@@ -131,9 +131,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
 
     updater.autoDownload = true;
     updater.autoInstallOnAppQuit = true;
-    // Every release is published as a pre-release while the suite is in beta
-    // (owner's decision, 2026-09-08), so an installed copy has to accept them
-    // or it would never see an update at all.
+    // Releases up to 2.24.0 were published as pre-releases, so the newest entry
+    // in the feed is what a copy follows, whichever kind it is.
     updater.allowPrerelease = true;
 
     updater.logger = null;
