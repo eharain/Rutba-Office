@@ -31,6 +31,17 @@ const SKIP = new Set(['fonttbl', 'colortbl', 'stylesheet', 'listtable', 'listove
 const NFC = { 0: '1', 1: 'I', 2: 'i', 3: 'A', 4: 'a', 22: '1' };
 const SYMBOL_BULLETS = { 0xf0b7: '•', 0xf0a7: '▪', 0xf06f: 'o', 0xf0d8: '➢', 0xf0fc: '✓', 0xf076: '❖', 0xb7: '•' };
 
+/** How deep groups may sit inside each other. Word's own files stay under twenty, and each level is a call on the stack. */
+const MOST_DEPTH = 512;
+/** Rows times columns, across a document. Word stops at 63 columns; this only stops a file that claims millions. */
+const MOST_TABLE_CELLS = 2000000;
+
+/** A \\uN value as a character. N is a signed 16-bit number in the format, and anything else is a file that lies. */
+const unicodeChar = (n) => {
+  const code = n < 0 ? n + 65536 : n;
+  return code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '\ufffd';
+};
+
 /** The stream as nested groups of { word, num } control words and decoded text. */
 function groupsOf(text, decoder) {
   const root = { items: [] };
@@ -45,7 +56,17 @@ function groupsOf(text, decoder) {
   let i = 0;
   while (i < text.length) {
     const ch = text[i];
-    if (ch === '{') { flush(); const g = { items: [], uc }; cur.items.push(g); stack.push(g); cur = g; skip = 0; i += 1; continue; }
+    if (ch === '{') {
+      flush();
+      if (stack.length > MOST_DEPTH) throw new Error('This file nests its groups too deep to open.');
+      const g = { items: [], uc };
+      cur.items.push(g);
+      stack.push(g);
+      cur = g;
+      skip = 0;
+      i += 1;
+      continue;
+    }
     if (ch === '}') { flush(); stack.pop(); cur = stack[stack.length - 1] || root; uc = cur.uc ?? 1; skip = 0; i += 1; continue; }
     if (ch === '\r' || ch === '\n') { i += 1; continue; }
     if (ch !== '\\') {
@@ -77,7 +98,7 @@ function groupsOf(text, decoder) {
     if (!word) { i += 1; continue; }
     const n = num === '' || num === '-' ? null : Number.parseInt(num, 10);
     if (word === 'bin' && n > 0) { i += n; continue; }
-    if (word === 'u' && n != null) { flush(); if (skip <= 0) cur.items.push({ text: String.fromCodePoint(n < 0 ? n + 65536 : n) }); skip = uc; continue; }
+    if (word === 'u' && n != null) { flush(); if (skip <= 0) cur.items.push({ text: unicodeChar(n) }); skip = uc; continue; }
     if (word === 'uc') { uc = n ?? 1; cur.uc = uc; continue; }
     if (skip > 0) { skip -= 1; continue; }
     flush();
@@ -243,6 +264,7 @@ export function readRtfDocument(input) {
   let cellDef = {};
   let tableRows = [];
   let pnLabel = null;
+  let tableCells = 0;
 
   const fresh = () => ({ bold: false, italic: false, underline: false, strike: false, color: 0, size: 0, font: null, highlight: 0, vertical: null, link: null });
   const freshPara = () => ({ align: null, li: 0, ri: 0, fi: 0, sb: null, sa: null, pagebb: false, rtl: false, outline: null, style: null, ls: null, ilvl: 0, intbl: false });
@@ -273,7 +295,10 @@ export function readRtfDocument(input) {
     if (!tableRows.length) return;
     // The columns every row's cell edges make, left to right.
     const edges = [...new Set(tableRows.flatMap((r) => r.defs.map((d) => d.right)))].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
-    const left0 = Math.min(0, ...tableRows.map((r) => r.left ?? 0));
+    tableCells += tableRows.length * edges.length;
+    if (tableCells > MOST_TABLE_CELLS) throw new Error('This file has a table too large to open.');
+    const edgeAt = new Map(edges.map((e, k) => [e, k]));
+    const left0 = tableRows.reduce((least, r) => Math.min(least, r.left ?? 0), 0);
     const columns = edges.map((e, k) => Math.max(1, (e - (k ? edges[k - 1] : left0)) / 15));
     const grid = tableRows.map(() => []);
     const anchors = new Map(); // grid column → the cell a merge down started in
@@ -281,7 +306,7 @@ export function readRtfDocument(input) {
       let col = 0;
       let prev = null;
       row.defs.forEach((def, k) => {
-        const end = edges.indexOf(def.right);
+        const end = edgeAt.get(def.right) ?? -1;
         const span = Math.max(1, end - col + 1);
         const content = row.cells[k] || { blocks: [] };
         if (def.hmerge === 'cont' && prev) {
@@ -322,7 +347,11 @@ export function readRtfDocument(input) {
     pnLabel = null;
     // Spaces a writer left at a paragraph's end are not words.
     const last = runs[runs.length - 1];
-    if (last?.text != null) last.text = last.text.replace(/ +$/, '');
+    if (last?.text != null) {
+      let end = last.text.length;
+      while (end > 0 && last.text[end - 1] === ' ') end -= 1;
+      last.text = last.text.slice(0, end);
+    }
     const out = runs.filter((r) => r.text !== '' || r.tab || r.br || r.image);
     runs = [];
     const heading = para.outline != null && para.outline < 9 ? para.outline + 1 : para.style != null ? headingStyles.get(para.style) ?? null : null;

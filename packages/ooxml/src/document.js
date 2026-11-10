@@ -27,6 +27,8 @@ import { randomBytes } from 'node:crypto';
 import { OoxmlPackage, attrs, esc } from './package.js';
 import { wordProtectionAttrs, wordHasPassword, checkWordPassword } from './protection.js';
 import { unesc } from './workbook.js';
+
+const MOST_TABLE_COLUMNS = 1024;
 // The creator's chart-part writer, reused by insert-chart: the editor still
 // cannot create a PACKAGE, but a chart part is a part like numbering.xml.
 import { chartPartXml } from './build.js';
@@ -600,6 +602,9 @@ function tableHead(body, at) {
   const head = body.slice(at, firstRow === -1 ? at + 4000 : firstRow);
   const grid = /<w:tblGrid\b[^>]*>([\s\S]*?)<\/w:tblGrid>/.exec(head);
   const gridPx = grid ? [...grid[1].matchAll(/<w:gridCol\b[^>]*\bw:w="(\d+)"/g)].map((g) => twipsToPx(Number(g[1]))) : [];
+  // Every paragraph in a table carries the table's columns to the window, so the
+  // model grows with the square of them. Word itself stops at 63.
+  if (gridPx.length > MOST_TABLE_COLUMNS) throw new Error('This document has a table with more columns than this program can open.');
   const tblW = /<w:tblW\b([^>]*)\/>/.exec(head);
   const w = tblW ? attrs(tblW[1]) : {};
   const tableWidth = w['w:type'] === 'pct'

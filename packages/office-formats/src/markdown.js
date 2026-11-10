@@ -38,6 +38,34 @@ const LIST_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])(?:\s+(.*)|\s*)$/;
 /** How deep a list line is indented, in the units lists nest by. */
 const indentOf = (line) => (/^[ \t]*/.exec(line)[0] || '').replace(/\t/g, '    ').length;
 
+/** How far a link's words or emphasis may hold more of the same. Nobody writes eight; a file made to hurt writes a million. */
+const MOST_NESTED = 16;
+/** Longer runs of backticks than this are read as backticks: nothing written by a person fences code with more. */
+const MOST_FENCE = 64;
+
+/** How many backticks start at this position. */
+function fenceAt(text, i) {
+  let end = i;
+  while (text[end] === '`') end += 1;
+  return end - i;
+}
+
+/** Every bracket and parenthesis with its partner, found in one pass so a line of brackets is read once. */
+function partnersIn(text) {
+  const partners = new Map();
+  const squares = [];
+  const rounds = [];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '\\') i++;
+    else if (c === '[') squares.push(i);
+    else if (c === '(') rounds.push(i);
+    else if (c === ']' && squares.length) partners.set(squares.pop(), i);
+    else if (c === ')' && rounds.length) partners.set(rounds.pop(), i);
+  }
+  return partners;
+}
+
 /* ── inline ──────────────────────────────────────────────────────────────── */
 
 /**
@@ -49,10 +77,17 @@ const indentOf = (line) => (/^[ \t]*/.exec(line)[0] || '').replace(/\t/g, '    '
  * one of those wrong in a way that is invisible until somebody's README is
  * mangled.
  */
-export function inlineRuns(source, refs = new Map()) {
+export function inlineRuns(source, refs = new Map(), depth = 0) {
   const runs = [];
   const text = String(source ?? '');
+  if (depth >= MOST_NESTED) return [{ text }];
   let plain = '';
+  let partners = null;
+  const partnerOf = (at) => (partners ??= partnersIn(text)).get(at) ?? -1;
+  const lastSquare = text.lastIndexOf(']');
+  const lastAngle = text.lastIndexOf('>');
+  /** Marks with no closer left in the text, so they are not looked for again. */
+  const unclosed = new Set();
 
   const flush = () => {
     if (plain) runs.push({ text: plain });
@@ -64,7 +99,7 @@ export function inlineRuns(source, refs = new Map()) {
   };
   /** Apply a style to a nested parse, so **[a](b)** keeps both. */
   const nested = (inner, style) => {
-    for (const run of inlineRuns(inner, refs)) push({ ...run, ...style });
+    for (const run of inlineRuns(inner, refs, depth + 1)) push({ ...run, ...style });
   };
 
   let i = 0;
@@ -80,17 +115,21 @@ export function inlineRuns(source, refs = new Map()) {
 
     // 2. Code spans. The contents are literal, however they look.
     if (c === '`') {
-      const fence = /^`+/.exec(text.slice(i))[0];
-      const close = text.indexOf(fence, i + fence.length);
-      if (close > 0 && text[close + fence.length] !== '`') {
-        push({ text: text.slice(i + fence.length, close).replace(/^ (.*) $/, '$1'), code: true });
-        i = close + fence.length;
+      const width = fenceAt(text, i);
+      const fence = text.slice(i, i + width);
+      const close = width > MOST_FENCE ? -1 : text.indexOf(fence, i + width);
+      if (close > 0 && text[close + width] !== '`') {
+        push({ text: text.slice(i + width, close).replace(/^ (.*) $/, '$1'), code: true });
+        i = close + width;
         continue;
       }
+      plain += fence;
+      i += width;
+      continue;
     }
 
     // 3. Autolinks in angle brackets, and bare email addresses in them.
-    if (c === '<') {
+    if (c === '<' && i < lastAngle) {
       const m = /^<((?:https?|ftp|mailto):[^>\s]+|[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)>/.exec(text.slice(i));
       if (m) {
         const url = m[1].includes('@') && !m[1].startsWith('mailto:') ? `mailto:${m[1]}` : m[1];
@@ -112,7 +151,7 @@ export function inlineRuns(source, refs = new Map()) {
     // 4. Images, then links — the `!` has to be tested first or `![a](b)`
     //    parses as a literal bang followed by a link.
     if (c === '!' && text[i + 1] === '[') {
-      const parsed = linkAt(text, i + 1, refs);
+      const parsed = linkAt(text, i + 1, refs, partnerOf);
       if (parsed) {
         push({ text: parsed.label, image: parsed.url, title: parsed.title || null });
         i = parsed.end;
@@ -121,15 +160,15 @@ export function inlineRuns(source, refs = new Map()) {
     }
     if (c === '[') {
       // Footnote reference: [^1]
-      const foot = /^\[\^([^\]]+)\]/.exec(text.slice(i));
+      const foot = i < lastSquare ? /^\[\^([^\]]+)\]/.exec(text.slice(i)) : null;
       if (foot) {
         push({ text: foot[1], footnote: foot[1] });
         i += foot[0].length;
         continue;
       }
-      const parsed = linkAt(text, i, refs);
+      const parsed = linkAt(text, i, refs, partnerOf);
       if (parsed) {
-        const inner = inlineRuns(parsed.label, refs);
+        const inner = inlineRuns(parsed.label, refs, depth + 1);
         for (const run of inner) push({ ...run, link: parsed.url, ref: parsed.ref || null, ...(parsed.form ? { refForm: parsed.form } : {}), title: parsed.title || run.title || null });
         i = parsed.end;
         continue;
@@ -153,13 +192,17 @@ export function inlineRuns(source, refs = new Map()) {
       // `snake_case_words` must not become emphasis. GitHub only opens an
       // underscore run at a word boundary.
       const wordish = c === '_' && /\w/.test(text[i - 1] || '');
-      const opened = Math.min(3, /^(\*+|_+)/.exec(text.slice(i))[0].length);
+      const opened = text[i + 1] !== c ? 1 : text[i + 2] !== c ? 2 : 3;
       let matched = false;
 
       if (!wordish) {
         for (let width = opened; width >= 1 && !matched; width--) {
-          const close = findClose(text, i + width, c.repeat(width));
-          if (close < 0) continue;
+          const mark = c.repeat(width);
+          const close = unclosed.has(mark) ? -1 : findClose(text, i + width, mark);
+          if (close < 0) {
+            unclosed.add(mark);
+            continue;
+          }
           const inner = text.slice(i + width, close);
           if (!inner.trim()) continue;
           nested(inner, width === 3 ? { bold: true, italic: true } : width === 2 ? { bold: true } : { italic: true });
@@ -192,45 +235,15 @@ export function inlineRuns(source, refs = new Map()) {
  * A link or image starting at `[`. Handles inline targets, reference targets
  * and the collapsed form where the label is the reference.
  */
-function linkAt(text, start, refs) {
-  // Find the matching close bracket, counting nesting so [a [b] c] works.
-  let depth = 0;
-  let close = -1;
-  for (let i = start; i < text.length; i++) {
-    if (text[i] === '\\') {
-      i++;
-      continue;
-    }
-    if (text[i] === '[') depth++;
-    else if (text[i] === ']') {
-      depth--;
-      if (depth === 0) {
-        close = i;
-        break;
-      }
-    }
-  }
+function linkAt(text, start, refs, partnerOf) {
+  // The matching close bracket, nesting counted so [a [b] c] works.
+  const close = partnerOf(start);
   if (close < 0) return null;
   const label = text.slice(start + 1, close);
 
   // Inline: [label](url "title")
   if (text[close + 1] === '(') {
-    let depth2 = 0;
-    let end = -1;
-    for (let i = close + 1; i < text.length; i++) {
-      if (text[i] === '\\') {
-        i++;
-        continue;
-      }
-      if (text[i] === '(') depth2++;
-      else if (text[i] === ')') {
-        depth2--;
-        if (depth2 === 0) {
-          end = i;
-          break;
-        }
-      }
-    }
+    const end = partnerOf(close + 1);
     if (end < 0) return null;
     const target = text.slice(close + 2, end).trim();
     const m = /^(<[^>]*>|\S+)(?:\s+["'(](.*)["')])?$/.exec(target) || [null, target, null];
@@ -239,8 +252,9 @@ function linkAt(text, start, refs) {
 
   // Reference: [label][ref] or [label][] or [label]
   const refMatch = /^\[([^\]]*)\]/.exec(text.slice(close + 1));
-  const key = (refMatch && refMatch[1].trim() ? refMatch[1] : label).trim().toLowerCase();
-  const found = refs.get(key);
+  const written = refMatch && refMatch[1].trim() ? refMatch[1] : label;
+  if (written.length > 999) return null; // the longest label a reference may have
+  const found = refs.get(written.trim().toLowerCase());
   if (!found) return null;
   return { label, url: found.url, title: found.title, ref: found.label, form: refMatch ? (refMatch[1].trim() ? 'full' : 'collapsed') : 'shortcut', end: close + 1 + (refMatch ? refMatch[0].length : 0) };
 }
@@ -253,12 +267,10 @@ function findClose(text, from, mark) {
       continue;
     }
     if (text[i] === '`') {
-      const fence = /^`+/.exec(text.slice(i))[0];
-      const end = text.indexOf(fence, i + fence.length);
-      if (end > 0) {
-        i = end + fence.length - 1;
-        continue;
-      }
+      const width = fenceAt(text, i);
+      const end = width > MOST_FENCE ? -1 : text.indexOf(text.slice(i, i + width), i + width);
+      i = end > 0 ? end + width - 1 : i + width - 1;
+      continue;
     }
     if (text.startsWith(mark, i)) {
       // A double mark cannot close a single one: *a**b* is not emphasis of a*.
@@ -273,6 +285,27 @@ function findClose(text, from, mark) {
 }
 
 /* ── blocks ──────────────────────────────────────────────────────────────── */
+
+const isSpaceChar = (c) => /\s/.test(c);
+
+/**
+ * An ATX heading as { level, body }, closing hashes dropped, or null. Read by
+ * hand: the pattern this replaces took minutes over one long line of spaces.
+ */
+function headingAt(line) {
+  const open = /^ {0,3}(#{1,6})/.exec(line);
+  if (!open) return null;
+  const rest = line.slice(open[0].length);
+  let end = rest.length;
+  while (end > 0 && isSpaceChar(rest[end - 1])) end--;
+  while (end > 0 && rest[end - 1] === '#') end--;
+  while (end > 0 && isSpaceChar(rest[end - 1])) end--;
+  if (end > 0 && !isSpaceChar(rest[0])) return null;
+  return { level: open[1].length, body: rest.slice(0, end).trim() };
+}
+
+/** The line under a table's first row: only dashes, colons, pipes and spaces, with a dash among them. */
+const isTableRule = (line) => /^[\s:|-]*$/.test(line) && line.includes('-');
 
 /**
  * Markdown to the block model the rest of the suite speaks.
@@ -336,9 +369,10 @@ export function parseMarkdown(text) {
     }
 
     // ATX heading, closing hashes optional.
-    if ((m = /^ {0,3}(#{1,6})(\s+(.*?))?\s*#*\s*$/.exec(line))) {
-      const body = (m[3] || '').trim();
-      blocks.push({ type: 'heading', level: m[1].length, text: body, runs: runs(body) });
+    const atx = headingAt(line);
+    if (atx) {
+      const body = atx.body;
+      blocks.push({ type: 'heading', level: atx.level, text: body, runs: runs(body) });
       i++;
       continue;
     }
@@ -362,7 +396,7 @@ export function parseMarkdown(text) {
     }
 
     // Table: a pipe row followed by a delimiter row that sets the alignment.
-    if (/\|/.test(line) && /^ {0,3}\|?[\s:|-]*-[\s:|-]*$/.test(lines[i + 1] || '') && /-/.test(lines[i + 1] || '')) {
+    if (line.includes('|') && isTableRule(lines[i + 1] || '')) {
       const cells = (l) => l.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, '|'));
       const header = cells(line);
       const align = cells(lines[i + 1]).map((spec) => {
@@ -516,7 +550,7 @@ export function parseMarkdown(text) {
     }
     if (para.length) {
       // Two spaces at the end of a line is a hard break, and is meaningful.
-      const joined = para.map((l, n) => (/ {2,}$/.test(l) && n < para.length - 1 ? `${l.trim()}\n` : l.trim())).join(' ').replace(/\n /g, '\n').trim();
+      const joined = para.map((l, n) => (l.endsWith('  ') && n < para.length - 1 ? `${l.trim()}\n` : l.trim())).join(' ').replace(/\n /g, '\n').trim();
       blocks.push({ type: 'paragraph', text: joined, runs: runs(joined) });
     }
   }
@@ -578,21 +612,25 @@ function referencesIn(blocks) {
  */
 function escapeInline(raw) {
   let out = '';
+  const lastStar = raw.lastIndexOf('*');
+  const lastUnder = raw.lastIndexOf('_');
+  // Where the last `](`, `][` or `]:` starts: a bracket before it could open a link.
+  let lastLink = -1;
+  for (let k = raw.length - 2; k >= 0 && lastLink < 0; k--) if (raw[k] === ']' && '([:'.includes(raw[k + 1])) lastLink = k;
   for (let i = 0; i < raw.length; i++) {
     const c = raw[i];
-    const rest = raw.slice(i + 1);
 
     if (c === '\\' || c === '`') {
       out += `\\${c}`;
       continue;
     }
     // A lone asterisk cannot become emphasis: there is nothing to close it.
-    if (c === '*' && rest.includes('*')) {
+    if (c === '*' && i < lastStar) {
       out += '\\*';
       continue;
     }
     // The reader ignores an underscore inside a word, so the writer may too.
-    if (c === '_' && rest.includes('_') && !/\w/.test(raw[i - 1] || '')) {
+    if (c === '_' && i < lastUnder && !/\w/.test(raw[i - 1] || '')) {
       out += '\\_';
       continue;
     }
@@ -601,7 +639,7 @@ function escapeInline(raw) {
       continue;
     }
     // A bracket only matters where it could open a link or a reference.
-    if ((c === '[' || c === ']') && /\]\(|\]\[|\]:/.test(raw.slice(Math.max(0, i - 1)))) {
+    if ((c === '[' || c === ']') && lastLink >= Math.max(0, i - 1)) {
       out += `\\${c}`;
       continue;
     }
@@ -673,7 +711,7 @@ ${(block.level === 1 ? '=' : '-').repeat(Math.max(3, heading.length))}`);
       case 'code': {
         const language = block.language || '';
         // A fence long enough to contain whatever is inside it.
-        const longest = Math.max(3, ...String(block.text || '').split('\n').map((l) => (/^`+/.exec(l.trim()) || [''])[0].length + 1));
+        const longest = String(block.text || '').split('\n').reduce((most, l) => Math.max(most, (/^`+/.exec(l.trim()) || [''])[0].length + 1), 3);
         const fence = '`'.repeat(longest);
         out.push(`${fence}${language}\n${block.text ?? ''}\n${fence}`);
         break;
@@ -724,7 +762,7 @@ ${(block.level === 1 ? '=' : '-').repeat(Math.max(3, heading.length))}`);
         const cell = (c) => String(runsToMarkdown(c.runs) || c.text || '').replace(/\|/g, '\\|');
         // Columns padded to a common width. GitHub does not need it; a person
         // reading the file in a text editor very much does.
-        const widths = rows[0].map((_, col) => Math.max(3, ...rows.map((r) => cell(r[col] ?? { text: '' }).length)));
+        const widths = rows[0].map((_, col) => rows.reduce((most, r) => Math.max(most, cell(r[col] ?? { text: '' }).length), 3));
         const line = (row) => `| ${row.map((c, col) => cell(c).padEnd(widths[col])).join(' | ')} |`;
         const rule = `| ${widths
           .map((w, col) => {

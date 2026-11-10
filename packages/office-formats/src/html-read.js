@@ -35,38 +35,149 @@ const decode = (s) => String(s).replace(/&(#x[0-9a-f]+|#\d+|[a-z]+[0-9]*);?/gi, 
   return ENTITIES[e.toLowerCase()] ?? m;
 });
 
+/** How deep elements may open inside each other. A browser's parser stops at 512 too, and hangs what is deeper beside the last. */
+const MOST_OPEN = 512;
+/** Table cells across a page, spans counted. It stops a page that claims millions, and no page anyone wrote gets near it. */
+const MOST_TABLE_CELLS = 2000000;
+
+const code = (s, i) => s.charCodeAt(i);
+const isSpace = (c) => c === 32 || (c >= 9 && c <= 13) || (c > 127 && /\s/.test(String.fromCharCode(c)));
+const isLetter = (c) => (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+const isNameChar = (c) => isLetter(c) || (c >= 48 && c <= 57) || c === 95 || c === 58 || c === 45;
+const isAttrChar = (c) => c === c && !isSpace(c) && c !== 61 && c !== 62 && c !== 47;
+
+/** Appends in place: spreading a long list into a call overflows the stack. */
+const add = (out, more) => { for (const item of more) out.push(item); };
+
+/**
+ * Reads the page's tags one by one, each once. A pattern over the whole page
+ * could not: every `<!--` with no end, every tag that never closed, read to
+ * the end of the file and started again from the next.
+ */
+function tagReader(html) {
+  const gone = new Set();
+  const find = (needle, from) => {
+    if (gone.has(needle)) return -1;
+    const at = html.indexOf(needle, from);
+    if (at < 0) gone.add(needle);
+    return at;
+  };
+  /** The tag that starts here as { end, name, attrs, selfClose }, or { failedAt } if there is none. */
+  const startTag = (lt) => {
+    let i = lt + 1;
+    if (!isLetter(code(html, i))) return { failedAt: i };
+    while (isNameChar(code(html, i))) i += 1;
+    const name = html.slice(lt + 1, i);
+    const attrs = [];
+    for (;;) {
+      let j = i;
+      while (isSpace(code(html, j))) j += 1;
+      if (html[j] === '>') return { end: j + 1, name, attrs, selfClose: false };
+      if (html[j] === '/' && html[j + 1] === '>') return { end: j + 2, name, attrs, selfClose: true };
+      if (j === i) return { failedAt: i };
+      let k = j;
+      while (isAttrChar(code(html, k))) k += 1;
+      if (k === j) return { failedAt: j };
+      const key = html.slice(j, k);
+      let v = k;
+      while (isSpace(code(html, v))) v += 1;
+      let value = '';
+      let after = k;
+      if (html[v] === '=') {
+        let w = v + 1;
+        while (isSpace(code(html, w))) w += 1;
+        const quote = html[w] === '"' || html[w] === "'" ? html[w] : null;
+        const close = quote ? find(quote, w + 1) : -1;
+        if (close >= 0) {
+          value = html.slice(w + 1, close);
+          after = close + 1;
+        } else {
+          let u = w;
+          while (u < html.length && !isSpace(code(html, u)) && html[u] !== '>') u += 1;
+          if (u === w) return { failedAt: w };
+          value = html.slice(w, u);
+          after = u;
+        }
+      }
+      attrs.push([key, value]);
+      i = after;
+    }
+  };
+  const endTag = (lt) => {
+    let i = lt + 2;
+    while (isSpace(code(html, i))) i += 1;
+    const from = i;
+    if (!isLetter(code(html, i))) return { failedAt: i };
+    while (isNameChar(code(html, i))) i += 1;
+    const name = html.slice(from, i);
+    while (isSpace(code(html, i))) i += 1;
+    return html[i] === '>' ? { end: i + 1, closes: name } : { failedAt: i };
+  };
+  const notation = (lt) => {
+    const gt = find('>', lt);
+    return gt < 0 ? { failedAt: lt + 1 } : { end: gt + 1, skip: true };
+  };
+  return (lt) => {
+    if (html.startsWith('<!--', lt)) {
+      const end = find('-->', lt + 4);
+      return end < 0 ? notation(lt) : { end: end + 3, skip: true };
+    }
+    if (html.startsWith('<![CDATA[', lt)) {
+      const end = find(']]>', lt + 9);
+      return end < 0 ? notation(lt) : { end: end + 3, skip: true };
+    }
+    if (html[lt + 1] === '!' || html[lt + 1] === '?') return notation(lt);
+    return html[lt + 1] === '/' ? endTag(lt) : startTag(lt);
+  };
+}
+
 /** The page as a tree of { name, attrs, children } with strings for text. */
 export function parseHtml(html) {
   const root = { name: '#root', attrs: {}, children: [] };
   const stack = [root];
   const top = () => stack[stack.length - 1];
-  const re = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<![^>]*>|<\?[^>]*>|<\/\s*([a-zA-Z][\w:-]*)\s*>|<([a-zA-Z][\w:-]*)((?:\s+[^\s=>/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?)*)\s*(\/?)>/g;
+  // How many <p> are open: a page of ten thousand tags deep need not be climbed for each new one.
+  let openParagraphs = 0;
+  const closeTo = (i) => {
+    for (let k = stack.length - 1; k >= i; k--) if (stack[k].name === 'p') openParagraphs -= 1;
+    stack.length = i;
+  };
+  const tagAt = tagReader(html);
   let at = 0;
-  let m;
+  let search = 0;
   const text = (t) => { if (t) top().children.push(decode(t)); };
-  while ((m = re.exec(html))) {
-    text(html.slice(at, m.index));
-    at = re.lastIndex;
-    if (m[1]) {
-      const name = m[1].toLowerCase();
-      // An end tag closes up to the element it names, if one is open.
-      for (let i = stack.length - 1; i > 0; i--) if (stack[i].name === name) { stack.length = i; break; }
+  for (;;) {
+    const lt = html.indexOf('<', search);
+    if (lt < 0) break;
+    const tag = tagAt(lt);
+    if (tag.failedAt != null) {
+      // Not a tag: it stays as text, and what was read past it is not read again.
+      search = Math.max(lt + 1, tag.failedAt);
       continue;
     }
-    if (!m[2]) continue; // comment, doctype, CDATA, processing instruction
-    const name = m[2].toLowerCase();
+    text(html.slice(at, lt));
+    at = tag.end;
+    search = tag.end;
+    if (tag.closes) {
+      const name = tag.closes.toLowerCase();
+      // An end tag closes up to the element it names, if one is open.
+      for (let i = stack.length - 1; i > 0; i--) if (stack[i].name === name) { closeTo(i); break; }
+      continue;
+    }
+    if (tag.skip) continue; // comment, doctype, CDATA, processing instruction
+    const name = tag.name.toLowerCase();
     const attrs = {};
-    for (const a of (m[3] || '').matchAll(/([^\s=>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g)) attrs[a[1].toLowerCase()] = decode(a[2] ?? a[3] ?? a[4] ?? '');
-    if (BLOCK.has(name)) {
+    for (const [key, value] of tag.attrs) attrs[key.toLowerCase()] = decode(value);
+    if (BLOCK.has(name) && openParagraphs > 0) {
       for (let i = stack.length - 1; i > 0; i--) {
-        if (stack[i].name === 'p') { stack.length = i; break; }
+        if (stack[i].name === 'p') { closeTo(i); break; }
         if (P_SCOPE.has(stack[i].name)) break;
       }
     }
     const group = GROUP[name];
     if (group) {
       for (let i = stack.length - 1; i > 0; i--) {
-        if (group[0].includes(stack[i].name)) { stack.length = i; break; }
+        if (group[0].includes(stack[i].name)) { closeTo(i); break; }
         if (group[1].includes(stack[i].name)) break;
       }
     }
@@ -80,10 +191,13 @@ export function parseHtml(html) {
       const raw = html.slice(at, close ? close.index : html.length);
       el.children.push(name === 'title' || name === 'textarea' ? decode(raw) : raw);
       at = close ? end.lastIndex : html.length;
-      re.lastIndex = at;
+      search = at;
       continue;
     }
-    if (!VOID.has(name) && !m[4]) stack.push(el);
+    if (!VOID.has(name) && !tag.selfClose && stack.length < MOST_OPEN) {
+      stack.push(el);
+      if (name === 'p') openParagraphs += 1;
+    }
   }
   text(html.slice(at));
   return root;
@@ -194,6 +308,11 @@ export function readHtmlDocument(html) {
   const images = new Map();
   let listCount = 0;
   let imageCount = 0;
+  let tableCells = 0;
+  const roomFor = (cells) => {
+    tableCells += cells;
+    if (tableCells > MOST_TABLE_CELLS) throw new Error('This page has a table too large to open.');
+  };
 
   const picture = (el) => {
     const src = String(el.attrs.src || '');
@@ -279,19 +398,19 @@ export function readHtmlDocument(html) {
       switch (el.name) {
         case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6': {
           // A heading's look is its Heading style's; what the page sets on it comes with it.
-          out.push(...blocksOf(el, { ...ctx, heading: Number(el.name[1]), para, look: lookOf(el) }));
+          add(out, blocksOf(el, { ...ctx, heading: Number(el.name[1]), para, look: lookOf(el) }));
           break;
         }
-        case 'ul': case 'ol': out.push(...listOf(el, ctx, para)); break;
+        case 'ul': case 'ol': add(out, listOf(el, ctx, para)); break;
         case 'table': out.push(tableOf(el, ctx)); break;
         case 'hr': flush(); break;
-        case 'pre': out.push(...blocksOf(el, { ...ctx, para, look, pre: true })); break;
-        case 'li': out.push(...blocksOf(el, { ...ctx, para, look })); break;
+        case 'pre': add(out, blocksOf(el, { ...ctx, para, look, pre: true })); break;
+        case 'li': add(out, blocksOf(el, { ...ctx, para, look })); break;
         default: {
           if (/^(always|page)$/.test(styleOf(el)['page-break-before'] || styleOf(el)['break-before'] || '')) pendingBreak = true;
           const inner = blocksOf(el, { ...ctx, para, look });
           if (pendingBreak && inner[0]) { inner[0].pageBreakBefore = true; pendingBreak = false; }
-          out.push(...inner);
+          add(out, inner);
         }
       }
     };
@@ -313,10 +432,10 @@ export function readHtmlDocument(html) {
       }
       const items = [];
       for (const c of el.children || []) {
-        if (typeof c === 'string') { if (c.trim()) items.push(...blocksOf({ children: [c] }, { ...outer, para, list: { id, style, level } })); continue; }
-        if (c.name === 'li') items.push(...blocksOf(c, { ...outer, para: paragraphLook(c, para), look: { ...outer.look, ...lookOf(c) }, list: { id, style, level } }));
-        else if (c.name === 'ul' || c.name === 'ol') items.push(...listOf(c, { ...outer, list: { id, style, level } }, para));
-        else items.push(...blocksOf({ children: [c] }, { ...outer, para, list: { id, style, level } }));
+        if (typeof c === 'string') { if (c.trim()) add(items, blocksOf({ children: [c] }, { ...outer, para, list: { id, style, level } })); continue; }
+        if (c.name === 'li') add(items, blocksOf(c, { ...outer, para: paragraphLook(c, para), look: { ...outer.look, ...lookOf(c) }, list: { id, style, level } }));
+        else if (c.name === 'ul' || c.name === 'ol') add(items, listOf(c, { ...outer, list: { id, style, level } }, para));
+        else add(items, blocksOf({ children: [c] }, { ...outer, para, list: { id, style, level } }));
       }
       return items;
     };
@@ -328,7 +447,8 @@ export function readHtmlDocument(html) {
       let widths = [];
       const colsOf = (n) => (n.children || []).flatMap((c) => (typeof c === 'string' ? [] : c.name === 'col' ? [c] : c.name === 'colgroup' ? colsOf(c) : []));
       for (const col of colsOf(el)) {
-        const span = Math.max(1, Number(col.attrs.span) || 1);
+        const span = Math.max(1, Math.min(1000, Number(col.attrs.span) || 1));
+        roomFor(span);
         const w = lengthPx(styleOf(col).width) ?? (Number(col.attrs.width) || null);
         for (let k = 0; k < span; k++) widths.push(w);
       }
@@ -347,14 +467,16 @@ export function readHtmlDocument(html) {
           const look = { ...outer.look, ...lookOf(cell) };
           const blocks = blocksOf(cell, { ...outer, para: paragraphLook(cell, {}), look, list: null, heading: null });
           row[col] = { blocks, colspan, rowspan, ...(fill ? { fill } : {}), ...(el.attrs.border && el.attrs.border !== '0' || /solid|double/.test(st.border || '') ? { border: true } : {}) };
+          roomFor(rowspan * colspan);
           for (let r = 0; r < rowspan; r++) for (let k = 0; k < colspan; k++) if (r || k) taken.set(`${ri + r}:${col + k}`, true);
           for (let k = 1; k < colspan; k++) row[col + k] = { covered: true };
           col += colspan;
         }
         while (taken.has(`${ri}:${col}`)) { row[col] = { covered: true }; col += 1; }
       });
-      const width = Math.max(0, ...grid.map((r) => r.length));
-      for (const row of grid) for (let c = 0; c < width; c++) if (!row[c]) row[c] = taken.has(`${grid.indexOf(row)}:${c}`) ? { covered: true } : { blocks: [], colspan: 1, rowspan: 1 };
+      const width = grid.reduce((most, r) => Math.max(most, r.length), 0);
+      roomFor(grid.length * width);
+      grid.forEach((row, ri) => { for (let c = 0; c < width; c++) if (!row[c]) row[c] = taken.has(`${ri}:${c}`) ? { covered: true } : { blocks: [], colspan: 1, rowspan: 1 }; });
       widths = Array.from({ length: width }, (_, i) => widths[i] ?? null);
       return { type: 'table', columns: widths, rows: grid };
     };

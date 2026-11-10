@@ -121,6 +121,9 @@ export function parseAttrs(s) {
   return out;
 }
 
+/** How deep elements may sit inside each other. Whatever reads the tree walks it by calling itself, a call for each level. */
+const MOST_DEPTH = 512;
+
 /** @typedef {{ name: string, attrs: Record<string,string>, children: Array<Node|string> }} Node */
 
 /**
@@ -137,7 +140,10 @@ export function parse(xml, opts = {}) {
     open(name, attrs, selfClosing) {
       const node = { name, attrs, children: [] };
       stack[stack.length - 1].children.push(node);
-      if (!selfClosing) stack.push(node);
+      if (!selfClosing) {
+        if (stack.length > MOST_DEPTH) throw new Error('This file nests its contents too deep to open.');
+        stack.push(node);
+      }
     },
     close(_name, selfClosing) {
       if (selfClosing) return;

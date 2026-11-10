@@ -171,6 +171,23 @@ function momentIndex(list, at = (x) => x) {
 }
 
 /**
+ * Each series' exceptions, by the event that owns them: the first event of a
+ * UID that is not an exception itself. Answers a function of the event, so a
+ * calendar of many thousand events is gone through once and not once for each.
+ */
+export function exceptionsOf(events) {
+  const byUid = new Map();
+  for (const e of events || []) {
+    if (!e?.uid || !e.recurrenceId) continue;
+    if (!byUid.has(e.uid)) byUid.set(e.uid, []);
+    byUid.get(e.uid).push(e);
+  }
+  const owner = new Map();
+  for (const e of events || []) if (e?.uid && !e.recurrenceId && !owner.has(e.uid)) owner.set(e.uid, e);
+  return (event) => (owner.get(event.uid) === event ? byUid.get(event.uid) || [] : []);
+}
+
+/**
  * The occurrences of an event between two instants.
  *
  * `siblings` are the other VEVENTs in the same calendar with this UID — the
@@ -220,13 +237,16 @@ export function occurrences(event, { from, to, siblings = [], limit = 1000 } = {
     }
   }
   for (const r of event.rdates || []) {
-    if (exdates.some((x) => sameMoment(x, r.at))) continue;
+    if (out.length >= limit) break;
+    if (excluded(r.at)) continue;
     if (out.some((o) => sameMoment(o.original, r.at))) continue;
     push(r.at, r.at, event);
   }
   // An exception moved outside the rule's own instants still shows once.
+  const shown = new Set(out.map((o) => o.event));
   for (const ex of exceptions) {
-    if (!out.some((o) => o.event === ex) && !exdates.some((x) => sameMoment(x, ex.recurrenceId.at))) push(ex.start.at, ex.recurrenceId.at, ex);
+    if (out.length >= limit) break;
+    if (!shown.has(ex) && !excluded(ex.recurrenceId.at)) push(ex.start.at, ex.recurrenceId.at, ex);
   }
   out.sort((a, b) => a.start - b.start);
   return from != null ? out.filter((o) => o.end >= from || o.start >= from) : out;

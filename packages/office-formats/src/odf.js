@@ -121,11 +121,15 @@ const SHADED_RUN = 256;
 
 /** As wide as a sheet goes, and more cells with something in them than anyone keeps in one. */
 const MOST_ACROSS = 16384;
-const MOST_CELLS = 12000000;
+const MOST_CELLS = 4000000;
+/** Cells made by repeating another that holds something. A file of two kilobytes can ask for millions of them. */
+const MOST_REPEATED = 500000;
 
 function readTable(table, rowHeights = new Map(), shaded = () => false) {
   const rows = [];
   let built = 0;
+  let repeated = 0;
+  const tooMany = () => new Error('This spreadsheet has more cells in it than this program can open.');
   const hiddenRows = [];
   // The drawings anchored in its cells, with the cell, and those on the sheet's page itself.
   const drawings = [];
@@ -168,13 +172,17 @@ function readTable(table, rowHeights = new Map(), shaded = () => false) {
       for (const [empty, n] of runs) for (let i = 0; i < n && cells.length < MOST_ACROSS; i++) cells.push({ ...empty });
       pending = 0;
       runs = [];
-      for (let i = 0; i < repeat && cells.length < MOST_ACROSS; i++) cells.push(i === 0 ? cell : { ...cell });
+      for (let i = 0; i < repeat && cells.length < MOST_ACROSS; i++) {
+        if (i > 0 && ++repeated > MOST_REPEATED) throw tooMany();
+        cells.push(i === 0 ? cell : { ...cell });
+      }
     }
     // Trim the trailing run of empty cells ODF writes to pad the row.
     while (cells.length && !cells[cells.length - 1].text && cells[cells.length - 1].value == null && !cells[cells.length - 1].shaded) cells.pop();
     for (let i = 0; i < rowRepeat; i++) {
       built += cells.length;
-      if (built > MOST_CELLS) throw new Error('This spreadsheet has more cells in it than this program can open.');
+      if (i > 0) repeated += cells.length;
+      if (built > MOST_CELLS || repeated > MOST_REPEATED) throw tooMany();
       if (rowHidden && rows.length < 200000) hiddenRows.push(rows.length);
       rows.push(cells.map((c) => ({ ...c })));
     }

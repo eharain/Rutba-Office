@@ -25,6 +25,9 @@ const FAULT_NAMES = new Set(['RangeError', 'TypeError', 'ReferenceError', 'EvalE
 const FAULT_WORDS = /Maximum call stack|Invalid array length|Array buffer allocation|out of memory|outside the bounds|outside buffer bounds|out of range|Offset is outside|is not a function|is not iterable|Cannot read propert|Cannot set propert|undefined is not|null is not/i;
 /** A library's words, fair inside the chain but not what a person may be shown. */
 const RAW_WORDS = /invalid distance|invalid stored block|invalid block type|invalid code lengths|incorrect header check|incorrect data check|unexpected end of|Unexpected token|at parser\.js|\.js line \d+/i;
+/** The statuses that say the signature held: the message is what was signed, whatever is said about who signed it. */
+const INTACT = new Set(['valid', 'untrusted', 'expired', 'no-from', 'other-sender', 'not-for-mail']);
+
 function judge(err) {
   const links = [];
   for (let e = err, n = 0; e && n < 8; e = e.cause, n++) links.push({ name: e?.name || typeof e, message: String(e?.message ?? e) });
@@ -44,7 +47,8 @@ if (!isMainThread) {
     const t = performance.now();
     try {
       const r = readSmime(Buffer.from(bytes), { identities, anchors });
-      parentPort.postMessage({ outcome: 'read', status: r.error || r.encrypted?.status || r.signed?.status || 'plain', ms: performance.now() - t });
+      const shown = crypto.createHash('sha256').update(JSON.stringify([r.message?.text ?? null, r.message?.html ?? null, (r.message?.attachments || []).map((a) => [a.filename, a.size])])).digest('hex');
+      parentPort.postMessage({ outcome: 'read', status: r.error || r.encrypted?.status || r.signed?.status || 'plain', intact: INTACT.has(r.signed?.status), shown, ms: performance.now() - t });
     } catch (err) {
       parentPort.postMessage({ ...judge(err), ms: performance.now() - t });
     }
@@ -158,6 +162,14 @@ if (!isMainThread) {
   const sources = Object.keys(SOURCES);
   const wholes = Object.keys(WHOLE);
   console.log(`fuzz-smime: ${total} messages from ${sources.length + wholes.length} sources and random bytes, seed ${seed}, ${LIMIT_MS / 1000} s each`);
+  // What each good message reads as. A damaged one that reads as signed must read as one of these:
+  // anything else is a signature that held over words nobody signed, the worst answer this reader can give.
+  const genuine = new Set();
+  for (const source of [...sources.map((s) => SOURCES[s].build(SOURCES[s].cms)), ...wholes.map((w) => WHOLE[w])]) {
+    const r = await run(source);
+    if (r.intact) genuine.add(r.shown);
+  }
+  if (genuine.size === 0) throw new Error('no good message read as signed, so this run cannot judge a damaged one');
   const counts = { read: 0, refused: 0, FAULT: 0 };
   const statuses = {};
   const faults = [];
@@ -182,6 +194,7 @@ if (!isMainThread) {
     }
     const r = await run(bytes);
     if (r.outcome !== 'FAULT' && r.ms > LIMIT_MS) Object.assign(r, { outcome: 'FAULT', message: `took ${r.ms.toFixed(0)} ms` });
+    if (r.outcome === 'read' && r.intact && !genuine.has(r.shown)) Object.assign(r, { outcome: 'FAULT', message: 'damaged, and read as a good signature over words that were not signed' });
     counts[r.outcome] = (counts[r.outcome] || 0) + 1;
     if (r.status) statuses[r.status] = (statuses[r.status] || 0) + 1;
     if (r.ms > slowest.ms) slowest = { ms: r.ms, what, size: bytes.length };

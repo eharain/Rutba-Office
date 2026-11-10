@@ -154,7 +154,7 @@ const PLATFORM = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 const fuzzed = (counts) => FUZZERS.reduce((total, [name]) => total + (counts[name]?.of || 0), 0);
 
 /** The fuzzers: each damages good files with the seed it is given, and fails on an answer that is not a sentence. */
-export const FUZZERS = [['fuzz:open', 'tools/fuzz-open.js', 'damaged Office files', 300], ['fuzz:pdf', 'tools/fuzz-pdf.js', 'damaged PDFs', 300], ['fuzz:smime', 'tools/fuzz-smime.js', 'damaged signed mail', 2000]];
+export const FUZZERS = [['fuzz:open', 'tools/fuzz-open.js', 'damaged Office files', 300], ['fuzz:pdf', 'tools/fuzz-pdf.js', 'damaged PDFs', 300], ['fuzz:smime', 'tools/fuzz-smime.js', 'damaged signed mail', 2000], ['fuzz:grammar', 'tools/fuzz-grammar.js', 'files made to do harm', 600]];
 
 /** The release note's Gate section, in the note's own plain style. */
 export function gateSection(counts, { version, date, platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null }) {

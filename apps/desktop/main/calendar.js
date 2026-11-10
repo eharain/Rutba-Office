@@ -15,7 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { readCalendar, writeCalendar, writeReply, isInvitation, occurrences, dateTimeAt, describeRule, localZone } from '@rutba/calendar';
+import { readCalendar, writeCalendar, writeReply, isInvitation, occurrences, exceptionsOf, dateTimeAt, describeRule, localZone } from '@rutba/calendar';
 
 const readPlain = (file, fallback) => {
   try {
@@ -162,10 +162,10 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
   function expand(cal, from, to, fileName = null) {
     const out = [];
     const events = cal.events || [];
+    const siblingsOf = exceptionsOf(events);
     for (const e of events) {
       if (e.recurrenceId) continue; // drawn through its parent
-      const siblings = events.filter((s) => s.uid && s.uid === e.uid && s !== e);
-      for (const o of occurrences(e, { from, to, siblings, limit: 500 })) out.push(slot(cal, o, fileName));
+      for (const o of occurrences(e, { from, to, siblings: siblingsOf(e), limit: 500 })) out.push(slot(cal, o, fileName));
     }
     return out;
   }
