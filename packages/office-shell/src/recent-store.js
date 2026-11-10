@@ -7,6 +7,16 @@
 
 import path from 'node:path';
 
+/** One file is one row: Windows reads a path the same in either slash and any case. */
+const sameFile = (a, b, platform) => (platform === 'win32'
+  ? a.replace(/\//g, '\\').toLowerCase() === b.replace(/\//g, '\\').toLowerCase()
+  : a === b);
+
+/** Put an entry at the top, in place of any row for the same file, keeping the newest `most`. */
+export function addEntry(list, entry, { most = 60, platform = process.platform } = {}) {
+  return [entry, ...list.filter((r) => !sameFile(r.path, entry.path, platform))].slice(0, most);
+}
+
 /** Take one entry out of the list by path. An unknown path is a no-op. */
 export function removeEntry(list, p) {
   return list.filter((r) => r.path !== p);

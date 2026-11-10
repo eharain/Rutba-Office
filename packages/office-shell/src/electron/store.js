@@ -22,7 +22,7 @@
 import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import { removeEntry, renameEntry, presentEntries } from '../recent-store.js';
+import { addEntry, removeEntry, renameEntry, presentEntries } from '../recent-store.js';
 import { createVault, DEFAULT_ID } from '../profiles.js';
 import { profileUid, openProfileKeystore, moveOldSecrets, OLD_SECRETS_FILE } from '../profile-keystore.js';
 
@@ -143,10 +143,7 @@ export function createStores({ vault = createVault(), profile = null, protector 
     list: () => presentEntries(recent, { exists: (p) => fs.promises.access(p).then(() => true, () => false) }),
     add: ({ path: p, app: which }) => {
       if (!p) return recentApi.list();
-      recent = [
-        { path: p, name: path.basename(p), app: which || null, at: Date.now() },
-        ...recent.filter((r) => r.path !== p),
-      ].slice(0, 60);
+      recent = addEntry(recent, { path: p, name: path.basename(p), app: which || null, at: Date.now() });
       vault.writeJson(recentFile, recent);
       try {
         app.addRecentDocument(p);

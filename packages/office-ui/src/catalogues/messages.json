@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8604,
+  "count": 8790,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -900,6 +900,12 @@
       ]
     },
     {
+      "message": "A change to names applies to files locked from now on.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "A chart drawn from the table the caret is in: put the caret in a table first",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -1122,6 +1128,12 @@
       ]
     },
     {
+      "message": "A forgotten password with no recovery key means the files cannot be opened. It is shown only now.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "A form for the records of",
       "where": [
         "apps/desktop/renderer/apps/base.js"
@@ -1246,6 +1258,12 @@
       "message": "A list of values",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "A locked file for you",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -1454,9 +1472,21 @@
       ]
     },
     {
+      "message": "A password for this one file",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "A password is required to open this {noun}.",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "A password that opens your locked folders on any computer.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -1511,6 +1541,12 @@
       "message": "A pivot needs at least one field in Values.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A plain copy is saved. That copy is not locked.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -2391,6 +2427,12 @@
       ]
     },
     {
+      "message": "Actions",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Active sheet",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -2841,6 +2883,24 @@
       ]
     },
     {
+      "message": "Add files",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Add files…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Add folder…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Add it with Add or remove apps, and it opens what it opens from the next start.",
       "where": [
         "apps/desktop/renderer/packs-dialog.js"
@@ -2994,6 +3054,12 @@
       "message": "Add to my setups",
       "where": [
         "apps/desktop/renderer/studio/setups-menu.js"
+      ]
+    },
+    {
+      "message": "Add to this folder",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -3662,6 +3728,12 @@
       "message": "All borders",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "All but the temporary files Office and Windows make",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -4357,6 +4429,12 @@
       ]
     },
     {
+      "message": "Anyone at this computer can read those copies until you unlock the Locker again.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Anything not from a Safe Sender or a contact goes to Junk.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -4971,6 +5049,18 @@
       ]
     },
     {
+      "message": "At least eight characters. Attach it to an email here, or save it to send another way. Send the password separately from the file.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "At least eight characters. Rutba Office cannot get it back for you.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "At most {size}",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -5011,6 +5101,12 @@
       "message": "Attach files",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js"
+      ]
+    },
+    {
+      "message": "Attach to an email",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -5332,6 +5428,12 @@
       "message": "Away",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
+      ]
+    },
+    {
+      "message": "Away from this folder, for a folder a cloud drive uploads",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -5662,6 +5764,12 @@
       "message": "Berry",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Beside the file",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -6762,6 +6870,7 @@
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/canvas-size.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/accounts-bulk.js",
         "apps/desktop/renderer/apps/mail/archive.js",
@@ -7251,10 +7360,22 @@
       ]
     },
     {
+      "message": "Change how",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Change my password",
       "where": [
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/base/people.js"
+      ]
+    },
+    {
+      "message": "Change password",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -7296,6 +7417,7 @@
     {
       "message": "Changed",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/slides/changes.js",
         "apps/desktop/renderer/apps/slides/revisions.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -7786,14 +7908,27 @@
       ]
     },
     {
+      "message": "Choose a folder for the plain files",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Choose a folder the AI tools may use",
       "where": [
         "apps/desktop/renderer/ai-tools-dialog.js"
       ]
     },
     {
+      "message": "Choose a folder to lock",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Choose a folder…",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/mail/rules.js"
       ]
     },
@@ -8086,6 +8221,7 @@
     {
       "message": "Clear",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/pdf/fields.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -8535,6 +8671,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/compose.js",
@@ -9220,6 +9357,12 @@
       "message": "Compare: merge a reviewed copy of this presentation, its changes shown to accept or reject",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Compare…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -10241,6 +10384,7 @@
     {
       "message": "Current password",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/profiles.js"
       ]
     },
@@ -10506,6 +10650,12 @@
       "message": "DRAFT",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Damaged",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -11106,6 +11256,7 @@
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/sheets.js",
@@ -11363,6 +11514,12 @@
       ]
     },
     {
+      "message": "Delete the plain copy",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Delete the query; its sheet stays",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -11453,6 +11610,18 @@
       ]
     },
     {
+      "message": "Delete this version of {name}?",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Delete this version…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Delete thread",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -11468,6 +11637,7 @@
     {
       "message": "Delete {name}?",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/studio/setups-menu.js",
         "apps/desktop/renderer/studio/window.js"
       ]
@@ -11590,6 +11760,7 @@
     {
       "message": "Delete…",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/studio/setups-menu.js"
       ]
     },
@@ -13107,6 +13278,18 @@
       ]
     },
     {
+      "message": "Edit rules",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Edit rules for {name}",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Edit text",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -13949,9 +14132,27 @@
       ]
     },
     {
+      "message": "Every file",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Every file anyone has sent you appears here, whatever folder it landed in.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Every file in it is unlocked first, and the earlier versions it kept are removed. The folder itself stays where it is.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Every file in this folder is locked where it is. Files you add later stay unlocked until you lock them.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -14787,15 +14988,33 @@
       ]
     },
     {
+      "message": "File names in the cloud",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "File size",
       "where": [
         "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
+      "message": "File types",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "File types are registered by the installer. A build run from the source tree has not registered any, so this list will read empty until Rutba Office is installed.",
       "where": [
         "apps/desktop/renderer/defaults.js"
+      ]
+    },
+    {
+      "message": "File types, separated by commas",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -14816,6 +15035,12 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Files are locked one by one where they are.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -15261,6 +15486,12 @@
       ]
     },
     {
+      "message": "Finer rules, with exceptions, go in the folder's .rutbalocker file, in the same wording as .gitignore.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Finish",
       "where": [
         "apps/desktop/renderer/apps/video/ribbon.js",
@@ -15682,6 +15913,18 @@
       ]
     },
     {
+      "message": "Folder rules, folder settings, sizes and reasons",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Folder settings",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Folders",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
@@ -15875,6 +16118,12 @@
       "message": "For each address field the Address Block and the Greeting Line need, choose the column of your list that holds it.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "For example:\n*.pdf\n!Public/",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -16762,6 +17011,18 @@
       ]
     },
     {
+      "message": "Give the password a different way, such as a call or a text message, and never in the same email. The other person opens the file with Open a sent file in their Locker.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Give the password a different way, such as a call or a text message.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Glow",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -16851,6 +17112,12 @@
       "message": "Go live: to the places you stream to, from Live Broadcast",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Go on",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -17692,7 +17959,8 @@
     {
       "message": "Hidden",
       "where": [
-        "apps/desktop/renderer/apps/base/people.js"
+        "apps/desktop/renderer/apps/base/people.js",
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -18304,6 +18572,18 @@
       ]
     },
     {
+      "message": "I have forgotten it: use my recovery key",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "I have kept it",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "I'm away until … and will answer when I'm back.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -18375,6 +18655,12 @@
       "message": "Identity matrix",
       "where": [
         "apps/desktop/renderer/equations.js"
+      ]
+    },
+    {
+      "message": "Idle minutes",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -18686,6 +18972,12 @@
       ]
     },
     {
+      "message": "In Office's own folder",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "In PDF",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -18719,6 +19011,12 @@
       "message": "In YouTube Studio, choose Create, Go live, then Stream, and copy the stream key. The first time, YouTube can take up to 24 hours to allow it.",
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
+      "message": "In a hidden folder next to it, written back as you save and removed when you close it",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -20104,6 +20402,12 @@
       ]
     },
     {
+      "message": "It becomes an ordinary file in the same place, and the earlier versions the Locker kept of it are removed. You can lock it again whenever you like.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "It goes to:",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -20125,6 +20429,12 @@
       "message": "It is on air",
       "where": [
         "apps/desktop/renderer/studio/sources-column.js"
+      ]
+    },
+    {
+      "message": "It is removed for good, with the earlier versions the Locker kept of it. This cannot be undone.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -20482,6 +20792,18 @@
       ]
     },
     {
+      "message": "Keep it",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Keep it locked in",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Keep its shape",
       "where": [
         "apps/desktop/renderer/studio/properties.js"
@@ -20551,6 +20873,12 @@
       "message": "Keep the shape (aspect ratio)",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Keep them until the next unlock",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -21223,6 +21551,12 @@
       ]
     },
     {
+      "message": "Lease.pdf stays Lease.pdf.rlock, easier to find in Explorer",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Least",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -21293,6 +21627,12 @@
       "message": "Leave the show",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Leave them unlocked (suggested)",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -21925,6 +22265,12 @@
       ]
     },
     {
+      "message": "Lines say what to lock; a line starting with ! makes an exception. With no lines, every file is locked.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Link",
       "where": [
         "apps/desktop/renderer/apps/base/links.js",
@@ -22230,7 +22576,20 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/video/library-words.js"
+      ]
+    },
+    {
+      "message": "Lock a folder I already have…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Lock again after this many idle minutes",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -22240,9 +22599,39 @@
       ]
     },
     {
+      "message": "Lock folders so only you can open them",
+      "where": [
+        "apps/desktop/renderer/apps/locker-tile.js"
+      ]
+    },
+    {
+      "message": "Lock now",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Lock the folder {name}",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Lock the layer",
       "where": [
         "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
+      "message": "Lock them again",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Lock this folder",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -22252,9 +22641,28 @@
       ]
     },
     {
+      "message": "Lock {n} here",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Lock {n} now",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Locked",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Locked by the folder's rules",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -22264,9 +22672,52 @@
       ]
     },
     {
+      "message": "Locked files",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Locked folders",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Locked, in {n} pieces",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Locker",
+      "where": [
+        "apps/desktop/renderer/apps/locker-tile.js",
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Locker password",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Locker settings",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Locking",
       "where": [
         "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Locking…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -22714,6 +23165,12 @@
       ]
     },
     {
+      "message": "Make a locker",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Make a role for each kind of work: a cashier, a manager, someone who keeps the stock.",
       "where": [
         "apps/desktop/renderer/apps/base/people.js"
@@ -22723,6 +23180,12 @@
       "message": "Make a role for them first in People and roles, one that may not change the design.",
       "where": [
         "apps/desktop/renderer/apps/base/ai-tools.js"
+      ]
+    },
+    {
+      "message": "Make a safe folder",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -22756,6 +23219,18 @@
       ]
     },
     {
+      "message": "Make my Locker folder",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Make the locker",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Make the paper see-through",
       "where": [
         "apps/desktop/renderer/apps/pdf/fields.js"
@@ -22765,6 +23240,12 @@
       "message": "Make this paragraph a heading, so it appears in the table of contents",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Make your locker",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -24405,6 +24886,12 @@
       ]
     },
     {
+      "message": "Moved to a folder you choose, outside the locker",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Moved to the trash",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -24562,6 +25049,7 @@
         "apps/desktop/renderer/apps/base/queries.js",
         "apps/desktop/renderer/apps/broadcast/live-dialog.js",
         "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/pictures/batch.js",
@@ -24661,6 +25149,18 @@
       ]
     },
     {
+      "message": "Names hidden in the cloud",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Names visible",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Narration cleared, and the timing it gave its slide",
       "plural": "Narrations cleared from {count} slides, and the timings they gave them",
       "where": [
@@ -24747,6 +25247,18 @@
       "message": "Needs a key",
       "where": [
         "apps/desktop/renderer/apps/broadcast/live-dialog.js"
+      ]
+    },
+    {
+      "message": "Needs a newer Rutba Office",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Needs you",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -25107,6 +25619,7 @@
     {
       "message": "New name",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -25114,6 +25627,7 @@
       "message": "New password",
       "where": [
         "apps/desktop/renderer/apps/base/people.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/profiles.js"
       ]
     },
@@ -25875,10 +26389,28 @@
       ]
     },
     {
+      "message": "No files match that search",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "No fill",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "No folder chosen yet",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "No folders yet. Add one to lock its files where they are.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -26708,6 +27240,12 @@
       ]
     },
     {
+      "message": "Not locked",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Not now",
       "where": [
         "apps/desktop/renderer/apps/base.js",
@@ -26919,6 +27457,12 @@
       ]
     },
     {
+      "message": "Nothing has been changed. If you go on, every other file is unlocked, these stay locked, and the key file stays in the folder so they can still be opened later.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Nothing has been marked up in this document.",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -26964,6 +27508,12 @@
       "message": "Nothing in this folder matched.",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
+      ]
+    },
+    {
+      "message": "Nothing in this folder yet",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -27554,6 +28104,12 @@
       ]
     },
     {
+      "message": "On this computer only. The password stays the master.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "On this slide",
       "where": [
         "apps/desktop/renderer/apps/slides/comments.js"
@@ -27580,6 +28136,7 @@
     {
       "message": "One",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -27718,6 +28275,12 @@
       ]
     },
     {
+      "message": "Only after the locked copy has been read back and matched",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Only an entrance, emphasis or exit this writes can be played by paragraph",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -27790,6 +28353,12 @@
       ]
     },
     {
+      "message": "Only the current one",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Only the first {cap} cells of the selection were added",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -27799,6 +28368,12 @@
       "message": "Only the first {count} records are read. Keep a copy in this file to work with all of them.",
       "where": [
         "apps/desktop/renderer/apps/base/links.js"
+      ]
+    },
+    {
+      "message": "Only these types",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -27851,6 +28426,7 @@
         "apps/desktop/renderer/apps/base.js",
         "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/pdf/annots.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/apps/pictures.js",
@@ -27926,6 +28502,12 @@
       ]
     },
     {
+      "message": "Open a file someone sent you…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Open a file…",
       "where": [
         "apps/desktop/renderer/studio/setups-menu.js"
@@ -27959,6 +28541,18 @@
       "message": "Open a second window first — Side by Side lays two of this app's windows next to each other.",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Open a sent file",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Open a sent file…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -28108,9 +28702,21 @@
       ]
     },
     {
+      "message": "Open the locked folder {name}",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Open the sign-in in",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Open this folder",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -28141,6 +28747,12 @@
       "message": "Open {app} in {name}, beside this window",
       "where": [
         "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "Open {name}",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -28226,6 +28838,7 @@
       "message": "Opening…",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/pdf/index.js",
         "apps/desktop/renderer/protect.js"
       ]
@@ -29116,10 +29729,17 @@
       ]
     },
     {
+      "message": "Part of this folder is already locked, with a key of its own. Those files stay locked and this folder's new key will not open them. To work with them, add that inner folder on its own.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Password",
       "where": [
         "apps/desktop/renderer/apps/base/links.js",
         "apps/desktop/renderer/apps/base/people.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/password-again.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -29159,6 +29779,12 @@
       "message": "Password removed. Save to write the {noun} without it.",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Password that locked this folder",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -30108,6 +30734,12 @@
       "message": "Plain Text Properties",
       "where": [
         "apps/desktop/renderer/apps/word/forms.js"
+      ]
+    },
+    {
+      "message": "Plain files once they are locked",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -32333,6 +32965,18 @@
       ]
     },
     {
+      "message": "Recovery key",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Recovery key that opens this folder",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Rectangle",
       "where": [
         "apps/desktop/renderer/apps/image.js",
@@ -33087,6 +33731,12 @@
       ]
     },
     {
+      "message": "Remove them (suggested)",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Remove this category",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -33240,6 +33890,7 @@
     {
       "message": "Rename",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
@@ -33314,6 +33965,12 @@
       ]
     },
     {
+      "message": "Rename {name}",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Rename — this layout's name",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -33335,6 +33992,7 @@
       "message": "Rename…",
       "where": [
         "apps/desktop/renderer/apps/home.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/studio/setups-menu.js",
         "apps/desktop/renderer/studio/sources-column.js",
@@ -33491,6 +34149,12 @@
       "message": "Replace the Original",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "Replace the recovery key",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -34717,6 +35381,7 @@
     {
       "message": "Rules",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -35002,6 +35667,12 @@
       ]
     },
     {
+      "message": "SUGGESTED",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Safe Lists Only",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -35121,6 +35792,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/mail/password-again.js",
@@ -35232,6 +35904,18 @@
       ]
     },
     {
+      "message": "Save a plain copy",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Save a plain copy…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Save all",
       "where": [
         "apps/desktop/renderer/apps/mail/reader.js"
@@ -35241,6 +35925,18 @@
       "message": "Save all attachments to…",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Save an unlocked copy",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Save an unlocked copy…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -35426,6 +36122,12 @@
       "message": "Save the document first, so a second window can open the same file.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Save the locked copy…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -35993,6 +36695,18 @@
       "message": "Search every account",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Search files",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Search files in this folder",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -36813,6 +37527,24 @@
       ]
     },
     {
+      "message": "Send to someone",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Send to someone…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Send {name} to someone",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Sender",
       "where": [
         "apps/desktop/renderer/apps/mail/parts.js",
@@ -37182,6 +37914,7 @@
     {
       "message": "Settings",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/shell.js"
       ]
@@ -37763,6 +38496,12 @@
       ]
     },
     {
+      "message": "Show advanced options",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Show announcements from office.rutba.io — once a day at most. It sends the version and the operating system, and no identifier of any kind, so what is counted at the other end is \"a copy opened somewhere\", never you. It is also the only way we know the suite is being used at all.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -37784,6 +38523,12 @@
       "message": "Show formulas",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Show in Explorer",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -38426,6 +39171,7 @@
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/image/type-editor.js",
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/archive.js",
         "apps/desktop/renderer/apps/mail/parts.js",
@@ -39921,6 +40667,7 @@
     {
       "message": "State",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/word/mailings.js"
       ]
     },
@@ -39947,6 +40694,18 @@
       "message": "Statutes",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Stays plain",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Stays unlocked for {n} minutes",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -40024,6 +40783,18 @@
       ]
     },
     {
+      "message": "Still open in Office: {files}. Keep working and save as usual. Your saves are locked in when you next unlock.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Still open in another program, so not cleared yet: {files}. Close it to clear the temporary copy.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Stock list",
       "where": [
         "apps/desktop/renderer/template-gallery.js"
@@ -40067,6 +40838,24 @@
       "message": "Stop indexing",
       "where": [
         "apps/desktop/renderer/apps/mail/archive.js"
+      ]
+    },
+    {
+      "message": "Stop locking",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Stop locking this folder…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Stop locking {name}?",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -41230,6 +42019,12 @@
       ]
     },
     {
+      "message": "Temporary copies",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Tentative",
       "where": [
         "apps/desktop/renderer/ai-tools.js",
@@ -42258,6 +43053,12 @@
       ]
     },
     {
+      "message": "The current one and the two before it",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "The custom shows could not be saved.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -42712,6 +43513,12 @@
       ]
     },
     {
+      "message": "The locked copy is saved. Send it any way you like.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "The mail server could not be reached for its filters.",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
@@ -43045,6 +43852,12 @@
       ]
     },
     {
+      "message": "The other version stays as the file. This cannot be undone.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "The page this bookmark goes to is not in the document now",
       "where": [
         "apps/desktop/renderer/apps/pdf/nav.js"
@@ -43087,6 +43900,12 @@
       ]
     },
     {
+      "message": "The password for this file",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "The password for {name}, not saved on this computer",
       "where": [
         "apps/desktop/renderer/dav-accounts.js"
@@ -43120,6 +43939,12 @@
       "message": "The password is saved.",
       "where": [
         "apps/desktop/renderer/profiles.js"
+      ]
+    },
+    {
+      "message": "The password was changed.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -43427,6 +44252,12 @@
       "message": "The rows go in from the selected cell, {cell}, a date as a date and the amounts as numbers.",
       "where": [
         "apps/desktop/renderer/apps/sheets/receipt-row.js"
+      ]
+    },
+    {
+      "message": "The same password again",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -44949,15 +45780,45 @@
       ]
     },
     {
+      "message": "This folder cannot be added",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "This folder has no pictures a batch can convert.",
       "where": [
         "apps/desktop/renderer/apps/pictures/batch.js"
       ]
     },
     {
+      "message": "This folder is already locked, and this locker can open it. Its files stay locked.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "This folder is already locked. Enter the password that locked it, or its recovery key. Nothing in the folder changes.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "This folder is empty",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "This folder is in {cloud}, which keeps earlier versions of each file. Those earlier plain versions stay there after locking; clear them in {cloud}'s version history. While a file is open beside itself, {cloud} can upload its plain copy too.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "This folder is in {cloud}. While a file is open beside itself, {cloud} can upload its plain copy too.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -45078,6 +45939,12 @@
       "message": "This is the only window to arrange.",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "This is your Locker folder.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -45633,6 +46500,7 @@
     {
       "message": "Three",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -46718,6 +47586,18 @@
       ]
     },
     {
+      "message": "Turn off Windows Hello",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Turn on Windows Hello",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Turn on a stream to go live",
       "where": [
         "apps/desktop/renderer/studio/live-bar.js"
@@ -46794,6 +47674,18 @@
       "message": "Two columns",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Two versions",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Two versions of {name}.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -47167,7 +48059,8 @@
     {
       "message": "Unlock",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -47189,15 +48082,64 @@
       ]
     },
     {
+      "message": "Unlock the locker",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Unlock this track",
       "where": [
         "apps/desktop/renderer/apps/video/timeline.js"
       ]
     },
     {
+      "message": "Unlock with password",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Unlock with the recovery key",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Unlock your locker first if you want to keep it in a locked folder.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Unlock {name}?",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Unlocked",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Unlocked files",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Unlocked · locks again in {n} min",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Unlock…",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -47674,6 +48616,12 @@
       ]
     },
     {
+      "message": "Use Windows Hello (PIN, fingerprint or face)",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Use an Existing List…",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -47743,6 +48691,18 @@
       "message": "Use the new one",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "Use the password",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Use the recovery key",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -47915,6 +48875,12 @@
       "message": "Version {version}, {n} by {n} modules",
       "where": [
         "apps/desktop/renderer/qrcode.js"
+      ]
+    },
+    {
+      "message": "Versions kept of each file",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -48148,6 +49114,12 @@
       "message": "Violet",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Visible",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -48503,6 +49475,12 @@
       ]
     },
     {
+      "message": "What to lock",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "What to say about this cell",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -48587,6 +49565,18 @@
       "message": "When",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
+      ]
+    },
+    {
+      "message": "When the Locker locks, files you have unlocked",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "When the Locker locks, temporary copies of files you opened",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -48691,6 +49681,12 @@
       "message": "While Rutba Office is running; one due while it is closed goes out the next time mail is fetched.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "While a file is open",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -48814,6 +49810,12 @@
       "message": "Whoosh",
       "where": [
         "apps/desktop/renderer/apps/video/library.js"
+      ]
+    },
+    {
+      "message": "Why",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -49508,6 +50510,12 @@
       ]
     },
     {
+      "message": "You do not need a locker of your own to open this file.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "You're good to go.",
       "where": [
         "apps/desktop/renderer/review.js",
@@ -49524,6 +50532,12 @@
       "message": "YouTube, 16:9 at 1080p",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "Your Locker folder is ready. Put files in it, then lock them here.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -49557,6 +50571,24 @@
       ]
     },
     {
+      "message": "Your cloud kept both copies when two computers saved the file. Neither has been changed. Save each to compare them, then delete the one you do not want.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Your cloud made a conflicted copy when two computers saved it.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "Your cloud sees random names. Folder names stay visible.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "Your days, on this computer",
       "where": [
         "apps/desktop/renderer/registry-words.js"
@@ -49572,6 +50604,12 @@
       "message": "Your keys are kept in the protected store of this computer's account, never in a file. Certificates are checked against the authorities this computer trusts, offline; revocation is not checked.",
       "where": [
         "apps/desktop/renderer/apps/mail/smime.js"
+      ]
+    },
+    {
+      "message": "Your locked folders stay locked until you do.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -49639,6 +50677,12 @@
       "message": "Your permissions",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "Your recovery key. Write it down and keep it somewhere safe.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -50995,6 +52039,7 @@
     {
       "message": "or",
       "where": [
+        "apps/desktop/renderer/apps/locker.js",
         "apps/desktop/renderer/apps/video/export.js"
       ]
     },
@@ -51077,6 +52122,18 @@
       "message": "placeholder source",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
+      ]
+    },
+    {
+      "message": "plain originals deleted once locked",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "plain originals kept",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -51186,6 +52243,12 @@
       "message": "rotated up",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "rules from .rutbalocker",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -53856,6 +54919,12 @@
       ]
     },
     {
+      "message": "{name} is locked in {folder}.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "{name} is no longer a contact.",
       "where": [
         "apps/desktop/renderer/apps/talk.js"
@@ -53899,6 +54968,12 @@
       ]
     },
     {
+      "message": "{name} is open",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "{name} is open where it lies, read only. It is being indexed for search.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -53915,6 +54990,12 @@
       "message": "{name} is protected, and its pages cannot be inserted yet.",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
+      ]
+    },
+    {
+      "message": "{name} is ready to send",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -54284,9 +55365,51 @@
       ]
     },
     {
+      "message": "{n} files",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "{n} files could not be locked again. They are listed as not locked.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "{n} files could not be locked yet. They are shown as not locked.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "{n} files could not be unlocked, so the folder was not removed.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "{n} files in this folder have two versions. Choose between them first. Nothing has been changed.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "{n} files in {name} cannot be read.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "{n} files, all in the setup file",
       "where": [
         "apps/desktop/renderer/studio/setups-menu.js"
+      ]
+    },
+    {
+      "message": "{n} folders could not be reached. They take the new recovery key the next time they are here when the Locker opens.",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -54300,6 +55423,18 @@
       "message": "{n} kb/s",
       "where": [
         "apps/desktop/renderer/studio/window.js"
+      ]
+    },
+    {
+      "message": "{n} locked",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
+      "message": "{n} not locked",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
@@ -54321,6 +55456,12 @@
       ]
     },
     {
+      "message": "{n} of {total} files",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
+      ]
+    },
+    {
       "message": "{n} semitone",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
@@ -54336,6 +55477,12 @@
       "message": "{n} sources kept apart",
       "where": [
         "apps/desktop/renderer/studio/record-panel.js"
+      ]
+    },
+    {
+      "message": "{n} versions to choose between",
+      "where": [
+        "apps/desktop/renderer/apps/locker.js"
       ]
     },
     {
