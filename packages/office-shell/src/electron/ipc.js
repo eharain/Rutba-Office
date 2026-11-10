@@ -20,7 +20,7 @@ import { recorderRemote } from './recorder-remote.js';
 import { blobOwner } from './blobs.js';
 import { runsWhenOpened, markFromInternet } from '../runs.js';
 import { writeWhole } from '../write-whole.js';
-import { grantPlace } from './grants.js';
+import { grantPlace, mayServe } from './grants.js';
 import { speakAs, t } from './words.js';
 import { readHTML, readImage, writeImage, writeParts, readText, writeText } from './clipboard.js';
 import { shortcuts } from './shortcuts.js';
@@ -249,7 +249,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       return { stat: statOf(p) };
     },
     stat: ({ path: p }) => statOf(p),
-    exists: ({ path: p }) => fs.existsSync(p),
+    // Only looking at a share hands it the person's Windows sign-in: one they have not reached is said not to be there.
+    exists: ({ path: p }) => mayServe(p) && fs.existsSync(p),
     list: async ({ path: p, filter }) => {
       const names = await fsp.readdir(p, { withFileTypes: true });
       // A folder browsed: its pictures may be drawn, a share's among them (grants.js).

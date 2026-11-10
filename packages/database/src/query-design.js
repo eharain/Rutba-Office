@@ -187,10 +187,11 @@ export function joinsFor(tables, relationships) {
  * The SQL a design stands for: { sql, params, columns } with `columns` the
  * headings of what it shows. `relationships` are the file's.
  */
-export function designToSql(design, relationships = [], { fieldsOf = null, today = null } = {}) {
+export function designToSql(design, relationships = [], { fieldsOf = null, today = null, mayRead = null } = {}) {
   // A query written in SQL and kept from the SQL view: its own text, a SELECT and nothing else.
   if (typeof design?.sql === 'string') return { sql: sqlText(design.sql), params: [], columns: [], sources: [], written: true };
   const tables = [...new Set(design.tables || [])];
+  if (mayRead) for (const t of tables) if (!mayRead(t)) throw new Error(`There is no table called ${t}.`);
   const columns = (design.columns || []).filter((c) => c && ((c.table && c.field) || (typeof c.expr === 'string' && c.expr.trim())));
   for (const c of columns) if (!c.expr && !tables.includes(c.table)) throw new Error(`${c.field} is from ${c.table}, which is not in the query.`);
   // A [Field] in an expression: the one table of the query that has it.

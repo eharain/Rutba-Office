@@ -674,7 +674,7 @@ export class Base {
     const fixed = fields.filter((f) => f.readOnly);
     if (fixed.length) {
       const now = this.db.prepare(`SELECT * FROM main.${q(table)} WHERE rowid = ?`).get(rowid) || {};
-      for (const f of fixed) if (toStored(f, values[f.name]) !== now[f.name]) throw new Error(`${f.name} is read only for you.`);
+      for (const f of fixed) if (String(values[f.name] ?? '') !== String(now[f.name] ?? '') && toStored(f, values[f.name]) !== now[f.name]) throw new Error(`${f.name} is read only for you.`);
       fields = fields.filter((f) => !f.readOnly);
     }
     if (!fields.length) return 0;
@@ -872,7 +872,9 @@ export class Base {
   /** A query's tables' fields, for the [Field] names in its expressions. */
   _designFields() {
     const cache = new Map();
-    return { fieldsOf: (t) => { if (!cache.has(t)) cache.set(t, this.fields(t).map((f) => f.name)); return cache.get(t); } };
+    // A role reads what it is given. Its views cover the tables it may see; a design naming anything else would reach past them.
+    const mayRead = this._rights() ? (t) => this.tables().some((x) => x.name.toLowerCase() === String(t).toLowerCase()) : null;
+    return { fieldsOf: (t) => { if (!cache.has(t)) cache.set(t, this.fields(t).map((f) => f.name)); return cache.get(t); }, mayRead };
   }
 
   /** The forms: [{ name, layout }], in their order. */

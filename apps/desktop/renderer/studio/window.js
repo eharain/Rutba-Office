@@ -37,6 +37,7 @@ import { recordingType } from '../recording/session.js';
 import { readInto, openLink } from './into.js';
 import { makeTakes } from './takes.js';
 import { Program } from './program.js';
+import { whileStopping } from './stopping.js';
 import { WebPageDialog, FLIP_CSS } from './flip-strip.js';
 import { TALL_FRAME_CSS } from './tall-frame.js';
 import { makeTallProgram } from './tall-program.js';
@@ -951,13 +952,14 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         ({ path } = await shell.capture.take({ dir: set.folder, name }));
       }
       takenRef.current = path;
-      // A disk that stops taking the recording ends it now: every frame after that would be lost unseen.
-      recorderNow().onWriteFailed = () => { if (phaseRef.current === 'recording') stopRef.current?.(); };
       if (liveRecord.current && !soundOnly && settingsRef.current.liveCopyShape === 'tall') {
         const tall = getTall();
         tall.attach();
         copyProgram.current = tall;
       }
+      // A disk that stops taking the recording ends it now: every frame after that would be lost unseen.
+      // Set after the tall copy is in place, for it is that copy which is recording then.
+      recorderNow().onWriteFailed = () => { if (phaseRef.current === 'recording') stopRef.current?.(); };
       await recorderNow().record({ shell, path, soundOnly, type, takes });
       pointerOn.current = false;
       const screenTake = takes.find((k) => k.role === 'screen');
@@ -1505,7 +1507,7 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       ) : null}
       <OpenSetupDialog s={s} />
       {closeAsk && liveRef.current ? <ConfirmDialog title={t('End broadcast?')} body={t('You are live. Closing this window ends the broadcast.')} okLabel={t('End broadcast and close')} onOk={async () => { closing.current = true; await endLive(); await stopRef.current?.(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
-      {closeAsk && !liveRef.current ? <ConfirmDialog title={t('Stop recording?')} body={t('A recording is running. It is stopped and kept, then this window closes.')} okLabel={t('Stop and close')} onOk={async () => { closing.current = true; await stopRef.current?.(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
+      {closeAsk && !liveRef.current ? <ConfirmDialog title={t('Stop recording?')} body={t('A recording is running. It is stopped and kept, then this window closes.')} okLabel={t('Stop and close')} onOk={async () => { closing.current = true; await stopRef.current?.(); await whileStopping(() => phaseRef.current); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
       {cameraAsk ? <ConfirmDialog tone="plain" title={t('Change the camera on air?')} body={t('The picture on air changes to {name} at once.', { name: cameraAsk.name })} okLabel={t('Change')} onOk={() => (cameraAsk.apply ? cameraAsk.apply() : setCameraTo(cameraAsk))} onClose={() => setCameraAsk(null)} /> : null}
       {sceneAsk?.what === 'rename' ? <NameDialog title={t('Rename')} label={t('Name')} value={sceneAsk.sc.name} okLabel={t('Rename')} onOk={(name) => { changeStack((st) => renameScene(st, sceneAsk.sc.key, name)); setSceneAsk(null); }} onClose={() => setSceneAsk(null)} /> : null}
       {sceneAsk?.what === 'delete' ? <ConfirmDialog title={t('Delete {name}?', { name: sceneAsk.sc.name })} body={t('The scene goes from this setup. Undo brings it back.')} okLabel={t('Delete')} onOk={() => changeStack((st) => removeScene(st, sceneAsk.sc.key))} onClose={() => setSceneAsk(null)} /> : null}

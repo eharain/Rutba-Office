@@ -16,6 +16,9 @@ const u64 = (b, at) => u32(b, at) * 2 ** 32 + u32(b, at + 4);
 const hex2 = (n) => n.toString(16).padStart(2, '0');
 
 /** The boxes between `start` and `end`: [{ type, at, size, body, end }]. */
+/** Four hours at 240 pictures a second; a file claiming more is not a film. */
+const MOST_SAMPLES = 3456000;
+
 export function boxesIn(b, start = 0, end = b.length) {
   const out = [];
   let at = start;
@@ -198,7 +201,7 @@ function samplesOf(b, stbl) {
   }
   const fixed = stszBox ? u32(b, stszBox.body + 4) : 0;
   const roomFor = fixed ? Math.floor(b.length / fixed) : (stszBox ? Math.max(0, Math.floor((stszBox.end - stszBox.body - 12) / 4)) : 0);
-  const count = stszBox ? Math.min(u32(b, stszBox.body + 8), roomFor) : 0;
+  const count = stszBox ? Math.min(u32(b, stszBox.body + 8), roomFor, MOST_SAMPLES) : 0;
   const sizes = [];
   for (let i = 0; i < count; i++) sizes.push(fixed || u32(b, stszBox.body + 12 + i * 4));
   const keys = stss ? new Set(stss) : null;
@@ -289,6 +292,7 @@ export function readMp4(bytes) {
 
   // Fragments: each moof's traf adds samples to its track.
   let fragmented = false;
+  let claimed = 0;
   for (const moof of top.filter((x) => x.type === 'moof')) {
     fragmented = true;
     for (const traf of children(b, moof, 'traf')) {
@@ -317,8 +321,10 @@ export function readMp4(bytes) {
         const signed = b[trun.body] === 1;
         let q = trun.body + 8;
         const perSample = [0x100, 0x200, 0x400, 0x800].filter((bit) => tf & bit).length * 4;
-        const room = perSample ? Math.floor((trun.end - q) / perSample) : b.length;
-        const count = Math.min(u32(b, trun.body + 4), Math.max(0, room));
+        // A run with nothing per sample costs twelve bytes however many it claims: they have to fit in the file.
+        const room = perSample ? Math.floor((trun.end - q) / perSample) : Math.floor(Math.max(0, b.length - claimed) / Math.max(1, defSize));
+        const count = Math.min(u32(b, trun.body + 4), Math.max(0, room), Math.max(0, MOST_SAMPLES - track.samples.length));
+        if (!perSample) claimed += count * Math.max(1, defSize);
         let offset = dataEnd ?? base;
         if (tf & 0x01) { offset = base + i32(b, q); q += 4; }
         let firstFlags = null;

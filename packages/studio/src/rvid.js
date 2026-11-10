@@ -119,8 +119,10 @@ async function inflateRaw(bytes, limit) {
 
 /** The server of a path on a network share, or null. Looking at one sends it who you are. */
 function shareHost(p) {
-    const text = String(p).replace(/\\/g, '/');
-    if (/^\/\/[?.]\/(?!unc\/)/i.test(text)) return null;
+    const text = String(p).replace(/\\/g, '/').replace(/^\/\?\?\//, '//?/');
+    // //?/C:/ is this computer. //?/GLOBALROOT/Device/Mup/server and the like are a share by another name.
+    const device = /^\/\/[?.]\/(?!unc\/)(.*)$/i.exec(text);
+    if (device) return /^[a-z]:/i.test(device[1]) ? null : 'device:' + device[1].toLowerCase();
     const m = /^(?:\/\/(?:[?.]\/unc\/)?|file:\/\/(?!\/))([^/]+)/i.exec(text);
     return m ? m[1].toLowerCase() : null;
 }

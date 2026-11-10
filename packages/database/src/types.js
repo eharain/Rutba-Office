@@ -151,6 +151,8 @@ export function toStored(field, value) {
     case 'integer': case 'autonumber': {
       const n = typeof value === 'number' ? value : Number(String(value).replace(/[,\s]/g, ''));
       if (!Number.isInteger(n)) throw new Error(`${field.name} takes a whole number.`);
+      // Past this a number rounds without a word: 9007199254740993 would be kept as ...992.
+      if (!Number.isSafeInteger(n)) throw new Error(`${field.name} cannot keep a number that long exactly.`);
       return n;
     }
     case 'yesno': return value === true || value === 1 || /^(1|yes|true|y)$/i.test(String(value)) ? 1 : 0;

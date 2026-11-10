@@ -27,6 +27,22 @@ const MOST_REDIRECTS = 10;
 /** The address's own name, for a message: its host. */
 const hostOf = (url) => { try { return new URL(url).host; } catch { return String(url); } };
 
+/**
+ * Whether a redirect stays with the service the headers were written for: the
+ * same origin, or the same name moved up to https or to or from www. Never
+ * down to http, where anyone on the way could read them.
+ */
+function sameService(from, to) {
+  const a = new URL(from);
+  const b = new URL(to);
+  if (a.origin === b.origin) return true;
+  if (b.protocol !== 'https:') return false;
+  const bare = (u) => u.hostname.replace(/^www\./i, '').toLowerCase();
+  const portOf = (u) => u.port || (u.protocol === 'https:' ? '443' : '80');
+  const plainPorts = a.protocol === 'http:' ? portOf(a) === '80' && portOf(b) === '443' : portOf(a) === portOf(b);
+  return bare(a) === bare(b) && plainPorts;
+}
+
 /** A web address fetched, its failures said in words a person can act on. */
 async function fetchFrom(url, { headers = {}, headersFor = null, fetchImpl = fetch } = {}) {
   let res;
@@ -230,8 +246,7 @@ export async function readJsonSource({ where, headers = [], records = '', paging
     const value = h.secret ? secretOf(name) : h.value;
     if (value != null && value !== '') (h.secret ? secret : sent)[name] = String(value);
   }
-  const origin = new URL(first).origin;
-  const headersFor = (url) => (new URL(url).origin === origin ? { ...sent, ...secret } : sent);
+  const headersFor = (url) => (sameService(first, url) ? { ...sent, ...secret } : { Accept: sent.Accept });
   const all = [];
   let url = first;
   let pages = 0;
