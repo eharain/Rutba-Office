@@ -19,7 +19,7 @@ import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { newHeader, readHeader, openLocked, verifyLocked, fileHash, LockerError, HEADER_SIZE, MODE_FOLDER, MODE_SHARED } from './format.js';
-import { sealFile, writePlain, writePlainFrom, sweepWorking, isWorkingFile } from './place.js';
+import { sealFile, writePlain, writePlainFrom, isWorkingFile, workingName } from './place.js';
 import { sealPieces, openPieces, listsIn, readItem, removeNewestList } from './pieces.js';
 import { parseRules, decide, isLockerOwn, OPEN_DIR } from './rules.js';
 
@@ -32,28 +32,21 @@ const posix = (p) => p.split(path.sep).join('/');
 const randomName = () => `${crypto.randomBytes(16).toString('hex')}${LOCK_EXT}`;
 
 /**
- * Whether a file can be removed at all, found by moving it and moving it back.
- * A program can hold a file so that it may be written but not deleted. Windows
- * then opens it for writing and refuses only the delete, so overwriting first
- * would leave that program a file of zeros. A move needs the same permission a
- * delete does. Answers the name the file now has, or null.
+ * A file moved under a working name, where it stays until it has gone, or null
+ * if it cannot be. A program can hold a file so that it may be written but not
+ * deleted. Windows then opens it for writing and refuses only the delete, so
+ * overwriting first would leave that program a file of zeros; a move needs the
+ * same permission a delete does. And a stop part way through must not leave
+ * zeros under the file's own name, to be locked as its next version.
  */
-async function removableAs(file) {
-  const moved = `${file}.${crypto.randomBytes(4).toString('hex')}.rl-part`;
+async function movedAside(file) {
+  const moved = path.join(path.dirname(file), workingName());
   try {
     await fsp.rename(file, moved);
+    return moved;
   } catch {
     return null;
   }
-  for (let tries = 0; tries < 5; tries += 1) {
-    try {
-      await fsp.rename(moved, file);
-      return file;
-    } catch {
-      await new Promise((r) => setTimeout(r, 100));
-    }
-  }
-  return moved;
 }
 
 /**
@@ -67,7 +60,7 @@ export async function wipeFile(file) {
     // Never through a link: what it points at is not this file.
     const st = await fsp.lstat(file);
     if (st.isFile()) {
-      target = await removableAs(file);
+      target = await movedAside(file);
       if (!target) return;
       const fh = await fsp.open(target, 'r+');
       try {
@@ -121,6 +114,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     const lockedFiles = [];
     const pieceDirs = [];
     const sets = [];
+    const stray = [];
     const go = async (dir, rel) => {
       let names;
       try {
@@ -148,7 +142,10 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
           }
           await go(p, r);
         } else if (e.isFile()) {
-          if (isWorkingFile(e.name)) continue;
+          if (isWorkingFile(e.name)) {
+            stray.push(p);
+            continue;
+          }
           if (e.name.endsWith(LOCK_EXT)) lockedFiles.push({ path: p, rel: r });
           else if (!isLockerOwn(e.name)) files.push({ path: p, rel: r });
         }
@@ -156,7 +153,7 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     };
     await go(root, '');
     sets.sort((a, b) => a.dir.length - b.dir.length);
-    return { files, lockedFiles, pieceDirs, sets };
+    return { files, lockedFiles, pieceDirs, sets, stray };
   }
 
   const rulesFor = (sets, rel) => sets.filter((s) => s.dir === '' || rel.startsWith(`${s.dir}/`) || rel === s.dir);
@@ -365,6 +362,21 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     if (old.length && old.length === excess) await fsp.rmdir(path.join(root, OLD_DIR, fileId)).catch(() => {});
   }
 
+  /** A smaller file's earlier versions, and the copy it is now, made the first versions in its new folder of pieces, oldest first. */
+  async function carryVersions(existing, dir) {
+    await fsp.mkdir(stageDir, { recursive: true });
+    for (const version of [...await oldVersions(existing.fileId), existing.path]) {
+      const tmp = path.join(stageDir, workingName());
+      try {
+        const { meta } = await writePlain({ locked: version, dest: tmp, rootKey: key, overwrite: true });
+        if (meta.modified) await fsp.utimes(tmp, new Date(meta.modified), new Date(meta.modified)).catch(() => {});
+        await sealPieces({ source: tmp, dir, folderKey: key, folderId, stageDir, meta: { name: meta.name, by: meta.by }, keep: opt().keepVersions, hooks });
+      } finally {
+        await wipeFile(tmp);
+      }
+    }
+  }
+
   /**
    * A plain file sealed into the folder: as a new locked file, or as the
    * next version of the locked file of the same name. Nothing the file was
@@ -377,10 +389,14 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     await fsp.mkdir(path.dirname(abs(realRel)), { recursive: true });
     if (useLarge) {
       const dir = existing?.pieces ? existing.path : path.join(path.dirname(abs(realRel)), `${opt().hidden ? randomName() : `${path.basename(realRel)}${LOCK_EXT}`}.d`);
+      if (existing && !existing.pieces) await carryVersions(existing, dir);
       const out = await sealPieces({ source: plain, dir, folderKey: key, folderId, stageDir, meta, keep: opt().keepVersions, hooks });
       // A smaller file that grew: its old single-file copy goes, once the pieces are in place and read back.
       if (existing && !existing.pieces) {
-        if (await readBackMatches(dir, out.sha256, out.size)) await fsp.rm(existing.path, { force: true }).catch(() => {});
+        if (await readBackMatches(dir, out.sha256, out.size)) {
+          await fsp.rm(existing.path, { force: true }).catch(() => {});
+          await fsp.rm(path.join(root, OLD_DIR, existing.fileId), { recursive: true, force: true }).catch(() => {});
+        }
       }
       const stAfter = await fsp.stat(plain);
       return { ...out, modified: stAfter.mtimeMs, target: dir };
@@ -440,7 +456,8 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
 
   /** Every waiting file, one at a time. Answers what happened to each, and what would not go. A deadline, or the locker closing, leaves the rest as they are. */
   async function lockWaiting({ deadline = Infinity, shouldStop = () => false, ...options } = {}) {
-    await sweepWorking(root).catch(() => {});
+    // Left by a stop part way, at any depth: what they hold may be plain, so each is overwritten before it goes.
+    for (const p of (await walk()).stray) await wipeFile(p).catch(() => {});
     const list = await scan();
     const done = [];
     const failed = [];
@@ -687,7 +704,10 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
     await fsp.rename(tmp, path.join(root, '.rutbalocker'));
   }
 
-  return { root, scan, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, rename, removeFile, adopt, versions, restore, readRules, writeRules, entryFor, opener };
+  /** The key this folder's work has been holding, overwritten once that work is over. */
+  const forget = () => key.fill(0);
+
+  return { root, scan, why, lockOne, lockWaiting, exportCopy, toStage, saveFrom, unlockForGood, rename, removeFile, adopt, versions, restore, readRules, writeRules, entryFor, opener, forget };
 }
 
 /** A shared file's key: from its password, by the scrypt settings its header carries. */

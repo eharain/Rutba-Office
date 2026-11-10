@@ -55,7 +55,14 @@ export function createLocker({ dir, cost, hooks = null }) {
 
   // Which locker a working folder belongs to: on a folder a cloud drive shares, another computer's may be in use there.
   const owner = crypto.createHash('sha256').update(`${os.hostname()}|${path.resolve(dir)}`).digest('hex').slice(0, 12);
-  const ours = (sub) => !path.basename(sub).includes('-') || path.basename(sub).startsWith(`${owner}-`);
+  // A name with no owner was made by 2.24.0, here or on another computer sharing the folder: that other computer's may be in use, so one is cleared only once it has stood a day.
+  const ours = async (sub) => {
+    const name = path.basename(sub);
+    if (name.startsWith(`${owner}-`)) return true;
+    if (name.includes('-')) return false;
+    const st = await fsp.stat(sub).catch(() => null);
+    return !st || Date.now() - st.mtimeMs > 24 * 3600 * 1000;
+  };
 
   async function state() {
     let text;
@@ -72,7 +79,12 @@ export function createLocker({ dir, cost, hooks = null }) {
       throw new LockerError('format', 'The list of locked folders could not be read.');
     }
   }
-  const saveState = (s) => writeJsonAtomic(stateFile, s);
+  // One write at a time: two folders' work can finish together, and the list is one file.
+  let saving = Promise.resolve();
+  const saveState = (s) => {
+    saving = saving.catch(() => {}).then(() => writeJsonAtomic(stateFile, s));
+    return saving;
+  };
 
   /** One operation at a time on a folder: two windows and the watcher never interleave. */
   function queued(id, fn) {
@@ -95,10 +107,22 @@ export function createLocker({ dir, cost, hooks = null }) {
   let keepingCopies = false;
 
   /** Plain copies that came along in a copied folder are nobody's open file. */
-  async function clearCopiedWorking(root) {
+  async function clearCopiedWorking(root, { copied = false } = {}) {
     const known = new Set([...openFiles.values()].map((e) => path.resolve(e.sub)));
     for (const d of await findWorkingDirs(root).catch(() => [])) {
-      if (!known.has(path.resolve(d)) && ours(d)) await wipeWorking(d);
+      // In a copy made on this computer, one with no owner in its name is nobody's: no other computer is working in this copy.
+      const nobodys = copied && !path.basename(d).includes('-');
+      if (!known.has(path.resolve(d)) && (nobodys || await ours(d))) await wipeWorking(d);
+    }
+  }
+
+  /** A folder that moved: the copies open from it are now under its new place, and are still somebody's. */
+  function followMove(id, from, to) {
+    for (const [key, e] of [...openFiles.entries()]) {
+      if (e.folderId !== id || !isInside(path.resolve(e.sub), from)) continue;
+      const moved = { ...e, sub: path.join(to, path.relative(from, e.sub)), path: path.join(to, path.relative(from, e.path)) };
+      openFiles.delete(key);
+      openFiles.set(path.resolve(moved.path), moved);
     }
   }
 
@@ -184,7 +208,14 @@ export function createLocker({ dir, cost, hooks = null }) {
   }
 
   const refusedWhileClosing = () => Promise.reject(new LockerError('locked', 'Unlock the locker first.'));
-  const withFolder = (id, fn) => (closing ? refusedWhileClosing() : queued(id, async () => fn(await folderEngine(await folderRecord(id)))));
+  const withFolder = (id, fn) => (closing ? refusedWhileClosing() : queued(id, async () => {
+    const engine = await folderEngine(await folderRecord(id));
+    try {
+      return await fn(engine);
+    } finally {
+      engine.forget();
+    }
+  }));
 
   async function changedSince(e) {
     try {
@@ -196,8 +227,16 @@ export function createLocker({ dir, cost, hooks = null }) {
   }
 
   /** A copy's changes written back and the copy removed. A copy that could not be written back stays, to be tried again. */
+  /** Its drive is not plugged in, or its folder has moved: nothing can be said about the copy yet, and it may hold changes. */
+  async function outOfReach(e) {
+    const there = (p) => fsp.stat(p).then(() => true, () => false);
+    return !(await there(e.path)) && !(await there(path.dirname(e.sub)));
+  }
+
   async function finishOpen(e) {
-    if (await fsp.stat(e.path).then(() => true, () => false)) {
+    if (await outOfReach(e)) return false;
+    const copyThere = await fsp.stat(e.path).then(() => true, () => false);
+    if (copyThere) {
       try {
         await api.saveOpen(e.path);
       } catch {
@@ -342,7 +381,7 @@ export function createLocker({ dir, cost, hooks = null }) {
       await keys.unlock(how);
       await markInUse();
       keepingCopies = false;
-      await sweepWorking(stageDir).catch(() => {});
+      await sweepWorking(stageDir, wipeFile).catch(() => {});
       await api.recoverOpenFiles({ shown }).catch(() => {});
       await api.healFolderKeys().catch(() => {});
     },
@@ -412,6 +451,7 @@ export function createLocker({ dir, cost, hooks = null }) {
           else open.push(e.rel);
           continue;
         }
+        if (e.sha256 && await outOfReach(e)) continue;
         if (e.sha256 && await changedSince(e)) {
           left.push(e.rel);
           continue;
@@ -470,7 +510,7 @@ export function createLocker({ dir, cost, hooks = null }) {
       const known = new Set([...openFiles.values()].map((e) => path.resolve(e.sub)));
       for (const f of list) {
         for (const d of await findWorkingDirs(f.root)) {
-          if (!known.has(path.resolve(d)) && ours(d)) await wipeWorking(d);
+          if (!known.has(path.resolve(d)) && await ours(d)) await wipeWorking(d);
         }
       }
     },
@@ -497,7 +537,7 @@ export function createLocker({ dir, cost, hooks = null }) {
           // The person chose to keep them until the next unlock.
           if (keepingCopies) continue;
           // Locked meanwhile: unchanged copies can go, changed ones wait for the keys.
-          if (!(await changedSince(e)) && await wipeWorking(e.sub)) {
+          if (!(await outOfReach(e)) && !(await changedSince(e)) && await wipeWorking(e.sub)) {
             openFiles.delete(key);
             closed.push(e.rel);
           }
@@ -578,10 +618,14 @@ export function createLocker({ dir, cost, hooks = null }) {
         if (twin) {
           // Its key file names a folder this locker already has. If that folder has gone from where it was, this is the same one moved.
           const stillThere = await keys.readFolderKeysFile(path.join(twin.root, FOLDER_KEYS)).catch(() => null);
-          if (stillThere?.id !== id) {
+          // A drive that is not plugged in says nothing about where its folder is: this is then a copy.
+          const driveThere = await fsp.stat(path.parse(path.resolve(twin.root)).root).then(() => true, () => false);
+          if (stillThere?.id !== id && driveThere) {
+            followMove(id, path.resolve(twin.root), resolved);
+            await recordOpenFiles().catch(() => {});
             twin.root = resolved;
             await saveState(s);
-            await clearCopiedWorking(resolved);
+            await clearCopiedWorking(resolved, { copied: true });
             return { id, root: resolved, joined: true, moved: true };
           }
           // Otherwise it is a copy: a folder of its own, under the same key, so what is done to one is never done to the other.
@@ -592,7 +636,7 @@ export function createLocker({ dir, cost, hooks = null }) {
           await keys.writeFolderKeysFile(keyFile, keys.wrapForFolder(key, id));
           s.folders.push({ id, root: resolved, ...merged, added: new Date().toISOString() });
           await saveState(s);
-          await clearCopiedWorking(resolved);
+          await clearCopiedWorking(resolved, { copied: true });
           await api.adoptCopies(id).catch(() => {});
           return { id, root: resolved, joined: true, copied: true };
         }
@@ -649,7 +693,7 @@ export function createLocker({ dir, cost, hooks = null }) {
           taken.push({ rel, state: 'locked' });
           adopted.push(rel);
         } finally {
-          await fsp.rm(stage, { force: true }).catch(() => {});
+          await wipeFile(stage).catch(() => {});
         }
       };
       const others = list.filter((e) => e.state !== 'damaged' && !twins.includes(e));

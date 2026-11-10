@@ -692,6 +692,9 @@ test('after a crash the next unlock writes the change back, clears the copy and 
   const stray = path.join(folder, '.rutba-open', 'feedfacefeedface');
   fs.mkdirSync(stray);
   fs.writeFileSync(path.join(stray, 'left.pdf'), 'left by something else');
+  // One with no owner in its name goes once it has stood a day: until then it may be another computer's.
+  const old = new Date(Date.now() - 3 * 24 * 3600 * 1000);
+  fs.utimesSync(stray, old, old);
   // A new run of the app: nothing in memory, the keys gone.
   const again = createLocker({ dir: profile, cost: CHEAP });
   await again.unlock({ password: 'pw' });

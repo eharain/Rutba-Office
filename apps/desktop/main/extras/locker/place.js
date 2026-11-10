@@ -30,6 +30,7 @@ const SUFFIX = '.part';
 
 /** A name for a working file: random, says nothing about the file. */
 const tempName = () => `.rl-${crypto.randomBytes(12).toString('hex')}${SUFFIX}`;
+export const workingName = tempName;
 
 /** Whether a name is one of these working files: the scan never lists them and the sweep may remove them. */
 export const isWorkingFile = (name) => /^\.rl-[0-9a-f]{24}\.part$/.test(name);
@@ -214,8 +215,11 @@ export async function writePlainFrom(opened, dest, { overwrite = false, hooks = 
   }
 }
 
-/** Left-over working files in a folder, removed: whatever is there is not a person's file. */
-export async function sweepWorking(dir) {
+/**
+ * Left-over working files in a folder, removed: whatever is there is not a
+ * person's file. `remove` is how: one may hold a plain copy, and is overwritten first.
+ */
+export async function sweepWorking(dir, remove = (p) => fsp.rm(p, { force: true })) {
   let names = [];
   try {
     names = await fsp.readdir(dir);
@@ -225,7 +229,7 @@ export async function sweepWorking(dir) {
   let n = 0;
   for (const name of names) {
     if (!isWorkingFile(name)) continue;
-    await fsp.rm(path.join(dir, name), { force: true }).catch(() => {});
+    await remove(path.join(dir, name)).catch(() => {});
     n += 1;
   }
   return n;
