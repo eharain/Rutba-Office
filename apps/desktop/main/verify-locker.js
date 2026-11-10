@@ -9,10 +9,25 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
+import { readZip } from '@rutba/ooxml/zip';
 import { createLocker } from './extras/locker/locker.js';
 
 const js2 = (w, code) => w.webContents.executeJavaScript(code);
 const LOCKED_ROW = (rel) => `tr[data-rel=${JSON.stringify(rel)}][data-state=locked]`;
+
+/** Whether any stretch of the plain bytes can be found in the locked file. */
+function leaks(lockedFile, plain) {
+  const locked = fs.readFileSync(lockedFile);
+  const size = Math.min(32, plain.length);
+  for (let at = 0; at + size <= plain.length; at += 4096) if (locked.includes(plain.subarray(at, at + size))) return true;
+  return false;
+}
+
+/** The words in a Word file, read from its own XML and not through the app that wrote it. */
+function wordsIn(file) {
+  const part = readZip(fs.readFileSync(file)).entries.find((e) => e.name.replace(/^\//, '') === 'word/document.xml');
+  return part ? Buffer.from(part.data).toString('utf8').replace(/<[^>]+>/g, '') : '';
+}
 
 export async function verifyLocker({ open, check, until, wait, errorsIn, doc, capture: shot = async () => {} }, { dir, files }) {
   // An off-screen window paints only when asked, so each capture asks first.
@@ -31,6 +46,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
   fs.writeFileSync(pdfFile, pdfBytes);
   const words = path.join(root, 'Report.docx');
   fs.copyFileSync(files.docx, words);
+  const wordsBytes = fs.readFileSync(words);
   fs.mkdirSync(path.join(root, 'Contracts', '2026'), { recursive: true });
   fs.writeFileSync(path.join(root, 'Contracts', '2026', 'Terms.txt'), 'the terms');
   fs.writeFileSync(path.join(root, '~$Report.docx'), 'lock file');
@@ -64,7 +80,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => js(`Boolean(document.querySelector('.lk-card'))`), 'the setup card', 15000);
     await setField('Locker password', 'correct horse battery');
     await setField('The same password again', 'correct horse battery');
-    check('locker: a file someone sent can be opened by a person with no locker of their own', await js(`Boolean(document.querySelector('.lk-open-sent'))`));
+    check('locker: the first screen offers to open a file someone sent', await js(`Boolean(document.querySelector('.lk-open-sent'))`));
     const made = await clickText('Make the locker');
     await until(() => js(`Boolean(document.querySelector('[data-recovery]'))`), 'the recovery key', 15000);
     const recovery = await js(`document.querySelector('[data-recovery]').textContent`);
@@ -94,6 +110,9 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => js(`Boolean(document.querySelector('tr[data-rel="Report.docx"][data-state="locked"]'))`), 'the files to be locked', 30000);
     const sealed = fs.existsSync(`${words}.rlock`) && !fs.existsSync(words) && !fs.existsSync(pdfFile) && fs.existsSync(path.join(root, '.rutbalocker-keys'));
     check('locker: the folder\'s files are locked where they are, each its own .rlock, the plain copies gone', sealed, fs.readdirSync(root).join(', '));
+    const terms = path.join(root, 'Contracts', '2026', 'Terms.txt.rlock');
+    await until(() => fs.existsSync(terms), 'the subfolder file locked', 15000);
+    check('locker: none of the plain bytes can be found in the locked files', !leaks(`${pdfFile}.rlock`, pdfBytes) && !leaks(`${words}.rlock`, wordsBytes) && !leaks(terms, Buffer.from('the terms')));
     await clickSel('tr[data-rel="~$Report.docx"]');
     await until(() => js(`Boolean(document.querySelector('.lk-detail'))`), 'the line about the file', 4000);
     const tmpFileRow = await js(`document.querySelector('tr[data-rel="~$Report.docx"]')?.textContent + ' ' + document.querySelector('.lk-detail').textContent`);
@@ -161,7 +180,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     const savedBack = await until(() => !fs.readFileSync(`${words}.rlock`).equals(before), 'the save written back', 20000).then(() => true, () => false);
     const roundTrip = path.join(out, 'saved.docx');
     await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.exportCopy({ id: s.folders[0].id, rel: 'Report.docx', dest: ${JSON.stringify(roundTrip)}, overwrite: true }); return 1; })()`);
-    check('locker: Save from Documents reaches the locked file, and what comes back out is what was saved', savedBack && fs.readFileSync(roundTrip).equals(fs.readFileSync(tempPath)));
+    check('locker: Save from Documents reaches the locked file, and what comes back out is what was saved', savedBack && fs.readFileSync(roundTrip).equals(fs.readFileSync(tempPath)) && wordsIn(roundTrip).includes('Edited while locked.'), wordsIn(roundTrip).slice(0, 120));
     try { await doc.close?.({ id: session.id }); } catch { /* the window goes next */ }
     opened.destroy();
     const cleaned = await until(() => !fs.existsSync(path.join(root, '.rutba-open')), 'the temporary copy to be cleared', 15000).then(() => true, () => false);
@@ -186,7 +205,8 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await clickText('Unlock with password');
     await until(() => js(`Boolean(document.querySelector('.lk-add'))`), 'unlocked again', 15000);
     await until(() => js(`document.querySelectorAll('tbody tr').length > 0`), 'the files listed again', 8000);
-    check('locker: the right password opens it again and the files are back', true);
+    const namedRows = await js(`[${JSON.stringify(LOCKED_ROW('Report.docx'))}, ${JSON.stringify(LOCKED_ROW('Lease, signed.pdf'))}, ${JSON.stringify(LOCKED_ROW('Contracts/2026/Terms.txt'))}].every((s) => document.querySelector(s))`);
+    check('locker: the right password opens it again and the files are back, each listed as locked', namedRows, await visibleRows());
 
     // Windows Hello, with the stand-in for the person's PIN: on, and each way the prompt can end.
     const helloUnlocked = () => until(() => js(`Boolean(document.querySelector('.lk-add'))`), 'unlocked by Windows Hello', 8000).then(() => true, () => false);
@@ -194,7 +214,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => js(`Boolean(document.querySelector('.lk-advanced input'))`), 'the settings dialog', 5000);
     await clickText('Turn on Windows Hello');
     const helloOn = await until(() => js(`[...document.querySelectorAll('button')].some((x) => x.textContent.trim() === 'Turn off Windows Hello')`), 'Windows Hello on', 6000).then(() => true, () => false);
-    check('locker: Windows Hello can be turned on from the settings', helloOn);
+    check('locker: Windows Hello can be turned on from the settings (with a stand-in for the prompt, no real Windows Hello here)', helloOn);
     await clickText('Cancel');
     await until(() => js(`!document.querySelector('.lk-dialog-body')`), 'the settings to close', 5000);
     const helloButton = 'Use Windows Hello (PIN, fingerprint or face)';
@@ -215,7 +235,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     }, 'the missing-key message', 6000).catch(() => {});
     check('locker: a key Windows has lost points the person to the password, in plain words', /Use your password/.test(goneSaid) && !/NotFound/.test(goneSaid), goneSaid);
     await clickText(helloButton);
-    check('locker: Windows Hello opens it', await helloUnlocked());
+    check('locker: the stand-in for Windows Hello saying yes opens it', await helloUnlocked());
     await until(() => js(`document.querySelectorAll('tbody tr').length > 0`), 'the files listed after Windows Hello', 8000);
     await clickSel('.lk-settings');
     await until(() => js(`Boolean(document.querySelector('.lk-advanced input'))`), 'the settings dialog', 5000);
@@ -249,6 +269,9 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     await until(() => js(`Boolean(document.querySelector('.lk-share'))`), 'Share offered', 4000);
     await clickSel('.lk-share');
     await until(() => js(`Boolean(document.querySelector('.lk-dialog-body'))`), 'the share dialog', 5000);
+    await setField('A password for this one file', 'seven c');
+    await wait(150);
+    check('locker: a password under eight characters cannot be used to send a file', await js(`[...document.querySelectorAll('button')].filter((x) => /Save the locked copy|Attach to an email/.test(x.textContent)).every((x) => x.disabled)`));
     await setField('A password for this one file', 'one file only');
     await capture(win, 'locker-share.png');
     const shared = path.join(out, 'shared.rlock');
@@ -259,7 +282,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     check('locker: Export to share makes a file that opens with its own password and holds the original', opener === 'opened' && fs.readFileSync(path.join(out, 'shared.pdf')).equals(pdfBytes), opener);
     await until(() => js(`Boolean(document.querySelector('.lk-share-done'))`), 'the ready-to-send step', 5000);
     await capture(win, 'locker-share-done.png');
-    check('locker: after saving, the copy can go to an email or be shown in Explorer', await js(`Boolean(document.querySelector('.lk-share-mail') && document.querySelector('.lk-share-show'))`));
+    check('locker: the step after saving offers an email and Explorer', await js(`Boolean(document.querySelector('.lk-share-mail') && document.querySelector('.lk-share-show'))`));
     await clickSel('.lk-share-mail');
     let mailWin = null;
     await until(() => { mailWin = BrowserWindow.getAllWindows().find((x) => /[?&]app=mail(&|$)/.test(x.webContents.getURL())) || null; return Boolean(mailWin); }, 'the mail window', 15000);
@@ -371,8 +394,14 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
       docWin = BrowserWindow.getAllWindows().find((x) => /locker/.test(decodeURIComponent(x.webContents.getURL())) && /[?&]file=/.test(x.webContents.getURL())) || null;
       return Boolean(docWin);
     }, 'the document window for the idle check', 15000);
-    await wait(7000);
-    check('locker: the idle lock waits while a document from it is open in an Office window', !(await isLockedNow()) && (await stateNow()).open === true);
+    // Nothing should happen here, so it is watched for one and three quarter times the idle time, which is how long is long enough.
+    const idleSpan = 0.07 * 60000;
+    let lockedUnder = false;
+    for (const until_ = Date.now() + idleSpan * 1.75; Date.now() < until_ && !lockedUnder;) {
+      lockedUnder = await isLockedNow();
+      await wait(200);
+    }
+    check('locker: the idle lock waits while a document from it is open in an Office window', !lockedUnder && (await stateNow()).open === true);
     docWin.close();
     const lockedAfterDoc = await until(isLockedNow, 'the idle lock after the document closed', 14000).then(() => true, () => false);
     check('locker: once that document is closed the idle lock goes ahead', lockedAfterDoc);
@@ -404,7 +433,7 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     const heldIn = await until(() => !fs.readFileSync(`${words}.rlock`).equals(heldBefore), 'the save locked in at unlock', 15000).then(() => true, () => false);
     const heldOut = path.join(out, 'held.docx');
     await js(`(async () => { const s = await window.rutbaOffice.locker.state(); await window.rutbaOffice.locker.exportCopy({ id: s.folders[0].id, rel: 'Report.docx', dest: ${JSON.stringify(heldOut)}, overwrite: true }); return 1; })()`);
-    check('locker: at the next unlock that save is locked in, and the document can go on saving', heldIn && fs.readFileSync(heldOut).equals(fs.readFileSync(heldPath)) && fs.existsSync(heldPath));
+    check('locker: at the next unlock that save is locked in, and the document can go on saving', heldIn && fs.readFileSync(heldOut).equals(fs.readFileSync(heldPath)) && fs.existsSync(heldPath) && wordsIn(heldOut).includes('Saved while the Locker was locked.'), wordsIn(heldOut).slice(0, 120));
     try { await doc.close?.({ id: heldSession.id }); } catch { /* the window goes next */ }
     heldWin.destroy();
     const heldCleared = await until(() => !fs.existsSync(heldPath), 'its copy cleared after closing', 15000).then(() => true, () => false);
@@ -438,6 +467,25 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     check('locker: Delete removes a locked file for good, and its row', deleted && deletedRow);
     await capture(win, 'locker-renamed-deleted.png');
     check('locker: closing a document raises no false alarm about its copy', !(await js(`document.body.textContent.includes('not opened from the locker')`)));
+
+    // Two versions from the cloud: each saved on its own, then one removed from the window.
+    const firstVersion = `${path.join(root, 'Renamed.txt')}.rlock`;
+    const secondVersion = path.join(root, 'Renamed (conflicted copy).txt.rlock');
+    fs.copyFileSync(firstVersion, secondVersion);
+    const offered = await until(() => js(`Boolean(document.querySelector('.lk-compare'))`), 'the two versions to be noticed', 20000).then(() => true, () => false);
+    check('locker: two versions of a file from the cloud are noticed and offered to compare', offered);
+    await clickSel('.lk-compare');
+    await until(() => js(`document.querySelectorAll('.lk-version').length === 2`), 'both versions in the dialog', 5000);
+    await capture(win, 'locker-two-versions.png');
+    const savedVersion = path.join(out, 'one version.txt');
+    plan('save', savedVersion);
+    await js(`[...document.querySelectorAll('.lk-version')][1].querySelector('button').click(), 1`);
+    await until(() => fs.existsSync(savedVersion), 'one version saved', 8000);
+    check('locker: each of the two versions can be saved', fs.readFileSync(savedVersion, 'utf8') === 'keep these words');
+    plan('message', { response: 0, checked: false });
+    await js(`[...document.querySelectorAll('.lk-version-delete')][1].click(), 1`);
+    const oneLeft = await until(() => js(`!document.querySelector('.lk-compare') && Boolean(document.querySelector(${JSON.stringify(LOCKED_ROW('Renamed.txt'))}))`), 'one version left', 10000).then(() => true, () => false);
+    check('locker: deleting one of two versions leaves the other as the file', oneLeft && [firstVersion, secondVersion].filter((p) => fs.existsSync(p)).length === 1, fs.readdirSync(root).join(', '));
 
     const home = await open('home');
     const tile = await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="locker"]'))`), 'the launcher card', 10000).then(() => true, () => false);
@@ -482,8 +530,24 @@ export async function verifyLocker({ open, check, until, wait, errorsIn, doc, ca
     check('locker: the right password opens the folder, its files listed as locked, and the folder on disk as it was',
       added && openedRow && listing() === listedBefore && keyBytes() === keysBefore, JSON.stringify({ added, openedRow, listing: listing() }));
 
-    const errors = await errorsIn(win).catch(() => []);
-    check('locker: no errors in the window', !errors.length, JSON.stringify(errors).slice(0, 200));
+    // A folder with something locked inside it says so before anything happens to it.
+    const parent = fs.mkdtempSync(path.join(dir, 'locker-parent-'));
+    const inner = path.join(parent, 'Inner');
+    fs.mkdirSync(inner);
+    fs.writeFileSync(path.join(inner, 'Inner.pdf'), crypto.randomBytes(2000));
+    fs.writeFileSync(path.join(parent, 'Outer.txt'), 'outer');
+    const { id: innerId } = await otherLocker.addFolder(inner, { hidden: false });
+    await otherLocker.lockWaiting(innerId);
+    plan('open', [parent]);
+    await clickSel('.lk-add');
+    await until(() => js(`Boolean(document.querySelector('.lk-add-dialog'))`), 'the add-folder dialog for the parent', 6000);
+    check('locker: adding a folder with a locked folder inside it warns first, and has changed nothing', await js(`/key of its own/.test(document.querySelector('.lk-locked-below')?.textContent || '')`) && fs.existsSync(path.join(parent, 'Outer.txt')) && !fs.existsSync(path.join(parent, '.rutbalocker-keys')));
+    await clickText('Cancel');
+    await until(() => js(`!document.querySelector('.lk-add-dialog')`), 'the add-folder dialog to close', 5000);
+
+    const errors = await errorsIn(win);
+    const leftError = await js(`[...document.querySelectorAll('.lk-error')].map((n) => n.textContent)`);
+    check('locker: no errors in the window', !errors.length && !leftError.length, JSON.stringify([errors, leftError]).slice(0, 200));
 
     // Closing the Locker's window locks it. The launcher stays open, or the last window closing would end the run.
     win.close();

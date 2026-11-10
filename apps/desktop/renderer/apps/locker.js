@@ -371,11 +371,12 @@ function AddFolder({ shell, root, onClose, onAdded }) {
     );
   }
   if (seen.locked) return <OpenLockedFolder shell={shell} root={root} opens={seen.opens} onClose={onClose} onAdded={onAdded} />;
-  return <LockNewFolder shell={shell} root={root} onClose={onClose} onAdded={onAdded} />;
+  return <LockNewFolder shell={shell} root={root} lockedBelow={seen.lockedBelow} onClose={onClose} onAdded={onAdded} />;
 }
 
 /** A folder locked before, here or on another computer: its password or recovery key opens it, and its files stay as they are. */
 function OpenLockedFolder({ shell, root, opens, onClose, onAdded }) {
+  const cloud = whichCloud(root);
   const [useRecovery, setUseRecovery] = useState(false);
   const [password, setPassword] = useState('');
   const [recovery, setRecovery] = useState('');
@@ -423,6 +424,12 @@ function OpenLockedFolder({ shell, root, opens, onClose, onAdded }) {
             <button type="button" className="lk-link lk-open-switch" style={{ alignSelf: 'flex-start' }} onClick={() => { setUseRecovery(!useRecovery); setError(null); }}>{useRecovery ? t('Use the password') : t('Use the recovery key')}</button>
           </>
         )}
+        {cloud ? (
+          <div className="lk-warn lk-open-cloud" role="note">
+            <Icon name="warn" size={16} />
+            <span>{t('This folder is in {cloud}. While a file is open beside itself, {cloud} can upload its plain copy too.', { cloud })}</span>
+          </div>
+        ) : null}
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
     </Dialog>
@@ -430,7 +437,7 @@ function OpenLockedFolder({ shell, root, opens, onClose, onAdded }) {
 }
 
 /** Locking a folder for the first time: the choices asked once, with a suggestion on each. */
-function LockNewFolder({ shell, root, onClose, onAdded }) {
+function LockNewFolder({ shell, root, lockedBelow, onClose, onAdded }) {
   const toast = useToast();
   const [c, set] = useState({ what: 'every', types: '.pdf, .docx, .xlsx, .jpg', hidden: true, afterLock: 'delete', keepDir: null, keepVersions: 3, openIn: 'beside' });
   const [busy, setBusy] = useState(false);
@@ -479,6 +486,12 @@ function LockNewFolder({ shell, root, onClose, onAdded }) {
             <div className="lk-card-sub">{t('Finer rules, with exceptions, go in the folder\'s .rutbalocker file, in the same wording as .gitignore.')}</div>
           </>
         ) : <button type="button" className="lk-link lk-change" onClick={() => setMore(true)} style={{ alignSelf: 'flex-start' }}>{t('Change how')}</button>}
+        {lockedBelow ? (
+          <div className="lk-warn lk-locked-below" role="note">
+            <Icon name="warn" size={16} />
+            <span>{t('Part of this folder is already locked, with a key of its own. Those files stay locked and this folder\'s new key will not open them. To work with them, add that inner folder on its own.')}</span>
+          </div>
+        ) : null}
         {cloud ? (
           <div className="lk-warn" role="note">
             <Icon name="warn" size={16} />
@@ -578,10 +591,10 @@ function Share({ shell, folder, entry, onClose, toast }) {
     );
   }
   return (
-    <Dialog title={t('Send {name} to someone', { name: entry.name })} width={440} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button label={t('Save the locked copy…')} disabled={password.length < 4} onClick={go} /><Button primary className="lk-share-email" label={t('Attach to an email')} disabled={password.length < 4} onClick={emailNow} /></>}>
+    <Dialog title={t('Send {name} to someone', { name: entry.name })} width={440} onClose={onClose} actions={<><Button label={t('Cancel')} onClick={onClose} /><Button label={t('Save the locked copy…')} disabled={password.length < 8} onClick={go} /><Button primary className="lk-share-email" label={t('Attach to an email')} disabled={password.length < 8} onClick={emailNow} /></>}>
       <div className="lk-dialog-body">
         <Field label={t('A password for this one file')}><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} aria-label={t('A password for this one file')} /></Field>
-        <div className="lk-card-sub">{t('Attach it to an email here, or save it to send another way. Send the password separately from the file.')}</div>
+        <div className="lk-card-sub">{t('At least eight characters. Attach it to an email here, or save it to send another way. Send the password separately from the file.')}</div>
         {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
     </Dialog>
@@ -668,25 +681,33 @@ function OpenSent({ shell, state, file, into, onClose, toast }) {
   );
 }
 
-function Compare({ shell, folder, list, onClose }) {
+function Compare({ shell, folder, list, onClose, onChanged }) {
   const conflicts = list.filter((e) => e.state === 'conflict');
+  const [error, setError] = useState(null);
   const exportOne = async (e) => {
     const dest = await shell.dialog.save({ title: t('Save an unlocked copy'), defaultPath: e.name });
-    if (dest) await shell.locker.exportCopy({ id: folder.id, rel: e.rel, dest, overwrite: true, allowConflict: true });
+    if (dest) await shell.locker.exportCopy({ id: folder.id, rel: e.rel, dest, overwrite: true, allowConflict: true, lockedRel: e.lockedRel }).catch((err) => setError(said(err)));
+  };
+  const removeOne = async (e) => {
+    const { response } = await shell.dialog.message({ type: 'warning', message: t('Delete this version of {name}?', { name: e.name }), detail: t('The other version stays as the file. This cannot be undone.'), buttons: [t('Delete'), t('Cancel')], defaultId: 1, cancelId: 1 });
+    if (response !== 0) return;
+    await shell.locker.deleteFile({ id: folder.id, rel: e.rel, state: 'conflict', lockedRel: e.lockedRel }).then(onChanged, (err) => setError(said(err)));
   };
   return (
     <Dialog title={t('Two versions')} width={640} onClose={onClose} actions={<Button label={t('Close')} onClick={onClose} />}>
       <div className="lk-dialog-body">
-        <div className="lk-card-sub">{t('Your cloud kept both copies when two computers saved the file. Neither has been changed. Export each to compare them, then delete the one you do not want in File Explorer.')}</div>
+        <div className="lk-card-sub">{t('Your cloud kept both copies when two computers saved the file. Neither has been changed. Save each to compare them, then delete the one you do not want.')}</div>
         <div className="lk-choices">
           {conflicts.map((e) => (
-            <div key={e.rel} className="lk-choice" style={{ flexDirection: 'column', cursor: 'default' }}>
+            <div key={e.lockedRel} className="lk-choice lk-version" style={{ flexDirection: 'column', cursor: 'default' }}>
               <b>{e.name}</b>
               <small>{formatBytes(e.size)} · {formatWhen(e.modified)}</small>
               <Button label={t('Save an unlocked copy…')} onClick={() => exportOne(e)} />
+              <Button className="lk-version-delete" label={t('Delete this version…')} onClick={() => removeOne(e)} />
             </div>
           ))}
         </div>
+        {error ? <div className="lk-error" role="alert">{error}</div> : null}
       </div>
     </Dialog>
   );
@@ -939,7 +960,8 @@ export default function Locker({ app, shell }) {
         if (again.response === 0) out = await shell.locker.removeFolder({ id: current, leaveDamaged: true });
         else return;
       }
-      if (!out.removed) toast?.(t('{n} files could not be unlocked, so the folder was not removed.', { n: out.failed.length }), { tone: 'error' });
+      if (!out.removed && out.conflicts) toast?.(t('{n} files in this folder have two versions. Choose between them first. Nothing has been changed.', { n: out.conflicts }), { tone: 'warn' });
+      else if (!out.removed) toast?.(t('{n} files could not be unlocked, so the folder was not removed.', { n: out.failed.length }), { tone: 'error' });
     }
   });
 
@@ -1108,7 +1130,7 @@ export default function Locker({ app, shell }) {
       {dialog?.kind === 'rename' && folder ? <RenameFile shell={shell} folder={folder} entry={dialog.entry} onClose={() => setDialog(null)} onDone={() => { setDialog(null); setSelected(null); reload(); }} /> : null}
       {dialog?.kind === 'share' && folder ? <Share shell={shell} folder={folder} entry={dialog.entry} toast={toast} onClose={() => setDialog(null)} /> : null}
       {dialog?.kind === 'sent' ? <OpenSent shell={shell} state={state} file={dialog.file} into={current} toast={toast} onClose={() => { setDialog(null); refresh(); }} /> : null}
-      {dialog?.kind === 'compare' && folder ? <Compare shell={shell} folder={folder} list={entries} onClose={() => setDialog(null)} /> : null}
+      {dialog?.kind === 'compare' && folder ? <Compare shell={shell} folder={folder} list={entries} onClose={() => setDialog(null)} onChanged={() => { setDialog(null); reload(); }} /> : null}
       {dialog?.kind === 'settings' ? <Settings shell={shell} state={state} toast={toast} onClose={() => { setDialog(null); refresh(); }} /> : null}
     </AppFrame>
   );

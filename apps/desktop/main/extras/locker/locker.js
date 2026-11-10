@@ -34,7 +34,10 @@ function cleanChoices(c = {}) {
  * @param {string} o.dir   the locker's folder in Office's profile
  * @param {object} [o.cost] scrypt cost (tests pass a cheap one)
  * @param {object} [o.hooks] for the tests
- */
+ */
+/** How long a mark from another live process is believed without being touched. */
+const IN_USE_FOR = 120000;
+
 export function createLocker({ dir, cost, hooks = null }) {
   const keys = createKeys({ dir, cost });
   const stateFile = path.join(dir, 'state.json');
@@ -265,6 +268,43 @@ export function createLocker({ dir, cost, hooks = null }) {
     return { failed };
   }
 
+  // One program at a time on a profile. The list of open copies, and the queues
+  // that keep two operations on a folder apart, belong to the process that holds
+  // them: the command line unlocking beside the app would clear the copies the
+  // app's windows are using. A crash leaves the mark, so it counts only while
+  // that process is alive and has touched it lately.
+  const inUse = path.join(dir, 'in-use');
+  let beat = null;
+  const isRunning = (pid) => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (err) {
+      return err.code === 'EPERM';
+    }
+  };
+  async function refuseIfInUse() {
+    const held = await fsp.readFile(inUse, 'utf8').then(JSON.parse).catch(() => null);
+    if (!held || held.pid === process.pid || !isRunning(held.pid)) return;
+    const age = Date.now() - (await fsp.stat(inUse).then((s) => s.mtimeMs, () => 0));
+    if (age < IN_USE_FOR) throw new LockerError('busy', 'The Locker is open in another program. Lock it there first.');
+  }
+  async function markInUse() {
+    await fsp.writeFile(inUse, JSON.stringify({ pid: process.pid }));
+    clearInterval(beat);
+    beat = setInterval(() => {
+      const now = new Date();
+      fsp.utimes(inUse, now, now).catch(() => {});
+    }, IN_USE_FOR / 4);
+    beat.unref();
+  }
+  async function clearInUse() {
+    if (!beat) return;
+    clearInterval(beat);
+    beat = null;
+    await fsp.rm(inUse, { force: true }).catch(() => {});
+  }
+
   const api = {
     exists: keys.exists,
     isOpen: keys.isOpen,
@@ -274,12 +314,16 @@ export function createLocker({ dir, cost, hooks = null }) {
     async setup(password) {
       if (!password) throw new LockerError('password', 'Choose a password for the locker.');
       await fsp.mkdir(dir, { recursive: true });
-      return keys.setup(password);
+      const made = await keys.setup(password);
+      await markInUse();
+      return made;
     },
 
     /** Opened, and anything a crash left in the working folder cleared. A wrong password changes nothing. */
     async unlock(how, { shown } = {}) {
+      await refuseIfInUse();
       await keys.unlock(how);
+      await markInUse();
       keepingCopies = false;
       await sweepWorking(stageDir).catch(() => {});
       await api.recoverOpenFiles({ shown }).catch(() => {});
@@ -331,6 +375,7 @@ export function createLocker({ dir, cost, hooks = null }) {
       } finally {
         closing = false;
       }
+      await clearInUse();
       if (keepCopies) {
         keepingCopies = openFiles.size > 0;
         await recordOpenFiles().catch(() => {});
@@ -658,8 +703,11 @@ export function createLocker({ dir, cost, hooks = null }) {
         // A file that will not open is not gone: it may be a newer version's, or in use, or still on its way from the cloud.
         const damaged = entries.filter((e) => e.state === 'damaged');
         if (damaged.length && !leaveDamaged) return { removed: false, damaged: damaged.length, failed: damaged.map((e) => ({ rel: e.rel, message: e.message })) };
+        // Which of two versions becomes the plain file is the person's to say, and nothing is changed until they have.
+        const twoOf = entries.filter((e) => e.state === 'conflict');
+        if (twoOf.length) return { removed: false, conflicts: new Set(twoOf.map((e) => e.rel)).size, failed: twoOf.map((e) => ({ rel: e.rel, message: 'This file has two versions. Compare them first.' })) };
         for (const e of entries) {
-          if (e.state !== 'locked' && e.state !== 'conflict') continue;
+          if (e.state !== 'locked') continue;
           try {
             await folder.unlockForGood(e.rel);
           } catch (err) {
@@ -695,9 +743,9 @@ export function createLocker({ dir, cost, hooks = null }) {
       refuseIfOpen(id, rel);
       return withFolder(id, (f) => f.rename(rel, name, state));
     },
-    deleteFile: async (id, rel, state) => {
+    deleteFile: async (id, rel, state, how) => {
       refuseIfOpen(id, rel);
-      return withFolder(id, (f) => f.removeFile(rel, state));
+      return withFolder(id, (f) => f.removeFile(rel, state, how));
     },
     versions: (id, rel) => withFolder(id, (f) => f.versions(rel)),
     restore: (id, rel, version) => withFolder(id, (f) => f.restore(rel, version)),
@@ -713,6 +761,7 @@ export function createLocker({ dir, cost, hooks = null }) {
       if ((await state()).folders.some((f) => isInside(path.resolve(dest), path.resolve(f.root)))) throw new LockerError('choice', 'Save the copy for sending outside your locked folders.');
       return withFolder(id, async (folder) => {
         const e = await folder.entryFor(rel);
+        if (e?.state === 'conflict') throw new LockerError('conflict', 'This file has two versions. Compare them first.');
         if (!e || e.state === 'waiting' || e.state === 'excluded' || e.state === 'damaged') throw new LockerError('state', 'That file is not locked.');
         const kdf = newKdf(cost);
         const key = await passwordKey(password, kdf);
@@ -773,6 +822,7 @@ export function createLocker({ dir, cost, hooks = null }) {
       const rec = await folderRecord(id);
       return withFolder(id, async (folder) => {
         const e = await folder.entryFor(rel);
+        if (e?.state === 'conflict') throw new LockerError('conflict', 'This file has two versions. Compare them first.');
         if (!e || (e.state !== 'locked')) throw new LockerError('state', 'That file is not locked.');
         const top = rec.openIn === 'profile' ? openDir : path.join(path.dirname(path.join(rec.root, ...e.rel.split('/'))), OPEN_DIR);
         const sub = await makeWorkingDir(top, owner);

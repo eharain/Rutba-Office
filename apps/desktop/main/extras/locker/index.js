@@ -369,9 +369,9 @@ export async function register({ stores, broadcast, electron, windows = () => []
     },
     why: ({ id, rel }) => locker.why(id, rel),
     open,
-    exportCopy: async ({ id, rel, dest, overwrite, allowConflict }) => {
+    exportCopy: async ({ id, rel, dest, overwrite, allowConflict, lockedRel }) => {
       touch();
-      return locker.exportCopy(id, rel, dest, { overwrite, allowConflict });
+      return locker.exportCopy(id, rel, dest, { overwrite, allowConflict, lockedRel });
     },
     exportShare: async ({ id, rel, dest, password }) => {
       touch();
@@ -417,9 +417,9 @@ export async function register({ stores, broadcast, electron, windows = () => []
       await publish();
       return out;
     },
-    deleteFile: async ({ id, rel, state }) => {
+    deleteFile: async ({ id, rel, state, lockedRel }) => {
       touch();
-      const out = await locker.deleteFile(id, rel, state);
+      const out = await locker.deleteFile(id, rel, state, { lockedRel });
       await publish();
       return out;
     },

@@ -460,8 +460,8 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
   }
 
   /** A plain copy written elsewhere: nothing about the locked file changes. */
-  async function exportCopy(rel, dest, { overwrite = false, allowConflict = false } = {}) {
-    const e = await entryFor(rel);
+  async function exportCopy(rel, dest, { overwrite = false, allowConflict = false, lockedRel = null } = {}) {
+    const e = lockedRel ? (await scan()).find((x) => x.lockedRel === lockedRel && x.rel.toLowerCase() === rel.toLowerCase()) || null : await entryFor(rel);
     if (!e || e.state === 'waiting' || e.state === 'excluded' || e.state === 'damaged') throw new LockerError('state', 'That file is not locked.');
     if (e.state === 'conflict' && !allowConflict) throw new LockerError('conflict', 'This file has two versions. Compare them first.');
     const o = await opener(e);
@@ -505,7 +505,8 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
    */
   async function unlockForGood(rel) {
     const e = await entryFor(rel);
-    if (!e || (e.state !== 'locked' && e.state !== 'conflict')) throw new LockerError('state', 'That file is not locked.');
+    if (e?.state === 'conflict') throw new LockerError('conflict', 'This file has two versions. Compare them first.');
+    if (!e || e.state !== 'locked') throw new LockerError('state', 'That file is not locked.');
     const dest = abs(e.rel);
     const o = await opener(e);
     let done;
@@ -578,14 +579,15 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
   }
 
   /** A file gone for good, with the earlier versions kept of it. */
-  async function removeFile(rel, state) {
-    const e = await rowFor(rel, state);
+  async function removeFile(rel, state, { lockedRel = null } = {}) {
+    const e = lockedRel ? (await scan()).find((x) => x.lockedRel === lockedRel && x.rel.toLowerCase() === rel.toLowerCase()) || null : await rowFor(rel, state);
     if (!e) throw new LockerError('state', 'That file is not in this folder.');
-    if (e.state === 'conflict') throw new LockerError('conflict', 'This file has two versions. Compare them first.');
+    // One of two versions may be removed by naming which; the earlier versions belong to the one that stays.
+    if (e.state === 'conflict' && !lockedRel) throw new LockerError('conflict', 'This file has two versions. Compare them first.');
     if (e.state === 'waiting' || e.state === 'excluded') await wipeFile(e.path);
     else await fsp.rm(e.path, { recursive: true, force: true });
     if (await fsp.access(e.path).then(() => true, () => false)) throw new LockerError('busy', 'That file is in use, so it could not be deleted.');
-    if (e.fileId) await fsp.rm(path.join(root, OLD_DIR, e.fileId), { recursive: true, force: true }).catch(() => {});
+    if (e.fileId && e.state !== 'conflict') await fsp.rm(path.join(root, OLD_DIR, e.fileId), { recursive: true, force: true }).catch(() => {});
     return { removed: e.rel };
   }
 
@@ -593,6 +595,8 @@ export function createFolder({ root, key, folderId, stageDir, choices, hooks = n
   async function versions(rel) {
     const e = await entryFor(rel);
     if (!e) throw new LockerError('state', 'That file is not in this folder.');
+    if (e.state === 'conflict') throw new LockerError('conflict', 'This file has two versions. Compare them first.');
+    if (e.state !== 'locked') throw new LockerError('state', 'That file is not locked.');
     if (e.pieces) {
       const lists = await listsIn(e.path);
       return lists.map((l, i) => ({ version: i, current: i === 0, label: `#${l.seq}` }));

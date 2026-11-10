@@ -268,3 +268,30 @@ test('a working folder another computer made in a shared folder is left alone', 
   await locker.unlock({ password: 'password one' });
   assert.equal(fs.readFileSync(path.join(theirs, 'in use there.txt'), 'utf8'), 'somebody is working on this');
 });
+
+test('a second program cannot unlock a profile another has open, and a crash does not stop it for good', async () => {
+  const { spawn } = await import('node:child_process');
+  const { dir, locker } = await make();
+  const mark = path.join(dir, 'in-use');
+  assert.ok(fs.existsSync(mark), 'marked while it is open');
+  await locker.lock();
+  assert.equal(fs.existsSync(mark), false, 'cleared when it locks');
+  const other = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
+  try {
+    fs.writeFileSync(mark, JSON.stringify({ pid: other.pid }));
+    await assert.rejects(() => locker.unlock({ password: 'password one' }), (e) => e.code === 'busy' && /another program/.test(e.message));
+    assert.equal(locker.isOpen(), false, 'refused before any key was opened');
+    const old = new Date(Date.now() - 10 * 60000);
+    fs.utimesSync(mark, old, old);
+    await locker.unlock({ password: 'password one' });
+    assert.equal(locker.isOpen(), true, 'a mark nobody has touched for minutes is not believed');
+    await locker.lock();
+  } finally {
+    other.kill();
+  }
+  await new Promise((r) => { other.once('exit', r); });
+  fs.writeFileSync(mark, JSON.stringify({ pid: other.pid }));
+  await locker.unlock({ password: 'password one' });
+  assert.equal(locker.isOpen(), true, 'a mark from a process that has ended is not believed');
+  await locker.lock();
+});
