@@ -117,7 +117,7 @@ export function porcelain(cwd = ROOT) {
  * stands for a file edited since.
  */
 export function treeKey(cwd = ROOT) {
-  const run = (args) => { try { return execFileSync('git', args, { cwd, maxBuffer: 2 ** 31 - 1 }); } catch { return null; } };
+  const run = (args) => { try { return execFileSync('git', args, { cwd, maxBuffer: 2 ** 31 - 1, stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; } };
   const hash = crypto.createHash('sha256');
   hash.update(porcelain(cwd));
   hash.update(run(['diff', 'HEAD', '--binary']) ?? 'no diff');
@@ -138,7 +138,8 @@ export function wantedForChanged(since, files) {
 export function machineCovers(machine, apps) {
   return Boolean(machine?.ok) && !machine.serial && apps.every((a) => machine.scope?.includes(a));
 }
-const STATE_DIR = path.join(ROOT, '.gate');
+// RUTBA_GATE_DIR moves the run's own state, logs and lock elsewhere: the gate's tests run it beside a real one.
+const STATE_DIR = process.env.RUTBA_GATE_DIR ? path.resolve(process.env.RUTBA_GATE_DIR) : path.join(ROOT, '.gate');
 const STATE = path.join(STATE_DIR, 'state.json');
 const FLOORS = path.join(ROOT, 'tools', 'gate-floors.json');
 /** What the last run on this commit, with this working tree, left to do. */
@@ -584,6 +585,14 @@ async function main() {
       console.log(`${name} was set in this shell and is ignored: the gate runs everything.`);
       delete process.env[name];
     }
+  }
+
+  // A pass named that the gate does not have would run nothing and still open the gate.
+  const known = ['test', 'test:perf', 'verify:edit', 'verify:apps', 'smoke', 'verify:packs', ...FUZZERS.map(([name]) => name), 'corpus'];
+  const unknown = only.filter((name) => !known.includes(name));
+  if (unknown.length) {
+    console.log(`The gate has no pass called ${unknown.join(', ')}. Its passes: ${known.join(', ')}.`);
+    process.exit(2);
   }
 
   const drifted = lockDrift(readJson(path.join(ROOT, 'package-lock.json')) || {}, (at) => readJson(path.join(ROOT, at, 'package.json'))?.version ?? null);
