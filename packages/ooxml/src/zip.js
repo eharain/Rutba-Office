@@ -51,6 +51,25 @@ const crc32Js = (() => {
 
 const crc32 = typeof zlib.crc32 === 'function' ? (buf) => zlib.crc32(buf) >>> 0 : crc32Js;
 
+/**
+ * What one entry may unpack to: a gigabyte, or four times what it holds if that
+ * is more, for a large video stored in a presentation. Deflate reaches a
+ * thousand to one, so a file of a megabyte could ask for more than the computer has.
+ */
+export function inflateLimit(compressedLength) {
+  return Math.max(1024 * 1024 * 1024, compressedLength * 4);
+}
+
+/** Raw deflate, within that limit. Past it, a sentence and not a library's error. */
+export function inflateRaw(compressed, name = 'A part of this file', limit = inflateLimit(compressed.length)) {
+  try {
+    return zlib.inflateRawSync(compressed, { maxOutputLength: limit });
+  } catch (err) {
+    if (err?.code === 'ERR_BUFFER_TOO_LARGE') throw new Error(`${name} unpacks to more than this program can hold, so it was not opened.`);
+    throw err;
+  }
+}
+
 export class ZipEntry {
   constructor({ name, method, crc, compressedSize, uncompressedSize, compressed, dosTime, dosDate, flags, externalAttrs, comment }) {
     this.name = name;
@@ -73,7 +92,7 @@ export class ZipEntry {
   /** Decompressed bytes. Decompressing does NOT mark the entry modified. */
   get data() {
     if (this._raw === null) {
-      this._raw = this.method === 8 ? zlib.inflateRawSync(this.compressed) : Buffer.from(this.compressed);
+      this._raw = this.method === 8 ? inflateRaw(this.compressed, this.name) : Buffer.from(this.compressed);
       this._mapped();
     }
     return this._raw;
@@ -214,7 +233,7 @@ export async function inflateEntries(entries, { inflate } = {}) {
     if (entry.method !== 8 || entry._raw !== null) return;
     entry._raw = useStream
       ? asHostBytes(await inflateRawStream(entry.compressed))
-      : zlib.inflateRawSync(entry.compressed);
+      : inflateRaw(entry.compressed, entry.name);
     entry._mapped();
   }));
 }

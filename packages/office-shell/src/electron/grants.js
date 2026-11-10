@@ -12,11 +12,11 @@ import path from 'node:path';
 
 /**
  * Whether a path goes through the network: `\\server\share`, `//server/share`,
- * and the `\\?\` and `\\.\` forms, on Windows. Elsewhere a path that starts
- * with two slashes is a local one.
+ * either slash in any mixture, and the `\\?\`, `\\.\` and `\??\` forms, on
+ * Windows. Elsewhere a path that starts with two slashes is a local one.
  */
 export function isNetworkPath(p, platform = process.platform) {
-  return platform === 'win32' && /^(\\\\|\/\/)/.test(String(p || ''));
+  return platform === 'win32' && /^[\\/]{2}|^[\\/]\?\?[\\/]/.test(String(p || ''));
 }
 
 const granted = new Set();

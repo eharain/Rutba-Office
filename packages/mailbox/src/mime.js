@@ -187,7 +187,7 @@ export function decodeWords(value) {
 export function parseParameters(value) {
   const [head, ...rest] = String(value || '').split(';');
   const params = {};
-  const continued = {};
+  const continued = new Map();
   for (const chunk of rest) {
     const at = chunk.indexOf('=');
     if (at < 0) continue;
@@ -197,17 +197,18 @@ export function parseParameters(value) {
     if (m) {
       const base = m[1];
       const idx = m[2] ? Number(m[2]) : 0;
-      continued[base] = continued[base] || { parts: [], extended: false };
-      continued[base].parts[idx] = val;
+      if (!continued.has(base)) continued.set(base, { parts: [], extended: false });
+      // Kept as pairs and put in order later: name*4294967294=x as an array index walked four billion slots.
+      continued.get(base).parts.push([idx, val]);
       // name*=charset''value is extended too, not only name*0*=: a filename
       // another client wrote that way arrived still percent-encoded.
-      if (m[3] || m[2] === undefined) continued[base].extended = true;
+      if (m[3] || m[2] === undefined) continued.get(base).extended = true;
       continue;
     }
     params[key] = val;
   }
-  for (const [key, { parts, extended }] of Object.entries(continued)) {
-    let joined = parts.filter((p) => p != null).join('');
+  for (const [key, { parts, extended }] of continued) {
+    let joined = parts.sort((a, b) => a[0] - b[0]).map((p) => p[1]).join('');
     if (extended) {
       const m = /^([^']*)'([^']*)'(.*)$/s.exec(joined);
       const charset = m ? m[1] : 'utf-8';

@@ -49,6 +49,19 @@ export function hold(bytes, type = 'application/octet-stream', name = '', { grou
 }
 
 /** The held blob, or undefined once it has been let go. */
+/**
+ * The content-disposition for a held file. A header can hold only Latin-1, so a
+ * name in Urdu or Arabic written straight in made the response throw and the
+ * attachment would not open: the plain form carries what fits, and the
+ * encoded form the name itself.
+ */
+export function dispositionFor(name) {
+  const clean = String(name).toWellFormed().replace(/[\u0000-\u001f\u007f"\\]/g, '');
+  const plain = clean.replace(/[^\u0020-\u007e]/g, '_');
+  const encoded = encodeURIComponent(clean).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `inline; filename="${plain}"; filename*=UTF-8''${encoded}`;
+}
+
 export function heldBlob(id) {
   return blobs.get(id);
 }

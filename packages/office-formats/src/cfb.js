@@ -100,7 +100,9 @@ export class CompoundFile {
     // A DIFAT chain cannot be longer than the file has sectors; a longer one
     // is a loop, and following it for a million turns filled memory.
     const sectorsInFile = Math.ceil(this.b.length / this.sectorSize);
-    while (next !== ENDOFCHAIN && next !== FREESECT && guard++ < sectorsInFile) {
+    const visited = new Set();
+    while (next !== ENDOFCHAIN && next !== FREESECT && guard++ < sectorsInFile && !visited.has(next)) {
+      visited.add(next);
       const sec = this.#sector(next);
       // A DIFAT sector past the end of a cut file is not there to read.
       if (sec.byteLength < this.sectorSize) break;
@@ -113,6 +115,8 @@ export class CompoundFile {
       next = dv.getUint32(per * 4, true);
     }
 
+    // There cannot be more sectors of the table than sectors in the file.
+    if (difat.length > sectorsInFile) difat.length = sectorsInFile;
     const fat = new Uint32Array(difat.length * (this.sectorSize / 4));
     let at = 0;
     for (const s of difat) {

@@ -21,7 +21,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
-import { hold, heldBlob, release, releaseOwner } from './blobs.js';
+import { hold, heldBlob, release, releaseOwner, dispositionFor } from './blobs.js';
 
 export const SCHEME = 'rutba';
 
@@ -500,7 +500,7 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
         'content-length': String(held.bytes.length),
       };
       if (held.name) {
-        headers['content-disposition'] = `inline; filename="${held.name.replace(/"/g, '')}"`;
+        headers['content-disposition'] = dispositionFor(held.name);
       }
       return new Response(held.bytes, { status: 200, headers });
     }

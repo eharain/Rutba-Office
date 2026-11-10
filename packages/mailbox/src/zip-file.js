@@ -10,7 +10,7 @@
 // read as well. Nothing is ever written.
 
 import fs from 'node:fs';
-import zlib from 'node:zlib';
+import { inflateRaw } from '@rutba/ooxml/zip';
 
 const EOCD = 0x06054b50;
 const EOCD64 = 0x06064b50;
@@ -140,7 +140,7 @@ export class ZipFile {
     const start = entry.localOffset + 30 + head.readUInt16LE(26) + head.readUInt16LE(28);
     const compressed = this.#read(start, entry.compressedSize, `the entry ${entry.name}`, reuse);
     if (entry.method === 0) return compressed;
-    if (entry.method === 8) return zlib.inflateRawSync(compressed);
+    if (entry.method === 8) return inflateRaw(compressed, entry.name);
     throw new Error(`${entry.name} is compressed in a way this cannot read (method ${entry.method}).`);
   }
 

@@ -119,8 +119,13 @@ const DRAWN = new Set(['draw:frame', 'draw:custom-shape', 'draw:rect', 'draw:ell
 /** Most a run of shaded empty cells is kept for, across or down: a style repeated to the sheet's edge is a band, not cells. */
 const SHADED_RUN = 256;
 
+/** As wide as a sheet goes, and more cells with something in them than anyone keeps in one. */
+const MOST_ACROSS = 16384;
+const MOST_CELLS = 12000000;
+
 function readTable(table, rowHeights = new Map(), shaded = () => false) {
   const rows = [];
+  let built = 0;
   const hiddenRows = [];
   // The drawings anchored in its cells, with the cell, and those on the sheet's page itself.
   const drawings = [];
@@ -160,14 +165,16 @@ function readTable(table, rowHeights = new Map(), shaded = () => false) {
         continue;
       }
       // Each run as it was, its own style kept.
-      for (const [empty, n] of runs) for (let i = 0; i < n; i++) cells.push({ ...empty });
+      for (const [empty, n] of runs) for (let i = 0; i < n && cells.length < MOST_ACROSS; i++) cells.push({ ...empty });
       pending = 0;
       runs = [];
-      for (let i = 0; i < repeat; i++) cells.push(i === 0 ? cell : { ...cell });
+      for (let i = 0; i < repeat && cells.length < MOST_ACROSS; i++) cells.push(i === 0 ? cell : { ...cell });
     }
     // Trim the trailing run of empty cells ODF writes to pad the row.
     while (cells.length && !cells[cells.length - 1].text && cells[cells.length - 1].value == null && !cells[cells.length - 1].shaded) cells.pop();
     for (let i = 0; i < rowRepeat; i++) {
+      built += cells.length;
+      if (built > MOST_CELLS) throw new Error('This spreadsheet has more cells in it than this program can open.');
       if (rowHidden && rows.length < 200000) hiddenRows.push(rows.length);
       rows.push(cells.map((c) => ({ ...c })));
     }

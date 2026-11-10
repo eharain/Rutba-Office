@@ -294,14 +294,20 @@ function valueOf(lx, tok, refs, depth) {
 
 // ── filters ───────────────────────────────────────────────────────────────
 
-function inflate(data) {
+/** What one stream may unpack to. A whole-page scan is far under this; a stream that goes past it was made to. */
+const MOST_UNPACKED = 1024 * 1024 * 1024;
+const tooLarge = (err) => err?.code === 'ERR_BUFFER_TOO_LARGE';
+
+function inflate(data, limit = MOST_UNPACKED) {
+  const refuse = () => new PdfReadError('a compressed stream in this file unpacks to more than this program can hold');
   try {
-    return zlib.inflateSync(data);
-  } catch {
+    return zlib.inflateSync(data, { maxOutputLength: limit });
+  } catch (err) {
+    if (tooLarge(err)) throw refuse();
     // A stream cut short or with a broken check value still gives what it
     // has; raw deflate covers a writer that left the zlib header off.
-    try { return zlib.inflateSync(data, { finishFlush: zlib.constants.Z_SYNC_FLUSH }); } catch { /* next */ }
-    try { return zlib.inflateRawSync(data, { finishFlush: zlib.constants.Z_SYNC_FLUSH }); } catch { /* next */ }
+    try { return zlib.inflateSync(data, { finishFlush: zlib.constants.Z_SYNC_FLUSH, maxOutputLength: limit }); } catch (e) { if (tooLarge(e)) throw refuse(); }
+    try { return zlib.inflateRawSync(data, { finishFlush: zlib.constants.Z_SYNC_FLUSH, maxOutputLength: limit }); } catch (e) { if (tooLarge(e)) throw refuse(); }
     throw new PdfReadError('a compressed stream in this file is damaged beyond reading');
   }
 }
@@ -1055,6 +1061,7 @@ function asPdf(source, options) {
 }
 
 module.exports = {
+  inflate,
   openPdf, asPdf, PdfFile, PdfReadError, Name, Ref, PdfString, Dict, Stream, Keyword, Lexer,
   parseValue, contentText, normaliseRotation, isName, INHERITABLE,
 };

@@ -53,8 +53,8 @@ export function bodyDocument(message, { remote = false, dark = false, plain = fa
   html = html.replace(/(<a\b[^<>]*?\bhref\s*=\s*)(["'])mailto:([^"']*)\2/gi, (m, a, q, rest) => `${a}${q}${MAILTO_HOST}${rest}${q}`);
 
   const csp = remote
-    ? "default-src 'none'; img-src https: data: rutba: blob:; style-src 'unsafe-inline'; font-src data:"
-    : "default-src 'none'; img-src data: rutba: blob:; style-src 'unsafe-inline'; font-src data:";
+    ? "default-src 'none'; img-src https: data: rutba://blob blob:; style-src 'unsafe-inline'; font-src data:"
+    : "default-src 'none'; img-src data: rutba://blob blob:; style-src 'unsafe-inline'; font-src data:";
 
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">

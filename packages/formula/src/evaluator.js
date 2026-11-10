@@ -471,6 +471,11 @@ export function evaluate(ast, resolver, context = {}) {
       if (height < 1 || width < 1) return ERR.REF('OFFSET height and width must be at least 1');
       if (top < 0 || left < 0 || top + height > MAX_ROWS || left + width > MAX_COLS) return ERR.REF();
       if (height === 1 && width === 1) return resolver.getCell(sheet, top, left);
+      // Asked for most of a sheet, it is cut to the cells in use, as a whole-column range is; left whole it built seventeen billion.
+      if (height * width > 1000000) {
+        const bounds = clip(resolver, sheet, { row: top, col: left }, { row: top + height - 1, col: left + width - 1 });
+        return resolver.getRange(sheet, bounds.start, bounds.end);
+      }
       return resolver.getRange(sheet, { row: top, col: left }, { row: top + height - 1, col: left + width - 1 });
     }
 

@@ -95,7 +95,11 @@ export function readBth(heap, hidRoot) {
   const root = dv.getUint32(4, true);
 
   const entries = [];
+  // Each heap item once: an index that names itself, 255 levels deep, never ended.
+  const seen = new Set();
   const walk = (hid, level) => {
+    if (seen.has(hid)) return;
+    seen.add(hid);
     const bytes = heap.get(hid);
     if (!bytes.length) return;
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);

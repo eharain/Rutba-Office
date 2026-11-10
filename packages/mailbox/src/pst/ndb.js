@@ -211,6 +211,19 @@ export function bufferReader(bytes) {
   };
 }
 
+/**
+ * One node's blocks being gathered. A data block may be shared, but a tree block
+ * that names itself or its parent is a loop, 65,535 ways across and 8 levels
+ * deep; and however it is arranged a node cannot be larger than this.
+ */
+const MOST_IN_A_NODE = 1024 * 1024 * 1024;
+const newWalk = () => ({ trees: new Set(), left: MOST_IN_A_NODE });
+function spent(walk, raw) {
+  walk.left -= raw.length;
+  if (walk.left < 0) throw new NdbError('This .pst file is damaged: one of its items claims to be larger than a mailbox can hold.');
+  return raw;
+}
+
 export class Ndb {
   /** @param {{ size: number, read: (offset: number, length: number) => Uint8Array }} reader */
   constructor(reader) {
@@ -378,11 +391,13 @@ export class Ndb {
    * A node's data, following XBLOCK/XXBLOCK trees so anything over one block
    * arrives as one contiguous run of bytes.
    */
-  blockData(bid, depth = 0) {
+  blockData(bid, depth = 0, walk = newWalk()) {
     if (!bid || depth > 8) return new Uint8Array(0);
     const raw = this.#rawBlock(bid);
     if (!raw) return new Uint8Array(0);
-    if ((bid & 0x02) === 0) return raw;
+    if ((bid & 0x02) === 0) return spent(walk, raw);
+    if (walk.trees.has(bid)) return new Uint8Array(0);
+    walk.trees.add(bid);
 
     const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
     if (raw[0] !== 0x01) return raw; // a sub-node block, not a data tree
@@ -392,7 +407,7 @@ export class Ndb {
     for (let i = 0; i < cEnt; i++) {
       const at = 8 + i * idSize;
       if (at + idSize > raw.length) break;
-      parts.push(this.blockData(this.unicode ? readU64(dv, at) : dv.getUint32(at, true), depth + 1));
+      parts.push(this.blockData(this.unicode ? readU64(dv, at) : dv.getUint32(at, true), depth + 1, walk));
     }
     const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
     let off = 0;
@@ -410,14 +425,16 @@ export class Ndb {
    * within it, so concatenating first and splitting later would put every item
    * after the first block at the wrong offset.
    */
-  blockParts(bid, out = [], depth = 0) {
+  blockParts(bid, out = [], depth = 0, walk = newWalk()) {
     if (!bid || depth > 8) return out;
     const raw = this.#rawBlock(bid);
     if (!raw) return out;
     if ((bid & 0x02) === 0) {
-      out.push(raw);
+      out.push(spent(walk, raw));
       return out;
     }
+    if (walk.trees.has(bid)) return out;
+    walk.trees.add(bid);
     const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
     if (raw[0] !== 0x01) {
       out.push(raw);
@@ -428,7 +445,7 @@ export class Ndb {
     for (let i = 0; i < cEnt; i++) {
       const at = 8 + i * idSize;
       if (at + idSize > raw.length) break;
-      this.blockParts(this.unicode ? readU64(dv, at) : dv.getUint32(at, true), out, depth + 1);
+      this.blockParts(this.unicode ? readU64(dv, at) : dv.getUint32(at, true), out, depth + 1, walk);
     }
     return out;
   }

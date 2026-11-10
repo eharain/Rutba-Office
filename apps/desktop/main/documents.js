@@ -1417,7 +1417,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   }
 
   /** A path on another computer — `\\server\share` or `//server/share` — which Windows answers by sending its sign-in. */
-  const isNetworkPath = (p) => /^(\\\\|\/\/)/.test(String(p || ''));
+  const isNetworkPath = (p) => /^[\\/]{2}|^[\\/]\?\?[\\/]/.test(String(p || ''));
 
   function engineFor(kind, bytes) {
     if (kind === 'sheet') return SheetView.open(Buffer.from(bytes), { viewportWidth: 1100, viewportHeight: 620 });

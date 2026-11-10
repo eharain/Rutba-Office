@@ -18,6 +18,9 @@ import { localToUtc, utcToLocal, ianaZone } from './tz.js';
 /* ── lines ─────────────────────────────────────────────────────────────── */
 
 /** The logical lines of a file: continuation lines (a leading space or tab) joined to the line before. */
+/** Far more than any calendar uses; INTERVAL=20000000 ran the date past what a date can hold. */
+const MOST_INTERVAL = 100000;
+
 export function unfold(text) {
   const raw = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
   const lines = [];
@@ -218,7 +221,7 @@ export function parseRRule(value) {
     if (!k || v === undefined) continue;
     switch (k.toUpperCase()) {
       case 'FREQ': rule.freq = v.toUpperCase(); break;
-      case 'INTERVAL': rule.interval = Math.max(1, Number(v) || 1); break;
+      case 'INTERVAL': rule.interval = Math.min(Math.max(1, Math.trunc(Number(v)) || 1), MOST_INTERVAL); break;
       case 'COUNT': rule.count = Number(v) || null; break;
       case 'UNTIL': rule.until = parseDateTime(v, /T/.test(v) ? {} : { VALUE: ['DATE'] }); break;
       case 'BYDAY':

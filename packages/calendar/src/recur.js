@@ -92,7 +92,7 @@ function* ruleStarts(start, rule, hardLimit, lastYear = Infinity) {
     const startNumber = dayNumber(first);
     for (let i = 0; produced < hardLimit; i++) {
       const p = { ...fromDayNumber(startNumber + i * interval), H: first.H, M: first.M, S: first.S };
-      if (p.y > stopYear) return;
+      if (!(p.y <= stopYear)) return;
       if (rule.byMonth?.length && !rule.byMonth.includes(p.m)) continue;
       if (rule.byDay?.length && !rule.byDay.some((b) => b.day === weekday(p))) continue;
       yield* emit(p);
@@ -105,7 +105,7 @@ function* ruleStarts(start, rule, hardLimit, lastYear = Infinity) {
     const weekStart = startNumber - back;
     for (let w = 0; produced < hardLimit; w++) {
       const base = weekStart + w * interval * 7;
-      if (fromDayNumber(base).y > stopYear) return;
+      if (!(fromDayNumber(base).y <= stopYear)) return;
       for (let i = 0; i < 7; i++) {
         const n = base + i;
         if (n < startNumber) continue;
@@ -121,7 +121,7 @@ function* ruleStarts(start, rule, hardLimit, lastYear = Infinity) {
       const total = (first.y * 12 + first.m - 1) + k * interval;
       const y = Math.floor(total / 12);
       const m = (total % 12) + 1;
-      if (y > stopYear) return;
+      if (!(y <= stopYear)) return;
       if (rule.byMonth?.length && !rule.byMonth.includes(m)) continue;
       for (const d of daysOfMonth(y, m, rule, first.d)) {
         const p = { y, m, d, H: first.H, M: first.M, S: first.S };
@@ -134,7 +134,7 @@ function* ruleStarts(start, rule, hardLimit, lastYear = Infinity) {
     const months = rule.byMonth?.length ? rule.byMonth : [first.m];
     for (let k = 0; produced < hardLimit; k++) {
       const y = first.y + k * interval;
-      if (y > stopYear) return;
+      if (!(y <= stopYear)) return;
       for (const m of months) {
         const days = rule.byMonthDay?.length || rule.byDay?.length ? daysOfMonth(y, m, rule, first.d) : first.d <= daysInMonth(y, m) ? [first.d] : [];
         for (const d of days) {
@@ -152,6 +152,24 @@ function* ruleStarts(start, rule, hardLimit, lastYear = Infinity) {
 
 const sameMoment = (a, b) => Math.abs(a - b) < 1000;
 
+/** The first of a list at the same moment as an instant, without walking the list for each of a series' dates. */
+function momentIndex(list, at = (x) => x) {
+  const buckets = new Map();
+  for (const item of list) {
+    const key = Math.floor(at(item) / 1000);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(item);
+  }
+  return (when) => {
+    const key = Math.floor(when / 1000);
+    for (const k of [key - 1, key, key + 1]) {
+      const hit = buckets.get(k)?.find((item) => sameMoment(at(item), when));
+      if (hit !== undefined) return hit;
+    }
+    return undefined;
+  };
+}
+
 /**
  * The occurrences of an event between two instants.
  *
@@ -166,6 +184,8 @@ export function occurrences(event, { from, to, siblings = [], limit = 1000 } = {
   const out = [];
   const exceptions = siblings.filter((s) => s.recurrenceId && s.uid === event.uid);
   const exdates = (event.exdates || []).map((x) => x.at);
+  const excluded = momentIndex(exdates);
+  const moved = momentIndex(exceptions, (s) => s.recurrenceId.at);
   const push = (startAt, original, which) => {
     if (to != null && startAt > to) return false;
     const endAt = startAt + ((which.end?.at ?? which.start.at) - which.start.at || duration);
@@ -178,7 +198,8 @@ export function occurrences(event, { from, to, siblings = [], limit = 1000 } = {
     push(event.start.at, event.start.at, event);
   } else {
     const rule = event.rrule;
-    const hardLimit = Math.min(limit * 4, rule.count || Infinity, 20000);
+    // The walk ends at the year the rule stops, and 400 past its start at most, so how many went before the range does not matter: a daily series older than five and a half years disappeared.
+    const hardLimit = rule.count || Infinity;
     // A year past the nearer end, so a date in another time zone is not cut.
     const yearAfter = (at) => new Date(at).getUTCFullYear() + 1;
     const lastYear = Math.min(rule.until ? yearAfter(rule.until.at) : Infinity, to != null ? yearAfter(to) : Infinity);
@@ -189,9 +210,11 @@ export function occurrences(event, { from, to, siblings = [], limit = 1000 } = {
       if (rule.count && count >= rule.count) break;
       count += 1;
       if (to != null && at > to) break;
-      if (exdates.some((x) => sameMoment(x, at))) continue;
-      const exception = exceptions.find((s) => sameMoment(s.recurrenceId.at, at));
+      if (excluded(at)) continue;
+      const exception = moved(at);
       if (exception) {
+        // Moved past the end of the range, it is simply not in it; the rest of the series still is.
+        if (to != null && exception.start.at > to) continue;
         if (!push(exception.start.at, at, exception)) break;
       } else if (!push(at, at, event)) break;
     }
