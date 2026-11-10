@@ -51,3 +51,27 @@ test('a window\'s Save goes through saveAsync: written, and an edit made while i
   assert.equal(done.dirty, false);
   assert.equal(new SheetView(fs.readFileSync(file)).displayValue(2, 0).text, 'During');
 });
+
+test('the file is written off the service thread: two saves of one file at once both land whole, the last one last, and a read-only file is still refused', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-save-'));
+  const file = path.join(dir, 'twice.xlsx');
+  fs.writeFileSync(file, bigBook(3000));
+  const docs = createDocumentService({ holdBlob: () => ({ url: 'blob:x' }) });
+  const { id } = await docs.open({ path: file });
+  docs.apply({ id, ops: [{ op: 'select', row: 1, col: 0 }, { op: 'setCell', row: 1, col: 0, value: 'First' }] });
+  const first = docs.saveAsync({ id });
+  docs.apply({ id, ops: [{ op: 'select', row: 1, col: 0 }, { op: 'setCell', row: 1, col: 0, value: 'Second' }] });
+  const second = docs.saveAsync({ id });
+  await Promise.all([first, second]);
+  assert.equal(new SheetView(fs.readFileSync(file)).displayValue(1, 0).text, 'Second', 'the later save is the file');
+  assert.deepEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.saving')), [], 'nothing left beside it');
+
+  fs.chmodSync(file, 0o444);
+  try {
+    docs.apply({ id, ops: [{ op: 'select', row: 1, col: 0 }, { op: 'setCell', row: 1, col: 0, value: 'Third' }] });
+    await assert.rejects(docs.saveAsync({ id }), (err) => !/EACCES|EPERM/.test(err.message) && /read.only|permission|could not be saved/i.test(err.message));
+    assert.equal(new SheetView(fs.readFileSync(file)).displayValue(1, 0).text, 'Second', 'the read-only file is as it was');
+  } finally {
+    fs.chmodSync(file, 0o644);
+  }
+});

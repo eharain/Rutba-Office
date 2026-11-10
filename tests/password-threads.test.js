@@ -251,7 +251,13 @@ test('a recovered copy of a protected document has its password tried on a threa
   const doc = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }), recoveryDir });
   const d = doc.open({ path: write('recovered.docx', buildDocx({ paragraphs: ['Unsaved and protected.'] })), kind: 'doc' });
   doc.setPassword({ id: d.id, password: 'Tr0ub4dor&3' });
-  const [entry] = doc.autosave();
+  // The copy waits for the key to be spun on its thread.
+  let entry = null;
+  for (let i = 0; i < 800 && !entry; i++) {
+    [entry] = doc.autosave();
+    if (!entry) await new Promise((r) => setTimeout(r, 25));
+  }
+  assert.ok(entry, 'a copy was written once the key was ready');
   const after = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }), recoveryDir });
   const before = passwordHost().stats.threaded;
   assert.equal((await after.recoverAsync({ file: entry.file })).locked, true);

@@ -29,6 +29,15 @@ const write = (name, bytes) => {
 };
 const textOf = (model) => (model.blocks || []).map((b) => (b.runs || []).map((r) => r.text).join('') || b.text || '').join('\n');
 const isZip = (bytes) => bytes[0] === 0x50 && bytes[1] === 0x4b;
+/** The autosave copy of `name`, once the password's key has been spun on its thread (the copy waits for it). */
+async function copyOnceKeyed(service, name) {
+  for (let i = 0; i < 800; i++) {
+    const entry = service.autosave().find((e) => !name || e.name === name);
+    if (entry) return entry;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  return null;
+}
 const PASSWORD = 'Tr0ub4dor&3';
 /** Is the password anywhere in these bytes, as UTF-8 or UTF-16? */
 const holdsPassword = (bytes) => Buffer.from(bytes).includes(Buffer.from(PASSWORD, 'utf8')) || Buffer.from(bytes).includes(Buffer.from(PASSWORD, 'utf16le'));
@@ -96,12 +105,16 @@ test('a workbook and a presentation are saved encrypted and open again', async (
   }
 });
 
-test('the autosave copy of a protected document is encrypted with its password', () => {
+test('the autosave copy of a protected document is encrypted with its password', async () => {
   const file = write('memo.docx', buildDocx({ paragraphs: ['Private memo.'] }));
   const opened = doc.open({ path: file, kind: 'doc' });
   doc.setPassword({ id: opened.id, password: PASSWORD });
   doc.apply({ id: opened.id, ops: [{ op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 0, offset: 0 } }, { op: 'insertText', text: 'Unsaved ' }] });
-  const [entry] = doc.autosave().filter((e) => e.name === 'memo.docx');
+  // Straight after the password is set its key is still spinning on its thread: the copy waits rather than spin it here.
+  const started = Date.now();
+  assert.equal(doc.autosave().some((e) => e.name === 'memo.docx'), false, 'no copy before the key is ready');
+  assert.ok(Date.now() - started < 150, `the autosave did not spin the key itself (${Date.now() - started} ms)`);
+  const entry = await copyOnceKeyed(doc, 'memo.docx');
   assert.ok(entry, 'a copy was written');
   assert.equal(entry.encrypted, true);
   const copy = fs.readFileSync(path.join(recoveryDir, entry.file));

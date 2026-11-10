@@ -990,6 +990,17 @@ function writeSynced(file, data, encoding) {
   }
 }
 
+/** `writeSynced` off this thread: the disk's wait is spent on the file system's own threads. */
+async function writeSyncedAsync(file, data, encoding) {
+  const fh = await fs.promises.open(file, 'w');
+  try {
+    await fh.writeFile(data, encoding);
+    await fh.sync();
+  } finally {
+    await fh.close();
+  }
+}
+
 /** A recovery copy or its list replaced whole, never left half written. */
 function writeThenRename(target, data, encoding) {
   const temp = `${target}.${process.pid}.writing`;
@@ -1281,6 +1292,17 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     }
   }
 
+  /** `writing`, for a write that is awaited. */
+  async function writingAsync(target, fn) {
+    try {
+      return await fn();
+    } catch (err) {
+      const said = plainFsError(err, target, 'saved');
+      if (said) throw new Error(said);
+      throw err;
+    }
+  }
+
   /**
    * A whole file, written so that what is on disk is the old file or the new
    * one and never part of either.
@@ -1326,6 +1348,50 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       } catch {
         /* already renamed into place */
       }
+    }
+  }
+
+  /**
+   * `writeWhole` for a window's Save, the same steps, awaited. Written in
+   * place, an encrypted workbook of 7 KB held this thread, and with it every
+   * other window's typing, for 300 ms while Windows wrote, synced and renamed
+   * it. Two saves of one file go one after the other: they share the file
+   * written beside it.
+   */
+  const writesTo = new Map();
+  async function writeWholeAsync(target, data, encoding) {
+    let real = target;
+    try {
+      real = await fs.promises.realpath(target);
+    } catch {
+      /* a new file: there is no link to follow */
+    }
+    const before = writesTo.get(real) || Promise.resolve();
+    const mine = before.catch(() => {}).then(async () => {
+      const old = await fs.promises.stat(real).catch((err) => {
+        if (err.code === 'ENOENT') return null;
+        throw err;
+      });
+      if (old) await fs.promises.access(real, fs.constants.W_OK);
+      const temp = path.join(path.dirname(real), `.${path.basename(real)}.${process.pid}.saving`);
+      try {
+        await writeSyncedAsync(temp, data, encoding);
+        if (old) await fs.promises.chmod(temp, old.mode).catch(() => { /* a disk that keeps no modes */ });
+        try {
+          await fs.promises.rename(temp, real);
+        } catch (err) {
+          if (!old || !['EPERM', 'EACCES', 'EBUSY'].includes(err.code)) throw err;
+          await fs.promises.copyFile(temp, real);
+        }
+      } finally {
+        await fs.promises.rm(temp, { force: true }).catch(() => { /* already renamed into place */ });
+      }
+    });
+    writesTo.set(real, mine);
+    try {
+      return await mine;
+    } finally {
+      if (writesTo.get(real) === mine) writesTo.delete(real);
     }
   }
 
@@ -3426,6 +3492,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         // is copied every time it changes.
         const due = (session.autosaveAt || 0) + Math.max(30000, (session.autosaveCost || 0) * 20);
         if (session.autosaveAt && Date.now() < due) continue;
+        // A password set a moment ago has its key still spinning on the password threads. The copy waits for
+        // it: written now, it would spin the 100,000 rounds itself, here, holding every window for half a second.
+        if (!session.keyReady()) {
+          session.warmKey();
+          continue;
+        }
 
         const name = session.recoveryFile || `${session.id}-${Date.now().toString(36)}${RECOVERY_EXT[session.kind]}`;
         const started = Date.now();
@@ -3825,7 +3897,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (!native.includes(ext)) return writing(to, () => exportTo(session, to, ext.replace('.', '')));
       const version = session.version;
       const bytes = await session.fileBytesAsync(ext);
-      writing(to, () => writeWhole(to, bytes));
+      await writingAsync(to, () => writeWholeAsync(to, bytes));
       session.path = to;
       if (session.version === version) session.dirty = false;
       session.converted = null;
