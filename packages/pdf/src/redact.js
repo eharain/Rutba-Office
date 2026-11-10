@@ -165,6 +165,9 @@ function fontInfo(file, fontDict) {
   }
   if (subtype === 'Type0') {
     info.twoByte = true;
+    // Codes are two bytes and name the glyph only under the Identity encodings. Under any other a code may be one byte or two and its width is a guess, so a string that comes near a mark goes whole.
+    const encoding = font.get('Encoding');
+    info.unsure = !(encoding instanceof Name && /^Identity-[HV]$/.test(encoding.name));
     const desc = file.resolve((file.resolve(font.get('DescendantFonts')) || [])[0]);
     const dw = desc instanceof Dict ? num(file.resolve(desc.get('DW')), 1000) : 1000;
     const widths = new Map();
@@ -332,12 +335,37 @@ function paintOut(pix, rects, fill = [0, 0, 0]) {
   return data;
 }
 
-function imageStream(file, original, pix, data) {
+/** What a picture or form written anew does not carry over: how it was packed, its masks (dealt with apart), and words about it. */
+const NOT_CARRIED = new Set(['Filter', 'DecodeParms', 'Length', 'DL', 'SMask', 'Mask', 'SMaskInData', 'Metadata', 'Thumb', 'OPI', 'Alternates', 'Alt', 'PieceInfo', 'Ref', 'LastModified']);
+
+/**
+ * A picture's soft mask, painted out where the picture was. A mask is a picture
+ * too and can show the words on its own; one that cannot be read goes, and the
+ * picture is then a plain rectangle. A colour-key mask is a list of numbers and stays.
+ */
+function maskFor(file, original, rects, width, height) {
+  const colourKey = file.resolve(original.dict.get('Mask'));
+  const soft = file.resolve(original.dict.get('SMask'));
+  const out = {};
+  if (Array.isArray(colourKey)) out.Mask = colourKey;
+  if (!(soft instanceof Stream)) return out;
+  const pix = readPixels(file, soft);
+  if (!pix || pix.comps !== 1) return out;
+  const scaled = rects.map(([x0, y0, x1, y1]) => [Math.floor(x0 * pix.width / width), Math.floor(y0 * pix.height / height), Math.ceil(x1 * pix.width / width), Math.ceil(y1 * pix.height / height)]);
+  const dict = new Dict();
+  for (const [k, v] of soft.dict.entries()) if (!NOT_CARRIED.has(k)) dict.set(k, v);
+  dict.set('Filter', new Name('FlateDecode'));
+  out.SMask = new Stream(dict, zlib.deflateSync(paintOut(pix, scaled, [1])));
+  return out;
+}
+
+function imageStream(file, original, pix, data, { rects = [], width = pix.width, height = pix.height } = {}) {
   const dict = new Dict();
   for (const [k, v] of original.dict.entries()) {
-    if (['Filter', 'DecodeParms', 'Length', 'DL'].includes(k)) continue;
+    if (NOT_CARRIED.has(k)) continue;
     dict.set(k, v);
   }
+  for (const [k, v] of Object.entries(maskFor(file, original, rects, width, height))) dict.set(k, v);
   dict.set('Width', pix.width);
   dict.set('Height', pix.height);
   dict.set('BitsPerComponent', 8);
@@ -347,6 +375,64 @@ function imageStream(file, original, pix, data) {
 }
 
 // ── a page ────────────────────────────────────────────────────────────────
+
+const SPOKEN = ['ActualText', 'Alt', 'E'];
+
+/** Whether a content stream draws words or pictures, which is what could hold something a mark covers. */
+function drawsWords(file, stream) {
+  try {
+    return parseContent(file.decode(stream)).some((o) => ['Tj', 'TJ', "'", '"', 'Do', 'BI'].includes(o.op));
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * The tiling patterns and soft-mask groups of a redacted page that draw words
+ * or pictures, blanked. Where a pattern lands on the page is not followed, so
+ * one that could hold the words is emptied and counted among what was left
+ * off the page, for the person to be told. { kind: [[name, replacement]] }.
+ */
+function drawingResources(ctx, res) {
+  const { file, removed } = ctx;
+  const blanked = new Map();
+  if (!(res instanceof Dict)) return blanked;
+  const seen = (ctx.blankedOnce ||= new Set());
+  const count = (object) => {
+    if (seen.has(object)) return;
+    seen.add(object);
+    removed.images += 1;
+  };
+  const patterns = file.resolve(res.get('Pattern'));
+  if (patterns instanceof Dict) {
+    const list = [];
+    for (const [name, ref] of patterns.entries()) {
+      const p = file.resolve(ref);
+      if (!(p instanceof Stream) || num(file.resolve(p.dict.get('PatternType'))) !== 1 || !drawsWords(file, p)) continue;
+      const dict = new Dict();
+      for (const [k, v] of p.dict.entries()) if (!NOT_CARRIED.has(k)) dict.set(k, k === 'Resources' ? new Dict() : v);
+      list.push([name, new Stream(dict, Buffer.alloc(0))]);
+      count(p);
+    }
+    if (list.length) blanked.set('Pattern', list);
+  }
+  const states = file.resolve(res.get('ExtGState'));
+  if (states instanceof Dict) {
+    const list = [];
+    for (const [name, ref] of states.entries()) {
+      const state = file.resolve(ref);
+      const soft = state instanceof Dict ? file.resolve(state.get('SMask')) : null;
+      const group = soft instanceof Dict ? file.resolve(soft.get('G')) : null;
+      if (!(group instanceof Stream) || !drawsWords(file, group)) continue;
+      const copy = new Dict(state.entries());
+      copy.set('SMask', new Name('None'));
+      list.push([name, copy]);
+      count(group);
+    }
+    if (list.length) blanked.set('ExtGState', list);
+  }
+  return blanked;
+}
 
 /**
  * Redact one content stream (a page's, or a form XObject's) under `areas`,
@@ -359,6 +445,9 @@ function redactContent(ctx, data, resources, base, depth = 0) {
   const res = file.resolve(resources);
   const fonts = res instanceof Dict ? file.resolve(res.get('Font')) : null;
   const xobjects = res instanceof Dict ? file.resolve(res.get('XObject')) : null;
+  const extGStates = res instanceof Dict ? file.resolve(res.get('ExtGState')) : null;
+  const properties = res instanceof Dict ? file.resolve(res.get('Properties')) : null;
+  const propsGone = new Map(); // the name of a property list that held words -> the list without them
   const newX = new Map(); // fresh name -> replacement (Stream)
   const gone = new Set(); // names a picture or form was drawn under, painted out or left out
   const fontCache = new Map();
@@ -366,8 +455,12 @@ function redactContent(ctx, data, resources, base, depth = 0) {
     if (!fontCache.has(name)) fontCache.set(name, fontInfo(file, fonts instanceof Dict ? fonts.get(name) : null));
     return fontCache.get(name);
   };
+  const fontOfObject = (ref) => {
+    if (!fontCache.has(ref)) fontCache.set(ref, fontInfo(file, ref));
+    return fontCache.get(ref);
+  };
 
-  let gs = { ctm: base.slice(), font: null, size: 0, tc: 0, tw: 0, th: 1, tl: 0, rise: 0 };
+  let gs = { ctm: base.slice(), font: null, fontObject: null, size: 0, tc: 0, tw: 0, th: 1, tl: 0, rise: 0 };
   const stack = [];
   let tm = [1, 0, 0, 1, 0, 0];
   let tlm = [1, 0, 0, 1, 0, 0];
@@ -376,7 +469,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
 
   const show = (o, parts) => {
     // parts: PdfStrings and numbers, as in TJ. Returns the new array and whether a glyph went.
-    const font = gs.font ? fontOf(gs.font) : fontInfo(file, null);
+    const font = gs.fontObject ? fontOfObject(gs.fontObject) : gs.font ? fontOf(gs.font) : fontInfo(file, null);
     const size = gs.size;
     const result = [];
     let cut = false;
@@ -387,6 +480,17 @@ function redactContent(ctx, data, resources, base, depth = 0) {
         continue;
       }
       if (!(part instanceof PdfString)) continue;
+      if (font.unsure) {
+        // Where each glyph falls is not known here, so the string is judged whole, on a generous box.
+        const count = Math.ceil(part.bytes.length / 2);
+        const trm = mul([size * gs.th, 0, 0, size, 0, gs.rise], mul(tm, gs.ctm));
+        if (size !== 0 && glyphHit(boxOf(trm, -0.1, -0.5, count * 1.1 + 0.2, 1.5), areas)) {
+          removed.glyphs += count;
+          cut = true;
+        } else result.push(part);
+        tm = mul([1, 0, 0, 1, (count * size + gs.tc * count) * gs.th, 0], tm);
+        continue;
+      }
       let kept = [];
       let pending = 0; // thousandths of text space to move for glyphs taken out
       const flush = () => {
@@ -427,7 +531,15 @@ function redactContent(ctx, data, resources, base, depth = 0) {
       case 'Q': if (stack.length) gs = stack.pop(); out.push(o); break;
       case 'cm': if (a.length >= 6) gs.ctm = mul(a.slice(0, 6).map((x) => num(x)), gs.ctm); out.push(o); break;
       case 'BT': gap(); tm = [1, 0, 0, 1, 0, 0]; tlm = [1, 0, 0, 1, 0, 0]; out.push(o); break;
-      case 'Tf': gs.font = a[0] instanceof Name ? a[0].name : null; gs.size = num(a[1]); out.push(o); break;
+      case 'Tf': gs.font = a[0] instanceof Name ? a[0].name : null; gs.fontObject = null; gs.size = num(a[1]); out.push(o); break;
+      case 'gs': {
+        // A graphics state can set the font: the widths are that font's, or every glyph after it is measured wrong.
+        const state = a[0] instanceof Name && extGStates instanceof Dict ? file.resolve(extGStates.get(a[0].name)) : null;
+        const setFont = state instanceof Dict ? file.resolve(state.get('Font')) : null;
+        if (Array.isArray(setFont) && setFont.length >= 2) { gs.fontObject = setFont[0]; gs.font = null; gs.size = num(file.resolve(setFont[1])); }
+        out.push(o);
+        break;
+      }
       case 'Tc': gs.tc = num(a[0]); out.push(o); break;
       case 'Tw': gs.tw = num(a[0]); out.push(o); break;
       case 'Tz': gs.th = num(a[0], 100) / 100; out.push(o); break;
@@ -459,11 +571,18 @@ function redactContent(ctx, data, resources, base, depth = 0) {
       }
       case 'EMC': {
         const m = marked.pop();
-        if (m && m.hit && m.op.op === 'BDC' && m.op.operands[1] instanceof Dict) {
-          // Words the marked content carried for search and reading aloud go with the glyphs.
-          const props = new Dict(m.op.operands[1].entries());
-          for (const k of ['ActualText', 'Alt', 'E']) props.delete(k);
-          m.op.operands = [m.op.operands[0], props];
+        if (m && m.hit && m.op.op === 'BDC') {
+          // Words the marked content carried for search and reading aloud go with the glyphs,
+          // written in the stream or kept under a name in the page's /Properties.
+          const operand = m.op.operands[1];
+          const named = operand instanceof Name ? operand.name : null;
+          const held = named && properties instanceof Dict ? file.resolve(properties.get(named)) : operand;
+          if (held instanceof Dict && SPOKEN.some((k) => held.has(k))) {
+            const props = new Dict(held.entries());
+            for (const k of SPOKEN) props.delete(k);
+            m.op.operands = [m.op.operands[0], props];
+            if (named) propsGone.set(named, props);
+          }
           if (marked.length) marked[marked.length - 1].hit = true;
         }
         out.push(o);
@@ -471,7 +590,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
       }
       case 'BI': {
         // An inline image in the unit square under the CTM.
-        if (areas.some((r) => intersects(boxOf(gs.ctm, 0, 0, 1, 1), r))) { removed.images += 1; break; }
+        if (areas.some((r) => intersects(boxOf(gs.ctm, 0, 0, 1, 1), r))) { removed.images += 1; for (const m2 of marked) m2.hit = true; break; }
         out.push(o);
         break;
       }
@@ -492,19 +611,18 @@ function redactContent(ctx, data, resources, base, depth = 0) {
           const key = `${ref instanceof Ref ? ref.num : name}@${gs.ctm.map((v) => Math.round(v * 100) / 100).join(',')}`;
           let replacement = null;
           const pix = readPixels(file, x);
-          if (pix) replacement = imageStream(file, x, pix, paintOut(pix, rects, ctx.fill));
+          if (pix) replacement = imageStream(file, x, pix, paintOut(pix, rects, ctx.fill), { rects });
           else if (images && images[key]) {
             const given = images[key];
             const comps = given.data.length >= given.width * given.height * 3 ? 3 : 1;
             const p = { width: given.width, height: given.height, comps, data: Buffer.from(given.data), colorSpace: comps === 3 ? 'DeviceRGB' : 'DeviceGray' };
             const scaled = rects.map(([x0, y0, x1, y1]) => [Math.floor(x0 * p.width / w), Math.floor(y0 * p.height / h), Math.ceil(x1 * p.width / w), Math.ceil(y1 * p.height / h)]);
-            replacement = imageStream(file, x, p, paintOut(p, scaled, ctx.fill));
-            replacement.dict.delete('SMask');
-            if (x.dict.get('SMask')) replacement.dict.set('SMask', x.dict.get('SMask'));
+            replacement = imageStream(file, x, p, paintOut(p, scaled, ctx.fill), { rects, width: w, height: h });
           } else if (plan) {
             plan.push({ key, ref: ref instanceof Ref ? ref.num : null, width: w, height: h, filter: (() => { const f = file.resolve(x.dict.get('Filter')); return f instanceof Name ? f.name : Array.isArray(f) ? f.map((q) => q.name).join(' ') : ''; })(), rects, data: x.data });
           }
           gone.add(name);
+          for (const m2 of marked) m2.hit = true;
           if (replacement) {
             const fresh = `R${name}${ctx.counter++}`;
             newX.set(fresh, replacement);
@@ -530,7 +648,7 @@ function redactContent(ctx, data, resources, base, depth = 0) {
           if (removed.glyphs + removed.images + removed.pictures === before) { out.push(o); break; }
           gone.add(name);
           const dict = new Dict();
-          for (const [k, v] of x.dict.entries()) if (!['Filter', 'DecodeParms', 'Length'].includes(k)) dict.set(k, v);
+          for (const [k, v] of x.dict.entries()) if (!NOT_CARRIED.has(k)) dict.set(k, v);
           if (inner.resources) dict.set('Resources', inner.resources);
           dict.set('Filter', new Name('FlateDecode'));
           const fresh = `R${name}${ctx.counter++}`;
@@ -547,15 +665,31 @@ function redactContent(ctx, data, resources, base, depth = 0) {
     }
   }
 
+  // A property list named again where nothing was cut would be left pointing at nothing.
+  for (const o of out) {
+    if (o.op === 'BDC' && o.operands[1] instanceof Name && propsGone.has(o.operands[1].name)) o.operands = [o.operands[0], propsGone.get(o.operands[1].name)];
+  }
+  const blanked = drawingResources(ctx, res);
+
   let newResources = null;
-  if (newX.size || gone.size) {
+  if (newX.size || gone.size || propsGone.size || blanked.size) {
     // The old picture or form leaves the resources unless something on the page still draws it.
     const used = new Set(out.filter((x) => x.op === 'Do' && x.operands[0] instanceof Name).map((x) => x.operands[0].name));
     newResources = new Dict(res instanceof Dict ? res.entries() : []);
     const xo = new Dict(xobjects instanceof Dict ? xobjects.entries() : []);
     for (const k of gone) if (!used.has(k)) xo.delete(k);
     for (const [k, v] of newX) xo.set(k, v);
-    newResources.set('XObject', xo);
+    if (xo.size || xobjects instanceof Dict) newResources.set('XObject', xo);
+    for (const [kind, entries] of blanked) {
+      const copy = new Dict(file.resolve(res.get(kind)).entries());
+      for (const [k, v] of entries) copy.set(k, v);
+      newResources.set(kind, copy);
+    }
+    if (propsGone.size) {
+      const copy = new Dict(properties.entries());
+      for (const k of propsGone.keys()) copy.delete(k);
+      newResources.set('Properties', copy);
+    }
   }
   return { data: writeContent(out), resources: newResources, depth: stack.length };
 }
