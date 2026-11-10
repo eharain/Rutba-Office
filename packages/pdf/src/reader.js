@@ -451,14 +451,34 @@ function lzw(data, early = 1, most = MOST_BY_HAND) {
 }
 
 function runLength(data) {
-  const out = [];
+  // Written into a buffer that grows by doubling: a byte at a time into an array took seconds and gigabytes for a file built to unpack past the limit.
+  let out = Buffer.allocUnsafe(Math.min(MOST_BY_HAND, Math.max(1024, data.length * 2)));
+  let at = 0;
+  const room = (more) => {
+    if (at + more > MOST_BY_HAND) throw refuseByHand();
+    if (at + more <= out.length) return;
+    const bigger = Buffer.allocUnsafe(Math.min(MOST_BY_HAND, Math.max(at + more, out.length * 2)));
+    out.copy(bigger, 0, 0, at);
+    out = bigger;
+  };
   for (let i = 0; i < data.length;) {
     const n = data[i];
     if (n === 128) break;
-    if (n < 128) { for (let k = 0; k <= n; k++) out.push(data[i + 1 + k]); i += n + 2; } else { for (let k = 0; k < 257 - n; k++) out.push(data[i + 1]); i += 2; }
-    if (out.length > MOST_BY_HAND) throw refuseByHand();
+    if (n < 128) {
+      // A literal run cut short by the end of the data keeps what is there.
+      const end = Math.min(data.length, i + 2 + n);
+      room(end - (i + 1));
+      at += data.copy(out, at, i + 1, end);
+      i += n + 2;
+    } else {
+      if (i + 1 >= data.length) break;
+      room(257 - n);
+      out.fill(data[i + 1], at, at + 257 - n);
+      at += 257 - n;
+      i += 2;
+    }
   }
-  return Buffer.from(out);
+  return Buffer.from(out.subarray(0, at));
 }
 
 const num = (v, fallback = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
@@ -1075,7 +1095,7 @@ function asPdf(source, options) {
 }
 
 module.exports = {
-  inflate, lzw,
+  inflate, lzw, runLength,
   openPdf, asPdf, PdfFile, PdfReadError, Name, Ref, PdfString, Dict, Stream, Keyword, Lexer,
   parseValue, contentText, normaliseRotation, isName, INHERITABLE,
 };
