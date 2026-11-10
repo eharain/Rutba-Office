@@ -13,6 +13,7 @@
 //   <root>/<account>/<folder>/sync.json    where the folder stands with its server
 //   <root>/<account>/changes.json          changes made here, waiting for the server
 //   <root>/<account>/outgoing/<n>.eml      a sent message waiting to be kept in Sent there
+//   <root>/<account>/rename.json           a folder rename under way, finished at the next look if something stopped it
 //
 // The index is the only thing read to draw a list, so a 50,000-message folder
 // costs one file read. The message bodies are read when a message is opened.
@@ -40,6 +41,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { isMainThread } from 'node:worker_threads';
 import { SearchIndex, docOf, headlineText } from './search-index.js';
 import { stripHtml } from './mime.js';
 import { sealBytes, openBytes, isSealed, sealLine, openLine, isSealedLine, sealedWith } from './sealed.js';
@@ -52,6 +54,10 @@ const RESEAL_SLICE = 40;
 const FOLDER_DIRS = 'folder-dirs.json';
 /** Directories of an account that are not folders. */
 const RESERVED_DIRS = new Set(['outgoing']);
+/** A folder rename under way: written before the first file moves, taken away after the list is changed. */
+const RENAME = 'rename.json';
+/** What makes a directory a folder's: what is moved out of one under a name now reserved. */
+const FOLDER_PARTS = ['index.jsonl', 'm', 'a', 'sync.json'];
 
 /** A file written whole or not at all: a crash mid-write leaves the one before. */
 function writeAtomic(file, data, { flush = false } = {}) {
@@ -162,6 +168,9 @@ export class MailStore {
   /** The profile's key files are sealed with now, or null for none; and the one it replaced while a rekey runs. */
   #key = null;
   #previous = [];
+  /** While a rename runs, or a list is being made again: the folder list is read as it stands. */
+  #renaming = false;
+  #rebuildingList = false;
   /** Runs of sealing again, one at a time: Mail's start carrying one on and the vault finishing a change must not undo each other's keys. */
   #runs = Promise.resolve();
 
@@ -235,8 +244,9 @@ export class MailStore {
     return this.#readBytes(file).toString('utf8');
   }
 
-  #write(file, data) {
-    writeAtomic(file, this.#seal(data));
+  /** `flush`: on the disk before this returns, for a copy the original is about to be taken away from. */
+  #write(file, data, { flush = false } = {}) {
+    writeAtomic(file, this.#seal(data), { flush });
   }
 
   /** One index line as written: sealed alone, so the next is an append. */
@@ -253,11 +263,22 @@ export class MailStore {
     writeAtomic(file, rows.map((r) => this.#line(JSON.stringify(r))).join('\n') + (rows.length ? '\n' : ''), { flush: true });
   }
 
-  #appendRows(file, rows) {
+  #appendRows(file, rows, { flush = false } = {}) {
     if (!rows.length) return;
     // A crash can leave a last line half written; what comes next must not join it.
     const torn = this.#endsTorn(file);
-    fs.appendFileSync(file, `${torn ? '\n' : ''}${rows.map((r) => this.#line(JSON.stringify(r))).join('\n')}\n`);
+    const text = `${torn ? '\n' : ''}${rows.map((r) => this.#line(JSON.stringify(r))).join('\n')}\n`;
+    if (!flush) {
+      fs.appendFileSync(file, text);
+      return;
+    }
+    const handle = fs.openSync(file, 'a');
+    try {
+      fs.writeFileSync(handle, text);
+      fs.fsyncSync(handle);
+    } finally {
+      fs.closeSync(handle);
+    }
   }
 
   #accountDir(accountId) {
@@ -337,19 +358,44 @@ export class MailStore {
   #dirName(accountId, folder) {
     let dirs = this.#dirsOf(accountId);
     if (!dirs) return safe(folder);
+    if (this.#heldInReserved(dirs, folder)) dirs.delete(folder);
     if (dirs.has(folder)) return dirs.get(folder);
     // The search thread has a store of its own on these files: what it holds may be older than the list.
     this.#folderDirs.delete(accountId);
     dirs = this.#dirsOf(accountId);
     if (!dirs) return safe(folder);
+    if (this.#heldInReserved(dirs, folder)) dirs.delete(folder);
     if (dirs.has(folder)) return dirs.get(folder);
     const wanted = safe(folder);
     const taken = new Set([...dirs.values()].map((d) => d.toLowerCase()));
     const clash = taken.has(wanted.toLowerCase()) || RESERVED_DIRS.has(wanted.toLowerCase());
     const dir = clash ? `${wanted.slice(0, 100)}~${crypto.createHash('sha256').update(folder).digest('hex').slice(0, 10)}` : wanted;
+    if (RESERVED_DIRS.has(wanted.toLowerCase())) this.#moveOutOfReserved(accountId, wanted, dir);
     dirs.set(folder, dir);
     this.#saveDirs(accountId);
     return dir;
+  }
+
+  #heldInReserved(dirs, folder) {
+    return dirs.has(folder) && RESERVED_DIRS.has(dirs.get(folder).toLowerCase());
+  }
+
+  /**
+   * A folder whose name is now reserved for the account's own use, as one
+   * called Outgoing was until 2.24.1: its mail is moved to the directory it has
+   * from now on, part by part, each only if not there already, so a stop part
+   * way carries on. What the account itself keeps in that directory stays.
+   */
+  #moveOutOfReserved(accountId, wanted, dir) {
+    const account = this.#accountDir(accountId);
+    const from = path.join(account, wanted);
+    for (const part of FOLDER_PARTS) {
+      const source = path.join(from, part);
+      const target = path.join(account, dir, part);
+      if (!fs.existsSync(source) || fs.existsSync(target)) continue;
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.renameSync(source, target);
+    }
   }
 
   #folderDir(accountId, folder) {
@@ -360,11 +406,38 @@ export class MailStore {
 
   /** The folder list, with counts kept alongside so a list draws instantly. */
   folders(accountId) {
+    // On the main thread alone: the search thread has a store of its own here and a rename may be running on the other.
+    if (isMainThread && !this.#renaming) this.#finishRename(accountId);
     const file = path.join(this.#accountDir(accountId), 'folders.json');
+    let failure;
     try {
-      return JSON.parse(this.#readText(file));
+      const list = JSON.parse(this.#readText(file));
+      if (Array.isArray(list)) return list;
+      failure = new Error('not a list');
+    } catch (err) {
+      failure = err;
+    }
+    if (failure.code === 'ENOENT' || failure.code === 'MAIL_LOCKED' || this.#rebuildingList) return [];
+    return this.#foldersFromDirs(accountId);
+  }
+
+  /**
+   * The folder list made again when the file that held it cannot be read: the
+   * mail is all still there, and writing an empty list over it would lose
+   * every folder the server does not have.
+   */
+  #foldersFromDirs(accountId) {
+    this.#rebuildingList = true;
+    try {
+      const dirs = this.#dirsOf(accountId);
+      if (!dirs) return [];
+      const list = [...dirs.keys()].map((p) => ({ path: p, name: p.split('/').pop() }));
+      if (isMainThread) this.setFolders(accountId, list);
+      return list;
     } catch {
       return [];
+    } finally {
+      this.#rebuildingList = false;
     }
   }
 
@@ -383,7 +456,7 @@ export class MailStore {
   }
 
   /** Append one message. Returns its id, or null if it was already here. */
-  put(accountId, folder, message, { force = false } = {}) {
+  put(accountId, folder, message, { force = false, flush = false } = {}) {
     const dir = this.#folderDir(accountId, folder);
     const id = messageKey(message);
     const file = path.join(dir, 'm', `${id}.json`);
@@ -405,7 +478,7 @@ export class MailStore {
           fs.mkdirSync(adir, { recursive: true });
           const target = path.join(adir, a.stored);
           // Read and written again, not copied: sealed with the key held now, whatever the one it came with.
-          if (path.resolve(from) !== path.resolve(target)) this.#write(target, this.#readBytes(from));
+          if (path.resolve(from) !== path.resolve(target)) this.#write(target, this.#readBytes(from), { flush });
           return { ...a, bytes: undefined };
         }
         return { ...a, bytes: undefined, stored: false };
@@ -419,15 +492,15 @@ export class MailStore {
 
     const record = { ...message, id, folder, attachments };
     delete record.structure; // the parse tree is not worth storing
-    this.#keepOriginal(record, dir, id, message, accountId);
-    this.#write(file, JSON.stringify(record));
+    this.#keepOriginal(record, dir, id, message, accountId, flush);
+    this.#write(file, JSON.stringify(record), { flush });
     if (existed) {
       // Put again over itself (a draft saved again): its one index row is replaced, not joined by a second.
       const rows = this.#index(accountId, folder).filter((row) => row.id !== id);
       rows.push(headerOf(record, id, folder));
       this.#writeRows(path.join(dir, 'index.jsonl'), rows);
     } else {
-      this.#appendRows(path.join(dir, 'index.jsonl'), [headerOf(record, id, folder)]);
+      this.#appendRows(path.join(dir, 'index.jsonl'), [headerOf(record, id, folder)], { flush });
     }
     return id;
   }
@@ -437,7 +510,7 @@ export class MailStore {
    * attachments: its signature is over them and the record cannot give them
    * back. A message moved here from another folder brings its own with it.
    */
-  #keepOriginal(record, dir, id, message, accountId) {
+  #keepOriginal(record, dir, id, message, accountId, flush = false) {
     const name = 'smime-original.eml';
     let bytes = record.smimeRaw || null;
     delete record.smimeRaw;
@@ -451,7 +524,7 @@ export class MailStore {
     if (!bytes) return;
     const adir = path.join(dir, 'a', id);
     fs.mkdirSync(adir, { recursive: true });
-    this.#write(path.join(adir, name), Buffer.from(bytes));
+    this.#write(path.join(adir, name), Buffer.from(bytes), { flush });
     record.smime = { original: name };
   }
 
@@ -542,19 +615,37 @@ export class MailStore {
     }
 
     const rows = [];
-    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    const lines = fs.readFileSync(file, 'utf8').split('\n');
+    const last = lines.findLastIndex((l) => l.trim());
+    let spoiled = false;
+    for (const [n, line] of lines.entries()) {
       if (!line.trim()) continue;
       try {
         rows.push(this.#parseLine(line));
-      } catch {
-        // A torn last line after a crash: skip it, keep the rest.
+      } catch (err) {
+        // A torn last line after a crash: skip it, keep the rest. One in the middle has lost a message from the list.
+        if (n !== last && err.code !== 'MAIL_LOCKED') spoiled = true;
       }
     }
+    if (spoiled) this.#rowsFromFiles(accountId, folder, rows);
 
     this.#cache.delete(key);
     this.#cache.set(key, { stamp, rows });
     while (this.#cache.size > CACHED_FOLDERS) this.#cache.delete(this.#cache.keys().next().value);
     return rows;
+  }
+
+  /** Rows put back for the messages a spoiled index line lost, from their own files, so the next rewrite of the list keeps them. */
+  #rowsFromFiles(accountId, folder, rows) {
+    const held = new Set(rows.map((r) => r.id));
+    const dir = path.join(this.#folderDir(accountId, folder), 'm');
+    for (const name of fs.readdirSync(dir)) {
+      if (!name.endsWith('.json')) continue;
+      const id = name.slice(0, -5);
+      if (held.has(id)) continue;
+      const record = this.get(accountId, folder, id);
+      if (record) rows.push(headerOf(record, id, folder));
+    }
   }
 
   /**
@@ -793,7 +884,12 @@ export class MailStore {
 
   /** A file written whole or not at all: a crash mid-write leaves the one before. */
   #writeWhole(file, text) {
-    writeAtomic(file, this.#seal(text));
+    writeAtomic(file, this.#seal(text), { flush: true });
+  }
+
+  /** Whether a folder holds a message the server has not given a number: one only this computer has. */
+  hasLocalOnly(accountId, folder) {
+    return this.#index(accountId, folder).some((r) => r.uid === null || r.uid === undefined);
   }
 
   /** Does the store hold this folder (its directory), without making it? */
@@ -857,10 +953,20 @@ export class MailStore {
    * it. Kept beside the account's folders so it travels with them.
    */
   changes(accountId) {
+    const file = path.join(this.#accountDir(accountId), 'changes.json');
     try {
-      const kept = JSON.parse(this.#readText(path.join(this.#accountDir(accountId), 'changes.json')));
-      return Array.isArray(kept.items) ? kept : { next: 1, items: [] };
-    } catch {
+      const kept = JSON.parse(this.#readText(file));
+      if (Array.isArray(kept.items)) return kept;
+      throw new Error('not a list');
+    } catch (err) {
+      // A spoiled line is put aside before the next change is written over it: what it held can still be read by hand.
+      if (err.code !== 'ENOENT' && err.code !== 'MAIL_LOCKED' && isMainThread) {
+        try {
+          fs.renameSync(file, `${file}.damaged-${Date.now()}`);
+        } catch {
+          /* left where it is */
+        }
+      }
       return { next: 1, items: [] };
     }
   }
@@ -906,6 +1012,31 @@ export class MailStore {
    * folder list changed. The server is told separately.
    */
   renameFolder(accountId, from, to, delimiter = '/') {
+    const marker = path.join(this.#accountDir(accountId), RENAME);
+    this.#renaming = true;
+    try {
+      this.#writeWhole(marker, JSON.stringify({ from, to, delimiter }));
+      this.#moveFolders(accountId, from, to, delimiter);
+      fs.rmSync(marker, { force: true });
+    } finally {
+      this.#renaming = false;
+    }
+    return true;
+  }
+
+  /** A rename something stopped, carried to its end: every step of it can be done again. */
+  #finishRename(accountId) {
+    const marker = path.join(this.#accountDir(accountId), RENAME);
+    if (!fs.existsSync(marker)) return;
+    try {
+      const { from, to, delimiter } = JSON.parse(this.#readText(marker));
+      this.renameFolder(accountId, from, to, delimiter);
+    } catch {
+      /* the list as it stands; tried again at the next look */
+    }
+  }
+
+  #moveFolders(accountId, from, to, delimiter) {
     const folders = this.folders(accountId);
     const inside = (p) => p === from || p.startsWith(`${from}${delimiter}`);
     for (const f of folders.filter((x) => inside(x.path)).sort((a, b) => b.path.length - a.path.length)) {
@@ -930,7 +1061,6 @@ export class MailStore {
       if (rows.length) this.#writeRows(path.join(this.#folderDir(accountId, next), 'index.jsonl'), rows);
     }
     this.setFolders(accountId, folders.map((f) => (inside(f.path) ? { ...f, path: to + f.path.slice(from.length), name: (to + f.path.slice(from.length)).split(delimiter).pop() } : f)));
-    return true;
   }
 
   /** A folder gone, with everything in it, and out of the folder list. */

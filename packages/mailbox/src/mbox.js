@@ -17,9 +17,14 @@ import { parseMessage, summarize, toBytes } from './mime.js';
 
 const FROM_ = new TextEncoder().encode('From ');
 
+// The sender may be missing, or quoted with spaces in it. The date is the classic one, its zone and year in
+// either order, or an ISO one.
 const SEPARATOR_DATE = new RegExp(
-  '^From \\S+\\s+(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\\s+)?(?:\\d{1,2}\\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+' +
-    '(?:\\d{1,2}\\s+)?(?:\\d{4}\\s+)?\\d{1,2}:\\d{2}(?::\\d{2})?(?:\\s+\\S+)?(?:\\s+\\d{4})?(?:\\s+remote from \\S+)?\\s*$',
+  '^From (?:"[^"]*"\\S*|\\S*)\\s+(?:' +
+    '(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\\s+)?(?:\\d{1,2}\\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+' +
+    '(?:\\d{1,2},?\\s+)?(?:\\d{4}\\s+)?\\d{1,2}:\\d{2}(?::\\d{2})?(?:\\s+(?:[+-]\\d{4}|[A-Z]{1,5}(?:[+-]\\d{1,4})?|\\d{4})){0,2}' +
+    '|\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}(?::\\d{2})?(?:\\.\\d+)?(?:Z|\\s*[+-]\\d{2}:?\\d{2})?' +
+    ')(?:\\s+remote from \\S+)?\\s*$',
 );
 /** How much of a line is enough to judge it, and the line after it. */
 const SEPARATOR_LOOK = 512;
@@ -306,6 +311,7 @@ function findStarts(fd, size, block) {
   // Each block is read with a few bytes of the next, so a From_ line across
   // the join is found once, in the block its newline is in.
   const buf = Buffer.allocUnsafe(block + FROM_LINE.length);
+  const look = Buffer.allocUnsafe(SEPARATOR_LOOK);
   for (let off = 0; off < size; off += block) {
     const want = Math.min(block + FROM_LINE.length, size - off);
     let got = 0;
@@ -317,16 +323,15 @@ function findStarts(fd, size, block) {
     const view = buf.subarray(0, got);
     if (off === 0 && got >= 5 && view.toString('latin1', 0, 5) === 'From ') push(0);
     const limit = Math.min(block, got);
-    for (let j = view.indexOf(FROM_LINE); j >= 0 && j < limit; j = view.indexOf(FROM_LINE, j + 1)) push(off + j + 1);
+    const lastBlock = off + got >= size;
+    for (let j = view.indexOf(FROM_LINE); j >= 0 && j < limit; j = view.indexOf(FROM_LINE, j + 1)) {
+      const from = j + 1;
+      // Judged from the block in hand. Only a line that may cross the end of the block is read on its own: a file of nothing but such lines took half an hour a gigabyte.
+      const inHand = from + SEPARATOR_LOOK <= got || lastBlock;
+      const line = inHand ? view.subarray(from, Math.min(got, from + SEPARATOR_LOOK)) : look.subarray(0, fs.readSync(fd, look, 0, SEPARATOR_LOOK, off + from));
+      if (isSeparator(line)) push(off + from);
+    }
   }
-  // Each candidate read on its own: its line can cross the end of the block it was found in.
-  const look = Buffer.allocUnsafe(SEPARATOR_LOOK);
-  let kept = 0;
-  for (let i = 0; i < n; i++) {
-    const at = starts[i];
-    if (at === 0 || isSeparator(look.subarray(0, fs.readSync(fd, look, 0, SEPARATOR_LOOK, at)))) starts[kept++] = at;
-  }
-  n = kept;
   return starts.slice(0, n);
 }
 

@@ -471,7 +471,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const message = store.get(accountId, folder, id);
       if (!message) continue;
       // Its UID was its old folder's; the server says the new one.
-      store.put(accountId, to, { ...shape(message), uid: null }, { force: true });
+      // On the disk before the copy it came from is taken away.
+      store.put(accountId, to, { ...shape(message), uid: null }, { force: true, flush: true });
       moved.push(id);
     }
     // The folder they left is written once, however many moved.

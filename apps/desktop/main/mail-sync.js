@@ -623,10 +623,15 @@ export function createMailSync({ store, account: liveAccount, connect, describe,
     const server = list.filter((f) => !f.flags?.has?.('\\Noselect') && !f.flags?.has?.('\\NonExistent')).map((f) => describe(f));
     const paths = new Set(server.map((f) => f.path));
     const kept = [];
-    for (const f of store.folders(accountId)) {
+    const held = store.folders(accountId);
+    const missing = held.filter((f) => !paths.has(f.path) && store.syncState(accountId, f.path));
+    // A list that comes back empty or cut short is a server having a bad moment, not every folder deleted at once.
+    const doubtful = !server.length || (missing.length > 1 && missing.length >= server.length);
+    for (const f of held) {
       if (paths.has(f.path)) continue;
-      // Matched with the server before and gone from it: deleted or renamed elsewhere.
-      if (store.syncState(accountId, f.path)) store.removeFolder(accountId, f.path);
+      if (doubtful) { kept.push(f); continue; }
+      // Matched with the server before and gone from it: deleted or renamed elsewhere. Mail only this computer has stays.
+      if (store.syncState(accountId, f.path) && !store.hasLocalOnly(accountId, f.path)) store.removeFolder(accountId, f.path);
       else if (store.counts(accountId, f.path).total) kept.push({ ...f, local: true });
     }
     const all = [...server, ...kept];
