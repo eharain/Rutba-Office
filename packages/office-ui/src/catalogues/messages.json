@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8599,
+  "count": 8603,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1595,6 +1595,12 @@
       "message": "A record for which this holds is left out of the merge.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "A recording is running. It is stopped and kept, then this window closes.",
+      "where": [
+        "apps/desktop/renderer/studio/window.js"
       ]
     },
     {
@@ -40040,6 +40046,12 @@
       ]
     },
     {
+      "message": "Stop and close",
+      "where": [
+        "apps/desktop/renderer/studio/window.js"
+      ]
+    },
+    {
       "message": "Stop checking other rules once this one matches",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
@@ -40067,6 +40079,12 @@
       "message": "Stop recording — what was done becomes a script",
       "where": [
         "apps/desktop/renderer/apps/sheets/scripts.js"
+      ]
+    },
+    {
+      "message": "Stop recording?",
+      "where": [
+        "apps/desktop/renderer/studio/window.js"
       ]
     },
     {
@@ -43148,12 +43166,6 @@
       ]
     },
     {
-      "message": "The picture could not be redrawn.",
-      "where": [
-        "apps/desktop/renderer/apps/pictures.js"
-      ]
-    },
-    {
       "message": "The picture could not be turned: {error}",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -45241,6 +45253,12 @@
     },
     {
       "message": "This picture is animated",
+      "where": [
+        "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "This picture is animated. Turning it here would lose its frames.",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
       ]
@@ -49335,6 +49353,12 @@
       "message": "Write it in the whole window",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js"
+      ]
+    },
+    {
+      "message": "Writing stopped: {reason}. What was written before that is kept.",
+      "where": [
+        "apps/desktop/renderer/studio/window.js"
       ]
     },
     {

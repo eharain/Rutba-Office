@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.js",
     "./probe": "./src/probe.js",
+    "./png": "./src/codecs/png.js",
     "./exif": "./src/exif.js",
     "./pipeline": "./src/pipeline.js",
     "./model3d": "./src/model3d.js",

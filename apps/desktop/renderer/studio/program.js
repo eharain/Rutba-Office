@@ -301,7 +301,7 @@ export class Program {
    */
   async record({ shell, path = null, soundOnly = false, type: wanted = null, takes = [] }) {
     const part = (rec, file) => {
-      const writer = createChunkWriter({ append: (bytes) => shell.fs.append({ path: file, bytes }) });
+      const writer = createChunkWriter({ append: (bytes) => shell.fs.append({ path: file, bytes }), onFail: (err) => this.onWriteFailed?.(err) });
       rec.ondataavailable = (e) => { if (e.data?.size) writer.push(e.data); };
       return { rec, writer, stopped: new Promise((resolve) => rec.addEventListener('stop', resolve, { once: true })) };
     };
@@ -374,16 +374,19 @@ export class Program {
     await Promise.all(r.parts.map((p) => p.stopped));
     let failed = null;
     let written = 0;
+    let anything = 0;
     const takes = [];
     for (const p of r.parts) {
       const done = await p.writer.done();
       if (done.failed) failed = done.failed;
+      anything += done.written;
       if (p === r.main) written = done.written;
       else takes.push({ ...takeOut(p.take), duration: seconds, written: done.written });
     }
     this.recording = null;
-    if (failed) throw new Error(t('The recording could not be kept: {reason}', { reason: failed.message || String(failed) }));
-    return { path: r.path, written, seconds, heard: r.heard, soundOnly: r.soundOnly, type: r.type, takes };
+    // What reached the disk before it stopped taking more is a recording, up to there.
+    if (failed && !anything) throw new Error(t('The recording could not be kept: {reason}', { reason: failed.message || String(failed) }));
+    return { path: r.path, written, seconds, heard: r.heard, soundOnly: r.soundOnly, type: r.type, takes, failed: failed ? failed.message || String(failed) : null };
   }
 
   dispose() {

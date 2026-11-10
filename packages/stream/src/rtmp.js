@@ -261,14 +261,13 @@ export class RtmpPublisher extends EventEmitter {
       this.send(CSID.control, ACK, b);
       this.acked = this.received;
     }
-    let messages;
+    // A server's reply is read as it says it is: one too short must fail this
+    // stream, not throw from a socket callback in the main process.
     try {
-      messages = this.reader.push(d);
+      for (const m of this.reader.push(d)) this.onMessage(m);
     } catch (err) {
       this.fail(err);
-      return;
     }
-    for (const m of messages) this.onMessage(m);
   }
 
   onMessage(m) {

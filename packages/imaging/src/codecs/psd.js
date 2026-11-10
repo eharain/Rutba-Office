@@ -7,7 +7,7 @@
 // though their count says whether the picture has transparency), then each
 // channel of the flattened picture in turn, raw, PackBits by row, or zipped.
 
-import { bad, reader, checkSize, rgbaOf } from './bytes.js';
+import { bad, reader, checkSize, checkSampleBytes, rgbaOf } from './bytes.js';
 import { packbitsDecode } from './lzw.js';
 import { inflate } from './zlib.js';
 import { labToRgb } from './tiff.js';
@@ -130,6 +130,7 @@ export function decodePsd(b, { limits } = {}) {
     }
   } else {
     // Zipped: the whole of the picture's channels in one stream.
+    checkSampleBytes(planeBytes * channels, limits, 'PSD');
     const all = inflate(b.subarray(p), { size: planeBytes * channels, max: planeBytes * channels });
     for (let c = 0; c < want; c++) {
       const plane = new Uint8Array(planeBytes);

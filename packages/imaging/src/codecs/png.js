@@ -174,6 +174,149 @@ export function decodePng(b, limits) {
   return { width, height, rgba };
 }
 
+/** Chunks that stay true when a picture is turned; any other that must be understood to be copied is dropped, as the PNG rules say. */
+const TURN_KEEPS = new Set(['PLTE', 'tRNS', 'gAMA', 'cHRM', 'sRGB', 'iCCP', 'sBIT', 'bKGD', 'hIST', 'sPLT', 'pHYs', 'tIME', 'tEXt', 'zTXt', 'iTXt', 'eXIf']);
+
+/**
+ * A PNG turned a quarter clockwise with nothing changed but where its pixels
+ * stand: its bit depth, colour type, palette, colour profile and text stay.
+ * Null for an animated PNG, whose frames a single turned picture cannot hold.
+ */
+export function turnPng(b, limits) {
+  const r = reader(b, 'PNG', false);
+  if (!isPng(b)) bad('This is not a PNG picture.');
+  const chunks = [];
+  let ended = false;
+  for (let at = 8; at + 8 <= b.length;) {
+    const len = r.u32(at);
+    const type = ascii(b, at + 4, 4);
+    if (len > b.length - at - 8) break;
+    if (type === 'IEND') { ended = true; break; }
+    chunks.push({ type, body: b.subarray(at + 8, at + 8 + len) });
+    at += 12 + len;
+  }
+  if (!ended) bad('This PNG picture is cut short: turning it would lose the end of it.');
+  if (chunks.some((c) => c.type === 'acTL')) return null;
+  const head = chunks.find((c) => c.type === 'IHDR');
+  if (!head || head.body.length < 13) bad('This PNG picture has no header: it is damaged.');
+  const view = new DataView(head.body.buffer, head.body.byteOffset, head.body.byteLength);
+  const width = view.getUint32(0);
+  const height = view.getUint32(4);
+  const depth = head.body[8];
+  const colour = head.body[9];
+  const interlace = head.body[12];
+  checkSize(width, height, limits, 'PNG');
+  const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[colour];
+  const depthOk = { 0: [1, 2, 4, 8, 16], 2: [8, 16], 3: [1, 2, 4, 8], 4: [8, 16], 6: [8, 16] }[colour];
+  if (!channels || !depthOk.includes(depth)) bad('This PNG picture uses a colour type no PNG has: it is damaged.');
+  const bits = channels * depth;
+  const bpp = Math.max(1, bits >> 3);
+  const passes = interlace
+    ? ADAM7.map(([x0, y0, dx, dy]) => ({ x0, y0, dx, dy, w: Math.ceil((width - x0) / dx), h: Math.ceil((height - y0) / dy) })).filter((p) => p.w > 0 && p.h > 0)
+    : [{ x0: 0, y0: 0, dx: 1, dy: 1, w: width, h: height }];
+  let expected = 0;
+  for (const p of passes) {
+    p.rowBytes = Math.ceil((p.w * bits) / 8);
+    p.at = expected;
+    expected += (p.rowBytes + 1) * p.h;
+  }
+  const idat = chunks.filter((c) => c.type === 'IDAT');
+  const joined = new Uint8Array(idat.reduce((n, c) => n + c.body.length, 0));
+  let o = 0;
+  for (const c of idat) { joined.set(c.body, o); o += c.body.length; }
+  const unpacked = inflate(joined, { size: expected, max: expected });
+  if (unpacked.length < expected) bad('This PNG picture is cut short: turning it would lose the end of it.');
+  const data = unpacked.slice(0, expected);
+
+  // Every pixel where it stands: its bytes, or below a byte its value.
+  const pixels = new Uint8Array(width * height * bpp);
+  for (const p of passes) {
+    unfilter(data, p.at, p.rowBytes, p.h, bpp);
+    for (let y = 0; y < p.h; y++) {
+      const row = p.at + y * (p.rowBytes + 1) + 1;
+      const oy = p.y0 + y * p.dy;
+      for (let x = 0; x < p.w; x++) {
+        const d = (oy * width + p.x0 + x * p.dx) * bpp;
+        if (bits >= 8) {
+          for (let k = 0; k < bpp; k++) pixels[d + k] = data[row + x * bpp + k];
+        } else {
+          const bit = x * bits;
+          pixels[d] = (data[row + (bit >> 3)] >> (8 - bits - (bit & 7))) & ((1 << bits) - 1);
+        }
+      }
+    }
+  }
+
+  // (x, y) goes to (height - 1 - y, x).
+  const newWidth = height;
+  const newHeight = width;
+  const rowBytes = Math.ceil((newWidth * bits) / 8);
+  const raw = new Uint8Array((rowBytes + 1) * newHeight);
+  const line = new Uint8Array(rowBytes);
+  const prev = new Uint8Array(rowBytes);
+  const trial = new Uint8Array(rowBytes);
+  const best = new Uint8Array(rowBytes);
+  for (let y = 0; y < newHeight; y++) {
+    line.fill(0);
+    for (let x = 0; x < newWidth; x++) {
+      const s = ((height - 1 - x) * width + y) * bpp;
+      if (bits >= 8) {
+        for (let k = 0; k < bpp; k++) line[x * bpp + k] = pixels[s + k];
+      } else {
+        const bit = x * bits;
+        line[bit >> 3] |= pixels[s] << (8 - bits - (bit & 7));
+      }
+    }
+    // Below a byte a pixel, and with a palette, the PNG rules advise no filter.
+    let filter = 0;
+    best.set(line);
+    if (bits >= 8 && colour !== 3) {
+      let least = Infinity;
+      for (let type = 0; type <= 4; type++) {
+        let sum = 0;
+        for (let i = 0; i < rowBytes; i++) {
+          const a = i >= bpp ? line[i - bpp] : 0;
+          const up = prev[i];
+          const c = i >= bpp ? prev[i - bpp] : 0;
+          const v = (line[i] - (type === 1 ? a : type === 2 ? up : type === 3 ? (a + up) >> 1 : type === 4 ? paeth(a, up, c) : 0)) & 255;
+          trial[i] = v;
+          sum += v < 128 ? v : 256 - v;
+        }
+        if (sum < least) { least = sum; filter = type; best.set(trial); }
+      }
+    }
+    const out = y * (rowBytes + 1);
+    raw[out] = filter;
+    raw.set(best, out + 1);
+    prev.set(line);
+  }
+
+  const newHead = Uint8Array.from(head.body.subarray(0, 13));
+  const edit = new DataView(newHead.buffer);
+  edit.setUint32(0, newWidth);
+  edit.setUint32(4, newHeight);
+  newHead[12] = 0;
+  const pieces = [Uint8Array.from(SIGNATURE), chunk('IHDR', newHead)];
+  let wrote = false;
+  for (const c of chunks) {
+    if (c.type === 'IHDR') continue;
+    if (c.type === 'IDAT') {
+      if (!wrote) pieces.push(chunk('IDAT', deflate(raw, { level: 6 })));
+      wrote = true;
+    } else if (c.type === 'pHYs' && c.body.length === 9) {
+      // Pixels per metre across and down change places.
+      pieces.push(chunk('pHYs', Uint8Array.from([...c.body.subarray(4, 8), ...c.body.subarray(0, 4), c.body[8]])));
+    } else if (TURN_KEEPS.has(c.type) || (c.type.charCodeAt(3) & 0x20)) {
+      pieces.push(chunk(c.type, c.body));
+    }
+  }
+  pieces.push(chunk('IEND', new Uint8Array(0)));
+  const whole = new Uint8Array(pieces.reduce((n, p) => n + p.length, 0));
+  let w = 0;
+  for (const p of pieces) { whole.set(p, w); w += p.length; }
+  return whole;
+}
+
 function chunk(type, body) {
   const out = new Uint8Array(12 + body.length);
   const len = body.length;

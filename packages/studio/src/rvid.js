@@ -91,10 +91,38 @@ export function zipStored(entries) {
     return out;
 }
 
-async function inflateRaw(bytes) {
+/** No project part is this large; a file that says so is built to fill the memory. */
+const MAX_PART = 1024 * 1024 * 1024;
+const MAX_PROJECT = 2 * MAX_PART;
+const TOO_MUCH = 'This project is damaged: a part of it unpacks to more than it says it holds.';
+
+async function inflateRaw(bytes, limit) {
     if (typeof DecompressionStream !== 'function') throw new Error('This project is compressed in a way this system cannot read.');
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
+    const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+    const pieces = [];
+    let total = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > limit) {
+            await reader.cancel().catch(() => {});
+            throw new Error(TOO_MUCH);
+        }
+        pieces.push(value);
+    }
+    const out = new Uint8Array(total);
+    let at = 0;
+    for (const piece of pieces) { out.set(piece, at); at += piece.length; }
+    return out;
+}
+
+/** The server of a path on a network share, or null. Looking at one sends it who you are. */
+function shareHost(p) {
+    const text = String(p).replace(/\\/g, '/');
+    if (/^\/\/[?.]\/(?!unc\/)/i.test(text)) return null;
+    const m = /^(?:\/\/(?:[?.]\/unc\/)?|file:\/\/(?!\/))([^/]+)/i.exec(text);
+    return m ? m[1].toLowerCase() : null;
 }
 
 /** The entries of a zip, by name: { name: Uint8Array }. Stored and deflated entries. */
@@ -109,10 +137,14 @@ export async function unzip(input) {
     const count = v.getUint16(eocd + 10, true);
     let at = v.getUint32(eocd + 16, true);
     const out = {};
+    let promised = 0;
     for (let n = 0; n < count; n++) {
         if (v.getUint32(at, true) !== 0x02014b50) throw new Error('This project is damaged: its list of parts is broken.');
         const method = v.getUint16(at + 10, true);
         const compressedSize = v.getUint32(at + 20, true);
+        const unpackedSize = v.getUint32(at + 24, true);
+        promised += unpackedSize;
+        if (unpackedSize > MAX_PART || promised > MAX_PROJECT) throw new Error(TOO_MUCH);
         const nameLen = v.getUint16(at + 28, true);
         const extraLen = v.getUint16(at + 30, true);
         const commentLen = v.getUint16(at + 32, true);
@@ -121,7 +153,7 @@ export async function unzip(input) {
         const dataAt = localAt + 30 + v.getUint16(localAt + 26, true) + v.getUint16(localAt + 28, true);
         const raw = b.subarray(dataAt, dataAt + compressedSize);
         if (method === 0) out[name] = raw.slice();
-        else if (method === 8) out[name] = await inflateRaw(raw);
+        else if (method === 8) out[name] = await inflateRaw(raw, unpackedSize);
         at += 46 + nameLen + extraLen + commentLen;
     }
     return out;
@@ -228,12 +260,15 @@ export async function readRvid(bytes, { projectPath = null, exists = null } = {}
     const missing = [];
     if (exists) {
         const folder = projectPath ? folderOf(projectPath) : null;
+        // A project can name any server. Only the one it was itself opened from is looked at.
+        const home = projectPath ? shareHost(projectPath) : null;
+        const allowed = (p) => { const host = shareHost(p); return !host || host === home; };
         const remap = new Map();
         for (const s of sources) {
             if (!s?.url) continue;
-            if (await exists(s.url)) continue;
+            if (allowed(s.url) && await exists(s.url)) continue;
             const there = folder && s.relative ? resolvePath(folder, s.relative) : null;
-            if (there && there !== s.url && await exists(there)) {
+            if (there && there !== s.url && allowed(there) && await exists(there)) {
                 remap.set(s.url, there);
                 moved.push({ from: s.url, to: there });
             } else {

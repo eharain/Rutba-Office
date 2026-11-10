@@ -278,6 +278,8 @@ function askWorker(job) {
   });
 }
 
+const JPEG_ON_MAIN_MS = 8000;
+
 /** A JPEG's pixels from Chromium's own decoder (nativeImage), for the JPEG strips inside a TIFF. */
 async function jpegDecoder() {
   const { nativeImage } = await import('electron');
@@ -326,7 +328,14 @@ export async function decodedPicture(target, { info = false, page = 0, fit = 0 }
     // On this thread, with Chromium's JPEG decoder lent: a JPEG-compressed TIFF.
     const { decodePicture } = await imagingNow();
     try {
-      const pic = decodePicture(await fs.promises.readFile(target), path.basename(target), { page, fit, png: true, level: 3, jpeg: await jpegDecoder() });
+      // This thread answers every window: a file built of endless small pieces gives up here.
+      const decodeJpeg = await jpegDecoder();
+      const began = Date.now();
+      const jpeg = (bytes) => {
+        if (Date.now() - began > JPEG_ON_MAIN_MS) throw new Error('This picture takes too long to draw here.');
+        return decodeJpeg(bytes);
+      };
+      const pic = decodePicture(await fs.promises.readFile(target), path.basename(target), { page, fit, png: true, level: 3, jpeg });
       answer = { png: pic.png, width: pic.width, height: pic.height, pages: pic.pages, page: pic.page };
     } catch (err) {
       answer = { error: err?.message || String(err) };

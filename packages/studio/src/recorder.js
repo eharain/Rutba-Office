@@ -253,9 +253,10 @@ export const SLICE = 4 * 1024 * 1024;
  * a message at most, so the window holds none of the recording and no one
  * message carries much of it. `append(bytes)` writes (answers a promise); a
  * piece is anything with `size`, `slice(a, b)` and `arrayBuffer()` (a Blob).
- * After a failure nothing more is written and `done()` says why.
+ * After a failure nothing more is written and `done()` says why; `onFail`
+ * hears of it at once, not when the take ends.
  */
-export function createChunkWriter({ append, slice = SLICE }) {
+export function createChunkWriter({ append, slice = SLICE, onFail = null }) {
     let queue = Promise.resolve();
     let written = 0;
     let failed = null;
@@ -269,7 +270,11 @@ export function createChunkWriter({ append, slice = SLICE }) {
     return {
         push(part) {
             if (!part || !part.size) return queue;
-            queue = queue.then(() => (failed ? null : put(part))).catch((err) => { failed = err || new Error('write failed'); });
+            queue = queue.then(() => (failed ? null : put(part))).catch((err) => {
+                if (failed) return;
+                failed = err || new Error('write failed');
+                onFail?.(failed);
+            });
             return queue;
         },
         get written() { return written; },

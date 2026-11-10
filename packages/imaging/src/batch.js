@@ -101,12 +101,26 @@ const splitName = (file) => {
   return dot > 0 ? { stem: base.slice(0, dot), ext: base.slice(dot + 1) } : { stem: base, ext: '' };
 };
 
-const join = (dir, file) => (dir ? `${String(dir).replace(/[\\/]+$/, '')}${String(dir).includes('\\') ? '\\' : '/'}${file}` : file);
+const join = (dir, file) => {
+  if (!dir) return file;
+  const at = String(dir);
+  // "D:" names a drive, so its separator is the backslash even with none written.
+  const separator = at.includes('\\') || /^[A-Za-z]:$/.test(at) ? '\\' : '/';
+  return `${at.replace(/[\\/]+$/, '')}${separator}${file}`;
+};
+
+/** A path as a comparison sees it: Windows takes either slash and either case. */
+const pathKey = (p) => String(p).replace(/\\/g, '/').toLowerCase();
 
 /** The folder a path is in, as the path writes it. */
 export function folderOf(file) {
-  const at = Math.max(String(file).lastIndexOf('/'), String(file).lastIndexOf('\\'));
-  return at < 0 ? '' : String(file).slice(0, at);
+  const name = String(file);
+  const at = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
+  if (at < 0) return '';
+  // The root keeps its slash: "D:" alone is the drive's current folder, not its root.
+  if (at === 0) return name[0];
+  if (at === 2 && /^[A-Za-z]:/.test(name)) return name.slice(0, 3);
+  return name.slice(0, at);
 }
 
 /**
@@ -138,6 +152,7 @@ export function freeName(file, taken) {
  */
 export function planBatch(files, { format = 'same', pattern = '{name}', folder = null, resize = { mode: 'none' }, exists = () => false } = {}) {
   const planned = new Set();
+  const sources = new Set(files.map((file) => pathKey(file.path)));
   const items = [];
   files.forEach((file, i) => {
     const { stem } = splitName(file.path);
@@ -147,9 +162,11 @@ export function planBatch(files, { format = 'same', pattern = '{name}', folder =
     const dir = folder || folderOf(file.path);
     let target = join(dir, `${name}.${FORMATS[fmt].ext}`);
     // Within the batch, a later picture never takes an earlier one's name.
-    target = freeName(target, (p) => planned.has(p.toLowerCase()));
-    planned.add(target.toLowerCase());
-    const original = target.toLowerCase() === String(file.path).toLowerCase();
+    // Nor lands on another picture still to be read: that one would be converted from this one's result.
+    const mine = pathKey(file.path);
+    target = freeName(target, (p) => planned.has(pathKey(p)) || (sources.has(pathKey(p)) && pathKey(p) !== mine));
+    planned.add(pathKey(target));
+    const original = pathKey(target) === mine;
     items.push({ source: file.path, target, format: fmt, size, clash: original || Boolean(exists(target)), original });
   });
   return { items, clashes: items.filter((it) => it.clash) };

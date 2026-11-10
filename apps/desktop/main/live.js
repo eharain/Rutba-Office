@@ -18,7 +18,7 @@
 import crypto from 'node:crypto';
 import { RtmpPublisher, parseRtmpUrl, maskKey, PLATFORMS } from '@rutba/stream';
 import { Broadcast } from '@rutba/stream/broadcast';
-import { sendEvent } from '@rutba/office-shell/electron/main';
+
 
 const LIST_KEY = 'live.destinations';
 const keyName = (id) => `live.key.${id}`;
@@ -28,7 +28,7 @@ const shapeName = (s) => (s === 'tall' ? 'tall' : 'wide');
  * @param {{ stores, makePublisher?: (o) => RtmpPublisher }} o `makePublisher`
  * is for the checks, which hand it a local ingest.
  */
-export function createLiveService({ stores, makePublisher = (o) => new RtmpPublisher(o) }) {
+export function createLiveService({ stores, send, makePublisher = (o) => new RtmpPublisher(o) }) {
   const settings = stores.settings;
   const secrets = stores.secrets;
   const read = () => (Array.isArray(settings.get(LIST_KEY, [])) ? settings.get(LIST_KEY, []) : []);
@@ -115,7 +115,9 @@ export function createLiveService({ stores, makePublisher = (o) => new RtmpPubli
       const wanted = new Set(ids || []);
       const chosen = ids ? all.filter((d) => wanted.has(d.id)) : all.filter((d) => d.on);
       window = win;
-      broadcast = new Broadcast({ video, tall, audio, makePublisher, onChange: (status) => { if (window) sendEvent(window, 'live:status', status); } });
+      // Nobody left to end it or to see it fail: the broadcast ends with the window that began it.
+      win?.once?.('closed', () => { if (window === win) { window = null; if (broadcast?.running) broadcast.close(); } });
+      broadcast = new Broadcast({ video, tall, audio, makePublisher, onChange: (status) => { if (window) send(window, 'live:status', status); } });
       const started = [];
       const skipped = [];
       for (const d of chosen) {

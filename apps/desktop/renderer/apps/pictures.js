@@ -638,7 +638,7 @@ export default function Pictures({ app, shell, boot }) {
   /**
    * Rotate the picture: the file turned a quarter clockwise and saved, as
    * Windows Photos turns it — a JPEG without touching its pixels, by its
-   * EXIF orientation, and a PNG redrawn, which loses nothing. Anything else
+   * EXIF orientation, and a PNG turned pixel for pixel, depth and all. Anything else
    * is for Image, which Edit opens.
    */
   const rotateFile = useCallback(async (p) => {
@@ -654,7 +654,12 @@ export default function Pictures({ app, shell, boot }) {
           return;
         }
       } else if (ext === 'png') {
-        bytes = await turnedPng(p);
+        const { turnPng } = await import('@rutba/imaging/png');
+        bytes = turnPng((await shell.fs.read({ path: p })).bytes);
+        if (!bytes) {
+          toast(t('This picture is animated. Turning it here would lose its frames.'), { ms: 5000 });
+          return;
+        }
       } else {
         toast(t('Pictures turns a JPEG or a PNG and saves it. Edit opens this one in Image to turn and save it.'), { ms: 5000 });
         return;
@@ -1299,24 +1304,6 @@ function Grid({ files, folders, current, tileSize, browse = false, busy, onOpen,
 const stamps = new Map();
 const freshUrl = (p) => fileUrl(p) + (stamps.has(p) ? `?v=${stamps.get(p)}` : '');
 const freshThumb = (p) => thumbUrl(p) + (stamps.has(p) ? `&v=${stamps.get(p)}` : '');
-
-/** A PNG turned a quarter clockwise, redrawn: nothing of it lost. */
-async function turnedPng(p) {
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.src = `${fileUrl(p)}?v=${Date.now()}`;
-  await img.decode();
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalHeight;
-  canvas.height = img.naturalWidth;
-  const g = canvas.getContext('2d');
-  g.translate(canvas.width, 0);
-  g.rotate(Math.PI / 2);
-  g.drawImage(img, 0, 0);
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-  if (!blob) throw new Error(t('The picture could not be redrawn.'));
-  return new Uint8Array(await blob.arrayBuffer());
-}
 
 /**
  * The source that arrived for each path in this window — the platform's

@@ -892,11 +892,17 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   /* ── the disk ──────────────────────────────────────────────────────── */
 
   const camerasShown = airStack.cameraOff ? 0 : airStack.items.filter((it) => it.on && it.kind === 'camera').length;
-  const rate = useMemo(() => bytesPerSecond({ fps: settings.fps, cap: settings.size, quality: settings.quality, camera: false, mic: true, system: false }, { screen: settings.size === 720 ? { width: 1280, height: 720 } : { width: 1920, height: 1080 } }), [settings.fps, settings.size, settings.quality]);
+  // Each camera with a file of its own writes as well as the picture of the whole.
+  const ownFiles = into ? into.into !== 'slide' : Boolean(settings.isolated);
+  const cameraFiles = ownFiles ? camerasShown : 0;
+  const rate = useMemo(() => bytesPerSecond({ fps: settings.fps, cap: settings.size, quality: settings.quality, camera: false, mic: true, system: false }, { screen: settings.size === 720 ? { width: 1280, height: 720 } : { width: 1920, height: 1080 } })
+    + cameraFiles * bytesPerSecond({ fps: 30, cap: 720, quality: settings.quality, camera: false, mic: false, system: false }, { screen: { width: 1280, height: 720 } }), [cameraFiles, settings.fps, settings.size, settings.quality]);
   const checkDisk = useCallback(async () => {
-    if (!settings.folder) return null;
+    // The drive being written: a recording into a slide goes to the temporary folder, not the recordings folder.
+    const where = (phaseRef.current === 'recording' && takenRef.current) || settings.folder;
+    if (!where) return null;
     try {
-      const { free } = await shell.capture.space({ path: settings.folder });
+      const { free } = await shell.capture.space({ path: where });
       const state = { ...diskState(free, rate), free };
       setDisk(state);
       return state;
@@ -945,6 +951,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         ({ path } = await shell.capture.take({ dir: set.folder, name }));
       }
       takenRef.current = path;
+      // A disk that stops taking the recording ends it now: every frame after that would be lost unseen.
+      recorderNow().onWriteFailed = () => { if (phaseRef.current === 'recording') stopRef.current?.(); };
       if (liveRecord.current && !soundOnly && settingsRef.current.liveCopyShape === 'tall') {
         const tall = getTall();
         tall.attach();
@@ -1040,11 +1048,13 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
       const done = await recorderNow().stop();
       copyProgram.current?.detach();
       copyProgram.current = null;
+      if (done.failed && into) toast(t('Writing stopped: {reason}. What was written before that is kept.', { reason: done.failed }), { tone: 'bad', ms: 10000 });
       if (into && await handOver(done, pointer)) return;
       // Kept apart with no file of the whole: the first take stands for it on the card.
       const shown = done.path ? done : { ...done, path: done.takes[0]?.path || '', written: done.takes.reduce((n, k) => n + (k.written || 0), 0) };
       setSaved({ ...shown, thumb });
-      toast(t('Saved {name}', { name: basename(shown.path) }), { tone: 'good', ms: 5000 });
+      if (done.failed) toast(t('Writing stopped: {reason}. What was written before that is kept.', { reason: done.failed }), { tone: 'bad', ms: 10000 });
+      else toast(t('Saved {name}', { name: basename(shown.path) }), { tone: 'good', ms: 5000 });
     } catch (err) {
       toast(err?.message || String(err), { tone: 'bad', ms: 8000 });
     } finally {
@@ -1196,7 +1206,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
   const closing = useRef(false);
   useEffect(() => {
     const onBefore = (e) => {
-      if (!liveRef.current || closing.current) return;
+      const recording = phaseRef.current === 'recording' || phaseRef.current === 'stopping';
+      if ((!liveRef.current && !recording) || closing.current) return;
       e.preventDefault();
       e.returnValue = false;
       setCloseAsk(true);
@@ -1493,7 +1504,8 @@ export function StudioWindow({ app, shell, boot = null, kind = 'recorder', live:
         <StudioSettings settings={settings} setupName={setup.name} busy={busy} live={isLive} pictureKey={pictureKey} apart={!isLive && !into} title={settingsLabel.replace('…', '')} change={change} chooseFolder={chooseFolder} onClose={() => setSettingsOpen(false)} />
       ) : null}
       <OpenSetupDialog s={s} />
-      {closeAsk ? <ConfirmDialog title={t('End broadcast?')} body={t('You are live. Closing this window ends the broadcast.')} okLabel={t('End broadcast and close')} onOk={async () => { closing.current = true; await endLive(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
+      {closeAsk && liveRef.current ? <ConfirmDialog title={t('End broadcast?')} body={t('You are live. Closing this window ends the broadcast.')} okLabel={t('End broadcast and close')} onOk={async () => { closing.current = true; await endLive(); await stopRef.current?.(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
+      {closeAsk && !liveRef.current ? <ConfirmDialog title={t('Stop recording?')} body={t('A recording is running. It is stopped and kept, then this window closes.')} okLabel={t('Stop and close')} onOk={async () => { closing.current = true; await stopRef.current?.(); shell.win.close({ force: true }); }} onClose={() => setCloseAsk(false)} /> : null}
       {cameraAsk ? <ConfirmDialog tone="plain" title={t('Change the camera on air?')} body={t('The picture on air changes to {name} at once.', { name: cameraAsk.name })} okLabel={t('Change')} onOk={() => (cameraAsk.apply ? cameraAsk.apply() : setCameraTo(cameraAsk))} onClose={() => setCameraAsk(null)} /> : null}
       {sceneAsk?.what === 'rename' ? <NameDialog title={t('Rename')} label={t('Name')} value={sceneAsk.sc.name} okLabel={t('Rename')} onOk={(name) => { changeStack((st) => renameScene(st, sceneAsk.sc.key, name)); setSceneAsk(null); }} onClose={() => setSceneAsk(null)} /> : null}
       {sceneAsk?.what === 'delete' ? <ConfirmDialog title={t('Delete {name}?', { name: sceneAsk.sc.name })} body={t('The scene goes from this setup. Undo brings it back.')} okLabel={t('Delete')} onOk={() => changeStack((st) => removeScene(st, sceneAsk.sc.key))} onClose={() => setSceneAsk(null)} /> : null}

@@ -170,7 +170,8 @@ function sampleEntry(b, stsd) {
 
 function table(b, box, width = 1) {
   if (!box) return null;
-  const n = u32(b, box.body + 4);
+  // A file can claim any count; the box holds what it holds.
+  const n = Math.min(u32(b, box.body + 4), Math.max(0, Math.floor((box.end - box.body - 8) / (width * 4))));
   const rows = [];
   for (let i = 0; i < n; i++) {
     const at = box.body + 8 + i * width * 4;
@@ -192,11 +193,12 @@ function samplesOf(b, stbl) {
   const wide = stcoBox?.type === 'co64';
   const offsets = [];
   if (stcoBox) {
-    const n = u32(b, stcoBox.body + 4);
+    const n = Math.min(u32(b, stcoBox.body + 4), Math.max(0, Math.floor((stcoBox.end - stcoBox.body - 8) / (wide ? 8 : 4))));
     for (let i = 0; i < n; i++) offsets.push(wide ? u64(b, stcoBox.body + 8 + i * 8) : u32(b, stcoBox.body + 8 + i * 4));
   }
   const fixed = stszBox ? u32(b, stszBox.body + 4) : 0;
-  const count = stszBox ? u32(b, stszBox.body + 8) : 0;
+  const roomFor = fixed ? Math.floor(b.length / fixed) : (stszBox ? Math.max(0, Math.floor((stszBox.end - stszBox.body - 12) / 4)) : 0);
+  const count = stszBox ? Math.min(u32(b, stszBox.body + 8), roomFor) : 0;
   const sizes = [];
   for (let i = 0; i < count; i++) sizes.push(fixed || u32(b, stszBox.body + 12 + i * 4));
   const keys = stss ? new Set(stss) : null;
@@ -259,6 +261,7 @@ export function readMp4(bytes) {
   const tracks = [];
   for (const trak of children(b, moov, 'trak')) {
     const tkhd = child(b, trak, 'tkhd');
+    if (!tkhd || !path(b, trak, 'mdia', 'mdhd')) continue;
     const tv1 = b[tkhd.body] === 1;
     const id = tv1 ? u32(b, tkhd.body + 20) : u32(b, tkhd.body + 12);
     const mdhd = path(b, trak, 'mdia', 'mdhd');
@@ -275,7 +278,7 @@ export function readMp4(bytes) {
     const edits = [];
     if (elst) {
       const ev1 = b[elst.body] === 1;
-      const n = u32(b, elst.body + 4);
+      const n = Math.min(u32(b, elst.body + 4), Math.max(0, Math.floor((elst.end - elst.body - 8) / (ev1 ? 20 : 12))));
       for (let i = 0; i < n; i++) {
         const at = elst.body + 8 + i * (ev1 ? 20 : 12);
         edits.push(ev1 ? { duration: u64(b, at), mediaTime: Number(BigInt.asIntN(64, (BigInt(u32(b, at + 8)) << 32n) | BigInt(u32(b, at + 12)))) } : { duration: u32(b, at), mediaTime: i32(b, at + 4) });
@@ -290,6 +293,7 @@ export function readMp4(bytes) {
     fragmented = true;
     for (const traf of children(b, moof, 'traf')) {
       const tfhd = child(b, traf, 'tfhd');
+      if (!tfhd) continue;
       const flags = (b[tfhd.body + 1] << 16) | (b[tfhd.body + 2] << 8) | b[tfhd.body + 3];
       const id = u32(b, tfhd.body + 4);
       const track = tracks.find((t) => t.id === id);
@@ -311,8 +315,10 @@ export function readMp4(bytes) {
       for (const trun of children(b, traf, 'trun')) {
         const tf = (b[trun.body + 1] << 16) | (b[trun.body + 2] << 8) | b[trun.body + 3];
         const signed = b[trun.body] === 1;
-        const count = u32(b, trun.body + 4);
         let q = trun.body + 8;
+        const perSample = [0x100, 0x200, 0x400, 0x800].filter((bit) => tf & bit).length * 4;
+        const room = perSample ? Math.floor((trun.end - q) / perSample) : b.length;
+        const count = Math.min(u32(b, trun.body + 4), Math.max(0, room));
         let offset = dataEnd ?? base;
         if (tf & 0x01) { offset = base + i32(b, q); q += 4; }
         let firstFlags = null;

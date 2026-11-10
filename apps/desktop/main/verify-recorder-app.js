@@ -52,10 +52,12 @@ async function appChecks(h, { dir }) {
   const folder = path.join(dir, 'studio-recordings');
   const docFile = path.join(dir, 'studio-fixture.docx');
   let js = null;
+  let homeJs = null;
   let kept = null;
   try {
     fs.mkdirSync(folder, { recursive: true });
     const home = await open('home');
+    homeJs = (code) => home.webContents.executeJavaScript(code);
     // The launcher drawn before it is read: beside other work it was read while still empty.
     await until(() => home.webContents.executeJavaScript(`Boolean(document.querySelector('.home-card[data-app="recorder"]'))`), 'the launcher\'s Recorder tile', 15000).catch(() => {});
     const tile = await home.webContents.executeJavaScript(`(() => { const c = document.querySelector('.home-card[data-app="recorder"]'); return c ? c.textContent : ''; })()`);
@@ -296,10 +298,31 @@ async function appChecks(h, { dir }) {
 
     const complaints = await errorsIn(win);
     check('recorder app: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+
+    // Closed while it records: it asks first, stops, keeps the take, then closes.
+    await js(`document.querySelector('.st-again')?.click(), 1`);
+    await until(() => js(`Boolean(document.querySelector('.st-record')) && !document.querySelector('.st-saved')`), 'the scenes again', 4000).catch(() => {});
+    await js(`document.querySelector('.st-record')?.click(), 1`);
+    const takeOn = await ok(until(() => js(`document.querySelector('.st-record')?.classList.contains('on')`), 'recording to close', 15000));
+    await wait(2200);
+    win.close();
+    const STOP_AND_CLOSE = `[...document.querySelectorAll('button')].find((n) => n.textContent.trim() === 'Stop and close')`;
+    const asked = await ok(until(() => js(`Boolean(${STOP_AND_CLOSE})`), 'the question before closing', 6000));
+    const stillOpen = !win.isDestroyed();
+    await capture('record-close-asks.png');
+    if (asked) await js(`${STOP_AND_CLOSE}.click(), 1`);
+    const closed = await ok(until(() => win.isDestroyed(), 'the window to close', 30000));
+    const kept2 = files(/^Sound .*\.weba$/);
+    const newest = kept2.find((f) => !sound.some((s) => s.name === f.name));
+    const lastProbe = newest ? probeMedia(new Uint8Array(fs.readFileSync(path.join(folder, newest.name))), { complete: true }) : null;
+    check('recorder app: closing the window while it records asks first, then stops, keeps the take and closes',
+      takeOn && asked && stillOpen && closed && lastProbe?.hasAudio && lastProbe.duration > 1.5,
+      JSON.stringify({ takeOn, asked, stillOpen, closed, newest, probe: lastProbe ? { audio: lastProbe.hasAudio, duration: lastProbe.duration } : null }));
   } catch (err) {
     check('recorder app: the check ran to the end', false, err?.message || String(err));
   } finally {
-    if (js && kept) await restoreSetup(js, kept).catch(() => {});
+    // The Recorder window is closed by the last step: the launcher puts the setup back.
+    if (kept) await restoreSetup(homeJs || js, kept).catch(() => {});
     letGoOfStudioWindows();
   }
 }

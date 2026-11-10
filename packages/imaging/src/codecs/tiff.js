@@ -10,7 +10,7 @@
 // offset checked before it is used, every page's pixels counted before
 // anything is allocated for them).
 
-import { bad, reader, checkSize, rgbaOf, unpremultiply } from './bytes.js';
+import { bad, reader, checkSize, checkSampleBytes, rgbaOf, unpremultiply } from './bytes.js';
 import { inflate, deflate } from './zlib.js';
 import { lzwDecode, lzwEncode, packbitsDecode, packbitsEncode } from './lzw.js';
 import { ccittDecode } from './ccitt.js';
@@ -212,6 +212,7 @@ export function decodeTiff(b, { page = 0, limits, jpeg = null } = {}) {
   const tables = compression === 7 && tags.has(347) ? Uint8Array.from(values(r, tags.get(347), 1 << 20)) : null;
 
   const isFloat = format === 3;
+  checkSampleBytes(width * height * spp * (isFloat ? 4 : bps > 8 ? 2 : 1), limits, 'TIFF');
   const samples = isFloat ? new Float32Array(width * height * spp) : null;
   const rgba = rgbaOf(width, height);
   const maxVal = bps >= 32 ? 0xffffffff : (1 << bps) - 1;

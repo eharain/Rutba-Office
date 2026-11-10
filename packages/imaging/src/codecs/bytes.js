@@ -125,6 +125,12 @@ export function checkSize(width, height, limits, kind) {
   }
 }
 
+/** What a page's samples would take, against what a page may: its pixels at eight bytes each. */
+export function checkSampleBytes(bytes, limits, kind) {
+  const most = (limits?.pixels ?? LIMITS.pixels) * 8;
+  if (!(bytes <= most)) bad(`This ${kind} picture says it holds ${Math.round(bytes / 1e6)} MB of samples, more than can be opened.`);
+}
+
 /** A fresh RGBA buffer for a page, opaque black. */
 export function rgbaOf(width, height) {
   const out = new Uint8Array(width * height * 4);
