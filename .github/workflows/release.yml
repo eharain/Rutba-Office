@@ -37,6 +37,8 @@ jobs:
         with:
           # The templates are their own repository (Rutba-Office-Templates), taken as packages/templates.
           submodules: true
+          # Publishing compares this commit with the one the gate checked.
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: 22

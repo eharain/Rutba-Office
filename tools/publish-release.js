@@ -302,6 +302,36 @@ function credential() {
  * the release they describe rather than inside the script that uploads it:
  * a hard-coded block is one that still says 1.0.0 when 1.4 goes out.
  */
+/** The commit the note's Gate section says was checked, or null. */
+export function gatedCommitOf(note) {
+  const body = String(note || '').replace(/\r\n/g, '\n');
+  const at = body.search(/^## Gate\n/m);
+  if (at < 0) return null;
+  return /^Commit checked: ([0-9a-f]{40})\s*$/m.exec(body.slice(at))?.[1] || null;
+}
+
+/**
+ * Why this release may not go up, or null. What is published must be what the
+ * gate checked: the only files that may differ from the commit it checked are
+ * the two its record writes.
+ */
+export function gateProblem({ note, tag, changed }) {
+  const commit = gatedCommitOf(note);
+  if (!commit) return `docs/releases/${tag}.md has no Gate section naming the commit that was checked. Run the gate with --record.`;
+  if (changed === null) return `Commit ${commit}, which the gate checked, is not in this checkout.`;
+  const allowed = new Set(['README.md', `docs/releases/${tag}.md`]);
+  const extra = changed.filter((f) => !allowed.has(f));
+  return extra.length ? `${extra.length} file(s) changed since the gate checked ${commit.slice(0, 8)}: ${extra.slice(0, 5).join(', ')}. Run the gate again.` : null;
+}
+
+function changedSince(commit) {
+  try {
+    return execFileSync('git', ['diff', '--name-only', commit, 'HEAD'], { cwd: root, encoding: 'utf8' }).split('\n').map((l) => l.trim()).filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
 function notesFor(forTag) {
   const file = path.join(root, 'docs', 'releases', `${forTag}.md`);
   if (fs.existsSync(file)) return fs.readFileSync(file, 'utf8');
@@ -314,7 +344,11 @@ async function main() {
   const tag = process.argv[2] || `v${JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version}`;
   // The file is wrapped for editors; the release page breaks a line wherever
   // the body does, so each paragraph goes up as one line (release-notes.js).
-  const notes = unwrapNotes(notesFor(tag));
+  const written = notesFor(tag);
+  const commit = gatedCommitOf(written);
+  const refused = gateProblem({ note: written, tag, changed: commit ? changedSince(commit) : [] });
+  if (refused) throw new Error(refused);
+  const notes = unwrapNotes(written);
   // A name after an @ is a GitHub account: the release page would list it
   // as a contributor and notify it (release-notes.js mentionsIn).
   const mentioned = mentionsIn(notes);

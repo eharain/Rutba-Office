@@ -64,7 +64,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * verify:apps names each part's app; 'shell' is what every app shares. A run
  * can be limited to some apps, and picks up after the apps that passed.
  */
-export const VERIFY_APPS = ['shell', 'ribbon', 'look', 'theme', 'access', 'languages', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'recorder', 'broadcast', 'talk', 'base', 'pdf', 'mail', 'calendar', 'contacts'];
+export const VERIFY_APPS = ['shell', 'ribbon', 'look', 'theme', 'access', 'languages', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'recorder', 'broadcast', 'talk', 'base', 'pdf', 'mail', 'calendar', 'contacts', 'locker'];
 
 /** The apps a changed file touches; 'shell' means every app. */
 export function appsForPath(file) {
@@ -75,10 +75,11 @@ export function appsForPath(file) {
     const key = { home: 'shell', edit: 'shell' }[app] || app;
     return VERIFY_APPS.includes(key) ? [key] : ['shell'];
   }
+  if (/^apps\/desktop\/main\/extras\/locker\//.test(f)) return ['locker'];
   // The studio both the Recorder and Live Broadcast are.
   if (/^apps\/desktop\/renderer\/studio\//.test(f)) return ['recorder', 'broadcast'];
   const check = /^apps\/desktop\/main\/verify-([a-z]+)/.exec(f)?.[1];
-  if (check) return [{ word: 'word', sheet: 'sheets', deck: 'slides', slide: 'slides', mail: 'mail', video: 'video', recorder: 'recorder', broadcast: 'broadcast', talk: 'talk', base: 'base', pdf: 'pdf', picture: 'pictures', pictures: 'pictures', image: 'image', calendar: 'calendar', contacts: 'contacts', ribbon: 'ribbon', polish: 'theme', dark: 'theme', gallery: 'look', soon: 'look', panels: 'look', icons: 'look', a11y: 'access', keyboard: 'access', high: 'access', screen: 'access', dialog: 'access', lost: 'access', accessibility: 'access', urdu: 'languages', spelling: 'languages' }[check] || 'shell'];
+  if (check) return [{ locker: 'locker', word: 'word', sheet: 'sheets', deck: 'slides', slide: 'slides', mail: 'mail', video: 'video', recorder: 'recorder', broadcast: 'broadcast', talk: 'talk', base: 'base', pdf: 'pdf', picture: 'pictures', pictures: 'pictures', image: 'image', calendar: 'calendar', contacts: 'contacts', ribbon: 'ribbon', polish: 'theme', dark: 'theme', gallery: 'look', soon: 'look', panels: 'look', icons: 'look', a11y: 'access', keyboard: 'access', high: 'access', screen: 'access', dialog: 'access', lost: 'access', accessibility: 'access', urdu: 'languages', spelling: 'languages' }[check] || 'shell'];
   const service = /^apps\/desktop\/main\/([a-z]+)/.exec(f)?.[1];
   if (service) return [{ mail: 'mail', live: 'broadcast', talk: 'talk', base: 'base', pdf: 'pdf', calendar: 'calendar', contacts: 'contacts', dav: 'calendar' }[service] || 'shell'];
   const pkg = /^packages\/([a-z-]+)\//.exec(f)?.[1];
@@ -134,7 +135,7 @@ const n = (v) => Number(v).toLocaleString('en-GB');
 const PLATFORM = { win32: 'Windows', darwin: 'macOS', linux: 'Linux' };
 
 /** The release note's Gate section, in the note's own plain style. */
-export function gateSection(counts, { version, date, platform = process.platform, arch = process.arch, reran = [], apps = null }) {
+export function gateSection(counts, { version, date, platform = process.platform, arch = process.arch, reran = [], apps = null, commit = null }) {
   const t = engineCounts(counts);
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
@@ -146,7 +147,47 @@ export function gateSection(counts, { version, date, platform = process.platform
   const again = reran.length
     ? `\n\n${wrap(`${reran.length === 1 ? 'One check' : `${n(reran.length)} checks`} failed beside the others and passed when run again alone at the end of the same gate:`)}\n\n${reran.map((r) => `- ${r}`).join('\n')}`
     : '';
-  return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${again}\n`;
+  const at = commit ? `\n\nCommit checked: ${commit}` : '';
+  return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}${at}${again}\n`;
+}
+
+/**
+ * What a run must not inherit. Each of these makes a check process run less
+ * than the whole, and a gate started from a shell that has one set would
+ * count what little ran as the gate.
+ */
+export const SHRINKING_ENV = ['RUTBA_VERIFY_ONLY', 'RUTBA_VERIFY_APPS', 'RUTBA_VERIFY_PART_IDS', 'RUTBA_VERIFY_LANE', 'RUTBA_VERIFY_PARTS', 'RUTBA_LOCKER'];
+
+/** More checks than this failing beside the others closes the gate: that is a fault, not a busy machine. */
+export const RERUN_LIMIT = 5;
+
+/** The counts the last full gate wrote into the README, the least this one may run. */
+export function floorsFrom(readme) {
+  const text = String(readme || '');
+  const num = (re) => { const m = re.exec(text); return m ? Number(m[1].replace(/,/g, '')) : null; };
+  return {
+    tests: num(/what runs before a release: ([\d,]+) engine tests/),
+    edit: num(/engine tests, ([\d,]+) editing checks/),
+    apps: num(/editing checks,\s+([\d,]+) application checks/),
+    smoke: num(/and ([\d,]+) window captures/),
+  };
+}
+
+/** What this full run counted fewer of than the last: [] when nothing fell. */
+export function belowFloor(counts, floors) {
+  const all = engineCounts(counts);
+  return [
+    ['engine tests', all?.tests, floors.tests],
+    ['editing checks', counts['verify:edit']?.of, floors.edit],
+    ['application checks', counts['verify:apps']?.of, floors.apps],
+    ['window captures', counts.smoke?.of, floors.smoke],
+  ].filter(([, now, was]) => was != null && (now == null || now < was)).map(([what, now, was]) => `${what}: ${now ?? 'none'}, down from ${was}`);
+}
+
+/** The changes in a tree that stop a run going on the record: all but the note and README a record writes. */
+export function dirtyForRecord(porcelain, version) {
+  const own = new Set(['README.md', `docs/releases/v${version}.md`]);
+  return String(porcelain || '').split('\n').filter(Boolean).filter((l) => !own.has(l.slice(3).trim().replace(/\\/g, '/').replace(/^"|"$/g, '')));
 }
 
 /** a, b and c */
@@ -243,6 +284,7 @@ const record = argv.includes('--record');
 const resume = argv.includes('--resume');
 const changed = argv.includes('--changed');
 const serial = argv.includes('--serial');
+const fewer = argv.includes('--fewer-checks');
 
 /** Run a command; its output shown as it comes (unless quiet, or sent to `log`), and the end of it kept. */
 function run(command, args, env = {}, { log = null, cwd = ROOT } = {}) {
@@ -300,7 +342,7 @@ const TIMING = path.join(STATE_DIR, 'timing.json');
 const LOGS = path.join(STATE_DIR, 'logs');
 const PARTS_DIR = path.join(STATE_DIR, 'parts');
 /** A chunk's length the first time, before a run has measured it, in seconds. */
-const FIRST_GUESS = { shell: 900, ribbon: 550, look: 400, theme: 400, word: 420, sheets: 400, slides: 350, access: 300, mail: 300, video: 300, languages: 200, pdf: 150, image: 150, recorder: 90, broadcast: 90, pictures: 60, talk: 40, base: 30, calendar: 40, contacts: 20 };
+const FIRST_GUESS = { shell: 900, ribbon: 550, look: 400, theme: 400, word: 420, sheets: 400, slides: 350, access: 300, mail: 300, video: 300, languages: 200, pdf: 150, image: 150, recorder: 90, broadcast: 90, pictures: 60, talk: 40, base: 30, calendar: 40, contacts: 20, locker: 300 };
 
 /** The chunks in the order they start: the longest first, so the last to finish is a short one. */
 export function longestFirst(chunks, timing = {}) {
@@ -426,6 +468,13 @@ async function main() {
   const counts = {};
   let failed = false;
 
+  for (const name of SHRINKING_ENV) {
+    if (process.env[name] !== undefined) {
+      console.log(`${name} was set in this shell and is ignored: the gate runs everything.`);
+      delete process.env[name];
+    }
+  }
+
   // Which apps' window checks this run is for: those named, those changed, or all.
   let wanted = VERIFY_APPS.slice();
   if (appsArg) wanted = appsArg.split(',').map((a) => a.trim()).filter((a) => VERIFY_APPS.includes(a));
@@ -442,6 +491,18 @@ async function main() {
   const head = git('rev-parse', 'HEAD');
   const tree = git('status', '--porcelain', '--untracked-files=no');
   for (const d of [STATE_DIR, LOGS, PARTS_DIR]) fs.mkdirSync(d, { recursive: true });
+  // One gate at a time: two would write over each other's parts and counts.
+  const running = path.join(STATE_DIR, 'running');
+  try {
+    const other = Number(fs.readFileSync(running, 'utf8'));
+    if (other && other !== process.pid) {
+      process.kill(other, 0);
+      console.log(`Another gate is running (process ${other}). Wait for it to end.`);
+      process.exit(1);
+    }
+  } catch { /* none, or it has ended */ }
+  fs.writeFileSync(running, String(process.pid));
+  process.on('exit', () => { try { fs.rmSync(running, { force: true }); } catch { /* gone */ } });
   const state = (resume && readState(head, tree)) || { head, tree, passes: {}, apps: {}, machine: null };
   state.apps ||= {};
   const save = () => fs.writeFileSync(STATE, JSON.stringify(state, null, 2));
@@ -465,8 +526,8 @@ async function main() {
     else say(`  [${name}] started`);
     const out = await run(command, args, env, { log });
     const counted = countsOf(name, out.tail);
-    // A pass that counts and ended without its count did not finish, whatever it exited with.
-    const code = out.code === 0 && name !== 'test' && name !== 'test:perf' && !counted ? 1 : out.code;
+    // A pass that ended without a count, or counted nothing, tested nothing, whatever it exited with.
+    const code = out.code === 0 && (!counted || counted.of === 0) ? 1 : out.code;
     if (code !== out.code) say(`${name} ended without saying what it counted: it did not finish.`);
     results.push({ name, what, ok: code === 0, seconds: secs(Date.now() - started), log });
     if (counted) counts[name] = counted;
@@ -478,7 +539,7 @@ async function main() {
   };
 
   /** One run of window checks: a chunk in the parallel lane, or the machine lane. Its counts from its parts file. */
-  const windowRun = async (label, env) => {
+  const windowRun = async (label, env, { mayBeEmpty = false } = {}) => {
     const partsFile = path.join(PARTS_DIR, `${label}.json`);
     try { fs.rmSync(partsFile, { force: true }); } catch { /* none */ }
     const log = path.join(LOGS, `${label}.log`);
@@ -488,7 +549,8 @@ async function main() {
     const seconds = (Date.now() - started) / 1000;
     const parts = readJson(partsFile)?.apps || null;
     const sum = parts ? Object.values(parts).reduce((t, p) => ({ passed: t.passed + p.passed, of: t.of + p.of, failed: [...t.failed, ...p.failed] }), { passed: 0, of: 0, failed: [] }) : null;
-    const ok = out.code === 0 && Boolean(sum) && sum.failed.length === 0;
+    // A chunk that ran no check tested nothing: it is not a pass.
+    const ok = out.code === 0 && Boolean(sum) && sum.failed.length === 0 && (mayBeEmpty || sum.of > 0);
     say(`  [${label}] ${ok ? 'ok  ' : 'FAIL'} ${sum ? `${sum.passed}/${sum.of}` : 'ended without its count'} in ${seconds.toFixed(0)} s${ok ? '' : ` (${path.relative(ROOT, log)})`}`);
     if (sum && !ok) for (const f of sum.failed.slice(0, 8)) say(`         FAIL ${f}`);
     return { ok, seconds, sum: sum || { passed: 0, of: 0, failed: ['the run ended before it counted'] }, parts };
@@ -563,7 +625,7 @@ async function main() {
         failed = true;
       } else {
         say(`\n\u001b[1m── machine: the computer's own clipboard and keys, alone ──\u001b[0m`);
-        const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}) });
+        const r = await windowRun('machine', { RUTBA_VERIFY_LANE: 'machine', ...(wanted.length < VERIFY_APPS.length ? { RUTBA_VERIFY_APPS: wanted.join(',') } : {}) }, { mayBeEmpty: wanted.length < VERIFY_APPS.length });
         state.machine = { ok: r.ok, passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: Math.round(r.seconds), byApp: r.parts || null };
         save();
       }
@@ -574,6 +636,10 @@ async function main() {
       const again = partsToRerun(Object.fromEntries(wanted.map((a) => [a, state.apps[a]])), state.machine);
       for (const [laneName, set] of [['parallel', again.parallel], ['machine', again.machine]]) {
         if (!set.names.length) continue;
+        if (set.names.length > RERUN_LIMIT) {
+          say(`\n  ${set.names.length} checks failed ${laneName === 'machine' ? 'in the machine lane' : 'beside the others'}: more than ${RERUN_LIMIT}, so they are not run again and the gate stays closed.`);
+          continue;
+        }
         say(`\n\u001b[1m── again, alone: ${set.names.length} check${set.names.length === 1 ? '' : 's'} that failed ${laneName === 'machine' ? 'in the machine lane' : 'beside the others'} ──\u001b[0m`);
         for (const n of set.names) say(`         ${n}`);
         await settle();
@@ -582,16 +648,16 @@ async function main() {
           : { RUTBA_VERIFY_LANE: 'parallel', RUTBA_VERIFY_APPS: set.apps.join(',') };
         // A chunk with a failure outside its parts runs whole; the rest only the parts that failed.
         if (!set.whole.length) env.RUTBA_VERIFY_PART_IDS = set.ids.join(',');
-        const r = await windowRun(laneName === 'machine' ? 'again-machine' : 'again', env);
+        const r = await windowRun(laneName === 'machine' ? 'again-machine' : 'again', env, { mayBeEmpty: true });
         const cleared = rerunCleared(set.names, r.parts);
         say(`  again: ${cleared ? 'each passed alone' : 'still failing'}`);
         if (!cleared) continue;
         if (laneName === 'machine') {
-          state.machine = { ...state.machine, ok: true, passed: state.machine.of, reran: set.names, failed: [] };
+          state.machine = { ...state.machine, ok: true, reran: set.names, failed: [] };
         } else {
           for (const a of set.apps) {
             const v = state.apps[a];
-            state.apps[a] = { ...v, ok: true, passed: v.of, reran: v.failed, failed: [] };
+            state.apps[a] = { ...v, ok: true, reran: v.failed, failed: [] };
           }
         }
         save();
@@ -610,6 +676,16 @@ async function main() {
   // 6. Every window painted, once the rest has passed.
   if (want('smoke') && !failed) await pass('smoke', 'every window paints', 'npm', ['run', 'smoke']);
 
+  // A full run must have run at least what the last one did.
+  if (!partial && !failed) {
+    const fell = belowFloor(counts, floorsFrom(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')));
+    if (fell.length) {
+      for (const f of fell) console.log(`Fewer checks than the last gate: ${f}`);
+      if (fewer) console.log('Allowed by --fewer-checks.');
+      else { console.log('Say why in the commit that removed them and run again with --fewer-checks.'); failed = true; }
+    }
+  }
+
   console.log('\n────────────────────────────────────────────────');
   for (const r of results) {
     console.log(`${r.ok ? '\u001b[32mok  \u001b[0m' : '\u001b[31mFAIL\u001b[0m'} ${r.name.padEnd(13)} ${r.what.padEnd(38)} ${r.seconds}s${r.resumed ? ' (before)' : ''}`);
@@ -627,7 +703,10 @@ async function main() {
   const whole = (!partial || scoped) && ['test', 'test:perf', 'verify:edit', 'smoke'].every((name) => state.passes[name]?.ok)
     && (scoped ? wanted : VERIFY_APPS).every((a) => state.apps[a]?.ok) && (!wanted.length || state.machine?.ok);
   if (record) {
-    if (failed || !whole) {
+    const dirty = dirtyForRecord(git('status', '--porcelain'), version);
+    if (!failed && whole && (git('rev-parse', 'HEAD') !== head || dirty.length)) {
+      console.log(`Nothing recorded: the commit moved during the run, or the tree has changes a commit would not hold (${dirty.slice(0, 5).join('; ') || 'HEAD changed'}).`);
+    } else if (failed || !whole) {
       console.log(changed && !isPatch(version)
         ? `Nothing recorded: ${version} is not a patch release, and only a full run that passed is put on its record.`
         : 'Nothing recorded: only a run that passed, in full or for the apps a patch release changed, is put on the record.');
@@ -636,7 +715,7 @@ async function main() {
       const notePath = path.join(ROOT, 'docs', 'releases', `v${version}.md`);
       if (fs.existsSync(notePath)) {
         const reran = [...VERIFY_APPS.flatMap((a) => state.apps[a]?.reran || []), ...(state.machine?.reran || [])];
-        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null })));
+        fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date, reran, apps: scoped ? wanted : null, commit: head })));
         console.log(`Recorded in ${path.relative(ROOT, notePath)}.`);
       } else {
         console.log(`No note at ${path.relative(ROOT, notePath)} to record in; write the note first.`);

@@ -25,9 +25,14 @@ $sw = [Diagnostics.Stopwatch]::StartNew()
 $p = Start-Process -FilePath $Installer -ArgumentList '/S' -Wait -PassThru
 "[$Label] installer exit {0} in {1:n1}s" -f $p.ExitCode, $sw.Elapsed.TotalSeconds
 "[$Label] after:"; Registered
+if ($p.ExitCode -ne 0) { "[$Label] FAILED: the installer ended with $($p.ExitCode)."; exit 3 }
+$copies = @(Registered).Count
+if ($copies -ne 1) { "[$Label] FAILED: $copies copies are registered after the install, not 1."; exit 3 }
 $exe = Join-Path $env:LOCALAPPDATA 'Programs\Rutba Office\Rutba Office.exe'
 if (-not (Test-Path $exe)) { "[$Label] no installed exe at $exe"; exit 1 }
-"[$Label] installed exe version: {0}" -f (Get-Item $exe).VersionInfo.FileVersion
+$have = (Get-Item $exe).VersionInfo.FileVersion
+"[$Label] installed exe version: {0}" -f $have
+if ((Split-Path $Installer -Leaf) -match '(\d+\.\d+\.\d+)' -and -not $have.StartsWith($Matches[1])) { "[$Label] FAILED: the installed copy is $have, not $($Matches[1])."; exit 3 }
 
 # One icon per file type: the ProgId each extension points at, and its DefaultIcon.
 $missingIcons = 0
@@ -47,6 +52,7 @@ foreach ($ext in @('.docx', '.xlsx', '.pptx', '.jpg', '.mp4', '.eml', '.pdf', '.
 
 # The app tiles, unpacked beside the archive.
 $tiles = Join-Path (Split-Path $exe) 'resources\app.asar.unpacked\resources\apps'
+$tilesThere = [bool](Test-Path $tiles) -and @(Get-ChildItem $tiles -Filter *.ico).Count -gt 0
 if (Test-Path $tiles) { "[$Label] tiles: {0}" -f ((Get-ChildItem $tiles -Filter *.ico | ForEach-Object { $_.Name }) -join ' ') } else { "[$Label] tiles MISSING at $tiles" }
 
 # --app=word opens a Documents window, in a profile of its own, off the desktop.
@@ -86,4 +92,5 @@ Start-Sleep -Seconds 2
 Remove-Item $dataDir -Recurse -Force -ErrorAction SilentlyContinue
 if (-not $opened) { "[$Label] FAILED: the installed copy did not open a Documents window."; exit 3 }
 if ($missingIcons -gt 0) { "[$Label] FAILED: $missingIcons file types have no icon."; exit 3 }
+if (-not $tilesThere) { "[$Label] FAILED: the app tiles are not unpacked at $tiles."; exit 3 }
 "[$Label] proven: installed, registered with icons, tiles unpacked, and a Documents window opened."
