@@ -78,5 +78,5 @@ test('a number format names the Hijri calendar (B2, or the calendar byte of [$-�
   assert.equal(formatValue(25, '[$-3000000]0').text, '۲۵', 'Urdu\'s and Persian\'s digits');
   assert.equal(formatValue(day, '[$-2000000]dd/mm/yyyy').text, '١٠/١٠/٢٠٢٦');
   assert.equal(formatValue(12, '[$-409]0').text, '12', 'a locale alone changes nothing');
-  assert.equal(formatValue(5, '[$€-407]0.00 €').text, '5.00 €', 'a currency with its locale still reads as before');
+  assert.equal(formatValue(5, '[$€-407]0.00 €').text, '€5.00 €', 'the symbol in the brackets prints, as in Excel');
 });

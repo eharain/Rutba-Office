@@ -1,0 +1,2292 @@
+{
+ "base": {
+  "sheets": {
+   "Data": {
+    "cells": {
+     "A1": "Item",
+     "B1": "Qty",
+     "C1": "Price",
+     "D1": "Total",
+     "E1": "Running",
+     "F1": "=SUM(D2:D6)",
+     "G1": "=Other!A1+1",
+     "H1": "yes",
+     "A2": "Nut",
+     "B2": 1,
+     "C2": 2,
+     "D2": "=B2*C2",
+     "E2": "=SUM($B$2:B2)",
+     "H2": "no",
+     "A3": "there",
+     "B3": 2,
+     "C3": 3,
+     "D3": "=B3*C3",
+     "E3": "=SUM($B$2:B3)",
+     "H3": "maybe",
+     "A4": "Cog",
+     "B4": 3,
+     "C4": 4,
+     "D4": "=B4*C4",
+     "E4": "=SUM($B$2:B4)",
+     "A5": "Gear",
+     "B5": 4,
+     "C5": 5,
+     "D5": "=B5*C5",
+     "E5": "=SUM($B$2:B5)",
+     "A6": "Pin",
+     "B6": 5,
+     "C6": 6,
+     "D6": "=B6*C6",
+     "E6": "=SUM($B$2:B6)",
+     "A9": "Q1",
+     "B9": "Q2",
+     "C9": "Q3",
+     "A10": 1,
+     "B10": 2,
+     "C10": 3,
+     "E10": "=SUM(Sales[Q1])",
+     "A11": 4,
+     "B11": 5,
+     "C11": 6,
+     "E11": "=SUM(Sales[Q2],Sales[Q3])",
+     "A12": 7,
+     "B12": 8,
+     "C12": 9,
+     "A13": 10,
+     "B13": 11,
+     "C13": 12
+    },
+    "merges": [
+     "I5:J6"
+    ],
+    "conditional": [
+     [
+      "B2:B6",
+      [
+       "B1>2"
+      ]
+     ]
+    ],
+    "validations": [
+     [
+      "B15",
+      "1",
+      "$F$1"
+     ],
+     [
+      "C2:C6",
+      "$H$1:$H$3"
+     ]
+    ],
+    "links": [
+     [
+      "A2",
+      ""
+     ],
+     [
+      "A3",
+      "Data!H2"
+     ]
+    ],
+    "breaks": [
+     7
+    ],
+    "autoFilter": null,
+    "notes": [
+     "C3",
+     "D4"
+    ],
+    "noteBoxes": [
+     [
+      2,
+      2
+     ],
+     [
+      3,
+      3
+     ]
+    ],
+    "anchors": [
+     [
+      9,
+      10
+     ]
+    ]
+   },
+   "Other": {
+    "cells": {
+     "A1": "=Data!B3",
+     "C1": "=A1+1",
+     "A2": "=SUM(Data!B2:B6)",
+     "B2": 5,
+     "C2": "=A2+1",
+     "A3": "=Data!D4*2",
+     "C3": "=A3+1"
+    },
+    "merges": [],
+    "conditional": [],
+    "validations": [],
+    "links": [],
+    "breaks": [],
+    "autoFilter": null,
+    "notes": [],
+    "noteBoxes": [],
+    "anchors": []
+   }
+  },
+  "names": {
+   "Rate": "Data!$C$2",
+   "Span": "Data!$B$2:$B$6"
+  },
+  "tables": [
+   [
+    "Sales",
+    "Data",
+    "A9:C13",
+    [
+     "Q1",
+     "Q2",
+     "Q3"
+    ]
+   ]
+  ],
+  "charts": [
+   "Data!$B$1",
+   "Data!$B$1",
+   "Data!$B$1",
+   "Data!$B$1",
+   "Data!$B$1",
+   "Data!$B$2",
+   "Data!$B$3",
+   "Data!$B$4",
+   "Data!$B$5",
+   "Data!$B$6"
+  ]
+ },
+ "edits": [
+  {
+   "name": "insert a row above the data",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A2": "Item",
+       "B2": "Qty",
+       "C2": "Price",
+       "D2": "Total",
+       "E2": "Running",
+       "F2": "=SUM(D3:D7)",
+       "G2": "=Other!A1+1",
+       "H2": "yes",
+       "A3": "Nut",
+       "B3": 1,
+       "C3": 2,
+       "D3": "=B3*C3",
+       "E3": "=SUM($B$3:B3)",
+       "H3": "no",
+       "A4": "there",
+       "B4": 2,
+       "C4": 3,
+       "D4": "=B4*C4",
+       "E4": "=SUM($B$3:B4)",
+       "H4": "maybe",
+       "A5": "Cog",
+       "B5": 3,
+       "C5": 4,
+       "D5": "=B5*C5",
+       "E5": "=SUM($B$3:B5)",
+       "A6": "Gear",
+       "B6": 4,
+       "C6": 5,
+       "D6": "=B6*C6",
+       "E6": "=SUM($B$3:B6)",
+       "A7": "Pin",
+       "B7": 5,
+       "C7": 6,
+       "D7": "=B7*C7",
+       "E7": "=SUM($B$3:B7)",
+       "A10": "Q1",
+       "B10": "Q2",
+       "C10": "Q3",
+       "A11": 1,
+       "B11": 2,
+       "C11": 3,
+       "E11": "=SUM(Sales[Q1])",
+       "A12": 4,
+       "B12": 5,
+       "C12": 6,
+       "E12": "=SUM(Sales[Q2],Sales[Q3])",
+       "A13": 7,
+       "B13": 8,
+       "C13": 9,
+       "A14": 10,
+       "B14": 11,
+       "C14": 12
+      },
+      "merges": [
+       "I6:J7"
+      ],
+      "conditional": [
+       [
+        "B3:B7",
+        [
+         "B2>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "B16",
+        "1",
+        "$F$2"
+       ],
+       [
+        "C3:C7",
+        "$H$2:$H$4"
+       ]
+      ],
+      "links": [
+       [
+        "A3",
+        ""
+       ],
+       [
+        "A4",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       8
+      ],
+      "autoFilter": null,
+      "notes": [
+       "C4",
+       "D5"
+      ],
+      "noteBoxes": [
+       [
+        3,
+        2
+       ],
+       [
+        4,
+        3
+       ]
+      ],
+      "anchors": [
+       [
+        9,
+        11
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!B4",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!B3:B7)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!D5*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!$C$3",
+     "Span": "Data!$B$3:$B$7"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A10:C14",
+      [
+       "Q1",
+       "Q2",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!$B$2",
+     "Data!$B$2",
+     "Data!$B$2",
+     "Data!$B$2",
+     "Data!$B$2",
+     "Data!$B$3",
+     "Data!$B$4",
+     "Data!$B$5",
+     "Data!$B$6",
+     "Data!$B$7"
+    ]
+   }
+  },
+  {
+   "name": "insert a row inside a filled column",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A1": "Item",
+       "B1": "Qty",
+       "C1": "Price",
+       "D1": "Total",
+       "E1": "Running",
+       "F1": "=SUM(D2:D7)",
+       "G1": "=Other!A1+1",
+       "H1": "yes",
+       "A2": "Nut",
+       "B2": 1,
+       "C2": 2,
+       "D2": "=B2*C2",
+       "E2": "=SUM($B$2:B2)",
+       "H2": "no",
+       "A3": "there",
+       "B3": 2,
+       "C3": 3,
+       "D3": "=B3*C3",
+       "E3": "=SUM($B$2:B3)",
+       "H3": "maybe",
+       "A5": "Cog",
+       "B5": 3,
+       "C5": 4,
+       "D5": "=B5*C5",
+       "E5": "=SUM($B$2:B5)",
+       "A6": "Gear",
+       "B6": 4,
+       "C6": 5,
+       "D6": "=B6*C6",
+       "E6": "=SUM($B$2:B6)",
+       "A7": "Pin",
+       "B7": 5,
+       "C7": 6,
+       "D7": "=B7*C7",
+       "E7": "=SUM($B$2:B7)",
+       "A10": "Q1",
+       "B10": "Q2",
+       "C10": "Q3",
+       "A11": 1,
+       "B11": 2,
+       "C11": 3,
+       "E11": "=SUM(Sales[Q1])",
+       "A12": 4,
+       "B12": 5,
+       "C12": 6,
+       "E12": "=SUM(Sales[Q2],Sales[Q3])",
+       "A13": 7,
+       "B13": 8,
+       "C13": 9,
+       "A14": 10,
+       "B14": 11,
+       "C14": 12
+      },
+      "merges": [
+       "I6:J7"
+      ],
+      "conditional": [
+       [
+        "B2:B4 B6:B7",
+        [
+         "B1>2"
+        ]
+       ],
+       [
+        "B5",
+        [
+         "B3>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "B16",
+        "1",
+        "$F$1"
+       ],
+       [
+        "C2:C7",
+        "$H$1:$H$3"
+       ]
+      ],
+      "links": [
+       [
+        "A2",
+        ""
+       ],
+       [
+        "A3",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       8
+      ],
+      "autoFilter": null,
+      "notes": [
+       "C3",
+       "D5"
+      ],
+      "noteBoxes": [
+       [
+        2,
+        2
+       ],
+       [
+        4,
+        3
+       ]
+      ],
+      "anchors": [
+       [
+        9,
+        11
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!B3",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!B2:B7)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!D5*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!$C$2",
+     "Span": "Data!$B$2:$B$7"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A10:C14",
+      [
+       "Q1",
+       "Q2",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$2",
+     "Data!$B$3",
+     "Data!$B$5",
+     "Data!$B$6",
+     "Data!$B$7"
+    ]
+   }
+  },
+  {
+   "name": "insert two rows inside a filled column",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A1": "Item",
+       "B1": "Qty",
+       "C1": "Price",
+       "D1": "Total",
+       "E1": "Running",
+       "F1": "=SUM(D2:D8)",
+       "G1": "=Other!A1+1",
+       "H1": "yes",
+       "A2": "Nut",
+       "B2": 1,
+       "C2": 2,
+       "D2": "=B2*C2",
+       "E2": "=SUM($B$2:B2)",
+       "H2": "no",
+       "A5": "there",
+       "B5": 2,
+       "C5": 3,
+       "D5": "=B5*C5",
+       "E5": "=SUM($B$2:B5)",
+       "H5": "maybe",
+       "A6": "Cog",
+       "B6": 3,
+       "C6": 4,
+       "D6": "=B6*C6",
+       "E6": "=SUM($B$2:B6)",
+       "A7": "Gear",
+       "B7": 4,
+       "C7": 5,
+       "D7": "=B7*C7",
+       "E7": "=SUM($B$2:B7)",
+       "A8": "Pin",
+       "B8": 5,
+       "C8": 6,
+       "D8": "=B8*C8",
+       "E8": "=SUM($B$2:B8)",
+       "A11": "Q1",
+       "B11": "Q2",
+       "C11": "Q3",
+       "A12": 1,
+       "B12": 2,
+       "C12": 3,
+       "E12": "=SUM(Sales[Q1])",
+       "A13": 4,
+       "B13": 5,
+       "C13": 6,
+       "E13": "=SUM(Sales[Q2],Sales[Q3])",
+       "A14": 7,
+       "B14": 8,
+       "C14": 9,
+       "A15": 10,
+       "B15": 11,
+       "C15": 12
+      },
+      "merges": [
+       "I7:J8"
+      ],
+      "conditional": [
+       [
+        "B2:B4 B6:B8",
+        [
+         "B1>2"
+        ]
+       ],
+       [
+        "B5",
+        [
+         "B2>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "B17",
+        "1",
+        "$F$1"
+       ],
+       [
+        "C2:C8",
+        "$H$1:$H$5"
+       ]
+      ],
+      "links": [
+       [
+        "A2",
+        ""
+       ],
+       [
+        "A5",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       9
+      ],
+      "autoFilter": null,
+      "notes": [
+       "C5",
+       "D6"
+      ],
+      "noteBoxes": [
+       [
+        4,
+        2
+       ],
+       [
+        5,
+        3
+       ]
+      ],
+      "anchors": [
+       [
+        9,
+        12
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!B5",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!B2:B8)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!D6*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!$C$2",
+     "Span": "Data!$B$2:$B$8"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A11:C15",
+      [
+       "Q1",
+       "Q2",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$2",
+     "Data!$B$5",
+     "Data!$B$6",
+     "Data!$B$7",
+     "Data!$B$8"
+    ]
+   }
+  },
+  {
+   "name": "delete a row inside a filled column",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A1": "Item",
+       "B1": "Qty",
+       "C1": "Price",
+       "D1": "Total",
+       "E1": "Running",
+       "F1": "=SUM(D2:D5)",
+       "G1": "=Other!A1+1",
+       "H1": "yes",
+       "A2": "Nut",
+       "B2": 1,
+       "C2": 2,
+       "D2": "=B2*C2",
+       "E2": "=SUM($B$2:B2)",
+       "H2": "no",
+       "A3": "there",
+       "B3": 2,
+       "C3": 3,
+       "D3": "=B3*C3",
+       "E3": "=SUM($B$2:B3)",
+       "H3": "maybe",
+       "A4": "Gear",
+       "B4": 4,
+       "C4": 5,
+       "D4": "=B4*C4",
+       "E4": "=SUM($B$2:B4)",
+       "A5": "Pin",
+       "B5": 5,
+       "C5": 6,
+       "D5": "=B5*C5",
+       "E5": "=SUM($B$2:B5)",
+       "A8": "Q1",
+       "B8": "Q2",
+       "C8": "Q3",
+       "A9": 1,
+       "B9": 2,
+       "C9": 3,
+       "E9": "=SUM(Sales[Q1])",
+       "A10": 4,
+       "B10": 5,
+       "C10": 6,
+       "E10": "=SUM(Sales[Q2],Sales[Q3])",
+       "A11": 7,
+       "B11": 8,
+       "C11": 9,
+       "A12": 10,
+       "B12": 11,
+       "C12": 12
+      },
+      "merges": [
+       "I4:J5"
+      ],
+      "conditional": [
+       [
+        "B2:B3 B5",
+        [
+         "B1>2"
+        ]
+       ],
+       [
+        "B4",
+        [
+         "#REF!>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "B14",
+        "1",
+        "$F$1"
+       ],
+       [
+        "C2:C5",
+        "$H$1:$H$3"
+       ]
+      ],
+      "links": [
+       [
+        "A2",
+        ""
+       ],
+       [
+        "A3",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       6
+      ],
+      "autoFilter": null,
+      "notes": [
+       "C3"
+      ],
+      "noteBoxes": [
+       [
+        2,
+        2
+       ]
+      ],
+      "anchors": [
+       [
+        9,
+        9
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!B3",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!B2:B5)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!#REF!*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!$C$2",
+     "Span": "Data!$B$2:$B$5"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A8:C12",
+      [
+       "Q1",
+       "Q2",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!#REF!",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$2",
+     "Data!$B$3",
+     "Data!$B$4",
+     "Data!$B$5"
+    ]
+   }
+  },
+  {
+   "name": "delete the first filled row",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A1": "Item",
+       "B1": "Qty",
+       "C1": "Price",
+       "D1": "Total",
+       "E1": "Running",
+       "F1": "=SUM(D2:D5)",
+       "G1": "=Other!A1+1",
+       "H1": "yes",
+       "A2": "there",
+       "B2": 2,
+       "C2": 3,
+       "D2": "=B2*C2",
+       "E2": "=SUM($B$2:B2)",
+       "H2": "maybe",
+       "A3": "Cog",
+       "B3": 3,
+       "C3": 4,
+       "D3": "=B3*C3",
+       "E3": "=SUM($B$2:B3)",
+       "A4": "Gear",
+       "B4": 4,
+       "C4": 5,
+       "D4": "=B4*C4",
+       "E4": "=SUM($B$2:B4)",
+       "A5": "Pin",
+       "B5": 5,
+       "C5": 6,
+       "D5": "=B5*C5",
+       "E5": "=SUM($B$2:B5)",
+       "A8": "Q1",
+       "B8": "Q2",
+       "C8": "Q3",
+       "A9": 1,
+       "B9": 2,
+       "C9": 3,
+       "E9": "=SUM(Sales[Q1])",
+       "A10": 4,
+       "B10": 5,
+       "C10": 6,
+       "E10": "=SUM(Sales[Q2],Sales[Q3])",
+       "A11": 7,
+       "B11": 8,
+       "C11": 9,
+       "A12": 10,
+       "B12": 11,
+       "C12": 12
+      },
+      "merges": [
+       "I4:J5"
+      ],
+      "conditional": [
+       [
+        "B2",
+        [
+         "#REF!>2"
+        ]
+       ],
+       [
+        "B3:B5",
+        [
+         "B2>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "B14",
+        "1",
+        "$F$1"
+       ],
+       [
+        "C2:C5",
+        "$H$1:$H$2"
+       ]
+      ],
+      "links": [
+       [
+        "A2",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       6
+      ],
+      "autoFilter": null,
+      "notes": [
+       "C2",
+       "D3"
+      ],
+      "noteBoxes": [
+       [
+        1,
+        2
+       ],
+       [
+        2,
+        3
+       ]
+      ],
+      "anchors": [
+       [
+        9,
+        9
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!B2",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!B2:B5)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!D3*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!#REF!",
+     "Span": "Data!$B$2:$B$5"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A8:C12",
+      [
+       "Q1",
+       "Q2",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!#REF!",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$2",
+     "Data!$B$3",
+     "Data!$B$4",
+     "Data!$B$5"
+    ]
+   }
+  },
+  {
+   "name": "insert a row inside the table",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A1": "Item",
+       "B1": "Qty",
+       "C1": "Price",
+       "D1": "Total",
+       "E1": "Running",
+       "F1": "=SUM(D2:D6)",
+       "G1": "=Other!A1+1",
+       "H1": "yes",
+       "A2": "Nut",
+       "B2": 1,
+       "C2": 2,
+       "D2": "=B2*C2",
+       "E2": "=SUM($B$2:B2)",
+       "H2": "no",
+       "A3": "there",
+       "B3": 2,
+       "C3": 3,
+       "D3": "=B3*C3",
+       "E3": "=SUM($B$2:B3)",
+       "H3": "maybe",
+       "A4": "Cog",
+       "B4": 3,
+       "C4": 4,
+       "D4": "=B4*C4",
+       "E4": "=SUM($B$2:B4)",
+       "A5": "Gear",
+       "B5": 4,
+       "C5": 5,
+       "D5": "=B5*C5",
+       "E5": "=SUM($B$2:B5)",
+       "A6": "Pin",
+       "B6": 5,
+       "C6": 6,
+       "D6": "=B6*C6",
+       "E6": "=SUM($B$2:B6)",
+       "A9": "Q1",
+       "B9": "Q2",
+       "C9": "Q3",
+       "A10": 1,
+       "B10": 2,
+       "C10": 3,
+       "E10": "=SUM(Sales[Q1])",
+       "A11": 4,
+       "B11": 5,
+       "C11": 6,
+       "E11": "=SUM(Sales[Q2],Sales[Q3])",
+       "A13": 7,
+       "B13": 8,
+       "C13": 9,
+       "A14": 10,
+       "B14": 11,
+       "C14": 12
+      },
+      "merges": [
+       "I5:J6"
+      ],
+      "conditional": [
+       [
+        "B2:B6",
+        [
+         "B1>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "B16",
+        "1",
+        "$F$1"
+       ],
+       [
+        "C2:C6",
+        "$H$1:$H$3"
+       ]
+      ],
+      "links": [
+       [
+        "A2",
+        ""
+       ],
+       [
+        "A3",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       7
+      ],
+      "autoFilter": null,
+      "notes": [
+       "C3",
+       "D4"
+      ],
+      "noteBoxes": [
+       [
+        2,
+        2
+       ],
+       [
+        3,
+        3
+       ]
+      ],
+      "anchors": [
+       [
+        9,
+        10
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!B3",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!B2:B6)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!D4*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!$C$2",
+     "Span": "Data!$B$2:$B$6"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A9:C14",
+      [
+       "Q1",
+       "Q2",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$2",
+     "Data!$B$3",
+     "Data!$B$4",
+     "Data!$B$5",
+     "Data!$B$6"
+    ]
+   }
+  },
+  {
+   "name": "delete a row inside the table",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A1": "Item",
+       "B1": "Qty",
+       "C1": "Price",
+       "D1": "Total",
+       "E1": "Running",
+       "F1": "=SUM(D2:D6)",
+       "G1": "=Other!A1+1",
+       "H1": "yes",
+       "A2": "Nut",
+       "B2": 1,
+       "C2": 2,
+       "D2": "=B2*C2",
+       "E2": "=SUM($B$2:B2)",
+       "H2": "no",
+       "A3": "there",
+       "B3": 2,
+       "C3": 3,
+       "D3": "=B3*C3",
+       "E3": "=SUM($B$2:B3)",
+       "H3": "maybe",
+       "A4": "Cog",
+       "B4": 3,
+       "C4": 4,
+       "D4": "=B4*C4",
+       "E4": "=SUM($B$2:B4)",
+       "A5": "Gear",
+       "B5": 4,
+       "C5": 5,
+       "D5": "=B5*C5",
+       "E5": "=SUM($B$2:B5)",
+       "A6": "Pin",
+       "B6": 5,
+       "C6": 6,
+       "D6": "=B6*C6",
+       "E6": "=SUM($B$2:B6)",
+       "A9": "Q1",
+       "B9": "Q2",
+       "C9": "Q3",
+       "A10": 1,
+       "B10": 2,
+       "C10": 3,
+       "E10": "=SUM(Sales[Q1])",
+       "A11": 4,
+       "B11": 5,
+       "C11": 6,
+       "E11": "=SUM(Sales[Q2],Sales[Q3])",
+       "A12": 10,
+       "B12": 11,
+       "C12": 12
+      },
+      "merges": [
+       "I5:J6"
+      ],
+      "conditional": [
+       [
+        "B2:B6",
+        [
+         "B1>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "B14",
+        "1",
+        "$F$1"
+       ],
+       [
+        "C2:C6",
+        "$H$1:$H$3"
+       ]
+      ],
+      "links": [
+       [
+        "A2",
+        ""
+       ],
+       [
+        "A3",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       7
+      ],
+      "autoFilter": null,
+      "notes": [
+       "C3",
+       "D4"
+      ],
+      "noteBoxes": [
+       [
+        2,
+        2
+       ],
+       [
+        3,
+        3
+       ]
+      ],
+      "anchors": [
+       [
+        9,
+        10
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!B3",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!B2:B6)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!D4*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!$C$2",
+     "Span": "Data!$B$2:$B$6"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A9:C12",
+      [
+       "Q1",
+       "Q2",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$2",
+     "Data!$B$3",
+     "Data!$B$4",
+     "Data!$B$5",
+     "Data!$B$6"
+    ]
+   }
+  },
+  {
+   "name": "insert a column before everything",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "B1": "Item",
+       "C1": "Qty",
+       "D1": "Price",
+       "E1": "Total",
+       "F1": "Running",
+       "G1": "=SUM(E2:E6)",
+       "H1": "=Other!A1+1",
+       "I1": "yes",
+       "B2": "Nut",
+       "C2": 1,
+       "D2": 2,
+       "E2": "=C2*D2",
+       "F2": "=SUM($C$2:C2)",
+       "I2": "no",
+       "B3": "there",
+       "C3": 2,
+       "D3": 3,
+       "E3": "=C3*D3",
+       "F3": "=SUM($C$2:C3)",
+       "I3": "maybe",
+       "B4": "Cog",
+       "C4": 3,
+       "D4": 4,
+       "E4": "=C4*D4",
+       "F4": "=SUM($C$2:C4)",
+       "B5": "Gear",
+       "C5": 4,
+       "D5": 5,
+       "E5": "=C5*D5",
+       "F5": "=SUM($C$2:C5)",
+       "B6": "Pin",
+       "C6": 5,
+       "D6": 6,
+       "E6": "=C6*D6",
+       "F6": "=SUM($C$2:C6)",
+       "B9": "Q1",
+       "C9": "Q2",
+       "D9": "Q3",
+       "B10": 1,
+       "C10": 2,
+       "D10": 3,
+       "F10": "=SUM(Sales[Q1])",
+       "B11": 4,
+       "C11": 5,
+       "D11": 6,
+       "F11": "=SUM(Sales[Q2],Sales[Q3])",
+       "B12": 7,
+       "C12": 8,
+       "D12": 9,
+       "B13": 10,
+       "C13": 11,
+       "D13": 12
+      },
+      "merges": [
+       "J5:K6"
+      ],
+      "conditional": [
+       [
+        "C2:C6",
+        [
+         "C1>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "C15",
+        "1",
+        "$G$1"
+       ],
+       [
+        "D2:D6",
+        "$I$1:$I$3"
+       ]
+      ],
+      "links": [
+       [
+        "B2",
+        ""
+       ],
+       [
+        "B3",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       7
+      ],
+      "autoFilter": null,
+      "notes": [
+       "D3",
+       "E4"
+      ],
+      "noteBoxes": [
+       [
+        2,
+        3
+       ],
+       [
+        3,
+        4
+       ]
+      ],
+      "anchors": [
+       [
+        10,
+        10
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!C3",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!C2:C6)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!E4*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!$D$2",
+     "Span": "Data!$C$2:$C$6"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "B9:D13",
+      [
+       "Q1",
+       "Q2",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!$C$1",
+     "Data!$C$1",
+     "Data!$C$1",
+     "Data!$C$1",
+     "Data!$C$1",
+     "Data!$C$2",
+     "Data!$C$3",
+     "Data!$C$4",
+     "Data!$C$5",
+     "Data!$C$6"
+    ]
+   }
+  },
+  {
+   "name": "insert a column inside the table",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A1": "Item",
+       "C1": "Qty",
+       "D1": "Price",
+       "E1": "Total",
+       "F1": "Running",
+       "G1": "=SUM(E2:E6)",
+       "H1": "=Other!A1+1",
+       "I1": "yes",
+       "A2": "Nut",
+       "C2": 1,
+       "D2": 2,
+       "E2": "=C2*D2",
+       "F2": "=SUM($C$2:C2)",
+       "I2": "no",
+       "A3": "there",
+       "C3": 2,
+       "D3": 3,
+       "E3": "=C3*D3",
+       "F3": "=SUM($C$2:C3)",
+       "I3": "maybe",
+       "A4": "Cog",
+       "C4": 3,
+       "D4": 4,
+       "E4": "=C4*D4",
+       "F4": "=SUM($C$2:C4)",
+       "A5": "Gear",
+       "C5": 4,
+       "D5": 5,
+       "E5": "=C5*D5",
+       "F5": "=SUM($C$2:C5)",
+       "A6": "Pin",
+       "C6": 5,
+       "D6": 6,
+       "E6": "=C6*D6",
+       "F6": "=SUM($C$2:C6)",
+       "A9": "Q1",
+       "B9": "Q12",
+       "C9": "Q2",
+       "D9": "Q3",
+       "A10": 1,
+       "C10": 2,
+       "D10": 3,
+       "F10": "=SUM(Sales[Q1])",
+       "A11": 4,
+       "C11": 5,
+       "D11": 6,
+       "F11": "=SUM(Sales[Q2],Sales[Q3])",
+       "A12": 7,
+       "C12": 8,
+       "D12": 9,
+       "A13": 10,
+       "C13": 11,
+       "D13": 12
+      },
+      "merges": [
+       "J5:K6"
+      ],
+      "conditional": [
+       [
+        "C2:C6",
+        [
+         "C1>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "C15",
+        "1",
+        "$G$1"
+       ],
+       [
+        "D2:D6",
+        "$I$1:$I$3"
+       ]
+      ],
+      "links": [
+       [
+        "A2",
+        ""
+       ],
+       [
+        "A3",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       7
+      ],
+      "autoFilter": null,
+      "notes": [
+       "D3",
+       "E4"
+      ],
+      "noteBoxes": [
+       [
+        2,
+        3
+       ],
+       [
+        3,
+        4
+       ]
+      ],
+      "anchors": [
+       [
+        10,
+        10
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!C3",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!C2:C6)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!E4*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!$D$2",
+     "Span": "Data!$C$2:$C$6"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A9:D13",
+      [
+       "Q1",
+       "Q12",
+       "Q2",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!$C$1",
+     "Data!$C$1",
+     "Data!$C$1",
+     "Data!$C$1",
+     "Data!$C$1",
+     "Data!$C$2",
+     "Data!$C$3",
+     "Data!$C$4",
+     "Data!$C$5",
+     "Data!$C$6"
+    ]
+   }
+  },
+  {
+   "name": "delete a column inside the table",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A1": "Item",
+       "B1": "Price",
+       "C1": "Total",
+       "D1": "Running",
+       "E1": "=SUM(C2:C6)",
+       "F1": "=Other!A1+1",
+       "G1": "yes",
+       "A2": "Nut",
+       "B2": 2,
+       "C2": "=#REF!*B2",
+       "D2": "=SUM(#REF!)",
+       "G2": "no",
+       "A3": "there",
+       "B3": 3,
+       "C3": "=#REF!*B3",
+       "D3": "=SUM(#REF!)",
+       "G3": "maybe",
+       "A4": "Cog",
+       "B4": 4,
+       "C4": "=#REF!*B4",
+       "D4": "=SUM(#REF!)",
+       "A5": "Gear",
+       "B5": 5,
+       "C5": "=#REF!*B5",
+       "D5": "=SUM(#REF!)",
+       "A6": "Pin",
+       "B6": 6,
+       "C6": "=#REF!*B6",
+       "D6": "=SUM(#REF!)",
+       "A9": "Q1",
+       "B9": "Q3",
+       "A10": 1,
+       "B10": 3,
+       "D10": "=SUM(Sales[Q1])",
+       "A11": 4,
+       "B11": 6,
+       "D11": "=SUM(#REF!,Sales[Q3])",
+       "A12": 7,
+       "B12": 9,
+       "A13": 10,
+       "B13": 12
+      },
+      "merges": [
+       "H5:I6"
+      ],
+      "conditional": [],
+      "validations": [
+       [
+        "B2:B6",
+        "$G$1:$G$3"
+       ]
+      ],
+      "links": [
+       [
+        "A2",
+        ""
+       ],
+       [
+        "A3",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       7
+      ],
+      "autoFilter": null,
+      "notes": [
+       "B3",
+       "C4"
+      ],
+      "noteBoxes": [
+       [
+        2,
+        1
+       ],
+       [
+        3,
+        2
+       ]
+      ],
+      "anchors": [
+       [
+        8,
+        10
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!#REF!",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!#REF!)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!C4*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!$B$2",
+     "Span": "Data!#REF!"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A9:B13",
+      [
+       "Q1",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!#REF!",
+     "Data!#REF!",
+     "Data!#REF!",
+     "Data!#REF!",
+     "Data!#REF!"
+    ]
+   }
+  },
+  {
+   "name": "insert a column right of the table",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A1": "Item",
+       "B1": "Qty",
+       "C1": "Price",
+       "D1": "Total",
+       "E1": "Running",
+       "F1": "=SUM(D2:D6)",
+       "G1": "=Other!A1+1",
+       "I1": "yes",
+       "A2": "Nut",
+       "B2": 1,
+       "C2": 2,
+       "D2": "=B2*C2",
+       "E2": "=SUM($B$2:B2)",
+       "I2": "no",
+       "A3": "there",
+       "B3": 2,
+       "C3": 3,
+       "D3": "=B3*C3",
+       "E3": "=SUM($B$2:B3)",
+       "I3": "maybe",
+       "A4": "Cog",
+       "B4": 3,
+       "C4": 4,
+       "D4": "=B4*C4",
+       "E4": "=SUM($B$2:B4)",
+       "A5": "Gear",
+       "B5": 4,
+       "C5": 5,
+       "D5": "=B5*C5",
+       "E5": "=SUM($B$2:B5)",
+       "A6": "Pin",
+       "B6": 5,
+       "C6": 6,
+       "D6": "=B6*C6",
+       "E6": "=SUM($B$2:B6)",
+       "A9": "Q1",
+       "B9": "Q2",
+       "C9": "Q3",
+       "A10": 1,
+       "B10": 2,
+       "C10": 3,
+       "E10": "=SUM(Sales[Q1])",
+       "A11": 4,
+       "B11": 5,
+       "C11": 6,
+       "E11": "=SUM(Sales[Q2],Sales[Q3])",
+       "A12": 7,
+       "B12": 8,
+       "C12": 9,
+       "A13": 10,
+       "B13": 11,
+       "C13": 12
+      },
+      "merges": [
+       "J5:K6"
+      ],
+      "conditional": [
+       [
+        "B2:B6",
+        [
+         "B1>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "B15",
+        "1",
+        "$F$1"
+       ],
+       [
+        "C2:C6",
+        "$I$1:$I$3"
+       ]
+      ],
+      "links": [
+       [
+        "A2",
+        ""
+       ],
+       [
+        "A3",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       7
+      ],
+      "autoFilter": null,
+      "notes": [
+       "C3",
+       "D4"
+      ],
+      "noteBoxes": [
+       [
+        2,
+        2
+       ],
+       [
+        3,
+        3
+       ]
+      ],
+      "anchors": [
+       [
+        10,
+        10
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!B3",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!B2:B6)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!D4*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!$C$2",
+     "Span": "Data!$B$2:$B$6"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A9:C13",
+      [
+       "Q1",
+       "Q2",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$2",
+     "Data!$B$3",
+     "Data!$B$4",
+     "Data!$B$5",
+     "Data!$B$6"
+    ]
+   }
+  },
+  {
+   "name": "delete a column the formulas read",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A1": "Item",
+       "B1": "Qty",
+       "C1": "Total",
+       "D1": "Running",
+       "E1": "=SUM(C2:C6)",
+       "F1": "=Other!A1+1",
+       "G1": "yes",
+       "A2": "Nut",
+       "B2": 1,
+       "C2": "=B2*#REF!",
+       "D2": "=SUM($B$2:B2)",
+       "G2": "no",
+       "A3": "there",
+       "B3": 2,
+       "C3": "=B3*#REF!",
+       "D3": "=SUM($B$2:B3)",
+       "G3": "maybe",
+       "A4": "Cog",
+       "B4": 3,
+       "C4": "=B4*#REF!",
+       "D4": "=SUM($B$2:B4)",
+       "A5": "Gear",
+       "B5": 4,
+       "C5": "=B5*#REF!",
+       "D5": "=SUM($B$2:B5)",
+       "A6": "Pin",
+       "B6": 5,
+       "C6": "=B6*#REF!",
+       "D6": "=SUM($B$2:B6)",
+       "A9": "Q1",
+       "B9": "Q2",
+       "A10": 1,
+       "B10": 2,
+       "D10": "=SUM(Sales[Q1])",
+       "A11": 4,
+       "B11": 5,
+       "D11": "=SUM(Sales[Q2],#REF!)",
+       "A12": 7,
+       "B12": 8,
+       "A13": 10,
+       "B13": 11
+      },
+      "merges": [
+       "H5:I6"
+      ],
+      "conditional": [
+       [
+        "B2:B6",
+        [
+         "B1>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "B15",
+        "1",
+        "$E$1"
+       ]
+      ],
+      "links": [
+       [
+        "A2",
+        ""
+       ],
+       [
+        "A3",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       7
+      ],
+      "autoFilter": null,
+      "notes": [
+       "C4"
+      ],
+      "noteBoxes": [
+       [
+        3,
+        2
+       ]
+      ],
+      "anchors": [
+       [
+        8,
+        10
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A1": "=Data!B3",
+       "C1": "=A1+1",
+       "A2": "=SUM(Data!B2:B6)",
+       "B2": 5,
+       "C2": "=A2+1",
+       "A3": "=Data!C4*2",
+       "C3": "=A3+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!#REF!",
+     "Span": "Data!$B$2:$B$6"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A9:B13",
+      [
+       "Q1",
+       "Q2"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$2",
+     "Data!$B$3",
+     "Data!$B$4",
+     "Data!$B$5",
+     "Data!$B$6"
+    ]
+   }
+  },
+  {
+   "name": "insert a row on the other sheet",
+   "excel": {
+    "sheets": {
+     "Data": {
+      "cells": {
+       "A1": "Item",
+       "B1": "Qty",
+       "C1": "Price",
+       "D1": "Total",
+       "E1": "Running",
+       "F1": "=SUM(D2:D6)",
+       "G1": "=Other!A2+1",
+       "H1": "yes",
+       "A2": "Nut",
+       "B2": 1,
+       "C2": 2,
+       "D2": "=B2*C2",
+       "E2": "=SUM($B$2:B2)",
+       "H2": "no",
+       "A3": "there",
+       "B3": 2,
+       "C3": 3,
+       "D3": "=B3*C3",
+       "E3": "=SUM($B$2:B3)",
+       "H3": "maybe",
+       "A4": "Cog",
+       "B4": 3,
+       "C4": 4,
+       "D4": "=B4*C4",
+       "E4": "=SUM($B$2:B4)",
+       "A5": "Gear",
+       "B5": 4,
+       "C5": 5,
+       "D5": "=B5*C5",
+       "E5": "=SUM($B$2:B5)",
+       "A6": "Pin",
+       "B6": 5,
+       "C6": 6,
+       "D6": "=B6*C6",
+       "E6": "=SUM($B$2:B6)",
+       "A9": "Q1",
+       "B9": "Q2",
+       "C9": "Q3",
+       "A10": 1,
+       "B10": 2,
+       "C10": 3,
+       "E10": "=SUM(Sales[Q1])",
+       "A11": 4,
+       "B11": 5,
+       "C11": 6,
+       "E11": "=SUM(Sales[Q2],Sales[Q3])",
+       "A12": 7,
+       "B12": 8,
+       "C12": 9,
+       "A13": 10,
+       "B13": 11,
+       "C13": 12
+      },
+      "merges": [
+       "I5:J6"
+      ],
+      "conditional": [
+       [
+        "B2:B6",
+        [
+         "B1>2"
+        ]
+       ]
+      ],
+      "validations": [
+       [
+        "B15",
+        "1",
+        "$F$1"
+       ],
+       [
+        "C2:C6",
+        "$H$1:$H$3"
+       ]
+      ],
+      "links": [
+       [
+        "A2",
+        ""
+       ],
+       [
+        "A3",
+        "Data!H2"
+       ]
+      ],
+      "breaks": [
+       7
+      ],
+      "autoFilter": null,
+      "notes": [
+       "C3",
+       "D4"
+      ],
+      "noteBoxes": [
+       [
+        2,
+        2
+       ],
+       [
+        3,
+        3
+       ]
+      ],
+      "anchors": [
+       [
+        9,
+        10
+       ]
+      ]
+     },
+     "Other": {
+      "cells": {
+       "A2": "=Data!B3",
+       "C2": "=A2+1",
+       "A3": "=SUM(Data!B2:B6)",
+       "B3": 5,
+       "C3": "=A3+1",
+       "A4": "=Data!D4*2",
+       "C4": "=A4+1"
+      },
+      "merges": [],
+      "conditional": [],
+      "validations": [],
+      "links": [],
+      "breaks": [],
+      "autoFilter": null,
+      "notes": [],
+      "noteBoxes": [],
+      "anchors": []
+     }
+    },
+    "names": {
+     "Rate": "Data!$C$2",
+     "Span": "Data!$B$2:$B$6"
+    },
+    "tables": [
+     [
+      "Sales",
+      "Data",
+      "A9:C13",
+      [
+       "Q1",
+       "Q2",
+       "Q3"
+      ]
+     ]
+    ],
+    "charts": [
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$1",
+     "Data!$B$2",
+     "Data!$B$3",
+     "Data!$B$4",
+     "Data!$B$5",
+     "Data!$B$6"
+    ]
+   }
+  }
+ ]
+}

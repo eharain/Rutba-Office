@@ -207,7 +207,7 @@ export function fingerprintOoxml(kind, bytes) {
         const inner = c[2] || '';
         if (!ref || !inner) continue;
         const type = /\bt="([^"]+)"/.exec(c[1])?.[1] || 'n';
-        const f = /<f\b[^>]*>([\s\S]*?)<\/f>/.exec(inner)?.[1];
+        const f = /<f\b[^>]*?(?:\/>|>([\s\S]*?)<\/f>)/.exec(inner)?.[1];
         const v = /<v>([\s\S]*?)<\/v>/.exec(inner)?.[1];
         let value;
         if (f) value = `=${formulaText(f)}`;

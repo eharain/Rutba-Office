@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 8575,
+  "count": 8599,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1955,6 +1955,12 @@
       ]
     },
     {
+      "message": "A {format} file cannot hold everything in this workbook.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "A → Z",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -2228,6 +2234,12 @@
       "message": "Accept This Change",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Accept a certificate that cannot be checked (only for your own server on a network you trust)",
+      "where": [
+        "apps/desktop/renderer/apps/base/links.js"
       ]
     },
     {
@@ -4151,6 +4163,12 @@
       "message": "An outline goes seven levels deep at most",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "An update was downloaded but its signature did not check out, so it was not installed. This copy is fine as it is.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -26731,6 +26749,18 @@
       ]
     },
     {
+      "message": "Not sent yet, and still in the Outbox.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "Not sent yet, and still in the Outbox: {error}",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Not shown",
       "where": [
         "apps/desktop/renderer/studio/sources-column.js"
@@ -27256,6 +27286,7 @@
         "apps/desktop/renderer/rotation-dialog.js",
         "apps/desktop/renderer/shell.js",
         "apps/desktop/renderer/smartart-dialog.js",
+        "apps/desktop/renderer/update-restart.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -28422,6 +28453,12 @@
       "message": "Other apps’ files",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Other features only a workbook has may be left out too. To keep them all, save as .xlsx.",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -34835,6 +34872,12 @@
       ]
     },
     {
+      "message": "Rutba Office stopped while this was being sent, so it may or may not have gone. Look in Sent, then send it again or delete it.",
+      "where": [
+        "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
       "message": "Rutba Office {version} is available",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -35221,6 +35264,12 @@
       ]
     },
     {
+      "message": "Save as .xlsx instead",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "Save as Excel Workbook…",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -35308,6 +35357,12 @@
       "message": "Save as scene",
       "where": [
         "apps/desktop/renderer/studio/scene-strip.js"
+      ]
+    },
+    {
+      "message": "Save as {format}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -35435,6 +35490,12 @@
       ]
     },
     {
+      "message": "Save your work before updating",
+      "where": [
+        "apps/desktop/renderer/update-restart.js"
+      ]
+    },
+    {
       "message": "Save: the pages as they are now; the original is replaced only after you say so (Ctrl+S)",
       "where": [
         "apps/desktop/renderer/apps/pdf/index.js"
@@ -35557,6 +35618,12 @@
       "message": "Saves to {place}",
       "where": [
         "apps/desktop/renderer/studio/window.js"
+      ]
+    },
+    {
+      "message": "Saving as {format} leaves out:",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -47490,6 +47557,12 @@
       ]
     },
     {
+      "message": "Updating closes every window, and these have changes not saved yet. Save or close them, then choose Restart and update again. Nothing has been closed.",
+      "where": [
+        "apps/desktop/renderer/update-restart.js"
+      ]
+    },
+    {
       "message": "Updating {percent}%",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -50089,6 +50162,12 @@
       ]
     },
     {
+      "message": "charts and pictures",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "choices",
       "where": [
         "packages/office-ui/src/index.js"
@@ -50122,6 +50201,24 @@
       "message": "cm",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "colours, fonts and number formats",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "comments",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "conditional formatting",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -50159,6 +50256,12 @@
       "message": "cut the clip at the playhead in two",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "data validation rules",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -50311,6 +50414,12 @@
       ]
     },
     {
+      "message": "every sheet but this one",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "exosphere",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js"
@@ -50359,6 +50468,12 @@
       ]
     },
     {
+      "message": "formulas, which become their results",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "from {format}",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
@@ -50370,6 +50485,12 @@
       "message": "from {where}",
       "where": [
         "apps/desktop/renderer/ai-tools-dialog.js"
+      ]
+    },
+    {
+      "message": "frozen panes",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -50661,6 +50782,12 @@
       ]
     },
     {
+      "message": "merged cells",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
       "message": "mesosphere",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js"
@@ -50712,6 +50839,12 @@
       "message": "move,",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "named ranges",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -51187,6 +51320,12 @@
       "message": "table {name}",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "tables",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {
@@ -51678,6 +51817,12 @@
       "message": "web",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "which rows and columns are hidden",
+      "where": [
+        "apps/desktop/renderer/apps/sheets.js"
       ]
     },
     {

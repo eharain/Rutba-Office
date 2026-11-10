@@ -35,7 +35,7 @@ function lazyProvider(wb, part) {
     cell(row, col) {
       const raw = part.getCell(row, col);
       if (!raw) return null;
-      const value = wb._cellValue(raw);
+      const value = wb._cellValue(raw, part);
       return value == null ? null : { value, input: value };
     },
     bounds() {

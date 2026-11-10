@@ -443,6 +443,19 @@ export class OoxmlPackage {
     return id;
   }
 
+  /** Take one relationship out of a part's `.rels`; the rels part goes with its last entry. */
+  removeRelationship(fromPart, id) {
+    const relsPath = OoxmlPackage.relsPathFor(fromPart);
+    if (!this.has(relsPath)) return false;
+    const xml = this.text(relsPath);
+    const safe = String(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const without = xml.replace(new RegExp('<Relationship\\b[^>]*\\bId="' + safe + '"[^>]*?/>'), '');
+    if (without === xml) return false;
+    if (/<Relationship\b/.test(without)) this.write_(relsPath, without);
+    else this.removePart(relsPath);
+    return true;
+  }
+
   /** The next free number for a numbered part family, e.g. `drawing3.xml`. */
   nextPartNumber(dir, prefix) {
     let n = 1;

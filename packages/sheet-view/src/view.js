@@ -2273,6 +2273,7 @@ export class SheetView {
     const parts = [...new Set([
       ...this.workbook.sheets().map((s) => s.part),
       this.workbook.mainPart,
+      ...this.workbook.structuralParts(),
     ])];
 
     return this._edit(label, null, [], () => {

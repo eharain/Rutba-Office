@@ -24,6 +24,7 @@
 import { OoxmlPackage, attrs, esc } from './package.js';
 import { passwordAttrs, hasPassword, checkPassword } from './protection.js';
 import { toFileFormula, fromFileFormula } from './xlfn.js';
+import { shiftFormula } from '@rutba/formula';
 
 const REL_HYPERLINK = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
 const XMLNS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -350,6 +351,75 @@ class SheetPart {
   /** A row was added, removed or renumbered, so the index no longer holds. */
   _rowsChanged() {
     this._rowIndex = null;
+    this._masters = null;
+  }
+
+  /**
+   * The cells that hold each shared formula's text, by `si`, in sheet order.
+   * Excel writes a filled column as one formula and a run of `<f si="0"/>`
+   * that name it; 85% of the formula cells in real workbooks are those.
+   */
+  _sharedMasters() {
+    if (this._masters) return this._masters;
+    const masters = new Map();
+    for (const row of this.rows) {
+      if (!row.inner.includes('t="shared"')) continue;
+      for (const cell of SheetPart._parseCells(row.inner)) {
+        const m = /<f\b([^>]*)>([^<]+)<\/f>/.exec(cell.inner);
+        if (!m) continue;
+        const a = attrs(m[1]);
+        if (a.t !== 'shared' || a.si === undefined) continue;
+        if (!masters.has(a.si)) masters.set(a.si, []);
+        masters.get(a.si).push({ text: unesc(m[2]), row: row.index, col: cell.col });
+      }
+    }
+    this._masters = masters;
+    return masters;
+  }
+
+  /** A shared child's own formula, as the file spells it; null when its master is missing. */
+  sharedFormula(si, row, col) {
+    const list = this._sharedMasters().get(si);
+    if (!list) return null;
+    let master = null;
+    for (const m of list) if (m.row < row || (m.row === row && m.col <= col)) master = m;
+    if (!master) return null;
+    return shiftFormula('=' + master.text, row - master.row, col - master.col).slice(1);
+  }
+
+  /**
+   * Write shared formulas out cell by cell, all of them or one group's. Done
+   * before anything that would leave a child without its master or at a
+   * different distance from it: its value is untouched.
+   */
+  unshareFormulas(only = null) {
+    this._sharedMasters();
+    let any = false;
+    for (const row of this.rows) {
+      if (!row.inner.includes('t="shared"')) continue;
+      let out = '';
+      let pos = 0;
+      for (const cell of SheetPart._parseCells(row.inner)) {
+        const m = /<f\b([^>]*?)(?:\/>|>([\s\S]*?)<\/f>)/.exec(cell.inner);
+        if (!m) continue;
+        const a = attrs(m[1]);
+        if (a.t !== 'shared' || (only !== null && a.si !== only)) continue;
+        const text = m[2] ? unesc(m[2]) : this.sharedFormula(a.si, row.index, cell.col);
+        if (text === null) continue;
+        const at = row.inner.indexOf(cell.xml, pos);
+        out += row.inner.slice(pos, at) + cell.xml.replace(m[0], () => '<f>' + esc(text) + '</f>');
+        pos = at + cell.xml.length;
+      }
+      if (!pos) continue;
+      row.inner = out + row.inner.slice(pos);
+      row.dirty = true;
+      any = true;
+    }
+    if (any) {
+      this._masters = null;
+      this.dirty = true;
+    }
+    return any;
   }
 
   static _parseCells(inner) {
@@ -408,6 +478,10 @@ class SheetPart {
       else this.rows.splice(at, 0, row);
       this._rowsChanged();
     }
+    // The cell holding a shared formula's text is about to go: its group first.
+    const before = SheetPart.cellsByCol(row).get(colIndex);
+    const group = before && /<f\b[^>]*\bt="shared"[^>]*>[^<]/.exec(before.inner);
+    if (group) this.unshareFormulas(attrs(/<f\b([^>]*)>/.exec(before.inner)[1]).si);
     const cells = SheetPart._parseCells(row.inner);
     const existing = cells.find((c) => c.col === colIndex);
     const style = existing?.style ?? null;
@@ -763,20 +837,25 @@ class SheetPart {
   shiftCells(at, count, op) {
     for (const row of this.rows) {
       if (!row.inner) continue;
-      const cells = SheetPart._parseCells(row.inner);
+      // By position, one pass: looking each cell up by its text finds the
+      // one already moved, when a moved cell reads as the next one along.
+      let out = '';
+      let pos = 0;
       let touched = false;
-      for (const cell of cells) {
-        if (op === 'delete' && cell.col >= at && cell.col < at + count) {
-          row.inner = row.inner.replace(cell.xml, '');
-          touched = true;
-        } else if (cell.col >= (op === 'insert' ? at : at + count)) {
-          const next = op === 'insert' ? cell.col + count : cell.col - count;
-          const moved = cell.xml.replace(/(<c\b[^>]*?\br=")[A-Za-z]+(\d+")/, (m, p1, p2) => (p1 ?? '') + indexToCol(next) + (p2 ?? ''));
-          row.inner = row.inner.replace(cell.xml, () => moved);
-          touched = true;
+      for (const cell of SheetPart._parseCells(row.inner)) {
+        const here = row.inner.indexOf(cell.xml, pos);
+        let next = cell.xml;
+        if (op === 'delete' && cell.col >= at && cell.col < at + count) next = '';
+        else if (cell.col >= (op === 'insert' ? at : at + count)) {
+          const col = op === 'insert' ? cell.col + count : cell.col - count;
+          next = cell.xml.replace(/(<c\b[^>]*?\br=")[A-Za-z]+(\d+")/, (m, p1, p2) => (p1 ?? '') + indexToCol(col) + (p2 ?? ''));
         }
+        if (next !== cell.xml) touched = true;
+        out += row.inner.slice(pos, here) + next;
+        pos = here + cell.xml.length;
       }
       if (!touched) continue;
+      row.inner = out + row.inner.slice(pos);
       if (/\bspans="[^"]*"/.test(row.attrsStr)) {
         const left = SheetPart._parseCells(row.inner);
         row.attrsStr = left.length
@@ -816,6 +895,97 @@ class SheetPart {
     return this;
   }
 
+  /**
+   * Conditional formats, data validations, links, filters, page breaks and
+   * the like, through a structural edit: `formula` rewrites what they read,
+   * `place` (the edited sheet only) where they sit.
+   */
+  moveAnchored({ formula, place, axis, op, edits }) {
+    const before = this.suffix;
+    let s = before;
+    const fx = (body) => esc(formula(unesc(body)));
+    const moveAttr = (text, name) => text.replace(new RegExp('\\b' + name + '="([^"]*)"'), (m, v) => {
+      const next = place ? place(v) : v;
+      return next === null ? '\u0000' : name + '="' + next + '"';
+    });
+
+    const split = { axis, op, edits, formula, place };
+    s = s.replace(/<conditionalFormatting\b([^>]*)>([\s\S]*?)<\/conditionalFormatting>/g, (m, a, body) => {
+      const sq = /\bsqref="([^"]*)"/.exec(a);
+      if (!sq) return m;
+      const FORMULA = /(<formula\b[^>]*>)([\s\S]*?)(<\/formula>)/g;
+      const said = [...body.matchAll(FORMULA)].map((x) => unesc(x[2]));
+      return splitRule(sq[1], said, split).map((g) => {
+        let k = 0;
+        return '<conditionalFormatting' + a.replace(sq[0], () => 'sqref="' + g.sqref + '"') + '>'
+          + body.replace(FORMULA, (x, o, f, c) => o + esc(g.formulas[k++]) + c) + '</conditionalFormatting>';
+      }).join('');
+    });
+
+    let validations = 0;
+    s = s.replace(/<dataValidation\b([^>]*?)(\/>|>([\s\S]*?)<\/dataValidation>)/g, (m, a, tail, body = '') => {
+      const sq = /\bsqref="([^"]*)"/.exec(a);
+      if (!sq) return m;
+      const FORMULA = /(<formula[12]>)([\s\S]*?)(<\/formula[12]>)/g;
+      const said = [...body.matchAll(FORMULA)].map((x) => unesc(x[2]));
+      return splitRule(sq[1], said, split).map((g) => {
+        validations += 1;
+        const open = '<dataValidation' + a.replace(sq[0], () => 'sqref="' + g.sqref + '"');
+        if (tail === '/>') return open + '/>';
+        let k = 0;
+        return open + '>' + body.replace(FORMULA, (x, o, f, c) => o + esc(g.formulas[k++]) + c) + '</dataValidation>';
+      }).join('');
+    });
+    if (validations) s = s.replace(/(<dataValidations\b[^>]*?\bcount=")\d+(")/, (m, a, c) => a + validations + c);
+    else s = s.replace(/<dataValidations\b[^>]*>\s*<\/dataValidations>/, '');
+
+    s = s.replace(/<hyperlink\b([^>]*?)\/>/g, (m, a) => {
+      // Where a link goes is its own text: Excel leaves it as it was.
+      const nextAttrs = moveAttr(a, 'ref');
+      return nextAttrs.includes('\u0000') ? '' : '<hyperlink' + nextAttrs + '/>';
+    });
+    s = s.replace(/<hyperlinks\b[^>]*>\s*<\/hyperlinks>/, '');
+
+    // Extensions: the newer conditional formats and validations, and sparklines.
+    s = s.replace(/(<xm:f>)([\s\S]*?)(<\/xm:f>)/g, (m, o, f, c) => o + fx(f) + c);
+    if (place) {
+      for (const tag of ['x14:conditionalFormatting', 'x14:dataValidation', 'x14:sparkline']) {
+        s = s.replace(new RegExp('<' + tag + '\\b[^>]*>[\\s\\S]*?</' + tag + '>', 'g'), (block) => {
+          const q = /<xm:sqref>([^<]*)<\/xm:sqref>/.exec(block);
+          if (!q) return block;
+          const next = place(q[1]);
+          return next === null ? '' : block.replace(q[0], () => '<xm:sqref>' + next + '</xm:sqref>');
+        });
+      }
+      for (const [tag, name] of [['autoFilter', 'ref'], ['sortState', 'ref'], ['sortCondition', 'ref'], ['ignoredError', 'sqref'], ['protectedRange', 'sqref']]) {
+        s = s.replace(new RegExp('(<' + tag + '\\b[^>]*?\\b' + name + '=")([^"]*)(")', 'g'), (m, a, v, c) => {
+          const next = place(v);
+          return next === null ? m : a + next + c;
+        });
+      }
+      const breaks = axis === 'row' ? 'rowBreaks' : 'colBreaks';
+      s = s.replace(new RegExp('<' + breaks + '\\b[^>]*>([\\s\\S]*?)</' + breaks + '>'), (block, body) => {
+        let n = 0;
+        const list = body.replace(/<brk\b([^>]*?)\/>/g, (m, a) => {
+          let id = Number(attrs(a).id);
+          for (const { at, count } of edits) {
+            if (id === null) break;
+            id = shiftIndex(id, at, count, op);
+          }
+          if (id === null) return '';
+          n += 1;
+          return '<brk' + a.replace(/\bid="\d+"/, () => 'id="' + id + '"') + '/>';
+        });
+        return n ? '<' + breaks + ' count="' + n + '" manualBreakCount="' + n + '">' + list + '</' + breaks + '>' : '';
+      });
+    }
+    if (s !== before) {
+      this.suffix = s;
+      this.dirty = true;
+    }
+    return this;
+  }
+
   /** Keep the `<dimension>` hint honest after a structural edit. */
   shiftDimension(axis, op, at, count) {
     this.prefix = this.prefix.replace(/(<dimension\b[^>]*?\bref=")([^"]+)(")/, (m, open, ref, close) => {
@@ -848,7 +1018,8 @@ class SheetPart {
     let touched = false;
     for (const row of this.rows) {
       if (!/<f[\s>]/.test(row.inner)) continue;
-      const next = row.inner.replace(/(<f\b[^>]*>)([\s\S]*?)(<\/f>)/g, (m, open, body, close) => {
+      const next = row.inner.replace(/<f\b[^>]*\/>|(<f\b[^>]*>)([\s\S]*?)(<\/f>)/g, (m, open, body, close) => {
+        if (open === undefined) return m;
         const source = unesc(body);
         const adjusted = fn(source);
         const openAdj = open.replace(/\bref="([^"]+)"/, (mm, refText) => 'ref="' + fn(refText) + '"');
@@ -1493,6 +1664,168 @@ function shiftSpan(lo, hi, at, count, op) {
   return nlo > nhi ? null : [nlo, nhi];
 }
 
+/** A1 or A1:B2, moved through one edit; null once nothing of it is left. */
+function moveOneRef(text, axis, op, at, count) {
+  const clean = String(text).replace(/\$/g, '');
+  const [a, b] = clean.split(':');
+  let from;
+  let to;
+  try {
+    from = parseRef(a);
+    to = b ? parseRef(b) : from;
+  } catch {
+    return text; // A:A and the like: nothing here reads those
+  }
+  const lo = axis === 'row' ? from.row : from.col;
+  const hi = axis === 'row' ? to.row : to.col;
+  const span = b ? shiftSpan(lo, hi, at, count, op) : (() => { const v = shiftIndex(lo, at, count, op); return v === null ? null : [v, v]; })();
+  if (span === null) return null;
+  const end = (p, v) => (axis === 'row' ? makeRef(v, p.col) : makeRef(p.row, v));
+  return b ? end(from, span[0]) + ':' + end(to, span[1]) : end(from, span[0]);
+}
+
+/** A function from a place (A1, A1:B2, or several with spaces) to where the edits leave it, or null. */
+function placeMover(axis, op, edits) {
+  return (text) => {
+    const left = String(text).trim().split(/\s+/).map((one) => {
+      let t = one;
+      for (const { at, count } of edits) {
+        if (t === null) return null;
+        t = moveOneRef(t, axis, op, at, count);
+      }
+      return t;
+    }).filter((x) => x !== null);
+    return left.length ? left.join(' ') : null;
+  };
+}
+
+/** The boxes a sheet's notes are drawn in: each follows its cell, or goes with it. */
+/** A formula with each `Table[Column]` of a deleted column made #REF!, strings left alone. */
+function withoutTableColumns(text, gone) {
+  let out = '';
+  for (const piece of String(text).split(/("(?:[^"]|"")*")/)) {
+    if (piece.startsWith('"')) { out += piece; continue; }
+    let t = piece;
+    for (const { table, column } of gone) {
+      const name = column.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      t = t.replace(new RegExp('\\b' + table + '\\[(?:\\[#[^\\]]*\\],)*\\[?' + name + '\\]?\\]', 'gi'), '#REF!');
+    }
+    out += t;
+  }
+  return out;
+}
+
+const SPLIT_LINES_MAX = 20000;
+
+/**
+ * A conditional format or validation through an edit. Its formula is written
+ * for the first cell and is relative to it, so each row or column of it can
+ * come out different: a rule reading the row above now reads across the new
+ * rows, on the one row just below them. Stretches that still agree stay one
+ * rule; the rest get their own, as Excel writes them. A new row takes the
+ * rule of the row above it.
+ * @returns {Array<{sqref: string, formulas: string[]}>} empty when nothing is left
+ */
+function splitRule(sqref, formulas, { axis, op, edits, formula, place }) {
+  const simple = () => {
+    const moved = place ? place(sqref) : sqref;
+    return moved === null ? [] : [{ sqref: moved, formulas: formulas.map(formula) }];
+  };
+  const relative = axis === 'row' ? /[A-Za-z]\d/ : /(?:^|[^$\p{L}\p{N}_.])[A-Za-z]{1,3}\$?\d/u;
+  if (!place || edits.length !== 1 || !formulas.some((f) => relative.test(f))) return simple();
+  let rects;
+  try { rects = sqref.trim().split(/\s+/).map(rangeBounds); } catch { return simple(); }
+  const [lo, hi] = axis === 'row' ? ['top', 'bottom'] : ['left', 'right'];
+  if (rects.reduce((n, r) => n + r[hi] - r[lo] + 1, 0) > SPLIT_LINES_MAX) return simple();
+
+  const { at, count } = edits[0];
+  const anchor = rects[0][lo];
+  const FAR = axis === 'row' ? 500000 : 8000;
+  const along = (f, by) => shiftFormula('=' + f, axis === 'row' ? by : 0, axis === 'col' ? by : 0).slice(1);
+  const groups = new Map();
+  const add = (rect, key, line, said) => {
+    if (!groups.has(key)) groups.set(key, { formulas: said, spans: [] });
+    const spans = groups.get(key).spans;
+    const last = spans[spans.length - 1];
+    if (last && last.rect === rect && last.to === line - 1) last.to = line;
+    else spans.push({ rect, from: line, to: line });
+  };
+  for (const rect of rects) {
+    for (let line = rect[lo]; line <= rect[hi]; line++) {
+      const now = shiftIndex(line, at, count, op);
+      if (now === null) continue;
+      const said = formulas.map((f) => formula(along(f, line - anchor)));
+      const key = said.map((f) => along(f, FAR - now)).join('\u0001');
+      add(rect, key, now, said);
+      if (op === 'insert' && line === at - 1 && at <= rect[hi]) {
+        for (let n = 0; n < count; n++) add(rect, key, at + n, said);
+      }
+    }
+  }
+  return [...groups.values()].map((g) => ({
+    formulas: g.formulas,
+    sqref: g.spans.map(({ rect, from, to }) => boundsRef(axis === 'row' ? { ...rect, top: from, bottom: to } : { ...rect, left: from, right: to })).join(' '),
+  }));
+}
+
+function moveNoteBoxes(xml, axis, op, edits) {
+  return xml.replace(/<v:shape\b[\s\S]*?<\/v:shape>/g, (shape) => {
+    const r = /<x:Row>(\d+)<\/x:Row>/.exec(shape);
+    const c = /<x:Column>(\d+)<\/x:Column>/.exec(shape);
+    if (!r || !c) return shape;
+    let v = Number(axis === 'row' ? r[1] : c[1]);
+    for (const { at, count } of edits) {
+      v = shiftIndex(v, at, count, op);
+      if (v === null) return '';
+    }
+    const was = Number(axis === 'row' ? r[1] : c[1]);
+    const delta = v - was;
+    if (!delta) return shape;
+    let out = axis === 'row'
+      ? shape.replace(r[0], () => '<x:Row>' + v + '</x:Row>')
+      : shape.replace(c[0], () => '<x:Column>' + v + '</x:Column>');
+    out = out.replace(/<x:Anchor>([^<]*)<\/x:Anchor>/, (m, list) => {
+      const n = list.split(',').map((x) => x.trim());
+      if (n.length !== 8) return m;
+      const [first, second] = axis === 'row' ? [2, 6] : [0, 4];
+      n[first] = String(Math.max(0, Number(n[first]) + delta));
+      n[second] = String(Math.max(0, Number(n[second]) + delta));
+      return '<x:Anchor>' + n.join(', ') + '</x:Anchor>';
+    });
+    return out;
+  });
+}
+
+/** Pictures and shapes that move with cells, by the anchors they were given. */
+function moveDrawingAnchors(xml, axis, op, edits) {
+  const tag = axis === 'row' ? 'row' : 'col';
+  const moved = (value) => {
+    let v = value;
+    for (const { at, count } of edits) {
+      const n = shiftIndex(v, at, count, op);
+      v = n === null ? at : n;
+    }
+    return v;
+  };
+  const re = new RegExp('(<(?:xdr:)?' + tag + '>)(\\d+)(</(?:xdr:)?' + tag + '>)');
+  return xml.replace(/<((?:xdr:)?(?:twoCellAnchor|oneCellAnchor))\b([^>]*)>([\s\S]*?)<\/\1>/g, (whole, name, attrsText, body) => {
+    if (/\beditAs="absolute"/.test(attrsText)) return whole;
+    const from = /<(?:xdr:)?from>[\s\S]*?<\/(?:xdr:)?from>/.exec(body);
+    if (!from) return whole;
+    const oldFrom = Number(re.exec(from[0])?.[2]);
+    const newFrom = moved(oldFrom);
+    let next = body.replace(from[0], () => from[0].replace(re, (m, a, b, c) => a + newFrom + c));
+    const to = /<(?:xdr:)?to>[\s\S]*?<\/(?:xdr:)?to>/.exec(next);
+    if (to) {
+      const oldTo = Number(re.exec(to[0])?.[2]);
+      // Move but keep its size, or stretch with the cells, as the anchor said.
+      const newTo = /\beditAs="oneCell"/.test(attrsText) ? oldTo + (newFrom - oldFrom) : moved(oldTo);
+      next = next.replace(to[0], () => to[0].replace(re, (m, a, b, c) => a + newTo + c));
+    }
+    return '<' + name + attrsText + '>' + next + '</' + name + '>';
+  });
+}
+
 const sameSheetName = (a, b) =>
   a !== null && b !== null && String(a).toLowerCase() === String(b).toLowerCase();
 
@@ -1605,7 +1938,7 @@ export function adjustFormula(text, ctx) {
   const n = src.length;
   let out = '';
   let i = 0;
-  const idChar = (ch) => /[A-Za-z0-9_.]/.test(ch ?? '');
+  const idChar = (ch) => /[\p{L}\p{N}_.]/u.test(ch ?? '');
 
   const refBoundaryOk = (end) => {
     const next = src[end] ?? '';
@@ -1633,6 +1966,20 @@ export function adjustFormula(text, ctx) {
       i = j;
       continue;
     }
+    if (ch === '[') {
+      // A table's column labels: Table1[Q1] names a column, not the cell Q1.
+      let depth = 0;
+      let j = i;
+      while (j < n) {
+        if (src[j] === "'") { j += 2; continue; }
+        if (src[j] === '[') depth += 1;
+        else if (src[j] === ']') { depth -= 1; if (depth === 0) { j += 1; break; } }
+        j += 1;
+      }
+      out += src.slice(i, j);
+      i = j;
+      continue;
+    }
     if (ch === "'") {
       // A quoted sheet name, with '' as the escape, then `!` and a reference.
       let j = i + 1;
@@ -1655,11 +2002,11 @@ export function adjustFormula(text, ctx) {
       continue;
     }
     const prev = i > 0 ? src[i - 1] : '';
-    const starts = /[A-Za-z_$0-9]/.test(ch) && !idChar(prev) && prev !== '$';
+    const starts = /[\p{L}_$0-9]/u.test(ch) && !idChar(prev) && prev !== '$';
     if (starts) {
       // A bare sheet qualifier first: `Data!B2`. A name that parses as a cell
       // reference is never a sheet name here — Excel quotes those.
-      const qualRe = /([A-Za-z_][A-Za-z0-9_.]*)!/y;
+      const qualRe = /([\p{L}_][\p{L}\p{N}_.]*)!/uy;
       qualRe.lastIndex = i;
       const qm = qualRe.exec(src);
       if (qm) {
@@ -2040,7 +2387,7 @@ export class Workbook {
     const { part } = this._sheetPart(sheetName);
     const cell = part.getCell(row, col);
     if (!cell) return null;
-    return this._cellValue(cell);
+    return this._cellValue(cell, part);
   }
 
   /**
@@ -2065,7 +2412,7 @@ export class Workbook {
         const a = attrs(m[1]);
         if (!a.r) continue;
         const cell = { ref: a.r, col: parseRef(a.r).col, style: a.s ?? null, type: a.t ?? null, inner: m[3] };
-        const value = this._cellValue(cell);
+        const value = this._cellValue(cell, part);
         if (value === null) continue;
         // Words, not a formula, though they start with "=": the cell has no <f>.
         const text = typeof value === 'string' && value.startsWith('=') && !/<f\b/.test(cell.inner);
@@ -2075,16 +2422,24 @@ export class Workbook {
   }
 
   /** A parsed cell's value: formula text, shared or inline string, boolean, error, number. */
-  _cellValue(cell) {
+  _cellValue(cell, part = null) {
     // A dataTable formula has no expression of its own — the element is the
     // MARKER of a what-if table, and the cell's truth is its cached value.
     // Returning '=' plus its empty body would hand every consumer a garbage
     // formula where Excel shows a number. (A SELF-CLOSING marker never
     // matched this regex and always fell through to the value — the paired
     // form now does the same.)
-    const f = /<f([^>]*)>([\s\S]*?)<\/f>/.exec(cell.inner);
+    const f = /<f\b([^>]*?)(?:\/>|>([\s\S]*?)<\/f>)/.exec(cell.inner);
     // As a person reads it: Excel's file prefixes (`_xlfn.`, `_xlpm.`) off.
-    if (f && !/\bt="dataTable"/.test(f[1])) return '=' + fromFileFormula(unesc(f[2]));
+    if (f && !/\bt="dataTable"/.test(f[1])) {
+      if (f[2]) return '=' + fromFileFormula(unesc(f[2]));
+      const a = attrs(f[1]);
+      if (part && a.t === 'shared' && cell.ref) {
+        const { row, col } = parseRef(cell.ref);
+        const text = part.sharedFormula(a.si, row, col);
+        if (text !== null) return '=' + fromFileFormula(text);
+      }
+    }
     const v = /<v>([\s\S]*?)<\/v>/.exec(cell.inner);
     if (cell.type === 's' && v) return this.sharedStrings()[Number(v[1])] ?? null;
     if (cell.type === 'inlineStr' || cell.type === 'str') {
@@ -3504,6 +3859,7 @@ export class Workbook {
    */
   _adjustForEdits(sheetName, axis, op, edits, { rows = true } = {}) {
     const { part } = this._sheetPart(sheetName);
+    for (const { name } of this.sheets()) this._sheetPart(name).part.unshareFormulas();
 
     for (const { at, count } of edits) {
       // Merges first, from the part as it still stands.
@@ -3538,8 +3894,10 @@ export class Workbook {
     }
     part.dirty = true;
 
+    // Columns deleted out of a table: what named them is now #REF!.
+    const goneColumns = axis === 'col' && op === 'delete' ? this._tableColumnsIn(sheetName, edits) : [];
     const through = (text, currentSheet) => {
-      let t = text;
+      let t = goneColumns.length ? withoutTableColumns(text, goneColumns) : text;
       for (const { at, count } of edits) {
         t = adjustFormula(t, { editedSheet: sheetName, currentSheet, axis, op, at, count });
       }
@@ -3556,7 +3914,175 @@ export class Workbook {
     // Defined names live in workbook.xml and are always sheet-qualified, so
     // they go through the same adjuster with no current sheet.
     this._adjustDefinedNames((t) => through(t, null));
+
+    for (const { name } of this.sheets()) {
+      const { part: p } = this._sheetPart(name);
+      p.moveAnchored({ formula: (f) => through(f, name), place: name === sheetName ? placeMover(axis, op, edits) : null, axis, op, edits });
+    }
+    this._moveOutsideParts(sheetName, axis, op, edits, through);
     return this;
+  }
+
+  /** The table columns a deletion takes: `[{ table, column }]`, names as written. */
+  _tableColumnsIn(sheetName, edits) {
+    const out = [];
+    for (const t of this.tables().filter((x) => x.sheet === sheetName)) {
+      const b = rangeBounds(t.ref);
+      for (const { at, count } of edits) {
+        for (let c = Math.max(at, b.left); c <= Math.min(at + count - 1, b.right); c++) {
+          if (t.columns[c - b.left] !== undefined) out.push({ table: t.name, column: t.columns[c - b.left] });
+        }
+      }
+    }
+    return out;
+  }
+
+  /** What a structural edit rewrites outside the sheets, for its undo step. */
+  structuralParts() {
+    const moved = this.pkg.partNames().filter((n) => /^xl\/(tables\/|charts\/|drawings\/|comments|threadedComments\/|pivotCache\/pivotCacheDefinition|pivotTables\/)/.test(n)
+      && !n.includes('/_rels/') && /\.(xml|vml)$/.test(n));
+    // A table deleted whole takes its link from the sheet and its content type.
+    const links = this.pkg.partNames().filter((n) => /^xl\/worksheets\/_rels\/[^/]+\.rels$/.test(n));
+    return [...moved, ...links, '[Content_Types].xml'];
+  }
+
+  /** Tables, notes, pictures, pivots and the charts that read the edited sheet. */
+  _moveOutsideParts(sheetName, axis, op, edits, through) {
+    const place = placeMover(axis, op, edits);
+    const sheetPart = this.partNameFor(sheetName);
+    const target = (suffix) => {
+      const rel = this.pkg.rels(sheetPart).filter((r) => String(r.Type).endsWith(suffix));
+      return rel.map((r) => OoxmlPackage.resolveTarget(sheetPart, r.Target)).filter((n) => this.pkg.has(n));
+    };
+    const rewrite = (name, fn) => {
+      const before = this.pkg.text(name);
+      const after = fn(before);
+      if (after !== before) this.pkg.write_(name, after);
+    };
+
+    for (const t of this.tables().filter((x) => x.sheet === sheetName)) this._moveTable(t, axis, op, edits, place);
+
+    for (const name of target('/comments')) {
+      rewrite(name, (xml) => xml.replace(/<comment\b[^>]*?\bref="([^"]+)"[\s\S]*?<\/comment>|<comment\b[^>]*?\/>/g, (m, ref) => {
+        if (ref === undefined) return m;
+        const next = place(ref);
+        return next === null ? '' : m.replace(/\bref="[^"]+"/, () => 'ref="' + next + '"');
+      }));
+    }
+    for (const name of target('/threadedComment')) {
+      rewrite(name, (xml) => xml.replace(/<threadedComment\b[^>]*?\bref="([^"]+)"[\s\S]*?<\/threadedComment>/g, (m, ref) => {
+        const next = place(ref);
+        return next === null ? '' : m.replace(/\bref="[^"]+"/, () => 'ref="' + next + '"');
+      }));
+    }
+    for (const name of target('/vmlDrawing')) rewrite(name, (xml) => moveNoteBoxes(xml, axis, op, edits));
+    for (const name of target('/drawing')) rewrite(name, (xml) => moveDrawingAnchors(xml, axis, op, edits));
+
+    for (const name of target('/pivotTable')) {
+      rewrite(name, (xml) => xml.replace(/(<location\b[^>]*?\bref=")([^"]+)(")/, (m, a, ref, c) => {
+        const next = place(ref);
+        return next === null ? m : a + next + c;
+      }));
+    }
+    for (const name of this.pkg.partNames()) {
+      if (/^xl\/pivotCache\/pivotCacheDefinition\d*\.xml$/.test(name)) {
+        rewrite(name, (xml) => xml.replace(/<worksheetSource\b[^>]*?\/?>/, (tag) => {
+          const a = attrs(tag.slice(tag.indexOf(' '), tag.lastIndexOf('>')).replace(/\/$/, ''));
+          if (!a.ref || !sameSheetName(unesc(a.sheet ?? ''), sheetName)) return tag;
+          const next = place(a.ref);
+          return next === null ? tag : tag.replace(/\bref="[^"]+"/, () => 'ref="' + next + '"');
+        }));
+      } else if (/^xl\/charts\/[^/]+\.xml$/.test(name) || /^xl\/charts\/.*chartEx.*\.xml$/.test(name)) {
+        // Charts always name their sheet.
+        // Labels whose cells were deleted are dropped, as Excel does: the
+        // chart falls back to counting its points. Values stay, as #REF!.
+        const died = (body) => !unesc(body).includes('#REF!') && through(unesc(body), null).includes('#REF!');
+        rewrite(name, (xml) => xml
+          .replace(/<c:cat>(?:(?!<\/c:cat>)[\s\S])*<\/c:cat>/g, (m) => {
+            const f = /<c:f\b[^>]*>([^<]*)<\/c:f>/.exec(m);
+            return f && died(f[1]) ? '' : m;
+          })
+          .replace(/(<(?:c|cx):f\b[^>]*>)([^<]*)(<\/(?:c|cx):f>)/g, (m, a, body, c) => {
+            const next = through(unesc(body), null);
+            return next === unesc(body) ? m : a + esc(next) + c;
+          }));
+      }
+    }
+  }
+
+  /** A table whose every row or column was deleted. */
+  _removeTablePart(table) {
+    const sheetPart = this.partNameFor(table.sheet);
+    const { part } = this._sheetPart(table.sheet);
+    const rel = this.pkg.rels(sheetPart).find((r) => OoxmlPackage.resolveTarget(sheetPart, r.Target) === table.part);
+    if (rel) {
+      part.suffix = part.suffix.replace(new RegExp('<tablePart\\b[^>]*\\br:id="' + rel.Id + '"[^>]*/>'), '');
+      const left = (part.suffix.match(/<tablePart\b/g) ?? []).length;
+      part.suffix = left
+        ? part.suffix.replace(/(<tableParts\b[^>]*?\bcount=")\d+(")/, (m, a, c) => a + left + c)
+        : part.suffix.replace(/<tableParts\b[^>]*>\s*<\/tableParts>/, '');
+      this.pkg.removeRelationship(sheetPart, rel.Id);
+      part.dirty = true;
+    }
+    this.pkg.removePart(table.part);
+  }
+
+  /** A table over the edited axis: its range, and with columns the column list. */
+  _moveTable(table, axis, op, edits, place) {
+    let xml = this.pkg.text(table.part);
+    let ref = table.ref;
+    for (const { at, count } of edits) {
+      const b = rangeBounds(ref);
+      const one = placeMover(axis, op, [{ at, count }]);
+      const next = one(ref);
+      if (next === null) {
+        this._removeTablePart(table);
+        return;
+      }
+      if (axis === 'col') {
+        const first = b.left;
+        const names = [...xml.matchAll(/<tableColumn\b[^>]*?(?:\/>|>[\s\S]*?<\/tableColumn>)/g)].map((m) => m[0]);
+        if (op === 'insert' && at > first && at <= b.right) {
+          const used = new Set(names.map((c) => attrs(/<tableColumn\b([^>]*?)\/?>/.exec(c)[1]).name?.toLowerCase()));
+          let id = Math.max(0, ...names.map((c) => Number(attrs(/<tableColumn\b([^>]*?)\/?>/.exec(c)[1]).id) || 0));
+          const added = [];
+          const before = names[at - first - 1];
+          const left = unesc(attrs(/<tableColumn\b([^>]*?)\/?>/.exec(before)[1]).name ?? 'Column');
+          for (let k = 0, n = 2; k < count; k++) {
+            while (used.has((left + n).toLowerCase())) n += 1;
+            used.add((left + n).toLowerCase());
+            id += 1;
+            added.push({ name: left + n, xml: '<tableColumn id="' + id + '" name="' + esc(left + n) + '"/>' });
+          }
+          xml = xml.replace(before, () => before + added.map((c) => c.xml).join(''));
+          xml = xml.replace(/<filterColumn\b([^>]*?)\bcolId="(\d+)"/g, (m, a, id2) => '<filterColumn' + a + 'colId="' + (Number(id2) >= at - first ? Number(id2) + count : id2) + '"');
+          if (Number(table.headerRowCount) > 0) added.forEach((c, k) => this._sheetPart(table.sheet).part.setCell(b.top, at + k, c.name));
+        } else if (op === 'delete') {
+          const lo = Math.max(at, first);
+          const hi = Math.min(at + count - 1, b.right);
+          for (let c = lo; c <= hi; c++) xml = xml.replace(names[c - first], '');
+          const gone = Math.max(0, hi - lo + 1);
+          if (gone) {
+            xml = xml.replace(/<filterColumn\b([^>]*?)\bcolId="(\d+)"[\s\S]*?(?:\/>|<\/filterColumn>)/g, (m, a, id2) => {
+              const c = Number(id2) + first;
+              return c >= lo && c <= hi ? '' : c > hi ? m.replace(/colId="\d+"/, () => 'colId="' + (Number(id2) - gone) + '"') : m;
+            });
+          }
+        }
+        xml = xml.replace(/(<tableColumns\b[^>]*?\bcount=")\d+(")/, (m, a, c) => a + (xml.match(/<tableColumn\b/g) ?? []).length + c);
+      }
+      ref = next;
+    }
+    const shift = (r) => {
+      let t = r;
+      for (const e of edits) t = placeMover(axis, op, [e])(t) ?? t;
+      return t;
+    };
+    xml = xml.replace(/(<table\b[^>]*?\bref=")([^"]+)(")/, (m, a, r, c) => a + ref + c);
+    xml = xml.replace(/(<autoFilter\b[^>]*?\bref=")([^"]+)(")/g, (m, a, r, c) => a + shift(r) + c);
+    xml = xml.replace(/(<sort(?:State|Condition)\b[^>]*?\bref=")([^"]+)(")/g, (m, a, r, c) => a + shift(r) + c);
+    this.pkg.write_(table.part, xml);
+    void place;
   }
 
   /** Rewrite each defined name through `fn`, touching only the ones that move. */
@@ -3633,10 +4159,26 @@ export class Workbook {
 
   /** Flush edited sheet parts and return the package bytes. */
   save() {
+    let edited = false;
     for (const [partName, part] of this._loaded) {
-      if (part.dirty) this.pkg.write_(partName, part.render());
+      if (part.dirty) { this.pkg.write_(partName, part.render()); edited = true; }
     }
+    if (edited) this._dropCalcChain();
     return this.pkg.write();
+  }
+
+  /**
+   * Excel's list of formula cells in calculation order. It names cells, so
+   * after an edit it can name one that no longer holds a formula, and Excel
+   * then refuses the whole file. The list is optional: Excel writes a new one.
+   */
+  _dropCalcChain() {
+    const name = 'xl/calcChain.xml';
+    if (!this.pkg.has(name)) return;
+    const owner = 'xl/workbook.xml';
+    const rel = this.pkg.rels(owner).find((r) => OoxmlPackage.resolveTarget(owner, r.Target) === name);
+    if (rel) this.pkg.removeRelationship(owner, rel.Id);
+    this.pkg.removePart(name);
   }
 
   /** Parts this workbook has actually rewritten. */
