@@ -624,7 +624,8 @@ export class MailStore {
         rows.push(this.#parseLine(line));
       } catch (err) {
         // A torn last line after a crash: skip it, keep the rest. One in the middle has lost a message from the list.
-        if (n !== last && err.code !== 'MAIL_LOCKED') spoiled = true;
+        // So has a sealed one that will not open while this store holds a key: spoiled and sealed with another key look alike.
+        if (n !== last && (err.code !== 'MAIL_LOCKED' || this.#key)) spoiled = true;
       }
     }
     if (spoiled) this.#rowsFromFiles(accountId, folder, rows);

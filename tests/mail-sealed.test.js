@@ -288,3 +288,36 @@ test('a password change stopped after its note, before the new lock, opened next
     }
   }
 });
+
+// A sealed list line is opened whole or not at all, so a crash that tears one must cost only that line.
+const sealedIndex = (root) => path.join(root, 'acc', 'INBOX', 'index.jsonl');
+const subjectsIn = (store) => store.list('acc', 'INBOX', { limit: 100 }).rows.map((r) => r.subject).sort();
+
+test('sealed: a torn last line of a folder list loses only that line, and the message comes back when fetched again', () => {
+  const root = tmp();
+  const k = key();
+  const store = new MailStore(root, { key: k });
+  store.putMany('acc', 'INBOX', [message(1), message(2)]);
+  const before = fs.readFileSync(sealedIndex(root), 'utf8');
+  store.put('acc', 'INBOX', message(3));
+  const third = fs.readFileSync(sealedIndex(root), 'utf8').slice(before.length).replace(/\n$/, '');
+  fs.writeFileSync(sealedIndex(root), before + third.slice(0, Math.ceil(third.length / 2)));
+  const again = new MailStore(root, { key: k });
+  assert.deepEqual(subjectsIn(again), ['Harbour plans 1', 'Harbour plans 2']);
+  again.put('acc', 'INBOX', message(3));
+  again.put('acc', 'INBOX', message(4));
+  assert.deepEqual(subjectsIn(new MailStore(root, { key: k })), ['Harbour plans 1', 'Harbour plans 2', 'Harbour plans 3', 'Harbour plans 4']);
+  assert.deepEqual(clearText(root, 'Harbour'), [], 'and nothing was put back in the clear');
+});
+
+test('sealed: a list line spoiled in the middle gives its message back from its own file', () => {
+  const root = tmp();
+  const k = key();
+  const store = new MailStore(root, { key: k });
+  store.putMany('acc', 'INBOX', [message(1), message(2), message(3)]);
+  const lines = fs.readFileSync(sealedIndex(root), 'utf8').split('\n');
+  assert.equal(lines.filter(Boolean).length, 3);
+  lines[1] = lines[1].slice(0, Math.ceil(lines[1].length / 2));
+  fs.writeFileSync(sealedIndex(root), lines.join('\n'));
+  assert.deepEqual(subjectsIn(new MailStore(root, { key: k })), ['Harbour plans 1', 'Harbour plans 2', 'Harbour plans 3']);
+});
