@@ -78,3 +78,30 @@ test('a spill typed here keeps spilling once saved, even when it is one cell or 
   assert.equal(cell(0, 3).arrayAnswer, true, 'blocked is still an array answer, and is saved with the mark');
   assert.equal(cell(0, 2).single, false);
 });
+
+test('a comment with nothing in it is still a comment', async () => {
+  const { parseComments } = await import('../packages/ooxml/src/workbook.js');
+  const list = parseComments('<comments><authors><author>A</author></authors><commentList><comment ref="A1" authorId="0"/><comment ref="B1" authorId="0"><text><t>x</t></text></comment></commentList></comments>');
+  assert.deepEqual(list.map((c) => [c.ref, c.text]), [['A1', ''], ['B1', 'x']]);
+});
+
+test('a colour scale limit that is a cell moves with the cells, and a number stays', () => {
+  const wb = Workbook.open(buildXlsx({ sheets: [{ name: 'S', rows: [[1], [2], [3]] }] }));
+  const { part } = wb._sheetPart('S');
+  part.suffix = '<conditionalFormatting sqref="A1:A3"><cfRule type="colorScale" priority="1"><colorScale><cfvo type="num" val="$A$2"/><cfvo type="num" val="9"/><color rgb="FFFF0000"/><color rgb="FF00FF00"/></colorScale></cfRule></conditionalFormatting>' + part.suffix;
+  part.dirty = true;
+  wb.insertRows('S', 0, 2);
+  const out = wb._sheetPart('S').part.suffix;
+  assert.ok(out.includes('val="$A$4"'), out.slice(0, 200));
+  assert.match(out, /val="9"/);
+});
+
+test('written out in full, a shared formula keeps its always-calculate mark', () => {
+  const wb = Workbook.open(buildXlsx({ sheets: [{ name: 'S', rows: [[1, null]] }] }));
+  const { part } = wb._sheetPart('S');
+  const row = part.rows[0];
+  row.inner = row.inner.replace(/<\/?c r="B1"[^>]*?\/?>/, '') + '<c r="B1"><f t="shared" ref="B1:B1" si="0" ca="1">A1</f><v>1</v></c>';
+  part.dirty = true;
+  part.unshareFormulas();
+  assert.match(part.rows[0].inner, /<f ca="1">A1<\/f>/);
+});

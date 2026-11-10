@@ -185,3 +185,24 @@ test('the showcase deck\'s table — written by PowerPoint itself — still read
   assert.deepEqual(words[4], ['All', '3,610', '3,980', '7,590']);
   for (const row of shape.table.rows) for (const cell of row.cells) assert.ok(cell.box && cell.box.w > 0 && cell.box.h > 0, 'a box for every cell');
 });
+
+test('a column put in or taken out leaves the others in their proportions, and the table its width', () => {
+  const deck = Deck.open(DECK);
+  const id = deck.addTable(1, { rows: 2, cols: 3 });
+  const part = deck.slideParts[1].part;
+  const widths = () => [...deck.pkg.text(part).matchAll(/<a:gridCol\b[^>]*\bw="(\d+)"/g)].map((m) => Number(m[1]));
+  const total = widths().reduce((a, b) => a + b, 0);
+  const wanted = [Math.round(total / 2), Math.round(total / 4), total - Math.round(total / 2) - Math.round(total / 4)];
+  let i = 0;
+  deck.pkg.write_(part, Buffer.from(deck.pkg.text(part).replace(/(<a:gridCol\b[^>]*\bw=")\d+/g, (m, a) => a + wanted[i++]), 'utf8'));
+  const shaped = widths();
+  deck.insertTableColumn(1, id, 1);
+  const wider = widths();
+  assert.equal(wider.length, 4);
+  assert.equal(wider.reduce((a, b) => a + b, 0), shaped.reduce((a, b) => a + b, 0));
+  assert.ok(Math.abs(wider[0] / wider[2] - shaped[0] / shaped[1]) < 0.01, 'the first column keeps its share');
+  deck.removeTableColumn(1, id, 1);
+  const back = widths();
+  assert.equal(back.reduce((a, b) => a + b, 0), shaped.reduce((a, b) => a + b, 0));
+  assert.ok(Math.abs(back[0] / back[1] - shaped[0] / shaped[1]) < 0.01);
+});

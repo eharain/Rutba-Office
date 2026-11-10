@@ -130,11 +130,11 @@ export class OoxmlBackend {
    * fitted to this document first: a style or a list it has no definition
    * for is taken off them.
    */
-  insertParagraphsXml(index, xmls) {
+  insertParagraphsXml(index, xmls, options) {
     const styles = new Set(Object.keys(this.doc.paragraphStyles() || {}));
     const charStyles = new Set(Object.keys(this.doc.characterStyles() || {}));
     const numIds = new Set(Object.keys(this.doc.numberingDefs() || {}));
-    return this.doc.insertParagraphsXml(index, xmls.map((x) => fitParagraph(x, { styles, charStyles, numIds })));
+    return this.doc.insertParagraphsXml(index, xmls.map((x) => fitParagraph(x, { styles, charStyles, numIds })), options);
   }
   /** Append a row to the table whose container key starts `t<tableStart>`. */
   appendTableRow(tableStart) { this.doc.appendTableRow(tableStart); return this; }

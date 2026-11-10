@@ -4492,7 +4492,9 @@ export class Deck {
     const frameW = frameExtCx(frameXml);
     const nextCount = cols.length + 1;
     const colW = Math.round(frameW / nextCount);
-    const newGrid = `<a:tblGrid>${Array.from({ length: nextCount }, () => `<a:gridCol w="${colW}"/>`).join('')}</a:tblGrid>`;
+    const kept = fitColumns(cols.map((m) => m[0]), frameW - colW);
+    kept.splice(insertAt, 0, `<a:gridCol w="${colW}"/>`);
+    const newGrid = `<a:tblGrid>${kept.join('')}</a:tblGrid>`;
     let newTbl = tbl[0].slice(0, grid.index) + newGrid + tbl[0].slice(grid.index + grid[0].length);
     newTbl = newTbl.replace(TR_RE, (rowXml) => {
       const cells = [...rowXml.matchAll(TC_RE)].map((m) => m[0]);
@@ -4578,9 +4580,7 @@ export class Deck {
     const col = cols[at];
     if (!col) throw new Error(`no column ${at} in table`);
     const frameW = frameExtCx(frameXml);
-    const nextCount = cols.length - 1;
-    const colW = Math.round(frameW / nextCount);
-    const newGrid = `<a:tblGrid>${Array.from({ length: nextCount }, () => `<a:gridCol w="${colW}"/>`).join('')}</a:tblGrid>`;
+    const newGrid = `<a:tblGrid>${fitColumns(cols.filter((_, i) => i !== at).map((m) => m[0]), frameW).join('')}</a:tblGrid>`;
     let newTbl = tbl[0].slice(0, grid.index) + newGrid + tbl[0].slice(grid.index + grid[0].length);
     newTbl = newTbl.replace(TR_RE, (rowXml) => {
       const cells = [...rowXml.matchAll(TC_RE)].map((m) => m[0]);
@@ -4620,6 +4620,7 @@ export class Deck {
       this.pkg.addPart(relsPart, this.pkg.read(srcRels), 'application/vnd.openxmlformats-package.relationships+xml');
       const notes = [...this.#relMap(newPart).values()].find((r) => r.type === REL.notes && this.pkg.has(r.resolved));
       if (notes) this.#giveOwnNotes(newPart, relsPart, notes);
+      this.#giveOwnParts(newPart, relsPart);
     }
 
     const rId = this.pkg.addRelationshipTo('ppt/presentation.xml', REL.slide, `slides/slide${n}.xml`);
@@ -4636,6 +4637,45 @@ export class Deck {
     this.#load();
     this.#syncSections();
     return this.slideParts.findIndex((s) => s.part === newPart);
+  }
+
+  /** A part and what it points at, copied under new names beside them. Answers the copy's name. */
+  #copyOfPart(part) {
+    const slash = part.lastIndexOf('/') + 1;
+    const dir = part.slice(0, slash);
+    const [, base, ext] = /^(.*?)\d*(\.[^.]*)$/.exec(part.slice(slash));
+    let n = 1;
+    while (this.pkg.has(`${dir}${base}${n}${ext}`)) n += 1;
+    const copy = `${dir}${base}${n}${ext}`;
+    this.pkg.addPart(copy, this.pkg.read(part), this.pkg.contentTypeOf(part));
+    const rels = OoxmlPackage.relsPathFor(part);
+    if (this.pkg.has(rels)) {
+      const moved = this.pkg.text(rels).replace(/<Relationship\b[^>]*\/>/g, (tag) => {
+        const target = /\bTarget="([^"]*)"/.exec(tag)?.[1];
+        if (!target || /\bTargetMode="External"/.test(tag)) return tag;
+        const child = OoxmlPackage.resolveTarget(part, target);
+        if (!this.pkg.has(child)) return tag;
+        const name = this.#copyOfPart(child).split('/').pop();
+        return tag.replace(/\bTarget="[^"]*"/, () => `Target="${target.slice(0, target.lastIndexOf('/') + 1)}${name}"`);
+      });
+      this.pkg.addPart(OoxmlPackage.relsPathFor(copy), moved, 'application/vnd.openxmlformats-package.relationships+xml');
+    }
+    return copy;
+  }
+
+  /** A new slide's charts and comments, its own: a change to one slide's must not appear on the other. */
+  #giveOwnParts(slidePart, slideRels) {
+    const copies = new Map();
+    const owned = this.pkg.text(slideRels).replace(/<Relationship\b[^>]*\/>/g, (tag) => {
+      const type = /\bType="([^"]*)"/.exec(tag)?.[1] ?? '';
+      const target = /\bTarget="([^"]*)"/.exec(tag)?.[1];
+      if (!/\/(?:chart|comments)$/.test(type) || !target || /\bTargetMode="External"/.test(tag)) return tag;
+      const part = OoxmlPackage.resolveTarget(slidePart, target);
+      if (!this.pkg.has(part)) return tag;
+      if (!copies.has(part)) copies.set(part, this.#copyOfPart(part));
+      return tag.replace(/\bTarget="[^"]*"/, () => `Target="${target.slice(0, target.lastIndexOf('/') + 1)}${copies.get(part).split('/').pop()}"`);
+    });
+    if (copies.size) this.pkg.write_(slideRels, owned);
   }
 
   /** A copy of a slide's notes for a new slide, each pointing at the other. */
@@ -6024,6 +6064,18 @@ const TABLE_ROW_H = 370840;
 const TR_RE = /<a:tr\b[^>]*>[\s\S]*?<\/a:tr>/g;
 const TC_RE = /<a:tc\b[^>]*>[\s\S]*?<\/a:tc>/g;
 const GRIDCOL_RE = /<a:gridCol\b[^>]*\/>|<a:gridCol\b[^>]*>[\s\S]*?<\/a:gridCol>/g;
+
+/** A table's columns scaled to fill this width together, each keeping its share of it. */
+function fitColumns(tags, width) {
+  const widths = tags.map((t) => Number(/\bw="(\d+)"/.exec(t)?.[1]) || 0);
+  const total = widths.reduce((a, b) => a + b, 0);
+  let used = 0;
+  return tags.map((tag, i) => {
+    const w = i === tags.length - 1 ? width - used : Math.round(total ? (widths[i] * width) / total : width / tags.length);
+    used += w;
+    return tag.replace(/\bw="\d+"/, () => `w="${w}"`);
+  });
+}
 
 /**
  * One table cell: a run of words, or — empty — just enough to measure a

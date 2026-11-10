@@ -120,3 +120,15 @@ for (const [what, runXml, comesBack] of [
     assert.equal(again.block(0).text.startsWith('ab'), true);
   });
 }
+
+test('text put in at the start of a table cell stays in that cell', async () => {
+  const pkg = OoxmlPackage.read(buildDocx({ paragraphs: ['Above'] }));
+  const body = pkg.text('word/document.xml').replace('</w:p>', () => '</w:p><w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="2000"/></w:tblGrid><w:tr><w:tc><w:tcPr/><w:p><w:r><w:t>In the cell</w:t></w:r></w:p></w:tc></w:tr></w:tbl>');
+  pkg.write_('word/document.xml', Buffer.from(body, 'utf8'));
+  const backend = openDocx(pkg.write()).doc;
+  const doc = backend.doc;
+  assert.equal(doc.editParagraphCount(), 2, 'the paragraph above, and the one in the cell');
+  backend.insertParagraphsXml(1, ['<w:p><w:r><w:t>Put in</w:t></w:r></w:p>'], { before: true });
+  const xml = doc.pkg.text('word/document.xml');
+  assert.match(xml, /<w:tc>(?:(?!<\/w:tc>).)*Put in(?:(?!<\/w:tc>).)*In the cell/s);
+});

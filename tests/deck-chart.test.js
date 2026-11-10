@@ -161,3 +161,21 @@ test('the showcase deck\'s chart — written by PowerPoint itself — still read
   assert.equal(pie.type, 'pie');
   assert.equal(pie.title, 'A pie');
 });
+
+test('a duplicated slide has its own chart and workbook: a change to one is not a change to the other', () => {
+  const deck = Deck.open(buildPptx({ title: 'D', slides: [{ layout: 'title', title: 'Hi' }] }));
+  deck.addChart(0, { type: 'column', title: 'Sales', categories: ['a', 'b'], series: [{ name: 'S', values: [1, 2] }] });
+  const first = /Target="([^"]*chart[^"]*)"/.exec(deck.pkg.text(`ppt/slides/_rels/${deck.slideParts[0].part.split('/').pop()}.rels`))[1].split('/').pop();
+  deck.pkg.addPart('ppt/embeddings/Microsoft_Excel_Sheet1.xlsx', Buffer.from('workbook'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  deck.pkg.addPart(`ppt/charts/_rels/${first}.rels`, '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/Microsoft_Excel_Sheet1.xlsx"/></Relationships>', 'application/vnd.openxmlformats-package.relationships+xml');
+  const copy = deck.duplicateSlide(0);
+  const again = Deck.open(deck.save());
+  const charts = [0, copy].map((i) => [...again.pkg.text(`ppt/slides/_rels/${again.slideParts[i].part.split('/').pop()}.rels`).matchAll(/Target="([^"]*chart[^"]*)"/g)].map((m) => m[1]));
+  assert.equal(charts[0].length, 1);
+  assert.equal(charts[1].length, 1);
+  assert.notEqual(charts[0][0], charts[1][0]);
+  const part = (t) => 'ppt/' + t.replace('../', '');
+  assert.equal(again.pkg.text(part(charts[0][0])), again.pkg.text(part(charts[1][0])));
+  const workbook = (t) => /Target="([^"]*\.xlsx)"/.exec(again.pkg.text('ppt/charts/_rels/' + t.split('/').pop() + '.rels'))?.[1];
+  assert.notEqual(workbook(charts[0][0]), workbook(charts[1][0]), 'and each its own workbook');
+});

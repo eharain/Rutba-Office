@@ -90,11 +90,11 @@ export function indexToCol(n) {
 export function parseComments(xml) {
   const authors = [...(/<authors>([\s\S]*?)<\/authors>/.exec(xml)?.[1] ?? '').matchAll(/<author>([\s\S]*?)<\/author>/g)].map((m) => unesc(m[1]));
   const out = [];
-  for (const m of xml.matchAll(/<comment\b([^>]*)>([\s\S]*?)<\/comment>/g)) {
+  for (const m of xml.matchAll(/<comment\b([^>]*?)(?:\/>|>([\s\S]*?)<\/comment>)/g)) {
     const ref = /\bref="([A-Z]+\d+)"/.exec(m[1])?.[1];
     if (!ref) continue;
     const authorId = Number(/\bauthorId="(\d+)"/.exec(m[1])?.[1] ?? -1);
-    const text = [...m[2].matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((t) => unesc(t[1])).join('');
+    const text = [...(m[2] ?? '').matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((t) => unesc(t[1])).join('');
     out.push({ ref, author: authors[authorId] ?? '', text });
   }
   return out;
@@ -407,7 +407,7 @@ class SheetPart {
         const text = m[2] ? unesc(m[2]) : this.sharedFormula(a.si, row.index, cell.col);
         if (text === null) continue;
         const at = row.inner.indexOf(cell.xml, pos);
-        out += row.inner.slice(pos, at) + cell.xml.replace(m[0], () => '<f>' + esc(text) + '</f>');
+        out += row.inner.slice(pos, at) + cell.xml.replace(m[0], () => '<f' + (a.ca ? ' ca="' + a.ca + '"' : '') + '>' + esc(text) + '</f>');
         pos = at + cell.xml.length;
       }
       if (!pos) continue;
@@ -915,10 +915,12 @@ class SheetPart {
       if (!sq) return m;
       const FORMULA = /(<formula\b[^>]*>)([\s\S]*?)(<\/formula>)/g;
       const said = [...body.matchAll(FORMULA)].map((x) => unesc(x[2]));
+      // A colour scale's or a bar's limit can be a cell or a formula, and goes where the cells went.
+      const limits = body.replace(/(<cfvo\b[^>]*?\bval=")([^"]*)(")/g, (x, o, v, c) => (v === '' || Number.isFinite(Number(v)) ? x : o + esc(formula(unesc(v))) + c));
       return splitRule(sq[1], said, split).map((g) => {
         let k = 0;
         return '<conditionalFormatting' + a.replace(sq[0], () => 'sqref="' + g.sqref + '"') + '>'
-          + body.replace(FORMULA, (x, o, f, c) => o + esc(g.formulas[k++]) + c) + '</conditionalFormatting>';
+          + limits.replace(FORMULA, (x, o, f, c) => o + esc(g.formulas[k++]) + c) + '</conditionalFormatting>';
       }).join('');
     });
 

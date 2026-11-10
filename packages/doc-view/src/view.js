@@ -2959,8 +2959,10 @@ export class DocView {
       this._editable(at);
       const length = lengthOf(this.block(at));
       if (offset > 0 && offset < length) this.splitParagraph();
-      const after = offset === 0 && length > 0 ? at - 1 : at;
-      const n = this.doc.insertParagraphsXml(after, meta ? paragraphs.map((p) => this.doc.markInserted(p, meta)) : paragraphs);
+      // At the start of a paragraph it goes before that paragraph: the one above may be outside this table cell.
+      const before = offset === 0 && length > 0;
+      const after = before ? at - 1 : at;
+      const n = this.doc.insertParagraphsXml(at, meta ? paragraphs.map((p) => this.doc.markInserted(p, meta)) : paragraphs, { before });
       this._invalidate();
       const end = after + n;
       this.collapseTo({ block: end, offset: lengthOf(this.block(end)) });
