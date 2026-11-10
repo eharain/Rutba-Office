@@ -39,7 +39,7 @@ export async function verifyMailSafety(h, { dir }) {
     '--mix', 'Content-Type: text/plain; name="notes.txt"', 'Content-Disposition: attachment; filename="notes.txt"', '', 'Some notes.',
     '--mix--', '',
   ].join('\r\n');
-  const answers = () => globalThis.__rutbaCheckDialogAnswers || [];
+  const dialogsAsked = () => globalThis.__rutbaCheckDialogsAsked || 0;
   let win = null;
   let kept = null;
   try {
@@ -92,7 +92,7 @@ export async function verifyMailSafety(h, { dir }) {
         && item(onPicture, 'Copy Picture')?.disabled === true && item(onPicture, 'Save Picture As…')?.disabled === true,
       JSON.stringify({ sw, onLink, onPicture }));
     await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 1`);
-    const answeredBefore = answers().length;
+    const askedBefore = dialogsAsked();
     const refused = await js(`(async () => {
       const a = [...document.querySelectorAll('.ml-attachment')].find((n) => n.textContent.includes('figures.zip'));
       if (!a) return 'no attachment';
@@ -101,7 +101,7 @@ export async function verifyMailSafety(h, { dir }) {
       return [...document.querySelectorAll('.rw-toast')].map((t) => t.textContent).join(' | ');
     })()`);
     check('mail safety: saving an attachment waits for Safety to be off, and says so; no save dialog opens',
-      /Safety is on/.test(refused) && answers().length === answeredBefore, refused.slice(0, 160));
+      /Safety is on/.test(refused) && dialogsAsked() === askedBefore, refused.slice(0, 160));
     const refusedAll = await js(`(async () => {
       const a = document.querySelector('.ml-save-all');
       if (!a) return 'no Save all';
@@ -110,7 +110,7 @@ export async function verifyMailSafety(h, { dir }) {
       return [...document.querySelectorAll('.rw-toast')].map((t) => t.textContent).join(' | ');
     })()`);
     check('mail safety: Save all waits for Safety to be off too; no save dialog opens',
-      /Safety is on/.test(refusedAll) && answers().length === answeredBefore, refusedAll.slice(0, 160));
+      /Safety is on/.test(refusedAll) && dialogsAsked() === askedBefore, refusedAll.slice(0, 160));
 
     // View source, with Safety on: shown whole, copying and saving waiting.
     await js(`document.querySelector('.ml-source-btn')?.click(), 1`);

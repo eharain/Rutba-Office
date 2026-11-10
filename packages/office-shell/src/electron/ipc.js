@@ -805,6 +805,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
 const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_SCREENS_FEATURES);
 if (CHECK_RUN) globalThis.__rutbaCheckDialogAnswers = globalThis.__rutbaCheckDialogAnswers || [];
 function plannedAnswer(kind) {
+  if (CHECK_RUN) globalThis.__rutbaCheckDialogsAsked = (globalThis.__rutbaCheckDialogsAsked || 0) + 1;
   const queue = CHECK_RUN ? globalThis.__rutbaCheckDialogAnswers : null;
   const at = queue ? queue.findIndex((a) => a.kind === kind) : -1;
   return at < 0 ? undefined : queue.splice(at, 1)[0].answer;

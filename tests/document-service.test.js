@@ -427,3 +427,12 @@ test('Save as Show writes a copy labelled as a show, and the deck stays under it
   doc.close({ id: again.id });
   doc.close({ id: session.id });
 });
+
+test('a CSV: the field edited is saved as edited, and those not touched as the file had them', () => {
+  const file = write('edited.csv', 'name,amount\nTea,"1,234"\nMilk,1.50\n');
+  const session = doc.open({ path: file });
+  doc.apply({ id: session.id, ops: [{ op: 'setCell', row: 2, col: 1, value: '7' }] });
+  doc.save({ id: session.id, path: file });
+  doc.close({ id: session.id });
+  assert.deepEqual(fs.readFileSync(file, 'utf8').trim().split(/\r?\n/), ['name,amount', 'Tea,"1,234"', 'Milk,7']);
+});

@@ -1,0 +1,14 @@
+{
+  "*": {
+    "open": 1,
+    "roundTrip": 1
+  },
+  "docx": {
+    "open": 0.96,
+    "roundTrip": 1
+  },
+  "pptx": {
+    "open": 0.95,
+    "roundTrip": 1
+  }
+}

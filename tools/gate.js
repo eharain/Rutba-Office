@@ -672,7 +672,7 @@ async function main() {
         tasks.push(async () => {
           const r = await windowRun(c, { RUTBA_VERIFY_LANE: 'parallel', RUTBA_VERIFY_APPS: c });
           const p = r.parts?.[c] || { passed: r.sum.passed, of: r.sum.of, failed: r.sum.failed, seconds: r.seconds };
-          state.apps[c] = { ok: r.ok, passed: p.passed, of: p.of, failed: p.failed, seconds: Math.round(r.seconds) };
+          state.apps[c] = { ok: r.ok, passed: p.passed, of: p.of, failed: p.failed, failedParts: p.failedParts, seconds: Math.round(r.seconds) };
           if (r.ok) timing[c] = Math.round(r.seconds);
           save();
           return r.ok;
@@ -718,7 +718,7 @@ async function main() {
         // A chunk with a failure outside its parts runs whole; the rest only the parts that failed.
         if (!set.whole.length) env.RUTBA_VERIFY_PART_IDS = set.ids.join(',');
         const r = await windowRun(laneName === 'machine' ? 'again-machine' : 'again', env, { mayBeEmpty: true });
-        const cleared = rerunCleared(set.names, r.parts);
+        const cleared = r.ok && rerunCleared(set.names, r.parts);
         say(`  again: ${cleared ? 'each passed alone' : 'still failing'}`);
         if (!cleared) continue;
         if (laneName === 'machine') {

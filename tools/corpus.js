@@ -171,6 +171,8 @@ const formulaText = (f) => unesc(f).replace(/_xlfn\.|_xlws\./g, '').replace(/\s+
  * What a Word, Excel or PowerPoint XML file holds, as compared before and
  * after a round trip (see the header of this file).
  */
+const SHARED_FORMULA = '=(shared formula)';
+
 export function fingerprintOoxml(kind, bytes) {
   const parts = partsOf(bytes);
   if (kind === 'doc') {
@@ -207,10 +209,13 @@ export function fingerprintOoxml(kind, bytes) {
         const inner = c[2] || '';
         if (!ref || !inner) continue;
         const type = /\bt="([^"]+)"/.exec(c[1])?.[1] || 'n';
-        const f = /<f\b[^>]*?(?:\/>|>([\s\S]*?)<\/f>)/.exec(inner)?.[1];
+        const formula = /<f\b[^>]*?(?:\/>|>([\s\S]*?)<\/f>)/.exec(inner);
+        const f = formula?.[1];
         const v = /<v>([\s\S]*?)<\/v>/.exec(inner)?.[1];
         let value;
         if (f) value = `=${formulaText(f)}`;
+        // A shared formula's later cells have no words of their own. What they stored is a result, and saving works it out afresh.
+        else if (formula) value = SHARED_FORMULA;
         else if (type === 's') value = v != null ? shared[Number(v)] ?? '' : '';
         else if (type === 'inlineStr') value = textRuns(inner, 't');
         else if (type === 'str' || type === 'e') value = v != null ? unesc(v) : '';
@@ -258,6 +263,8 @@ export function compareFingerprints(a, b, limit = 10) {
     for (let i = 0; i < Math.min(x.length, y.length); i++) each(x[i], y[i], i);
   };
   const same = (what, x, y) => {
+    // A shared formula written out in full on saving is still that formula; a constant is not.
+    if (x === SHARED_FORMULA && String(y).startsWith('=') || y === SHARED_FORMULA && String(x).startsWith('=')) return;
     if (JSON.stringify(x) !== JSON.stringify(y)) say(`${what}: ${short(x)} before, ${short(y)} after`);
   };
   if (a?.kind !== b?.kind) {

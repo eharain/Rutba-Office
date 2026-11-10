@@ -672,12 +672,27 @@ function makeFixtures(dir) {
 export async function verifyApps({ windows, doc, broadcast = null, update = null, idle = null }) {
   // An error that escapes a block would end the run with no summary and no
   // name. Name it.
-  process.on('unhandledRejection', (e) => console.log(`     [unhandled] ${e?.stack || e}`));
-  process.on('uncaughtException', (e) => console.log(`     [uncaught] ${e?.stack || e}`));
   // Errors in a window's console, each failing the part it happened in: a toast goes, this stays.
   const consoleFaults = [];
   let consoleAnswered = 0;
+  // undici's own stream, closed while a fetch was aborted: nothing of ours, and it does not stop anything.
+  const NOT_OURS = /ReadableStream is already closed/;
+  const escaped = (kind) => (e) => {
+    console.log(`     [${kind}] ${e?.stack || e}`);
+    if (!NOT_OURS.test(String(e?.stack || e))) consoleFaults.push(`main process, ${kind}: ${String(e?.message || e).split('\n')[0].slice(0, 200)}`);
+  };
+  process.on('unhandledRejection', escaped('unhandled'));
+  process.on('uncaughtException', escaped('uncaught'));
   const EXPECTED_CONSOLE = /scripts-worker\.js' violates the following Content Security Policy/;
+
+  // A renderer lost, in any window, whoever opened it: the checks that used it fail with less to say.
+  const watchGone = (contents) => contents.on('render-process-gone', (_g, details) => {
+    console.log(`     [gone] a renderer: ${details.reason}`);
+    if (!['clean-exit', 'killed'].includes(details.reason) && !closingPhase.value) consoleFaults.push(`a window's renderer ended: ${details.reason}`);
+  });
+  const { app: electronApp, webContents } = await import('electron');
+  webContents.getAllWebContents().forEach(watchGone);
+  electronApp.on('web-contents-created', (_e, contents) => watchGone(contents));
 
   const results = [];
   const opened = [];
@@ -825,7 +840,6 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // else — a person at the machine, or a crash — and the check that was
     // using it fails with "Object has been destroyed".
     win.on('closed', () => console.log(`     [closed] the ${app} window (#${id}) at ${new Date().toTimeString().slice(0, 8)}${closingPhase.value ? '' : ' — not by the checks'}`));
-    win.webContents.on('render-process-gone', (_e, details) => console.log(`     [gone] the ${app} renderer: ${details.reason}`));
     await new Promise((resolve) => win.webContents.once('did-finish-load', resolve));
     // Ready when the app has drawn what it draws first — or said why it could
     // not. A fixed pause here was 1.3 seconds, which a loaded machine beat:
@@ -930,6 +944,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     const [outerApp, outerPart] = [currentApp, currentPart];
     currentApp = app;
     currentPart = id;
+    // What came before this part, outside any: said now, or the end of this part would count it as answered.
+    if (!outerPart && consoleFaults.length > consoleAnswered) {
+      check(`the checks before ${app}: part ${id} logged no error in a window's console`, false, consoleFaults.slice(consoleAnswered, consoleAnswered + 4).join(' | '));
+      consoleAnswered = consoleFaults.length;
+    }
     const faultsBefore = consoleFaults.length;
     try {
       await block(run);

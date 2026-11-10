@@ -10,11 +10,7 @@ const { decodePng } = require('../src/images');
 let pdfjs = null;
 const load = async () => {
   if (pdfjs) return pdfjs;
-  try {
-    pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  } catch {
-    pdfjs = false;
-  }
+  pdfjs = (await require('./pdfjs').loadPdfjs()) || false;
   return pdfjs;
 };
 const open = async (buffer) => {
