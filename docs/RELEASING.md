@@ -125,6 +125,12 @@ node tools/fuzz-pdf.js 300 <seed>
 
 ## Publishing
 
+Before the tag, run `.github/workflows/candidate.yml` from the Actions tab at
+the commit the gate passed. It builds that commit and installs it over the last
+release in each way a person's copy can be updated, the all-users copy among
+them. Installed copies look for updates soon after they start, so this is the
+last time a fault can be found before people have it.
+
 1. `git fetch`; the integration branch must have `origin/main` in it.
 2. `main` and `dev` are moved to the release commit (`git fetch . <branch>:main
    <branch>:dev`); nothing is merged on the way.

@@ -256,7 +256,8 @@ These are all the requests Office makes of its own. If a network monitor ever
 shows another, that is a bug and we want to hear about it. (Mail, calendars,
 contacts and Data Files talk to the servers you add, which is what they are
 for. Talk uses wss://introducer.rutba.io/ws unless you set another server, to
-find your contacts. Live Broadcast sends to the stream servers you choose. An
+find your contacts, auth.rutba.io if you sign in to it with a Rutba account,
+and the STUN and relay servers on its list to connect a call. Live Broadcast sends to the stream servers you choose. An
 unsubscribe you press in Mail may be sent as a one-click web request when the
 message offers one.)
 
@@ -266,7 +267,7 @@ message offers one.)
 | Spelling dictionary for plain text boxes | Once per language, and only when Windows has no spelling for that language. The spelling pass in documents uses dictionaries on your computer | The language's name, to Google's download server, where the browser engine gets these files | No switch yet |
 | Adding an app | Only when you press Add in Add or remove apps | One download of that app's signed file from this version's GitHub release, its signature checked before it is put in place | Add the app from a folder of app files instead |
 | [Announcement](docs/ANNOUNCEMENT.md) | Once a day at most, from the launcher | The version and the operating system. **No identifier of any kind** | About → Show announcements |
-| Mail server lookup | Only when you press Add (or Add for several accounts), for an address whose provider is not in the built-in list | The address's domain, asked of that domain's own DNS records (SRV, MX) and its own autoconfig and autodiscover addresses (autoconfig.domain, domain/.well-known, autodiscover.domain), then a knock on the servers they name, over https only (a redirect to plain http is refused). No lookup service of anyone else's. A server they name outside the address's own domain, and not in the built-in list, is shown by name and gets the password only if you agree; no server is ever sent it unencrypted | Fill the servers in yourself under Add account → Advanced |
+| Mail server lookup | Only when you press Add (or Add for several accounts), for an address whose provider is not in the built-in list | The address's domain, asked of that domain's own DNS records (SRV, MX) and its own autoconfig and autodiscover addresses (autoconfig.domain, domain/.well-known, autodiscover.domain), which are also given the whole address so that they can answer for it, then a knock on the servers they name, over https only (a redirect to plain http is refused). No lookup service of anyone else's. A server they name outside the address's own domain, and not in the built-in list, is shown by name and gets the password only if you agree; no server is ever sent it unencrypted | Fill the servers in yourself under Add account → Advanced |
 
 The announcement is also how we know anyone is using this. The server counts
 requests, and a request carries nothing that identifies the copy making it, so

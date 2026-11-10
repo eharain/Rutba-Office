@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { UPDATE_KEYS, signedWords, sha512OfFile, signatureHolds, whyNotOurs, guardDownloads, installerIn, signatureAddress } from '../apps/desktop/main/update-signature.js';
-import { sha512Of, signAndPublish, publishRelease } from '../tools/publish-release.js';
+import { sha512Of, signAndPublish, publishRelease, parseFeed } from '../tools/publish-release.js';
 
 const pair = () => {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
@@ -247,4 +247,26 @@ test('the release workflow holds no update key and the tool stops at a draft wit
   const tool = fs.readFileSync(path.join(root, 'tools', 'publish-release.js'), 'utf8');
   assert.match(tool, /leaveDraft: true/);
   assert.match(tool, /RUTBA_UPDATE_KEY_FILE/);
+});
+
+test('what the release PC signs is what an installed copy asks for and accepts', async () => {
+  const gh = draftOnGitHub();
+  await signAndPublish({ client: gh.client, tag: TAG, sign: signer(main.key), keys: KEYS, log: quiet });
+  const info = parseFeed(gh.assets.get('latest.yml').bytes.toString());
+  const asked = [];
+  const updater = {};
+  guardDownloads(updater, {
+    current: () => ({ version: info.version, files: info.files, path: info.path }),
+    fetchSignature: async ({ version, file }) => {
+      asked.push(signatureAddress({ owner: 'o', repo: 'r', version, file }));
+      return gh.assets.get(`${file}.sig`).bytes.toString();
+    },
+    keys: KEYS,
+  });
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-real-')), FILE);
+  fs.writeFileSync(file, 'the installer');
+  assert.equal(await updater.verifySignature(file), null);
+  assert.equal(asked[0], `https://github.com/o/r/releases/download/v${VERSION}/${encodeURIComponent(FILE)}.sig`);
+  fs.writeFileSync(file, 'something else');
+  assert.match(await updater.verifySignature(file), /not signed/);
 });

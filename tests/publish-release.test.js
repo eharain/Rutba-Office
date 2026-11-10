@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { releaseAssets, parseFeed, checkFeed, sha512Of, publishRelease } from '../tools/publish-release.js';
+import { releaseAssets, parseFeed, checkFeed, sha512Of, publishRelease, gateProblem } from '../tools/publish-release.js';
 
 const TAG = 'v2.1.0';
 const INSTALLER = 'Rutba-Office-2.1.0-win-x64.exe';
@@ -323,4 +323,27 @@ test('a draft left by an earlier build takes the notes of this build', async () 
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('a draft moved to a new commit loses the old files before it says so', async () => {
+  const order = [];
+  const draft = { id: 1, tag_name: 'v1.2.3', draft: true, body: 'n', target_commitish: 'OLD' };
+  const client = {
+    listReleases: async () => [draft],
+    listAssets: async () => [{ name: 'old.exe', state: 'uploaded', size: 1 }],
+    deleteAsset: async (_r, a) => { order.push(`delete ${a.name}`); },
+    updateRelease: async (_r, patch) => { order.push(`target ${patch.target_commitish}`); throw new Error('a run that dies here'); },
+  };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-move-'));
+  fs.writeFileSync(path.join(dir, 'latest.yml'), 'version: 1.2.3\n');
+  fs.writeFileSync(path.join(dir, 'Rutba-Office-1.2.3-win-x64.exe'), 'x');
+  await assert.rejects(publishRelease({ client, dir, tag: 'v1.2.3', notes: 'n', commit: 'NEW', log: () => {} }), /a run that dies here/);
+  assert.deepEqual(order, ['delete old.exe', 'target NEW']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('the record the gate writes does not stop the publish', () => {
+  const note = 'x\n\n## Gate\n\nRun on Windows.\n\nCommit checked: ' + 'a'.repeat(40) + '\n';
+  assert.equal(gateProblem({ note, tag: 'v1.2.3', changed: ['README.md', 'tools/gate-floors.json', 'docs/releases/v1.2.3.md'] }), null);
+  assert.match(gateProblem({ note, tag: 'v1.2.3', changed: ['tools/gate.js'] }), /changed since/);
 });

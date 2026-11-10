@@ -143,7 +143,7 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
       guardDownloads(updater, {
         current: () => updater.updateInfoAndProvider?.info ?? info,
         fetchSignature: async ({ version, file }) => {
-          const response = await net.fetch(signatureAddress({ owner: FEED.owner, repo: FEED.repo, version, file }));
+          const response = await net.fetch(signatureAddress({ owner: FEED.owner, repo: FEED.repo, version, file }), { signal: AbortSignal.timeout(60_000) });
           if (!response.ok) throw new Error(`${response.status}`);
           return response.text();
         },
@@ -262,6 +262,10 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
       if (on && app.isPackaged) {
         state = 'idle';
         check().catch(() => {});
+        // Off at launch means no timer was started, and on again means another.
+        clearInterval(timer);
+        timer = setInterval(() => check().catch(() => {}), SIX_HOURS);
+        timer.unref?.();
       } else {
         state = 'off';
         clearInterval(timer);

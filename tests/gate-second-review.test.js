@@ -87,3 +87,30 @@ test('fewer checks by hand are said in the release note', () => {
   assert.match(note.replace(/\s+/g, ' '), /Fewer checks than the gate before, allowed by hand: mail window checks: 40, down from 50/);
   assert.doesNotMatch(gateSection(counts, { version: '9.9.9', date: '2026-11-10', platform: 'win32', arch: 'x64' }), /Fewer checks/);
 });
+
+test('what makes the shipped build means every app; a test or a note does not', async () => {
+  const { appsForPath } = await import('../tools/gate.js');
+  for (const f of ['tools/make-packs.mjs', 'tools/sbom.mjs', 'tools/publish-release.js', '.github/workflows/release.yml']) assert.deepEqual(appsForPath(f), ['shell'], f);
+  for (const f of ['tools/gate.js', 'tests/a.test.js', 'docs/a.md', 'README.md']) assert.deepEqual(appsForPath(f), [], f);
+});
+
+test('what is installed is held to the lock file', async () => {
+  const { lockDrift } = await import('../tools/gate.js');
+  const lock = { packages: { '': { version: '1.0.0' }, 'node_modules/a': { version: '1.0.0' }, 'node_modules/b': { version: '2.0.0' }, 'node_modules/c': { version: '1.0.0', optional: true }, 'node_modules/d': { version: '1.0.0' }, 'node_modules/@x/w': { link: true } } };
+  const here = { 'node_modules/a': '1.0.0', 'node_modules/b': '2.1.0' };
+  assert.deepEqual(lockDrift(lock, (at) => here[at] ?? null), ['node_modules/b is 2.1.0, and the lock file says 2.0.0', 'node_modules/d is missing']);
+});
+
+test('a floors file taken away stops the record, and one brought up to date does not', () => {
+  assert.equal(dirtyForRecord(' D tools/gate-floors.json\n', '1.0.0').length, 1);
+  assert.equal(dirtyForRecord(' M tools/gate-floors.json\n', '1.0.0').length, 0);
+});
+
+test('every setting that narrows a window check is cleared for a gate', () => {
+  for (const name of ['RUTBA_A11Y_APPS', 'RUTBA_DARK_APPS', 'RUTBA_POLISH_APPS', 'RUTBA_RIBBON_APPS', 'RUTBA_SCREENS_ONLY']) assert.ok(SHRINKING_ENV.includes(name), name);
+});
+
+test('a patch that changed no app says nothing of application checks', () => {
+  const note = gateSection({ test: { tests: 1, passed: 1, failed: 0, skipped: 0 }, 'verify:apps': { passed: 5, of: 5 } }, { version: '1.0.1', date: '2026-11-10', platform: 'win32', arch: 'x64', apps: [] });
+  assert.doesNotMatch(note, /undefined|application checks/);
+});

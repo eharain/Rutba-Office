@@ -19,6 +19,11 @@ on:
 permissions:
   contents: write
 
+# A tag and a manual run of the same version wait for each other: one draft, one build at a time.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   windows:
     runs-on: windows-latest

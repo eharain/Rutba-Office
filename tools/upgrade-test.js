@@ -186,7 +186,10 @@ function registered() {
   return text ? text.split(/\r?\n/) : [];
 }
 
-const INSTALLED = () => path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Rutba Office', 'Rutba Office.exe');
+const allUsers = flag('all-users');
+const INSTALLED = () => (allUsers
+  ? path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Rutba Office', 'Rutba Office.exe')
+  : path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Rutba Office', 'Rutba Office.exe'));
 
 /** Whether the copy at `exe` has a window up, within `ms`. */
 async function windowUp(exe, ms) {
@@ -241,9 +244,9 @@ async function installWhileRunning({ race: how, from, to, profile, verdict }) {
   return exit === 0;
 }
 
-function runInstaller(file) {
+function runInstaller(file, more = []) {
   say(`installing ${path.basename(file)}`);
-  const r = spawnSync(file, ['/S'], { stdio: 'ignore', timeout: 300000 });
+  const r = spawnSync(file, ['/S', ...more], { stdio: 'ignore', timeout: 300000 });
   if (r.status !== 0) throw new Error(`${path.basename(file)} ended with ${r.status}`);
   if (!fs.existsSync(INSTALLED())) throw new Error(`no installed copy at ${INSTALLED()}`);
 }
@@ -266,13 +269,13 @@ async function main() {
   fs.copyFileSync(path.join(root, 'tests', 'corpus-public', 'docx', 'letter.docx'), document);
   const token = crypto.randomBytes(6).toString('hex');
   const seeded = seedProfile(profile, { document, token });
-  const verdict = { from: from.version, to: to.version, mode: race ? `installed, race ${race}` : install ? 'installed' : 'portable', profile, ok: false, failures: [], evidence: [] };
+  const verdict = { from: from.version, to: to.version, mode: allUsers ? `installed for all users, race ${race}` : race ? `installed, race ${race}` : install ? 'installed' : 'portable', profile, ok: false, failures: [], evidence: [] };
 
   try {
     // The older version, on the profile, until it has recorded itself.
     let older = from.file;
     if (install) {
-      runInstaller(from.file);
+      runInstaller(from.file, allUsers ? ['/allusers'] : []);
       older = INSTALLED();
     }
     if (openFile) {

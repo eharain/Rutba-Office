@@ -169,6 +169,8 @@ export function createPacksService({ plan, stores, broadcast = () => {}, version
   };
   const changed = () => {
     const out = list();
+    // An update can run when the person quits without Restart: the next installer has to know what they chose.
+    if (registry) recordPacks([...new Set([...plan.ids().filter((x) => !removals().includes(x)), ...adding.keys()])]).catch(() => {});
     broadcast('packs:changed', { apps: out.apps, restart: out.restart });
     return out;
   };

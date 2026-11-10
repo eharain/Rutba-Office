@@ -65,7 +65,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [installed, portable, race-close, race-never-close, short-list]
+        mode: [installed, all-users, portable, race-close, race-never-close, short-list]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -92,6 +92,7 @@ jobs:
           if ($env:FROM) { $testArgs += @('--from', $env:FROM) }
           switch ('${{ matrix.mode }}') {
             'installed' { $testArgs += '--install' }
+            'all-users' { $testArgs += @('--install', '--all-users', '--race', 'close') }
             'race-close' { $testArgs += @('--install', '--race', 'close') }
             'race-never-close' { $testArgs += @('--install', '--race', 'never-close') }
           }

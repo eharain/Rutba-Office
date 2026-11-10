@@ -686,10 +686,19 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   const EXPECTED_CONSOLE = /scripts-worker\.js' violates the following Content Security Policy/;
 
   // A renderer lost, in any window, whoever opened it: the checks that used it fail with less to say.
-  const watchGone = (contents) => contents.on('render-process-gone', (_g, details) => {
-    console.log(`     [gone] a renderer: ${details.reason}`);
-    if (!['clean-exit', 'killed'].includes(details.reason) && !closingPhase.value) consoleFaults.push(`a window's renderer ended: ${details.reason}`);
-  });
+  const ownConsole = new WeakSet();
+  const watchGone = (contents) => {
+    contents.on('render-process-gone', (_g, details) => {
+      console.log(`     [gone] a renderer: ${details.reason}`);
+      if (!['clean-exit', 'killed'].includes(details.reason) && !closingPhase.value) consoleFaults.push(`a window's renderer ended: ${details.reason}`);
+    });
+    // A window the program opened by itself, which the checks never named: its errors count too.
+    contents.on('console-message', (...args) => {
+      if (ownConsole.has(contents)) return;
+      const m = consoleMessage(args);
+      if (m.level >= 3 && !EXPECTED_CONSOLE.test(m.text)) consoleFaults.push(`another window: ${m.text.split('\n')[0].slice(0, 200)}`);
+    });
+  };
   const { app: electronApp, webContents } = await import('electron');
   webContents.getAllWebContents().forEach(watchGone);
   electronApp.on('web-contents-created', (_e, contents) => watchGone(contents));
@@ -827,6 +836,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // A window that throws during render paints nothing and reports nothing, so
     // every check against it fails with a description of an empty page rather
     // than of the fault. The console is the only place the fault appears.
+    ownConsole.add(win.webContents);
     win.webContents.on('console-message', (...args) => {
       const m = consoleMessage(args);
       if (m.level >= 2) console.log(`     [${app}] ${m.text.split('\n')[0].slice(0, 200)}`);
@@ -935,6 +945,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
    * every lane and every run.
    */
   const partCount = {};
+  // How many parts are open: the section name a run leaves behind says nothing of that.
+  let partDepth = 0;
   const part = async (app, run, { machine = false } = {}) => {
     partCount[app] = (partCount[app] || 0) + 1;
     const id = `${app}#${partCount[app]}`;
@@ -945,16 +957,18 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     currentApp = app;
     currentPart = id;
     // What came before this part, outside any: said now, or the end of this part would count it as answered.
-    if (!outerPart && consoleFaults.length > consoleAnswered) {
+    if (partDepth === 0 && consoleFaults.length > consoleAnswered) {
       check(`the checks before ${app}: part ${id} logged no error in a window's console`, false, consoleFaults.slice(consoleAnswered, consoleAnswered + 4).join(' | '));
       consoleAnswered = consoleFaults.length;
     }
     const faultsBefore = consoleFaults.length;
+    partDepth += 1;
     try {
       await block(run);
       if (consoleFaults.length > faultsBefore) check(`${app}: part ${id} logged no error in a window's console`, false, consoleFaults.slice(faultsBefore, faultsBefore + 4).join(' | '));
       consoleAnswered = consoleFaults.length;
     } finally {
+      partDepth -= 1;
       currentApp = outerApp;
       currentPart = outerPart;
     }
@@ -4240,7 +4254,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // something gone wrong, rather than the refusal working as meant.
       await until(() => js(`!document.querySelector('.rw-toast.bad')`), 'the toast to clear', 5000).catch(() => {});
 
-      const complaints = await errorsIn(win);
+      // The one refusal this check asked for is not a complaint; any other is.
+      const complaints = (await errorsIn(win)).filter((c) => c !== refusal);
       check('launcher: the recent rename and remove checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {
       check('launcher: the recent rename and remove checks ran', false, err.message);

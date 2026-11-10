@@ -70,6 +70,8 @@ export const VERIFY_APPS = ['shell', 'ribbon', 'look', 'theme', 'access', 'langu
 /** The apps a changed file touches; 'shell' means every app. */
 export function appsForPath(file) {
   const f = String(file).replace(/\\/g, '/');
+  // What makes or publishes the shipped build touches every app.
+  if (/^tools\/(?:make-|sbom|check-packs|publish-release)|^\.github\/workflows\/release\.yml$/.test(f)) return ['shell'];
   if (/^(docs|tools|\.github)\/|^[^/]+\.md$|^tests\//.test(f)) return [];
   const app = /^apps\/desktop\/renderer\/apps\/([a-z]+)/.exec(f)?.[1];
   if (app) {
@@ -101,7 +103,7 @@ export function appsForChanges(files) {
   return set.has('shell') ? VERIFY_APPS.slice() : VERIFY_APPS.filter((a) => set.has(a));
 }
 
-const git = (...args) => { try { return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return ''; } };
+const git = (...args) => { try { return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 2 ** 30 }).trim(); } catch { return ''; } };
 
 /** `git status --porcelain` as git says it: the first column is a space when a file is changed but not staged, so it is not trimmed. */
 export function porcelain(cwd = ROOT) {
@@ -182,7 +184,7 @@ export function gateSection(counts, { version, date, fewer = [], platform = proc
   const parts = [
     t ? `${n(t.tests)} engine tests, ${n(t.passed)} passing${t.skipped ? ` and ${n(t.skipped)} skipped where a package they need is not installed` : ''}` : null,
     counts['verify:edit'] ? `${n(counts['verify:edit'].passed)} of ${n(counts['verify:edit'].of)} editing checks` : null,
-    counts['verify:apps'] ? `${n(counts['verify:apps'].passed)} of ${n(counts['verify:apps'].of)} application checks${apps ? `, of ${listed(apps)}, the ${apps.length === 1 ? 'app' : 'apps'} it changed` : ''}` : null,
+    counts['verify:apps'] && apps?.length !== 0 ? `${n(counts['verify:apps'].passed)} of ${n(counts['verify:apps'].of)} application checks${apps ? `, of ${listed(apps)}, the ${apps.length === 1 ? 'app' : 'apps'} it changed` : ''}` : null,
     counts.smoke ? `${n(counts.smoke.passed)} of ${n(counts.smoke.of)} windows painted clean` : null,
     fuzzed(counts) ? `${n(fuzzed(counts))} damaged files read or refused in a sentence` : null,
     counts.corpus ? `${n(counts.corpus.of)} files from outside the project opened` : null,
@@ -201,7 +203,7 @@ export function gateSection(counts, { version, date, fewer = [], platform = proc
  * than the whole, and a gate started from a shell that has one set would
  * count what little ran as the gate.
  */
-export const SHRINKING_ENV = ['RUTBA_VERIFY_ONLY', 'RUTBA_VERIFY_APPS', 'RUTBA_VERIFY_PART_IDS', 'RUTBA_VERIFY_LANE', 'RUTBA_VERIFY_PARTS', 'RUTBA_LOCKER', 'RUTBA_CORPUS_LIMIT'];
+export const SHRINKING_ENV = ['RUTBA_VERIFY_ONLY', 'RUTBA_VERIFY_APPS', 'RUTBA_VERIFY_PART_IDS', 'RUTBA_VERIFY_LANE', 'RUTBA_VERIFY_PARTS', 'RUTBA_LOCKER', 'RUTBA_CORPUS_LIMIT', 'RUTBA_A11Y_APPS', 'RUTBA_DARK_APPS', 'RUTBA_POLISH_APPS', 'RUTBA_RIBBON_APPS', 'RUTBA_SCREENS_ONLY'];
 
 /** More checks than this failing beside the others closes the gate: that is a fault, not a busy machine. */
 export const RERUN_LIMIT = 5;
@@ -232,7 +234,23 @@ export function belowFloor(counts, floors) {
 /** The changes in a tree that stop a run going on the record: all but the note and README a record writes. */
 export function dirtyForRecord(porcelain, version) {
   const own = new Set(['README.md', 'tools/gate-floors.json', `docs/releases/v${version}.md`]);
-  return String(porcelain || '').split('\n').filter(Boolean).filter((l) => !own.has(l.slice(3).trim().replace(/\\/g, '/').replace(/^"|"$/g, '')));
+  // A floors file taken away is not a file the record writes: it would leave nothing to be held to.
+  return String(porcelain || '').split('\n').filter(Boolean).filter((l) => /^.?D/.test(l.slice(0, 2)) || !own.has(l.slice(3).trim().replace(/\\/g, '/').replace(/^"|"$/g, '')));
+}
+
+/**
+ * What is installed here that is not what the lock file says, by package: the
+ * release installs from the lock, so a gate run against anything else checked
+ * another program. An optional package for another platform may be absent.
+ */
+export function lockDrift(lock, versionAt) {
+  const out = [];
+  for (const [at, entry] of Object.entries(lock.packages || {})) {
+    if (!at.includes('node_modules/') || entry.link) continue;
+    const have = versionAt(at);
+    if (have == null) { if (!entry.optional) out.push(`${at} is missing`); } else if (have !== entry.version) out.push(`${at} is ${have}, and the lock file says ${entry.version}`);
+  }
+  return out;
 }
 
 /** What this run counted, one by one, for the next run to be held to. */
@@ -543,11 +561,18 @@ async function main() {
     }
   }
 
+  const drifted = lockDrift(readJson(path.join(ROOT, 'package-lock.json')) || {}, (at) => readJson(path.join(ROOT, at, 'package.json'))?.version ?? null);
+  if (drifted.length) {
+    console.log(`The gate is closed: node_modules is not what the lock file says (${drifted.length}): ${drifted.slice(0, 5).join('; ')}. Run npm ci.`);
+    process.exit(1);
+  }
+
   // Which apps' window checks this run is for: those named, those changed, or all.
   let wanted = VERIFY_APPS.slice();
   if (appsArg) wanted = appsArg.split(',').map((a) => a.trim()).filter((a) => VERIFY_APPS.includes(a));
   else if (changed) {
-    const since = git('describe', '--tags', '--abbrev=0');
+    // The tag before this commit: one already on HEAD would make every change look like none.
+    const since = git('describe', '--tags', '--abbrev=0', 'HEAD^');
     const files = [...git('diff', '--name-only', `${since}..HEAD`).split('\n'), ...git('diff', '--name-only').split('\n')].filter(Boolean);
     wanted = wantedForChanged(since, files);
     say(since ? `Changed since ${since}: ${files.length} files; the window checks of ${wanted.join(', ') || 'no app'}.` : 'No tag to compare with: the window checks of every app.');
@@ -763,6 +788,7 @@ async function main() {
     const fell = [
       ...belowFloor(counts, floorsFrom(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8'))),
       ...belowRecorded(floorsNow(counts, state), readJson(FLOORS)),
+      ...(fs.existsSync(FLOORS) && !readJson(FLOORS) ? ['tools/gate-floors.json cannot be read, so there is nothing to compare this run with'] : []),
     ];
     state.fewer = fell;
     save();

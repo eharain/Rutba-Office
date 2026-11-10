@@ -47,6 +47,17 @@
     ${If} ${FileExists} "$R1"
       ; The directory the uninstaller sits in is the installation.
       ${GetParent} "$R1" $R4
+      ; Room for the new copy before the old one goes: a full disk must leave the one that works.
+      ${GetRoot} "$R4" $R3
+      ${DriveSpace} "$R3\" "/D=F /S=M" $R3
+      ${If} $R3 != ""
+      ${AndIf} $R3 < 1024
+        ${IfNot} ${Silent}
+          MessageBox MB_OK|MB_ICONEXCLAMATION "There is not enough free disk space to replace Rutba Office. Free at least 1 GB and run this again. The copy you have was left as it is."
+        ${EndIf}
+        SetErrorLevel 2
+        Quit
+      ${EndIf}
       ; Run from a copy: the uninstaller removes the directory it lives in,
       ; and _?= keeps it in place so ExecWait actually waits for it.
       InitPluginsDir
@@ -105,6 +116,15 @@
         ${EndIf}
         Sleep 1000
       ${Loop}
+      ; An uninstaller that was refused its elevation says nothing and leaves everything.
+      Sleep 1500
+      ${If} ${FileExists} "$R4\${APP_EXECUTABLE_FILENAME}"
+        ${IfNot} ${Silent}
+          MessageBox MB_OK|MB_ICONEXCLAMATION "The Rutba Office installed for ${SCOPE}, in $R4, was not removed, so this install has stopped rather than leave two copies. Run it again and allow the administrator prompt, or remove that copy first."
+        ${EndIf}
+        SetErrorLevel 2
+        Quit
+      ${EndIf}
       ; The uninstaller run from a copy cannot delete the original of itself.
       Delete "$R1"
       RMDir "$R4"

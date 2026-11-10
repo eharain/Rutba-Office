@@ -33,7 +33,10 @@
 //      PC and only there, `node tools/publish-release.js <tag> --sign` with
 //      RUTBA_UPDATE_KEY_FILE set reads each installer back from the draft,
 //      holds it to the feed, signs it, and publishes (signAndPublish). The key
-//      is not in Actions, so a stolen token can make a draft and no more.
+//      is not in Actions, so nothing can be signed there. Signing reads what
+//      the draft holds, so a token able to change workflows could still put
+//      files in a draft: what is published is checked against the commit, the
+//      uploader and the feed, not against who ran the workflow.
 //
 // A release already published is never changed: what is missing is uploaded to
 // it and it is checked the same way, and a file there that is not the one built
@@ -178,7 +181,11 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
     log(`\nrelease already exists (#${release.id}, ${release.draft ? 'a draft' : 'published'}), reusing it`);
     // A draft left by another build tags this build's commit, not that one's.
     if (release.draft && release.body !== notes) release = await client.updateRelease(release, { body: notes });
-    if (release.draft && commit && release.target_commitish !== commit) release = await client.updateRelease(release, { target_commitish: commit });
+    if (release.draft && commit && release.target_commitish !== commit) {
+      // Every file of the other build goes first: a run that stops after this must not leave its files under this commit.
+      for (const a of await client.listAssets(release)) await client.deleteAsset(release, a);
+      release = await client.updateRelease(release, { target_commitish: commit });
+    }
   } else {
     release = await client.createRelease({
       tag_name: tag,
@@ -196,6 +203,15 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
 
   // 2. Every file, once, whole.
   const there = new Map((await client.listAssets(release)).map((a) => [a.name, a]));
+  // A draft holds this build and its signatures, and nothing an earlier build made and this one did not.
+  if (release.draft) {
+    for (const [name, asset] of there) {
+      if (assets.includes(name) || (name.endsWith('.sig') && assets.includes(name.slice(0, -4)))) continue;
+      log(`× ${name} (not made by this build) removed`);
+      await client.deleteAsset(release, asset);
+      there.delete(name);
+    }
+  }
   // Held to the build before anything moves: a published release that disagrees is left exactly as it is.
   const same = new Set();
   for (const name of assets) {
@@ -426,13 +442,13 @@ export function gatedCommitOf(note) {
 /**
  * Why this release may not go up, or null. What is published must be what the
  * gate checked: the only files that may differ from the commit it checked are
- * the two its record writes.
+ * the three its record writes.
  */
 export function gateProblem({ note, tag, changed }) {
   const commit = gatedCommitOf(note);
   if (!commit) return `docs/releases/${tag}.md has no Gate section naming the commit that was checked. Run the gate with --record.`;
   if (changed === null) return `Commit ${commit}, which the gate checked, is not in this checkout.`;
-  const allowed = new Set(['README.md', `docs/releases/${tag}.md`]);
+  const allowed = new Set(['README.md', 'tools/gate-floors.json', `docs/releases/${tag}.md`]);
   const extra = changed.filter((f) => !allowed.has(f));
   return extra.length ? `${extra.length} file(s) changed since the gate checked ${commit.slice(0, 8)}: ${extra.slice(0, 5).join(', ')}. Run the gate again.` : null;
 }
@@ -481,6 +497,9 @@ async function main() {
     let tagged = null;
     try { tagged = execFileSync('git', ['rev-parse', '--verify', '--quiet', `${tag}^{commit}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* the release makes the tag when it is published */ }
     if (tagged && tagged !== head) throw new Error(`${tag} is at ${tagged} and this copy is at ${head}: nothing was signed`);
+    // The tag on GitHub is the one the release attaches to, and it may not be here. Its peeled line comes last.
+    const remote = execFileSync('git', ['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`], { cwd: root, encoding: 'utf8' }).trim().split('\n').filter(Boolean).pop()?.split(/\s/)[0];
+    if (remote && remote !== head) throw new Error(`${tag} on GitHub is at ${remote} and this copy is at ${head}: nothing was signed`);
     await signAndPublish({ client: githubClient(credential()), tag, commit: head, sign: (words) => crypto.sign(null, Buffer.from(words, 'utf8'), key).toString('base64') });
     return;
   }
