@@ -241,9 +241,11 @@ the first time the new version opens, a card that says which version it is
 now and which it was, with **What's new** opening the release's own notes
 (they ship with the build, so they read with the network off).
 
-That is one HTTPS request to GitHub's release feed, and one to GitHub's API to
-see whether a newer signed set of templates has been published. Neither carries
-an identifier or anything about you, your machine or your files. **About → Check for updates
+That is GitHub's release feed (latest.yml, then release details), and GitHub's
+API and a small file, templates-set.json, to see whether a newer signed set of
+templates has been published. When there is an update, the installer, its
+block map and its signature follow. None of these carries an identifier or
+anything about you, your machine or your files. **About → Check for updates
 automatically** turns it off, and when it is off no request is made at all.
 
 Running from source never checks: updates apply to an installed copy.
@@ -252,8 +254,11 @@ Running from source never checks: updates apply to an installed copy.
 
 These are all the requests Office makes of its own. If a network monitor ever
 shows another, that is a bug and we want to hear about it. (Mail, calendars,
-contacts, Talk and Data Files talk to the servers you add, which is what they
-are for.)
+contacts and Data Files talk to the servers you add, which is what they are
+for. Talk uses wss://introducer.rutba.io/ws unless you set another server, to
+find your contacts. Live Broadcast sends to the stream servers you choose. An
+unsubscribe you press in Mail may be sent as a one-click web request when the
+message offers one.)
 
 | What | When | What it carries | Off |
 |---|---|---|---|

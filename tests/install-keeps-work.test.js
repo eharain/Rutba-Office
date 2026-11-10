@@ -18,7 +18,7 @@ test('Restart and update waits for unsaved work, and names it', () => {
 
 test('with pages, the old copy stays until the last page is passed', () => {
   const init = between('!macro customInit', '!macroend');
-  assert.match(init, /\$\{If\} \$\{Silent\}\s+!insertmacro rutbaRemoveInstalledCopy HKCU currentuser\s+!insertmacro rutbaRemoveInstalledCopy HKLM allusers\s+\$\{EndIf\}/);
+  assert.match(init, /\$\{If\} \$\{Silent\}\s+\$\{If\} \$hasPerMachineInstallation != "1"\s+\$\{OrIf\} \$\{UAC_IsAdmin\}\s+!insertmacro rutbaRemoveInstalledCopy HKCU currentuser\s+!insertmacro rutbaRemoveInstalledCopy HKLM allusers\s+\$\{EndIf\}/);
   const pages = between('!macro customPageAfterChangeDir', 'Var rutbaAppsShown');
   assert.ok(pages.indexOf('rutbaRemoveOldCopies') > pages.indexOf('rutbaAppsPageShow'), 'after the last page');
   assert.match(between('Function rutbaRemoveOldCopies', 'FunctionEnd'), /rutbaRemoveInstalledCopy HKCU[\s\S]*rutbaRemoveInstalledCopy HKLM[\s\S]*Abort/);

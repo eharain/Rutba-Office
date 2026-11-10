@@ -149,7 +149,8 @@ async function isTheFileBuilt(client, release, have, built) {
   if (have.state !== 'uploaded' || have.size !== built.size) return false;
   if (/^latest.*\.yml$/.test(have.name)) return sha512Of(await client.downloadAsset(release, have)) === built.sha512;
   const digest = /^sha256:([0-9a-f]{64})$/i.exec(have.digest || '');
-  return digest ? digest[1].toLowerCase() === built.sha256 : true;
+  // No digest to hold it to: the same size proves nothing, so it goes up again.
+  return digest ? digest[1].toLowerCase() === built.sha256 : false;
 }
 
 /**
@@ -176,6 +177,7 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
   if (release) {
     log(`\nrelease already exists (#${release.id}, ${release.draft ? 'a draft' : 'published'}), reusing it`);
     // A draft left by another build tags this build's commit, not that one's.
+    if (release.draft && release.body !== notes) release = await client.updateRelease(release, { body: notes });
     if (release.draft && commit && release.target_commitish !== commit) release = await client.updateRelease(release, { target_commitish: commit });
   } else {
     release = await client.createRelease({
@@ -248,16 +250,26 @@ export async function publishRelease({ client, dir, tag, notes, commit = null, p
   return release;
 }
 
+/** Who uploads what a release carries: the release workflow, never a person's token. */
+const BUILT_BY = 'github-actions[bot]';
+const isBuilt = (name) => /\.exe$|\.pack$|^latest.*\.yml$/i.test(name);
+
 /**
  * Signs what is in the draft and publishes it. `sign` turns the words into
  * the text of a .sig file; the key stays with whoever calls this. Nothing is
  * taken from this disk: what is signed is what people will download.
  */
-export async function signAndPublish({ client, tag, sign, keys = UPDATE_KEYS, log = console.log }) {
+export async function signAndPublish({ client, tag, sign, commit = null, keys = UPDATE_KEYS, builtBy = BUILT_BY, log = console.log }) {
   const version = tag.replace(/^v/, '');
-  let release = (await client.listReleases()).find((r) => r.tag_name === tag) || null;
+  const named = (await client.listReleases()).filter((r) => r.tag_name === tag);
+  if (named.length > 1) throw new Error(`there are ${named.length} releases for ${tag}: one of them has to go before any is signed`);
+  let release = named[0] || null;
   if (!release) throw new Error(`there is no release for ${tag} to sign`);
+  // What is signed is what the gate passed: the commit, and files the workflow itself built from it.
+  if (release.draft && commit && release.target_commitish !== commit) throw new Error(`the draft of ${tag} was built from ${release.target_commitish} and this copy is at ${commit}: nothing was signed`);
   const listed = await client.listAssets(release);
+  const notBuilt = listed.filter((a) => isBuilt(a.name) && a.uploader?.login !== builtBy).map((a) => a.name);
+  if (notBuilt.length) throw new Error(`${notBuilt.join(', ')} in the draft of ${tag} did not come from the release workflow: nothing was signed`);
   const byName = new Map(listed.map((a) => [a.name, a]));
   const uploaded = new Map(listed.filter((a) => a.state === 'uploaded').map((a) => [a.name, a.size]));
   const feedAsset = byName.get('latest.yml');
@@ -267,6 +279,15 @@ export async function signAndPublish({ client, tag, sign, keys = UPDATE_KEYS, lo
   if (problems.length) throw new Error(`the release's files do not agree: ${problems.join('; ')}`);
   const installers = feed.files.filter((f) => /\.exe$/i.test(String(f.url)));
   if (!installers.length) throw new Error('latest.yml names no installer');
+  // An app pack is signed with the same key: the key the release workflow holds is not enough to put code on a person's computer.
+  const packs = listed.filter((a) => /\.pack$/i.test(a.name));
+  // A good signature stays: taking it down to put up another leaves a moment when a published file has none.
+  const stillGood = async (name, words) => {
+    if (!byName.has(name)) return false;
+    if (!signatureHolds(words, (await client.downloadAsset(release, byName.get(name))).toString('utf8'), keys)) return false;
+    log(`${name} is already good`);
+    return true;
+  };
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-sign-'));
   try {
     for (const f of installers) {
@@ -274,6 +295,7 @@ export async function signAndPublish({ client, tag, sign, keys = UPDATE_KEYS, lo
       const sha512 = sha512Of(await client.downloadAsset(release, byName.get(file)));
       if (sha512 !== f.sha512) throw new Error(`${file} in the release is not what latest.yml says it is`);
       const words = signedWords({ version, file, sha512 });
+      if (await stillGood(`${file}.sig`, words)) continue;
       const text = sign(words);
       if (!signatureHolds(words, text, keys)) throw new Error(`this key is not one the program trusts, so installed copies would refuse ${file}`);
       const name = `${file}.sig`;
@@ -282,6 +304,18 @@ export async function signAndPublish({ client, tag, sign, keys = UPDATE_KEYS, lo
       fs.writeFileSync(out, `${text}\n`);
       await client.uploadAsset(release, name, out, fs.statSync(out).size);
       log(`signed ${file}`);
+    }
+    for (const asset of packs) {
+      const words = signedWords({ version, file: asset.name, sha512: sha512Of(await client.downloadAsset(release, asset)) });
+      if (await stillGood(`${asset.name}.sig`, words)) continue;
+      const text = sign(words);
+      if (!signatureHolds(words, text, keys)) throw new Error('this key is not one the program trusts, so installed copies would refuse the app packs');
+      const name = `${asset.name}.sig`;
+      if (byName.has(name)) await client.deleteAsset(release, byName.get(name));
+      const out = path.join(scratch, name);
+      fs.writeFileSync(out, `${text}\n`);
+      await client.uploadAsset(release, name, out, fs.statSync(out).size);
+      log(`signed ${asset.name}`);
     }
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
@@ -443,7 +477,11 @@ async function main() {
     const keyFile = process.env.RUTBA_UPDATE_KEY_FILE;
     if (!keyFile || !fs.existsSync(keyFile)) throw new Error('Set RUTBA_UPDATE_KEY_FILE to the update key on the release PC.');
     const key = crypto.createPrivateKey(fs.readFileSync(keyFile));
-    await signAndPublish({ client: githubClient(credential()), tag, sign: (words) => crypto.sign(null, Buffer.from(words, 'utf8'), key).toString('base64') });
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    let tagged = null;
+    try { tagged = execFileSync('git', ['rev-parse', '--verify', '--quiet', `${tag}^{commit}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* the release makes the tag when it is published */ }
+    if (tagged && tagged !== head) throw new Error(`${tag} is at ${tagged} and this copy is at ${head}: nothing was signed`);
+    await signAndPublish({ client: githubClient(credential()), tag, commit: head, sign: (words) => crypto.sign(null, Buffer.from(words, 'utf8'), key).toString('base64') });
     return;
   }
   await publishRelease({

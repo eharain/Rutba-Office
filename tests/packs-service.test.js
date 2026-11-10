@@ -14,6 +14,7 @@ import { makeKeyPair } from '../tools/make-pack-key.mjs';
 import { makeAppPacks } from '../apps/desktop/build/make-app-packs.js';
 import { planPacks, readPackKeys } from '../apps/desktop/main/app-packs.js';
 import { createPacksService, packFileName, elevatedScript } from '../apps/desktop/main/packs-service.js';
+import { signedWords } from '../apps/desktop/main/update-signature.js';
 import { packFiles, pendingRemovals } from '../packages/office-shell/src/electron/pack-install.js';
 
 const VERSION = '9.9.9';
@@ -38,7 +39,10 @@ function installed(ids) {
   }
   return { dir, plan: planPacks({ dir, keys, version: VERSION }) };
 }
-const service = (o) => createPacksService({ version: VERSION, keys, staging: path.join(tmp, `staging-${crypto.randomUUID()}`), broadcast: (e, p) => (o.events ||= []).push([e, p]), ...o });
+const signing = crypto.generateKeyPairSync('ed25519');
+const downloadKeys = [signing.publicKey.export({ type: 'spki', format: 'pem' })];
+const sigOf = (name, bytes) => crypto.sign(null, Buffer.from(signedWords({ version: VERSION, file: name, sha512: crypto.createHash('sha512').update(bytes).digest('base64') }), 'utf8'), signing.privateKey).toString('base64');
+const service = (o) => createPacksService({ version: VERSION, keys, downloadKeys, staging: path.join(tmp, `staging-${crypto.randomUUID()}`), broadcast: (e, p) => (o.events ||= []).push([e, p]), ...o });
 const stateOf = (list, id) => list.apps.find((a) => a.id === id).state;
 
 test('the list says what is installed, what is not, and each pack\'s size', () => {
@@ -75,11 +79,12 @@ test('a pack is added from the release of this very version, fetched and checked
   const fetchImpl = async (url) => {
     asked.push(url);
     const bytes = fs.readFileSync(path.join(release, packFileName(VERSION, 'sheets')));
-    return new Response(bytes, { status: 200 });
+    return new Response(url.endsWith('.sig') ? sigOf(packFileName(VERSION, 'sheets'), bytes) : bytes, { status: 200 });
   };
   const packs = service({ plan, dir, source: null, fetchImpl });
   await packs.add({ id: 'sheets' });
-  assert.deepEqual(asked, [`https://github.com/eharain/Rutba-Office/releases/download/v${VERSION}/Rutba-Office-${VERSION}-sheets.pack`]);
+  const address = `https://github.com/eharain/Rutba-Office/releases/download/v${VERSION}/Rutba-Office-${VERSION}-sheets.pack`;
+  assert.deepEqual(asked, [address, `${address}.sig`]);
   assert.ok(planPacks({ dir, keys, version: VERSION }).has('sheets'));
 
   // Offline, or the file not in the release: plain words, nothing put in place.
@@ -178,7 +183,7 @@ test('Restart starts Rutba Office again; a copy installed for everyone is change
   assert.match(script, /Copy-Item -LiteralPath 'C:\\Temp\\it''s\\word\\word\.asar'/, 'a quote in a path is doubled');
   // The manifest is copied last.
   assert.ok(script.indexOf('word.pack.json') > script.indexOf('word.asar.unpacked'));
-  assert.match(script, /Start-Process -FilePath 'C:\\Program Files\\Rutba Office\\Rutba Office\.exe'\r\n$/);
+  assert.match(script, /Start-Process -FilePath \(Join-Path \$env:WINDIR 'explorer\.exe'\) -ArgumentList '"C:\\Program Files\\Rutba Office\\Rutba Office\.exe"'\r\n$/);
 });
 
 /**

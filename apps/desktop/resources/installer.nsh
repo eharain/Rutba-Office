@@ -55,6 +55,10 @@
       ${IfNot} ${FileExists} "$R5"
         StrCpy $R5 "$R1"
       ${EndIf}
+      !if "${SCOPE}" == "allusers"
+        ; The old uninstaller deletes the key that says where it was installed; an update goes back to the same place.
+        ReadRegStr $R8 ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}" "InstallLocation"
+      !endif
       DetailPrint "Removing the Rutba Office installed for ${SCOPE} from $R4"
       ; Tried again while the copy is still closing: an update starts this
       ; installer the moment Rutba Office begins to quit, and the old
@@ -104,11 +108,17 @@
       ; The uninstaller run from a copy cannot delete the original of itself.
       Delete "$R1"
       RMDir "$R4"
+      !if "${SCOPE}" == "allusers"
+        ${If} ${Silent}
+        ${AndIf} $R8 != ""
+          WriteRegStr ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}" "InstallLocation" "$R8"
+        ${EndIf}
+      !endif
     ${Else}
       DetailPrint "Forgetting a Rutba Office entry (${SCOPE}) whose uninstaller is gone"
     ${EndIf}
-    ; The uninstall entry goes; the install key stays, because it remembers
-    ; the directory the next install should go to.
+    ; The uninstall entry goes. The old uninstaller took the install key with
+    ; it; a silent update of an all-users copy has just put that back.
     DeleteRegKey ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY}"
   ${EndIf}
   ClearErrors
@@ -123,13 +133,21 @@
   Push $R5
   Push $R6
   Push $R7
+  Push $R8
   ; With pages, the removal waits for the last of them (rutbaRemoveOldCopies).
+  ; A silent update of an all-users copy elevates in its install section and
+  ; comes through here again as administrator: the old copy waits for that
+  ; pass, or a refused elevation would leave no Office at all.
   ${If} ${Silent}
-    !insertmacro rutbaRemoveInstalledCopy HKCU currentuser
-    !insertmacro rutbaRemoveInstalledCopy HKLM allusers
+    ${If} $hasPerMachineInstallation != "1"
+    ${OrIf} ${UAC_IsAdmin}
+      !insertmacro rutbaRemoveInstalledCopy HKCU currentuser
+      !insertmacro rutbaRemoveInstalledCopy HKLM allusers
+    ${EndIf}
   ${EndIf}
   ; Which app packs to write, before the pages show it (installer-packs.nsh).
   !insertmacro rutbaPacksDecide
+  Pop $R8
   Pop $R7
   Pop $R6
   Pop $R5
@@ -258,8 +276,10 @@ Function rutbaRemoveOldCopies
   Push $R5
   Push $R6
   Push $R7
+  Push $R8
   !insertmacro rutbaRemoveInstalledCopy HKCU currentuser
   !insertmacro rutbaRemoveInstalledCopy HKLM allusers
+  Pop $R8
   Pop $R7
   Pop $R6
   Pop $R5

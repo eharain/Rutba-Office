@@ -67,7 +67,7 @@ function fakeGitHub({ releases = [], failUpload = null } = {}) {
       }
       calls.push(`upload ${name}`);
       const bytes = fs.readFileSync(file);
-      find(release).assets.push({ id: nextId++, name, size: bytes.length, state: 'uploaded', bytes });
+      find(release).assets.push({ id: nextId++, name, size: bytes.length, state: 'uploaded', bytes, digest: `sha256:${crypto.createHash('sha256').update(bytes).digest('hex')}` });
     },
     downloadAsset: async (release, asset) => {
       calls.push(`download ${asset.name}`);
@@ -300,4 +300,27 @@ test('a tag that is not the version in package.json is refused before anything e
   const r = spawnSync(process.execPath, ['tools/publish-release.js', 'v0.0.1'], { cwd: new URL('..', import.meta.url), encoding: 'utf8', env: { ...process.env, GH_TOKEN: '' } });
   assert.notEqual(r.status, 0);
   assert.match(r.stdout + r.stderr, /must be the same/);
+});
+
+test('a file of the right size with no digest to hold it to goes up again', async () => {
+  const dir = buildDir();
+  try {
+    const gh = fakeGitHub({ releases: [{ id: 9, tag_name: TAG, draft: true, html_url: 'h', upload_url: 'u{?name}', body: 'N', assets: [inRelease(2, dir, INSTALLER)] }] });
+    await publishRelease({ client: gh.client, dir, tag: TAG, notes: 'N', log: quiet });
+    assert.ok(gh.calls.includes(`delete ${INSTALLER}`));
+    assert.ok(gh.calls.includes(`upload ${INSTALLER}`));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a draft left by an earlier build takes the notes of this build', async () => {
+  const dir = buildDir();
+  try {
+    const gh = fakeGitHub({ releases: [{ id: 9, tag_name: TAG, draft: true, html_url: 'h', upload_url: 'u{?name}', body: 'old words', assets: [] }] });
+    await publishRelease({ client: gh.client, dir, tag: TAG, notes: 'new words', log: quiet });
+    assert.equal(gh.state.releases[0].body, 'new words');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

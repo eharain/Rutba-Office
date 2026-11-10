@@ -127,11 +127,11 @@ function draftOnGitHub({ installer = Buffer.from('the installer'), feedSha = nul
   const feed = `version: ${feedVersion}\nfiles:\n  - url: ${FILE}\n    sha512: ${feedSha ?? sha512Of(installer)}\n    size: ${installer.length}\npath: ${FILE}\nsha512: ${feedSha ?? sha512Of(installer)}\n`;
   let id = 1;
   const assets = new Map([
-    [FILE, { id: id++, name: FILE, state: 'uploaded', size: installer.length, bytes: installer }],
+    [FILE, { id: id++, name: FILE, state: 'uploaded', size: installer.length, bytes: installer, uploader: { login: 'github-actions[bot]' } }],
     [`${FILE}.blockmap`, { id: id++, name: `${FILE}.blockmap`, state: 'uploaded', size: 3, bytes: Buffer.from('map') }],
-    ['latest.yml', { id: id++, name: 'latest.yml', state: 'uploaded', size: feed.length, bytes: Buffer.from(feed) }],
+    ['latest.yml', { id: id++, name: 'latest.yml', state: 'uploaded', size: feed.length, bytes: Buffer.from(feed), uploader: { login: 'github-actions[bot]' } }],
   ]);
-  const release = { id: 9, tag_name: TAG, draft, html_url: 'x' };
+  const release = { id: 9, tag_name: TAG, draft, html_url: 'x', body: 'N' };
   const calls = [];
   return {
     calls,
@@ -185,11 +185,46 @@ test('signing: no draft, or a feed for another version, stops', async () => {
   assert.equal(other.release.draft, true);
 });
 
-test('signing again replaces the signature, and a release already out is not changed otherwise', async () => {
+test('a lost signature can be put back on a published release, and a good one is never taken down', async () => {
   const gh = draftOnGitHub({ draft: false });
   await signAndPublish({ client: gh.client, tag: TAG, sign: signer(main.key), keys: KEYS, log: quiet });
   await signAndPublish({ client: gh.client, tag: TAG, sign: signer(recovery.key), keys: KEYS, log: quiet });
+  assert.deepEqual(gh.calls.map((c) => c.split(' ')[0]), ['upload']);
+  gh.assets.get(`${FILE}.sig`).bytes = Buffer.from('spoiled');
+  await signAndPublish({ client: gh.client, tag: TAG, sign: signer(recovery.key), keys: KEYS, log: quiet });
   assert.deepEqual(gh.calls.map((c) => c.split(' ')[0]), ['upload', 'delete', 'upload']);
+});
+
+test('signing refuses a draft built from another commit, and says which', async () => {
+  const gh = draftOnGitHub();
+  gh.release.target_commitish = 'aaa111';
+  await assert.rejects(signAndPublish({ client: gh.client, tag: TAG, commit: 'bbb222', sign: signer(main.key), keys: KEYS, log: quiet }), /built from aaa111.*at bbb222/);
+  assert.deepEqual(gh.calls, []);
+  await signAndPublish({ client: gh.client, tag: TAG, commit: 'aaa111', sign: signer(main.key), keys: KEYS, log: quiet });
+  assert.equal(gh.release.draft, false);
+});
+
+test('signing refuses an installer the release workflow did not upload', async () => {
+  const gh = draftOnGitHub();
+  gh.assets.get(FILE).uploader = { login: 'someone' };
+  await assert.rejects(signAndPublish({ client: gh.client, tag: TAG, sign: signer(main.key), keys: KEYS, log: quiet }), /did not come from the release workflow/);
+  assert.deepEqual(gh.calls, []);
+});
+
+test('two releases of one tag are refused until one has gone', async () => {
+  const gh = draftOnGitHub();
+  gh.client.listReleases = async () => [gh.release, { ...gh.release, id: 10 }];
+  await assert.rejects(signAndPublish({ client: gh.client, tag: TAG, sign: signer(main.key), keys: KEYS, log: quiet }), /2 releases/);
+  assert.deepEqual(gh.calls, []);
+});
+
+test('each app pack is signed as the installer is', async () => {
+  const gh = draftOnGitHub();
+  const pack = 'Rutba-Office-2.25.0-sheets.pack';
+  const bytes = Buffer.from('the pack');
+  gh.assets.set(pack, { id: 90, name: pack, state: 'uploaded', size: bytes.length, bytes, uploader: { login: 'github-actions[bot]' } });
+  await signAndPublish({ client: gh.client, tag: TAG, sign: signer(main.key), keys: KEYS, log: quiet });
+  assert.equal(signatureHolds(signedWords({ version: VERSION, file: pack, sha512: sha512Of(bytes) }), gh.assets.get(`${pack}.sig`).bytes.toString(), KEYS), true);
 });
 
 test('publishing from a build leaves a draft when told to, so nothing goes out unsigned', async () => {

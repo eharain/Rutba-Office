@@ -102,3 +102,12 @@ export function guardDownloads(updater, { current, fetchSignature, keys = UPDATE
     return whyNotOurs({ filePath, version: info?.version, file: installerIn(info), fetchSignature, keys });
   };
 }
+
+/**
+ * electron-updater sends a lasting random id with each request, for staged
+ * rollouts, which are not used here. Headers set on the updater are written
+ * over it, so every copy sends the same word.
+ */
+export function keepAnonymous(updater) {
+  updater.requestHeaders = { ...updater.requestHeaders, 'x-user-staging-id': 'rutba-office' };
+}

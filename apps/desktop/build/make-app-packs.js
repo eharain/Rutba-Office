@@ -65,7 +65,8 @@ const shim = (name) => `// ${name}'s pack. Its code is still in the core's archi
 function copyTree(from, to, { nested = false } = {}) {
   for (const ent of fs.readdirSync(from, { withFileTypes: true })) {
     if (ent.isDirectory() && ['test', 'tests', '.git', ...(nested ? [] : ['node_modules'])].includes(ent.name)) continue;
-    if (!ent.isDirectory() && /\.(md|map)$/i.test(ent.name)) continue;
+    // A licence has to travel with the code it covers.
+    if (!ent.isDirectory() && /\.(md|map)$/i.test(ent.name) && !/^(licen[cs]e|copying|notice)/i.test(ent.name)) continue;
     const a = path.join(from, ent.name);
     const b = path.join(to, ent.name);
     if (ent.isDirectory()) copyTree(a, b, { nested });

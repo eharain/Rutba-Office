@@ -165,7 +165,7 @@ node tools/fuzz-pdf.js 300 <seed>
    tag itself, at the commit it built, when `--sign` publishes it, so the
    tag never exists without its files. A pushed tag still starts the
    workflow as before; the release stays a draft until it is signed either
-   way. When it has published, `.github/workflows/upgrade.yml` runs by itself
+   way. When `--sign` has published it, `.github/workflows/upgrade.yml` runs by itself
    (see **The upgrade test**); its four jobs must pass.
 6. The site (Rutba-Management) is brought to the release in the same sitting:
    `npm run import:releases`, then `npm run check:facts`, there.
@@ -201,8 +201,8 @@ with no `--from`, the newest GitHub release older than that. A tag's file
 is fetched from its GitHub release into a cache in the temporary folder.
 `--no-feed` leaves out the feed for a run with no network.
 
-On GitHub, `.github/workflows/upgrade.yml` runs after the release workflow
-succeeds and from the Actions tab for any two tags: once installed (the
+On GitHub, `.github/workflows/upgrade.yml` runs when a release is published
+and from the Actions tab for any two tags: once installed (the
 older installer, then the newer one over it, and the registry must show
 one copy, of the newer version) and once portable, each opening a document
 in the older version so it writes the recent list itself. A release made

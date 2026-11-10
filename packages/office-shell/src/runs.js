@@ -12,6 +12,7 @@ export const RUNS_WHEN_OPENED = new Set([
   'shb', 'shs', 'scpt', 'xbap', 'ins', 'isp', 'mst', 'hlp', 'diagcab', 'settingcontent-ms', 'library-ms', 'searchconnector-ms', 'search-ms', 'xll', 'wll', 'cab',
   'py', 'pyw', 'pl', 'rb', 'jnlp', 'vb', 'vba', 'mcf', 'cnt', 'crt', 'der', 'website', 'theme', 'themepack',
   'app', 'command', 'pkg', 'dmg', 'sh', 'desktop', 'appimage', 'deb', 'rpm',
+  'ade', 'adp', 'mda', 'mdb', 'mde', 'mdt', 'mdw', 'wsb', 'cer', 'bas', 'htc', 'ksh', 'msh1', 'msh2', 'ps2xml', 'psc2', 'pyc', 'pyz', 'vbp', 'vsmacros',
 ]);
 
 /**

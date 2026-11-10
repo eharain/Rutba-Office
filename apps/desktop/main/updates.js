@@ -33,10 +33,13 @@
 import { app, net } from 'electron';
 import { isSnoozed, snoozeFor } from './update-snooze.js';
 import { updateErrorKind, whatStopsRestart } from './update-error.js';
-import { guardDownloads, signatureAddress } from './update-signature.js';
+import { guardDownloads, signatureAddress, keepAnonymous } from './update-signature.js';
 
 export const FEED = { provider: 'github', owner: 'eharain', repo: 'Rutba-Office' };
 const SIX_HOURS = 6 * 60 * 60 * 1000;
+
+/** Whether this is the portable build, which electron-builder starts with these set. */
+const portable = () => Boolean(process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE);
 
 /**
  * @param {object} o
@@ -130,9 +133,11 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
     const mod = await import('electron-updater');
     updater = mod.autoUpdater ?? mod.default?.autoUpdater;
 
-    updater.autoDownload = true;
+    // A portable copy is one file a person runs: it is told of a new version and installs nothing.
+    updater.autoDownload = !portable();
     // Automatic updates turned off means nothing is installed unasked, a download already made included.
-    updater.autoInstallOnAppQuit = enabled();
+    updater.autoInstallOnAppQuit = enabled() && !portable();
+    keepAnonymous(updater);
     // Only Windows goes through this door; a Windows copy installs nothing the makers did not sign.
     if (process.platform === 'win32') {
       guardDownloads(updater, {
@@ -235,7 +240,8 @@ export function createUpdateService({ stores, broadcast, taskbar = null, templat
       if (stopped) return stopped;
       const u = await load();
       // Quit, install, and come back — the only way an update is ever applied.
-      setImmediate(() => u.quitAndInstall(false, true));
+      // Silently: the person pressed Restart and update, and has no pages to answer.
+      setImmediate(() => u.quitAndInstall(true, true));
       return { installed: true };
     },
     // "Not now": this version, for a day. The download and the install on

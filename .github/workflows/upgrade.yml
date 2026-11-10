@@ -9,10 +9,10 @@
 # install must succeed) or left open (the installer closes it itself and
 # the install must succeed, since 2.1.0).
 #
-# It runs by itself after the release workflow publishes, and from the
-# Actions tab (workflow_dispatch) for any two releases. It only reads the
-# releases; it publishes nothing and changes nothing in release.yml.
-# workflow_run fires only for the copy of this file on the default branch.
+# It runs by itself when a release is published (signed on the release PC,
+# some time after the release workflow left it a draft), and from the Actions
+# tab (workflow_dispatch) for any two releases. It only reads the releases;
+# it publishes nothing and changes nothing in release.yml.
 name: upgrade
 
 on:
@@ -26,16 +26,14 @@ on:
         description: 'The release to upgrade to, a tag (empty: the newest published)'
         required: false
         default: ''
-  workflow_run:
-    workflows: [release]
-    types: [completed]
+  release:
+    types: [published]
 
 permissions:
   contents: read
 
 jobs:
   windows:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -47,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
           submodules: true
       - uses: actions/setup-node@v5
         with:

@@ -194,8 +194,7 @@ module.exports = async () => {
       icon: path.resolve(__dirname, 'resources/icon.png'),
       synopsis: 'Free office suite: mail, documents, worksheets, presentations and media',
       description:
-        'Rutba Office is a free, open-source desktop suite: Mail, Calendar, Contacts, Documents, Worksheets, Presentations, ' +
-        'Pictures, Image and Video. It opens Microsoft and OpenDocument files, and reads the mail ' +
+        'Rutba Office is a free, open-source desktop office suite. It opens Microsoft and OpenDocument files, and reads the mail ' +
         'archives other clients leave behind — including Outlook .pst and .ost. It works with no ' +
         'network connection.',
       // electron-builder 26 nests the .desktop keys under `entry`.

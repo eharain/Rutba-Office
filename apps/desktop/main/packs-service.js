@@ -30,6 +30,7 @@ import { packFiles, packSize, packsIn, canWriteIn, pendingRemovals, markRemoval,
 import { readZip } from '@rutba/ooxml/zip';
 import { SITE } from '@rutba/office-formats/registry';
 import { registerTypes, applyFileTypes, fileTypePlan, recordPacks } from './file-types.js';
+import { UPDATE_KEYS, signedWords, signatureHolds } from './update-signature.js';
 
 const require = createRequire(import.meta.url);
 // Archives are handled as the files they are, not as Electron's folders.
@@ -73,6 +74,11 @@ export function unpackPackFile(bytes, id, into) {
  * file of those added registered for every user, then Rutba Office started
  * again. PowerShell, quoted with single quotes throughout.
  */
+/** A single-quoted PowerShell string. PowerShell takes the curly quotes for a straight one as well, so each is doubled too. */
+function quotedForPowerShell(s) {
+  return `'${String(s).replace(/['\u2018\u2019\u201A\u201B]/g, (m) => m + m)}'`;
+}
+
 /**
  * What the elevated PowerShell is told to run. The script sits in a folder the
  * person's own programs can write to, and Windows asks for permission between
@@ -82,13 +88,13 @@ export function unpackPackFile(bytes, id, into) {
  * they are the bytes that were written.
  */
 export function elevationCommand(scriptPath, sha256) {
-  const q = String(scriptPath).replace(/'/g, "''");
+  const q = quotedForPowerShell(scriptPath).slice(1, -1);
   const command = `$b=[IO.File]::ReadAllBytes('${q}');$h=[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($b)).Replace('-','');if($h -ne '${sha256.toUpperCase()}'){exit 77};& ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString($b)))`;
   return Buffer.from(command, 'utf16le').toString('base64');
 }
 
 export function elevatedScript({ pid, dir, exe, removals = [], additions = [] }) {
-  const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
+  const q = quotedForPowerShell;
   const lines = ['$ErrorActionPreference = \'Continue\'', `Wait-Process -Id ${Number(pid)} -Timeout 60 -ErrorAction SilentlyContinue`];
   for (const gone of removals) {
     const { id, types = [] } = typeof gone === 'string' ? { id: gone } : gone;
@@ -114,7 +120,8 @@ export function elevatedScript({ pid, dir, exe, removals = [], additions = [] })
       lines.push(`New-ItemProperty -Path ${q(`HKLM:\\Software\\Classes\\.${t.ext}\\OpenWithProgids`)} -Name ${q(t.name)} -PropertyType None -Value ([byte[]]@()) -Force | Out-Null`);
     }
   }
-  lines.push(`Start-Process -FilePath ${q(exe)}`);
+  // Through the shell, or Office would come back running as administrator.
+  lines.push(`Start-Process -FilePath (Join-Path $env:WINDIR 'explorer.exe') -ArgumentList ${q(`"${exe}"`)}`);
   return `${lines.join('\r\n')}\r\n`;
 }
 
@@ -131,7 +138,7 @@ export function elevatedScript({ pid, dir, exe, removals = [], additions = [] })
  * @param {object} [o.app]   Electron's app: told to start again (relaunch, quit), and whether this is an installed copy
  * @param {object} [o.sizes]   each pack's size as the build measured it, for one not here yet
  */
-export function createPacksService({ plan, stores, broadcast = () => {}, version, keys, dir, source = process.env.RUTBA_PACKS_SOURCE || null, fetchImpl = (...a) => fetch(...a), sizes = {}, app = null, staging = path.join(os.tmpdir(), `rutba-office-packs-${process.pid}`) }) {
+export function createPacksService({ plan, stores, broadcast = () => {}, version, keys, downloadKeys = UPDATE_KEYS, dir, source = process.env.RUTBA_PACKS_SOURCE || null, fetchImpl = (...a) => fetch(...a), sizes = {}, app = null, staging = path.join(os.tmpdir(), `rutba-office-packs-${process.pid}`) }) {
   const managed = Boolean(dir);
   const registry = Boolean(process.platform === 'win32' && app?.isPackaged && !process.env.RUTBA_VERIFY && !process.env.RUTBA_OFFICE_VERIFY_APPS);
   /** Added in this run, for the next start: in the packs folder already, or staged for the administrator's step. */
@@ -189,7 +196,16 @@ export function createPacksService({ plan, stores, broadcast = () => {}, version
       throw new Error(`The ${nameOf(id)} pack could not be fetched: this computer could not reach the release. Try again when it is online.`);
     }
     if (!res.ok) throw new Error(`The ${nameOf(id)} pack could not be fetched from the release of Rutba Office ${version} (${res.status}).`);
-    return unpackPackFile(Buffer.from(await res.arrayBuffer()), id, into);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    // Signed on the release PC as an update is, on top of the manifest's own signature.
+    let text = null;
+    try {
+      const sig = await fetchImpl(`${url}.sig`, { headers: { 'user-agent': 'Rutba-Office' } });
+      if (sig.ok) text = await sig.text();
+    } catch { /* said below */ }
+    const words = signedWords({ version, file: packFileName(version, id), sha512: crypto.createHash('sha512').update(bytes).digest('base64') });
+    if (!signatureHolds(words, text, downloadKeys)) throw new Error(`The ${nameOf(id)} pack from the release is not signed by Rutba. It was not installed.`);
+    return unpackPackFile(bytes, id, into);
   }
 
   /** The kinds of file a pack opens, as the registry is told them: each icon on disk in its folder. */
